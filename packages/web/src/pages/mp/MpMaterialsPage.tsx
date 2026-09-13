@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { Button, Form, Input, Modal, Select, Tag, Toast, Upload, Typography } from '@douyinfe/semi-ui';
 import { RefreshCw, UploadCloud } from 'lucide-react';
-import { MP_MATERIAL_TYPES, MP_MATERIAL_TYPE_LABELS, MP_MATERIAL_TYPE_OPTIONS } from '@zenith/shared/mp';
+import { MP_MATERIAL_TYPE_LABELS, MP_MATERIAL_TYPE_OPTIONS, mpMaterialContract } from '@zenith/shared/mp';
 import type { CreateMpMaterialInput, MpMaterial, MpMaterialType } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -13,7 +13,6 @@ import { useMpAccounts } from './useMpAccounts';
 import { MpAccountRequiredBanner } from './MpAccountRequiredBanner';
 import { MpAccountSwitcher } from './MpAccountSwitcher';
 import {
-  mpMaterialKeys,
   useDeleteMpMaterials,
   useMpMaterialList,
   useSaveMpMaterial,
@@ -21,33 +20,21 @@ import {
   useUploadMpMaterial,
 } from '@/hooks/queries/mp-materials';
 import { CreateButton } from '@/components/toolbar-controls';
-import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { abortSubmit } from '@/lib/abort-submit';
-import { enumValueOf, formatBytes } from '@zenith/shared/core';
+import { formatBytes } from '@zenith/shared/core';
 import { useListPage } from '@/hooks/useListPage';
 import { EditFormModal } from '@/components/EditFormModal';
-
-interface SearchParams { filterType: MpMaterialType | undefined; keyword: string; }
-const defaultSearch: SearchParams = { filterType: undefined, keyword: '' };
 
 export default function MpMaterialsPage() {
   const { hasPermission: can } = usePermission();
   const { accounts, currentId, setCurrentId, loading: accountsLoading } = useMpAccounts();
-  const {
-    bind,
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearch,
-    listKey: mpMaterialKeys.lists,
+  const page = useListPage({
+    contract: mpMaterialContract,
     useList: useMpMaterialList,
-    toQuery: (s) => ({ type: s.filterType, keyword: s.keyword }),
     params: { accountId: currentId ?? 0 },
     enabled: !!currentId,
   });
-
+  const { tableProps } = page;
 
   const [uploadVisible, setUploadVisible] = useState(false);
   const [uploadType, setUploadType] = useState<MpMaterialType>('image');
@@ -117,21 +104,9 @@ export default function MpMaterialsPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={(
-          <>
-            <MpAccountSwitcher accounts={accounts} value={currentId} onChange={setCurrentId} loading={accountsLoading} />
-            <KeywordInput placeholder="搜索素材名称" {...bindKeyword('keyword')} width={180} />
-          </>
-        )}
-        filters={(
-          <FilterSelect
-            placeholder="全部类型"
-            items={MP_MATERIAL_TYPE_OPTIONS}
-            {...bind('filterType', (v) => enumValueOf(MP_MATERIAL_TYPES, v))}
-          />
-        )}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword', 'type']}
+        extraFilters={<MpAccountSwitcher accounts={accounts} value={currentId} onChange={setCurrentId} loading={accountsLoading} />}
         create={<CreateButton permission="mp:material:create" onClick={modal.openCreate} disabled={!currentId} />}
         actions={materialActions}
         filterTitle="素材筛选"

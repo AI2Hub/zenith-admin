@@ -6,20 +6,15 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import { useAllPaymentChannelConfigsLookup } from '@/hooks/queries/payment-channels';
-import { paymentAppKeys, useDeletePaymentApp, usePaymentAppList, useSavePaymentApp } from '@/hooks/queries/payment-apps';
+import { useDeletePaymentApp, usePaymentAppList, useSavePaymentApp } from '@/hooks/queries/payment-apps';
 import { useOpenAppOptions } from '@/hooks/queries/open-platform';
 import { EMPTY_PLACEHOLDER, copyableNoColumn, createdAtColumn, renderEllipsis, renderEnabledStatusTag } from '@/utils/table-columns';
-import { enumValueOf, USER_STATUSES } from '@zenith/shared/core';
-import type { CreatePaymentAppInput, PaymentApp, PaymentChannel, PaymentChannelConfig } from '@zenith/shared/payment';
+import { paymentAppContract, type CreatePaymentAppInput, type PaymentApp, type PaymentChannel, type PaymentChannelConfig } from '@zenith/shared/payment';
 import { useDictItems } from '@/hooks/useDictItems';
 import { CreateButton } from '@/components/toolbar-controls';
-import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { useListPage } from '@/hooks/useListPage';
 import { EditFormModal } from '@/components/EditFormModal';
-
-interface SearchParams { keyword: string; status?: string; }
-const defaultSearch: SearchParams = { keyword: '', status: undefined };
 interface AppFormValues {
   name: string;
   openClientId: number;
@@ -41,18 +36,11 @@ export default function PaymentAppsPage() {
   const { hasPermission } = usePermission();
   const canManage = hasPermission('payment:app:manage');
   const [environmentWatch, setEnvironmentWatch] = useState<PaymentApp['environment'] | null>(null);
-  const {
-    bind,
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearch,
-    listKey: paymentAppKeys.lists,
+  const page = useListPage({
+    contract: paymentAppContract,
     useList: usePaymentAppList,
-    toQuery: (s) => ({ keyword: s.keyword, status: enumValueOf(USER_STATUSES, s.status) }),
   });
+  const { tableProps } = page;
   const saveMutation = useSavePaymentApp();
   const modal = useEditModal<PaymentApp, AppFormValues, Partial<CreatePaymentAppInput>>({
     entityName: '支付应用',
@@ -141,15 +129,8 @@ export default function PaymentAppsPage() {
       <Banner type="info" closeIcon={null} style={{ marginBottom: 12 }}
         description="支付应用绑定已审核的 Open OAuth 客户端，并按客户端环境路由同环境商户配置" />
       <ListSearchToolbar
-        keyword={<KeywordInput placeholder="名称..." {...bindKeyword('keyword')} width={200} />}
-        filters={(
-          <StatusSelect
-            items={statusOptions}
-            {...bind('status')}
-          />
-        )}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword', 'status']}
         create={canManage ? <CreateButton onClick={openCreate} /> : null}
         filterTitle="支付应用筛选"
       />

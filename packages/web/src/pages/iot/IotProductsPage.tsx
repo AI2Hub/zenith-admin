@@ -3,19 +3,18 @@ import { Form, Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { CreateButton } from '@/components/toolbar-controls';
 import { createdAtColumn, renderEllipsis, EMPTY_PLACEHOLDER, enabledStatusColumn } from '@/utils/table-columns';
 import { useEditModal } from '@/hooks/useEditModal';
 import { usePermission } from '@/hooks/usePermission';
-import { useDictItems } from '@/hooks/useDictItems';
 import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { FormStatusRadioGroup } from '@/components/FormStatusRadioGroup';
-import { USER_STATUSES, enumValueOf } from '@zenith/shared/core';
-import { IOT_VALIDATION_MODE_OPTIONS } from '@zenith/shared/iot';
+import { IOT_VALIDATION_MODE_OPTIONS, iotProductContract } from '@zenith/shared/iot';
 import type { CreateIotProductInput, IotProduct } from '@zenith/shared/iot';
 import {
-  iotProductKeys, useDeleteIotProducts, useIotProductList, useSaveIotProduct,
+  useDeleteIotProducts,
+  useIotProductList,
+  useSaveIotProduct,
 } from '@/hooks/queries/iot-products';
 import IotThingModelDrawer from './IotThingModelDrawer';
 import { useListPage } from '@/hooks/useListPage';
@@ -23,35 +22,19 @@ import { EditFormModal } from '@/components/EditFormModal';
 
 const { Text } = Typography;
 
-interface SearchParams {
-  keyword: string;
-  status?: string;
-}
-
-const defaultSearchParams: SearchParams = { keyword: '', status: undefined };
-
 /** 产品表单值：记录里的 null 描述在表单中归一为空串 */
 type IotProductFormValues = Partial<CreateIotProductInput>;
 
 export default function IotProductsPage() {
   const { hasPermission } = usePermission();
-  const { items: statusItems } = useDictItems('common_status');
   const [modelProduct, setModelProduct] = useState<IotProduct | null>(null);
 
-  const {
-    bind,
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: iotProductKeys.lists,
+  const page = useListPage({
+    contract: iotProductContract,
     useList: useIotProductList,
-    toQuery: (s) => ({ keyword: s.keyword, status: enumValueOf(USER_STATUSES, s.status) }),
     table: { empty: '暂无 IoT 产品' },
   });
-
+  const { tableProps } = page;
 
   const modal = useEditModal<IotProduct, IotProductFormValues, Partial<CreateIotProductInput>>({
     entityName: '产品',
@@ -129,20 +112,8 @@ export default function IotProductsPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={(
-          <KeywordInput
-            placeholder="搜索产品名称..."
-            {...bindKeyword('keyword')}
-          />
-        )}
-        filters={(
-          <StatusSelect
-            items={statusItems}
-            {...bind('status')}
-          />
-        )}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword', 'status']}
         create={<CreateButton permission="iot:product:create" onClick={modal.openCreate} />}
         filterTitle="筛选条件"
       />

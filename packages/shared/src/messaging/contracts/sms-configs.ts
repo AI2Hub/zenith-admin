@@ -1,7 +1,7 @@
 import * as z from 'zod';
 import { entityStatusQuery, entityStatusSchema, idParam, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
-import { SMS_PROVIDERS } from '../constants';
+import { SMS_PROVIDERS, SMS_PROVIDER_OPTIONS } from '../constants';
 import { createSmsConfigSchema, updateSmsConfigSchema } from '../validation';
 
 // ─── 实体 ────────────────────────────────────────────────────────────────────
@@ -28,7 +28,7 @@ export type SmsConfig = z.infer<typeof smsConfigSchema>;
 
 export const smsConfigListQuery = paginationQuery.extend({
   keyword: keywordQuery('名称 / 签名'),
-  provider: queryEnum(SMS_PROVIDERS),
+  provider: queryEnum(SMS_PROVIDERS, { options: SMS_PROVIDER_OPTIONS }),
   status: entityStatusQuery,
 });
 

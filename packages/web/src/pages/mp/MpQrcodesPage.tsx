@@ -2,8 +2,7 @@ import { useState } from 'react';
 import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { Button, Form, Image, Select, Tag, Typography } from '@douyinfe/semi-ui';
 import { Plus } from 'lucide-react';
-import { enumValueOf } from '@zenith/shared/core';
-import { MP_QRCODE_TYPE_OPTIONS, MP_QRCODE_TYPES, type CreateMpQrcodeInput, type MpQrcode, type MpQrcodeType } from '@zenith/shared/mp';
+import { MP_QRCODE_TYPE_OPTIONS, type CreateMpQrcodeInput, type MpQrcode, type MpQrcodeType, mpQrcodeContract } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -12,8 +11,7 @@ import { EMPTY_PLACEHOLDER, createdAtColumn, renderEllipsis } from '@/utils/tabl
 import { useMpAccounts } from './useMpAccounts';
 import { MpAccountRequiredBanner } from './MpAccountRequiredBanner';
 import { MpAccountSwitcher } from './MpAccountSwitcher';
-import { mpQrcodeKeys, useCreateMpQrcode, useDeleteMpQrcodes, useMpQrcodeList } from '@/hooks/queries/mp-qrcodes';
-import { FilterSelect, KeywordInput } from '@/components/search-filters';
+import { useCreateMpQrcode, useDeleteMpQrcodes, useMpQrcodeList } from '@/hooks/queries/mp-qrcodes';
 import { useEditModal } from '@/hooks/useEditModal';
 import { abortSubmit } from '@/lib/abort-submit';
 import { useListPage } from '@/hooks/useListPage';
@@ -27,24 +25,14 @@ type QrcodeFormValues = Pick<CreateMpQrcodeInput, 'sceneStr' | 'name' | 'expireS
 export default function MpQrcodesPage() {
   const { hasPermission: can } = usePermission();
   const { accounts, currentId, setCurrentId, loading: accountsLoading } = useMpAccounts();
-
-  interface SearchParams { filterType: MpQrcodeType | undefined; keyword: string; }
-  const defaultSearch: SearchParams = { filterType: undefined, keyword: '' };
-  const {
-    bind,
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearch,
-    listKey: mpQrcodeKeys.lists,
+  const page = useListPage({
+    contract: mpQrcodeContract,
     resetKey: currentId,
     useList: useMpQrcodeList,
-    toQuery: (s) => ({ type: s.filterType, keyword: s.keyword }),
     params: { accountId: currentId ?? 0 },
     enabled: !!currentId,
   });
+  const { tableProps } = page;
 
   const [modalType, setModalType] = useState<MpQrcodeType>('permanent');
 
@@ -101,19 +89,9 @@ export default function MpQrcodesPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={<KeywordInput placeholder="搜索名称 / 场景值" {...bindKeyword('keyword')} width={200} />}
-        filters={(
-          <>
-            <MpAccountSwitcher accounts={accounts} value={currentId} onChange={setCurrentId} loading={accountsLoading} />
-            <FilterSelect
-              placeholder="全部类型"
-              items={MP_QRCODE_TYPE_OPTIONS}
-              {...bind('filterType', (v) => enumValueOf(MP_QRCODE_TYPES, v))}
-            />
-          </>
-        )}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword', 'type']}
+        extraFilters={<MpAccountSwitcher accounts={accounts} value={currentId} onChange={setCurrentId} loading={accountsLoading} />}
         create={(
           can('mp:qrcode:create') ? (
             <Button type="primary" icon={<Plus size={14} />} disabled={!currentId} onClick={openCreate}>生成二维码</Button>

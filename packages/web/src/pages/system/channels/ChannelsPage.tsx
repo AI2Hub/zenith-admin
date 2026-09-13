@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Button, Form, Space, Tag, Toast, Typography, Upload } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { ImagePlus, Trash2 } from 'lucide-react';
-import type { ChannelAdmin } from '@zenith/shared/messaging';
+import { channelContract, type ChannelAdmin } from '@zenith/shared/messaging';
 import { fileContract } from '@zenith/shared/platform';
 import { config } from '@/config';
 import { urlOf } from '@/lib/contract-query';
@@ -20,13 +20,11 @@ import { ChannelPublishModal } from './ChannelPublishModal';
 import { ChannelMessagesDrawer } from './ChannelMessagesDrawer';
 import { ChannelSubscribersDrawer } from './ChannelSubscribersDrawer';
 import {
-  channelKeys,
   useChannelList,
   useDeleteChannel,
   useSaveChannel,
 } from '@/hooks/queries/channels';
 import { CreateButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
 import { dateTimeColumn, renderEnabledStatusTag } from '@/utils/table-columns';
 import { useListPage } from '@/hooks/useListPage';
 import { EditFormModal } from '@/components/EditFormModal';
@@ -39,19 +37,11 @@ const TYPE_META: Record<string, { text: string; color: 'green' | 'blue' }> = {
 export default function ChannelsPage() {
   const { hasPermission } = usePermission();
   const { options: statusOptions } = useDictItems('common_status');
-  const defaultSearchParams: { keyword: string } = { keyword: '' };
-  const {
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-    listQuery,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: channelKeys.lists,
+  const page = useListPage({
+    contract: channelContract,
     useList: useChannelList,
-    toQuery: (s) => ({ keyword: s.keyword }),
   });
+  const { tableProps, listQuery } = page;
 
   const [avatarUrl, setAvatarUrl] = useState('');
 
@@ -62,7 +52,6 @@ export default function ChannelsPage() {
   const [replyDrawer, setReplyDrawer] = useState<ChannelAdmin | null>(null);
   const [messagesDrawer, setMessagesDrawer] = useState<ChannelAdmin | null>(null);
   const [subscribersDrawer, setSubscribersDrawer] = useState<ChannelAdmin | null>(null);
-
 
   const saveMutation = useSaveChannel();
   const deleteMutation = useDeleteChannel();
@@ -92,7 +81,6 @@ export default function ChannelsPage() {
     if (r?.code === 0 && r.data?.url) { setAvatarUrl(r.data.url); Toast.success('头像已上传'); }
     else Toast.error('头像上传失败');
   };
-
 
   const openPublish = (ch: ChannelAdmin) => { setPublishTarget(ch); setPublishVisible(true); };
 
@@ -165,9 +153,8 @@ export default function ChannelsPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={<KeywordInput placeholder="搜索频道名称/编码" {...bindKeyword('keyword')} />}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword']}
         create={<CreateButton permission="channel:channel:create" onClick={openCreate} />}
         actionTitle="频道操作"
       />

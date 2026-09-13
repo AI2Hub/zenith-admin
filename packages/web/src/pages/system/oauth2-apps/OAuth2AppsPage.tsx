@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Tag, TagGroup, Modal, Form, Toast, Typography, Checkbox, Banner, Row, Col, TextArea } from '@douyinfe/semi-ui';
 import { enumValueOf } from '@zenith/shared/core';
-import { OAUTH2_GRANT_TYPE_LABELS, OAUTH2_GRANT_TYPES, OAUTH2_SCOPE_LABELS, OAUTH2_SCOPES, OPEN_APP_ENVIRONMENT_OPTIONS, OPEN_APP_REVIEW_STATUS_OPTIONS } from '@zenith/shared/open-platform';
+import { OAUTH2_GRANT_TYPE_LABELS, OAUTH2_GRANT_TYPES, OAUTH2_SCOPE_LABELS, OAUTH2_SCOPES, OPEN_APP_ENVIRONMENT_OPTIONS, oauth2ClientContract } from '@zenith/shared/open-platform';
 import type { OAuth2Client, OAuth2GrantType } from '@zenith/shared/open-platform';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { copyableNoColumn, createdAtColumn } from '@/utils/table-columns';
@@ -13,7 +13,6 @@ import { deleteAction, ListSearchToolbar, useStatusToggle } from '@/components/l
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import {
-  oauth2AppKeys,
   useDeleteOAuth2App,
   useOAuth2ApiScopes,
   useOAuth2AppDetail,
@@ -26,7 +25,6 @@ import {
 } from '@/hooks/queries/oauth2-apps';
 import { useDictItems } from '@/hooks/useDictItems';
 import { CreateButton } from '@/components/toolbar-controls';
-import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { confirmDanger } from '@/utils/confirm';
 import { useListPage } from '@/hooks/useListPage';
 import { EditFormSheet } from '@/components/EditFormModal';
@@ -67,32 +65,17 @@ export default function OAuth2AppsPage() {
     disabled: !canManage,
     messages: { disabled: '已禁用' },
   });
-  // ─── 状态 ──────────────────────────────────────────────────────────────
-  interface SearchParams {
-    keyword: string;
-    environment?: 'production' | 'sandbox';
-    reviewStatus?: 'draft' | 'pending' | 'approved' | 'rejected';
-  }
-  const defaultSearchParams: SearchParams = { keyword: '' };
-  const {
-    bind,
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: oauth2AppKeys.lists,
+  const page = useListPage({
+    contract: oauth2ClientContract,
     useList: useOAuth2AppList,
-    toQuery: (s) => ({ keyword: s.keyword, environment: s.environment, reviewStatus: s.reviewStatus }),
   });
+  const { tableProps } = page;
 
   // 一次性 Secret 展示
   const [secretModal, setSecretModal] = useState(false);
   const [oneTimeSecret, setOneTimeSecret] = useState('');
   const [oneTimeClientId, setOneTimeClientId] = useState('');
   const [previousValidUntil, setPreviousValidUntil] = useState('');
-
 
   const ratePlans = useOAuth2RatePlans().data ?? [];
   const scopeOptions = useOAuth2ApiScopes().data ?? [];
@@ -290,24 +273,8 @@ export default function OAuth2AppsPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={<KeywordInput placeholder="搜索应用名称" {...bindKeyword('keyword')} />}
-        filters={(
-          <>
-            <FilterSelect
-              placeholder="全部环境"
-              items={OPEN_APP_ENVIRONMENT_OPTIONS}
-              {...bind('environment')}
-            />
-            <FilterSelect
-              placeholder="全部审核状态"
-              items={OPEN_APP_REVIEW_STATUS_OPTIONS}
-              {...bind('reviewStatus')}
-              width={140}
-            />
-          </>
-        )}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword', 'environment', 'reviewStatus']}
         create={canManage && <CreateButton onClick={appModal.openCreate} />}
         actionTitle="应用操作"
       />

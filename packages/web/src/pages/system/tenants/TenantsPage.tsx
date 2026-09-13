@@ -1,7 +1,6 @@
 import { useRef, useState } from 'react';
 import { Button, Modal, Form, Row, Col, Spin, SideSheet, Descriptions, Tag, Divider } from '@douyinfe/semi-ui';
-import { USER_STATUSES, enumValueOf } from '@zenith/shared/core';
-import type { CreateTenantInput, Tenant } from '@zenith/shared/identity';
+import { tenantContract, type CreateTenantInput, type Tenant } from '@zenith/shared/identity';
 import ExportButton from '@/components/ExportButton';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { formatDateTimeForApi } from '@/utils/date';
@@ -19,23 +18,14 @@ import {
   useDeleteTenants,
   useSaveTenant,
   useTenantDetail,
-  tenantKeys,
   useTenantList,
   useTenantStats,
 } from '@/hooks/queries/tenants';
 import { CreateButton } from '@/components/toolbar-controls';
-import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { deleteAction, ListSearchToolbar, useStatusToggle } from '@/components/list-page';
 import { copyTextWithToast } from '@/utils/clipboard';
 import { useListPage } from '@/hooks/useListPage';
 import { EditFormSheet } from '@/components/EditFormModal';
-
-interface SearchParams {
-  keyword: string;
-  status?: string;
-}
-
-const defaultSearchParams: SearchParams = { keyword: '', status: undefined };
 
 /** 租户表单值：`expireAt` 在表单里是 Date，提交前由 beforeSave 转成接口格式；记录里的 null 在提交时归一为未填 */
 interface TenantFormValues extends Partial<Omit<CreateTenantInput, 'expireAt' | 'contactName' | 'contactPhone' | 'logo' | 'remark'>> {
@@ -48,21 +38,12 @@ interface TenantFormValues extends Partial<Omit<CreateTenantInput, 'expireAt' | 
 
 export default function TenantsPage() {
   const { hasPermission } = usePermission();
-  const { items: statusItems, options: statusOptions } = useDictItems('common_status');
-  const {
-    bind,
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-    filterQuery,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: tenantKeys.lists,
+  const { options: statusOptions } = useDictItems('common_status');
+  const page = useListPage({
+    contract: tenantContract,
     useList: useTenantList,
-    toQuery: (s) => ({ keyword: s.keyword, status: enumValueOf(USER_STATUSES, s.status) }),
   });
-
+  const { tableProps, filterQuery } = page;
 
   const saveMutation = useSaveTenant();
   // 联系电话是契约敏感字段：对非豁免用户是掩码，编辑时锁定、未修改则不提交
@@ -204,15 +185,8 @@ export default function TenantsPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={<KeywordInput placeholder="搜索租户名称/编码" {...bindKeyword('keyword')} />}
-        filters={(
-          <StatusSelect
-            items={statusItems}
-            {...bind('status')}
-          />
-        )}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword', 'status']}
         create={<CreateButton permission="system:tenant:create" onClick={tenantModal.openCreate} />}
         actions={<ExportButton entity="system.tenants" query={filterQuery} />}
         filterTitle="租户筛选"

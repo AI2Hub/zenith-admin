@@ -8,6 +8,9 @@ import { act, renderHook } from '@testing-library/react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { createTestQueryClient, isInvalidated } from '@/test-utils/query-harness';
 import { PreferencesContext, defaultPreferences, type PreferencesContextValue } from '@/hooks/usePreferences';
+import * as z from 'zod';
+import { contractKey } from '@/lib/contract-query';
+import { dateRangeQuery, defineContract, entityStatusQuery, idParam, keywordQuery, op, paginated, paginationQuery } from '@zenith/shared/core';
 import { useListPage } from './useListPage';
 
 interface Row { id: number; name: string }
@@ -22,17 +25,21 @@ const useListMock = vi.fn((params: { page: number; pageSize: number; keyword?: s
   enabled,
 }));
 
-function setup() {
-  const client = createTestQueryClient();
-  client.setQueryData([...listKey, { page: 1 }], { list: [], total: 0 });
+function createWrapper(client: ReturnType<typeof createTestQueryClient>) {
   const preferences = { preferences: defaultPreferences, updatePreferences: vi.fn(), resetPreferences: vi.fn() } as unknown as PreferencesContextValue;
-  function Wrapper({ children }: { readonly children: ReactNode }) {
+  return function Wrapper({ children }: { readonly children: ReactNode }) {
     return (
       <QueryClientProvider client={client}>
         <PreferencesContext.Provider value={preferences}>{children}</PreferencesContext.Provider>
       </QueryClientProvider>
     );
-  }
+  };
+}
+
+function setup() {
+  const client = createTestQueryClient();
+  client.setQueryData([...listKey, { page: 1 }], { list: [], total: 0 });
+  const Wrapper = createWrapper(client);
   const view = renderHook(() => useListPage({
     defaults,
     listKey,
@@ -75,5 +82,70 @@ describe('useListPage', () => {
     act(() => { if (pagination) pagination.onPageChange(3); });
     expect(useListMock).toHaveBeenLastCalledWith({ page: 3, pageSize: 10 }, undefined);
     expect(result.current.listQuery.data?.list[0]?.name).toBe('p3');
+  });
+});
+
+// ─── 契约模式 ────────────────────────────────────────────────────────────────
+
+const rowSchema = z.object({ id: z.int(), name: z.string() });
+const rowContract = defineContract('/api/test-rows', {
+  list: op.get('/', { query: paginationQuery.extend({ keyword: keywordQuery('名称'), status: entityStatusQuery, ...dateRangeQuery('创建时间') }), response: paginated(rowSchema), summary: 'list' }),
+  detail: op.get('/{id}', { params: idParam, response: rowSchema, summary: 'detail' }),
+});
+
+const useContractListMock = vi.fn((params: { page: number; pageSize: number; keyword?: string; status?: 'enabled' | 'disabled'; startTime?: string; endTime?: string }, enabled?: boolean) => ({
+  data: { list: [{ id: 1, name: `p${params.page}` }] as Row[], total: 42 },
+  isFetching: false,
+  refetch: vi.fn(),
+  enabled,
+}));
+
+function setupContract(defaults?: { status?: 'enabled' | 'disabled' }) {
+  const client = createTestQueryClient();
+  const listsKey = contractKey(rowContract.list);
+  client.setQueryData([...listsKey, { page: 1 }], { list: [], total: 0 });
+  const view = renderHook(() => useListPage({ contract: rowContract, useList: useContractListMock, defaults }), { wrapper: createWrapper(client) });
+  return { ...view, client, listsKey };
+}
+
+describe('useListPage · 契约模式', () => {
+  it('筛选状态即契约 query（去分页键）；listKey 取 contractKey(contract.list)，与 createResourceQueries 同键', () => {
+    const { result, client, listsKey } = setupContract();
+    expect(useContractListMock).toHaveBeenLastCalledWith({ page: 1, pageSize: 10 }, undefined);
+    expect(result.current.filterSchema).toBe(rowContract.list.query);
+
+    act(() => { result.current.setField('keyword')('abc'); result.current.setField('status')('enabled'); });
+    act(() => { result.current.handleSearch(); });
+    expect(useContractListMock).toHaveBeenLastCalledWith({ page: 1, pageSize: 10, keyword: 'abc', status: 'enabled' }, undefined);
+    expect(result.current.filterQuery).toEqual({ keyword: 'abc', status: 'enabled' });
+    expect(isInvalidated(client, [...listsKey, { page: 1 }])).toBe(true);
+  });
+
+  it('defaults 作为初始筛选并在重置时恢复', () => {
+    const { result } = setupContract({ status: 'disabled' });
+    expect(useContractListMock).toHaveBeenLastCalledWith({ page: 1, pageSize: 10, status: 'disabled' }, undefined);
+    act(() => { result.current.setField('status')('enabled'); });
+    act(() => { result.current.handleSearch(); });
+    expect(useContractListMock).toHaveBeenLastCalledWith({ page: 1, pageSize: 10, status: 'enabled' }, undefined);
+    act(() => { result.current.handleReset(); });
+    expect(useContractListMock).toHaveBeenLastCalledWith({ page: 1, pageSize: 10, status: 'disabled' }, undefined);
+  });
+
+  it('bindRange 把 [Date, Date] 写回契约的起 / 止端点（YYYY-MM-DD HH:mm:ss），清空回到 undefined', () => {
+    const { result } = setupContract();
+    const range = result.current.bindRange(['startTime', 'endTime']);
+    expect(range.value).toBeNull();
+    act(() => { range.onChange([new Date(2026, 8, 1, 0, 0, 0), new Date(2026, 8, 30, 23, 59, 59)]); });
+    expect(result.current.draftParams).toEqual({ startTime: '2026-09-01 00:00:00', endTime: '2026-09-30 23:59:59' });
+    expect(result.current.bindRange(['startTime', 'endTime']).value).toEqual([new Date('2026-09-01 00:00:00'), new Date('2026-09-30 23:59:59')]);
+    act(() => { result.current.handleSearch(); });
+    expect(useContractListMock).toHaveBeenLastCalledWith({ page: 1, pageSize: 10, startTime: '2026-09-01 00:00:00', endTime: '2026-09-30 23:59:59' }, undefined);
+    act(() => { result.current.bindRange(['startTime', 'endTime']).onChange(null); });
+    expect(result.current.draftParams).toEqual({ startTime: undefined, endTime: undefined });
+  });
+
+  it('toolbarProps 即查询 / 重置，引用随 handleSearch 稳定', () => {
+    const { result } = setupContract();
+    expect(result.current.toolbarProps).toEqual({ onSearch: result.current.handleSearch, onReset: result.current.handleReset });
   });
 });

@@ -3,7 +3,7 @@ import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { Button, Form, Input, List, Modal, Select, SideSheet, Space, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
-import type { RuleDecisionFlow, RuleFlowEvaluateResult, RuleFlowStep } from '@zenith/shared/rules';
+import { decisionFlowContract, type RuleDecisionFlow, type RuleFlowEvaluateResult, type RuleFlowStep } from '@zenith/shared/rules';
 import { EMPTY_PLACEHOLDER, createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -11,7 +11,6 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePermission } from '@/hooks/usePermission';
 import { useWorkflowDesignerDecisionRefOptions } from '@/hooks/queries/workflow-designer';
 import {
-  ruleKeys,
   type RuleFlowSaveValues,
   useDeleteRuleFlow,
   usePublishRuleFlow,
@@ -24,7 +23,6 @@ import {
 } from '@/hooks/queries/rules';
 import { PUBLISHABLE_STATUS_META as STATUS } from '@/lib/publishable-status';
 import { CreateButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
 import { useEditModal } from '@/hooks/useEditModal';
 import { JsonBlock } from '@/components/JsonBlock';
 import { abortSubmit } from '@/lib/abort-submit';
@@ -43,19 +41,11 @@ export default function RuleFlowsPage() {
   const canEdit = hasPermission('rule:flow:update');
   const canDelete = hasPermission('rule:flow:delete');
   const canPublish = hasPermission('rule:flow:publish');
-  const defaultSearchParams: { keyword: string } = { keyword: '' };
-  const {
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: ruleKeys.flows.lists,
+  const page = useListPage({
+    contract: decisionFlowContract,
     useList: useRuleFlowList,
-    toQuery: (s) => ({ keyword: s.keyword }),
   });
-
+  const { tableProps } = page;
 
   const [steps, setSteps] = useState<RuleFlowStep[]>([]);
   const [testRow, setTestRow] = useState<RuleDecisionFlow | null>(null);
@@ -158,9 +148,8 @@ export default function RuleFlowsPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={<KeywordInput placeholder="搜索名称" {...bindKeyword('keyword')} />}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword']}
         create={canCreate ? <CreateButton onClick={openCreate} /> : null}
       />
       <ConfigurableTable columns={columns} empty="暂无数据"

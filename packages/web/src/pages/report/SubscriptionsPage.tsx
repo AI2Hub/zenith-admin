@@ -19,13 +19,12 @@ import {
   useRunReportSubscription,
   useSaveReportSubscription,
 } from '@/hooks/queries/report-subscriptions';
-import type { ReportDashboardSubscription, ReportDeliveryRun } from '@zenith/shared/report';
+import { reportSubscriptionContract, type ReportDashboardSubscription, type ReportDeliveryRun } from '@zenith/shared/report';
 import { NOTIFY_CHANNEL_LABELS } from '@zenith/shared/messaging';
 import type { NotifyChannel } from '@zenith/shared/messaging';
 import { REPORT_DELIVERY_STATUS_LABELS, REPORT_DELIVERY_TRIGGER_LABELS, REPORT_MISFIRE_POLICY_OPTIONS } from '@zenith/shared/report';
 import { useDictItems } from '@/hooks/useDictItems';
 import { CreateButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
 import { deleteAction, ListSearchToolbar, useRowSelection } from '@/components/list-page';
 import { DEFAULT_TIMEZONE } from '@/utils/timezones';
 import { useListPage } from '@/hooks/useListPage';
@@ -46,19 +45,12 @@ export default function SubscriptionsPage() {
   const queryClient = useQueryClient();
 
   const { selectedRowKeys, clear: clearSelection, rowSelection } = useRowSelection();
-  const defaultSearchParams: { keyword: string } = { keyword: '' };
-  const {
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: reportSubscriptionKeys.lists,
+  const page = useListPage({
+    contract: reportSubscriptionContract,
     useList: useReportSubscriptionList,
-    toQuery: (s) => ({ keyword: s.keyword }),
     table: { empty: '暂无订阅', rowSelection: hasPermission('report:subscription:update') ? rowSelection : undefined },
   });
+  const { tableProps } = page;
   const [historyTarget, setHistoryTarget] = useState<ReportDashboardSubscription | null>(null);
   const [cronExprValue, setCronExprValue] = useState('');
   const [selectedChannels, setSelectedChannels] = useState<string[]>(['inApp']);
@@ -167,9 +159,8 @@ export default function SubscriptionsPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={<KeywordInput placeholder="搜索 Cron/备注" {...bindKeyword('keyword')} width={200} />}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword']}
         create={<CreateButton permission="report:subscription:create" onClick={openCreate} />}
         actions={<>{renderBatchEnable()}{renderBatchDisable()}</>}
       />

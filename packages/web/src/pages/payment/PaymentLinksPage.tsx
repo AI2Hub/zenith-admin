@@ -12,12 +12,11 @@ import { formatDateTimeForApi } from '@/utils/date';
 import { EMPTY_PLACEHOLDER, createdAtColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
-import { PAYMENT_CASHIER_METHODS, PAYMENT_METHOD_LABELS, PAYMENT_LINK_STATUS_LABELS, PAYMENT_LINK_STATUS_OPTIONS } from '@zenith/shared/payment';
+import { PAYMENT_CASHIER_METHODS, PAYMENT_METHOD_LABELS, PAYMENT_LINK_STATUS_LABELS, paymentLinkContract } from '@zenith/shared/payment';
 import type { PaymentApp, PaymentCashierMethod, PaymentLink, PaymentLinkStatus } from '@zenith/shared/payment';
-import { paymentLinkKeys, useDeletePaymentLinks, usePaymentLinkDetail, usePaymentLinkList, useRotatePaymentLinkToken, useSavePaymentLink, type PaymentLinkSaveValues } from '@/hooks/queries/payment-links';
+import { useDeletePaymentLinks, usePaymentLinkDetail, usePaymentLinkList, useRotatePaymentLinkToken, useSavePaymentLink, type PaymentLinkSaveValues } from '@/hooks/queries/payment-links';
 import { useEnsureShortLink } from '@/hooks/queries/short-links';
 import { CreateButton } from '@/components/toolbar-controls';
-import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDanger } from '@/utils/confirm';
 import { copyTextWithToast } from '@/utils/clipboard';
 import { deleteAction, ListSearchToolbar } from '@/components/list-page';
@@ -40,9 +39,6 @@ function publicUrl(token: string): string {
   return `${window.location.origin}${base}${publicPath}`;
 }
 
-interface SearchParams { keyword: string; status?: PaymentLinkStatus; }
-const defaultSearch: SearchParams = { keyword: '', status: undefined };
-
 interface LinkFormValues {
   applicationId: number;
   subject: string;
@@ -61,18 +57,11 @@ const paymentAppOptionLabel = (app: PaymentApp) => `${app.name} · ${app.openCli
 export default function PaymentLinksPage() {
   const { hasPermission } = usePermission();
   const qrContainerRef = useRef<HTMLDivElement | null>(null);
-  const {
-    bind,
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearch,
-    listKey: paymentLinkKeys.lists,
+  const page = useListPage({
+    contract: paymentLinkContract,
     useList: usePaymentLinkList,
-    toQuery: (s) => ({ keyword: s.keyword, status: s.status }),
   });
+  const { tableProps } = page;
 
   const [qrLink, setQrLink] = useState<PaymentLink | null>(null);
   const [selectedApplicationId, setSelectedApplicationId] = useState<number>();
@@ -234,15 +223,8 @@ export default function PaymentLinksPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={<KeywordInput placeholder="标题..." {...bindKeyword('keyword')} width={200} />}
-        filters={(
-          <StatusSelect
-            items={PAYMENT_LINK_STATUS_OPTIONS}
-            {...bind('status')}
-          />
-        )}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword', 'status']}
         create={<CreateButton permission="payment:link:create" onClick={openCreate} />}
         filterTitle="支付链接筛选"
       />

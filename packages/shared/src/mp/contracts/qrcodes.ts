@@ -1,7 +1,7 @@
 import * as z from 'zod';
 import { auditFieldsSchema, idParam, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
-import { MP_QRCODE_TYPES } from '../constants';
+import { MP_QRCODE_TYPES, MP_QRCODE_TYPE_OPTIONS } from '../constants';
 import { createMpQrcodeSchema } from '../validation';
 import { mpAccountIdQuery } from './common';
 
@@ -29,7 +29,7 @@ export type MpQrcode = z.infer<typeof mpQrcodeSchema>;
 
 export const mpQrcodeListQuery = paginationQuery.extend({
   ...mpAccountIdQuery.shape,
-  type: queryEnum(MP_QRCODE_TYPES),
+  type: queryEnum(MP_QRCODE_TYPES, { options: MP_QRCODE_TYPE_OPTIONS }),
   keyword: keywordQuery('名称 / 场景值'),
 });
 

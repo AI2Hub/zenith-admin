@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Button, Form, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Copy } from 'lucide-react';
-import type { ChatWebhook } from '@zenith/shared/chat';
+import { chatBotContract, type ChatWebhook } from '@zenith/shared/chat';
 import { maskSecret } from '@zenith/shared/core';
 import { UserAvatar } from '@/components/UserAvatar';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -13,7 +13,6 @@ import { useEditModal } from '@/hooks/useEditModal';
 import { usePermission } from '@/hooks/usePermission';
 import { copyableNoColumn, createdAtColumn, dateTimeColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '@/utils/table-columns';
 import {
-  chatBotKeys,
   type SaveChatBotValues,
   useChatBotGroupConversations,
   useChatBotList,
@@ -22,7 +21,6 @@ import {
   useSaveChatBot,
 } from '@/hooks/queries/chat-bots';
 import { CreateButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
 import { confirmDanger } from '@/utils/confirm';
 import { copyTextWithToast } from '@/utils/clipboard';
 import { abortSubmit } from '@/lib/abort-submit';
@@ -59,20 +57,12 @@ function maskToken(token: string): string {
 
 export default function ChatBotsPage() {
   const { hasPermission } = usePermission();
-  const defaultSearchParams: { keyword: string } = { keyword: '' };
-  const {
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: chatBotKeys.lists,
+  const page = useListPage({
+    contract: chatBotContract,
     useList: useChatBotList,
-    toQuery: (s) => ({ keyword: s.keyword.trim() }),
   });
+  const { tableProps } = page;
   const [secretInfo, setSecretInfo] = useState<ChatWebhook | null>(null);
-
 
   const saveMutation = useSaveChatBot();
   const botModal = useEditModal<ChatWebhook, BotFormValues, SaveChatBotValues>({
@@ -136,7 +126,6 @@ export default function ChatBotsPage() {
     Toast.success('令牌已重置');
     setSecretInfo(result);
   }
-
 
   const columns: ColumnProps<ChatWebhook>[] = [
     {
@@ -213,9 +202,8 @@ export default function ChatBotsPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={<KeywordInput placeholder="搜索机器人名称" {...bindKeyword('keyword')} width={260} />}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword']}
         create={<CreateButton permission="chat:bot:create" onClick={botModal.openCreate} />}
         actionTitle="机器人操作"
       />

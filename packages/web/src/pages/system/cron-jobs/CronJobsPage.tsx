@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Button, Col, Row, SideSheet, Form, Modal, Popover, Space, Tabs, Tag, Toast, Tooltip } from '@douyinfe/semi-ui';
 import { ScrollText, HelpCircle } from 'lucide-react';
-import { USER_STATUSES, enumValueOf } from '@zenith/shared/core';
-import type { CreateCronJobInput, CronJob, CronJobLog, CronRunTrigger } from '@zenith/shared/platform';
+import { cronJobContract, type CreateCronJobInput, type CronJob, type CronJobLog, type CronRunTrigger } from '@zenith/shared/platform';
 import { CRON_RUN_STATUS_LABELS, CRON_RUN_TRIGGER_LABELS, cronSecondsIgnored, toMinuteCron } from '@zenith/shared/platform';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { formatDateTime } from '@/utils/date';
@@ -20,7 +19,6 @@ import { dateTimeColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '../../../util
 import CronJobDashboard from './CronJobDashboard';
 import { TRIGGER_TAG } from './cron-dashboard-shared';
 import {
-  cronJobKeys,
   useClearCronJobLogs,
   useClearCronJobLogsOfJob,
   useCronJobAllLogs,
@@ -36,19 +34,13 @@ import {
 import { useDictItems } from '@/hooks/useDictItems';
 import { useEditModal } from '@/hooks/useEditModal';
 import { CreateButton } from '@/components/toolbar-controls';
-import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
+import { FilterSelect } from '@/components/search-filters';
 import { confirmDanger } from '@/utils/confirm';
 import { CLEAR_LOGS_LABELS } from '@/hooks/useClearLogs';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import { useListPage } from '@/hooks/useListPage';
 import { EditFormModal } from '@/components/EditFormModal';
-interface SearchParams {
-  keyword: string;
-  status?: string;
-}
-
-const defaultSearchParams: SearchParams = { keyword: '', status: undefined };
 
 const runStatusColor: Record<string, import('@douyinfe/semi-ui/lib/es/tag/interface').TagColor> = {
   success: 'green',
@@ -106,23 +98,14 @@ const buildRunLogColumns = (outputWidth: number) => [
 
 export default function CronJobsPage() {
   const [activeTab, setActiveTab] = useUrlTabState(['jobs', 'dashboard'] as const, 'jobs');
-  const { items: statusItems, options: statusOptions } = useDictItems('common_status');
+  const { options: statusOptions } = useDictItems('common_status');
   const { hasPermission } = usePermission();
-  const {
-    bind,
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-    filterQuery,
-    listQuery,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: cronJobKeys.lists,
+  const page = useListPage({
+    contract: cronJobContract,
     useList: useCronJobList,
-    toQuery: (s) => ({ keyword: s.keyword, status: enumValueOf(USER_STATUSES, s.status) }),
     table: { empty: '暂无数据' },
   });
+  const { tableProps, filterQuery, listQuery } = page;
   const [cronExprValue, setCronExprValue] = useState('');
   const [logsDrawerVisible, setLogsDrawerVisible] = useState(false);
   const [logsJobName, setLogsJobName] = useState('');
@@ -194,7 +177,6 @@ export default function CronJobsPage() {
     if (modal.visible && modal.editing) setCronExprValue(modal.editing.cronExpression ?? '');
   }, [modal.visible, modal.editing]);
 
-
   const handleRunOnce = (id: number, name: string) => {
     Modal.confirm({
       title: '确定要立即执行一次吗？',
@@ -226,7 +208,6 @@ export default function CronJobsPage() {
     setLogsPage(1);
     setLogsDrawerVisible(true);
   };
-
 
   const handleClearLogs = (days: number, jobId?: number | null) => {
     const label = CLEAR_LOGS_LABELS[days] ?? `${days} 天前`;
@@ -381,15 +362,8 @@ export default function CronJobsPage() {
       <Tabs collapsible="auto" type="line" lazyRender activeKey={activeTab} onChange={(k) => setActiveTab(k as typeof activeTab)}>
         <Tabs.TabPane tab="任务管理" itemKey="jobs">
           <ListSearchToolbar
-            keyword={<KeywordInput placeholder="搜索任务名称/处理器" {...bindKeyword('keyword')} width={240} />}
-            filters={(
-              <StatusSelect
-                items={statusItems}
-                {...bind('status')}
-              />
-            )}
-            onSearch={handleSearch}
-            onReset={handleReset}
+            page={page}
+            filters={['keyword', 'status']}
             create={<CreateButton permission="system:cronjob:create" onClick={openCreate} />}
             actions={(
               <>

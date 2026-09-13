@@ -1,7 +1,7 @@
 import * as z from 'zod';
 import { idParam, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
-import { RULE_DECISION_STATUSES } from '../constants';
+import { RULE_DECISION_STATUSES, RULE_DECISION_STATUS_OPTIONS } from '../constants';
 import {
   createRuleScorecardSchema,
   evaluateRuleScorecardByKeySchema,
@@ -68,7 +68,7 @@ export type RuleScorecardEvaluateResult = z.infer<typeof ruleScorecardEvaluateRe
 
 export const ruleScorecardListQuery = paginationQuery.extend({
   keyword: keywordQuery('名称'),
-  status: queryEnum(RULE_DECISION_STATUSES),
+  status: queryEnum(RULE_DECISION_STATUSES, { options: RULE_DECISION_STATUS_OPTIONS }),
 });
 
 // ─── 契约 ────────────────────────────────────────────────────────────────────

@@ -1,17 +1,15 @@
 import { Tag, Form, Typography, Row, Col, Space } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { USER_STATUSES, enumValueOf } from '@zenith/shared/core';
-import type { CreateRatePlanInput, RatePlan } from '@zenith/shared/open-platform';
+import { ratePlanContract, type CreateRatePlanInput, type RatePlan } from '@zenith/shared/open-platform';
 import { copyableNoColumn, createdAtColumn, renderEnabledStatusTag } from '@/utils/table-columns';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
-import { ratePlanKeys, useDeleteRatePlans, useRatePlanList, useSaveRatePlan } from '@/hooks/queries/open-platform';
+import { useDeleteRatePlans, useRatePlanList, useSaveRatePlan } from '@/hooks/queries/open-platform';
 import { useDictItems } from '@/hooks/useDictItems';
 import { CreateButton } from '@/components/toolbar-controls';
-import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { useListPage } from '@/hooks/useListPage';
 import { EditFormModal } from '@/components/EditFormModal';
 
@@ -23,22 +21,12 @@ export default function RatePlansPage() {
   const { options: statusOptions } = useDictItems('common_status');
   const { hasPermission } = usePermission();
   const canManage = hasPermission('open:rate-plan:manage');
-
-  interface SearchParams { keyword: string; status?: string }
-  const defaultSearchParams: SearchParams = { keyword: '', status: undefined };
-  const {
-    bind,
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: ratePlanKeys.lists,
+  const page = useListPage({
+    contract: ratePlanContract,
     useList: useRatePlanList,
-    toQuery: (s) => ({ keyword: s.keyword, status: enumValueOf(USER_STATUSES, s.status) }),
     table: { empty: '暂无数据' },
   });
+  const { tableProps } = page;
 
   const deleteMutation = useDeleteRatePlans();
 
@@ -102,17 +90,8 @@ export default function RatePlansPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={<KeywordInput placeholder="搜索套餐编码 / 名称" {...bindKeyword('keyword')} />}
-        filters={(
-          <>
-            <StatusSelect
-              items={statusOptions}
-              {...bind('status')}
-            />
-          </>
-        )}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword', 'status']}
         create={canManage && <CreateButton onClick={modal.openCreate} />}
         actionTitle="套餐操作"
       />

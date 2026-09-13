@@ -3,21 +3,23 @@ import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { Banner, Button, Divider, Input, InputNumber, Modal, Select, Space, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus, Trash2 } from 'lucide-react';
-import { RULE_DECISION_STATUS_OPTIONS, RULE_DECISION_STATUSES, RULE_SCORECARD_BAND_OP_OPTIONS, RULE_SCORECARD_VARIABLE_TYPE_OPTIONS, type RuleScorecard, type RuleScorecardBand, type RuleScorecardEvaluateResult, type RuleScorecardGrade, type RuleScorecardVariable } from '@zenith/shared/rules';
-import { enumValueOf } from '@zenith/shared/core';
+import { RULE_SCORECARD_BAND_OP_OPTIONS, RULE_SCORECARD_VARIABLE_TYPE_OPTIONS, type RuleScorecard, type RuleScorecardBand, type RuleScorecardEvaluateResult, type RuleScorecardGrade, type RuleScorecardVariable, ruleScorecardContract } from '@zenith/shared/rules';
 import { createdAtColumn, renderEllipsis, EMPTY_PLACEHOLDER } from '@/utils/table-columns';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePermission } from '@/hooks/usePermission';
 import { CreateButton } from '@/components/toolbar-controls';
-import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import {
   type RuleScorecardSaveValues,
-  ruleScorecardKeys,
-  useDeleteRuleScorecard, useEvaluateRuleScorecard, usePublishRuleScorecard,
-  useRollbackRuleScorecard, useRuleScorecardList, useRuleScorecardVersions,
-  useSaveRuleScorecard, useToggleRuleScorecard,
+  useDeleteRuleScorecard,
+  useEvaluateRuleScorecard,
+  usePublishRuleScorecard,
+  useRollbackRuleScorecard,
+  useRuleScorecardList,
+  useRuleScorecardVersions,
+  useSaveRuleScorecard,
+  useToggleRuleScorecard,
 } from '@/hooks/queries/rules-scorecards';
 import { RuleVersionHistorySheet } from '../components/RuleVersionHistorySheet';
 import { useListPage } from '@/hooks/useListPage';
@@ -53,20 +55,11 @@ export default function RuleScorecardsPage() {
   const canDelete = hasPermission('rule:scorecard:delete');
   const canPublish = hasPermission('rule:scorecard:publish');
   const canEvaluate = hasPermission('rule:scorecard:evaluate');
-  const defaultSearchParams: { keyword: string; status?: string } = { keyword: '', status: undefined };
-  const {
-    bind,
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: ruleScorecardKeys.lists,
+  const page = useListPage({
+    contract: ruleScorecardContract,
     useList: useRuleScorecardList,
-    toQuery: (s) => ({ keyword: s.keyword.trim(), status: enumValueOf(RULE_DECISION_STATUSES, s.status) }),
   });
-
+  const { tableProps } = page;
 
   // 编辑器为嵌套动态结构（变量 × 分段 × 等级），不适用 useEditModal 的 Form 模式，走受控状态
   const [editor, setEditor] = useState<EditorState | null>(null);
@@ -198,19 +191,14 @@ export default function RuleScorecardsPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={<KeywordInput placeholder="搜索名称" {...bindKeyword('keyword')} width={200} />}
-        filters={<StatusSelect {...bind('status')} items={RULE_DECISION_STATUS_OPTIONS} />}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword', 'status']}
         create={canCreate ? <CreateButton onClick={openCreate} /> : null}
         filterTitle="评分卡筛选"
       />
       <ConfigurableTable
 
         columns={columns}
-
-
-
 
         empty="暂无评分卡"
         {...tableProps}

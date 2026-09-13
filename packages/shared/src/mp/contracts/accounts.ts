@@ -1,7 +1,7 @@
 import * as z from 'zod';
 import { auditFieldsSchema, entityStatusQuery, entityStatusSchema, idParam, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
-import { MP_ACCOUNT_TYPES, MP_ENCRYPT_MODES } from '../constants';
+import { MP_ACCOUNT_TYPES, MP_ENCRYPT_MODES, MP_ACCOUNT_TYPE_OPTIONS } from '../constants';
 import { createMpAccountSchema, updateMpAccountSchema } from '../validation';
 
 // ─── 实体 ────────────────────────────────────────────────────────────────────
@@ -40,7 +40,7 @@ export type MpConnectionTest = z.infer<typeof mpConnectionTestSchema>;
 
 export const mpAccountListQuery = paginationQuery.extend({
   keyword: keywordQuery('名称 / 微信号 / AppID '),
-  type: queryEnum(MP_ACCOUNT_TYPES),
+  type: queryEnum(MP_ACCOUNT_TYPES, { options: MP_ACCOUNT_TYPE_OPTIONS }),
   status: entityStatusQuery,
 });
 

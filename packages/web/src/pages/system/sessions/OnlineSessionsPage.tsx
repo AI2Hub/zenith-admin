@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { RadioGroup, Radio, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
-import type { OnlineSession } from '@zenith/shared/identity';
+import { sessionContract, type OnlineSession } from '@zenith/shared/identity';
 import { TOKEN_KEY } from '@zenith/shared/core';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { usePermission } from '@/hooks/usePermission';
@@ -8,27 +8,18 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { ListSearchToolbar } from '@/components/list-page';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { dateTimeColumn, renderEllipsis } from '../../../utils/table-columns';
-import { sessionKeys, useForceLogoutSession, useForceLogoutUserSessions, useSessionList } from '@/hooks/queries/sessions';
-import { KeywordInput } from '@/components/search-filters';
+import { useForceLogoutSession, useForceLogoutUserSessions, useSessionList } from '@/hooks/queries/sessions';
 import { confirmDanger } from '@/utils/confirm';
 import { useListPage } from '@/hooks/useListPage';
 
 export default function OnlineSessionsPage() {
   const { hasPermission } = usePermission();
-  interface SearchParams { keyword: string; }
-  const defaultSearchParams: SearchParams = { keyword: '' };
-  const {
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: sessionKeys.lists,
+  const page = useListPage({
+    contract: sessionContract,
     useList: useSessionList,
-    toQuery: (s) => ({ keyword: s.keyword }),
     table: { rowKey: 'tokenId', empty: '暂无在线用户' },
   });
+  const { tableProps } = page;
 
   const forceLogoutMutation = useForceLogoutSession();
   const forceLogoutUserMutation = useForceLogoutUserSessions();
@@ -108,9 +99,8 @@ export default function OnlineSessionsPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={<KeywordInput placeholder="搜索用户名/昵称/IP" {...bindKeyword('keyword')} />}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword']}
         actionTitle="会话操作"
       />
 

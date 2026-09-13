@@ -1,7 +1,7 @@
 import * as z from 'zod';
 import { auditFieldsSchema, idParam, idQuery, keywordQuery, paginated, paginationQuery, queryBool, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
-import { MP_FAN_SUBSCRIBES } from '../constants';
+import { MP_FAN_SUBSCRIBES, MP_FAN_SUBSCRIBE_OPTIONS } from '../constants';
 import { bindMpFanMemberSchema, blacklistMpFansSchema, mpAccountIdBody, updateMpFanSchema } from '../validation';
 import { mpAccountIdQuery } from './common';
 
@@ -52,7 +52,7 @@ export type MpFanBlacklistResult = z.infer<typeof mpFanBlacklistResultSchema>;
 export const mpFanListQuery = paginationQuery.extend({
   ...mpAccountIdQuery.shape,
   keyword: keywordQuery('昵称 / openid / 备注'),
-  subscribe: queryEnum(MP_FAN_SUBSCRIBES),
+  subscribe: queryEnum(MP_FAN_SUBSCRIBES, { options: MP_FAN_SUBSCRIBE_OPTIONS }),
   tagId: idQuery('按本地标签筛选'),
   blacklisted: queryBool('是否在黑名单'),
 });

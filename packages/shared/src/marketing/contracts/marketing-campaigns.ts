@@ -1,12 +1,10 @@
 import * as z from 'zod';
 import { auditFieldsSchema, dateRangeQuery, idParam, idQuery, keywordQuery, paginated, paginationQuery, queryBool, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
-import {
-  MARKETING_CAMPAIGN_STATUSES,
+import { MARKETING_CAMPAIGN_STATUSES,
   MARKETING_CAMPAIGN_TYPES,
   MARKETING_GRANT_STATUSES,
-  MARKETING_PRIZE_TYPES,
-} from '../constants';
+  MARKETING_PRIZE_TYPES, MARKETING_CAMPAIGN_STATUS_OPTIONS } from '../constants';
 import { createMarketingCampaignSchema, saveMarketingPrizeSchema, updateMarketingCampaignSchema } from '../validation';
 
 // ─── 实体 ────────────────────────────────────────────────────────────────────
@@ -68,7 +66,7 @@ export type MarketingParticipation = z.infer<typeof marketingParticipationSchema
 
 export const marketingCampaignListQuery = paginationQuery.extend({
   keyword: keywordQuery('活动名称 / 说明'),
-  status: queryEnum(MARKETING_CAMPAIGN_STATUSES),
+  status: queryEnum(MARKETING_CAMPAIGN_STATUSES, { options: MARKETING_CAMPAIGN_STATUS_OPTIONS }),
   ...dateRangeQuery('创建时间'),
 });
 

@@ -4,13 +4,12 @@ import { Banner, Button, Checkbox, Col, Form, Modal, Row, SideSheet, Toast, Typo
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Activity } from 'lucide-react';
 import { enumValueOf } from '@zenith/shared/core';
-import { OAUTH2_GRANT_TYPE_LABELS, OAUTH2_GRANT_TYPES, OPEN_APP_ENVIRONMENT_OPTIONS, OPEN_APP_REVIEW_STATUS_OPTIONS } from '@zenith/shared/open-platform';
+import { OAUTH2_GRANT_TYPE_LABELS, OAUTH2_GRANT_TYPES, OPEN_APP_ENVIRONMENT_OPTIONS, developerAppContract } from '@zenith/shared/open-platform';
 import type { OAuth2Client, OAuth2GrantType } from '@zenith/shared/open-platform';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { useOAuth2ApiScopes } from '@/hooks/queries/oauth2-apps';
 import {
-  developerAppKeys,
   useDeleteMyApp,
   useMyAppDetail,
   useMyAppList,
@@ -20,7 +19,6 @@ import {
   useSubmitMyApp,
 } from '@/hooks/queries/developer-apps';
 import { CreateButton } from '@/components/toolbar-controls';
-import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { useEditModal } from '@/hooks/useEditModal';
 import { MetricMeter, type MetricMeterTone } from '@/components/data-viz/MetricMeter';
@@ -71,25 +69,12 @@ function UsageLine({ label, used, limit, percentage }: Readonly<{
 
 export default function MyAppsPage() {
   const navigate = useNavigate();
-  type SearchParams = {
-    keyword: string;
-    environment?: OAuth2Client['environment'];
-    reviewStatus?: OAuth2Client['reviewStatus'];
-  };
-  const defaultSearchParams: SearchParams = { keyword: '' };
-  const {
-    bind,
-    bindKeyword,
-    handleSearch: search,
-    handleReset: reset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: developerAppKeys.lists,
+  const page = useListPage({
+    contract: developerAppContract,
     useList: useMyAppList,
-    toQuery: (s) => ({ keyword: s.keyword, environment: s.environment, reviewStatus: s.reviewStatus }),
     table: { empty: '还没有应用，创建一个沙箱应用开始接入' },
   });
+  const { tableProps } = page;
   const [secret, setSecret] = useState<{ clientId: string; value: string; previousValidUntil?: string } | null>(null);
   const [usageApp, setUsageApp] = useState<OAuth2Client | null>(null);
 
@@ -204,24 +189,8 @@ export default function MyAppsPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={<KeywordInput placeholder="搜索我的应用" {...bindKeyword('keyword')} width={210} />}
-        filters={(
-          <>
-            <FilterSelect
-              placeholder="全部环境"
-              items={OPEN_APP_ENVIRONMENT_OPTIONS}
-              {...bind('environment')}
-            />
-            <FilterSelect
-              placeholder="全部审核状态"
-              items={OPEN_APP_REVIEW_STATUS_OPTIONS}
-              {...bind('reviewStatus')}
-              width={140}
-            />
-          </>
-        )}
-        onSearch={search}
-        onReset={reset}
+        page={page}
+        filters={['keyword', 'environment', 'reviewStatus']}
         create={<CreateButton onClick={modal.openCreate}>创建应用</CreateButton>}
         actionTitle="应用操作"
       />

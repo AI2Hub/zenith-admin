@@ -5,32 +5,22 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { createdAtColumn, renderEllipsis, renderEnabledStatusTag } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
-import { useCmsErrorProneWordList, useSaveCmsErrorProneWord, useDeleteCmsErrorProneWords, cmsErrorProneWordKeys } from '@/hooks/queries/cms';
-import type { CmsErrorProneWord } from '@zenith/shared/cms';
+import { useCmsErrorProneWordList, useSaveCmsErrorProneWord, useDeleteCmsErrorProneWords } from '@/hooks/queries/cms';
+import { cmsErrorProneWordContract, type CmsErrorProneWord } from '@zenith/shared/cms';
 import { CreateButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
 import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { FormStatusRadioGroup } from '@/components/FormStatusRadioGroup';
 import { useListPage } from '@/hooks/useListPage';
 import { EditFormModal } from '@/components/EditFormModal';
 
-interface SearchParams { keyword: string }
-const defaultSearch: SearchParams = { keyword: '' };
-
 export default function ErrorProneWordsPage() {
   const { hasPermission } = usePermission();
-  const {
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearch,
-    listKey: cmsErrorProneWordKeys.lists,
+  const page = useListPage({
+    contract: cmsErrorProneWordContract,
     useList: useCmsErrorProneWordList,
-    toQuery: (s) => ({ keyword: s.keyword }),
     table: { empty: '暂无易错词' },
   });
+  const { tableProps } = page;
   const saveMutation = useSaveCmsErrorProneWord();
   const modal = useEditModal<CmsErrorProneWord, Partial<CmsErrorProneWord>, Record<string, unknown>>({
     entityName: '易错词',
@@ -73,9 +63,8 @@ export default function ErrorProneWordsPage() {
     <div className="page-container">
       <Banner type="info" closeIcon={null} style={{ marginBottom: 12 }} description="易错词库用于内容编辑辅助：在内容编辑页点击「内容检查」可标出正文中的易错词，并支持一键替换为正确写法。" />
       <ListSearchToolbar
-        keyword={<KeywordInput placeholder="搜索易错词/正确写法..." {...bindKeyword('keyword')} />}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword']}
         create={canManage ? <CreateButton onClick={modal.openCreate} /> : null}
       />
 

@@ -1,7 +1,7 @@
 import * as z from 'zod';
 import { auditFieldsSchema, entityStatusSchema, idParam, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
-import { OAUTH2_TOKEN_TYPES, OPEN_APP_ENVIRONMENTS, OPEN_APP_REVIEW_STATUSES } from '../constants';
+import { OAUTH2_TOKEN_TYPES, OPEN_APP_ENVIRONMENTS, OPEN_APP_REVIEW_STATUSES, OPEN_APP_REVIEW_STATUS_OPTIONS, OPEN_APP_ENVIRONMENT_OPTIONS } from '../constants';
 import { createOAuth2ClientSchema, reviewOAuth2ClientSchema, updateOAuth2ClientSchema } from '../validation';
 
 // ─── 实体 ────────────────────────────────────────────────────────────────────
@@ -116,8 +116,8 @@ export type OAuth2MyGrant = z.infer<typeof oauth2MyGrantSchema>;
 /** 应用列表筛选（管理端与开发者中心共用） */
 export const oauth2ClientListQuery = paginationQuery.extend({
   keyword: keywordQuery('应用名称'),
-  environment: queryEnum(OPEN_APP_ENVIRONMENTS),
-  reviewStatus: queryEnum(OPEN_APP_REVIEW_STATUSES),
+  environment: queryEnum(OPEN_APP_ENVIRONMENTS, { options: OPEN_APP_ENVIRONMENT_OPTIONS }),
+  reviewStatus: queryEnum(OPEN_APP_REVIEW_STATUSES, { options: OPEN_APP_REVIEW_STATUS_OPTIONS }),
 });
 
 export const oauth2TokenListQuery = paginationQuery.extend({

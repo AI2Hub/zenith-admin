@@ -1,7 +1,6 @@
 import { Col, Form, Row, Tag, Toast } from '@douyinfe/semi-ui';
-import { enumValueOf, USER_STATUSES } from '@zenith/shared/core';
-import { SMS_PROVIDER_OPTIONS } from '@zenith/shared/messaging';
-import type { CreateSmsConfigInput, SmsConfig, SmsProvider } from '@zenith/shared/messaging';
+import { SMS_PROVIDER_OPTIONS, smsConfigContract } from '@zenith/shared/messaging';
+import type { CreateSmsConfigInput, SmsConfig } from '@zenith/shared/messaging';
 import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -10,7 +9,6 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { deleteAction, ListSearchToolbar, useStatusToggle } from '@/components/list-page';
 import { createdAtColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '../../../utils/table-columns';
 import {
-  smsConfigKeys,
   useDeleteSmsConfig,
   useSaveSmsConfig,
   useSetDefaultSmsConfig,
@@ -18,30 +16,17 @@ import {
   useSmsConfigList,
 } from '@/hooks/queries/sms-configs';
 import { CreateButton } from '@/components/toolbar-controls';
-import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { useListPage } from '@/hooks/useListPage';
 import { EditFormModal } from '@/components/EditFormModal';
 
 export default function SmsConfigsPage() {
   const { hasPermission: can } = usePermission();
-  const { items: statusItems, options: statusOptions } = useDictItems('common_status');
-
-  interface SearchParams { keyword: string; filterProvider: SmsProvider | undefined; filterStatus: string | undefined; }
-  const defaultSearchParams: SearchParams = { keyword: '', filterProvider: undefined, filterStatus: undefined };
-  const {
-    bind,
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: smsConfigKeys.lists,
+  const { options: statusOptions } = useDictItems('common_status');
+  const page = useListPage({
+    contract: smsConfigContract,
     useList: useSmsConfigList,
-    toQuery: (s) => ({ keyword: s.keyword, provider: s.filterProvider, status: enumValueOf(USER_STATUSES, s.filterStatus) }),
   });
-
-
+  const { tableProps } = page;
 
   const saveMutation = useSaveSmsConfig();
   const configModal = useEditModal<SmsConfig, Partial<CreateSmsConfigInput>>({
@@ -82,7 +67,6 @@ export default function SmsConfigsPage() {
     await setDefaultMutation.mutateAsync({ params: { id: record.id } });
     Toast.success('已设为默认');
   };
-
 
   const columns = [
     { title: '名称', dataIndex: 'name', minWidth: 160 },
@@ -127,23 +111,8 @@ export default function SmsConfigsPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={<KeywordInput placeholder="搜索名称/签名" {...bindKeyword('keyword')} width={200} />}
-        filters={(
-          <>
-            <FilterSelect
-              placeholder="全部服务商"
-              items={SMS_PROVIDER_OPTIONS}
-              {...bind('filterProvider')}
-              width={140}
-            />
-            <StatusSelect
-              items={statusItems}
-              {...bind('filterStatus')}
-            />
-          </>
-        )}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword', 'provider', 'status']}
         create={<CreateButton permission="system:sms-config:create" onClick={configModal.openCreate} />}
         filterTitle="短信配置筛选"
       />

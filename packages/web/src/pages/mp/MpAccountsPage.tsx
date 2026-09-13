@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { Banner, Col, Form, Row, Switch, Tag, Toast, Typography } from '@douyinfe/semi-ui';
-import { USER_STATUSES, enumValueOf } from '@zenith/shared/core';
-import { MP_ACCOUNT_TYPE_LABELS, MP_ACCOUNT_TYPE_OPTIONS, MP_ACCOUNT_TYPES, MP_ENCRYPT_MODE_LABELS, MP_ENCRYPT_MODE_OPTIONS, type CreateMpAccountInput, type MpAccount, type MpAccountType } from '@zenith/shared/mp';
+import { MP_ACCOUNT_TYPE_LABELS, MP_ACCOUNT_TYPE_OPTIONS, MP_ENCRYPT_MODE_LABELS, MP_ENCRYPT_MODE_OPTIONS, type CreateMpAccountInput, type MpAccount, type MpAccountType, mpAccountContract } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -12,7 +11,6 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { createdAtColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '../../utils/table-columns';
 import {
-  mpAccountKeys,
   useDeleteMpAccounts,
   useMpAccountDetail,
   useMpAccountList,
@@ -21,7 +19,6 @@ import {
   useTestMpAccount,
 } from '@/hooks/queries/mp-accounts';
 import { CreateButton } from '@/components/toolbar-controls';
-import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { useListPage } from '@/hooks/useListPage';
 import { EditFormSheet } from '@/components/EditFormModal';
 
@@ -40,26 +37,12 @@ function buildCallbackUrl(id: number): string {
 
 export default function MpAccountsPage() {
   const { hasPermission: can } = usePermission();
-  const { items: statusItems, options: statusOptions } = useDictItems('common_status');
-
-  interface SearchParams { keyword: string; filterType: MpAccountType | undefined; filterStatus: string | undefined; }
-  const defaultSearchParams: SearchParams = { keyword: '', filterType: undefined, filterStatus: undefined };
-  const {
-    bind,
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: mpAccountKeys.lists,
+  const { options: statusOptions } = useDictItems('common_status');
+  const page = useListPage({
+    contract: mpAccountContract,
     useList: useMpAccountList,
-    toQuery: (s) => ({
-      keyword: s.keyword,
-      type: enumValueOf(MP_ACCOUNT_TYPES, s.filterType),
-      status: enumValueOf(USER_STATUSES, s.filterStatus),
-    }),
   });
+  const { tableProps } = page;
 
   const [configRecord, setConfigRecord] = useState<MpAccount | null>(null);
   const saveMutation = useSaveMpAccount();
@@ -177,22 +160,8 @@ export default function MpAccountsPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={<KeywordInput placeholder="搜索名称/微信号/AppID" {...bindKeyword('keyword')} />}
-        filters={(
-          <>
-            <FilterSelect
-              placeholder="全部类型"
-              items={MP_ACCOUNT_TYPE_OPTIONS}
-              {...bind('filterType', (v) => v as MpAccountType | undefined)}
-            />
-            <StatusSelect
-              items={statusItems}
-              {...bind('filterStatus')}
-            />
-          </>
-        )}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword', 'type', 'status']}
         create={<CreateButton permission="mp:account:create" onClick={modal.openCreate} />}
         filterTitle="公众号账号筛选"
       />

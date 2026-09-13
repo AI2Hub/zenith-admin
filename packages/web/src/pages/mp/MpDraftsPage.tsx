@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { Button, Input, Space, Spin, Tag, Toast, Typography, TextArea } from '@douyinfe/semi-ui';
 import { Plus, Trash2 } from 'lucide-react';
-import type { MpDraft, MpArticle } from '@zenith/shared/mp';
+import { mpDraftContract, type MpDraft, type MpArticle } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -12,7 +12,6 @@ import { useMpAccounts } from './useMpAccounts';
 import { MpAccountRequiredBanner } from './MpAccountRequiredBanner';
 import { MpAccountSwitcher } from './MpAccountSwitcher';
 import {
-  mpDraftKeys,
   useDeleteMpDrafts,
   useMpDraftDetail,
   useMpDraftList,
@@ -20,7 +19,6 @@ import {
   useSaveMpDraft,
 } from '@/hooks/queries/mp-drafts';
 import { CreateButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
 import { abortSubmit } from '@/lib/abort-submit';
 import { useListPage } from '@/hooks/useListPage';
 
@@ -29,21 +27,13 @@ const blankArticle = (): MpArticle => ({ title: '', author: '', digest: '', cont
 export default function MpDraftsPage() {
   const { hasPermission: can } = usePermission();
   const { accounts, currentId, setCurrentId, loading: accountsLoading } = useMpAccounts();
-  const defaultSearchParams: { keyword: string } = { keyword: '' };
-  const {
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: mpDraftKeys.lists,
+  const page = useListPage({
+    contract: mpDraftContract,
     useList: useMpDraftList,
-    toQuery: (s) => ({ keyword: s.keyword }),
     params: { accountId: currentId ?? 0 },
     enabled: !!currentId,
   });
-
+  const { tableProps } = page;
 
   const [modalVisible, setModalVisible] = useState(false);
   const [editingRecord, setEditingRecord] = useState<MpDraft | null>(null);
@@ -110,10 +100,9 @@ export default function MpDraftsPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={<KeywordInput placeholder="搜索标题" {...bindKeyword('keyword')} width={180} />}
-        filters={<MpAccountSwitcher accounts={accounts} value={currentId} onChange={setCurrentId} loading={accountsLoading} />}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword']}
+        extraFilters={<MpAccountSwitcher accounts={accounts} value={currentId} onChange={setCurrentId} loading={accountsLoading} />}
         create={<CreateButton permission="mp:draft:create" onClick={openCreate} disabled={!currentId}>新增图文</CreateButton>}
         filterTitle="图文草稿筛选"
       />

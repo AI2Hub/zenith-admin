@@ -1,7 +1,7 @@
 import * as z from 'zod';
 import { auditFieldsSchema, batchIdsBody, dateRangeQuery, entityStatusQuery, entityStatusSchema, idParam, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
-import { SHORT_LINK_BIZ_TYPES, SHORT_LINK_REDIRECT_TYPES, SHORT_LINK_STATS_MAX_DAYS } from '../constants';
+import { SHORT_LINK_BIZ_TYPES, SHORT_LINK_REDIRECT_TYPES, SHORT_LINK_STATS_MAX_DAYS, SHORT_LINK_BIZ_TYPE_OPTIONS } from '../constants';
 import {
   batchUpdateShortLinkStatusSchema,
   createShortLinkSchema,
@@ -78,7 +78,7 @@ export type ShortLinkStats = z.infer<typeof shortLinkStatsSchema>;
 export const shortLinkListQuery = paginationQuery.extend({
   keyword: keywordQuery('短码 / 标题 / 目标地址'),
   status: entityStatusQuery,
-  bizType: queryEnum(SHORT_LINK_BIZ_TYPES),
+  bizType: queryEnum(SHORT_LINK_BIZ_TYPES, { options: SHORT_LINK_BIZ_TYPE_OPTIONS }),
   ...dateRangeQuery('创建时间'),
 });
 

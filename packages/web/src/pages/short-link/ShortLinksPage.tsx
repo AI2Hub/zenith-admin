@@ -6,21 +6,23 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import ExportButton from '@/components/ExportButton';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { batchStatusHandler, confirmAndDelete, deleteAction, ListSearchToolbar, useRowSelection, useStatusToggle } from '@/components/list-page';
-import { DateRangeFilter, FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { BatchDeleteButton, BatchStatusButtons, CreateButton } from '@/components/toolbar-controls';
 import { copyableNoColumn, createdAtColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useEditModal } from '@/hooks/useEditModal';
 import { usePermission } from '@/hooks/usePermission';
-import { formatDateTimeForApi, formatDateTimeRangeForApi } from '@/utils/date';
+import { formatDateTimeForApi } from '@/utils/date';
 import {
-  shortLinkKeys, useBatchUpdateShortLinkStatus, useDeleteShortLinks,
-  useSaveShortLink, useShortLinkDetail, useShortLinkList,
+  useBatchUpdateShortLinkStatus,
+  useDeleteShortLinks,
+  useSaveShortLink,
+  useShortLinkDetail,
+  useShortLinkList,
 } from '@/hooks/queries/short-links';
-import { USER_STATUSES, enumValueOf } from '@zenith/shared/core';
 import {
-  SHORT_LINK_BIZ_TYPES, SHORT_LINK_BIZ_TYPE_LABELS, SHORT_LINK_BIZ_TYPE_OPTIONS,
+  SHORT_LINK_BIZ_TYPE_LABELS,
   SHORT_LINK_REDIRECT_TYPE_OPTIONS,
+  shortLinkContract,
 } from '@zenith/shared/short-link';
 import type { CreateShortLinkInput, ShortLink } from '@zenith/shared/short-link';
 import ShortLinkStatsDrawer from './ShortLinkStatsDrawer';
@@ -28,15 +30,6 @@ import { useListPage } from '@/hooks/useListPage';
 import { EditFormSheet } from '@/components/EditFormModal';
 
 const { Text } = Typography;
-
-interface SearchParams {
-  keyword: string;
-  status?: string;
-  bizType?: string;
-  timeRange: [Date, Date] | null;
-}
-
-const defaultSearchParams: SearchParams = { keyword: '', status: undefined, bizType: undefined, timeRange: null };
 
 /** 短链表单值：`expiresAt` 在表单里是 Date，提交前由 beforeSave 转成接口格式；记录里的 null 在表单中归一为空串 / 未填 */
 interface ShortLinkFormValues extends Partial<Omit<CreateShortLinkInput, 'expiresAt'>> {
@@ -70,28 +63,14 @@ export default function ShortLinksPage() {
   const [qrLink, setQrLink] = useState<ShortLink | null>(null);
   const [statsLink, setStatsLink] = useState<ShortLink | null>(null);
 
-  const {
-    bind,
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-    filterQuery,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: shortLinkKeys.lists,
+  const page = useListPage({
+    contract: shortLinkContract,
     onSearch: clearSelection,
     onReset: clearSelection,
     useList: useShortLinkList,
-    toQuery: (s) => ({
-      keyword: s.keyword,
-      status: enumValueOf(USER_STATUSES, s.status),
-      bizType: enumValueOf(SHORT_LINK_BIZ_TYPES, s.bizType),
-      ...formatDateTimeRangeForApi(s.timeRange),
-    }),
     table: { rowSelection },
   });
-
+  const { tableProps, filterQuery } = page;
 
   const modal = useEditModal<ShortLink, ShortLinkFormValues, Partial<CreateShortLinkInput>>({
     entityName: '短链',
@@ -136,8 +115,7 @@ export default function ShortLinksPage() {
     editing && (editing.utmSource || editing.utmMedium || editing.utmCampaign || editing.utmTerm || editing.utmContent),
   );
 
-  const { items: statusItems, options: statusOptions } = useDictItems('common_status');
-
+  const { options: statusOptions } = useDictItems('common_status');
 
   function handleBatchDelete() {
     confirmAndDelete({
@@ -217,28 +195,8 @@ export default function ShortLinksPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={(
-          <KeywordInput
-            placeholder="搜索短码 / 标题 / 目标地址..."
-            {...bindKeyword('keyword')}
-          />
-        )}
-        filters={<>
-          <StatusSelect
-            items={statusItems}
-            {...bind('status')}
-          />
-          <FilterSelect
-            items={SHORT_LINK_BIZ_TYPE_OPTIONS}
-            placeholder="全部来源"
-            {...bind('bizType')}
-          />
-          <DateRangeFilter
-            {...bind('timeRange')}
-          />
-        </>}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword', 'status', 'bizType', ['startTime', 'endTime']]}
         create={<CreateButton permission="shortlink:link:create" onClick={modal.openCreate} />}
         actions={<>
           {renderBatchButtons()}

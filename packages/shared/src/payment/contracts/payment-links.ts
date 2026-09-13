@@ -1,14 +1,12 @@
 import * as z from 'zod';
 import { idParam, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
-import {
-  PAYMENT_CASHIER_METHODS,
+import { PAYMENT_CASHIER_METHODS,
   PAYMENT_CASHIER_SESSION_STATUSES,
   PAYMENT_CASHIER_USE_SLOT_STATUSES,
   PAYMENT_LINK_STATUSES,
   PAYMENT_LINK_UNAVAILABLE_REASONS,
-  PAYMENT_METHODS,
-} from '../constants';
+  PAYMENT_METHODS, PAYMENT_LINK_STATUS_OPTIONS } from '../constants';
 import { createPaymentLinkSchema, payPaymentLinkSchema, updatePaymentLinkSchema } from '../validation';
 import { createPaymentResultSchema } from './payment-orders';
 
@@ -85,7 +83,7 @@ export type PaymentCashierSession = z.infer<typeof paymentCashierSessionSchema>;
 
 export const paymentLinkListQuery = paginationQuery.extend({
   keyword: keywordQuery(),
-  status: queryEnum(PAYMENT_LINK_STATUSES),
+  status: queryEnum(PAYMENT_LINK_STATUSES, { options: PAYMENT_LINK_STATUS_OPTIONS }),
 });
 
 export const paymentLinkContract = defineContract('/api/payment/links', {

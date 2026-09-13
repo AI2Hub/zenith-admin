@@ -1,7 +1,6 @@
 import { Col, Form, Row } from '@douyinfe/semi-ui';
-import { enumValueOf, USER_STATUSES } from '@zenith/shared/core';
-import { SMS_PROVIDER_OPTIONS } from '@zenith/shared/messaging';
-import type { CreateSmsTemplateInput, SmsProvider, SmsTemplate } from '@zenith/shared/messaging';
+import { SMS_PROVIDER_OPTIONS, smsTemplateContract } from '@zenith/shared/messaging';
+import type { CreateSmsTemplateInput, SmsTemplate } from '@zenith/shared/messaging';
 import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -11,38 +10,24 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { deleteAction, ListSearchToolbar, useStatusToggle } from '@/components/list-page';
 import { createdAtColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '../../../utils/table-columns';
 import {
-  smsTemplateKeys,
   useDeleteSmsTemplate,
   useSaveSmsTemplate,
   useSmsTemplateDetail,
   useSmsTemplateList,
 } from '@/hooks/queries/sms-templates';
 import { CreateButton } from '@/components/toolbar-controls';
-import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { TemplateNameCodeRow, TemplateVariablesRemarkRows } from '../message-template-form';
 import { useListPage } from '@/hooks/useListPage';
 import { EditFormModal } from '@/components/EditFormModal';
 
 export default function SmsTemplatesPage() {
   const { hasPermission: can } = usePermission();
-  const { items: statusItems, options: statusOptions } = useDictItems('common_status');
-
-  interface SearchParams { keyword: string; filterProvider: SmsProvider | undefined; filterStatus: string | undefined; }
-  const defaultSearchParams: SearchParams = { keyword: '', filterProvider: undefined, filterStatus: undefined };
-  const {
-    bind,
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: smsTemplateKeys.lists,
+  const { options: statusOptions } = useDictItems('common_status');
+  const page = useListPage({
+    contract: smsTemplateContract,
     useList: useSmsTemplateList,
-    toQuery: (s) => ({ keyword: s.keyword, provider: s.filterProvider, status: enumValueOf(USER_STATUSES, s.filterStatus) }),
   });
-
-
+  const { tableProps } = page;
 
   const saveMutation = useSaveSmsTemplate();
   const templateModal = useEditModal<SmsTemplate, Partial<CreateSmsTemplateInput>>({
@@ -71,7 +56,6 @@ export default function SmsTemplatesPage() {
     disabled: !can('system:sms-template:update'),
     messages: { disabled: '已禁用' },
   });
-
 
   const columns = [
     { title: '模板名称', dataIndex: 'name', width: 160 },
@@ -106,23 +90,8 @@ export default function SmsTemplatesPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={<KeywordInput placeholder="搜索模板名称/编码" {...bindKeyword('keyword')} />}
-        filters={(
-          <>
-            <FilterSelect
-              placeholder="全部服务商"
-              items={SMS_PROVIDER_OPTIONS}
-              {...bind('filterProvider')}
-              width={140}
-            />
-            <StatusSelect
-              items={statusItems}
-              {...bind('filterStatus')}
-            />
-          </>
-        )}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword', 'provider', 'status']}
         create={<CreateButton permission="system:sms-template:create" onClick={templateModal.openCreate} />}
         filterTitle="短信模板筛选"
       />

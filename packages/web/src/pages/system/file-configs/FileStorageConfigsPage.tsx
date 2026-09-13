@@ -1,11 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Button, Col, Form, Radio, Row, Select, Switch, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import { PlugZap } from 'lucide-react';
-import type { CreateFileStorageConfigInput, FileObjectAcl, FileStorageConfig, FileStorageProvider, FileUrlStrategy, UpdateFileStorageConfigInput } from '@zenith/shared/platform';
-import { COMMON_STATUS_OPTIONS, enumValueOf, USER_STATUSES } from '@zenith/shared/core';
+import { fileStorageConfigContract, type CreateFileStorageConfigInput, type FileObjectAcl, type FileStorageConfig, type FileStorageProvider, type FileUrlStrategy, type UpdateFileStorageConfigInput } from '@zenith/shared/platform';
 import { FILE_OBJECT_ACL_LABELS, FILE_OBJECT_ACL_SUPPORT, FILE_STORAGE_PROVIDER_LABELS, FILE_STORAGE_PROVIDER_OPTIONS, FILE_URL_STRATEGY_LABELS, FILE_URL_STRATEGY_OPTIONS, PRESIGNED_EXPIRY_DEFAULT_SECONDS, PRESIGNED_EXPIRY_MAX_SECONDS, PRESIGNED_EXPIRY_MIN_SECONDS } from '@zenith/shared/platform';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { formatDateTimeRangeForApi } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import ExportButton from '@/components/ExportButton';
@@ -16,7 +14,6 @@ import { deleteAction, ListSearchToolbar, useStatusToggle } from '@/components/l
 import { abortSubmit } from '@/lib/abort-submit';
 import StorageFileBrowser from './StorageFileBrowser';
 import {
-  fileStorageConfigKeys,
   useDeleteFileStorageConfigs,
   useFileStorageConfigDetail,
   useFileStorageConfigList,
@@ -25,7 +22,6 @@ import {
   useTestFileStorageConfig,
 } from '@/hooks/queries/file-storage-configs';
 import { CreateButton } from '@/components/toolbar-controls';
-import { DateRangeFilter, StatusSelect } from '@/components/search-filters';
 import { useListPage } from '@/hooks/useListPage';
 import { EditFormSheet } from '@/components/EditFormModal';
 
@@ -193,24 +189,11 @@ function getStorageSummary(config: FileStorageConfig) {
 
 export default function FileStorageConfigsPage() {
   const { hasPermission } = usePermission();
-  interface SearchParams {
-    status?: string;
-    timeRange: [Date, Date] | null;
-  }
-
-  const defaultSearchParams: SearchParams = { status: undefined, timeRange: null };
-  const {
-    bind,
-    handleSearch,
-    handleReset,
-    tableProps,
-    filterQuery,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: fileStorageConfigKeys.lists,
+  const page = useListPage({
+    contract: fileStorageConfigContract,
     useList: useFileStorageConfigList,
-    toQuery: (s) => ({ status: enumValueOf(USER_STATUSES, s.status), ...formatDateTimeRangeForApi(s.timeRange) }),
   });
+  const { tableProps, filterQuery } = page;
   const [formProvider, setFormProvider] = useState<FileStorageProvider>('local');
   const [formIsDefault, setFormIsDefault] = useState(false);
   const [browsingConfig, setBrowsingConfig] = useState<FileStorageConfig | null>(null);
@@ -487,21 +470,11 @@ export default function FileStorageConfigsPage() {
     }),
   ];
 
-
   return (
     <div className="page-container">
       <ListSearchToolbar
-        filters={(
-          <>
-            <StatusSelect
-              items={COMMON_STATUS_OPTIONS}
-              {...bind('status')}
-            />
-            <DateRangeFilter {...bind('timeRange')} />
-          </>
-        )}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['status', ['startTime', 'endTime']]}
         create={<CreateButton permission="system:file:config:create" onClick={openCreate} />}
         actions={(
           <ExportButton entity="system.file-storage-configs" query={filterQuery} />

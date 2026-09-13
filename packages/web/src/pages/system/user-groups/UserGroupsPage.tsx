@@ -3,8 +3,7 @@ import { Banner, Button, Form, Select, Space, Toast, SideSheet, Empty, Tag, Spin
 import { RefreshCw, Users } from 'lucide-react';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree';
-import type { CreateUserGroupInput, User, UserGroup, UserGroupMemberRule, UserGroupRulePreview } from '@zenith/shared/identity';
-import { USER_STATUSES, enumValueOf } from '@zenith/shared/core';
+import { userGroupContract, type CreateUserGroupInput, type User, type UserGroup, type UserGroupMemberRule, type UserGroupRulePreview } from '@zenith/shared/identity';
 import { usePermission } from '@/hooks/usePermission';
 import type { UserTransferUser } from '@/components/UserTransferSelect';
 import { AppModal } from '@/components/AppModal';
@@ -18,7 +17,6 @@ import {
   useAssignUserGroupRoles,
   useDeleteUserGroups,
   useSaveUserGroup,
-  userGroupKeys,
   useSyncUserGroup,
   useUserGroupDetail,
   useUserGroupList,
@@ -31,42 +29,27 @@ import { useAllRoles } from '@/hooks/queries/roles';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useEditModal } from '@/hooks/useEditModal';
 import { BatchDeleteButton, CreateButton } from '@/components/toolbar-controls';
-import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmAndDelete, deleteAction, ListSearchToolbar, useRowSelection, useStatusToggle } from '@/components/list-page';
 import { MemberAssignmentSheet, memberPreviewColumn } from '@/components/members/MemberAssignmentSheet';
 import { useListPage } from '@/hooks/useListPage';
 import { EditFormSheet } from '@/components/EditFormModal';
-
-interface SearchParams {
-  keyword: string;
-  status?: string;
-}
 
 type SimpleUser = UserTransferUser & {
   email?: string | null;
   departmentId?: number | null;
 };
 
-const defaultSearchParams: SearchParams = { keyword: '', status: undefined };
-
 export default function UserGroupsPage() {
-  const { items: statusItems, options: statusOptions } = useDictItems('common_status');
+  const { options: statusOptions } = useDictItems('common_status');
   const { hasPermission } = usePermission();
 
   const { selectedRowKeys, clear: clearSelection, rowSelection } = useRowSelection();
-  const {
-    bind,
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: userGroupKeys.lists,
+  const page = useListPage({
+    contract: userGroupContract,
     useList: useUserGroupList,
-    toQuery: (s) => ({ keyword: s.keyword, status: enumValueOf(USER_STATUSES, s.status) }),
     table: { empty: '暂无数据', rowSelection },
   });
+  const { tableProps } = page;
 
   // 选项数据
   const allUsersQuery = useAllUsers();
@@ -254,15 +237,8 @@ export default function UserGroupsPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={<KeywordInput placeholder="搜索名称/编码" {...bindKeyword('keyword')} width={240} />}
-        filters={(
-          <StatusSelect
-            items={statusItems}
-            {...bind('status')}
-          />
-        )}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword', 'status']}
         create={<CreateButton permission="system:user-groups:create" onClick={groupModal.openCreate} />}
         actions={selectedRowKeys.length > 0 && hasPermission('system:user-groups:delete') && <BatchDeleteButton count={selectedRowKeys.length} onClick={handleBatchDelete} />}
         filterTitle="用户组筛选"

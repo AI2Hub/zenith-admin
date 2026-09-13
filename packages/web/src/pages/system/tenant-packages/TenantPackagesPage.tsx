@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Form, Toast, Spin, CheckboxGroup, Tag, Space } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { CreateTenantPackageInput, TenantPackage } from '@zenith/shared/identity';
-import { USER_STATUSES, enumValueOf } from '@zenith/shared/core';
+import { tenantPackageContract, type CreateTenantPackageInput, type TenantPackage } from '@zenith/shared/identity';
+import { enumValueOf } from '@zenith/shared/core';
 import { LICENSE_FEATURES, LICENSE_FEATURE_LABELS, LICENSE_FEATURE_OPTIONS, type LicenseFeatureKey } from '@zenith/shared/licensing';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -11,7 +11,6 @@ import { useEditModal } from '@/hooks/useEditModal';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useListPage } from '@/hooks/useListPage';
 import {
-  tenantPackageKeys,
   useAssignTenantPackageFeatures,
   useDeleteTenantPackages,
   useSaveTenantPackage,
@@ -21,30 +20,21 @@ import {
 import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { BatchDeleteButton, CreateButton } from '@/components/toolbar-controls';
-import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmAndDelete, deleteAction, ListSearchToolbar, useRowSelection, useStatusToggle } from '@/components/list-page';
 import { EditFormModal } from '@/components/EditFormModal';
 
-interface SearchParams {
-  keyword: string;
-  status?: string;
-}
-
-const defaultSearchParams: SearchParams = { keyword: '', status: undefined };
-
 export default function TenantPackagesPage() {
   const { hasPermission } = usePermission();
-  const { items: statusItems, options: statusOptions } = useDictItems('common_status');
+  const { options: statusOptions } = useDictItems('common_status');
 
   const { selectedRowKeys, hasSelection, clear: clearSelection, rowSelection } = useRowSelection();
   // 搜索状态 → 已提交筛选映射 → 列表查询 → 表格接线，一次接好
-  const { bind, bindKeyword, handleSearch, handleReset, tableProps } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: tenantPackageKeys.lists,
+  const page = useListPage({
+    contract: tenantPackageContract,
     useList: useTenantPackageList,
-    toQuery: (s) => ({ keyword: s.keyword, status: enumValueOf(USER_STATUSES, s.status) }),
     table: { rowSelection },
   });
+  const { tableProps } = page;
 
   // 新增/编辑弹窗：详情到达时由 useEditModal 自动重挂载表单
   const saveMutation = useSaveTenantPackage();
@@ -153,15 +143,8 @@ export default function TenantPackagesPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={<KeywordInput placeholder="搜索套餐名称" {...bindKeyword('keyword')} />}
-        filters={(
-          <StatusSelect
-            items={statusItems}
-            {...bind('status')}
-          />
-        )}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword', 'status']}
         create={<CreateButton permission="system:tenant-package:create" onClick={modal.openCreate} />}
         actions={hasSelection && hasPermission('system:tenant-package:delete') && <BatchDeleteButton count={selectedRowKeys.length} onClick={handleBatchDelete} />}
         filterTitle="套餐筛选"

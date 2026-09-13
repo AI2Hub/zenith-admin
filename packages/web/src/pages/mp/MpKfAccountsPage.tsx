@@ -1,7 +1,7 @@
 import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { Avatar, Button, Form, Space, Tag, Toast } from '@douyinfe/semi-ui';
 import { RefreshCw } from 'lucide-react';
-import type { CreateMpKfAccountInput, MpKfAccount } from '@zenith/shared/mp';
+import { mpKfAccountContract, type CreateMpKfAccountInput, type MpKfAccount } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -11,14 +11,12 @@ import { useMpAccounts } from './useMpAccounts';
 import { MpAccountRequiredBanner } from './MpAccountRequiredBanner';
 import { MpAccountSwitcher } from './MpAccountSwitcher';
 import {
-  mpKfAccountKeys,
   useDeleteMpKfAccounts,
   useMpKfAccountList,
   useSaveMpKfAccount,
   useSyncMpKfAccounts,
 } from '@/hooks/queries/mp-kf';
 import { CreateButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
 import { abortSubmit } from '@/lib/abort-submit';
 import { useListPage } from '@/hooks/useListPage';
 import { EditFormModal } from '@/components/EditFormModal';
@@ -33,20 +31,13 @@ const INVITE_LABEL: Record<string, { label: string; color: 'green' | 'orange' | 
 export default function MpKfAccountsPage() {
   const { hasPermission: can } = usePermission();
   const { accounts, currentId, setCurrentId, loading: accountsLoading } = useMpAccounts();
-  const defaultSearchParams: { keyword: string } = { keyword: '' };
-  const {
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: mpKfAccountKeys.lists,
+  const page = useListPage({
+    contract: mpKfAccountContract,
     useList: useMpKfAccountList,
-    toQuery: (s) => ({ keyword: s.keyword }),
     params: { accountId: currentId ?? 0 },
     enabled: !!currentId,
   });
+  const { tableProps } = page;
 
   const syncMutation = useSyncMpKfAccounts();
   const saveMutation = useSaveMpKfAccount();
@@ -109,14 +100,9 @@ export default function MpKfAccountsPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={(
-          <>
-            <MpAccountSwitcher accounts={accounts} value={currentId} onChange={setCurrentId} loading={accountsLoading} />
-            <KeywordInput placeholder="搜索客服昵称" {...bindKeyword('keyword')} width={180} />
-          </>
-        )}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword']}
+        extraFilters={<MpAccountSwitcher accounts={accounts} value={currentId} onChange={setCurrentId} loading={accountsLoading} />}
         create={<CreateButton permission="mp:kf:create" onClick={modal.openCreate} disabled={!currentId}>添加客服</CreateButton>}
         actions={syncButton}
         filterTitle="多客服筛选"

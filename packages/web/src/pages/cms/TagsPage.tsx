@@ -6,38 +6,27 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { EMPTY_PLACEHOLDER, createdAtColumn } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
-import { useCmsTagList, useSaveCmsTag, useDeleteCmsTags, cmsTagKeys } from '@/hooks/queries/cms';
-import type { CmsTag, CreateCmsTagInput } from '@zenith/shared/cms';
+import { useCmsTagList, useSaveCmsTag, useDeleteCmsTags } from '@/hooks/queries/cms';
+import { cmsTagContract, type CmsTag, type CreateCmsTagInput } from '@zenith/shared/cms';
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { CreateButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
 import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { slugifyName } from '@/utils/slug';
 import { abortSubmit } from '@/lib/abort-submit';
 import { useListPage } from '@/hooks/useListPage';
 import { EditFormModal } from '@/components/EditFormModal';
 
-interface SearchParams { keyword: string }
-const defaultSearch: SearchParams = { keyword: '' };
-
 export default function TagsPage() {
   const { hasPermission } = usePermission();
   const [siteId, setSiteId] = useState<number | undefined>(undefined);
-  const {
-    setPage,
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearch,
-    listKey: cmsTagKeys.lists,
+  const page = useListPage({
+    contract: cmsTagContract,
     useList: useCmsTagList,
-    toQuery: (s) => ({ keyword: s.keyword }),
     params: { siteId: siteId ?? 0 },
     enabled: siteId !== undefined,
     table: { empty: '暂无标签' },
   });
+  const { setPage, tableProps } = page;
 
   const saveMutation = useSaveCmsTag();
   const modal = useEditModal<CmsTag, Partial<CmsTag>, Partial<CreateCmsTagInput>>({
@@ -97,14 +86,9 @@ export default function TagsPage() {
     <div className="page-container">
       {/* 站点是列表的作用域而非筛选条件，与关键字一起留在移动端主区 */}
       <ListSearchToolbar
-        keyword={(
-          <>
-            <CmsSiteSelect value={siteId} onChange={(v) => { setSiteId(v); setPage(1); }} width={180} />
-            <KeywordInput placeholder="搜索标签名称/标识..." {...bindKeyword('keyword')} />
-          </>
-        )}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword']}
+        extraFilters={<CmsSiteSelect value={siteId} onChange={(v) => { setSiteId(v); setPage(1); }} width={180} />}
         create={<CreateButton permission="cms:tag:create" onClick={modal.openCreate} />}
       />
 

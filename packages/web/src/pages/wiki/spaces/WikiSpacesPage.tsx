@@ -2,13 +2,11 @@ import { useNavigate } from 'react-router-dom';
 import { useEffect, useMemo, useState } from 'react';
 import { Col, Form, Row, Select, SideSheet, Spin, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { CreateWikiSpaceInput, WikiSpace, WikiSpaceMemberRole } from '@zenith/shared/wiki';
-import { WIKI_SPACE_MEMBER_ROLE_LABELS, WIKI_SPACE_MEMBER_ROLE_OPTIONS, WIKI_SPACE_VISIBILITIES, WIKI_SPACE_VISIBILITY_LABELS, WIKI_SPACE_VISIBILITY_OPTIONS } from '@zenith/shared/wiki';
-import { USER_STATUSES, enumValueOf } from '@zenith/shared/core';
+import { wikiSpaceContract, type CreateWikiSpaceInput, type WikiSpace, type WikiSpaceMemberRole } from '@zenith/shared/wiki';
+import { WIKI_SPACE_MEMBER_ROLE_LABELS, WIKI_SPACE_MEMBER_ROLE_OPTIONS, WIKI_SPACE_VISIBILITY_LABELS, WIKI_SPACE_VISIBILITY_OPTIONS } from '@zenith/shared/wiki';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { deleteAction, ListSearchToolbar, useStatusToggle } from '@/components/list-page';
-import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { CreateButton } from '@/components/toolbar-controls';
 import { UserTransferSelect } from '@/components/UserTransferSelect';
 import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
@@ -17,8 +15,12 @@ import { useEditModal } from '@/hooks/useEditModal';
 import { usePermission } from '@/hooks/usePermission';
 import { useAllUsers } from '@/hooks/queries/users';
 import {
-  useDeleteWikiSpaces, useSaveWikiSpace, useSaveWikiSpaceMembers, useWikiSpaceDetail,
-  useWikiSpaceList, useWikiSpaceMembers, wikiSpaceKeys,
+  useDeleteWikiSpaces,
+  useSaveWikiSpace,
+  useSaveWikiSpaceMembers,
+  useWikiSpaceDetail,
+  useWikiSpaceList,
+  useWikiSpaceMembers,
 } from '@/hooks/queries/wiki-spaces';
 import ModalFooter from '@/components/ModalFooter';
 import { useListPage } from '@/hooks/useListPage';
@@ -26,36 +28,15 @@ import { EditFormModal } from '@/components/EditFormModal';
 
 const { Text } = Typography;
 
-interface SearchParams {
-  keyword: string;
-  visibility?: string;
-  status?: string;
-}
-
-const defaultSearchParams: SearchParams = { keyword: '', visibility: undefined, status: undefined };
-
 export default function WikiSpacesPage() {
   const { hasPermission } = usePermission();
   const navigate = useNavigate();
 
-  const {
-    bind,
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: wikiSpaceKeys.lists,
+  const page = useListPage({
+    contract: wikiSpaceContract,
     useList: useWikiSpaceList,
-    toQuery: (s) => ({
-      keyword: s.keyword,
-      visibility: enumValueOf(WIKI_SPACE_VISIBILITIES, s.visibility),
-      status: enumValueOf(USER_STATUSES, s.status),
-    }),
   });
-
-
+  const { tableProps } = page;
 
   const modal = useEditModal<WikiSpace, Partial<CreateWikiSpaceInput>>({
     entityName: '知识空间',
@@ -84,7 +65,7 @@ export default function WikiSpacesPage() {
     }),
     disabled: !hasPermission('wiki:space:edit'),
   });
-  const { items: statusItems, options: statusOptions } = useDictItems('common_status');
+  const { options: statusOptions } = useDictItems('common_status');
 
   // ─── 成员授权抽屉 ──────────────────────────────────────────────────────────
   const [memberSpace, setMemberSpace] = useState<WikiSpace | null>(null);
@@ -165,26 +146,8 @@ export default function WikiSpacesPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={(
-          <KeywordInput
-            placeholder="搜索空间名称..."
-            {...bindKeyword('keyword')}
-          />
-        )}
-        filters={<>
-          <FilterSelect
-            placeholder="全部可见性"
-            items={WIKI_SPACE_VISIBILITY_OPTIONS}
-            {...bind('visibility')}
-            width={140}
-          />
-          <StatusSelect
-            items={statusItems}
-            {...bind('status')}
-          />
-        </>}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword', 'visibility', 'status']}
         create={<CreateButton permission="wiki:space:create" onClick={modal.openCreate} />}
         filterTitle="筛选条件"
       />

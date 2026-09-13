@@ -1,46 +1,31 @@
 import { Col, Form, Row } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { CreateWikiTemplateInput, WikiTemplate } from '@zenith/shared/wiki';
-import { USER_STATUSES, enumValueOf } from '@zenith/shared/core';
+import { wikiTemplateContract, type CreateWikiTemplateInput, type WikiTemplate } from '@zenith/shared/wiki';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { deleteAction, ListSearchToolbar, useStatusToggle } from '@/components/list-page';
-import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { CreateButton } from '@/components/toolbar-controls';
 import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useEditModal } from '@/hooks/useEditModal';
 import { usePermission } from '@/hooks/usePermission';
 import {
-  useDeleteWikiTemplates, useSaveWikiTemplate, useWikiTemplateDetail, useWikiTemplateList, wikiTemplateKeys,
+  useDeleteWikiTemplates,
+  useSaveWikiTemplate,
+  useWikiTemplateDetail,
+  useWikiTemplateList,
 } from '@/hooks/queries/wiki-templates';
 import { useListPage } from '@/hooks/useListPage';
 import { EditFormModal } from '@/components/EditFormModal';
 
-interface SearchParams {
-  keyword: string;
-  status?: string;
-}
-
-const defaultSearchParams: SearchParams = { keyword: '', status: undefined };
-
 export default function WikiTemplatesPage() {
   const { hasPermission } = usePermission();
 
-  const {
-    bind,
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: wikiTemplateKeys.lists,
+  const page = useListPage({
+    contract: wikiTemplateContract,
     useList: useWikiTemplateList,
-    toQuery: (s) => ({ keyword: s.keyword, status: enumValueOf(USER_STATUSES, s.status) }),
   });
-
-
+  const { tableProps } = page;
 
   const modal = useEditModal<WikiTemplate, Partial<CreateWikiTemplateInput>>({
     entityName: '文档模板',
@@ -67,7 +52,7 @@ export default function WikiTemplatesPage() {
     }),
     disabled: !hasPermission('wiki:template:edit'),
   });
-  const { items: statusItems, options: statusOptions } = useDictItems('common_status');
+  const { options: statusOptions } = useDictItems('common_status');
 
   const columns: ColumnProps<WikiTemplate>[] = [
     { title: '模板名称', dataIndex: 'name', width: 200, render: renderEllipsis },
@@ -95,20 +80,8 @@ export default function WikiTemplatesPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={(
-          <KeywordInput
-            placeholder="搜索模板名称..."
-            {...bindKeyword('keyword')}
-          />
-        )}
-        filters={(
-          <StatusSelect
-            items={statusItems}
-            {...bind('status')}
-          />
-        )}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword', 'status']}
         create={<CreateButton permission="wiki:template:create" onClick={modal.openCreate} />}
         filterTitle="筛选条件"
       />

@@ -2,8 +2,7 @@ import { useState } from 'react';
 import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { Button, Col, Form, Input, Row, Select, Space, Spin, Tag, Toast, Switch, Typography } from '@douyinfe/semi-ui';
 import { Plus, Trash2, Flame } from 'lucide-react';
-import { enumValueOf } from '@zenith/shared/core';
-import { MP_AUTO_REPLY_MATCH_OPTIONS, MP_AUTO_REPLY_TYPE_LABELS, MP_AUTO_REPLY_TYPE_OPTIONS, MP_AUTO_REPLY_TYPES, MP_REPLY_CONTENT_TYPE_LABELS, MP_REPLY_CONTENT_TYPE_OPTIONS } from '@zenith/shared/mp';
+import { MP_AUTO_REPLY_MATCH_OPTIONS, MP_AUTO_REPLY_TYPE_LABELS, MP_AUTO_REPLY_TYPE_OPTIONS, MP_REPLY_CONTENT_TYPE_LABELS, MP_REPLY_CONTENT_TYPE_OPTIONS, mpAutoReplyContract } from '@zenith/shared/mp';
 import type { CreateMpAutoReplyInput, MpAutoReply, MpAutoReplyType, MpReplyContentType, MpReplyArticle } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -16,7 +15,6 @@ import { useMpAccounts } from './useMpAccounts';
 import { MpAccountRequiredBanner } from './MpAccountRequiredBanner';
 import { MpAccountSwitcher } from './MpAccountSwitcher';
 import {
-  mpAutoReplyKeys,
   useDeleteMpAutoReplies,
   useDeleteMpUnmatchedKeyword,
   useMpAutoReplyList,
@@ -25,7 +23,6 @@ import {
   useSaveMpAutoReply,
 } from '@/hooks/queries/mp-auto-replies';
 import { CreateButton } from '@/components/toolbar-controls';
-import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { abortSubmit } from '@/lib/abort-submit';
 import { useListPage } from '@/hooks/useListPage';
 import { EditFormModal } from '@/components/EditFormModal';
@@ -50,24 +47,14 @@ export default function MpAutoRepliesPage() {
   const { hasPermission: can } = usePermission();
   const { options: statusOptions } = useDictItems('common_status');
   const { accounts, currentId, setCurrentId, loading: accountsLoading } = useMpAccounts();
-
-  interface SearchParams { filterType: MpAutoReplyType | undefined; keyword: string; }
-  const defaultSearch: SearchParams = { filterType: undefined, keyword: '' };
-  const {
-    bind,
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearch,
-    listKey: mpAutoReplyKeys.lists,
+  const page = useListPage({
+    contract: mpAutoReplyContract,
     resetKey: currentId,
     useList: useMpAutoReplyList,
-    toQuery: (s) => ({ replyType: s.filterType, keyword: s.keyword }),
     params: { accountId: currentId ?? 0 },
     enabled: !!currentId,
   });
+  const { tableProps } = page;
 
   const [modalType, setModalType] = useState<MpAutoReplyType>('keyword');
   const [contentType, setContentType] = useState<MpReplyContentType>('text');
@@ -190,22 +177,9 @@ export default function MpAutoRepliesPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={(
-          <>
-            <MpAccountSwitcher accounts={accounts} value={currentId} onChange={setCurrentId} loading={accountsLoading} />
-            <KeywordInput placeholder="搜索关键词" {...bindKeyword('keyword')} width={180} />
-          </>
-        )}
-        filters={(
-          <FilterSelect
-            placeholder="全部回复类型"
-            items={MP_AUTO_REPLY_TYPE_OPTIONS}
-            {...bind('filterType', (v) => enumValueOf(MP_AUTO_REPLY_TYPES, v))}
-            width={140}
-          />
-        )}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword', 'replyType']}
+        extraFilters={<MpAccountSwitcher accounts={accounts} value={currentId} onChange={setCurrentId} loading={accountsLoading} />}
         create={<CreateButton permission="mp:reply:create" onClick={openCreate} disabled={!currentId} />}
         actions={hotwordsButton}
         filterTitle="自动回复筛选"

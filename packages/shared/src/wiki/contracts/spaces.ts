@@ -1,7 +1,7 @@
 import * as z from 'zod';
 import { auditFieldsSchema, entityStatusQuery, entityStatusSchema, idParam, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
-import { WIKI_SPACE_MEMBER_ROLES, WIKI_SPACE_VISIBILITIES } from '../constants';
+import { WIKI_SPACE_MEMBER_ROLES, WIKI_SPACE_VISIBILITIES, WIKI_SPACE_VISIBILITY_OPTIONS } from '../constants';
 import { createWikiSpaceSchema, saveWikiSpaceMembersSchema, updateWikiSpaceSchema } from '../validation';
 
 // ─── 实体 ────────────────────────────────────────────────────────────────────
@@ -42,7 +42,7 @@ export type WikiSpaceMember = z.infer<typeof wikiSpaceMemberSchema>;
 
 export const wikiSpaceListQuery = paginationQuery.extend({
   keyword: keywordQuery('名称 / 描述'),
-  visibility: queryEnum(WIKI_SPACE_VISIBILITIES),
+  visibility: queryEnum(WIKI_SPACE_VISIBILITIES, { options: WIKI_SPACE_VISIBILITY_OPTIONS }),
   status: entityStatusQuery,
 });
 

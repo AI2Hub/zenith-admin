@@ -19,6 +19,7 @@ import {
   updateErrorGroupSchema,
 } from '../validation';
 import { daysQuery } from './_query';
+import { OPEN_APP_ENVIRONMENT_OPTIONS } from '../../open-platform/constants';
 
 // ─── 实体 ────────────────────────────────────────────────────────────────────
 
@@ -161,7 +162,7 @@ export const errorGroupListQuery = paginationQuery.extend({
   level: queryEnum(ERROR_LEVELS),
   keyword: keywordQuery(),
   assigneeId: z.coerce.number().int().optional(),
-  environment: queryEnum(ANALYTICS_ENVIRONMENTS),
+  environment: queryEnum(ANALYTICS_ENVIRONMENTS, { options: OPEN_APP_ENVIRONMENT_OPTIONS }),
 });
 
 export const errorGroupBatchStatusQuery = z.object({

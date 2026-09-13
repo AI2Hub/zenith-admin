@@ -1,7 +1,7 @@
 import * as z from 'zod';
 import { auditFieldsSchema, entityStatusSchema, idParam, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
-import { MP_AUTO_REPLY_MATCH_TYPES, MP_AUTO_REPLY_TYPES, MP_REPLY_CONTENT_TYPES } from '../constants';
+import { MP_AUTO_REPLY_MATCH_TYPES, MP_AUTO_REPLY_TYPES, MP_REPLY_CONTENT_TYPES, MP_AUTO_REPLY_TYPE_OPTIONS } from '../constants';
 import { createMpAutoReplySchema, mpReplyArticleSchema, updateMpAutoReplySchema } from '../validation';
 import { mpAccountIdQuery } from './common';
 
@@ -42,7 +42,7 @@ export type MpUnmatchedKeyword = z.infer<typeof mpUnmatchedKeywordSchema>;
 
 export const mpAutoReplyListQuery = paginationQuery.extend({
   ...mpAccountIdQuery.shape,
-  replyType: queryEnum(MP_AUTO_REPLY_TYPES),
+  replyType: queryEnum(MP_AUTO_REPLY_TYPES, { options: MP_AUTO_REPLY_TYPE_OPTIONS }),
   keyword: keywordQuery('关键词'),
 });
 

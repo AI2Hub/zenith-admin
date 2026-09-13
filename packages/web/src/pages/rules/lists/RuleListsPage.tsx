@@ -2,8 +2,7 @@ import { useState } from 'react';
 import { confirmAndDelete, ListSearchToolbar } from '@/components/list-page';
 import { Button, DatePicker, Form, Input, Modal, Select, SideSheet, Space, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { RULE_LIST_TYPE_OPTIONS, RULE_LIST_TYPES, type RuleList, type RuleListItem, type RuleUsageItem } from '@zenith/shared/rules';
-import { enumValueOf } from '@zenith/shared/core';
+import { RULE_LIST_TYPE_OPTIONS, type RuleList, type RuleListItem, type RuleUsageItem, ruleListContract } from '@zenith/shared/rules';
 import { EMPTY_PLACEHOLDER, createdAtColumn, dateTimeColumn, renderEllipsis, renderEnabledStatusTag } from '@/utils/table-columns';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -12,7 +11,6 @@ import { usePermission } from '@/hooks/usePermission';
 import { formatDateTimeForApi } from '@/utils/date';
 import {
   fetchRuleListUsages,
-  ruleKeys,
   type RuleListSaveValues,
   useBatchImportRuleListItems,
   useCheckRuleList,
@@ -25,7 +23,7 @@ import {
   useSaveRuleListItem,
 } from '@/hooks/queries/rules';
 import { CreateButton } from '@/components/toolbar-controls';
-import { FilterSelect, KeywordInput } from '@/components/search-filters';
+import { KeywordInput } from '@/components/search-filters';
 import { useEditModal } from '@/hooks/useEditModal';
 import { useListPage } from '@/hooks/useListPage';
 import { EditFormModal } from '@/components/EditFormModal';
@@ -37,7 +35,6 @@ const TYPE_META: Record<string, { text: string; color: 'red' | 'green' | 'grey' 
   white: { text: '白名单', color: 'green' },
   grey: { text: '灰名单', color: 'grey' },
 };
-interface SearchParams { keyword: string; type?: string }
 
 /** 规则中心 · 名单库：黑/白/灰名单与条目管理（支持过期时间、批量导入、命中测试） */
 export default function RuleListsPage() {
@@ -46,20 +43,11 @@ export default function RuleListsPage() {
   const canEdit = hasPermission('rule:list:update');
   const canDelete = hasPermission('rule:list:delete');
   const canManageItems = hasPermission('rule:list:item');
-  const defaultSearchParams: SearchParams = { keyword: '', type: undefined };
-  const {
-    bind,
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: ruleKeys.ruleLists.lists,
+  const page = useListPage({
+    contract: ruleListContract,
     useList: useRuleListList,
-    toQuery: (s) => ({ keyword: s.keyword, type: enumValueOf(RULE_LIST_TYPES, s.type) }),
   });
-
+  const { tableProps } = page;
 
   const [itemsRow, setItemsRow] = useState<RuleList | null>(null);
   const { page: itemsPage, pageSize: itemsPageSize, setPage: setItemsPage, buildPagination: buildItemsPagination } = usePagination(10);
@@ -181,16 +169,8 @@ export default function RuleListsPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={<KeywordInput placeholder="搜索名称" {...bindKeyword('keyword')} width={200} />}
-        filters={(
-          <FilterSelect
-            placeholder="全部类型"
-            items={RULE_LIST_TYPE_OPTIONS}
-            {...bind('type')}
-          />
-        )}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword', 'type']}
         create={canCreate ? <CreateButton onClick={modal.openCreate} /> : null}
         filterTitle="名单筛选"
       />

@@ -1,7 +1,7 @@
 import * as z from 'zod';
 import { auditFieldsSchema, idParam, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, fileField, multipart, op } from '../../core/contract';
-import { MP_MATERIAL_TYPES } from '../constants';
+import { MP_MATERIAL_TYPES, MP_MATERIAL_TYPE_OPTIONS } from '../constants';
 import { createMpMaterialSchema, mpAccountIdBody, updateMpMaterialSchema } from '../validation';
 import { mpAccountIdQuery, mpSyncResultSchema } from './common';
 
@@ -26,7 +26,7 @@ export type MpMaterial = z.infer<typeof mpMaterialSchema>;
 
 export const mpMaterialListQuery = paginationQuery.extend({
   ...mpAccountIdQuery.shape,
-  type: queryEnum(MP_MATERIAL_TYPES),
+  type: queryEnum(MP_MATERIAL_TYPES, { options: MP_MATERIAL_TYPE_OPTIONS }),
   keyword: keywordQuery('素材名'),
 });
 

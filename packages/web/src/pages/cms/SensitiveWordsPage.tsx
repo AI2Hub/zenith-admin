@@ -5,32 +5,22 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { createdAtColumn, renderEnabledStatusTag } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
-import { useCmsSensitiveWordList, useSaveCmsSensitiveWord, useDeleteCmsSensitiveWords, cmsSensitiveWordKeys } from '@/hooks/queries/cms';
-import type { CmsSensitiveWord } from '@zenith/shared/cms';
+import { useCmsSensitiveWordList, useSaveCmsSensitiveWord, useDeleteCmsSensitiveWords } from '@/hooks/queries/cms';
+import { cmsSensitiveWordContract, type CmsSensitiveWord } from '@zenith/shared/cms';
 import { CreateButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
 import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { FormStatusRadioGroup } from '@/components/FormStatusRadioGroup';
 import { useListPage } from '@/hooks/useListPage';
 import { EditFormModal } from '@/components/EditFormModal';
 
-interface SearchParams { keyword: string }
-const defaultSearch: SearchParams = { keyword: '' };
-
 export default function SensitiveWordsPage() {
   const { hasPermission } = usePermission();
-  const {
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearch,
-    listKey: cmsSensitiveWordKeys.lists,
+  const page = useListPage({
+    contract: cmsSensitiveWordContract,
     useList: useCmsSensitiveWordList,
-    toQuery: (s) => ({ keyword: s.keyword }),
     table: { empty: '暂无敏感词' },
   });
+  const { tableProps } = page;
   const saveMutation = useSaveCmsSensitiveWord();
   const modal = useEditModal<CmsSensitiveWord, Partial<CmsSensitiveWord>, Record<string, unknown>>({
     entityName: '敏感词',
@@ -74,9 +64,8 @@ export default function SensitiveWordsPage() {
     <div className="page-container">
       <Banner type="info" closeIcon={null} style={{ marginBottom: 12 }} description="敏感词库全局生效，作用于前台评论与自定义表单提交：拦截模式命中直接拒绝提交，替换模式命中替换为指定文本。" />
       <ListSearchToolbar
-        keyword={<KeywordInput placeholder="搜索敏感词..." {...bindKeyword('keyword')} />}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword']}
         create={canManage ? <CreateButton onClick={modal.openCreate} /> : null}
       />
 

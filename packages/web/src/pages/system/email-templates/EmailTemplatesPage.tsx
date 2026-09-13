@@ -1,6 +1,5 @@
 import { Col, Form, Row } from '@douyinfe/semi-ui';
-import { enumValueOf, USER_STATUSES } from '@zenith/shared/core';
-import type { CreateEmailTemplateInput, EmailTemplate } from '@zenith/shared/messaging';
+import { emailTemplateContract, type CreateEmailTemplateInput, type EmailTemplate } from '@zenith/shared/messaging';
 import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -9,37 +8,24 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { deleteAction, ListSearchToolbar, useStatusToggle } from '@/components/list-page';
 import { createdAtColumn, renderEllipsis } from '../../../utils/table-columns';
 import {
-  emailTemplateKeys,
   useDeleteEmailTemplate,
   useEmailTemplateDetail,
   useEmailTemplateList,
   useSaveEmailTemplate,
 } from '@/hooks/queries/email-templates';
 import { CreateButton } from '@/components/toolbar-controls';
-import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { TemplateNameCodeRow, TemplateVariablesRemarkRows } from '../message-template-form';
 import { useListPage } from '@/hooks/useListPage';
 import { EditFormModal } from '@/components/EditFormModal';
 
 export default function EmailTemplatesPage() {
   const { hasPermission: can } = usePermission();
-  const { items: statusItems, options: statusOptions } = useDictItems('common_status');
-
-  interface SearchParams { keyword: string; filterStatus: string | undefined; }
-  const defaultSearchParams: SearchParams = { keyword: '', filterStatus: undefined };
-  const {
-    bind,
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: emailTemplateKeys.lists,
+  const { options: statusOptions } = useDictItems('common_status');
+  const page = useListPage({
+    contract: emailTemplateContract,
     useList: useEmailTemplateList,
-    toQuery: (s) => ({ keyword: s.keyword, status: enumValueOf(USER_STATUSES, s.filterStatus) }),
   });
-
+  const { tableProps } = page;
 
   const saveMutation = useSaveEmailTemplate();
   const modal = useEditModal<EmailTemplate, Partial<CreateEmailTemplateInput>>({
@@ -67,7 +53,6 @@ export default function EmailTemplatesPage() {
     disabled: !can('system:email-template:update'),
     messages: { disabled: '已禁用' },
   });
-
 
   const columns = [
     { title: '模板名称', dataIndex: 'name', width: 160 },
@@ -98,15 +83,8 @@ export default function EmailTemplatesPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={<KeywordInput placeholder="搜索模板名称/编码/主题" {...bindKeyword('keyword')} />}
-        filters={(
-          <StatusSelect
-            items={statusItems}
-            {...bind('filterStatus')}
-          />
-        )}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword', 'status']}
         create={<CreateButton permission="system:email-template:create" onClick={modal.openCreate} />}
         filterTitle="邮件模板筛选"
       />

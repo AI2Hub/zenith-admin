@@ -1,42 +1,27 @@
 import { Form, Tag } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { CreateWikiTagInput, WikiTag } from '@zenith/shared/wiki';
+import { wikiTagContract, type CreateWikiTagInput, type WikiTag } from '@zenith/shared/wiki';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { deleteAction, ListSearchToolbar } from '@/components/list-page';
-import { KeywordInput } from '@/components/search-filters';
 import { CreateButton } from '@/components/toolbar-controls';
 import { createdAtColumn } from '@/utils/table-columns';
 import { useEditModal } from '@/hooks/useEditModal';
 import { usePermission } from '@/hooks/usePermission';
-import { useDeleteWikiTags, useSaveWikiTag, useWikiTagList, wikiTagKeys } from '@/hooks/queries/wiki-tags';
+import { useDeleteWikiTags, useSaveWikiTag, useWikiTagList } from '@/hooks/queries/wiki-tags';
 import { useListPage } from '@/hooks/useListPage';
 import { EditFormModal } from '@/components/EditFormModal';
-
-interface SearchParams {
-  keyword: string;
-}
-
-const defaultSearchParams: SearchParams = { keyword: '' };
 
 const TAG_COLOR_PRESETS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316', '#64748b'];
 
 export default function WikiTagsPage() {
   const { hasPermission } = usePermission();
 
-  const {
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: wikiTagKeys.lists,
+  const page = useListPage({
+    contract: wikiTagContract,
     useList: useWikiTagList,
-    toQuery: (s) => ({ keyword: s.keyword }),
   });
-
-
+  const { tableProps } = page;
 
   const modal = useEditModal<WikiTag, Partial<CreateWikiTagInput>>({
     entityName: '标签',
@@ -78,14 +63,8 @@ export default function WikiTagsPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={(
-          <KeywordInput
-            placeholder="搜索标签名称..."
-            {...bindKeyword('keyword')}
-          />
-        )}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword']}
         create={<CreateButton permission="wiki:tag:create" onClick={modal.openCreate} />}
       />
 

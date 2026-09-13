@@ -1,7 +1,7 @@
 import * as z from 'zod';
 import { entityStatusSchema, idParam, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
-import { RULE_LIST_MATCH_MODES, RULE_LIST_TYPES } from '../constants';
+import { RULE_LIST_MATCH_MODES, RULE_LIST_TYPES, RULE_LIST_TYPE_OPTIONS } from '../constants';
 import {
   batchRuleListItemsSchema,
   checkRuleListSchema,
@@ -57,7 +57,7 @@ export type RuleListCheckResult = z.infer<typeof ruleListCheckResultSchema>;
 
 export const ruleListListQuery = paginationQuery.extend({
   keyword: keywordQuery('名称'),
-  type: queryEnum(RULE_LIST_TYPES),
+  type: queryEnum(RULE_LIST_TYPES, { options: RULE_LIST_TYPE_OPTIONS }),
 });
 
 export const ruleListItemListQuery = paginationQuery.extend({

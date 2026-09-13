@@ -4,20 +4,20 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { deleteAction, ListSearchToolbar } from '@/components/list-page';
-import { DateRangeFilter, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { CreateButton } from '@/components/toolbar-controls';
 import { createdAtColumn, EMPTY_PLACEHOLDER } from '@/utils/table-columns';
 import { useEditModal } from '@/hooks/useEditModal';
 import { usePermission } from '@/hooks/usePermission';
-import { formatDateTimeForApi, formatDateTimeRangeForApi } from '@/utils/date';
+import { formatDateTimeForApi } from '@/utils/date';
 import {
-  marketingCampaignKeys, useDeleteMarketingCampaigns, useEndMarketingCampaign,
-  useMarketingCampaignDetail, useMarketingCampaignList, usePublishMarketingCampaign, useSaveMarketingCampaign,
+  useDeleteMarketingCampaigns,
+  useEndMarketingCampaign,
+  useMarketingCampaignDetail,
+  useMarketingCampaignList,
+  usePublishMarketingCampaign,
+  useSaveMarketingCampaign,
 } from '@/hooks/queries/marketing-campaigns';
-import { enumValueOf } from '@zenith/shared/core';
-import {
-  MARKETING_CAMPAIGN_STATUSES, MARKETING_CAMPAIGN_STATUS_LABELS, MARKETING_CAMPAIGN_STATUS_OPTIONS,
-} from '@zenith/shared/marketing';
+import { MARKETING_CAMPAIGN_STATUS_LABELS, marketingCampaignContract } from '@zenith/shared/marketing';
 import type { CreateMarketingCampaignInput, MarketingCampaign } from '@zenith/shared/marketing';
 import MarketingPrizesDrawer from './MarketingPrizesDrawer';
 import MarketingRecordsDrawer from './MarketingRecordsDrawer';
@@ -25,14 +25,6 @@ import { useListPage } from '@/hooks/useListPage';
 import { EditFormModal } from '@/components/EditFormModal';
 
 const { Text } = Typography;
-
-interface SearchParams {
-  keyword: string;
-  status?: string;
-  timeRange: [Date, Date] | null;
-}
-
-const defaultSearchParams: SearchParams = { keyword: '', status: undefined, timeRange: null };
 
 /** 活动表单值：起止时间在表单里是 Date，提交前由 beforeSave 转成接口格式；记录里的 null 在表单中归一为空串 / 未填 */
 interface MarketingCampaignFormValues extends Partial<Omit<CreateMarketingCampaignInput, 'startAt' | 'endAt'>> {
@@ -51,23 +43,11 @@ export default function MarketingCampaignsPage() {
   const [prizesCampaign, setPrizesCampaign] = useState<MarketingCampaign | null>(null);
   const [recordsCampaign, setRecordsCampaign] = useState<MarketingCampaign | null>(null);
 
-  const {
-    bind,
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: marketingCampaignKeys.lists,
+  const page = useListPage({
+    contract: marketingCampaignContract,
     useList: useMarketingCampaignList,
-    toQuery: (s) => ({
-      keyword: s.keyword,
-      status: enumValueOf(MARKETING_CAMPAIGN_STATUSES, s.status),
-      ...formatDateTimeRangeForApi(s.timeRange),
-    }),
   });
-
+  const { tableProps } = page;
 
   const modal = useEditModal<MarketingCampaign, MarketingCampaignFormValues, Partial<CreateMarketingCampaignInput>>({
     entityName: '营销活动',
@@ -185,23 +165,8 @@ export default function MarketingCampaignsPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={(
-          <KeywordInput
-            placeholder="搜索活动名称..."
-            {...bindKeyword('keyword')}
-          />
-        )}
-        filters={<>
-          <StatusSelect
-            items={MARKETING_CAMPAIGN_STATUS_OPTIONS}
-            {...bind('status')}
-          />
-          <DateRangeFilter
-            {...bind('timeRange')}
-          />
-        </>}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword', 'status', ['startTime', 'endTime']]}
         create={<CreateButton permission="marketing:campaign:create" onClick={modal.openCreate} />}
         filterTitle="筛选条件"
       />

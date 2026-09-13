@@ -1,6 +1,6 @@
 import { Button, Form, Toast } from '@douyinfe/semi-ui';
 import { RefreshCw } from 'lucide-react';
-import type { CreateMpTagInput, MpTag } from '@zenith/shared/mp';
+import { mpTagContract, type CreateMpTagInput, type MpTag } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -10,9 +10,8 @@ import { createdAtColumn, renderEllipsis } from '../../utils/table-columns';
 import { useMpAccounts } from './useMpAccounts';
 import { MpAccountRequiredBanner } from './MpAccountRequiredBanner';
 import { MpAccountSwitcher } from './MpAccountSwitcher';
-import { mpTagKeys, useDeleteMpTags, useMpTagList, useSaveMpTag, useSyncMpTags } from '@/hooks/queries/mp-tags';
+import { useDeleteMpTags, useMpTagList, useSaveMpTag, useSyncMpTags } from '@/hooks/queries/mp-tags';
 import { CreateButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
 import { abortSubmit } from '@/lib/abort-submit';
 import { useListPage } from '@/hooks/useListPage';
 import { EditFormModal } from '@/components/EditFormModal';
@@ -20,22 +19,14 @@ import { EditFormModal } from '@/components/EditFormModal';
 export default function MpTagsPage() {
   const { hasPermission: can } = usePermission();
   const { accounts, currentId, setCurrentId, loading: accountsLoading } = useMpAccounts();
-
-  const defaultSearchParams: { keyword: string } = { keyword: '' };
-  const {
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: mpTagKeys.lists,
+  const page = useListPage({
+    contract: mpTagContract,
     resetKey: currentId,
     useList: useMpTagList,
-    toQuery: (s) => ({ keyword: s.keyword }),
     params: { accountId: currentId ?? 0 },
     enabled: !!currentId,
   });
+  const { tableProps } = page;
 
   const syncMutation = useSyncMpTags();
   const saveMutation = useSaveMpTag();
@@ -89,14 +80,9 @@ export default function MpTagsPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={(
-          <>
-            <MpAccountSwitcher accounts={accounts} value={currentId} onChange={setCurrentId} loading={accountsLoading} />
-            <KeywordInput placeholder="搜索标签名称" {...bindKeyword('keyword')} width={180} />
-          </>
-        )}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword']}
+        extraFilters={<MpAccountSwitcher accounts={accounts} value={currentId} onChange={setCurrentId} loading={accountsLoading} />}
         actions={syncButton}
         create={<CreateButton permission="mp:tag:create" onClick={modal.openCreate} disabled={!currentId} />}
         filterTitle="标签筛选"

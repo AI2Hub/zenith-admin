@@ -1,51 +1,29 @@
 import { useNavigate } from 'react-router-dom';
 import { Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { WikiComment } from '@zenith/shared/wiki';
-import { WIKI_COMMENT_STATUSES, WIKI_COMMENT_STATUS_LABELS, WIKI_COMMENT_STATUS_OPTIONS } from '@zenith/shared/wiki';
-import { enumValueOf } from '@zenith/shared/core';
+import { wikiCommentContract, type WikiComment } from '@zenith/shared/wiki';
+import { WIKI_COMMENT_STATUS_LABELS } from '@zenith/shared/wiki';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { deleteAction, ListSearchToolbar } from '@/components/list-page';
-import { DateRangeFilter, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { createdAtColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
-import { formatDateTimeRangeForApi } from '@/utils/date';
 import {
-  useRemoveWikiComment, useUpdateWikiCommentStatus, useWikiCommentList, wikiCommentKeys,
+  useRemoveWikiComment,
+  useUpdateWikiCommentStatus,
+  useWikiCommentList,
 } from '@/hooks/queries/wiki-comments';
 import { useListPage } from '@/hooks/useListPage';
-
-interface SearchParams {
-  keyword: string;
-  status?: string;
-  timeRange: [Date, Date] | null;
-}
-
-const defaultSearchParams: SearchParams = { keyword: '', status: undefined, timeRange: null };
 
 export default function WikiCommentsPage() {
   const { hasPermission } = usePermission();
   const navigate = useNavigate();
 
-  const {
-    bind,
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: wikiCommentKeys.lists,
+  const page = useListPage({
+    contract: wikiCommentContract,
     useList: useWikiCommentList,
-    toQuery: (s) => ({
-      keyword: s.keyword,
-      status: enumValueOf(WIKI_COMMENT_STATUSES, s.status),
-      ...formatDateTimeRangeForApi(s.timeRange),
-    }),
   });
-
-
+  const { tableProps } = page;
 
   const statusMutation = useUpdateWikiCommentStatus();
   const removeMutation = useRemoveWikiComment();
@@ -93,24 +71,8 @@ export default function WikiCommentsPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={(
-          <KeywordInput
-            placeholder="搜索评论内容..."
-            {...bindKeyword('keyword')}
-          />
-        )}
-        filters={<>
-          <StatusSelect
-            items={WIKI_COMMENT_STATUS_OPTIONS}
-
-            {...bind('status')}
-          />
-          <DateRangeFilter
-            {...bind('timeRange')}
-          />
-        </>}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword', 'status', ['startTime', 'endTime']]}
         filterTitle="筛选条件"
       />
 

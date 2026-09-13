@@ -1,12 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Form } from '@douyinfe/semi-ui';
-import type { Position } from '@zenith/shared/identity';
-import { USER_STATUSES, enumValueOf } from '@zenith/shared/core';
+import { positionContract, type Position } from '@zenith/shared/identity';
 import type { PositionFormValues } from '@/hooks/queries/positions';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { useDictItems } from '@/hooks/useDictItems';
 import type { UserTransferUser } from '@/components/UserTransferSelect';
-import { formatDateTimeRangeForApi } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import ExportButton from '@/components/ExportButton';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -16,7 +14,6 @@ import { useFlatDepartments } from '@/hooks/queries/departments';
 import {
   useAssignPositionMembers,
   useDeletePositions,
-  positionKeys,
   usePositionDetail,
   usePositionList,
   usePositionMembers,
@@ -25,46 +22,21 @@ import {
 import { useAllUsers } from '@/hooks/queries/users';
 import { useEditModal } from '@/hooks/useEditModal';
 import { BatchDeleteButton, CreateButton } from '@/components/toolbar-controls';
-import { DateRangeFilter, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmAndDelete, deleteAction, ListSearchToolbar, useRowSelection, useStatusToggle } from '@/components/list-page';
 import { MemberAssignmentSheet, memberPreviewColumn } from '@/components/members/MemberAssignmentSheet';
 import { useListPage } from '@/hooks/useListPage';
 import { EditFormModal } from '@/components/EditFormModal';
 
-interface SearchParams {
-  keyword: string;
-  status?: string;
-  timeRange: [Date, Date] | null;
-}
-
-const defaultSearchParams: SearchParams = {
-  keyword: '',
-  status: undefined,
-  timeRange: null,
-};
-
 export default function PositionsPage() {
   const { hasPermission } = usePermission();
   const { selectedRowKeys, clear: clearSelection, rowSelection } = useRowSelection();
-  const {
-    bind,
-    bindKeyword,
-    handleSearch,
-    handleReset,
-    tableProps,
-    filterQuery,
-  } = useListPage({
-    defaults: defaultSearchParams,
-    listKey: positionKeys.lists,
+  const page = useListPage({
+    contract: positionContract,
     useList: usePositionList,
-    toQuery: (s) => ({
-      keyword: s.keyword,
-      status: enumValueOf(USER_STATUSES, s.status),
-      ...formatDateTimeRangeForApi(s.timeRange),
-    }),
     table: { empty: '暂无数据', rowSelection },
   });
-  const { items: statusItems, options: statusOptions } = useDictItems('common_status');
+  const { tableProps, filterQuery } = page;
+  const { options: statusOptions } = useDictItems('common_status');
 
   // 成员管理
   const allUsersQuery = useAllUsers();
@@ -167,22 +139,11 @@ export default function PositionsPage() {
     }),
   ];
 
-
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={<KeywordInput placeholder="搜索岗位名称/编码" {...bindKeyword('keyword')} width={240} />}
-        filters={(
-          <>
-            <StatusSelect
-              items={statusItems}
-              {...bind('status')}
-            />
-            <DateRangeFilter {...bind('timeRange')} />
-          </>
-        )}
-        onSearch={handleSearch}
-        onReset={handleReset}
+        page={page}
+        filters={['keyword', 'status', ['startTime', 'endTime']]}
         create={<CreateButton permission="system:position:create" onClick={positionModal.openCreate} />}
         actions={(
           <>

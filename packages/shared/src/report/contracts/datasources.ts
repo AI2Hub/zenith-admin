@@ -12,6 +12,7 @@ import {
   updateReportDatasourceSchema,
 } from '../validation';
 import { reportLookupOptionSchema, reportStatusSchema } from './_common';
+import { REPORT_DATASOURCE_TYPE_OPTIONS } from '../constants';
 
 // ─── 连接配置（形态随 type 而定） ─────────────────────────────────────────────
 
@@ -97,7 +98,7 @@ export const reportDatasourceListQuery = paginationQuery.extend({
   keyword: keywordQuery(),
   folderId: idQuery(),
   ownerId: idQuery(),
-  type: queryEnum(REPORT_DATASOURCE_TYPES),
+  type: queryEnum(REPORT_DATASOURCE_TYPES, { options: REPORT_DATASOURCE_TYPE_OPTIONS }),
   status: entityStatusQuery,
 });
 
