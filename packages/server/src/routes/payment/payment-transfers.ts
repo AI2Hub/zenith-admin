@@ -18,24 +18,13 @@ import {
   rejectTransfer,
   syncTransferStatus,
 } from '../../services/payment/payment-transfer.service';
+import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
-
-const listRoute = defineContractRoute(paymentTransferContract.list, {
-  middleware: [authMiddleware, guard({ permission: 'payment:transfer:list' })],
-  handler: async (c) => c.json(okBody(await listTransfers(c.req.valid('query'))), 200),
-});
-
 const summaryRoute = defineContractRoute(paymentTransferContract.summary, {
   middleware: [authMiddleware, guard({ permission: 'payment:transfer:list' })],
   handler: async (c) => c.json(okBody(await getTransferSummary(c.req.valid('query'))), 200),
 });
-
-const detailRoute = defineContractRoute(paymentTransferContract.detail, {
-  middleware: [authMiddleware, guard({ permission: 'payment:transfer:list' })],
-  handler: async (c) => c.json(okBody(await getTransfer(c.req.valid('param').id)), 200),
-});
-
 const createTransferRoute = defineContractRoute(paymentTransferContract.create, {
   middleware: [
     authMiddleware,
@@ -75,14 +64,10 @@ const queryRoute = defineContractRoute(paymentTransferContract.query, {
   handler: async (c) => c.json(okBody(await syncTransferStatus(c.req.valid('param').id), '查单完成'), 200),
 });
 
-router.openapiRoutes([
-  listRoute,
-  summaryRoute,
-  detailRoute,
-  createTransferRoute,
-  approveRoute,
-  rejectRoute,
-  queryRoute,
-] as const);
+mountCrud(router, paymentTransferContract,
+  { list: listTransfers, get: getTransfer },
+  { permission: 'payment:transfer', exclude: ['create'] },
+  [summaryRoute, createTransferRoute, approveRoute, rejectRoute, queryRoute],
+);
 
 export default router;

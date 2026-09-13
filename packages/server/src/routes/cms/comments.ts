@@ -5,19 +5,17 @@ import { guard } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
-  listCmsComments, auditCmsComments, deleteCmsComments, countPendingComments,
+  listCmsComments,
+  auditCmsComments,
+  deleteCmsComments,
+  countPendingComments,
 } from '../../services/cms/cms-comments.service';
 import { triggerContentStaticRefresh } from '../../services/cms/cms-static.service';
+import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
 const read = [authMiddleware, guard({ permission: 'cms:comment:list' })] as const;
-
-const listRoute = defineContractRoute(cmsCommentContract.list, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await listCmsComments(c.req.valid('query'))), 200),
-});
-
 const pendingCountRoute = defineContractRoute(cmsCommentContract.pendingCount, {
   middleware: read,
   handler: async (c) => c.json(okBody({ count: await countPendingComments(c.req.valid('query').siteId) }), 200),
@@ -53,6 +51,10 @@ const deleteRouteDef = defineContractRoute(cmsCommentContract.batchDelete, {
   },
 });
 
-router.openapiRoutes([listRoute, pendingCountRoute, approveRoute, rejectRoute, deleteRouteDef] as const);
+mountCrud(router, cmsCommentContract,
+  { list: listCmsComments },
+  { permission: 'cms:comment' },
+  [pendingCountRoute, approveRoute, rejectRoute, deleteRouteDef],
+);
 
 export default router;

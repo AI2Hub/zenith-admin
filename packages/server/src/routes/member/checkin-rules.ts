@@ -11,6 +11,7 @@ import {
   deleteCheckinRule,
   ensureCheckinRuleExists,
 } from '../../services/member/checkin-rules.service';
+import { mountCrud } from '../_crud';
 
 const checkinRulesRouter = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -18,12 +19,6 @@ const listRoute = defineContractRoute(checkinRuleContract.list, {
   middleware: [authMiddleware, guard({ permission: 'member:checkin:rule:list' })],
   handler: async (c) => c.json(okBody(await listCheckinRules()), 200),
 });
-
-const createRuleRoute = defineContractRoute(checkinRuleContract.create, {
-  middleware: [authMiddleware, guard({ permission: 'member:checkin:rule:create', audit: { module: '会员签到', description: '创建签到规则' } })],
-  handler: async (c) => c.json(okBody(await createCheckinRule(c.req.valid('json')), '创建成功'), 200),
-});
-
 const updateRuleRoute = defineContractRoute(checkinRuleContract.update, {
   middleware: [authMiddleware, guard({ permission: 'member:checkin:rule:update', audit: { module: '会员签到', description: '更新签到规则' } })],
   handler: async (c) => {
@@ -43,6 +38,10 @@ const deleteRuleRoute = defineContractRoute(checkinRuleContract.remove, {
   },
 });
 
-checkinRulesRouter.openapiRoutes([listRoute, createRuleRoute, updateRuleRoute, deleteRuleRoute] as const);
+mountCrud(checkinRulesRouter, checkinRuleContract,
+  { create: createCheckinRule },
+  { permission: 'member:checkin:rule', label: '签到规则', module: '会员签到', exclude: ['list', 'update', 'remove'] },
+  [listRoute, updateRuleRoute, deleteRuleRoute],
+);
 
 export default checkinRulesRouter;

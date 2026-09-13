@@ -15,6 +15,7 @@ import {
   importKbUrl,
   deleteKbDocument,
 } from '../../services/ai/ai-knowledge.service';
+import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -31,12 +32,6 @@ const available = defineContractRoute(aiKnowledgeBaseContract.all, {
   middleware: [authMiddleware],
   handler: async (c) => c.json(okBody(await listKnowledgeBases()), 200),
 });
-
-const create = defineContractRoute(aiKnowledgeBaseContract.create, {
-  middleware: [authMiddleware, guard({ permission: 'ai:kb:create', audit: { description: '创建知识库', module: '智能助手' } })],
-  handler: async (c) => c.json(okBody(await createKnowledgeBase(c.req.valid('json')), '创建成功'), 200),
-});
-
 const update = defineContractRoute(aiKnowledgeBaseContract.update, {
   middleware: edit,
   handler: async (c) => {
@@ -95,6 +90,16 @@ const removeDoc = defineContractRoute(aiKnowledgeBaseContract.removeDocument, {
   },
 });
 
-router.openapiRoutes([list, available, create, update, remove, listDocs, addDoc, importUrl, listChunks, removeDoc] as const);
+mountCrud(router, aiKnowledgeBaseContract,
+  { create: createKnowledgeBase },
+  {
+    permission: { create: 'ai:kb:create', update: 'ai:kb:edit', remove: 'ai:kb:delete' },
+    label: '知识库',
+    module: '智能助手',
+    audit: { update: null },
+    exclude: ['list', 'update', 'remove'],
+  },
+  [list, available, update, remove, listDocs, addDoc, importUrl, listChunks, removeDoc],
+);
 
 export default router;

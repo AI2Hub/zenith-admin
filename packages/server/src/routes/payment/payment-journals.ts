@@ -18,6 +18,7 @@ import {
   releaseFundReservation,
   reverseJournal,
 } from '../../services/payment/payment-journal.service';
+import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -71,12 +72,6 @@ const reservationReleaseRoute = defineContractRoute(paymentJournalContract.relea
   ],
   handler: async (c) => c.json(okBody(await releaseFundReservation(c.req.valid('param').id, c.req.valid('json')), '释放成功'), 200),
 });
-
-const journalListRoute = defineContractRoute(paymentJournalContract.list, {
-  middleware: [authMiddleware, guard({ permission: 'payment:ledger:list' })],
-  handler: async (c) => c.json(okBody(await listJournals(c.req.valid('query'))), 200),
-});
-
 const journalPostRoute = defineContractRoute(paymentJournalContract.post, {
   middleware: [
     authMiddleware,
@@ -85,12 +80,6 @@ const journalPostRoute = defineContractRoute(paymentJournalContract.post, {
   ],
   handler: async (c) => c.json(okBody(await postJournal(c.req.valid('json')), '过账成功'), 200),
 });
-
-const journalGetRoute = defineContractRoute(paymentJournalContract.detail, {
-  middleware: [authMiddleware, guard({ permission: 'payment:ledger:list' })],
-  handler: async (c) => c.json(okBody(await getJournal(c.req.valid('param').id)), 200),
-});
-
 const journalReverseRoute = defineContractRoute(paymentJournalContract.reverse, {
   middleware: [
     authMiddleware,
@@ -103,18 +92,20 @@ const journalReverseRoute = defineContractRoute(paymentJournalContract.reverse, 
   },
 });
 
-router.openapiRoutes([
-  accountListRoute,
-  accountCreateRoute,
-  activeReservationRoute,
-  reservationListRoute,
-  reservationCreateRoute,
-  reservationCaptureRoute,
-  reservationReleaseRoute,
-  journalListRoute,
-  journalPostRoute,
-  journalReverseRoute,
-  journalGetRoute,
-] as const);
+mountCrud(router, paymentJournalContract,
+  { list: listJournals, get: getJournal },
+  { permission: 'payment:ledger' },
+  [
+    accountListRoute,
+    accountCreateRoute,
+    activeReservationRoute,
+    reservationListRoute,
+    reservationCreateRoute,
+    reservationCaptureRoute,
+    reservationReleaseRoute,
+    journalPostRoute,
+    journalReverseRoute,
+  ],
+);
 
 export default router;

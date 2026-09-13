@@ -5,43 +5,20 @@ import { guard, setAuditBeforeData } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
-  listMpAutoReplies, createMpAutoReply, updateMpAutoReply, deleteMpAutoReply, getMpAutoReplyBeforeAudit,
-  listMpUnmatchedKeywords, deleteMpUnmatchedKeyword, getMpUnmatchedKeywordBeforeAudit,
+  listMpAutoReplies,
+  createMpAutoReply,
+  updateMpAutoReply,
+  deleteMpAutoReply,
+  getMpAutoReplyBeforeAudit,
+  listMpUnmatchedKeywords,
+  deleteMpUnmatchedKeyword,
+  getMpUnmatchedKeywordBeforeAudit,
 } from '../../services/mp/mp-auto-reply.service';
+import { mountCrud } from '../_crud';
 
 const mpAutoRepliesRouter = new OpenAPIHono({ defaultHook: validationHook });
 
 const read = [authMiddleware, guard({ permission: 'mp:reply:list' })] as const;
-
-const listRoute = defineContractRoute(mpAutoReplyContract.list, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await listMpAutoReplies(c.req.valid('query'))), 200),
-});
-
-const createRouteDef = defineContractRoute(mpAutoReplyContract.create, {
-  middleware: [authMiddleware, guard({ permission: 'mp:reply:create', audit: { description: '创建自动回复', module: '公众号自动回复' } })],
-  handler: async (c) => c.json(okBody(await createMpAutoReply(c.req.valid('json')), '创建成功'), 200),
-});
-
-const updateRoute = defineContractRoute(mpAutoReplyContract.update, {
-  middleware: [authMiddleware, guard({ permission: 'mp:reply:update', audit: { description: '更新自动回复', module: '公众号自动回复' } })],
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    setAuditBeforeData(c, await getMpAutoReplyBeforeAudit(id));
-    return c.json(okBody(await updateMpAutoReply(id, c.req.valid('json')), '更新成功'), 200);
-  },
-});
-
-const deleteRoute = defineContractRoute(mpAutoReplyContract.remove, {
-  middleware: [authMiddleware, guard({ permission: 'mp:reply:delete', audit: { description: '删除自动回复', module: '公众号自动回复' } })],
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    setAuditBeforeData(c, await getMpAutoReplyBeforeAudit(id));
-    await deleteMpAutoReply(id);
-    return c.json(okBody(null, '删除成功'), 200);
-  },
-});
-
 const unmatchedListRoute = defineContractRoute(mpAutoReplyContract.unmatched, {
   middleware: read,
   handler: async (c) => {
@@ -61,6 +38,16 @@ const unmatchedDeleteRoute = defineContractRoute(mpAutoReplyContract.removeUnmat
   },
 });
 
-mpAutoRepliesRouter.openapiRoutes([unmatchedListRoute, unmatchedDeleteRoute, listRoute, createRouteDef, updateRoute, deleteRoute] as const);
+mountCrud(mpAutoRepliesRouter, mpAutoReplyContract,
+  {
+    list: listMpAutoReplies,
+    get: getMpAutoReplyBeforeAudit,
+    create: createMpAutoReply,
+    update: updateMpAutoReply,
+    remove: deleteMpAutoReply,
+  },
+  { permission: 'mp:reply', label: '自动回复', module: '公众号自动回复' },
+  [unmatchedListRoute, unmatchedDeleteRoute],
+);
 
 export default mpAutoRepliesRouter;

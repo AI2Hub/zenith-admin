@@ -14,6 +14,7 @@ import {
   getRegionBeforeAudit,
   getRegion,
 } from '../../services/platform/regions.service';
+import { mountCrud } from '../_crud';
 
 const regionsRouter = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -30,12 +31,6 @@ const flatRoute = defineContractRoute(regionContract.flat, {
   middleware: read,
   handler: async (c) => c.json(okBody(await listRegionsFlat()), 200),
 });
-
-const getOneRoute = defineContractRoute(regionContract.detail, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await getRegion(c.req.valid('param').id)), 200),
-});
-
 const createRegionRoute = defineContractRoute(regionContract.create, {
   middleware: [authMiddleware, globalRegionAdmin, guard({ permission: 'system:region:create', audit: { description: '创建地区', module: '地区管理' } })],
   handler: async (c) => c.json(okBody(await createRegion(c.req.valid('json')), '创建成功'), 200),
@@ -62,6 +57,10 @@ const deleteRoute = defineContractRoute(regionContract.remove, {
   },
 });
 
-regionsRouter.openapiRoutes([listRoute, flatRoute, getOneRoute, createRegionRoute, updateRegionRoute, deleteRoute] as const);
+mountCrud(regionsRouter, regionContract,
+  { get: getRegion },
+  { permission: 'system:region', exclude: ['create', 'update', 'remove'] },
+  [listRoute, flatRoute, createRegionRoute, updateRegionRoute, deleteRoute],
+);
 
 export default regionsRouter;

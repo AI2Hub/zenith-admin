@@ -22,22 +22,11 @@ import {
   getDeliveriesBeforeAudit,
   testSubscriptionDelivery,
 } from '../../services/workflow/workflow-event-subscriptions.service';
+import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
-const view = [authMiddleware, guard({ permission: 'workflow:event-subscription:view' })] as const;
 const deliveryView = [authMiddleware, guard({ permission: 'workflow:event-delivery:view' })] as const;
-
-const list = defineContractRoute(workflowEventSubscriptionContract.list, {
-  middleware: view,
-  handler: async (c) => c.json(okBody(await listSubscriptions(c.req.valid('query'))), 200),
-});
-
-const get = defineContractRoute(workflowEventSubscriptionContract.detail, {
-  middleware: view,
-  handler: async (c) => c.json(okBody(await getSubscription(c.req.valid('param').id)), 200),
-});
-
 const getSecret = defineContractRoute(workflowEventSubscriptionContract.secret, {
   middleware: [authMiddleware, guard({ permission: 'workflow:event-subscription:view', audit: { description: '查看事件订阅 secret', module: '工作流管理', recordResponseBody: false } })] as const,
   handler: async (c) => {
@@ -46,33 +35,6 @@ const getSecret = defineContractRoute(workflowEventSubscriptionContract.secret, 
     return c.json(okBody(await getSubscriptionSecret(id)), 200);
   },
 });
-
-const create = defineContractRoute(workflowEventSubscriptionContract.create, {
-  middleware: [authMiddleware, guard({ permission: 'workflow:event-subscription:create', audit: { description: '创建事件订阅', module: '工作流管理' } })] as const,
-  handler: async (c) => c.json(okBody(await createSubscription(c.req.valid('json')), '已创建'), 200),
-});
-
-const update = defineContractRoute(workflowEventSubscriptionContract.update, {
-  middleware: [authMiddleware, guard({ permission: 'workflow:event-subscription:edit', audit: { description: '更新事件订阅', module: '工作流管理' } })] as const,
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    const before = await getSubscriptionBeforeAudit(id);
-    if (before) setAuditBeforeData(c, before);
-    return c.json(okBody(await updateSubscription(id, c.req.valid('json')), '已更新'), 200);
-  },
-});
-
-const remove = defineContractRoute(workflowEventSubscriptionContract.remove, {
-  middleware: [authMiddleware, guard({ permission: 'workflow:event-subscription:delete', audit: { description: '删除事件订阅', module: '工作流管理' } })] as const,
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    const before = await getSubscriptionBeforeAudit(id);
-    if (before) setAuditBeforeData(c, before);
-    await deleteSubscription(id);
-    return c.json(okBody(null, '已删除'), 200);
-  },
-});
-
 const toggle = defineContractRoute(workflowEventSubscriptionContract.toggle, {
   middleware: [authMiddleware, guard({ permission: 'workflow:event-subscription:edit', audit: { description: '切换事件订阅启用状态', module: '工作流管理' } })] as const,
   handler: async (c) => {
@@ -135,9 +97,30 @@ const replayDeliveriesRoute = defineContractRoute(workflowEventSubscriptionContr
   },
 });
 
-router.openapiRoutes([
-  list, get, getSecret, create, update, remove, toggle, testDeliveryRoute,
-  listDeliveriesRoute, getDeliveryRoute, retryDeliveryRoute, batchRetryRoute, replayDeliveriesRoute,
-] as const);
+mountCrud(router, workflowEventSubscriptionContract,
+  {
+    list: listSubscriptions,
+    get: getSubscription,
+    create: createSubscription,
+    update: updateSubscription,
+    remove: deleteSubscription,
+  },
+  {
+    permission: { read: 'workflow:event-subscription:view', create: 'workflow:event-subscription:create', update: 'workflow:event-subscription:edit', remove: 'workflow:event-subscription:delete' },
+    label: '事件订阅',
+    module: '工作流管理',
+    messages: { create: '已创建', update: '已更新', remove: '已删除' },
+  },
+  [
+    getSecret,
+    toggle,
+    testDeliveryRoute,
+    listDeliveriesRoute,
+    getDeliveryRoute,
+    retryDeliveryRoute,
+    batchRetryRoute,
+    replayDeliveriesRoute,
+  ],
+);
 
 export default router;

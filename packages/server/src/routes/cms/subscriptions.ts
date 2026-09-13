@@ -8,21 +8,20 @@ import {
   listCmsSubscriptionAggregates,
   listCmsSubscriptions,
 } from '../../services/cms/cms-subscriptions.service';
+import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
 const read = [authMiddleware, guard({ permission: 'cms:subscription:list' })] as const;
-
-const listRoute = defineContractRoute(cmsSubscriptionContract.list, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await listCmsSubscriptions(c.req.valid('query'))), 200),
-});
-
 const aggregateRoute = defineContractRoute(cmsSubscriptionContract.aggregates, {
   middleware: read,
   handler: async (c) => c.json(okBody(await listCmsSubscriptionAggregates(c.req.valid('query'))), 200),
 });
 
-router.openapiRoutes([listRoute, aggregateRoute] as const);
+mountCrud(router, cmsSubscriptionContract,
+  { list: listCmsSubscriptions },
+  { permission: 'cms:subscription' },
+  [aggregateRoute],
+);
 
 export default router;

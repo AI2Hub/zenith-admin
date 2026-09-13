@@ -21,6 +21,7 @@ import {
   getCronJobStats,
   getCronJobDetailStats,
 } from '../../services/tasks/cron-jobs.service';
+import { mountCrud } from '../_crud';
 
 const cronJobsRoute = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -38,43 +39,6 @@ const validateRoute = defineContractRoute(cronJobContract.validate, {
     return c.json(okBody({ valid: validateCronExpression(expression) }), 200);
   },
 });
-
-const listRoute = defineContractRoute(cronJobContract.list, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await listCronJobs(c.req.valid('query'))), 200),
-});
-
-const getOneRoute = defineContractRoute(cronJobContract.detail, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await getCronJob(c.req.valid('param').id)), 200),
-});
-
-const createRouteDef = defineContractRoute(cronJobContract.create, {
-  middleware: [authMiddleware, guard({ permission: 'system:cronjob:create', audit: { module: '定时任务', description: '新增任务' } })],
-  handler: async (c) => c.json(okBody(await createCronJob(c.req.valid('json')), '创建成功'), 200),
-});
-
-const updateRouteDef = defineContractRoute(cronJobContract.update, {
-  middleware: [authMiddleware, guard({ permission: 'system:cronjob:update', audit: { module: '定时任务', description: '更新任务' } })],
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    const before = await getCronJobBeforeAudit(id);
-    if (before) setAuditBeforeData(c, before);
-    return c.json(okBody(await updateCronJob(id, c.req.valid('json')), '更新成功'), 200);
-  },
-});
-
-const deleteRouteDef = defineContractRoute(cronJobContract.remove, {
-  middleware: [authMiddleware, guard({ permission: 'system:cronjob:delete', audit: { module: '定时任务', description: '删除任务' } })],
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    const before = await getCronJobBeforeAudit(id);
-    if (before) setAuditBeforeData(c, before);
-    await deleteCronJob(id);
-    return c.json(okBody(null, '删除成功'), 200);
-  },
-});
-
 const runRoute = defineContractRoute(cronJobContract.run, {
   middleware: [authMiddleware, guard({ permission: 'system:cronjob:execute', audit: { module: '定时任务', description: '手动执行任务' } })],
   handler: async (c) => {
@@ -149,6 +113,21 @@ const statsRoute = defineContractRoute(cronJobContract.stats, {
   handler: async (c) => c.json(okBody(await getCronJobStats(c.req.valid('query'))), 200),
 });
 
-cronJobsRoute.openapiRoutes([handlersRoute, validateRoute, listRoute, logsRoute, clearAllLogsRoute, statsRoute, createRouteDef, getOneRoute, updateRouteDef, deleteRouteDef, runRoute, statusRoute, idLogsRoute, jobStatsRoute, clearJobLogsRoute] as const);
+mountCrud(cronJobsRoute, cronJobContract,
+  { list: listCronJobs, get: getCronJob, create: createCronJob, update: updateCronJob, remove: deleteCronJob },
+  { permission: 'system:cronjob', label: '任务', module: '定时任务', audit: { create: '新增任务' } },
+  [
+    handlersRoute,
+    validateRoute,
+    logsRoute,
+    clearAllLogsRoute,
+    statsRoute,
+    runRoute,
+    statusRoute,
+    idLogsRoute,
+    jobStatsRoute,
+    clearJobLogsRoute,
+  ],
+);
 
 export default cronJobsRoute;

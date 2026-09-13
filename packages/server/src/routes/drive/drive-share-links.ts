@@ -14,17 +14,12 @@ import {
   revokeDriveShareLink,
   updateDriveShareLink,
 } from '../../services/drive/drive-share.service';
+import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 const AUDIT = { module: '企业网盘' } as const;
 
 const read = [authMiddleware, guard({ permission: 'drive:link:create' })] as const;
-
-const listRoute = defineContractRoute(driveShareLinkContract.list, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await listMyShareLinks(c.req.valid('query'))), 200),
-});
-
 const updateRoute = defineContractRoute(driveShareLinkContract.update, {
   middleware: [authMiddleware, guard({ permission: 'drive:link:create', audit: { description: '修改网盘外链', recordBody: false, ...AUDIT } })],
   handler: async (c) => {
@@ -76,6 +71,10 @@ const shortLinkRoute = defineContractRoute(driveShareLinkContract.shortLink, {
   handler: async (c) => c.json(okBody(await ensureDriveShareShortLink(c.req.valid('param').id), '短链已生成'), 200),
 });
 
-router.openapiRoutes([listRoute, updateRoute, revokeRoute, deleteRoute, accessLogsRoute, submissionsRoute, shortLinkRoute] as const);
+mountCrud(router, driveShareLinkContract,
+  { list: listMyShareLinks },
+  { permission: { read: 'drive:link:create' }, exclude: ['update', 'remove'] },
+  [updateRoute, revokeRoute, deleteRoute, accessLogsRoute, submissionsRoute, shortLinkRoute],
+);
 
 export default router;

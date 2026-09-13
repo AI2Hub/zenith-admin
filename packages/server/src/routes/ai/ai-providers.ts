@@ -16,6 +16,7 @@ import {
   getProviderCatalog,
   getCatalogProviderModels,
 } from '../../services/ai/ai-providers.service';
+import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -39,37 +40,6 @@ const catalogModels = defineContractRoute(aiProviderContract.catalogModels, {
     return c.json(okBody(await getCatalogProviderModels(providerId)), 200);
   },
 });
-
-const getOne = defineContractRoute(aiProviderContract.detail, {
-  middleware: read,
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    return c.json(okBody(await getAiProviderConfig(id)), 200);
-  },
-});
-
-const create = defineContractRoute(aiProviderContract.create, {
-  middleware: [authMiddleware, guard({ permission: 'ai:provider:create' })],
-  handler: async (c) => c.json(okBody(await createAiProviderConfig(c.req.valid('json')), '创建成功'), 200),
-});
-
-const update = defineContractRoute(aiProviderContract.update, {
-  middleware: edit,
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    return c.json(okBody(await updateAiProviderConfig(id, c.req.valid('json')), '更新成功'), 200);
-  },
-});
-
-const remove = defineContractRoute(aiProviderContract.remove, {
-  middleware: [authMiddleware, guard({ permission: 'ai:provider:delete' })],
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    await deleteAiProviderConfig(id);
-    return c.json(okBody(null, '删除成功'), 200);
-  },
-});
-
 const setDefault = defineContractRoute(aiProviderContract.setDefault, {
   middleware: edit,
   handler: async (c) => {
@@ -91,6 +61,19 @@ const fetchModels = defineContractRoute(aiProviderContract.fetchModels, {
   handler: async (c) => c.json(okBody(await fetchProviderModels(c.req.valid('json'))), 200),
 });
 
-router.openapiRoutes([list, catalog, catalogModels, getOne, create, update, remove, setDefault, testConnection, fetchModels] as const);
+mountCrud(router, aiProviderContract,
+  {
+    get: getAiProviderConfig,
+    create: createAiProviderConfig,
+    update: updateAiProviderConfig,
+    remove: deleteAiProviderConfig,
+  },
+  {
+    permission: { read: 'ai:provider:list', create: 'ai:provider:create', update: 'ai:provider:edit', remove: 'ai:provider:delete' },
+    audit: null,
+    exclude: ['list'],
+  },
+  [list, catalog, catalogModels, setDefault, testConnection, fetchModels],
+);
 
 export default router;

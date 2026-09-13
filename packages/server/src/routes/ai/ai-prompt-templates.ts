@@ -15,16 +15,11 @@ import {
   listPromptTemplateVersions,
   restorePromptTemplateVersion,
 } from '../../services/ai/ai-prompt-templates.service';
+import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
 const read = [authMiddleware, guard({ permission: 'ai:prompt:list' })] as const;
-
-const list = defineContractRoute(aiPromptTemplateContract.list, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await listPromptTemplates(c.req.valid('query'))), 200),
-});
-
 const available = defineContractRoute(aiPromptTemplateContract.all, {
   middleware: [authMiddleware],
   handler: async (c) => c.json(okBody(await listChatPromptTemplates()), 200),
@@ -38,37 +33,6 @@ const use = defineContractRoute(aiPromptTemplateContract.use, {
     return c.json(okBody(null, '已记录'), 200);
   },
 });
-
-const getOne = defineContractRoute(aiPromptTemplateContract.detail, {
-  middleware: read,
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    return c.json(okBody(await getPromptTemplate(id)), 200);
-  },
-});
-
-const create = defineContractRoute(aiPromptTemplateContract.create, {
-  middleware: [authMiddleware, guard({ permission: 'ai:prompt:create' })],
-  handler: async (c) => c.json(okBody(await createPromptTemplate(c.req.valid('json')), '创建成功'), 200),
-});
-
-const update = defineContractRoute(aiPromptTemplateContract.update, {
-  middleware: [authMiddleware, guard({ permission: 'ai:prompt:edit' })],
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    return c.json(okBody(await updatePromptTemplate(id, c.req.valid('json')), '更新成功'), 200);
-  },
-});
-
-const remove = defineContractRoute(aiPromptTemplateContract.remove, {
-  middleware: [authMiddleware, guard({ permission: 'ai:prompt:delete' })],
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    await deletePromptTemplate(id);
-    return c.json(okBody(null, '删除成功'), 200);
-  },
-});
-
 const versions = defineContractRoute(aiPromptTemplateContract.versions, {
   middleware: read,
   handler: async (c) => {
@@ -85,6 +49,19 @@ const restoreVersion = defineContractRoute(aiPromptTemplateContract.restoreVersi
   },
 });
 
-router.openapiRoutes([list, available, use, getOne, versions, restoreVersion, create, update, remove] as const);
+mountCrud(router, aiPromptTemplateContract,
+  {
+    list: listPromptTemplates,
+    get: getPromptTemplate,
+    create: createPromptTemplate,
+    update: updatePromptTemplate,
+    remove: deletePromptTemplate,
+  },
+  {
+    permission: { read: 'ai:prompt:list', create: 'ai:prompt:create', update: 'ai:prompt:edit', remove: 'ai:prompt:delete' },
+    audit: null,
+  },
+  [available, use, versions, restoreVersion],
+);
 
 export default router;

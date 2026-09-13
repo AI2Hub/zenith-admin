@@ -5,12 +5,23 @@ import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/g
 import { defineContractRoute } from '../../lib/contract-route';
 import { ErrorResponse, errBody, jsonContent, okBody, validationHook } from '../../lib/openapi-schemas';
 import {
-  getStoredFileForRead, listManagedFiles, getManagedFile, uploadManagedFileFromBody, deleteManagedFile, batchDeleteFiles, getManagedFileBeforeAudit, getManagedFilesBeforeAudit, batchDownloadFilesAsZip, browseStorageFiles, getFileStats, getFileAccessUrl,
+  getStoredFileForRead,
+  listManagedFiles,
+  getManagedFile,
+  uploadManagedFileFromBody,
+  deleteManagedFile,
+  batchDeleteFiles,
+  getManagedFilesBeforeAudit,
+  batchDownloadFilesAsZip,
+  browseStorageFiles,
+  getFileStats,
+  getFileAccessUrl,
 } from '../../services/files/files.service';
 import { initChunkUpload, uploadChunk, completeChunkUpload, getUploadStatus, abortChunkUpload } from '../../services/files/upload-sessions.service';
 import { readStoredFile } from '../../lib/file-storage';
 import { parseRangeHeader, rangeContentHeaders, rangeNotSatisfiable, supportsRange } from '../../lib/http-range';
 import { attachmentDisposition, inlineOrAttachmentDisposition } from '../../lib/content-disposition';
+import { mountCrud } from '../_crud';
 
 const filesRouter = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -75,23 +86,10 @@ const browseRoute = defineContractRoute(fileContract.browse, {
   middleware: read,
   handler: async (c) => c.json(okBody(await browseStorageFiles(c.req.valid('query'))), 200),
 });
-
-const getOneRoute = defineContractRoute(fileContract.detail, {
-  middleware: read,
-  responses: { 404: { content: jsonContent(ErrorResponse), description: '文件不存在' } },
-  handler: async (c) => c.json(okBody(await getManagedFile(c.req.valid('param').id)), 200),
-});
-
 const statsRoute = defineContractRoute(fileContract.stats, {
   middleware: read,
   handler: async (c) => c.json(okBody(await getFileStats()), 200),
 });
-
-const listRoute = defineContractRoute(fileContract.list, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await listManagedFiles(c.req.valid('query'))), 200),
-});
-
 const uploadRoute = defineContractRoute(fileContract.upload, {
   middleware: [authMiddleware, guard({ permission: 'system:file:upload', audit: { description: '上传文件', module: '文件管理', recordBody: false } })],
   responses: { 400: { content: jsonContent(ErrorResponse), description: '未选择文件或无可用存储' } },
@@ -102,19 +100,6 @@ const uploadRoute = defineContractRoute(fileContract.upload, {
     return c.json(okBody(results, `成功上传 ${results.length} 个文件`), 200);
   },
 });
-
-const deleteRoute = defineContractRoute(fileContract.remove, {
-  middleware: [authMiddleware, guard({ permission: 'system:file:delete', audit: { description: '删除文件', module: '文件管理', recordBody: false } })],
-  responses: { 404: { content: jsonContent(ErrorResponse), description: '文件不存在' } },
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    const before = await getManagedFileBeforeAudit(id);
-    if (before) setAuditBeforeData(c, before);
-    await deleteManagedFile(id);
-    return c.json(okBody(null, '删除成功'), 200);
-  },
-});
-
 const batchDeleteRoute = defineContractRoute(fileContract.removeBatch, {
   middleware: [authMiddleware, guard({ permission: 'system:file:delete', audit: { description: '批量删除文件', module: '文件管理', recordBody: false } })],
   handler: async (c) => {
@@ -195,10 +180,30 @@ const batchDownloadRoute = defineContractRoute(fileContract.batchDownload, {
   },
 });
 
-filesRouter.openapiRoutes([
-  contentRoute, accessUrlRoute, statsRoute, listRoute, browseRoute,
-  uploadInitRoute, uploadChunkRoute, uploadCompleteRoute, uploadStatusRoute, uploadAbortRoute,
-  getOneRoute, uploadRoute, uploadOneRoute, batchDownloadRoute, batchDeleteRoute, deleteRoute,
-] as const);
+mountCrud(filesRouter, fileContract,
+  { list: listManagedFiles, get: getManagedFile, remove: deleteManagedFile },
+  {
+    permission: 'system:file',
+    label: '文件',
+    audit: { remove: { recordBody: false } },
+    exclude: ['removeBatch'],
+    responses: { detail: { 404: { content: jsonContent(ErrorResponse), description: '文件不存在' } }, remove: { 404: { content: jsonContent(ErrorResponse), description: '文件不存在' } } },
+  },
+  [
+    contentRoute,
+    accessUrlRoute,
+    statsRoute,
+    browseRoute,
+    uploadInitRoute,
+    uploadChunkRoute,
+    uploadCompleteRoute,
+    uploadStatusRoute,
+    uploadAbortRoute,
+    uploadRoute,
+    uploadOneRoute,
+    batchDownloadRoute,
+    batchDeleteRoute,
+  ],
+);
 
 export default filesRouter;

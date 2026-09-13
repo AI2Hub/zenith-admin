@@ -17,14 +17,9 @@ import {
   recoverPreauth,
   releasePreauth,
 } from '../../services/payment/payment-preauth.service';
+import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
-
-const listRoute = defineContractRoute(paymentPreauthContract.list, {
-  middleware: [authMiddleware, guard({ permission: 'payment:preauth:list' })],
-  handler: async (c) => c.json(okBody(await listPreauths(c.req.valid('query'))), 200),
-});
-
 const createPreauthRoute = defineContractRoute(paymentPreauthContract.create, {
   middleware: [
     authMiddleware,
@@ -67,6 +62,10 @@ const recoverRoute = defineContractRoute(paymentPreauthContract.recover, {
   handler: async (c) => c.json(okBody(await recoverPreauth(c.req.valid('param').id, c.req.valid('query').applicationId), '查询完成'), 200),
 });
 
-router.openapiRoutes([listRoute, createPreauthRoute, captureRoute, releaseRoute, recoverRoute] as const);
+mountCrud(router, paymentPreauthContract,
+  { list: listPreauths },
+  { permission: 'payment:preauth', exclude: ['create'] },
+  [createPreauthRoute, captureRoute, releaseRoute, recoverRoute],
+);
 
 export default router;

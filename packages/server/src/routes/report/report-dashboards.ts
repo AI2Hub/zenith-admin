@@ -21,6 +21,7 @@ import {
 import { offlineDashboard, publishDashboard } from '../../services/report/report-ops.service';
 import { recordReportAssetUsage } from '../../services/report/report-asset-usage.service';
 import { resolveReportResource } from '../../services/report/report-resource.service';
+import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -37,12 +38,6 @@ export const dashboardConflictResponse = {
 } as const;
 
 const notFound = { 404: { content: jsonContent(ErrorResponse), description: '不存在' } } as const;
-
-const listRoute = defineContractRoute(reportDashboardContract.list, {
-  middleware: [authMiddleware, guard({ permission: 'report:dashboard:list' })],
-  handler: async (c) => c.json(okBody(await listDashboards(c.req.valid('query'))), 200),
-});
-
 const lookupRoute = defineContractRoute(reportDashboardContract.lookup, {
   middleware: [authMiddleware, guard({ permission: 'report:dashboard:list' })],
   handler: async (c) => c.json(okBody(await listDashboardLookup(c.req.valid('query'))), 200),
@@ -113,12 +108,6 @@ const getOneRoute = defineContractRoute(reportDashboardContract.detail, {
 function dashboardConflictBody(err: DashboardRevisionConflictError) {
   return { ...errBody(err.message, 409), data: { currentRevision: err.currentRevision, dashboard: err.currentDashboard } };
 }
-
-const createRoute_ = defineContractRoute(reportDashboardContract.create, {
-  middleware: [authMiddleware, guard({ permission: 'report:dashboard:create', audit: { description: '创建报表仪表盘', module: '报表仪表盘' } })],
-  handler: async (c) => c.json(okBody(await createDashboard(c.req.valid('json')), '创建成功'), 200),
-});
-
 const updateRoute_ = defineContractRoute(reportDashboardContract.update, {
   middleware: [authMiddleware, guard({ permission: 'report:dashboard:update', audit: { description: '保存仪表盘草稿', module: '报表仪表盘' } })],
   responses: { ...notFound, ...dashboardConflictResponse },
@@ -166,37 +155,31 @@ const offlineRoute = defineContractRoute(reportDashboardContract.offline, {
     }
   },
 });
-
-const deleteRoute_ = defineContractRoute(reportDashboardContract.remove, {
-  middleware: [authMiddleware, guard({ permission: 'report:dashboard:delete', audit: { description: '删除报表仪表盘', module: '报表仪表盘' } })],
-  responses: notFound,
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    const before = await ensureDashboardExists(id);
-    setAuditBeforeData(c, before);
-    await deleteDashboard(id);
-    return c.json(okBody(null, '删除成功'), 200);
-  },
-});
-
 const cloneRoute = defineContractRoute(reportDashboardContract.clone, {
   middleware: [authMiddleware, guard({ permission: 'report:dashboard:create', audit: { description: '复制报表仪表盘', module: '报表仪表盘' } })],
   handler: async (c) => c.json(okBody(await cloneDashboard(c.req.valid('param').id, c.req.valid('json')), '复制成功'), 200),
 });
 
-router.openapiRoutes([
-  listRoute,
-  lookupRoute,
-  batchRoute,
-  batchStatusRoute,
-  dataRoute,
-  getOneRoute,
-  createRoute_,
-  updateRoute_,
-  publishRoute,
-  offlineRoute,
-  deleteRoute_,
-  cloneRoute,
-] as const);
+mountCrud(router, reportDashboardContract,
+  { list: listDashboards, get: getDashboard, create: createDashboard, remove: deleteDashboard },
+  {
+    permission: 'report:dashboard',
+    label: '报表仪表盘',
+    module: '报表仪表盘',
+    exclude: ['detail', 'update'],
+    responses: { remove: notFound },
+  },
+  [
+    lookupRoute,
+    batchRoute,
+    batchStatusRoute,
+    dataRoute,
+    getOneRoute,
+    updateRoute_,
+    publishRoute,
+    offlineRoute,
+    cloneRoute,
+  ],
+);
 
 export default router;

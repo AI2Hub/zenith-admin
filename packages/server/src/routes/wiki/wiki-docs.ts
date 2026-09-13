@@ -5,24 +5,40 @@ import { guard, setAuditBeforeData } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { validationHook, okBody } from '../../lib/openapi-schemas';
 import {
-  confirmWikiDocRead, createWikiDoc, deleteWikiDoc, ensureWikiDocExists, favoriteWikiDoc, getWikiDoc,
-  getWikiDocReadReceipts, getWikiDocTree, getWikiDocVersion, listMyFavoriteWikiDocs, listMyProcessedReviews,
-  listRecentWikiDocs, listWikiDocReviewRecords, listWikiDocVersions, listWikiDocs, mapWikiDoc, moveWikiDoc,
-  purgeWikiDoc, recordWikiDocView, reportWikiSearchClick, restoreWikiDoc, reviewWikiDoc, rollbackWikiDoc,
-  searchWikiDocs, submitWikiDoc, subscribeWikiDoc, updateWikiDoc, withdrawWikiDoc,
+  confirmWikiDocRead,
+  createWikiDoc,
+  deleteWikiDoc,
+  ensureWikiDocExists,
+  favoriteWikiDoc,
+  getWikiDoc,
+  getWikiDocReadReceipts,
+  getWikiDocTree,
+  getWikiDocVersion,
+  listMyFavoriteWikiDocs,
+  listMyProcessedReviews,
+  listRecentWikiDocs,
+  listWikiDocReviewRecords,
+  listWikiDocVersions,
+  listWikiDocs,
+  mapWikiDoc,
+  moveWikiDoc,
+  purgeWikiDoc,
+  recordWikiDocView,
+  reportWikiSearchClick,
+  restoreWikiDoc,
+  reviewWikiDoc,
+  rollbackWikiDoc,
+  searchWikiDocs,
+  submitWikiDoc,
+  subscribeWikiDoc,
+  updateWikiDoc,
+  withdrawWikiDoc,
 } from '../../services/wiki/docs.service';
+import { mountCrud } from '../_crud';
 
 const docsRouter = new OpenAPIHono({ defaultHook: validationHook });
 
 const read = [authMiddleware, guard({ permission: 'wiki:doc:list' })] as const;
-
-// ─── 列表与树 ─────────────────────────────────────────────────────────────────
-
-const listRoute = defineContractRoute(wikiDocContract.list, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await listWikiDocs(c.req.valid('query'))), 200),
-});
-
 const searchRoute = defineContractRoute(wikiDocContract.search, {
   middleware: read,
   handler: async (c) => c.json(okBody(await searchWikiDocs(c.req.valid('query'))), 200),
@@ -64,50 +80,6 @@ const recycleRoute = defineContractRoute(wikiDocContract.recycle, {
   middleware: [authMiddleware, guard({ permission: 'wiki:recycle:list' })],
   handler: async (c) => c.json(okBody(await listWikiDocs({ ...c.req.valid('query'), deleted: true })), 200),
 });
-
-// ─── 详情与 CRUD ──────────────────────────────────────────────────────────────
-
-const getOneRoute = defineContractRoute(wikiDocContract.detail, {
-  middleware: read,
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    return c.json(okBody(await getWikiDoc(id)), 200);
-  },
-});
-
-const createRouteDef = defineContractRoute(wikiDocContract.create, {
-  middleware: [authMiddleware, guard({
-    permission: 'wiki:doc:create',
-    audit: { description: '创建文档', module: '知识中心' },
-  })],
-  handler: async (c) => c.json(okBody(await createWikiDoc(c.req.valid('json')), '创建成功'), 200),
-});
-
-const updateRouteDef = defineContractRoute(wikiDocContract.update, {
-  middleware: [authMiddleware, guard({
-    permission: 'wiki:doc:edit',
-    audit: { description: '更新文档', module: '知识中心' },
-  })],
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    setAuditBeforeData(c, mapWikiDoc(await ensureWikiDocExists(id)));
-    return c.json(okBody(await updateWikiDoc(id, c.req.valid('json')), '更新成功'), 200);
-  },
-});
-
-const deleteRouteDef = defineContractRoute(wikiDocContract.remove, {
-  middleware: [authMiddleware, guard({
-    permission: 'wiki:doc:delete',
-    audit: { description: '删除文档', module: '知识中心' },
-  })],
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    setAuditBeforeData(c, mapWikiDoc(await ensureWikiDocExists(id)));
-    await deleteWikiDoc(id);
-    return c.json(okBody(null, '已移入回收站'), 200);
-  },
-});
-
 // ─── 移动 / 发布流 / 收藏 / 浏览 ──────────────────────────────────────────────
 
 const moveRoute = defineContractRoute(wikiDocContract.move, {
@@ -264,34 +236,38 @@ const purgeRoute = defineContractRoute(wikiDocContract.purge, {
   },
 });
 
-docsRouter.openapiRoutes([
-  listRoute,
-  searchRoute,
-  searchClickRoute,
-  recentRoute,
-  processedReviewsRoute,
-  treeRoute,
-  favoritesRoute,
-  recycleRoute,
-  getOneRoute,
-  createRouteDef,
-  updateRouteDef,
-  deleteRouteDef,
-  moveRoute,
-  submitRoute,
-  withdrawRoute,
-  reviewRoute,
-  favoriteRoute,
-  subscribeRoute,
-  readReceiptRoute,
-  readReceiptsRoute,
-  reviewRecordsRoute,
-  viewRoute,
-  versionsRoute,
-  versionDetailRoute,
-  rollbackRoute,
-  restoreRoute,
-  purgeRoute,
-] as const);
+mountCrud(docsRouter, wikiDocContract,
+  { list: listWikiDocs, get: getWikiDoc, create: createWikiDoc, update: updateWikiDoc, remove: deleteWikiDoc },
+  {
+    permission: { read: 'wiki:doc:list', create: 'wiki:doc:create', update: 'wiki:doc:edit', remove: 'wiki:doc:delete' },
+    label: '文档',
+    module: '知识中心',
+    messages: { remove: '已移入回收站' },
+  },
+  [
+    searchRoute,
+    searchClickRoute,
+    recentRoute,
+    processedReviewsRoute,
+    treeRoute,
+    favoritesRoute,
+    recycleRoute,
+    moveRoute,
+    submitRoute,
+    withdrawRoute,
+    reviewRoute,
+    favoriteRoute,
+    subscribeRoute,
+    readReceiptRoute,
+    readReceiptsRoute,
+    reviewRecordsRoute,
+    viewRoute,
+    versionsRoute,
+    versionDetailRoute,
+    rollbackRoute,
+    restoreRoute,
+    purgeRoute,
+  ],
+);
 
 export default docsRouter;

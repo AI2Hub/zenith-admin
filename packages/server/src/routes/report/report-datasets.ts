@@ -1,26 +1,30 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { reportDatasetContract } from '@zenith/shared/report';
 import { authMiddleware } from '../../middleware/auth';
-import { guard, setAuditBeforeData } from '../../middleware/guard';
+import { guard } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { ErrorResponse, errBody, jsonContent, okBody, validationHook } from '../../lib/openapi-schemas';
 import {
-  listDatasets, getDataset, createDataset, updateDataset, deleteDataset,
-  ensureDatasetExists, previewDataset, getDatasetData, collectDatasetRefs,
-  batchSetDatasetStatus, cloneDataset, listDatasetLookup,
+  listDatasets,
+  getDataset,
+  createDataset,
+  updateDataset,
+  deleteDataset,
+  ensureDatasetExists,
+  previewDataset,
+  getDatasetData,
+  collectDatasetRefs,
+  batchSetDatasetStatus,
+  cloneDataset,
+  listDatasetLookup,
 } from '../../services/report/report-dataset.service';
 import { submitDatasetMaterializeTask } from '../../services/report/report-dataset-tasks';
 import { parseDataFile } from '../../lib/report-file-parse';
+import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
 const notFound = { 404: { content: jsonContent(ErrorResponse), description: '不存在' } } as const;
-
-const listRoute = defineContractRoute(reportDatasetContract.list, {
-  middleware: [authMiddleware, guard({ permission: 'report:dataset:list' })],
-  handler: async (c) => c.json(okBody(await listDatasets(c.req.valid('query'))), 200),
-});
-
 const lookupRoute = defineContractRoute(reportDatasetContract.lookup, {
   middleware: [authMiddleware, guard({ permission: 'report:dataset:list' })],
   handler: async (c) => c.json(okBody(await listDatasetLookup(c.req.valid('query'))), 200),
@@ -60,41 +64,6 @@ const dataRoute = defineContractRoute(reportDatasetContract.data, {
     return c.json(okBody(await getDatasetData(id, body.params, body, { scene: 'dataset', sourceRefId: id })), 200);
   },
 });
-
-const getOneRoute = defineContractRoute(reportDatasetContract.detail, {
-  middleware: [authMiddleware, guard({ permission: 'report:dataset:list' })],
-  responses: notFound,
-  handler: async (c) => c.json(okBody(await getDataset(c.req.valid('param').id)), 200),
-});
-
-const createRoute_ = defineContractRoute(reportDatasetContract.create, {
-  middleware: [authMiddleware, guard({ permission: 'report:dataset:create', audit: { description: '创建报表数据集', module: '报表数据集' } })],
-  handler: async (c) => c.json(okBody(await createDataset(c.req.valid('json')), '创建成功'), 200),
-});
-
-const updateRoute_ = defineContractRoute(reportDatasetContract.update, {
-  middleware: [authMiddleware, guard({ permission: 'report:dataset:update', audit: { description: '更新报表数据集', module: '报表数据集' } })],
-  responses: notFound,
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    const before = await ensureDatasetExists(id);
-    setAuditBeforeData(c, before);
-    return c.json(okBody(await updateDataset(id, c.req.valid('json')), '更新成功'), 200);
-  },
-});
-
-const deleteRoute_ = defineContractRoute(reportDatasetContract.remove, {
-  middleware: [authMiddleware, guard({ permission: 'report:dataset:delete', audit: { description: '删除报表数据集', module: '报表数据集' } })],
-  responses: notFound,
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    const before = await ensureDatasetExists(id);
-    setAuditBeforeData(c, before);
-    await deleteDataset(id);
-    return c.json(okBody(null, '删除成功'), 200);
-  },
-});
-
 const batchStatusRoute = defineContractRoute(reportDatasetContract.batchStatus, {
   middleware: [authMiddleware, guard({ permission: 'report:dataset:update', audit: { description: '批量更新报表数据集状态', module: '报表数据集' } })],
   handler: async (c) => {
@@ -125,9 +94,24 @@ const cloneRoute = defineContractRoute(reportDatasetContract.clone, {
   handler: async (c) => c.json(okBody(await cloneDataset(c.req.valid('param').id, c.req.valid('json')), '复制成功'), 200),
 });
 
-router.openapiRoutes([
-  listRoute, lookupRoute, previewRoute, dataRoute, batchStatusRoute, materializeRoute, refsRoute, getOneRoute, createRoute_, updateRoute_, deleteRoute_, cloneRoute,
-  parseFileRoute,
-] as const);
+mountCrud(router, reportDatasetContract,
+  { list: listDatasets, get: getDataset, create: createDataset, update: updateDataset, remove: deleteDataset },
+  {
+    permission: 'report:dataset',
+    label: '报表数据集',
+    module: '报表数据集',
+    responses: { detail: notFound, update: notFound, remove: notFound },
+  },
+  [
+    lookupRoute,
+    previewRoute,
+    dataRoute,
+    batchStatusRoute,
+    materializeRoute,
+    refsRoute,
+    cloneRoute,
+    parseFileRoute,
+  ],
+);
 
 export default router;

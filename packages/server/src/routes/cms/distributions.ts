@@ -15,16 +15,11 @@ import {
   submitCmsDistributionRun,
   updateCmsDistributionRule,
 } from '../../services/cms/cms-distributions.service';
+import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
 const read = [authMiddleware, guard({ permission: 'cms:distribution:list' })] as const;
-
-const listRoute = defineContractRoute(cmsDistributionContract.list, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await listCmsDistributionRules(c.req.valid('query'))), 200),
-});
-
 const runsRoute = defineContractRoute(cmsDistributionContract.runs, {
   middleware: read,
   handler: async (c) => c.json(okBody(await listCmsDistributionRuns(c.req.valid('query'))), 200),
@@ -46,12 +41,6 @@ const createRouteDef = defineContractRoute(cmsDistributionContract.create, {
     return c.json(okBody(result, '分发规则已创建'), 200);
   },
 });
-
-const getRoute = defineContractRoute(cmsDistributionContract.detail, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await getCmsDistributionRule(c.req.valid('param').id)), 200),
-});
-
 const updateRoute = defineContractRoute(cmsDistributionContract.update, {
   middleware: [authMiddleware, guard({
     permission: 'cms:distribution:update',
@@ -81,28 +70,10 @@ const runRoute = defineContractRoute(cmsDistributionContract.run, {
   ), 200),
 });
 
-const deleteRoute = defineContractRoute(cmsDistributionContract.remove, {
-  middleware: [authMiddleware, guard({
-    permission: 'cms:distribution:delete',
-    audit: { description: '删除 CMS 内容分发规则', module: 'CMS内容管理' },
-  })],
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    setAuditBeforeData(c, await getCmsDistributionRule(id));
-    await deleteCmsDistributionRule(id);
-    return c.json(okBody(null, '删除成功'), 200);
-  },
-});
-
-router.openapiRoutes([
-  listRoute,
-  runsRoute,
-  runDetailRoute,
-  createRouteDef,
-  runRoute,
-  getRoute,
-  updateRoute,
-  deleteRoute,
-] as const);
+mountCrud(router, cmsDistributionContract,
+  { list: listCmsDistributionRules, get: getCmsDistributionRule, remove: deleteCmsDistributionRule },
+  { permission: 'cms:distribution', label: ' CMS 内容分发规则', module: 'CMS内容管理', exclude: ['create', 'update'] },
+  [runsRoute, runDetailRoute, createRouteDef, runRoute, updateRoute],
+);
 
 export default router;

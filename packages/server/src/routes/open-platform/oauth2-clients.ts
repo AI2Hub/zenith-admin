@@ -23,17 +23,12 @@ import {
 } from '../../services/open-platform/oauth2-clients.service';
 import { notifyAppReviewResult } from '../../services/open-platform/developer-apps.service';
 import { currentUser } from '../../lib/context';
+import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
 const MODULE = 'OAuth2 应用';
 const read = [authMiddleware, guard({ permission: 'system:oauth2-apps:view' })] as const;
-
-const list = defineContractRoute(oauth2ClientContract.list, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await listOAuth2Clients(c.req.valid('query'))), 200),
-});
-
 const create = defineContractRoute(oauth2ClientContract.create, {
   middleware: [authMiddleware, guard({
     permission: 'system:oauth2-apps:manage',
@@ -45,12 +40,6 @@ const create = defineContractRoute(oauth2ClientContract.create, {
     return c.json(okBody(created, '应用已创建，client_secret 仅返回一次，请妥善保存'), 200);
   },
 });
-
-const detail = defineContractRoute(oauth2ClientContract.detail, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await getOAuth2Client(c.req.valid('param').id)), 200),
-});
-
 const grants = defineContractRoute(oauth2ClientContract.grants, {
   middleware: read,
   handler: async (c) => {
@@ -87,20 +76,6 @@ const update = defineContractRoute(oauth2ClientContract.update, {
     return c.json(okBody(await updateOAuth2Client(id, c.req.valid('json'))), 200);
   },
 });
-
-const remove = defineContractRoute(oauth2ClientContract.remove, {
-  middleware: [authMiddleware, guard({
-    permission: 'system:oauth2-apps:manage',
-    audit: { description: '删除 OAuth2 应用', module: MODULE },
-  })],
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    setAuditBeforeData(c, await getOAuth2ClientBeforeAudit(id));
-    await deleteOAuth2Client(id);
-    return c.json(okBody(null, '删除成功'), 200);
-  },
-});
-
 const regenerateSecret = defineContractRoute(oauth2ClientContract.regenerateSecret, {
   middleware: [authMiddleware, guard({
     permission: 'system:oauth2-apps:manage',
@@ -162,9 +137,26 @@ const revokeMyGrantRoute = defineContractRoute(oauth2ClientContract.revokeMyGran
   },
 });
 
-router.openapiRoutes([
-  list, options, tokens, revokeTokenRoute, myGrants, revokeMyGrantRoute,
-  create, grants, review, detail, update, remove, regenerateSecret,
-] as const);
+mountCrud(router, oauth2ClientContract,
+  { list: listOAuth2Clients, get: getOAuth2Client, remove: deleteOAuth2Client },
+  {
+    permission: { read: 'system:oauth2-apps:view', write: 'system:oauth2-apps:manage' },
+    label: ' OAuth2 应用',
+    module: MODULE,
+    exclude: ['create', 'update'],
+  },
+  [
+    options,
+    tokens,
+    revokeTokenRoute,
+    myGrants,
+    revokeMyGrantRoute,
+    create,
+    grants,
+    review,
+    update,
+    regenerateSecret,
+  ],
+);
 
 export default router;

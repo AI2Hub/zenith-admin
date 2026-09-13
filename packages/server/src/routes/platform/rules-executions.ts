@@ -4,19 +4,15 @@
  */
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { ruleExecutionContract } from '@zenith/shared/rules';
-import { authMiddleware } from '../../middleware/auth';
-import { guard } from '../../middleware/guard';
-import { defineContractRoute } from '../../lib/contract-route';
-import { okBody, validationHook } from '../../lib/openapi-schemas';
+import { validationHook } from '../../lib/openapi-schemas';
 import { listRuleExecutions } from '../../services/platform/rules-executions.service';
+import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
-const listRoute = defineContractRoute(ruleExecutionContract.list, {
-  middleware: [authMiddleware, guard({ permission: 'rule:table:list' })],
-  handler: async (c) => c.json(okBody(await listRuleExecutions(c.req.valid('query'))), 200),
-});
-
-router.openapiRoutes([listRoute] as const);
+mountCrud(router, ruleExecutionContract,
+  { list: listRuleExecutions },
+  { permission: 'rule:table' },
+);
 
 export default router;

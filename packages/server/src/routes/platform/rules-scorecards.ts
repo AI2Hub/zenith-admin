@@ -5,10 +5,21 @@ import { guard, setAuditBeforeData } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
-  listRuleScorecards, getRuleScorecard, createRuleScorecard, updateRuleScorecard, deleteRuleScorecard,
-  publishRuleScorecard, toggleRuleScorecard, testEvaluateRuleScorecard, evaluateRuleScorecardByKey,
-  ensureRuleScorecard, mapRuleScorecard, listRuleScorecardVersions, rollbackRuleScorecard,
+  listRuleScorecards,
+  getRuleScorecard,
+  createRuleScorecard,
+  updateRuleScorecard,
+  deleteRuleScorecard,
+  publishRuleScorecard,
+  toggleRuleScorecard,
+  testEvaluateRuleScorecard,
+  evaluateRuleScorecardByKey,
+  ensureRuleScorecard,
+  mapRuleScorecard,
+  listRuleScorecardVersions,
+  rollbackRuleScorecard,
 } from '../../services/platform/rules-scorecards.service';
+import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -27,22 +38,6 @@ const rollbackRoute = defineContractRoute(ruleScorecardContract.rollback, {
     return c.json(okBody(await rollbackRuleScorecard(id, version), '回滚成功'), 200);
   },
 });
-
-const listRoute = defineContractRoute(ruleScorecardContract.list, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await listRuleScorecards(c.req.valid('query'))), 200),
-});
-
-const detailRoute = defineContractRoute(ruleScorecardContract.detail, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await getRuleScorecard(c.req.valid('param').id)), 200),
-});
-
-const createRouteDef = defineContractRoute(ruleScorecardContract.create, {
-  middleware: [authMiddleware, guard({ permission: 'rule:scorecard:create', audit: { description: '创建评分卡', module: '规则中心' } })],
-  handler: async (c) => c.json(okBody(await createRuleScorecard(c.req.valid('json')), '创建成功'), 200),
-});
-
 const updateRoute = defineContractRoute(ruleScorecardContract.update, {
   middleware: [authMiddleware, guard({ permission: 'rule:scorecard:update', audit: { description: '更新评分卡', module: '规则中心' } })],
   handler: async (c) => {
@@ -52,15 +47,6 @@ const updateRoute = defineContractRoute(ruleScorecardContract.update, {
     return c.json(okBody(await updateRuleScorecard(id, c.req.valid('json')), '更新成功'), 200);
   },
 });
-
-const deleteRoute = defineContractRoute(ruleScorecardContract.remove, {
-  middleware: [authMiddleware, guard({ permission: 'rule:scorecard:delete', audit: { description: '删除评分卡', module: '规则中心' } })],
-  handler: async (c) => {
-    await deleteRuleScorecard(c.req.valid('param').id);
-    return c.json(okBody(null, '删除成功'), 200);
-  },
-});
-
 const publishRoute = defineContractRoute(ruleScorecardContract.publish, {
   middleware: [authMiddleware, guard({ permission: 'rule:scorecard:publish', audit: { description: '发布评分卡', module: '规则中心' } })],
   handler: async (c) => c.json(okBody(await publishRuleScorecard(c.req.valid('param').id), '发布成功'), 200),
@@ -84,18 +70,18 @@ const evaluateByKeyRoute = defineContractRoute(ruleScorecardContract.evaluateByK
   },
 });
 
-router.openapiRoutes([
-  listRoute,
-  evaluateByKeyRoute,
-  createRouteDef,
-  versionsRoute,
-  rollbackRoute,
-  detailRoute,
-  updateRoute,
-  deleteRoute,
-  publishRoute,
-  toggleRoute,
-  evaluateRoute,
-] as const);
+mountCrud(router, ruleScorecardContract,
+  { list: listRuleScorecards, get: getRuleScorecard, create: createRuleScorecard, remove: deleteRuleScorecard },
+  { permission: 'rule:scorecard', label: '评分卡', module: '规则中心', exclude: ['update'] },
+  [
+    evaluateByKeyRoute,
+    versionsRoute,
+    rollbackRoute,
+    updateRoute,
+    publishRoute,
+    toggleRoute,
+    evaluateRoute,
+  ],
+);
 
 export default router;

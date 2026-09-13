@@ -13,6 +13,7 @@ import {
   transitionReportEnvironmentPromotion,
   updateReportEnvironment,
 } from '../../services/report/report-governance.service';
+import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -20,12 +21,6 @@ const listRoute = defineContractRoute(reportEnvironmentContract.list, {
   middleware: [authMiddleware, guard({ permission: 'report:environment:list' })],
   handler: async (c) => c.json(okBody(await listReportEnvironments()), 200),
 });
-
-const createRoute_ = defineContractRoute(reportEnvironmentContract.create, {
-  middleware: [authMiddleware, guard({ permission: 'report:environment:create', audit: { module: '报表环境治理', description: '创建报表环境' } })],
-  handler: async (c) => c.json(okBody(await createReportEnvironment(c.req.valid('json')), '创建成功'), 200),
-});
-
 const updateRoute_ = defineContractRoute(reportEnvironmentContract.update, {
   middleware: [authMiddleware, guard({ permission: 'report:environment:update', audit: { module: '报表环境治理', description: '更新报表环境' } })],
   handler: async (c) => c.json(okBody(await updateReportEnvironment(c.req.valid('param').id, c.req.valid('json')), '更新成功'), 200),
@@ -54,9 +49,17 @@ const transitionPromotionRoute = defineContractRoute(reportEnvironmentContract.t
   handler: async (c) => c.json(okBody(await transitionReportEnvironmentPromotion(c.req.valid('param').id, c.req.valid('json')), '操作成功'), 200),
 });
 
-router.openapiRoutes([
-  listPromotionsRoute, createPromotionRoute, transitionPromotionRoute,
-  listRoute, createRoute_, updateRoute_, deleteRoute_,
-] as const);
+mountCrud(router, reportEnvironmentContract,
+  { create: createReportEnvironment },
+  { permission: 'report:environment', label: '报表环境', module: '报表环境治理', exclude: ['list', 'update', 'remove'] },
+  [
+    listPromotionsRoute,
+    createPromotionRoute,
+    transitionPromotionRoute,
+    listRoute,
+    updateRoute_,
+    deleteRoute_,
+  ],
+);
 
 export default router;

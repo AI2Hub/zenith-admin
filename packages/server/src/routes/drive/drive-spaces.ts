@@ -18,6 +18,7 @@ import {
   transferDriveSpace,
   updateDriveSpace,
 } from '../../services/drive/drive-spaces.service';
+import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 const AUDIT = { module: '企业网盘' } as const;
@@ -28,18 +29,6 @@ const mySpacesRoute = defineContractRoute(driveSpaceContract.my, {
   middleware: read,
   handler: async (c) => c.json(okBody(await listMySpaces()), 200),
 });
-
-const listRoute = defineContractRoute(driveSpaceContract.list, {
-  middleware: [authMiddleware, guard({ permission: 'drive:space:list' })],
-  handler: async (c) => c.json(okBody(await listDriveSpaces(c.req.valid('query'))), 200),
-});
-
-const getOneRoute = defineContractRoute(driveSpaceContract.detail, {
-  middleware: read,
-  responses: { 404: { content: jsonContent(ErrorResponse), description: '不存在' } },
-  handler: async (c) => c.json(okBody(await getDriveSpace(c.req.valid('param').id)), 200),
-});
-
 const createRoute = defineContractRoute(driveSpaceContract.create, {
   middleware: [authMiddleware, guard({ permission: 'drive:space:create', audit: { description: '创建协作空间', ...AUDIT } })],
   handler: async (c) => c.json(okBody(await createTeamSpace(c.req.valid('json')), '创建成功'), 200),
@@ -117,10 +106,26 @@ const quotaRequestsRoute = defineContractRoute(driveSpaceContract.quotaRequests,
   handler: async (c) => c.json(okBody(await listSpaceQuotaRequests(c.req.valid('param').id)), 200),
 });
 
-// 静态 /my 先于动态 /{id}
-router.openapiRoutes([
-  mySpacesRoute, listRoute, createRoute, getOneRoute, updateRoute, deleteRoute, membersRoute, saveMembersRoute, transferRoute,
-  archiveRoute, unarchiveRoute, requestQuotaRoute, quotaRequestsRoute,
-] as const);
+mountCrud(router, driveSpaceContract,
+  { list: listDriveSpaces, get: getDriveSpace },
+  {
+    permission: { list: 'drive:space:list', detail: 'drive:node:list' },
+    exclude: ['create', 'update', 'remove'],
+    responses: { detail: { 404: { content: jsonContent(ErrorResponse), description: '不存在' } } },
+  },
+  [
+    mySpacesRoute,
+    createRoute,
+    updateRoute,
+    deleteRoute,
+    membersRoute,
+    saveMembersRoute,
+    transferRoute,
+    archiveRoute,
+    unarchiveRoute,
+    requestQuotaRoute,
+    quotaRequestsRoute,
+  ],
+);
 
 export default router;

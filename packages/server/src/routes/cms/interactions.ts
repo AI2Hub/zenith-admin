@@ -19,26 +19,15 @@ import {
   updateCmsInteraction,
 } from '../../services/cms/cms-interactions.service';
 import { submitCmsInteractionBatchStatusTask } from '../../services/cms/cms-stage4-tasks';
+import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
 const read = [authMiddleware, guard({ permission: 'cms:interaction:list' })] as const;
-
-const listRoute = defineContractRoute(cmsInteractionContract.list, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await listCmsInteractions(c.req.valid('query'))), 200),
-});
-
 const responseListRoute = defineContractRoute(cmsInteractionContract.responses, {
   middleware: read,
   handler: async (c) => c.json(okBody(await listCmsInteractionResponses(c.req.valid('query'))), 200),
 });
-
-const detailRoute = defineContractRoute(cmsInteractionContract.detail, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await getCmsInteraction(c.req.valid('param').id)), 200),
-});
-
 const statsRoute = defineContractRoute(cmsInteractionContract.stats, {
   middleware: read,
   handler: async (c) => c.json(okBody(await getCmsInteractionStats(c.req.valid('param').id)), 200),
@@ -67,15 +56,6 @@ const trendRoute = defineContractRoute(cmsInteractionContract.trend, {
     200,
   ),
 });
-
-const createRouteDef = defineContractRoute(cmsInteractionContract.create, {
-  middleware: [authMiddleware, guard({
-    permission: 'cms:interaction:manage',
-    audit: { description: '创建 CMS 互动问卷', module: 'CMS内容管理' },
-  })],
-  handler: async (c) => c.json(okBody(await createCmsInteraction(c.req.valid('json')), '创建成功'), 200),
-});
-
 const updateRouteDef = defineContractRoute(cmsInteractionContract.update, {
   middleware: [authMiddleware, guard({
     permission: 'cms:interaction:manage',
@@ -132,20 +112,26 @@ const deleteRouteDef = defineContractRoute(cmsInteractionContract.remove, {
   },
 });
 
-router.openapiRoutes([
-  listRoute,
-  responseListRoute,
-  batchStatusRoute,
-  detailRoute,
-  textsRoute,
-  crossStatsRoute,
-  trendRoute,
-  statsRoute,
-  createRouteDef,
-  updateRouteDef,
-  statusRoute,
-  copyRoute,
-  deleteRouteDef,
-] as const);
+mountCrud(router, cmsInteractionContract,
+  { list: listCmsInteractions, get: getCmsInteraction, create: createCmsInteraction },
+  {
+    permission: { read: 'cms:interaction:list', write: 'cms:interaction:manage' },
+    label: ' CMS 互动问卷',
+    module: 'CMS内容管理',
+    exclude: ['update', 'remove'],
+  },
+  [
+    responseListRoute,
+    batchStatusRoute,
+    textsRoute,
+    crossStatsRoute,
+    trendRoute,
+    statsRoute,
+    updateRouteDef,
+    statusRoute,
+    copyRoute,
+    deleteRouteDef,
+  ],
+);
 
 export default router;

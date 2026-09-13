@@ -14,52 +14,15 @@ import {
   createDictItem,
   updateDictItem,
   deleteDictItem,
-  getDictBeforeAudit,
   getDictItemBeforeAudit,
   getDict,
   getDictItem,
 } from '../../services/platform/dicts.service';
+import { mountCrud } from '../_crud';
 
 const dictsRouter = new OpenAPIHono({ defaultHook: validationHook });
 
 const read = [authMiddleware, guard({ permission: 'system:dict:list' })] as const;
-
-const listDictsRoute = defineContractRoute(dictContract.list, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await listDicts(c.req.valid('query'))), 200),
-});
-
-const getDictRoute = defineContractRoute(dictContract.detail, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await getDict(c.req.valid('param').id)), 200),
-});
-
-const createDictRoute = defineContractRoute(dictContract.create, {
-  middleware: [authMiddleware, guard({ permission: 'system:dict:create', audit: { description: '创建字典', module: '字典管理' } })],
-  handler: async (c) => c.json(okBody(await createDict(c.req.valid('json')), '创建成功'), 200),
-});
-
-const updateDictRoute = defineContractRoute(dictContract.update, {
-  middleware: [authMiddleware, guard({ permission: 'system:dict:update', audit: { description: '更新字典', module: '字典管理' } })],
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    const before = await getDictBeforeAudit(id);
-    if (before) setAuditBeforeData(c, before);
-    return c.json(okBody(await updateDict(id, c.req.valid('json')), '更新成功'), 200);
-  },
-});
-
-const deleteDictRoute = defineContractRoute(dictContract.remove, {
-  middleware: [authMiddleware, guard({ permission: 'system:dict:delete', audit: { description: '删除字典', module: '字典管理' } })],
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    const before = await getDictBeforeAudit(id);
-    if (before) setAuditBeforeData(c, before);
-    await deleteDict(id);
-    return c.json(okBody(null, '删除成功'), 200);
-  },
-});
-
 const listItemsRoute = defineContractRoute(dictContract.items, {
   middleware: read,
   handler: async (c) => {
@@ -113,6 +76,10 @@ const deleteItemRoute = defineContractRoute(dictContract.removeItem, {
   },
 });
 
-dictsRouter.openapiRoutes([listDictsRoute, getDictRoute, createDictRoute, updateDictRoute, deleteDictRoute, listItemsRoute, getItemsByCodeRoute, getItemRoute, createItemRoute, updateItemRoute, deleteItemRoute] as const);
+mountCrud(dictsRouter, dictContract,
+  { list: listDicts, get: getDict, create: createDict, update: updateDict, remove: deleteDict },
+  { permission: 'system:dict', label: '字典' },
+  [listItemsRoute, getItemsByCodeRoute, getItemRoute, createItemRoute, updateItemRoute, deleteItemRoute],
+);
 
 export default dictsRouter;

@@ -6,14 +6,9 @@ import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import { parseDateRangeEnd, parseDateRangeStart } from '../../lib/datetime';
 import { getDatasetExecutionStats, getReportRuntimeGovernance, listDatasetExecutionLogs } from '../../services/report/report-dataset.service';
+import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
-
-const listRoute = defineContractRoute(reportExecutionContract.list, {
-  middleware: [authMiddleware, guard({ permission: 'report:dataset:list' })],
-  handler: async (c) => c.json(okBody(await listDatasetExecutionLogs(c.req.valid('query'))), 200),
-});
-
 const statsRoute = defineContractRoute(reportExecutionContract.stats, {
   middleware: [authMiddleware, guard({ permission: 'report:dataset:list' })],
   handler: async (c) => {
@@ -31,6 +26,10 @@ const governanceRoute = defineContractRoute(reportExecutionContract.governance, 
   handler: async (c) => c.json(okBody(getReportRuntimeGovernance()), 200),
 });
 
-router.openapiRoutes([statsRoute, governanceRoute, listRoute] as const);
+mountCrud(router, reportExecutionContract,
+  { list: listDatasetExecutionLogs },
+  { permission: 'report:dataset' },
+  [statsRoute, governanceRoute],
+);
 
 export default router;

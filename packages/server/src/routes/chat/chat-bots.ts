@@ -5,21 +5,19 @@ import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/g
 import { defineContractRoute } from '../../lib/contract-route';
 import { validationHook, okBody } from '../../lib/openapi-schemas';
 import {
-  listChatWebhooks, createChatWebhook, updateChatWebhook, deleteChatWebhook, regenerateChatWebhookToken,
-  getChatWebhookBeforeAudit, sanitizeChatWebhookForAudit,
+  listChatWebhooks,
+  createChatWebhook,
+  updateChatWebhook,
+  deleteChatWebhook,
+  regenerateChatWebhookToken,
+  getChatWebhookBeforeAudit,
+  sanitizeChatWebhookForAudit,
 } from '../../services/chat/chat-webhooks.service';
+import { mountCrud } from '../_crud';
 
 const chatBotsRoute = new OpenAPIHono({ defaultHook: validationHook });
 
 const MODULE = '聊天机器人';
-
-const list = defineContractRoute(chatBotContract.list, {
-  middleware: [authMiddleware, guard({ permission: 'chat:bot:list' })],
-  handler: async (c) => {
-    return c.json(okBody(await listChatWebhooks(c.req.valid('query'))), 200);
-  },
-});
-
 const create = defineContractRoute(chatBotContract.create, {
   middleware: [authMiddleware, guard({
     permission: 'chat:bot:create',
@@ -60,16 +58,10 @@ const regenerate = defineContractRoute(chatBotContract.regenerateToken, {
   },
 });
 
-const remove = defineContractRoute(chatBotContract.remove, {
-  middleware: [authMiddleware, guard({ permission: 'chat:bot:delete', audit: { description: '删除聊天 Webhook', module: MODULE } })],
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    setAuditBeforeData(c, await getChatWebhookBeforeAudit(id));
-    await deleteChatWebhook(id);
-    return c.json(okBody(null, '删除成功'), 200);
-  },
-});
-
-chatBotsRoute.openapiRoutes([list, create, update, regenerate, remove] as const);
+mountCrud(chatBotsRoute, chatBotContract,
+  { list: listChatWebhooks, get: getChatWebhookBeforeAudit, remove: deleteChatWebhook },
+  { permission: 'chat:bot', label: '聊天 Webhook', module: MODULE, exclude: ['create', 'update'] },
+  [create, update, regenerate],
+);
 
 export default chatBotsRoute;

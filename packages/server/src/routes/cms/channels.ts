@@ -5,9 +5,18 @@ import { guard, setAuditBeforeData, setAuditAfterData } from '../../middleware/g
 import { defineContractRoute } from '../../lib/contract-route';
 import { validationHook, okBody } from '../../lib/openapi-schemas';
 import {
-  listCmsChannelTree, getCmsChannel, createCmsChannel, updateCmsChannel, deleteCmsChannel,
-  mergeCmsChannels, clearCmsChannel, batchCreateCmsChannels, getCmsChannelUsers, setCmsChannelUsers,
+  listCmsChannelTree,
+  getCmsChannel,
+  createCmsChannel,
+  updateCmsChannel,
+  deleteCmsChannel,
+  mergeCmsChannels,
+  clearCmsChannel,
+  batchCreateCmsChannels,
+  getCmsChannelUsers,
+  setCmsChannelUsers,
 } from '../../services/cms/cms-channels.service';
+import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -17,36 +26,6 @@ const treeRoute = defineContractRoute(cmsChannelContract.tree, {
   middleware: read,
   handler: async (c) => c.json(okBody(await listCmsChannelTree(c.req.valid('query'))), 200),
 });
-
-const getOneRoute = defineContractRoute(cmsChannelContract.detail, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await getCmsChannel(c.req.valid('param').id)), 200),
-});
-
-const createRouteDef = defineContractRoute(cmsChannelContract.create, {
-  middleware: [authMiddleware, guard({ permission: 'cms:channel:create', audit: { description: '创建 CMS 栏目', module: 'CMS内容管理' } })],
-  handler: async (c) => c.json(okBody(await createCmsChannel(c.req.valid('json')), '创建成功'), 200),
-});
-
-const updateRouteDef = defineContractRoute(cmsChannelContract.update, {
-  middleware: [authMiddleware, guard({ permission: 'cms:channel:update', audit: { description: '更新 CMS 栏目', module: 'CMS内容管理' } })],
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    setAuditBeforeData(c, await getCmsChannel(id));
-    return c.json(okBody(await updateCmsChannel(id, c.req.valid('json')), '更新成功'), 200);
-  },
-});
-
-const deleteRouteDef = defineContractRoute(cmsChannelContract.remove, {
-  middleware: [authMiddleware, guard({ permission: 'cms:channel:delete', audit: { description: '删除 CMS 栏目', module: 'CMS内容管理' } })],
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    setAuditBeforeData(c, await getCmsChannel(id));
-    await deleteCmsChannel(id);
-    return c.json(okBody(null, '删除成功'), 200);
-  },
-});
-
 // ─── 栏目运维：合并 / 清空 / 批量新增 ─────────────────────────────────────────
 const mergeRoute = defineContractRoute(cmsChannelContract.merge, {
   middleware: [authMiddleware, guard({ permission: 'cms:channel:update', audit: { description: 'CMS 栏目合并', module: 'CMS内容管理' } })],
@@ -92,6 +71,10 @@ const setChannelUsersRoute = defineContractRoute(cmsChannelContract.setUsers, {
   },
 });
 
-router.openapiRoutes([treeRoute, getOneRoute, createRouteDef, updateRouteDef, deleteRouteDef, mergeRoute, clearRoute, batchCreateRoute, getChannelUsersRoute, setChannelUsersRoute] as const);
+mountCrud(router, cmsChannelContract,
+  { get: getCmsChannel, create: createCmsChannel, update: updateCmsChannel, remove: deleteCmsChannel },
+  { permission: 'cms:channel', label: ' CMS 栏目', module: 'CMS内容管理' },
+  [treeRoute, mergeRoute, clearRoute, batchCreateRoute, getChannelUsersRoute, setChannelUsersRoute],
+);
 
 export default router;

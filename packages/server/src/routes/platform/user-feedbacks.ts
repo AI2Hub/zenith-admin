@@ -14,6 +14,7 @@ import {
   listUserFeedbacks,
   mapUserFeedback,
 } from '../../services/platform/user-feedbacks.service';
+import { mountCrud } from '../_crud';
 
 const userFeedbacksRouter = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -28,12 +29,6 @@ const submitRoute = defineContractRoute(userFeedbackContract.submit, {
     return c.json(okBody(row, '感谢您的反馈'), 200);
   },
 });
-
-const listRoute = defineContractRoute(userFeedbackContract.list, {
-  middleware: [authMiddleware, guard({ permission: 'system:feedback:list' })],
-  handler: async (c) => c.json(okBody(await listUserFeedbacks(c.req.valid('query'))), 200),
-});
-
 const handleRoute = defineContractRoute(userFeedbackContract.handle, {
   middleware: [authMiddleware, guard({ permission: 'system:feedback:handle', audit: { description: '处理意见反馈', module: '意见反馈' } })],
   responses: notFoundResponse,
@@ -72,6 +67,10 @@ const deleteRoute = defineContractRoute(userFeedbackContract.remove, {
   },
 });
 
-userFeedbacksRouter.openapiRoutes([submitRoute, listRoute, handleRoute, batchDeleteRoute, deleteRoute] as const);
+mountCrud(userFeedbacksRouter, userFeedbackContract,
+  { list: listUserFeedbacks },
+  { permission: 'system:feedback', exclude: ['remove', 'removeBatch'] },
+  [submitRoute, handleRoute, batchDeleteRoute, deleteRoute],
+);
 
 export default userFeedbacksRouter;

@@ -5,28 +5,16 @@ import { guard, setAuditBeforeData } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
-  listCmsPages, getCmsPage, createCmsPage, updateCmsPage, deleteCmsPage,
+  listCmsPages,
+  getCmsPage,
+  createCmsPage,
+  updateCmsPage,
+  deleteCmsPage,
 } from '../../services/cms/cms-pages.service';
 import { listCmsPageBlockAcls, setCmsPageBlockAcls } from '../../services/cms/cms-page-acl.service';
+import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
-
-const read = [authMiddleware, guard({ permission: 'cms:page:list' })] as const;
-
-const listRoute = defineContractRoute(cmsPageContract.list, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await listCmsPages(c.req.valid('query'))), 200),
-});
-
-const detailRoute = defineContractRoute(cmsPageContract.detail, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await getCmsPage(c.req.valid('param').id)), 200),
-});
-
-const createRouteDef = defineContractRoute(cmsPageContract.create, {
-  middleware: [authMiddleware, guard({ permission: 'cms:page:create', audit: { description: '创建 CMS 搭建页面', module: 'CMS内容管理' } })],
-  handler: async (c) => c.json(okBody(await createCmsPage(c.req.valid('json')), '创建成功'), 200),
-});
 
 const updateRouteDef = defineContractRoute(cmsPageContract.update, {
   // 页面编辑者可改元数据；区块 ACL 受托人也可进入本端点只改区块，
@@ -40,15 +28,6 @@ const updateRouteDef = defineContractRoute(cmsPageContract.update, {
     return c.json(okBody(row, '更新成功'), 200);
   },
 });
-
-const deleteRouteDef = defineContractRoute(cmsPageContract.remove, {
-  middleware: [authMiddleware, guard({ permission: 'cms:page:delete', audit: { description: '删除 CMS 搭建页面', module: 'CMS内容管理' } })],
-  handler: async (c) => {
-    await deleteCmsPage(c.req.valid('param').id);
-    return c.json(okBody(null, '删除成功'), 200);
-  },
-});
-
 const listBlockAclsRoute = defineContractRoute(cmsPageContract.blockAcls, {
   middleware: [authMiddleware, guard({ permission: 'cms:page:acl' })],
   handler: async (c) => c.json(okBody(await listCmsPageBlockAcls(
@@ -69,14 +48,10 @@ const setBlockAclsRoute = defineContractRoute(cmsPageContract.setBlockAcls, {
   },
 });
 
-router.openapiRoutes([
-  listRoute,
-  listBlockAclsRoute,
-  setBlockAclsRoute,
-  detailRoute,
-  createRouteDef,
-  updateRouteDef,
-  deleteRouteDef,
-] as const);
+mountCrud(router, cmsPageContract,
+  { list: listCmsPages, get: getCmsPage, create: createCmsPage, remove: deleteCmsPage },
+  { permission: 'cms:page', label: ' CMS 搭建页面', module: 'CMS内容管理', exclude: ['update'] },
+  [listBlockAclsRoute, setBlockAclsRoute, updateRouteDef],
+);
 
 export default router;

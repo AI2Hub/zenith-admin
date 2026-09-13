@@ -6,14 +6,25 @@ import { idempotencyGuard } from '../../middleware/idempotency';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
-  listMembers, getMemberDetail, getMemberOverview, getMemberOptions, listMemberLoginLogs, createMember, updateMember,
-  setMemberStatus, batchSetMemberStatus, batchSetMemberLevel,
-  resetMemberPasswordByAdmin, deleteMember,
-  getMemberBeforeAudit, getMembersBeforeAudit,
+  listMembers,
+  getMemberDetail,
+  getMemberOverview,
+  getMemberOptions,
+  listMemberLoginLogs,
+  createMember,
+  updateMember,
+  setMemberStatus,
+  batchSetMemberStatus,
+  batchSetMemberLevel,
+  resetMemberPasswordByAdmin,
+  deleteMember,
+  getMemberBeforeAudit,
+  getMembersBeforeAudit,
 } from '../../services/member/admin-members.service';
 import { addGrowthValue } from '../../services/member/member-levels.service';
 import { setMemberTags, batchAddMemberTags } from '../../services/member/member-tags.service';
 import { doMakeupCheckin, getMakeupCheckinBeforeAudit } from '../../services/member/member-checkin.service';
+import { mountCrud } from '../_crud';
 
 const membersRouter = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -62,12 +73,6 @@ const overviewRoute = defineContractRoute(memberContract.overview, {
   middleware: read,
   handler: async (c) => c.json(okBody(await getMemberOverview(c.req.valid('param').id)), 200),
 });
-
-const listRoute = defineContractRoute(memberContract.list, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await listMembers(c.req.valid('query'))), 200),
-});
-
 const optionsRoute = defineContractRoute(memberContract.options, {
   middleware: read,
   handler: async (c) => c.json(okBody(await getMemberOptions(c.req.valid('query').keyword)), 200),
@@ -114,26 +119,6 @@ const setTagsRoute = defineContractRoute(memberContract.setTags, {
     return c.json(okBody(after, '已更新'), 200);
   },
 });
-
-const detailRoute = defineContractRoute(memberContract.detail, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await getMemberDetail(c.req.valid('param').id)), 200),
-});
-
-const createRouteDef = defineContractRoute(memberContract.create, {
-  middleware: [authMiddleware, guard({ permission: 'member:member:create', audit: { description: '创建会员', module: '会员管理' } })],
-  handler: async (c) => c.json(okBody(await createMember(c.req.valid('json')), '创建成功'), 200),
-});
-
-const updateRouteDef = defineContractRoute(memberContract.update, {
-  middleware: [authMiddleware, guard({ permission: 'member:member:update', audit: { description: '更新会员', module: '会员管理' } })],
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    setAuditBeforeData(c, await getMemberBeforeAudit(id));
-    return c.json(okBody(await updateMember(id, c.req.valid('json')), '更新成功'), 200);
-  },
-});
-
 const setStatusRoute = defineContractRoute(memberContract.setStatus, {
   middleware: [authMiddleware, guard({ permission: 'member:member:update', audit: { description: '设置会员状态', module: '会员管理' } })],
   handler: async (c) => {
@@ -154,20 +139,22 @@ const resetPasswordRoute = defineContractRoute(memberContract.resetPassword, {
   },
 });
 
-const deleteRouteDef = defineContractRoute(memberContract.remove, {
-  middleware: [authMiddleware, guard({ permission: 'member:member:delete', audit: { description: '删除会员', module: '会员管理' } })],
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    setAuditBeforeData(c, await getMemberBeforeAudit(id));
-    await deleteMember(id);
-    return c.json(okBody(null, '删除成功'), 200);
-  },
-});
-
-// 静态段（/batch-*、/options、/login-logs）先于动态 /{id} 注册
-membersRouter.openapiRoutes([
-  batchStatusRoute, batchLevelRoute, batchTagsRoute, overviewRoute,
-  listRoute, optionsRoute, loginLogsRoute, makeupCheckinRoute, adjustGrowthRoute, setTagsRoute, detailRoute, createRouteDef, updateRouteDef, setStatusRoute, resetPasswordRoute, deleteRouteDef,
-] as const);
+mountCrud(membersRouter, memberContract,
+  { list: listMembers, get: getMemberDetail, create: createMember, update: updateMember, remove: deleteMember },
+  { permission: 'member:member', label: '会员' },
+  [
+    batchStatusRoute,
+    batchLevelRoute,
+    batchTagsRoute,
+    overviewRoute,
+    optionsRoute,
+    loginLogsRoute,
+    makeupCheckinRoute,
+    adjustGrowthRoute,
+    setTagsRoute,
+    setStatusRoute,
+    resetPasswordRoute,
+  ],
+);
 
 export default membersRouter;

@@ -8,8 +8,15 @@ import { guard, setAuditBeforeData } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { ErrorResponse, errBody, jsonContent, okBody, validationHook } from '../../lib/openapi-schemas';
 import {
-  listIotDevices, getIotDevice, createIotDevice, updateIotDevice, deleteIotDevices,
-  resetIotDeviceSecret, clearIotDeviceTelemetry, ensureIotDeviceExists, mapIotDevice,
+  listIotDevices,
+  getIotDevice,
+  createIotDevice,
+  updateIotDevice,
+  deleteIotDevices,
+  resetIotDeviceSecret,
+  clearIotDeviceTelemetry,
+  ensureIotDeviceExists,
+  mapIotDevice,
 } from '../../services/iot/iot-devices.service';
 import { listIotTelemetry, listIotCommands, sendIotCommand } from '../../services/iot/iot-telemetry.service';
 import { listIotTelemetryAgg } from '../../services/iot/iot-rollup.service';
@@ -17,19 +24,13 @@ import { clearIotDesired, getIotDeviceShadow, setIotDesired } from '../../servic
 import { listIotDeviceEvents } from '../../services/iot/iot-events.service';
 import { listIotDeviceLogs } from '../../services/iot/iot-device-logs.service';
 import { getIotDeviceTopology } from '../../services/iot/iot-topology.service';
+import { mountCrud } from '../_crud';
 
 const iotDevicesRouter = new OpenAPIHono({ defaultHook: validationHook });
 
 const read = [authMiddleware, guard({ permission: 'iot:device:list' })] as const;
 const telemetryRead = [authMiddleware, guard({ permission: 'iot:telemetry:view' })] as const;
 const notFound = { 404: { content: jsonContent(ErrorResponse), description: '不存在' } } as const;
-
-// ─── 分页列表 ────────────────────────────────────────────────────────────────
-const listRoute = defineContractRoute(iotDeviceContract.list, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await listIotDevices(c.req.valid('query'))), 200),
-});
-
 // ─── 批量删除 ────────────────────────────────────────────────────────────────
 const batchDeleteRoute = defineContractRoute(iotDeviceContract.removeBatch, {
   middleware: [authMiddleware, guard({
@@ -43,17 +44,6 @@ const batchDeleteRoute = defineContractRoute(iotDeviceContract.removeBatch, {
     return c.json(okBody(null, `已删除 ${deleted} 台设备`), 200);
   },
 });
-
-// ─── 详情 ────────────────────────────────────────────────────────────────────
-const getOneRoute = defineContractRoute(iotDeviceContract.detail, {
-  middleware: read,
-  responses: notFound,
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    return c.json(okBody(await getIotDevice(id)), 200);
-  },
-});
-
 // ─── 遥测点列 ────────────────────────────────────────────────────────────────
 const telemetryRoute = defineContractRoute(iotDeviceContract.telemetry, {
   middleware: telemetryRead,
@@ -159,16 +149,6 @@ const listEventsRoute = defineContractRoute(iotDeviceContract.events, {
     return c.json(okBody(await listIotDeviceEvents(id, c.req.valid('query'))), 200);
   },
 });
-
-// ─── 创建 ────────────────────────────────────────────────────────────────────
-const createRoute_ = defineContractRoute(iotDeviceContract.create, {
-  middleware: [authMiddleware, guard({
-    permission: 'iot:device:create',
-    audit: { description: '注册 IoT 设备', module: 'IoT 设备' },
-  })],
-  handler: async (c) => c.json(okBody(await createIotDevice(c.req.valid('json')), '创建成功'), 200),
-});
-
 // ─── 更新 ────────────────────────────────────────────────────────────────────
 const updateRoute_ = defineContractRoute(iotDeviceContract.update, {
   middleware: [authMiddleware, guard({
@@ -223,25 +203,33 @@ const listLogsRoute = defineContractRoute(iotDeviceContract.logs, {
   },
 });
 
-iotDevicesRouter.openapiRoutes([
-  listRoute,
-  batchDeleteRoute,
-  getOneRoute,
-  telemetryAggRoute,
-  telemetryRoute,
-  listCommandsRoute,
-  sendCommandRoute,
-  resetSecretRoute,
-  clearTelemetryRoute,
-  getShadowRoute,
-  setDesiredRoute,
-  clearDesiredRoute,
-  listEventsRoute,
-  topologyRoute,
-  listLogsRoute,
-  createRoute_,
-  updateRoute_,
-  deleteRoute_,
-] as const);
+mountCrud(iotDevicesRouter, iotDeviceContract,
+  { list: listIotDevices, get: getIotDevice, create: createIotDevice },
+  {
+    permission: 'iot:device',
+    label: '注册 IoT 设备',
+    module: 'IoT 设备',
+    audit: { create: '注册 IoT 设备' },
+    exclude: ['update', 'remove', 'removeBatch'],
+    responses: { detail: notFound },
+  },
+  [
+    batchDeleteRoute,
+    telemetryAggRoute,
+    telemetryRoute,
+    listCommandsRoute,
+    sendCommandRoute,
+    resetSecretRoute,
+    clearTelemetryRoute,
+    getShadowRoute,
+    setDesiredRoute,
+    clearDesiredRoute,
+    listEventsRoute,
+    topologyRoute,
+    listLogsRoute,
+    updateRoute_,
+    deleteRoute_,
+  ],
+);
 
 export default iotDevicesRouter;

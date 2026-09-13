@@ -5,32 +5,24 @@ import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/g
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
-  listMpFans, updateMpFan, getMpFanBeforeAudit, syncMpFans,
-  blacklistMpFans, unblacklistMpFans, syncMpBlacklist, getMpFansBlacklistAudit, getMpBlacklistStateAudit,
+  listMpFans,
+  updateMpFan,
+  getMpFanBeforeAudit,
+  syncMpFans,
+  blacklistMpFans,
+  unblacklistMpFans,
+  syncMpBlacklist,
+  getMpFansBlacklistAudit,
+  getMpBlacklistStateAudit,
 } from '../../services/mp/mp-fan.service';
 import { createMemberForFan, bindFanToMember, unbindFanMember } from '../../services/mp/mp-member.service';
+import { mountCrud } from '../_crud';
 
 const mpFansRouter = new OpenAPIHono({ defaultHook: validationHook });
-
-const listRoute = defineContractRoute(mpFanContract.list, {
-  middleware: [authMiddleware, guard({ permission: 'mp:fan:list' })],
-  handler: async (c) => c.json(okBody(await listMpFans(c.req.valid('query'))), 200),
-});
-
 const syncRoute = defineContractRoute(mpFanContract.sync, {
   middleware: [authMiddleware, guard({ permission: 'mp:fan:sync', audit: { description: '同步公众号粉丝', module: '公众号粉丝' } })],
   handler: async (c) => c.json(okBody(await syncMpFans(c.req.valid('json').accountId), '同步完成'), 200),
 });
-
-const updateRoute = defineContractRoute(mpFanContract.update, {
-  middleware: [authMiddleware, guard({ permission: 'mp:fan:update', audit: { description: '更新公众号粉丝', module: '公众号粉丝' } })],
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    setAuditBeforeData(c, await getMpFanBeforeAudit(id));
-    return c.json(okBody(await updateMpFan(id, c.req.valid('json')), '更新成功'), 200);
-  },
-});
-
 const createMemberRoute = defineContractRoute(mpFanContract.createMember, {
   middleware: [authMiddleware, guard({ permission: 'mp:fan:bind', audit: { description: '粉丝创建会员', module: '公众号粉丝' } })],
   handler: async (c) => {
@@ -91,6 +83,18 @@ const syncBlacklistRoute = defineContractRoute(mpFanContract.syncBlacklist, {
   },
 });
 
-mpFansRouter.openapiRoutes([listRoute, syncRoute, blacklistRoute, unblacklistRoute, syncBlacklistRoute, updateRoute, createMemberRoute, bindMemberRoute, unbindMemberRoute] as const);
+mountCrud(mpFansRouter, mpFanContract,
+  { list: listMpFans, get: getMpFanBeforeAudit, update: updateMpFan },
+  { permission: 'mp:fan', label: '公众号粉丝', module: '公众号粉丝' },
+  [
+    syncRoute,
+    blacklistRoute,
+    unblacklistRoute,
+    syncBlacklistRoute,
+    createMemberRoute,
+    bindMemberRoute,
+    unbindMemberRoute,
+  ],
+);
 
 export default mpFansRouter;

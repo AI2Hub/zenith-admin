@@ -6,30 +6,39 @@ import { sensitiveRateLimit } from '../../middleware/rate-limit';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
-  listDecisionTables, getDecisionTable, getDecisionTableBeforeAudit,
-  createDecisionTable, updateDecisionTable, deleteDecisionTable, deleteDecisionTables,
-  publishDecisionTable, listDecisionTableVersions, evaluateDecisionTableByKey, testEvaluateDecisionTable,
-  diffDecisionTableVersions, rollbackDecisionTable, toggleDecisionTable, listDecisionTableUsages,
-  listTestCases, createTestCase, updateTestCase, deleteTestCase, runTestCases,
-  getDecisionTableStats, shadowRunDecisionTable, submitDecisionTableReview, reviewDecisionTable,
-  grayActionDecisionTable, simulateDecisionTable,
+  listDecisionTables,
+  getDecisionTable,
+  getDecisionTableBeforeAudit,
+  createDecisionTable,
+  updateDecisionTable,
+  deleteDecisionTable,
+  deleteDecisionTables,
+  publishDecisionTable,
+  listDecisionTableVersions,
+  evaluateDecisionTableByKey,
+  testEvaluateDecisionTable,
+  diffDecisionTableVersions,
+  rollbackDecisionTable,
+  toggleDecisionTable,
+  listDecisionTableUsages,
+  listTestCases,
+  createTestCase,
+  updateTestCase,
+  deleteTestCase,
+  runTestCases,
+  getDecisionTableStats,
+  shadowRunDecisionTable,
+  submitDecisionTableReview,
+  reviewDecisionTable,
+  grayActionDecisionTable,
+  simulateDecisionTable,
 } from '../../services/platform/rules.service';
+import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
 const read = [authMiddleware, guard({ permission: 'rule:table:list' })] as const;
 const evaluate = [authMiddleware, guard({ permission: 'rule:table:evaluate' })] as const;
-
-const listRoute = defineContractRoute(decisionTableContract.list, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await listDecisionTables(c.req.valid('query'))), 200),
-});
-
-const getRoute = defineContractRoute(decisionTableContract.detail, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await getDecisionTable(c.req.valid('param').id)), 200),
-});
-
 const versionsRoute = defineContractRoute(decisionTableContract.versions, {
   middleware: read,
   handler: async (c) => c.json(okBody(await listDecisionTableVersions(c.req.valid('param').id)), 200),
@@ -88,22 +97,6 @@ const caseDeleteRoute = defineContractRoute(decisionTableContract.removeCase, {
     return c.json(okBody(null, '删除成功'), 200);
   },
 });
-
-const createRouteDef = defineContractRoute(decisionTableContract.create, {
-  middleware: [authMiddleware, guard({ permission: 'rule:table:create', audit: { description: '创建决策表', module: '规则中心' } })],
-  handler: async (c) => c.json(okBody(await createDecisionTable(c.req.valid('json')), '创建成功'), 200),
-});
-
-const updateRoute = defineContractRoute(decisionTableContract.update, {
-  middleware: [authMiddleware, guard({ permission: 'rule:table:update', audit: { description: '更新决策表', module: '规则中心' } })],
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    const before = await getDecisionTableBeforeAudit(id);
-    if (before) setAuditBeforeData(c, before);
-    return c.json(okBody(await updateDecisionTable(id, c.req.valid('json')), '更新成功'), 200);
-  },
-});
-
 const publishRoute = defineContractRoute(decisionTableContract.publish, {
   middleware: [authMiddleware, guard({ permission: 'rule:table:publish', audit: { description: '发布决策表', module: '规则中心' } })],
   handler: async (c) => {
@@ -182,25 +175,37 @@ const evaluateRoute = defineContractRoute(decisionTableContract.evaluate, {
   },
 });
 
-const batchDeleteRoute = defineContractRoute(decisionTableContract.removeBatch, {
-  middleware: [authMiddleware, guard({ permission: 'rule:table:delete', audit: { description: '批量删除决策表', module: '规则中心' } })],
-  handler: async (c) => {
-    await deleteDecisionTables(c.req.valid('json').ids);
-    return c.json(okBody(null, '删除成功'), 200);
+mountCrud(router, decisionTableContract,
+  {
+    list: listDecisionTables,
+    get: getDecisionTable,
+    create: createDecisionTable,
+    update: updateDecisionTable,
+    remove: deleteDecisionTable,
+    removeMany: deleteDecisionTables,
   },
-});
-
-const deleteRoute = defineContractRoute(decisionTableContract.remove, {
-  middleware: [authMiddleware, guard({ permission: 'rule:table:delete', audit: { description: '删除决策表', module: '规则中心' } })],
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    const before = await getDecisionTableBeforeAudit(id);
-    if (before) setAuditBeforeData(c, before);
-    await deleteDecisionTable(id);
-    return c.json(okBody(null, '删除成功'), 200);
-  },
-});
-
-router.openapiRoutes([listRoute, getRoute, versionsRoute, diffRoute, rollbackRoute, usagesRoute, statsRoute, shadowRunRoute, submitReviewRoute, reviewRoute, casesRoute, caseCreateRoute, caseRunRoute, caseUpdateRoute, caseDeleteRoute, createRouteDef, updateRoute, publishRoute, grayActionRoute, simulateRoute, toggleRoute, testRoute, evaluateRoute, batchDeleteRoute, deleteRoute] as const);
+  { permission: 'rule:table', label: '决策表', module: '规则中心', messages: { removeBatch: '删除成功' } },
+  [
+    versionsRoute,
+    diffRoute,
+    rollbackRoute,
+    usagesRoute,
+    statsRoute,
+    shadowRunRoute,
+    submitReviewRoute,
+    reviewRoute,
+    casesRoute,
+    caseCreateRoute,
+    caseRunRoute,
+    caseUpdateRoute,
+    caseDeleteRoute,
+    publishRoute,
+    grayActionRoute,
+    simulateRoute,
+    toggleRoute,
+    testRoute,
+    evaluateRoute,
+  ],
+);
 
 export default router;

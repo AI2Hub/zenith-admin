@@ -13,7 +13,6 @@ import {
   updateUserGroup,
   deleteUserGroup,
   batchDeleteUserGroups,
-  getUserGroupBeforeAudit,
   getUserGroupsBeforeAudit,
   listGroupMembers,
   setGroupMembers,
@@ -26,6 +25,7 @@ import {
   previewUserGroupRule,
   syncUserGroupNow,
 } from '../../services/identity/user-groups.service';
+import { mountCrud } from '../_crud';
 
 const memberPreviewRoute = defineScopeMembersRoute({
   op: userGroupContract.memberPreview,
@@ -41,32 +41,6 @@ const allRoute = defineContractRoute(userGroupContract.all, {
   middleware: read,
   handler: async (c) => c.json(okBody(await listAllUserGroups()), 200),
 });
-
-const listRoute = defineContractRoute(userGroupContract.list, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await listUserGroups(c.req.valid('query'))), 200),
-});
-
-const getRoute = defineContractRoute(userGroupContract.detail, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await getUserGroup(c.req.valid('param').id)), 200),
-});
-
-const createRouteDef = defineContractRoute(userGroupContract.create, {
-  middleware: [authMiddleware, guard({ permission: 'system:user-groups:create', audit: { description: '创建用户组', module: '用户组管理' } })] as const,
-  handler: async (c) => c.json(okBody(await createUserGroup(c.req.valid('json')), '创建成功'), 200),
-});
-
-const updateRouteDef = defineContractRoute(userGroupContract.update, {
-  middleware: [authMiddleware, guard({ permission: 'system:user-groups:update', audit: { description: '更新用户组', module: '用户组管理' } })] as const,
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    const before = await getUserGroupBeforeAudit(id);
-    if (before) setAuditBeforeData(c, before);
-    return c.json(okBody(await updateUserGroup(id, c.req.valid('json')), '更新成功'), 200);
-  },
-});
-
 const batchDeleteRoute = defineContractRoute(userGroupContract.removeBatch, {
   middleware: [authMiddleware, guard({ permission: 'system:user-groups:delete', audit: { description: '批量删除用户组', module: '用户组管理' } })] as const,
   responses: conflictResponse,
@@ -78,19 +52,6 @@ const batchDeleteRoute = defineContractRoute(userGroupContract.removeBatch, {
     return c.json(okBody(null, `已删除 ${count} 个用户组`), 200);
   },
 });
-
-const deleteRoute = defineContractRoute(userGroupContract.remove, {
-  middleware: [authMiddleware, guard({ permission: 'system:user-groups:delete', audit: { description: '删除用户组', module: '用户组管理' } })] as const,
-  responses: conflictResponse,
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    const before = await getUserGroupBeforeAudit(id);
-    if (before) setAuditBeforeData(c, before);
-    await deleteUserGroup(id);
-    return c.json(okBody(null, '删除成功'), 200);
-  },
-});
-
 const listMembersRoute = defineContractRoute(userGroupContract.members, {
   middleware: read,
   handler: async (c) => c.json(okBody(await listGroupMembers(c.req.valid('param').id)), 200),
@@ -171,24 +132,33 @@ const syncRoute = defineContractRoute(userGroupContract.sync, {
   },
 });
 
-// 静态路径（/all、/rule-preview、/batch）与子资源路径先于动态 /{id} 注册
-router.openapiRoutes([
-  allRoute,
-  listRoute,
-  rulePreviewRoute,
-  listMembersRoute,
-  memberPreviewRoute,
-  setMembersRoute,
-  addMembersRoute,
-  removeMembersRoute,
-  listGroupRolesRoute,
-  setGroupRolesRoute,
-  syncRoute,
-  getRoute,
-  createRouteDef,
-  updateRouteDef,
-  batchDeleteRoute,
-  deleteRoute,
-] as const);
+mountCrud(router, userGroupContract,
+  {
+    list: listUserGroups,
+    get: getUserGroup,
+    create: createUserGroup,
+    update: updateUserGroup,
+    remove: deleteUserGroup,
+  },
+  {
+    permission: 'system:user-groups',
+    label: '用户组',
+    exclude: ['removeBatch'],
+    responses: { remove: conflictResponse },
+  },
+  [
+    allRoute,
+    rulePreviewRoute,
+    listMembersRoute,
+    memberPreviewRoute,
+    setMembersRoute,
+    addMembersRoute,
+    removeMembersRoute,
+    listGroupRolesRoute,
+    setGroupRolesRoute,
+    syncRoute,
+    batchDeleteRoute,
+  ],
+);
 
 export default router;

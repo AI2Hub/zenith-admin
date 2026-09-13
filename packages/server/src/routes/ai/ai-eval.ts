@@ -16,6 +16,7 @@ import {
   listEvalExperiments,
   getEvalExperimentResults,
 } from '../../services/ai/ai-eval.service';
+import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -26,12 +27,6 @@ const list = defineContractRoute(aiEvalContract.list, {
   middleware: read,
   handler: async (c) => c.json(okBody(await listEvalDatasets()), 200),
 });
-
-const create = defineContractRoute(aiEvalContract.create, {
-  middleware: manage,
-  handler: async (c) => c.json(okBody(await createEvalDataset(c.req.valid('json')), '创建成功'), 200),
-});
-
 const update = defineContractRoute(aiEvalContract.update, {
   middleware: manage,
   handler: async (c) => {
@@ -98,6 +93,10 @@ const experimentResults = defineContractRoute(aiEvalContract.experimentDetail, {
   },
 });
 
-router.openapiRoutes([list, create, update, remove, items, addItems, removeItem, runExperiment, experiments, experimentResults] as const);
+mountCrud(router, aiEvalContract,
+  { create: createEvalDataset },
+  { permission: { write: 'ai:eval:manage' }, audit: null, exclude: ['list', 'update', 'remove'] },
+  [list, update, remove, items, addItems, removeItem, runExperiment, experiments, experimentResults],
+);
 
 export default router;

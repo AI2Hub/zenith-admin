@@ -16,17 +16,12 @@ import {
 } from '../../services/open-platform/developer-apps.service';
 import { executeOpenApiDebugRequest } from '../../services/open-platform/open-api-debug.service';
 import { OPEN_GATEWAY_ENDPOINTS } from './open-gateway';
+import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 const audit = (description: string) => guard({
   audit: { description, module: '开放平台-开发者中心', recordResponseBody: false },
 });
-
-const list = defineContractRoute(developerAppContract.list, {
-  middleware: [authMiddleware],
-  handler: async (c) => c.json(okBody(await listMyOAuth2Clients(c.req.valid('query'))), 200),
-});
-
 const create = defineContractRoute(developerAppContract.create, {
   middleware: [authMiddleware, audit('创建开发者应用')],
   handler: async (c) => {
@@ -35,12 +30,6 @@ const create = defineContractRoute(developerAppContract.create, {
     return c.json(okBody(result, '应用已保存为草稿，请保存密钥后提交审核'), 200);
   },
 });
-
-const detail = defineContractRoute(developerAppContract.detail, {
-  middleware: [authMiddleware],
-  handler: async (c) => c.json(okBody(await getMyOAuth2Client(c.req.valid('param').id)), 200),
-});
-
 const update = defineContractRoute(developerAppContract.update, {
   middleware: [authMiddleware, audit('更新开发者应用')],
   handler: async (c) => {
@@ -98,8 +87,10 @@ const debugRequest = defineContractRoute(developerAppContract.debug, {
   },
 });
 
-router.openapiRoutes([
-  list, create, submit, regenerate, quotaUsage, endpointCatalog, debugRequest, detail, update, remove,
-] as const);
+mountCrud(router, developerAppContract,
+  { list: listMyOAuth2Clients, get: getMyOAuth2Client },
+  { permission: null, exclude: ['create', 'update', 'remove'] },
+  [create, submit, regenerate, quotaUsage, endpointCatalog, debugRequest, update, remove],
+);
 
 export default router;

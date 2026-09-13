@@ -16,36 +16,14 @@ import {
   publishReportMetric,
   updateReportMetric,
 } from '../../services/report/report-metric.service';
+import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 const conflict = { 409: { content: jsonContent(ErrorResponse), description: '版本冲突' } } as const;
-
-const listRoute = defineContractRoute(reportMetricContract.list, {
-  middleware: [authMiddleware, guard({ permission: 'report:metric:list' })],
-  handler: async (c) => c.json(okBody(await listReportMetrics(c.req.valid('query'))), 200),
-});
-
 const lookupRoute = defineContractRoute(reportMetricContract.lookup, {
   middleware: [authMiddleware, guard({ permission: 'report:metric:list' })],
   handler: async (c) => c.json(okBody(await listReportMetricLookup(c.req.valid('query'))), 200),
 });
-
-const getRoute = defineContractRoute(reportMetricContract.detail, {
-  middleware: [authMiddleware, guard({ permission: 'report:metric:list' })],
-  handler: async (c) => c.json(okBody(await getReportMetric(c.req.valid('param').id)), 200),
-});
-
-const createRoute_ = defineContractRoute(reportMetricContract.create, {
-  middleware: [authMiddleware, guard({ permission: 'report:metric:create', audit: { module: '报表指标', description: '创建指标' } })],
-  handler: async (c) => c.json(okBody(await createReportMetric(c.req.valid('json')), '创建成功'), 200),
-});
-
-const updateRoute_ = defineContractRoute(reportMetricContract.update, {
-  middleware: [authMiddleware, guard({ permission: 'report:metric:update', audit: { module: '报表指标', description: '更新指标' } })],
-  responses: conflict,
-  handler: async (c) => c.json(okBody(await updateReportMetric(c.req.valid('param').id, c.req.valid('json')), '更新成功'), 200),
-});
-
 const evaluateRoute = defineContractRoute(reportMetricContract.evaluate, {
   middleware: [authMiddleware, guard({ permission: 'report:metric:evaluate' })],
   handler: async (c) => c.json(okBody(await evaluateReportMetric(c.req.valid('param').id, c.req.valid('json').params)), 200),
@@ -68,17 +46,16 @@ const refsRoute = defineContractRoute(reportMetricContract.refs, {
   handler: async (c) => c.json(okBody(await collectReportMetricRefs(c.req.valid('param').id)), 200),
 });
 
-const deleteRoute_ = defineContractRoute(reportMetricContract.remove, {
-  middleware: [authMiddleware, guard({ permission: 'report:metric:delete', audit: { module: '报表指标', description: '删除指标' } })],
-  handler: async (c) => {
-    await deleteReportMetric(c.req.valid('param').id);
-    return c.json(okBody(null, '删除成功'), 200);
+mountCrud(router, reportMetricContract,
+  {
+    list: listReportMetrics,
+    get: getReportMetric,
+    create: createReportMetric,
+    update: updateReportMetric,
+    remove: deleteReportMetric,
   },
-});
-
-router.openapiRoutes([
-  listRoute, lookupRoute, getRoute, createRoute_, updateRoute_, evaluateRoute,
-  publishRoute, deprecateRoute, refsRoute, deleteRoute_,
-] as const);
+  { permission: 'report:metric', label: '指标', module: '报表指标', responses: { update: conflict } },
+  [lookupRoute, evaluateRoute, publishRoute, deprecateRoute, refsRoute],
+);
 
 export default router;

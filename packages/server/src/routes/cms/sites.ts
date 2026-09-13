@@ -6,29 +6,37 @@ import { defineContractRoute } from '../../lib/contract-route';
 import { validationHook, okBody } from '../../lib/openapi-schemas';
 import { getThemeSettingsSchema, isThemeRegistered, listThemes, listThemeTemplates } from '../../cms/themes/registry';
 import {
-  listCmsSites, listAllCmsSites, getCmsSite, createCmsSite, updateCmsSite, deleteCmsSite,
-  ensureCmsSiteExists, mapCmsSite, getCmsSiteUsers, setCmsSiteUsers, enableSiteAnalytics, assertSiteAccess,
-  getCmsEffectiveConfig, getCmsSiteInheritanceChain, listCmsSiteTree, moveCmsSite,
+  listCmsSites,
+  listAllCmsSites,
+  getCmsSite,
+  createCmsSite,
+  updateCmsSite,
+  deleteCmsSite,
+  getCmsSiteUsers,
+  setCmsSiteUsers,
+  enableSiteAnalytics,
+  assertSiteAccess,
+  getCmsEffectiveConfig,
+  getCmsSiteInheritanceChain,
+  listCmsSiteTree,
+  moveCmsSite,
   updateCmsSiteInheritance,
 } from '../../services/cms/cms-sites.service';
 import { getSiteTemplateHealth } from '../../services/cms/cms-template-refs.service';
 import { exportCmsSite, importCmsSite } from '../../services/cms/cms-site-transfer.service';
 import {
-  deleteCmsOpenAppGrant, listCmsOpenAppGrants, saveCmsOpenAppGrant,
+  deleteCmsOpenAppGrant,
+  listCmsOpenAppGrants,
+  saveCmsOpenAppGrant,
 } from '../../services/cms/cms-open-grants.service';
 import { formatFileTimestamp } from '../../lib/datetime';
 import { assertAllCmsSiteChannelsAccess } from '../../services/cms/cms-channels.service';
 import { attachmentDisposition } from '../../lib/content-disposition';
+import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
 const read = [authMiddleware, guard({ permission: 'cms:site:list' })] as const;
-
-const listRoute = defineContractRoute(cmsSiteContract.list, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await listCmsSites(c.req.valid('query'))), 200),
-});
-
 const allRoute = defineContractRoute(cmsSiteContract.all, {
   middleware: read,
   handler: async (c) => c.json(okBody(await listAllCmsSites()), 200),
@@ -70,12 +78,6 @@ const templateHealthRoute = defineContractRoute(cmsSiteContract.templateHealth, 
     return c.json(okBody(await getSiteTemplateHealth(id, c.req.valid('query').theme)), 200);
   },
 });
-
-const getOneRoute = defineContractRoute(cmsSiteContract.detail, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await getCmsSite(c.req.valid('param').id)), 200),
-});
-
 const inheritanceChainRoute = defineContractRoute(cmsSiteContract.inheritanceChain, {
   middleware: read,
   handler: async (c) => c.json(okBody(await getCmsSiteInheritanceChain(c.req.valid('param').id)), 200),
@@ -109,31 +111,6 @@ const updateInheritanceRoute = defineContractRoute(cmsSiteContract.updateInherit
     return c.json(okBody(result, '继承策略已更新'), 200);
   },
 });
-
-const createRouteDef = defineContractRoute(cmsSiteContract.create, {
-  middleware: [authMiddleware, guard({ permission: 'cms:site:create', audit: { description: '创建 CMS 站点', module: 'CMS内容管理' } })],
-  handler: async (c) => c.json(okBody(await createCmsSite(c.req.valid('json')), '创建成功'), 200),
-});
-
-const updateRouteDef = defineContractRoute(cmsSiteContract.update, {
-  middleware: [authMiddleware, guard({ permission: 'cms:site:update', audit: { description: '更新 CMS 站点', module: 'CMS内容管理' } })],
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    setAuditBeforeData(c, mapCmsSite(await ensureCmsSiteExists(id)));
-    return c.json(okBody(await updateCmsSite(id, c.req.valid('json')), '更新成功'), 200);
-  },
-});
-
-const deleteRouteDef = defineContractRoute(cmsSiteContract.remove, {
-  middleware: [authMiddleware, guard({ permission: 'cms:site:delete', audit: { description: '删除 CMS 站点', module: 'CMS内容管理' } })],
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    setAuditBeforeData(c, mapCmsSite(await ensureCmsSiteExists(id)));
-    await deleteCmsSite(id);
-    return c.json(okBody(null, '删除成功'), 200);
-  },
-});
-
 // ─── 站点授权用户（站点级数据权限）────────────────────────────────────────────
 const getSiteUsersRoute = defineContractRoute(cmsSiteContract.users, {
   middleware: read,
@@ -223,12 +200,29 @@ const deleteGrantRoute = defineContractRoute(cmsSiteContract.removeOpenGrant, {
   },
 });
 
-router.openapiRoutes([
-  listRoute, allRoute, treeRoute, themesRoute, themeTemplatesRoute, themeSettingsSchemaRoute,
-  templateHealthRoute, inheritanceChainRoute, effectiveConfigRoute, moveRoute, updateInheritanceRoute,
-  getOneRoute, createRouteDef, updateRouteDef, deleteRouteDef, getSiteUsersRoute, setSiteUsersRoute,
-  enableAnalyticsRoute, importSiteRoute, exportSiteRoute,
-  listGrantsRoute, saveGrantRoute, deleteGrantRoute,
-] as const);
+mountCrud(router, cmsSiteContract,
+  { list: listCmsSites, get: getCmsSite, create: createCmsSite, update: updateCmsSite, remove: deleteCmsSite },
+  { permission: 'cms:site', label: ' CMS 站点', module: 'CMS内容管理' },
+  [
+    allRoute,
+    treeRoute,
+    themesRoute,
+    themeTemplatesRoute,
+    themeSettingsSchemaRoute,
+    templateHealthRoute,
+    inheritanceChainRoute,
+    effectiveConfigRoute,
+    moveRoute,
+    updateInheritanceRoute,
+    getSiteUsersRoute,
+    setSiteUsersRoute,
+    enableAnalyticsRoute,
+    importSiteRoute,
+    exportSiteRoute,
+    listGrantsRoute,
+    saveGrantRoute,
+    deleteGrantRoute,
+  ],
+);
 
 export default router;

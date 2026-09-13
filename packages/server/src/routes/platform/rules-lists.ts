@@ -6,20 +6,25 @@ import { sensitiveRateLimit } from '../../middleware/rate-limit';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
-  listRuleLists, createRuleList, updateRuleList, deleteRuleList,
-  listRuleListItems, createRuleListItem, batchCreateRuleListItems, deleteRuleListItem, purgeExpiredRuleListItems,
-  checkRuleList, ensureRuleList, mapRuleList, listRuleListUsages,
+  listRuleLists,
+  createRuleList,
+  updateRuleList,
+  deleteRuleList,
+  listRuleListItems,
+  createRuleListItem,
+  batchCreateRuleListItems,
+  deleteRuleListItem,
+  purgeExpiredRuleListItems,
+  checkRuleList,
+  ensureRuleList,
+  mapRuleList,
+  listRuleListUsages,
 } from '../../services/platform/rules-lists.service';
+import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
 const read = [authMiddleware, guard({ permission: 'rule:list:list' })] as const;
-
-const listRoute = defineContractRoute(ruleListContract.list, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await listRuleLists(c.req.valid('query'))), 200),
-});
-
 const checkRoute = defineContractRoute(ruleListContract.check, {
   middleware: [authMiddleware, sensitiveRateLimit, guard({ permission: 'rule:list:list' })],
   handler: async (c) => {
@@ -27,12 +32,6 @@ const checkRoute = defineContractRoute(ruleListContract.check, {
     return c.json(okBody(await checkRuleList(b.key, b.value)), 200);
   },
 });
-
-const createRouteDef = defineContractRoute(ruleListContract.create, {
-  middleware: [authMiddleware, guard({ permission: 'rule:list:create', audit: { description: '创建名单', module: '规则中心' } })],
-  handler: async (c) => c.json(okBody(await createRuleList(c.req.valid('json')), '创建成功'), 200),
-});
-
 const usagesRoute = defineContractRoute(ruleListContract.usages, {
   middleware: read,
   handler: async (c) => c.json(okBody(await listRuleListUsages(c.req.valid('param').id)), 200),
@@ -93,6 +92,20 @@ const purgeExpiredRoute = defineContractRoute(ruleListContract.purgeExpiredItems
   },
 });
 
-router.openapiRoutes([listRoute, checkRoute, createRouteDef, usagesRoute, updateRoute, deleteRoute, itemsRoute, itemCreateRoute, itemBatchRoute, itemDeleteRoute, purgeExpiredRoute] as const);
+mountCrud(router, ruleListContract,
+  { list: listRuleLists, create: createRuleList },
+  { permission: 'rule:list', label: '名单', module: '规则中心', exclude: ['update', 'remove'] },
+  [
+    checkRoute,
+    usagesRoute,
+    updateRoute,
+    deleteRoute,
+    itemsRoute,
+    itemCreateRoute,
+    itemBatchRoute,
+    itemDeleteRoute,
+    purgeExpiredRoute,
+  ],
+);
 
 export default router;

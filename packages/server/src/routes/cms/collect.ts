@@ -5,26 +5,20 @@ import { guard } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
-  listCollectRules, createCollectRule, updateCollectRule, deleteCollectRule,
-  ensureCollectRuleRunnable, listCollectItems,
+  listCollectRules,
+  createCollectRule,
+  updateCollectRule,
+  deleteCollectRule,
+  ensureCollectRuleRunnable,
+  listCollectItems,
 } from '../../services/cms/cms-collect.service';
 import { mapAsyncTask, submitAsyncTask } from '../../lib/task-center';
 import { currentUser } from '../../lib/context';
+import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
 const read = [authMiddleware, guard({ permission: 'cms:collect:list' })] as const;
-
-const listRoute = defineContractRoute(cmsCollectContract.list, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await listCollectRules(c.req.valid('query'))), 200),
-});
-
-const createRouteDef = defineContractRoute(cmsCollectContract.create, {
-  middleware: [authMiddleware, guard({ permission: 'cms:collect:create', audit: { description: '创建 CMS 采集规则', module: 'CMS内容管理' } })],
-  handler: async (c) => c.json(okBody(await createCollectRule(c.req.valid('json')), '创建成功'), 200),
-});
-
 const updateRouteDef = defineContractRoute(cmsCollectContract.update, {
   middleware: [authMiddleware, guard({ permission: 'cms:collect:update', audit: { description: '更新 CMS 采集规则', module: 'CMS内容管理' } })],
   handler: async (c) => {
@@ -64,6 +58,10 @@ const itemsRoute = defineContractRoute(cmsCollectContract.items, {
   },
 });
 
-router.openapiRoutes([listRoute, createRouteDef, updateRouteDef, deleteRouteDef, runRoute, itemsRoute] as const);
+mountCrud(router, cmsCollectContract,
+  { list: listCollectRules, create: createCollectRule },
+  { permission: 'cms:collect', label: ' CMS 采集规则', module: 'CMS内容管理', exclude: ['update', 'remove'] },
+  [updateRouteDef, deleteRouteDef, runRoute, itemsRoute],
+);
 
 export default router;

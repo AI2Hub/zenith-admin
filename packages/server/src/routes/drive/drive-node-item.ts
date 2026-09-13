@@ -19,6 +19,7 @@ import { createDriveShareLink, listNodeShareLinks } from '../../services/drive/d
 import { heartbeatDriveNodePresence, leaveDriveNodePresence, listDriveNodePresence } from '../../services/drive/drive-presence.service';
 import { sendDriveNodeToChat } from '../../services/drive/drive-interop.service';
 import { binaryResponses, streamStoredContent } from './drive-nodes';
+import { mountCrud } from '../_crud';
 
 /**
  * 网盘单节点路由。
@@ -31,14 +32,6 @@ const AUDIT = { module: '企业网盘' } as const;
 const read = [authMiddleware, guard({ permission: 'drive:node:list' })] as const;
 const download = [authMiddleware, guard({ permission: 'drive:node:download' })] as const;
 const edit = [authMiddleware, guard({ permission: 'drive:node:edit' })] as const;
-
-// ─── 单节点 ───────────────────────────────────────────────────────────────────
-
-const detailRoute = defineContractRoute(driveNodeContract.detail, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await getDriveNodeDetail(c.req.valid('param').id)), 200),
-});
-
 const renameRoute = defineContractRoute(driveNodeContract.rename, {
   middleware: [authMiddleware, guard({ permission: 'drive:node:edit', audit: { description: '重命名网盘文件', ...AUDIT } })],
   handler: async (c) => {
@@ -281,14 +274,38 @@ const sendToChatRoute = defineContractRoute(driveNodeContract.sendToChat, {
   handler: async (c) => c.json(okBody(await sendDriveNodeToChat(c.req.valid('param').id, c.req.valid('json')), '已发送到聊天'), 200),
 });
 
-router.openapiRoutes([
-  detailRoute, renameRoute, contentRoute, thumbnailRoute, accessUrlRoute,
-  versionsRoute, uploadVersionRoute, versionContentRoute, versionRestoreRoute, versionDeleteRoute,
-  permissionsRoute, savePermissionsRoute, inheritRoute,
-  activitiesRoute, commentsRoute, createCommentRoute, deleteCommentRoute,
-  starRoute, unstarRoute, tagsRoute, lockRoute, unlockRoute,
-  nodeShareLinksRoute, createShareLinkRoute,
-  presenceRoute, heartbeatRoute, leavePresenceRoute, sendToChatRoute,
-] as const);
+mountCrud(router, driveNodeContract,
+  { get: getDriveNodeDetail },
+  { permission: 'drive:node', exclude: ['list', 'removeBatch'] },
+  [
+    renameRoute,
+    contentRoute,
+    thumbnailRoute,
+    accessUrlRoute,
+    versionsRoute,
+    uploadVersionRoute,
+    versionContentRoute,
+    versionRestoreRoute,
+    versionDeleteRoute,
+    permissionsRoute,
+    savePermissionsRoute,
+    inheritRoute,
+    activitiesRoute,
+    commentsRoute,
+    createCommentRoute,
+    deleteCommentRoute,
+    starRoute,
+    unstarRoute,
+    tagsRoute,
+    lockRoute,
+    unlockRoute,
+    nodeShareLinksRoute,
+    createShareLinkRoute,
+    presenceRoute,
+    heartbeatRoute,
+    leavePresenceRoute,
+    sendToChatRoute,
+  ],
+);
 
 export default router;

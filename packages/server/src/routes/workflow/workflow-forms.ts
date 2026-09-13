@@ -13,31 +13,15 @@ import {
   updateWorkflowForm,
   deleteWorkflowForm,
 } from '../../services/workflow/workflow-forms.service';
+import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
 const read = [authMiddleware, guard({ permission: 'workflow:form:list' })] as const;
-
-const listRoute = defineContractRoute(workflowFormContract.list, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await listWorkflowForms(c.req.valid('query'))), 200),
-});
-
 const enabledRoute = defineContractRoute(workflowFormContract.enabled, {
   middleware: read,
   handler: async (c) => c.json(okBody(await listEnabledWorkflowForms()), 200),
 });
-
-const getRoute = defineContractRoute(workflowFormContract.detail, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await getWorkflowForm(c.req.valid('param').id)), 200),
-});
-
-const createRouteDef = defineContractRoute(workflowFormContract.create, {
-  middleware: [authMiddleware, guard({ permission: 'workflow:form:create', audit: { description: '创建表单', module: '工作流管理' } })] as const,
-  handler: async (c) => c.json(okBody(await createWorkflowForm(c.req.valid('json')), '创建成功'), 200),
-});
-
 const duplicateRoute = defineContractRoute(workflowFormContract.duplicate, {
   middleware: [authMiddleware, guard({ permission: 'workflow:form:create', audit: { description: '复制表单', module: '工作流管理' } })] as const,
   handler: async (c) => c.json(okBody(await duplicateWorkflowForm(c.req.valid('param').id), '已复制为新表单'), 200),
@@ -66,6 +50,10 @@ const deleteRoute = defineContractRoute(workflowFormContract.remove, {
   },
 });
 
-router.openapiRoutes([listRoute, enabledRoute, getRoute, createRouteDef, duplicateRoute, updateRoute, deleteRoute] as const);
+mountCrud(router, workflowFormContract,
+  { list: listWorkflowForms, get: getWorkflowForm, create: createWorkflowForm },
+  { permission: 'workflow:form', label: '表单', module: '工作流管理', exclude: ['update', 'remove'] },
+  [enabledRoute, duplicateRoute, updateRoute, deleteRoute],
+);
 
 export default router;

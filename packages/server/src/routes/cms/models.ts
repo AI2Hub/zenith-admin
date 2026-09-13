@@ -5,19 +5,19 @@ import { guard, setAuditBeforeData } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { validationHook, okBody } from '../../lib/openapi-schemas';
 import {
-  listCmsModels, listAllCmsModels, getCmsModel, createCmsModel, updateCmsModel, deleteCmsModel,
+  listCmsModels,
+  listAllCmsModels,
+  getCmsModel,
+  createCmsModel,
+  updateCmsModel,
+  deleteCmsModel,
   getCmsModelRefs,
 } from '../../services/cms/cms-models.service';
+import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
 const read = [authMiddleware, guard({ permission: 'cms:model:list' })] as const;
-
-const listRoute = defineContractRoute(cmsModelContract.list, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await listCmsModels(c.req.valid('query'))), 200),
-});
-
 // 下拉源服务于栏目绑定，按栏目权限放行；普通请求必须提供 siteId，由 service 校验
 const allRoute = defineContractRoute(cmsModelContract.all, {
   middleware: [authMiddleware, guard({ permission: 'cms:channel:list' })],
@@ -39,12 +39,6 @@ const getOneRoute = defineContractRoute(cmsModelContract.detail, {
     c.req.valid('query').siteId,
   )), 200),
 });
-
-const createRouteDef = defineContractRoute(cmsModelContract.create, {
-  middleware: [authMiddleware, guard({ permission: 'cms:model:create', audit: { description: '创建 CMS 内容模型', module: 'CMS内容管理' } })],
-  handler: async (c) => c.json(okBody(await createCmsModel(c.req.valid('json')), '创建成功'), 200),
-});
-
 const updateRouteDef = defineContractRoute(cmsModelContract.update, {
   middleware: [authMiddleware, guard({ permission: 'cms:model:update', audit: { description: '更新 CMS 内容模型', module: 'CMS内容管理' } })],
   handler: async (c) => {
@@ -66,6 +60,10 @@ const deleteRouteDef = defineContractRoute(cmsModelContract.remove, {
   },
 });
 
-router.openapiRoutes([listRoute, allRoute, getOneRoute, refsRoute, createRouteDef, updateRouteDef, deleteRouteDef] as const);
+mountCrud(router, cmsModelContract,
+  { list: listCmsModels, create: createCmsModel },
+  { permission: 'cms:model', label: ' CMS 内容模型', module: 'CMS内容管理', exclude: ['detail', 'update', 'remove'] },
+  [allRoute, getOneRoute, refsRoute, updateRouteDef, deleteRouteDef],
+);
 
 export default router;

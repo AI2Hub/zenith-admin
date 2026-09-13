@@ -5,6 +5,7 @@ import { guard } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import { createDriveTag, deleteDriveTag, listDriveTags, mergeDriveTags, updateDriveTag } from '../../services/drive/drive-extras.service';
+import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -14,12 +15,6 @@ const listRoute = defineContractRoute(driveTagContract.list, {
   middleware: [authMiddleware, guard({ permission: 'drive:node:list' })],
   handler: async (c) => c.json(okBody(await listDriveTags(c.req.valid('query').spaceId)), 200),
 });
-
-const createRoute = defineContractRoute(driveTagContract.create, {
-  middleware: edit,
-  handler: async (c) => c.json(okBody(await createDriveTag(c.req.valid('json')), '创建成功'), 200),
-});
-
 const updateRoute = defineContractRoute(driveTagContract.update, {
   middleware: edit,
   handler: async (c) => {
@@ -44,6 +39,10 @@ const mergeRoute = defineContractRoute(driveTagContract.merge, {
   },
 });
 
-router.openapiRoutes([listRoute, createRoute, updateRoute, deleteRoute, mergeRoute] as const);
+mountCrud(router, driveTagContract,
+  { create: createDriveTag },
+  { permission: { write: 'drive:node:edit' }, audit: null, exclude: ['list', 'update', 'remove'] },
+  [listRoute, updateRoute, deleteRoute, mergeRoute],
+);
 
 export default router;

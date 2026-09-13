@@ -21,16 +21,11 @@ import {
   updateCmsWidget,
 } from '../../services/cms/cms-widgets.service';
 import { submitCmsWidgetBatchTask } from '../../services/cms/cms-widget-tasks';
+import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
 const read = [authMiddleware, guard({ permission: 'cms:widget:list' })] as const;
-
-const listRoute = defineContractRoute(cmsWidgetContract.list, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await listCmsWidgets(c.req.valid('query'))), 200),
-});
-
 const optionsRoute = defineContractRoute(cmsWidgetContract.options, {
   middleware: read,
   handler: async (c) => c.json(okBody(await listPublishedCmsWidgets(c.req.valid('query').siteId)), 200),
@@ -78,12 +73,6 @@ const sourceRefsRoute = defineContractRoute(cmsWidgetContract.sourceRefs, {
     return c.json(okBody(await listCmsWidgetSourceReferences(sourceType, sourceId)), 200);
   },
 });
-
-const detailRoute = defineContractRoute(cmsWidgetContract.detail, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await getCmsWidget(c.req.valid('param').id)), 200),
-});
-
 const refsRoute = defineContractRoute(cmsWidgetContract.refs, {
   middleware: read,
   handler: async (c) => c.json(okBody(await listCmsWidgetRefs(c.req.valid('param').id)), 200),
@@ -96,27 +85,6 @@ const previewRoute = defineContractRoute(cmsWidgetContract.preview, {
     c.req.valid('query').rendererKey,
   )), 200),
 });
-
-const createRouteDef = defineContractRoute(cmsWidgetContract.create, {
-  middleware: [authMiddleware, guard({
-    permission: 'cms:widget:create',
-    audit: { description: '创建 CMS 页面部件', module: 'CMS内容管理' },
-  })],
-  handler: async (c) => c.json(okBody(await createCmsWidget(c.req.valid('json')), '创建成功'), 200),
-});
-
-const updateRouteDef = defineContractRoute(cmsWidgetContract.update, {
-  middleware: [authMiddleware, guard({
-    permission: 'cms:widget:update',
-    audit: { description: '更新 CMS 页面部件草稿', module: 'CMS内容管理' },
-  })],
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    setAuditBeforeData(c, await getCmsWidget(id));
-    return c.json(okBody(await updateCmsWidget(id, c.req.valid('json')), '保存成功'), 200);
-  },
-});
-
 const publishRoute = defineContractRoute(cmsWidgetContract.publish, {
   middleware: [authMiddleware, guard({
     permission: 'cms:widget:publish',
@@ -141,35 +109,33 @@ const offlineRoute = defineContractRoute(cmsWidgetContract.offline, {
   },
 });
 
-const deleteRouteDef = defineContractRoute(cmsWidgetContract.remove, {
-  middleware: [authMiddleware, guard({
-    permission: 'cms:widget:delete',
-    audit: { description: '删除 CMS 页面部件', module: 'CMS内容管理' },
-  })],
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    setAuditBeforeData(c, await getCmsWidget(id));
-    await deleteCmsWidget(id);
-    return c.json(okBody(null, '删除成功'), 200);
+mountCrud(router, cmsWidgetContract,
+  {
+    list: listCmsWidgets,
+    get: getCmsWidget,
+    create: createCmsWidget,
+    update: updateCmsWidget,
+    remove: deleteCmsWidget,
   },
-});
-
-router.openapiRoutes([
-  listRoute,
-  optionsRoute,
-  renderersRoute,
-  slotsRoute,
-  saveSlotRoute,
-  batchRoute,
-  sourceRefsRoute,
-  refsRoute,
-  previewRoute,
-  publishRoute,
-  offlineRoute,
-  detailRoute,
-  createRouteDef,
-  updateRouteDef,
-  deleteRouteDef,
-] as const);
+  {
+    permission: 'cms:widget',
+    label: ' CMS 页面部件',
+    module: 'CMS内容管理',
+    audit: { update: '更新 CMS 页面部件草稿' },
+    messages: { update: '保存成功' },
+  },
+  [
+    optionsRoute,
+    renderersRoute,
+    slotsRoute,
+    saveSlotRoute,
+    batchRoute,
+    sourceRefsRoute,
+    refsRoute,
+    previewRoute,
+    publishRoute,
+    offlineRoute,
+  ],
+);
 
 export default router;

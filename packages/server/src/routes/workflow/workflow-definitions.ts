@@ -5,49 +5,38 @@ import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/g
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
-  listDefinitions, listPublishedDefinitions, getDefinition, createDefinition,
-  updateDefinition, publishDefinition, disableDefinition, enableDefinition, deleteDefinition, getWorkflowDefinitionBeforeAudit,
+  listDefinitions,
+  listPublishedDefinitions,
+  getDefinition,
+  createDefinition,
+  updateDefinition,
+  publishDefinition,
+  disableDefinition,
+  enableDefinition,
+  deleteDefinition,
+  getWorkflowDefinitionBeforeAudit,
   getWorkflowDefinitionsBeforeAudit,
-  batchDisableDefinitions, batchEnableDefinitions, batchDeleteDefinitions,
-  listVersions, restoreVersion, duplicateDefinition, exportDefinition, importDefinition, diffVersions,
+  batchDisableDefinitions,
+  batchEnableDefinitions,
+  batchDeleteDefinitions,
+  listVersions,
+  restoreVersion,
+  duplicateDefinition,
+  exportDefinition,
+  importDefinition,
+  diffVersions,
 } from '../../services/workflow/workflow-definitions.service';
 import { previewFlow } from '../../services/workflow/workflow-preview.service';
 import { simulateWorkflow, checkDefinitionHealth } from '../../services/workflow/workflow-simulation.service';
+import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
 const read = [authMiddleware, guard({ permission: 'workflow:definition:list' })] as const;
-
-const listRoute = defineContractRoute(workflowDefinitionContract.list, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await listDefinitions(c.req.valid('query'))), 200),
-});
-
 const publishedRoute = defineContractRoute(workflowDefinitionContract.published, {
   middleware: [authMiddleware, guard({ permission: 'workflow:instance:create' })] as const,
   handler: async (c) => c.json(okBody(await listPublishedDefinitions()), 200),
 });
-
-const detailRoute = defineContractRoute(workflowDefinitionContract.detail, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await getDefinition(c.req.valid('param').id)), 200),
-});
-
-const createRouteDef = defineContractRoute(workflowDefinitionContract.create, {
-  middleware: [authMiddleware, guard({ permission: 'workflow:definition:create', audit: { description: '创建流程定义', module: '工作流管理' } })] as const,
-  handler: async (c) => c.json(okBody(await createDefinition(c.req.valid('json')), '创建成功'), 200),
-});
-
-const updateRouteDef = defineContractRoute(workflowDefinitionContract.update, {
-  middleware: [authMiddleware, guard({ permission: 'workflow:definition:edit', audit: { description: '更新流程定义', module: '工作流管理' } })] as const,
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    const before = await getWorkflowDefinitionBeforeAudit(id);
-    if (before) setAuditBeforeData(c, before);
-    return c.json(okBody(await updateDefinition(id, c.req.valid('json')), '更新成功'), 200);
-  },
-});
-
 const publishRoute = defineContractRoute(workflowDefinitionContract.publish, {
   middleware: [authMiddleware, guard({ permission: 'workflow:definition:publish', audit: { description: '发布流程定义', module: '工作流管理' } })] as const,
   handler: async (c) => {
@@ -77,18 +66,6 @@ const enableRoute = defineContractRoute(workflowDefinitionContract.enable, {
     return c.json(okBody(await enableDefinition(id), '启用成功'), 200);
   },
 });
-
-const deleteRouteDef = defineContractRoute(workflowDefinitionContract.remove, {
-  middleware: [authMiddleware, guard({ permission: 'workflow:definition:delete', audit: { description: '删除流程定义', module: '工作流管理' } })] as const,
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    const before = await getWorkflowDefinitionBeforeAudit(id);
-    if (before) setAuditBeforeData(c, before);
-    await deleteDefinition(id);
-    return c.json(okBody(null, '删除成功'), 200);
-  },
-});
-
 const batchDisableRoute = defineContractRoute(workflowDefinitionContract.batchDisable, {
   middleware: [authMiddleware, guard({ permission: 'workflow:definition:publish', audit: { description: '批量禁用流程定义', module: '工作流管理' } })] as const,
   handler: async (c) => {
@@ -187,6 +164,37 @@ const healthCheckRoute = defineContractRoute(workflowDefinitionContract.healthCh
   handler: async (c) => c.json(okBody(await checkDefinitionHealth(c.req.valid('json'))), 200),
 });
 
-router.openapiRoutes([listRoute, publishedRoute, importRoute, detailRoute, createRouteDef, updateRouteDef, publishRoute, disableRoute, enableRoute, deleteRouteDef, batchDisableRoute, batchEnableRoute, batchDeleteRoute, listVersionsRoute, restoreVersionRoute, duplicateRoute, exportRoute, diffVersionsRoute, previewRoute, simulateRoute, healthCheckRoute] as const);
+mountCrud(router, workflowDefinitionContract,
+  {
+    list: listDefinitions,
+    get: getDefinition,
+    create: createDefinition,
+    update: updateDefinition,
+    remove: deleteDefinition,
+  },
+  {
+    permission: { read: 'workflow:definition:list', create: 'workflow:definition:create', update: 'workflow:definition:edit', remove: 'workflow:definition:delete' },
+    label: '流程定义',
+    module: '工作流管理',
+  },
+  [
+    publishedRoute,
+    importRoute,
+    publishRoute,
+    disableRoute,
+    enableRoute,
+    batchDisableRoute,
+    batchEnableRoute,
+    batchDeleteRoute,
+    listVersionsRoute,
+    restoreVersionRoute,
+    duplicateRoute,
+    exportRoute,
+    diffVersionsRoute,
+    previewRoute,
+    simulateRoute,
+    healthCheckRoute,
+  ],
+);
 
 export default router;

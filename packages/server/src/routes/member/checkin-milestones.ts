@@ -11,6 +11,7 @@ import {
   deleteCheckinMilestone,
   ensureMilestoneExists,
 } from '../../services/member/checkin-milestones.service';
+import { mountCrud } from '../_crud';
 
 const checkinMilestonesRouter = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -18,12 +19,6 @@ const listRoute = defineContractRoute(checkinMilestoneContract.list, {
   middleware: [authMiddleware, guard({ permission: 'member:checkin:milestone:list' })],
   handler: async (c) => c.json(okBody(await listCheckinMilestones()), 200),
 });
-
-const createMilestoneRoute = defineContractRoute(checkinMilestoneContract.create, {
-  middleware: [authMiddleware, guard({ permission: 'member:checkin:milestone:create', audit: { module: '会员签到', description: '创建签到里程碑' } })],
-  handler: async (c) => c.json(okBody(await createCheckinMilestone(c.req.valid('json')), '创建成功'), 200),
-});
-
 const updateMilestoneRoute = defineContractRoute(checkinMilestoneContract.update, {
   middleware: [authMiddleware, guard({ permission: 'member:checkin:milestone:update', audit: { module: '会员签到', description: '更新签到里程碑' } })],
   handler: async (c) => {
@@ -43,6 +38,15 @@ const deleteMilestoneRoute = defineContractRoute(checkinMilestoneContract.remove
   },
 });
 
-checkinMilestonesRouter.openapiRoutes([listRoute, createMilestoneRoute, updateMilestoneRoute, deleteMilestoneRoute] as const);
+mountCrud(checkinMilestonesRouter, checkinMilestoneContract,
+  { create: createCheckinMilestone },
+  {
+    permission: 'member:checkin:milestone',
+    label: '签到里程碑',
+    module: '会员签到',
+    exclude: ['list', 'update', 'remove'],
+  },
+  [listRoute, updateMilestoneRoute, deleteMilestoneRoute],
+);
 
 export default checkinMilestonesRouter;

@@ -6,6 +6,7 @@ import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import { listHttpTools, createHttpTool, updateHttpTool, deleteHttpTool } from '../../services/ai/ai-http-tools.service';
 import { listAvailableTools } from '../../lib/ai/tools';
+import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -19,12 +20,6 @@ const available = defineContractRoute(aiHttpToolContract.all, {
   middleware: [authMiddleware],
   handler: async (c) => c.json(okBody(await listAvailableTools()), 200),
 });
-
-const create = defineContractRoute(aiHttpToolContract.create, {
-  middleware: [authMiddleware, guard({ permission: 'ai:tool:manage', audit: { description: '创建 AI HTTP 工具', module: '智能助手' } })],
-  handler: async (c) => c.json(okBody(await createHttpTool(c.req.valid('json')), '创建成功'), 200),
-});
-
 const update = defineContractRoute(aiHttpToolContract.update, {
   middleware: [authMiddleware, guard({ permission: 'ai:tool:manage', audit: { description: '更新 AI HTTP 工具', module: '智能助手' } })],
   handler: async (c) => {
@@ -42,6 +37,15 @@ const remove = defineContractRoute(aiHttpToolContract.remove, {
   },
 });
 
-router.openapiRoutes([list, available, create, update, remove] as const);
+mountCrud(router, aiHttpToolContract,
+  { create: createHttpTool },
+  {
+    permission: { write: 'ai:tool:manage' },
+    label: ' AI HTTP 工具',
+    module: '智能助手',
+    exclude: ['list', 'update', 'remove'],
+  },
+  [list, available, update, remove],
+);
 
 export default router;

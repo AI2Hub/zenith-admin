@@ -6,24 +6,27 @@ import { guard } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { ErrorResponse, jsonContent, okBody, validationHook } from '../../lib/openapi-schemas';
 import {
-  listCmsResources, uploadCmsResource, updateCmsResource, deleteCmsResources,
-  listCmsResourceReferences, cropCmsResource, replaceCmsResource,
+  listCmsResources,
+  uploadCmsResource,
+  updateCmsResource,
+  deleteCmsResources,
+  listCmsResourceReferences,
+  cropCmsResource,
+  replaceCmsResource,
 } from '../../services/cms/cms-resources.service';
 import {
-  createCmsResourceFolder, deleteCmsResourceFolder, listCmsResourceFolderTree, updateCmsResourceFolder,
+  createCmsResourceFolder,
+  deleteCmsResourceFolder,
+  listCmsResourceFolderTree,
+  updateCmsResourceFolder,
 } from '../../services/cms/cms-resource-folders.service';
 import { mapAsyncTask } from '../../lib/task-center';
 import { submitCmsResourceTask, submitCmsResourceRefRebuildTask } from '../../services/cms/cms-resource-task-submit.service';
+import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
 const read = [authMiddleware, guard({ permission: 'cms:resource:list' })] as const;
-
-const listRoute = defineContractRoute(cmsResourceContract.list, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await listCmsResources(c.req.valid('query'))), 200),
-});
-
 const uploadRoute = defineContractRoute(cmsResourceContract.upload, {
   middleware: [authMiddleware, guard({ permission: 'cms:resource:upload', audit: { description: 'CMS 上传素材', module: 'CMS内容管理', recordBody: false } })],
   responses: { 400: { content: jsonContent(ErrorResponse), description: '未选择文件或无可用存储' } },
@@ -133,10 +136,31 @@ const rebuildRefsRoute = defineContractRoute(cmsResourceContract.rebuildRefs, {
   },
 });
 
-router.openapiRoutes([
-  listRoute, folderTreeRoute, createFolderRoute, updateFolderRoute, deleteFolderRoute,
-  uploadRoute, updateRoute, referencesRoute, cropRoute, replaceRoute, deleteRoute,
-  governanceRoute, rebuildRefsRoute, moveResourcesRoute,
-] as const);
+mountCrud(router, cmsResourceContract,
+  { list: listCmsResources },
+  {
+    permission: 'cms:resource',
+    label: 'CMS 编辑素材',
+    module: 'CMS内容管理',
+    audit: { update: 'CMS 编辑素材' },
+    messages: { update: '已保存' },
+    exclude: ['update'],
+  },
+  [
+    folderTreeRoute,
+    createFolderRoute,
+    updateFolderRoute,
+    deleteFolderRoute,
+    uploadRoute,
+    updateRoute,
+    referencesRoute,
+    cropRoute,
+    replaceRoute,
+    deleteRoute,
+    governanceRoute,
+    rebuildRefsRoute,
+    moveResourcesRoute,
+  ],
+);
 
 export default router;

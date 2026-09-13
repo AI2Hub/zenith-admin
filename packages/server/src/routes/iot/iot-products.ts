@@ -8,74 +8,43 @@ import { guard, setAuditBeforeData } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { ErrorResponse, jsonContent, okBody, validationHook } from '../../lib/openapi-schemas';
 import {
-  listIotProducts, listAllIotProducts, getIotProduct, createIotProduct,
-  updateIotProduct, deleteIotProduct, ensureIotProductExists, mapIotProduct,
+  listIotProducts,
+  listAllIotProducts,
+  getIotProduct,
+  createIotProduct,
+  updateIotProduct,
+  deleteIotProduct,
+  ensureIotProductExists,
 } from '../../services/iot/iot-devices.service';
 import {
-  createIotEvent, createIotProperty, createIotService, deleteIotEvent, deleteIotProperty, deleteIotService,
-  ensureIotEventExists, ensureIotPropertyExists, ensureIotServiceExists, getThingModel, importIotTsl,
-  mapIotEvent, mapIotProperty, mapIotService, updateIotEvent, updateIotProperty, updateIotService,
+  createIotEvent,
+  createIotProperty,
+  createIotService,
+  deleteIotEvent,
+  deleteIotProperty,
+  deleteIotService,
+  ensureIotEventExists,
+  ensureIotPropertyExists,
+  ensureIotServiceExists,
+  getThingModel,
+  importIotTsl,
+  mapIotEvent,
+  mapIotProperty,
+  mapIotService,
+  updateIotEvent,
+  updateIotProperty,
+  updateIotService,
 } from '../../services/iot/iot-model.service';
+import { mountCrud } from '../_crud';
 
 const iotProductsRouter = new OpenAPIHono({ defaultHook: validationHook });
 
 const read = [authMiddleware, guard({ permission: 'iot:product:list' })] as const;
 const notFound = { 404: { content: jsonContent(ErrorResponse), description: '不存在' } } as const;
-
-const listRoute = defineContractRoute(iotProductContract.list, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await listIotProducts(c.req.valid('query'))), 200),
-});
-
 const allRoute = defineContractRoute(iotProductContract.all, {
   middleware: read,
   handler: async (c) => c.json(okBody(await listAllIotProducts()), 200),
 });
-
-const getOneRoute = defineContractRoute(iotProductContract.detail, {
-  middleware: read,
-  responses: notFound,
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    return c.json(okBody(await getIotProduct(id)), 200);
-  },
-});
-
-const createRoute_ = defineContractRoute(iotProductContract.create, {
-  middleware: [authMiddleware, guard({
-    permission: 'iot:product:create',
-    audit: { description: '创建 IoT 产品', module: 'IoT 产品' },
-  })],
-  handler: async (c) => c.json(okBody(await createIotProduct(c.req.valid('json')), '创建成功'), 200),
-});
-
-const updateRoute_ = defineContractRoute(iotProductContract.update, {
-  middleware: [authMiddleware, guard({
-    permission: 'iot:product:update',
-    audit: { description: '更新 IoT 产品', module: 'IoT 产品' },
-  })],
-  responses: notFound,
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    setAuditBeforeData(c, mapIotProduct(await ensureIotProductExists(id)));
-    return c.json(okBody(await updateIotProduct(id, c.req.valid('json')), '更新成功'), 200);
-  },
-});
-
-const deleteRoute_ = defineContractRoute(iotProductContract.remove, {
-  middleware: [authMiddleware, guard({
-    permission: 'iot:product:delete',
-    audit: { description: '删除 IoT 产品', module: 'IoT 产品' },
-  })],
-  responses: notFound,
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    setAuditBeforeData(c, mapIotProduct(await ensureIotProductExists(id)));
-    await deleteIotProduct(id);
-    return c.json(okBody(null, '删除成功'), 200);
-  },
-});
-
 // ─── 物模型 ───────────────────────────────────────────────────────────────────
 const modelWrite = (description: string) => [authMiddleware, guard({
   permission: 'iot:product:update',
@@ -190,24 +159,34 @@ const deleteEventRoute = defineContractRoute(iotProductContract.removeEvent, {
   },
 });
 
-iotProductsRouter.openapiRoutes([
-  listRoute,
-  allRoute,
-  getModelRoute,
-  importModelRoute,
-  createPropertyRoute,
-  updatePropertyRoute,
-  deletePropertyRoute,
-  createServiceRoute,
-  updateServiceRoute,
-  deleteServiceRoute,
-  createEventRoute,
-  updateEventRoute,
-  deleteEventRoute,
-  getOneRoute,
-  createRoute_,
-  updateRoute_,
-  deleteRoute_,
-] as const);
+mountCrud(iotProductsRouter, iotProductContract,
+  {
+    list: listIotProducts,
+    get: getIotProduct,
+    create: createIotProduct,
+    update: updateIotProduct,
+    remove: deleteIotProduct,
+  },
+  {
+    permission: 'iot:product',
+    label: ' IoT 产品',
+    module: 'IoT 产品',
+    responses: { detail: notFound, update: notFound, remove: notFound },
+  },
+  [
+    allRoute,
+    getModelRoute,
+    importModelRoute,
+    createPropertyRoute,
+    updatePropertyRoute,
+    deletePropertyRoute,
+    createServiceRoute,
+    updateServiceRoute,
+    deleteServiceRoute,
+    createEventRoute,
+    updateEventRoute,
+    deleteEventRoute,
+  ],
+);
 
 export default iotProductsRouter;

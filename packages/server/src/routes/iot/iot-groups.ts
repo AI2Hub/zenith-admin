@@ -8,9 +8,16 @@ import { guard, setAuditBeforeData } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { ErrorResponse, jsonContent, okBody, validationHook } from '../../lib/openapi-schemas';
 import {
-  createIotDeviceGroup, deleteIotDeviceGroup, ensureIotDeviceGroupExists, getIotDeviceGroup,
-  listAllIotDeviceGroups, listIotDeviceGroups, mapIotDeviceGroup, updateIotDeviceGroup,
+  createIotDeviceGroup,
+  deleteIotDeviceGroup,
+  ensureIotDeviceGroupExists,
+  getIotDeviceGroup,
+  listAllIotDeviceGroups,
+  listIotDeviceGroups,
+  mapIotDeviceGroup,
+  updateIotDeviceGroup,
 } from '../../services/iot/iot-groups.service';
+import { mountCrud } from '../_crud';
 
 const iotGroupsRouter = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -20,26 +27,10 @@ const manage = (description: string) => [authMiddleware, guard({
   audit: { description, module: 'IoT 设备' },
 })] as const;
 const notFound = { 404: { content: jsonContent(ErrorResponse), description: '不存在' } } as const;
-
-const listRoute = defineContractRoute(iotDeviceGroupContract.list, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await listIotDeviceGroups(c.req.valid('query'))), 200),
-});
-
 const allRoute = defineContractRoute(iotDeviceGroupContract.all, {
   middleware: read,
   handler: async (c) => c.json(okBody(await listAllIotDeviceGroups()), 200),
 });
-
-const getOneRoute = defineContractRoute(iotDeviceGroupContract.detail, {
-  middleware: read,
-  responses: notFound,
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    return c.json(okBody(await getIotDeviceGroup(id)), 200);
-  },
-});
-
 const createRoute_ = defineContractRoute(iotDeviceGroupContract.create, {
   middleware: manage('创建 IoT 设备分组'),
   handler: async (c) => c.json(okBody(await createIotDeviceGroup(c.req.valid('json')), '创建成功'), 200),
@@ -66,13 +57,10 @@ const deleteRoute_ = defineContractRoute(iotDeviceGroupContract.remove, {
   },
 });
 
-iotGroupsRouter.openapiRoutes([
-  listRoute,
-  allRoute,
-  getOneRoute,
-  createRoute_,
-  updateRoute_,
-  deleteRoute_,
-] as const);
+mountCrud(iotGroupsRouter, iotDeviceGroupContract,
+  { list: listIotDeviceGroups, get: getIotDeviceGroup },
+  { permission: 'iot:device', exclude: ['create', 'update', 'remove'], responses: { detail: notFound } },
+  [allRoute, createRoute_, updateRoute_, deleteRoute_],
+);
 
 export default iotGroupsRouter;

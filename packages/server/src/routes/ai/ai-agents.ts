@@ -11,6 +11,7 @@ import {
   deleteAgent,
   getAgentDetail,
 } from '../../services/ai/ai-agents.service';
+import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -26,36 +27,10 @@ const builtin = defineContractRoute(aiAgentContract.builtin, {
   handler: async (c) => c.json(okBody(await listBuiltinAgents()), 200),
 });
 
-const detail = defineContractRoute(aiAgentContract.detail, {
-  middleware: authed,
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    return c.json(okBody(await getAgentDetail(id)), 200);
-  },
-});
-
-const create = defineContractRoute(aiAgentContract.create, {
-  middleware: authed,
-  handler: async (c) => c.json(okBody(await createAgent(c.req.valid('json')), '创建成功'), 200),
-});
-
-const update = defineContractRoute(aiAgentContract.update, {
-  middleware: authed,
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    return c.json(okBody(await updateAgent(id, c.req.valid('json')), '更新成功'), 200);
-  },
-});
-
-const remove = defineContractRoute(aiAgentContract.remove, {
-  middleware: authed,
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    await deleteAgent(id);
-    return c.json(okBody(null, '删除成功'), 200);
-  },
-});
-
-router.openapiRoutes([listMine, builtin, detail, create, update, remove] as const);
+mountCrud(router, aiAgentContract,
+  { get: getAgentDetail, create: createAgent, update: updateAgent, remove: deleteAgent },
+  { permission: null, audit: null, exclude: ['list'] },
+  [listMine, builtin],
+);
 
 export default router;

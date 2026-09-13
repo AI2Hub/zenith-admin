@@ -9,6 +9,7 @@ import {
   updateUserAiConfig,
   deleteUserAiConfig,
 } from '../../services/ai/user-ai-config.service';
+import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -18,12 +19,6 @@ const getConfigs = defineContractRoute(userAiConfigContract.list, {
   middleware: authed,
   handler: async (c) => c.json(okBody(await getUserAiConfigs()), 200),
 });
-
-const createConfig = defineContractRoute(userAiConfigContract.create, {
-  middleware: authed,
-  handler: async (c) => c.json(okBody(await createUserAiConfig(c.req.valid('json')), '创建成功'), 200),
-});
-
 const updateConfig = defineContractRoute(userAiConfigContract.update, {
   middleware: authed,
   handler: async (c) => {
@@ -41,6 +36,10 @@ const deleteConfig = defineContractRoute(userAiConfigContract.remove, {
   },
 });
 
-router.openapiRoutes([getConfigs, createConfig, updateConfig, deleteConfig] as const);
+mountCrud(router, userAiConfigContract,
+  { create: createUserAiConfig },
+  { permission: null, audit: null, exclude: ['list', 'update', 'remove'] },
+  [getConfigs, updateConfig, deleteConfig],
+);
 
 export default router;

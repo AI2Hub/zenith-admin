@@ -16,6 +16,7 @@ import {
   getMenuBeforeAudit,
   getMenuCascadeBeforeAudit,
 } from '../../services/identity/menus.service';
+import { mountCrud } from '../_crud';
 
 const menusRouter = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -36,12 +37,6 @@ const flatRoute = defineContractRoute(menuContract.flat, {
   middleware: [authMiddleware, guard({ permission: 'system:menu:list' })] as const,
   handler: async (c) => c.json(okBody(await listMenusFlat()), 200),
 });
-
-const getOneRoute = defineContractRoute(menuContract.detail, {
-  middleware: [authMiddleware, guard({ permission: 'system:menu:list' })] as const,
-  handler: async (c) => c.json(okBody(await getMenu(c.req.valid('param').id)), 200),
-});
-
 const createMenuRoute = defineContractRoute(menuContract.create, {
   middleware: [authMiddleware, platformOnly, guard({ permission: 'system:menu:create', audit: { description: '创建菜单', module: '菜单管理' } })] as const,
   handler: async (c) => c.json(okBody(await createMenu(c.req.valid('json')), '创建成功'), 200),
@@ -69,6 +64,10 @@ const deleteMenuRoute = defineContractRoute(menuContract.remove, {
   },
 });
 
-menusRouter.openapiRoutes([userMenuRoute, listRoute, flatRoute, getOneRoute, createMenuRoute, updateMenuRoute, deleteMenuRoute] as const);
+mountCrud(menusRouter, menuContract,
+  { get: getMenu },
+  { permission: 'system:menu', exclude: ['create', 'update', 'remove'] },
+  [userMenuRoute, listRoute, flatRoute, createMenuRoute, updateMenuRoute, deleteMenuRoute],
+);
 
 export default menusRouter;

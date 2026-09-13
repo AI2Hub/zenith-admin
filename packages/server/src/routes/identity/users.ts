@@ -5,17 +5,31 @@ import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/g
 import { defineContractRoute } from '../../lib/contract-route';
 import { validationHook, okBody } from '../../lib/openapi-schemas';
 import {
-  listAlertRecipientUsers, listAllUsers, listUsers, createUser, batchDeleteUsers, batchUpdateUserStatus, batchResetUsersPassword,
-  updateUser, deleteUser, updateUserPassword, unlockUserById,
-  getUserBeforeAudit, getUsersBeforeAudit,
+  listAlertRecipientUsers,
+  listAllUsers,
+  listUsers,
+  createUser,
+  batchDeleteUsers,
+  batchUpdateUserStatus,
+  batchResetUsersPassword,
+  updateUser,
+  deleteUser,
+  updateUserPassword,
+  unlockUserById,
+  getUserBeforeAudit,
+  getUsersBeforeAudit,
   getUser,
-  getUserMenuPermissions, assignUserMenus,
-  getUserDataPermission, updateUserDataPermission, getUserEffectivePermissions,
+  getUserMenuPermissions,
+  assignUserMenus,
+  getUserDataPermission,
+  updateUserDataPermission,
+  getUserEffectivePermissions,
   assignRolesToUser,
   getUserRoleAssignmentAudit,
   getUserMenuPermissionsBeforeAudit,
   getUserDataPermissionBeforeAudit,
 } from '../../services/identity/users.service';
+import { mountCrud } from '../_crud';
 
 const usersRouter = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -31,17 +45,6 @@ const getAlertRecipientUsersRoute = defineContractRoute(userContract.alertRecipi
   middleware: [authMiddleware, guard({ permission: ['alert:rule:create', 'alert:rule:update'] })] as const,
   handler: async (c) => c.json(okBody(await listAlertRecipientUsers()), 200),
 });
-
-const listUsersRoute = defineContractRoute(userContract.list, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await listUsers(c.req.valid('query'))), 200),
-});
-
-const createUserRoute = defineContractRoute(userContract.create, {
-  middleware: [authMiddleware, guard({ permission: 'system:user:create', audit: { description: '创建用户', module: '用户管理' } })] as const,
-  handler: async (c) => c.json(okBody(await createUser(c.req.valid('json')), '创建成功'), 200),
-});
-
 const batchDeleteUsersRoute = defineContractRoute(userContract.removeBatch, {
   middleware: [authMiddleware, guard({ permission: 'system:user:delete', audit: { description: '批量删除用户', module: '用户管理' } })] as const,
   handler: async (c) => {
@@ -95,33 +98,6 @@ const unlockUserRoute = defineContractRoute(userContract.unlock, {
     return c.json(okBody(null, '解锁成功'), 200);
   },
 });
-
-const getOneUserRoute = defineContractRoute(userContract.detail, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await getUser(c.req.valid('param').id)), 200),
-});
-
-const updateUserRoute = defineContractRoute(userContract.update, {
-  middleware: [authMiddleware, guard({ permission: 'system:user:update', audit: { description: '更新用户', module: '用户管理' } })] as const,
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    const before = await getUserBeforeAudit(id);
-    if (before) setAuditBeforeData(c, before);
-    return c.json(okBody(await updateUser(id, c.req.valid('json')), '更新成功'), 200);
-  },
-});
-
-const deleteUserRoute = defineContractRoute(userContract.remove, {
-  middleware: [authMiddleware, guard({ permission: 'system:user:delete', audit: { description: '删除用户', module: '用户管理' } })] as const,
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    const before = await getUserBeforeAudit(id);
-    if (before) setAuditBeforeData(c, before);
-    await deleteUser(id);
-    return c.json(okBody(null, '删除成功'), 200);
-  },
-});
-
 const assignUserRolesRoute = defineContractRoute(userContract.assignRoles, {
   middleware: [authMiddleware, guard({ permission: 'system:user:assign', audit: { description: '分配用户角色', module: '用户管理' } })] as const,
   handler: async (c) => {
@@ -179,14 +155,24 @@ const getUserEffectivePermissionsRoute = defineContractRoute(userContract.effect
   handler: async (c) => c.json(okBody(await getUserEffectivePermissions(c.req.valid('param').id)), 200),
 });
 
-// 静态路径（/alert-recipients、/all、/batch*）必须先于动态 /{id} 注册
-usersRouter.openapiRoutes([
-  getAlertRecipientUsersRoute, getAllUsersRoute, listUsersRoute, createUserRoute, batchDeleteUsersRoute, batchStatusUsersRoute, batchResetPasswordRoute,
-  updateUserPasswordRoute, unlockUserRoute,
-  getOneUserRoute, updateUserRoute, deleteUserRoute,
-  getUserMenusRoute, assignUserMenusRoute,
-  assignUserRolesRoute,
-  getUserDataPermissionRoute, updateUserDataPermissionRoute, getUserEffectivePermissionsRoute,
-] as const);
+mountCrud(usersRouter, userContract,
+  { list: listUsers, get: getUser, create: createUser, update: updateUser, remove: deleteUser },
+  { permission: 'system:user', label: '用户', exclude: ['removeBatch'] },
+  [
+    getAlertRecipientUsersRoute,
+    getAllUsersRoute,
+    batchDeleteUsersRoute,
+    batchStatusUsersRoute,
+    batchResetPasswordRoute,
+    updateUserPasswordRoute,
+    unlockUserRoute,
+    getUserMenusRoute,
+    assignUserMenusRoute,
+    assignUserRolesRoute,
+    getUserDataPermissionRoute,
+    updateUserDataPermissionRoute,
+    getUserEffectivePermissionsRoute,
+  ],
+);
 
 export default usersRouter;

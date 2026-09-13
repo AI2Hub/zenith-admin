@@ -31,18 +31,102 @@ function collectRouteFiles(dir: string): string[] {
   return result;
 }
 
-/** 提取一个路由文件中 guard 引用的全部权限码（单个字符串 + 数组两种写法） */
+/** 提取一个路由文件中 guard 引用的全部权限码（单个字符串 + 数组两种写法），不含 mountCrud 选项 */
 function extractPermissions(content: string): string[] {
   const codes: string[] = [];
-  for (const m of content.matchAll(/permission:\s*'([^']+)'/g)) {
+  const withoutMounts = stripMountCrudCalls(content);
+  for (const m of withoutMounts.matchAll(/permission:\s*'([^']+)'/g)) {
     codes.push(m[1]);
   }
-  for (const m of content.matchAll(/permission:\s*\[([^\]]+)\]/g)) {
+  for (const m of withoutMounts.matchAll(/permission:\s*\[([^\]]+)\]/g)) {
     for (const p of m[1].matchAll(/'([^']+)'/g)) {
       codes.push(p[1]);
     }
   }
   return codes.filter((c) => c !== '');
+}
+
+/** 找出每个 `mountCrud(` 调用的完整实参文本（括号配平） */
+function mountCrudCalls(content: string): string[] {
+  const calls: string[] = [];
+  let index = content.indexOf('mountCrud(');
+  while (index >= 0) {
+    let depth = 0;
+    let end = index + 'mountCrud'.length;
+    for (; end < content.length; end++) {
+      const ch = content[end];
+      if (ch === '(') depth++;
+      else if (ch === ')') { depth--; if (depth === 0) break; }
+    }
+    calls.push(content.slice(index + 'mountCrud('.length, end));
+    index = content.indexOf('mountCrud(', end);
+  }
+  return calls;
+}
+
+function stripMountCrudCalls(content: string): string {
+  return mountCrudCalls(content).reduce((acc, call) => acc.replace(call, ''), content);
+}
+
+/** 按深度 0 的逗号切分调用实参 */
+function splitTopLevelArgs(argsText: string): string[] {
+  const args: string[] = [];
+  let depth = 0;
+  let current = '';
+  let quote: string | null = null;
+  for (const ch of argsText) {
+    if (quote) { current += ch; if (ch === quote) quote = null; continue; }
+    if (ch === "'" || ch === '"' || ch === '`') { quote = ch; current += ch; continue; }
+    if (ch === '(' || ch === '{' || ch === '[') depth++;
+    else if (ch === ')' || ch === '}' || ch === ']') depth--;
+    if (ch === ',' && depth === 0) { args.push(current.trim()); current = ''; continue; }
+    current += ch;
+  }
+  if (current.trim()) args.push(current.trim());
+  return args;
+}
+
+/** 取对象字面量文本里某个键的值文本（括号配平） */
+function propertyText(objectText: string, key: string): string | null {
+  const m = new RegExp(`\\b${key}:\\s*`).exec(objectText);
+  if (!m) return null;
+  const start = m.index + m[0].length;
+  const open = objectText[start];
+  const close = open === '{' ? '}' : open === '[' ? ']' : null;
+  if (!close) return objectText.slice(start).match(/^[^,}\n]+/)?.[0]?.trim() ?? null;
+  let depth = 0;
+  for (let i = start; i < objectText.length; i++) {
+    if (objectText[i] === open) depth++;
+    else if (objectText[i] === close) { depth--; if (depth === 0) return objectText.slice(start, i + 1); }
+  }
+  return null;
+}
+
+const CRUD_SUFFIX: Record<string, string> = { list: 'list', detail: 'list', create: 'create', update: 'update', remove: 'delete', removeBatch: 'delete' };
+
+/**
+ * `mountCrud` 派生路由引用的权限码：前缀写法按服务能力展开后缀（与 routes/_crud.ts 的 PERMISSION_SUFFIX 一致），
+ * 映射写法直接取 `permission: { ... }` 里的字面量。服务传整个 `xxxService` 时视为六个标准操作都存在。
+ */
+function extractMountCrudPermissions(content: string): string[] {
+  const codes: string[] = [];
+  for (const call of mountCrudCalls(content)) {
+    const [, , bag = '', options = ''] = splitTopLevelArgs(call);
+    const permission = propertyText(options, 'permission');
+    if (!permission || permission === 'null') continue;
+    const excluded = new Set([...(propertyText(options, 'exclude') ?? '').matchAll(/'([^']+)'/g)].map((m) => m[1]));
+    const prefix = permission.match(/^'([^']+)'$/);
+    if (prefix) {
+      const has = (fn: string) => !bag.startsWith('{') || new RegExp(`\\b${fn}:`).test(bag);
+      const ops = (['list', 'detail', 'create', 'update', 'remove', 'removeBatch'] as const).filter((op) => !excluded.has(op)).filter((op) => (
+        op === 'list' ? has('list') : op === 'detail' ? has('get') : op === 'removeBatch' ? has('removeMany') : has(op)
+      ));
+      for (const op of ops) codes.push(`${prefix[1]}:${CRUD_SUFFIX[op]}`);
+      continue;
+    }
+    for (const m of permission.matchAll(/'([^']+)'/g)) codes.push(m[1]);
+  }
+  return codes;
 }
 
 describe('权限清单对账（routes guard ↔ SEED_MENUS）', () => {
@@ -53,13 +137,18 @@ describe('权限清单对账（routes guard ↔ SEED_MENUS）', () => {
     expect(seedPermissions.size).toBeGreaterThan(0);
 
     const missingByFile = new Map<string, string[]>();
+    let mountCrudCodes = 0;
     for (const file of collectRouteFiles(ROUTES_DIR)) {
       const content = readFileSync(file, 'utf-8');
-      const missing = [...new Set(extractPermissions(content))].filter((c) => !seedPermissions.has(c));
+      const derived = extractMountCrudPermissions(content);
+      mountCrudCodes += derived.length;
+      const missing = [...new Set([...extractPermissions(content), ...derived])].filter((c) => !seedPermissions.has(c));
       if (missing.length > 0) {
         missingByFile.set(file.replace(ROUTES_DIR, 'routes'), missing);
       }
     }
+    // mountCrud 派生的权限码也在对账范围内（前缀 + 后缀展开）
+    expect(mountCrudCodes).toBeGreaterThan(100);
 
     const report = [...missingByFile.entries()]
       .map(([file, codes]) => `  ${file}: ${codes.join(', ')}`)

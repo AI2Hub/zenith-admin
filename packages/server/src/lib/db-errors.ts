@@ -41,20 +41,29 @@ export function getPgConstraintName(error: unknown): string | undefined {
 }
 
 /**
- * 将 PostgreSQL 唯一约束冲突统一映射为业务错误，其他错误原样抛出。
+ * 将 PostgreSQL 唯一约束冲突映射为业务错误对象，其他错误原样返回（供需要 `throw` 表达式的调用方使用）。
  *
  * `byConstraint` 用于同一张表存在多个唯一约束时给出精准提示（命中约束名优先，
  * 未命中则回落到 `message`）。
  */
+export function toPgUniqueViolationError(
+  error: unknown,
+  message: string,
+  byConstraint?: Readonly<Record<string, string>>,
+): unknown {
+  if (isPgUniqueViolation(error)) {
+    const constraint = getPgConstraintName(error);
+    const specific = constraint ? byConstraint?.[constraint] : undefined;
+    return new HTTPException(400, { message: specific ?? message });
+  }
+  return error;
+}
+
+/** `throw toPgUniqueViolationError(...)` 的语句形态 */
 export function rethrowPgUniqueViolation(
   error: unknown,
   message: string,
   byConstraint?: Readonly<Record<string, string>>,
 ): never {
-  if (isPgUniqueViolation(error)) {
-    const constraint = getPgConstraintName(error);
-    const specific = constraint ? byConstraint?.[constraint] : undefined;
-    throw new HTTPException(400, { message: specific ?? message });
-  }
-  throw error;
+  throw toPgUniqueViolationError(error, message, byConstraint);
 }

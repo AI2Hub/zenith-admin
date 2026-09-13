@@ -5,16 +5,11 @@ import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/g
 import { defineContractRoute } from '../../lib/contract-route';
 import { validationHook, okBody } from '../../lib/openapi-schemas';
 import { listLoginLogs, loginLogStats, cleanLoginLogs, getCleanLoginLogsBeforeAudit } from '../../services/identity/login-logs.service';
+import { mountCrud } from '../_crud';
 
 const loginLogsRoute = new OpenAPIHono({ defaultHook: validationHook });
 
 const read = [authMiddleware, guard({ permission: 'system:log:login' })] as const;
-
-const listRoute = defineContractRoute(loginLogContract.list, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await listLoginLogs(c.req.valid('query'))), 200),
-});
-
 const statsRoute = defineContractRoute(loginLogContract.stats, {
   middleware: read,
   handler: async (c) => c.json(okBody(await loginLogStats(c.req.valid('query').days)), 200),
@@ -35,6 +30,10 @@ const cleanRoute = defineContractRoute(loginLogContract.clean, {
   },
 });
 
-loginLogsRoute.openapiRoutes([listRoute, statsRoute, cleanRoute] as const);
+mountCrud(loginLogsRoute, loginLogContract,
+  { list: listLoginLogs },
+  { permission: { read: 'system:log:login' } },
+  [statsRoute, cleanRoute],
+);
 
 export default loginLogsRoute;
