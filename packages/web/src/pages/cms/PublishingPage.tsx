@@ -1,4 +1,4 @@
-import { useCallback, useState, useMemo } from 'react';
+import { useCallback, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Banner, Button, Descriptions, Form, Input, Modal, Select, SideSheet, Space, TabPane, Tabs, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -32,9 +32,9 @@ import { EMPTY_PLACEHOLDER, createdAtColumn, dateTimeColumn, renderEllipsis } fr
 import { CreateButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, FilterSelect, KeywordInput } from '@/components/search-filters';
 import { ListSearchToolbar, listTableProps } from '@/components/list-page';
-import { compactParams } from '@/lib/query';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 type TabKey = 'queue' | 'history' | 'artifacts' | 'failed';
 
@@ -77,30 +77,24 @@ export default function PublishingPage() {
     onReset: () => { artifactPagination.setPage(1); setSelected([]); },
   });
   const taskStatus: 'active' | 'failed' | 'terminal' = activeTab === 'queue' ? 'active' : activeTab === 'failed' ? 'failed' : 'terminal';
-  // 已提交筛选 → 契约查询参数：任务列表与导出共用同一份映射
-  const taskFilterQuery = useMemo(() => {
-    const [startTime, endTime] = formatDateTimeRangeValuesForApi(submitted.timeRange);
-    return compactParams({
-      siteId: submitted.siteId,
-      targetType: submitted.targetType,
-      createdBy: submitted.createdBy,
-      keyword: submitted.keyword,
-      startTime,
-      endTime,
-      status: taskStatus,
-    });
-  }, [submitted, taskStatus]);
-  // 已提交筛选 → 契约查询参数：产物列表与导出共用同一份映射
-  const artifactFilterQuery = useMemo(() => {
-    const [startTime, endTime] = formatDateTimeRangeValuesForApi(submitted.timeRange);
-    return compactParams({
-      siteId: submitted.siteId,
-      targetType: submitted.targetType,
-      startTime,
-      endTime,
-      keyword: submitted.keyword,
-    });
-  }, [submitted]);
+  // 已提交筛选 → 契约查询参数：任务 / 产物两个列表与导出共用同一份时间区间映射
+  const [startTime, endTime] = formatDateTimeRangeValuesForApi(submitted.timeRange);
+  const taskFilterQuery = useFilterQuery({
+    siteId: submitted.siteId,
+    targetType: submitted.targetType,
+    createdBy: submitted.createdBy,
+    keyword: submitted.keyword,
+    startTime,
+    endTime,
+    status: taskStatus,
+  });
+  const artifactFilterQuery = useFilterQuery({
+    siteId: submitted.siteId,
+    targetType: submitted.targetType,
+    startTime,
+    endTime,
+    keyword: submitted.keyword,
+  });
 
   const taskListQuery = useCmsPublishingList({
     page: taskPagination.page,

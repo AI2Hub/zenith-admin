@@ -39,6 +39,7 @@ import { RefreshButton } from '@/components/toolbar-controls';
 import { KeywordInput, StatusSelect } from '@/components/search-filters';
 // 本页无图表，直接引具体文件，避免桶文件带入 vchart
 import { StatCard, StatGrid } from '@/components/charts/StatCard';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 type TagColor = 'amber' | 'blue' | 'cyan' | 'green' | 'grey' | 'orange' | 'red' | 'violet';
 
@@ -219,10 +220,10 @@ function JobTypePanel({ jobType, summary, onMutated, clustersSignal }: JobTypePa
       onReset: clearSelection,
     });
   // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
+  const filterQuery = useFilterQuery({
     status: submittedParams.status,
     keyword: submittedParams.keyword.trim(),
-  }), [submittedParams]);
+  });
 
   const listQuery = useWorkflowJobList({ page, pageSize, jobType, ...filterQuery });
   const [clustersOpen, setClustersOpen] = useState(false);

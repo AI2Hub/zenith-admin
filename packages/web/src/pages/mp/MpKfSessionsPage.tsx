@@ -1,4 +1,4 @@
-import { useMemo, useCallback, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { ListSearchToolbar } from '@/components/list-page';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -48,10 +48,10 @@ import { KeywordInput } from '@/components/search-filters';
 import { StatCard, StatGrid } from '@/components/charts/StatCard';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
 import { abortSubmit } from '@/lib/abort-submit';
-import { compactParams } from '@/lib/query';
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import { useListSearch } from '@/hooks/useListSearch';
 import { confirmDanger } from '@/utils/confirm';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 const { Text } = Typography;
 
 const STATUS_COLORS: Record<MpKfSessionStatus, 'orange' | 'green' | 'grey'> = {
@@ -94,9 +94,9 @@ export default function MpKfSessionsPage() {
   const [rateRemark, setRateRemark] = useState('');
 
   // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
+  const filterQuery = useFilterQuery({
     keyword: submittedParams.keyword,
-  }), [submittedParams]);
+  });
   const listQuery = useMpKfSessionList({
     accountId: currentId ?? 0,
     status: tab,

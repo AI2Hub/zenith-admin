@@ -36,6 +36,7 @@ import { PaymentAppField, PaymentAppFilterSelect, PaymentCurrencyField } from '.
 import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import { compactParams } from '@/lib/query';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 const yuan = formatYuan;
 const CONTRACT_STATUS_COLOR = { pending: 'grey', unknown: 'orange', signed: 'green', paused: 'orange', terminated: 'red', failed: 'red' } as const satisfies Record<PaymentContractStatus, string>;
 const contractStatusOptions = PAYMENT_CONTRACT_STATUS_OPTIONS;
@@ -91,9 +92,9 @@ export default function PaymentContractsPage() {
     ...filterQuery,
   }, effectiveContractAppId != null);
   // 已提交筛选 → 契约查询参数：只映射一次
-  const planFilterQuery = useMemo(() => compactParams({
+  const planFilterQuery = useFilterQuery({
     keyword: planSearch.submittedParams.keyword,
-  }), [planSearch.submittedParams]);
+  });
   const planQuery = useDeductPlanList({
     page: pPage,
     pageSize: pPageSize,

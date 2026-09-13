@@ -31,6 +31,7 @@ import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { deleteAction, ListSearchToolbar, listTableProps, useStatusToggle } from '@/components/list-page';
 import { memberPreviewColumn } from '@/components/members/MemberAssignmentSheet';
 import { compactParams } from '@/lib/query';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 interface SearchParams {
   keyword: string;
@@ -73,10 +74,10 @@ export default function DepartmentsPage() {
   const { options: categoryOptions } = useDictItems('department_category');
 
   // 已提交筛选 → 契约查询参数：树列表与导出共用同一份映射
-  const filterQuery = useMemo(() => compactParams({
+  const filterQuery = useFilterQuery({
     keyword: submittedParams.keyword,
     status: submittedParams.status,
-  }), [submittedParams]);
+  });
   const treeQuery = useDepartmentTreeSearch(filterQuery);
   const data = useMemo(() => treeQuery.data ?? [], [treeQuery.data]);
   const flatDepartmentsQuery = useFlatDepartments();

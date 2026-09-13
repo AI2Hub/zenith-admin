@@ -24,7 +24,7 @@ import { HostSelector } from '@/components/HostSelector';
 import { deriveInitialHostSelection, useOpsHostSelection } from '@/hooks/useOpsHostSelection';
 import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { formatBytes } from '@zenith/shared/core';
-import { compactParams } from '@/lib/query';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 // 自定义进程表格 CSS
 const processesTableStyle = '';
@@ -133,7 +133,7 @@ export default function ProcessesPage() {
 
   // ─── 客户端过滤（谓词与导出中心共用，见 @zenith/shared/ops matchesProcessFilter）─
   // 筛选条件 → 查询参数只映射一次：过滤谓词与导出共用同一份
-  const filterQuery = useMemo(() => compactParams({ keyword: keyword.trim(), status: filterStatus }), [keyword, filterStatus]);
+  const filterQuery = useFilterQuery({ keyword: keyword.trim(), status: filterStatus });
   const filteredProcesses = useMemo(
     () => processes.filter((p) => matchesProcessFilter(p, filterQuery)),
     [processes, filterQuery],

@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { ListSearchToolbar, listTableProps } from '@/components/list-page';
 import { useQueryClient } from '@tanstack/react-query';
 import { useListSearch } from '@/hooks/useListSearch';
@@ -46,7 +46,7 @@ import { toUserOptions } from '@/hooks/queries/users';
 import { EMPTY_PLACEHOLDER, copyableNoColumn, dateColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { JsonBlock } from '@/components/JsonBlock';
 import { msToReadable, nullableText, trimToNull } from './analytics-format';
-import { compactParams } from '@/lib/query';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 const PAGE_SIZE = 20;
 
@@ -205,18 +205,16 @@ export default function AnalyticsDataPage() {
   const [settingsDraft, setSettingsDraft] = useState<AnalyticsSettings | null>(null);
 
   // 已提交筛选 → 契约查询参数：列表与导出共用同一份映射
-  const eventFilterQuery = useMemo(() => {
-    const [startTime, endTime] = formatDateTimeRangeValuesForApi(submittedEventSearch.timeRange);
-    return compactParams({
-      eventType: enumValueOf(userBehaviorEventTypeEnum.options, submittedEventSearch.eventType),
-      eventName: submittedEventSearch.eventName,
-      username: submittedEventSearch.username,
-      pagePath: submittedEventSearch.pagePath,
-      deviceType: enumValueOf(ANALYTICS_DEVICE_TYPES, submittedEventSearch.deviceType),
-      startTime,
-      endTime,
-    });
-  }, [submittedEventSearch]);
+  const [startTime, endTime] = formatDateTimeRangeValuesForApi(submittedEventSearch.timeRange);
+  const eventFilterQuery = useFilterQuery({
+    eventType: enumValueOf(userBehaviorEventTypeEnum.options, submittedEventSearch.eventType),
+    eventName: submittedEventSearch.eventName,
+    username: submittedEventSearch.username,
+    pagePath: submittedEventSearch.pagePath,
+    deviceType: enumValueOf(ANALYTICS_DEVICE_TYPES, submittedEventSearch.deviceType),
+    startTime,
+    endTime,
+  });
 
   const eventsQuery = useAnalyticsEvents({
     page: eventList.page,
@@ -227,11 +225,11 @@ export default function AnalyticsDataPage() {
   const eventDetail = detailQuery.data ?? null;
   const detailLoading = detailQuery.isFetching;
 
-  const metaFilterQuery = useMemo(() => compactParams({
+  const metaFilterQuery = useFilterQuery({
     keyword: submittedMetaSearch.keyword,
     status: submittedMetaSearch.status,
     category: submittedMetaSearch.category,
-  }), [submittedMetaSearch]);
+  });
 
   const metaQuery = useAnalyticsEventMeta({
     page: metaList.page,

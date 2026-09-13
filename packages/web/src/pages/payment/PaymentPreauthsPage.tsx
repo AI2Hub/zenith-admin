@@ -8,7 +8,6 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { AppModal } from '@/components/AppModal';
 import { copyableNoColumn, createdAtColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { useListSearch } from '@/hooks/useListSearch';
-import { compactParams } from '@/lib/query';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import {
@@ -27,6 +26,7 @@ import { listTableProps, ListSearchToolbar } from '@/components/list-page';
 import { PaymentChannelTag, paymentMoneyColumn } from './payment-display';
 import { useEnabledPaymentAppLookup } from './payment-app-options';
 import { PaymentAppField, PaymentAppFilterSelect, PaymentCurrencyField } from './payment-form-fields';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 const yuan = formatYuan;
 const STATUS_COLOR = { pending: 'grey', unknown: 'orange', frozen: 'blue', captured: 'green', released: 'teal', failed: 'red' } as const satisfies Record<PaymentPreauthStatus, string>;
@@ -55,11 +55,11 @@ export default function PaymentPreauthsPage() {
   const effectivePreauthAppId = preauthAppId ?? paymentApps[0]?.id;
 
   // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
+  const filterQuery = useFilterQuery({
     keyword: submittedParams.keyword,
     status: enumValueOf(PAYMENT_PREAUTH_STATUSES, submittedParams.status),
     channel: enumValueOf(PAYMENT_CHANNELS, submittedParams.channel),
-  }), [submittedParams]);
+  });
   const listQuery = usePaymentPreauthList({
     applicationId: effectivePreauthAppId ?? 0,
     page,

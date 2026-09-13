@@ -1,4 +1,4 @@
-import { lazy, Suspense, useRef, useState, useMemo } from 'react';
+import { lazy, Suspense, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, Form, Input, JsonViewer, Modal, SideSheet, Space, Spin, Tabs, TabPane, Tag, Timeline, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -60,7 +60,6 @@ import {
   workflowMonitorKeys,
 } from '@/hooks/queries/workflow-monitor';
 import { useAllUsers } from '@/hooks/queries/users';
-import { compactParams } from '@/lib/query';
 
 import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { deleteAction, ListSearchToolbar, listTableProps, useRowSelection } from '@/components/list-page';
@@ -68,6 +67,7 @@ import { workflowInstanceStatusColumn } from '@/components/workflow/WorkflowInst
 import { confirmDanger } from '@/utils/confirm';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 /** 只读流程设计器（懒加载）：用于在诊断 SideSheet 内查看发起时的流程定义快照 */
 const WorkflowDesignerPage = lazy(() => import('@/pages/workflow/designer/WorkflowDesignerPage'));
 
@@ -361,14 +361,14 @@ export default function WorkflowMonitorPage() {
     handleSearch, applySearch, handleReset,
   } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: workflowMonitorKeys.monitorLists });
   // 已提交筛选 → 契约查询参数：列表与导出共用同一份映射
-  const filterQuery = useMemo(() => compactParams({
+  const filterQuery = useFilterQuery({
     keyword: submittedParams.keyword,
     status: enumValueOf(WORKFLOW_INSTANCE_STATUSES, submittedParams.status),
     categoryId: submittedParams.categoryId,
     definitionId: submittedParams.definitionId,
     initiatorKeyword: submittedParams.initiator,
     priority: enumValueOf(WORKFLOW_INSTANCE_PRIORITIES, submittedParams.priority),
-  }), [submittedParams]);
+  });
   const listQuery = useWorkflowMonitorList({ page, pageSize, ...filterQuery });
   const data = listQuery.data ?? null;
 

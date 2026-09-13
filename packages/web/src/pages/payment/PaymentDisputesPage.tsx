@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { formatYuan } from '@/utils/payment';
 import { Banner, Button, Input, Modal, SideSheet, Spin, Tag, TextArea, Timeline, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -25,7 +25,7 @@ import type { PaymentChannel, PaymentDispute, PaymentDisputeRoute, PaymentDisput
 import { ListSearchToolbar, listTableProps } from '@/components/list-page';
 import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDanger } from '@/utils/confirm';
-import { compactParams } from '@/lib/query';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 const yuan = formatYuan;
 const STATUS_COLOR = { pending: 'red', processing: 'blue', resolved: 'green', refunded: 'purple' } as const satisfies Record<PaymentDisputeStatus, string>;
@@ -47,13 +47,13 @@ export default function PaymentDisputesPage() {
   const [refundAmountYuan, setRefundAmountYuan] = useState<string>('');
 
   // 已提交筛选 → 契约查询参数：列表与导出共用同一份映射
-  const filterQuery = useMemo(() => compactParams({
+  const filterQuery = useFilterQuery({
     keyword: submittedParams.keyword,
     status: enumValueOf(PAYMENT_DISPUTE_STATUSES, submittedParams.status),
     type: enumValueOf(PAYMENT_DISPUTE_TYPES, submittedParams.type),
     channel: enumValueOf(PAYMENT_CHANNELS, submittedParams.channel),
     route: enumValueOf(PAYMENT_DISPUTE_ROUTES, submittedParams.route),
-  }), [submittedParams]);
+  });
   const listQuery = usePaymentDisputeList({ page, pageSize, ...filterQuery });
   const statsQuery = usePaymentDisputeStats();
   const stats = statsQuery.data ?? null;

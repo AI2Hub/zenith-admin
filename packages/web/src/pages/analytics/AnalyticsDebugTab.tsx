@@ -1,8 +1,6 @@
 /**
  * 行为中心：事件调试 —— 事件明细分页查询，行内展开查看属性 payload。
  */
-import { useMemo } from 'react';
-import { compactParams } from '@/lib/query';
 import { Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
@@ -16,6 +14,7 @@ import { JsonBlock } from '@/components/JsonBlock';
 import { ANALYTICS_ISSUE_TAG_COLOR } from './analytics-tag-colors';
 import { nullableText } from './analytics-format';
 import { ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 /** 枚举原值 → 中文标签，未收录的自定义值原样展示 */
 function labelOf(labels: Record<string, string>, value: string | null | undefined): string {
@@ -34,7 +33,7 @@ export default function AnalyticsDebugTab({ active }: Readonly<{ active: boolean
   });
 
   // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({ eventName: submittedParams.eventName }), [submittedParams]);
+  const filterQuery = useFilterQuery({ eventName: submittedParams.eventName });
   const debugQuery = useAnalyticsDebugEvents({ page, pageSize, ...filterQuery }, active);
   const events = debugQuery.data?.list ?? [];
 

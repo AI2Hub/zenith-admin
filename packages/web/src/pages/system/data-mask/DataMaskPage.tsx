@@ -16,8 +16,8 @@ import { useMenuTree } from '@/hooks/queries/menus';
 import { useEditModal } from '@/hooks/useEditModal';
 import { useListSearch } from '@/hooks/useListSearch';
 import { usePermission } from '@/hooks/usePermission';
-import { compactParams } from '@/lib/query';
 import { EMPTY_PLACEHOLDER, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 const { Text } = Typography;
 
@@ -89,13 +89,13 @@ export default function DataMaskPage() {
   } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: dataMaskKeys.fields });
 
   // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
+  const filterQuery = useFilterQuery({
     keyword: submittedParams.keyword,
     entity: submittedParams.entity,
     maskType: enumValueOf(MASK_TYPES, submittedParams.maskType),
     enabled: boolFilter(submittedParams.enabled),
     overridden: boolFilter(submittedParams.overridden),
-  }), [submittedParams]);
+  });
 
   const listQuery = useDataMaskFields(filterQuery);
   const rows = useMemo<DataMaskFieldRow[]>(() => (listQuery.data ?? []).map((item, index) => ({ ...item, id: index + 1 })), [listQuery.data]);

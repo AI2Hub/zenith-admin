@@ -1,5 +1,4 @@
-import { useMemo, useEffect, useState } from 'react';
-import { compactParams } from '@/lib/query';
+import { useEffect, useState } from 'react';
 import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
 import { Checkbox, Input, InputNumber, Spin, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -28,6 +27,7 @@ import { DriveSubjectPicker, type SubjectGrant } from '../components/DriveSubjec
 import { roleAtLeast } from '../drive-utils';
 import { driveSpaceDefaultRoleColumn, driveSpaceNameColumn, driveSpaceOwnerColumn, driveSpaceTypeColumn, driveSpaceUsageColumn } from '../drive-space-columns';
 import { DriveSpaceActivitiesModal, DriveTagsModal } from '../components/DriveCollaborationPanels';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 import '../drive.css';
 
 interface SearchParams {
@@ -139,11 +139,11 @@ export default function DriveSpacesPage() {
   const { page, pageSize, buildPagination, draftParams, setField, bind, bindKeyword, submittedParams, handleSearch, handleReset } =
     useListSearch<SearchParams>({ defaults: { keyword: '', type: undefined, archived: false }, listKey: driveKeys.spaceLists });
   // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
+  const filterQuery = useFilterQuery({
     keyword: submittedParams.keyword,
     type: submittedParams.type,
     archived: submittedParams.archived ? true : undefined,
-  }), [submittedParams]);
+  });
   const listQuery = useDriveSpaceList({ page, pageSize, ...filterQuery });
   const remove = useDeleteDriveSpaces();
   const archive = useArchiveDriveSpace();

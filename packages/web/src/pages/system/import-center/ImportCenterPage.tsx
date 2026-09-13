@@ -18,11 +18,11 @@ import { CreateButton } from '@/components/toolbar-controls';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { dateTimeColumn, EMPTY_PLACEHOLDER } from '@/utils/table-columns';
 import { useListSearch } from '@/hooks/useListSearch';
-import { compactParams } from '@/lib/query';
 import { useImportEntities } from '@/hooks/queries/import-jobs';
 import { asyncTaskKeys, useAsyncTaskList } from '@/hooks/queries/async-tasks';
 import NewImportModal from './NewImportModal';
 import { groupImportEntitiesByModule } from './import-entity-groups';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 const { Text } = Typography;
 
@@ -75,12 +75,12 @@ export default function ImportCenterPage() {
   const entities = entitiesQuery.data ?? EMPTY_ENTITIES;
   const entityMap = useMemo(() => new Map(entities.map((e) => [e.entity, e])), [entities]);
   // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
+  const filterQuery = useFilterQuery({
     status: enumValueOf(ASYNC_TASK_STATUSES, submittedParams.status),
     keyword: submittedParams.keyword,
     // 实体标识存于任务 payload，走内容匹配筛选
     content: submittedParams.entity,
-  }), [submittedParams]);
+  });
 
   const listQuery = useAsyncTaskList(
     { page, pageSize, taskType: 'data-import', ...filterQuery },

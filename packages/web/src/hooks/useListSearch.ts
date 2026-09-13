@@ -90,7 +90,10 @@ export interface UseListSearchReturn<T> extends UsePaginationReturn {
  *   handleSearch, handleReset,
  * } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: tagKeys.lists });
  *
- * const listQuery = useTagList({ page, pageSize, ...filterQuery }); // filterQuery = useMemo(() => compactParams({ keyword: submittedParams.keyword, … }))
+ * const listQuery = useTagList({ page, pageSize, ...filterQuery }); // filterQuery = useFilterQuery({ keyword: submittedParams.keyword, … })
+ *
+ * 标准分页列表页优先用 `useListPage`（它在内部组合本 hook + useFilterQuery + useList + listTableProps）；
+ * 树形 / 不分页 / 客户端过滤 / 一页多列表等非标准形态才直接使用本 hook。
  * <KeywordInput placeholder="搜索名称" {...bindKeyword('keyword')} />
  * <StatusSelect items={statusItems} {...bind('status')} />
  */

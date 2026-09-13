@@ -1,8 +1,6 @@
 /**
  * 行为中心阶段 1：数据质量看板 —— 埋点质量日聚合明细 + 租户级事件启停覆盖管理。
  */
-import { useMemo } from 'react';
-import { compactParams } from '@/lib/query';
 import { useListSearch } from '@/hooks/useListSearch';
 import { Form, Select, Space, Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -27,6 +25,7 @@ import { useEditModal } from '@/hooks/useEditModal';
 import { EMPTY_PLACEHOLDER, dateColumn, dateTimeColumn, renderEllipsis, renderEnabledStatusTag } from '@/utils/table-columns';
 import { ANALYTICS_ISSUE_TAG_COLOR } from './analytics-tag-colors';
 import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 const PAGE_SIZE = 20;
 const DAY_OPTIONS = [7, 30, 90].map((value) => ({ value, label: `${value} 天` }));
@@ -54,11 +53,11 @@ export default function AnalyticsQualityTab() {
   const { submittedParams: submittedOverrideFilter } = overrides;
 
   // 已提交筛选 → 契约查询参数：只映射一次
-  const qualityFilterQuery = useMemo(() => compactParams({
+  const qualityFilterQuery = useFilterQuery({
     days: submittedFilter.days,
     eventName: submittedFilter.eventName,
     issueType: submittedFilter.issueType,
-  }), [submittedFilter]);
+  });
   const qualityQuery = useAnalyticsQuality({
     page: quality.page,
     pageSize: quality.pageSize,
@@ -70,10 +69,10 @@ export default function AnalyticsQualityTab() {
   const totalsByType = new Map(totals.map((t) => [t.issueType, t.count]));
 
   // 已提交筛选 → 契约查询参数：只映射一次
-  const overrideFilterQuery = useMemo(() => compactParams({
+  const overrideFilterQuery = useFilterQuery({
     eventName: submittedOverrideFilter.eventName,
     status: submittedOverrideFilter.status,
-  }), [submittedOverrideFilter]);
+  });
   const overrideQuery = useAnalyticsEventOverrides({
     page: overrides.page,
     pageSize: overrides.pageSize,

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, useEffect, useMemo } from 'react';
+import { lazy, Suspense, useState, useEffect } from 'react';
 import { useDebouncer } from '@tanstack/react-pacer';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, Tag, Space, Modal, SideSheet, Form, Spin, Toast, Select, RadioGroup, Radio, Tabs, TabPane, Typography } from '@douyinfe/semi-ui';
@@ -37,7 +37,7 @@ import { DateRangeFilter, FilterSelect, KeywordInput } from '@/components/search
 import { confirmDanger } from '@/utils/confirm';
 import { abortSubmit } from '@/lib/abort-submit';
 import ModalFooter from '@/components/ModalFooter';
-import { compactParams } from '@/lib/query';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 const RichTextEditor = lazy(() => import('@/components/RichTextEditor'));
 const editorLoadingFallback = (
@@ -125,12 +125,12 @@ export default function AnnouncementsPage() {
   } = usePagination(10);
 
   // 已提交筛选 → 契约查询参数：列表与导出共用同一份映射
-  const filterQuery = useMemo(() => compactParams({
+  const filterQuery = useFilterQuery({
     title: submittedParams.title,
     type: submittedParams.type,
     publishStatus: submittedParams.publishStatus,
     ...formatDateTimeRangeForApi(submittedParams.timeRange),
-  }), [submittedParams]);
+  });
   const listQuery = useAnnouncementList({ page, pageSize, ...filterQuery });
   const saveMutation = useSaveAnnouncement();
   const modal = useEditModal<Announcement, AnnouncementFormValues, Partial<CreateAnnouncementInput>>({

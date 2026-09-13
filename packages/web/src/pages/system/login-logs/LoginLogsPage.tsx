@@ -1,4 +1,3 @@
-import { useMemo } from 'react';
 import { Tabs, TabPane } from '@douyinfe/semi-ui';
 import { ListSearchToolbar } from '@/components/list-page';
 import ExportButton from '@/components/ExportButton';
@@ -12,9 +11,9 @@ import { enumValueOf } from '@zenith/shared/core';
 import { LOGIN_EVENT_TYPE_OPTIONS, LOGIN_EVENT_TYPES, LOGIN_STATUS_OPTIONS, LOGIN_STATUSES } from '@zenith/shared/identity';
 import { useListSearch } from '@/hooks/useListSearch';
 import { DateRangeFilter, FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
-import { compactParams } from '@/lib/query';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 export default function LoginLogsPage() {
   const [activeTab, setActiveTab] = useUrlTabState(['list', 'stats'] as const, 'list');
   interface SearchParams {
@@ -32,12 +31,12 @@ export default function LoginLogsPage() {
     handleSearch, handleReset,
   } = useListSearch<SearchParams>({ defaults: defaultParams, listKey: loginLogKeys.lists });
   // 已提交筛选 → 契约查询参数：列表与导出共用同一份映射
-  const filterQuery = useMemo(() => compactParams({
+  const filterQuery = useFilterQuery({
     username: submittedParams.username,
     eventType: enumValueOf(LOGIN_EVENT_TYPES, submittedParams.eventType),
     status: enumValueOf(LOGIN_STATUSES, submittedParams.status),
     ...formatDateTimeRangeForApi(submittedParams.timeRange),
-  }), [submittedParams]);
+  });
   const listQuery = useLoginLogList({ page, pageSize, ...filterQuery });
   const data = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;

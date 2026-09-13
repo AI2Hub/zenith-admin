@@ -1,4 +1,3 @@
-import { useMemo } from 'react';
 import { Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { CronJobLog, CronRunStatus, CronRunTrigger } from '@zenith/shared/platform';
@@ -12,8 +11,8 @@ import { useCronJobAllLogs } from '@/hooks/queries/cron-jobs';
 import { formatDateTimeRangeForApi } from '@/utils/date';
 import { formatDurationMs } from '@/utils/format';
 import { DATE_TIME_COLUMN_WIDTH, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
-import { compactParams } from '@/lib/query';
 import { RelativeTime, TRIGGER_TAG, statusMeta, type RecentLogsSearchParams } from './cron-dashboard-shared';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 interface Props {
   readonly jobOptions: readonly { value: number; label: string }[];
@@ -26,7 +25,7 @@ interface Props {
 /** 执行记录：可按状态 / 任务 / 关键字 / 时间筛选的分页表 */
 export function CronJobRecentLogs({ jobOptions, now, search, onViewLogs }: Props) {
   const { page, pageSize, buildPagination, bind, bindKeyword, submittedParams, handleSearch, handleReset } = search;
-  const query = useMemo(() => compactParams({
+  const query = useFilterQuery({
     page,
     pageSize,
     keyword: submittedParams.keyword,
@@ -34,7 +33,7 @@ export function CronJobRecentLogs({ jobOptions, now, search, onViewLogs }: Props
     trigger: submittedParams.trigger,
     jobId: submittedParams.jobId,
     ...formatDateTimeRangeForApi(submittedParams.range),
-  }), [page, pageSize, submittedParams]);
+  });
   const logsQuery = useCronJobAllLogs(query);
 
   const columns: ColumnProps<CronJobLog>[] = [

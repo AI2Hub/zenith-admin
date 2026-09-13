@@ -15,7 +15,6 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { ListSearchToolbar, listTableProps } from '@/components/list-page';
 import { usePagination } from '@/hooks/usePagination';
-import { compactParams } from '@/lib/query';
 import { useListSearch } from '@/hooks/useListSearch';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -36,6 +35,7 @@ import {
 import { FilterSelect, KeywordInput, StatusSelect, DateRangeFilter } from '@/components/search-filters';
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import { confirmDanger } from '@/utils/confirm';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 type TabKey = 'tasks' | 'runs' | 'nodes';
 
 interface TaskSearchParams {
@@ -147,14 +147,14 @@ export default function SystemSchedulerPage() {
   const { page: nodesPage, pageSize: nodesPageSize, buildPagination: buildNodesPagination } = usePagination(10);
   const tasksQuery = useSystemSchedulerTasks();
   // 已提交筛选 → 契约查询参数：只映射一次
-  const runFilterQuery = useMemo(() => compactParams({
+  const runFilterQuery = useFilterQuery({
     taskName: submittedRunSearch.taskName,
     taskType: enumValueOf(SYSTEM_SCHEDULER_TASK_TYPES, submittedRunSearch.taskType),
     triggerType: enumValueOf(SYSTEM_SCHEDULER_TRIGGER_TYPES, submittedRunSearch.triggerType),
     status: enumValueOf(SYSTEM_SCHEDULER_RUN_STATUSES, submittedRunSearch.status),
     alertStatus: enumValueOf(SYSTEM_SCHEDULER_ALERT_FILTERS, submittedRunSearch.alertStatus),
     ...formatDateTimeRangeForApi(submittedRunSearch.timeRange),
-  }), [submittedRunSearch]);
+  });
 
   const runsQuery = useSystemSchedulerRuns({ page, pageSize, ...runFilterQuery }, activeTab === 'runs');
   const nodesQuery = useSystemSchedulerNodes({ page: nodesPage, pageSize: nodesPageSize }, activeTab === 'nodes');

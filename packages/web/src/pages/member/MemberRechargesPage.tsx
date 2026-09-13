@@ -1,4 +1,3 @@
-import { useMemo } from 'react';
 import { Tag } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { MemberRecharge, MemberRechargeStatus } from '@zenith/shared/member';
@@ -7,15 +6,14 @@ import type { PaymentChannel, PaymentOrderStatus } from '@zenith/shared/payment'
 import { PAYMENT_ORDER_STATUS_TAG_COLOR } from '@/utils/payment';
 import { PAYMENT_CHANNEL_LABELS, PAYMENT_METHOD_LABELS, PAYMENT_ORDER_STATUS_LABELS } from '@zenith/shared/payment';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { ListSearchToolbar } from '@/components/list-page';
 import ExportButton from '@/components/ExportButton';
 import { dateTimeColumn, renderEllipsis } from '../../utils/table-columns';
 import { formatDateRangeValuesForApi } from '@/utils/date';
 import { memberAdminKeys, useMemberRechargeList } from '@/hooks/queries/member-admin';
-import { useListSearch } from '@/hooks/useListSearch';
 import { DateRangeFilter, FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { memberCellColumn, useMemberKeywordDeepLink } from './member-admin-display';
-import { compactParams } from '@/lib/query';
+import { useListPage } from '@/hooks/useListPage';
 
 interface SearchParams {
   keyword?: string;
@@ -32,23 +30,24 @@ const channelOptions = (Object.keys(PAYMENT_CHANNEL_LABELS) as PaymentChannel[])
 
 export default function MemberRechargesPage() {
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset, applySearch,
-  } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: memberAdminKeys.rechargeLists });
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    applySearch,
+    tableProps,
+    filterQuery,
+  } = useListPage({
+    defaults: defaultSearch,
+    listKey: memberAdminKeys.rechargeLists,
+    useList: useMemberRechargeList,
+    toQuery: (s) => {
+      const [dateStart, dateEnd] = formatDateRangeValuesForApi(s.dateRange);
+      return { keyword: s.keyword, status: s.status, channel: s.channel, dateStart, dateEnd };
+    },
+    table: { empty: '暂无充值记录' },
+  });
   useMemberKeywordDeepLink<SearchParams>({ applySearch, buildParams: (memberKeyword) => ({ keyword: memberKeyword, dateRange: null }) });
-  // 已提交筛选 → 契约查询参数：列表与导出共用同一份映射
-  const filterQuery = useMemo(() => {
-    const [dateStart, dateEnd] = formatDateRangeValuesForApi(submittedParams.dateRange);
-    return compactParams({
-      keyword: submittedParams.keyword,
-      status: submittedParams.status,
-      channel: submittedParams.channel,
-      dateStart,
-      dateEnd,
-    });
-  }, [submittedParams]);
-  const listQuery = useMemberRechargeList({ page, pageSize, ...filterQuery });
 
   const columns: ColumnProps<MemberRecharge>[] = [
     { title: '订单号', dataIndex: 'orderNo', width: 200, fixed: 'left', render: (v: string) => <span style={{ fontFamily: 'monospace' }}>{v}</span> },
@@ -89,7 +88,7 @@ export default function MemberRechargesPage() {
 
       <ConfigurableTable<MemberRecharge>
         columns={columns}
-        {...listTableProps(listQuery, { pagination: buildPagination, empty: '暂无充值记录' })}
+        {...tableProps}
       />
     </div>
   );

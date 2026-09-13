@@ -9,7 +9,6 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { AppModal } from '@/components/AppModal';
 import WorkflowInstanceDetailSheet from '@/components/workflow/WorkflowInstanceDetailSheet';
 import { dateTimeColumn } from '../../../utils/table-columns';
-import { compactParams } from '@/lib/query';
 import { useListSearch } from '@/hooks/useListSearch';
 import { ListSearchToolbar, listTableProps } from '@/components/list-page';
 import { KeywordInput } from '@/components/search-filters';
@@ -22,6 +21,7 @@ import {
 } from '@/components/workflow/WorkflowInstanceListColumns';
 import { useWorkflowSelectableUsers } from '@/hooks/queries/workflow-shared';
 import { useCcWorkflowInstances, useForwardWorkflowCc, useMarkWorkflowCcRead, workflowInstanceKeys } from '@/hooks/queries/workflow-instances';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 interface SearchParams {
   keyword: string;
@@ -37,7 +37,7 @@ export default function CcToMePage() {
   const [forwardUserIds, setForwardUserIds] = useState<number[]>([]);
   const [forwardNote, setForwardNote] = useState('');
   // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({ keyword: submittedParams.keyword }), [submittedParams]);
+  const filterQuery = useFilterQuery({ keyword: submittedParams.keyword });
 
   const listQuery = useCcWorkflowInstances({ page, pageSize, ...filterQuery });
   const markReadMutation = useMarkWorkflowCcRead();

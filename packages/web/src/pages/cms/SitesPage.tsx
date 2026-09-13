@@ -9,7 +9,6 @@
  * settings JSONB ⇄ 表单映射的纯函数与单测见 ./sites/site-form-mapping.ts。
  */
 import React, { useMemo, useRef, useState } from 'react';
-import { compactParams } from '@/lib/query';
 import { Button, Modal, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Upload as UploadIcon, ChevronsDownUp, ChevronsUpDown, ListTree, List as ListIcon } from 'lucide-react';
@@ -36,6 +35,7 @@ import SiteMoveModal from './sites/SiteMoveModal';
 import SiteInheritanceSheet from './sites/SiteInheritanceSheet';
 import SiteStaticSheet from './sites/SiteStaticSheet';
 import { deleteAction, ListSearchToolbar } from '@/components/list-page';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 interface SearchParams {
   keyword: string;
@@ -62,10 +62,10 @@ export default function SitesPage() {
   const [treeView, setTreeView] = useState(true);
 
   // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
+  const filterQuery = useFilterQuery({
     keyword: submittedParams.keyword,
     status: enumValueOf(USER_STATUSES, submittedParams.status),
-  }), [submittedParams]);
+  });
   const listQuery = useCmsSiteList({ page, pageSize, ...filterQuery });
   const list = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;

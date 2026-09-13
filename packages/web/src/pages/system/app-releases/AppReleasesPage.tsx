@@ -90,7 +90,6 @@ import { EMPTY_PLACEHOLDER, createdAtColumn, dateTimeColumn, renderEllipsis } fr
 import { copyTextWithToast } from '@/utils/clipboard';
 import { useEditModal } from '@/hooks/useEditModal';
 import { useListSearch } from '@/hooks/useListSearch';
-import { compactParams } from '@/lib/query';
 import { usePermission } from '@/hooks/usePermission';
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import {
@@ -118,6 +117,7 @@ import {
 import { formatBytes } from '@zenith/shared/core';
 import { urlOf } from '@/lib/contract-query';
 import { shortDate } from '@/utils/date';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 const { Text } = Typography;
 
@@ -487,12 +487,12 @@ function ReleaseManageTab({ active }: { active: boolean }) {
   } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: appReleaseKeys.lists });
 
   // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
+  const filterQuery = useFilterQuery({
     appId: submittedParams.appId,
     channel: enumValueOf(APP_RELEASE_CHANNELS, submittedParams.channel),
     status: enumValueOf(APP_RELEASE_STATUSES, submittedParams.status),
     keyword: submittedParams.keyword,
-  }), [submittedParams]);
+  });
 
   const listQuery = useAppReleaseList({ page, pageSize, ...filterQuery }, active);
 
@@ -852,13 +852,13 @@ function DevicesTab({ active }: { active: boolean }) {
   } = useListSearch<DeviceSearchParams>({ defaults: defaultDeviceSearchParams, listKey: clientDeviceKeys.lists });
 
   // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
+  const filterQuery = useFilterQuery({
     appId: submittedParams.appId,
     platform: enumValueOf(APP_PLATFORMS, submittedParams.platform),
     subjectType: enumValueOf(DEVICE_SUBJECT_TYPES, submittedParams.subjectType),
     pushBound: submittedParams.pushBound === undefined ? undefined : submittedParams.pushBound === 'true',
     keyword: submittedParams.keyword,
-  }), [submittedParams]);
+  });
 
   const listQuery = useClientDeviceList({ page, pageSize, ...filterQuery }, active);
 

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Descriptions, Form, Modal, Spin, TabPane, Tabs, Tag, TextArea, Toast, Tooltip, Typography, withField } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -13,7 +13,6 @@ import { formatDateForApi } from '@/utils/date';
 import { useEditModal } from '@/hooks/useEditModal';
 import { usePermission } from '@/hooks/usePermission';
 import { useListSearch } from '@/hooks/useListSearch';
-import { compactParams } from '@/lib/query';
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import { useDictItems } from '@/hooks/useDictItems';
 import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
@@ -37,6 +36,7 @@ import {
   useResolveIotAlarm, useSaveIotAlarmRule, useSaveIotMaintenanceWindow,
 } from '@/hooks/queries/iot-alarms';
 import { IOT_ALARM_LEVEL_COLORS } from './iot-tag-colors';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 const { Text } = Typography;
 
@@ -63,12 +63,12 @@ function AlarmRecordsTab() {
   } = useListSearch<AlarmSearchParams>({ defaults: defaultAlarmSearch, listKey: iotAlarmKeys.lists });
 
   // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
+  const filterQuery = useFilterQuery({
     keyword: submittedParams.keyword,
     status: enumValueOf(IOT_ALARM_STATUSES, submittedParams.status),
     level: enumValueOf(IOT_ALARM_LEVELS, submittedParams.level),
     ruleType: enumValueOf(IOT_ALARM_RULE_TYPES, submittedParams.ruleType),
-  }), [submittedParams]);
+  });
   const listQuery = useIotAlarmList({
     page,
     pageSize,
@@ -318,11 +318,11 @@ function AlarmRulesTab() {
   } = useListSearch<RuleSearchParams>({ defaults: defaultRuleSearch, listKey: iotAlarmRuleKeys.lists });
 
   // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
+  const filterQuery = useFilterQuery({
     keyword: submittedParams.keyword,
     ruleType: enumValueOf(IOT_ALARM_RULE_TYPES, submittedParams.ruleType),
     status: enumValueOf(USER_STATUSES, submittedParams.status),
-  }), [submittedParams]);
+  });
   const listQuery = useIotAlarmRuleList({
     page,
     pageSize,
@@ -536,9 +536,9 @@ function MaintenanceWindowsTab() {
   } = useListSearch<{ keyword: string }>({ defaults: { keyword: '' }, listKey: iotMaintenanceWindowKeys.lists });
 
   // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
+  const filterQuery = useFilterQuery({
     keyword: submittedParams.keyword,
-  }), [submittedParams]);
+  });
   const listQuery = useIotMaintenanceWindowList({
     page,
     pageSize,

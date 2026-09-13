@@ -1,17 +1,15 @@
-import { useMemo } from 'react';
 import { Tag } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { MemberLoginLog } from '@zenith/shared/member';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { ListSearchToolbar } from '@/components/list-page';
 import ExportButton from '@/components/ExportButton';
 import { dateTimeColumn, renderEllipsis } from '../../utils/table-columns';
 import { formatDateRangeValuesForApi } from '@/utils/date';
 import { memberAdminKeys, useMemberLoginLogList } from '@/hooks/queries/member-admin';
-import { useListSearch } from '@/hooks/useListSearch';
 import { DateRangeFilter, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { memberCellColumn, useMemberKeywordDeepLink } from './member-admin-display';
-import { compactParams } from '@/lib/query';
+import { useListPage } from '@/hooks/useListPage';
 
 interface SearchParams {
   keyword?: string;
@@ -28,22 +26,24 @@ const statusOptions = [
 
 export default function MemberLoginLogsPage() {
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset, applySearch,
-  } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: memberAdminKeys.loginLogLists });
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    applySearch,
+    tableProps,
+    filterQuery,
+  } = useListPage({
+    defaults: defaultSearch,
+    listKey: memberAdminKeys.loginLogLists,
+    useList: useMemberLoginLogList,
+    toQuery: (s) => {
+      const [dateStart, dateEnd] = formatDateRangeValuesForApi(s.dateRange);
+      return { keyword: s.keyword, status: s.status, dateStart, dateEnd };
+    },
+    table: { empty: '暂无登录日志' },
+  });
   useMemberKeywordDeepLink<SearchParams>({ applySearch, buildParams: (memberKeyword) => ({ keyword: memberKeyword, dateRange: null }) });
-  // 已提交筛选 → 契约查询参数：列表与导出共用同一份映射
-  const filterQuery = useMemo(() => {
-    const [dateStart, dateEnd] = formatDateRangeValuesForApi(submittedParams.dateRange);
-    return compactParams({
-      keyword: submittedParams.keyword,
-      status: submittedParams.status,
-      dateStart,
-      dateEnd,
-    });
-  }, [submittedParams]);
-  const listQuery = useMemberLoginLogList({ page, pageSize, ...filterQuery });
 
   const columns: ColumnProps<MemberLoginLog>[] = [
     memberCellColumn<MemberLoginLog>({ width: 140, nameField: 'memberNickname', idField: 'memberId' }),
@@ -77,7 +77,7 @@ export default function MemberLoginLogsPage() {
 
       <ConfigurableTable<MemberLoginLog>
         columns={columns}
-        {...listTableProps(listQuery, { pagination: buildPagination, empty: '暂无登录日志' })}
+        {...tableProps}
       />
     </div>
   );

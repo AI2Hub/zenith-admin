@@ -1,4 +1,4 @@
-import { useRef, useState, useMemo } from 'react';
+import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, Select, Form, Toast, Tag, Spin, Row, Col, Dropdown, Modal } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
@@ -43,7 +43,7 @@ import { useSensitiveFormFields } from '@/hooks/useSensitiveFormFields';
 import { SensitiveFormInput, SensitiveText } from '@/components/sensitive';
 import { abortSubmit } from '@/lib/abort-submit';
 import { MEMBER_STATUS_COLORS } from './member-tag-colors';
-import { compactParams } from '@/lib/query';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 const statusOptions = (['active', 'inactive', 'banned'] as const).map((v) => ({ value: v, label: MEMBER_STATUS_LABELS[v] }));
 const TAG_FALLBACK_COLOR = 'blue';
@@ -85,12 +85,12 @@ export default function MembersPage() {
   // detail drawer
   const [detailMemberId, setDetailMemberId] = useState<number | null>(null);
   // 已提交筛选 → 契约查询参数：列表与导出共用同一份映射
-  const filterQuery = useMemo(() => compactParams({
+  const filterQuery = useFilterQuery({
     keyword: submittedParams.keyword,
     status: enumValueOf(MEMBER_STATUSES, submittedParams.status),
     levelId: submittedParams.levelId,
     tagId: submittedParams.tagId,
-  }), [submittedParams]);
+  });
   const listQuery = useMemberList({ page, pageSize, ...filterQuery });
   const levelsQuery = useMemberLevels();
   const tagsQuery = useMemberTags();

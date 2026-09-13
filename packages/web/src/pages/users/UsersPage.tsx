@@ -7,7 +7,6 @@ import { USER_STATUSES, enumValueOf, type BodyOf } from '@zenith/shared/core';
 import { userContract } from '@zenith/shared/identity';
 import { UserAvatar } from '@/components/UserAvatar';
 import { formatDateTimeRangeForApi } from '@/utils/date';
-import { compactParams } from '@/lib/query';
 import { formatPasswordPolicyHint, type PasswordRules as PasswordPolicy } from '@zenith/shared/settings';
 import { PasswordStrengthMeter } from '@/components/PasswordStrengthMeter';
 import DictTag from '@/components/DictTag';
@@ -54,6 +53,7 @@ import { useEditModal } from '@/hooks/useEditModal';
 import { useSensitiveFormFields } from '@/hooks/useSensitiveFormFields';
 import { SensitiveFormInput, SensitiveText } from '@/components/sensitive';
 import { abortSubmit } from '@/lib/abort-submit';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 interface SearchParams {
   keyword: string;
@@ -127,13 +127,13 @@ export default function UsersPage() {
   const passwordPolicy: PasswordPolicy | null = mySettingsQuery.data?.identitySecurity.password ?? null;
 
   // 已提交筛选 → 契约查询参数：列表与导出共用同一份映射
-  const filterQuery = useMemo(() => compactParams({
+  const filterQuery = useFilterQuery({
     keyword: submittedParams.keyword,
     phone: submittedParams.phone,
     departmentId: submittedParams.departmentId,
     status: enumValueOf(USER_STATUSES, submittedParams.status),
     ...formatDateTimeRangeForApi(submittedParams.timeRange),
-  }), [submittedParams]);
+  });
   const listQuery = useUserList({ page, pageSize, ...filterQuery });
   const userList = listQuery.data?.list ?? EMPTY_USERS;
   const saveMutation = useSaveUser();

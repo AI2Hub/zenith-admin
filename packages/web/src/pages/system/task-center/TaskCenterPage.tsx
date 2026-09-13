@@ -18,7 +18,6 @@ import { confirmAndDelete, deleteAction, ListSearchToolbar, listTableProps, useR
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
 import { useTaskProgressEvents } from '@/hooks/useAsyncTasks';
-import { compactParams } from '@/lib/query';
 import { useListSearch } from '@/hooks/useListSearch';
 import { ASYNC_TASK_STATUS_TAG_MAP as statusTagMap, asyncTaskRateColor as rateColor } from '@/utils/async-task';
 import { formatDurationMs as formatDuration } from '@/utils/format';
@@ -42,6 +41,7 @@ import { JsonBlock } from '@/components/JsonBlock';
 import TaskStatsTab from './TaskStatsTab';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 type TabKey = 'tasks' | 'types' | 'stats';
 
 /** 任务类型行：注册表配置 + 执行统计；retired 表示类型已下线但仍有历史记录 */
@@ -119,13 +119,13 @@ export default function TaskCenterPage() {
   const [configDraft, setConfigDraft] = useState({ enabled: true, allowConcurrent: true, maxAttempts: 1, retryDelayMs: 5000, retentionDays: null as number | null });
   const refetchInterval = refreshInterval > 0 && activeTab === 'tasks' ? refreshInterval : false;
   // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
+  const filterQuery = useFilterQuery({
     taskType: submittedParams.taskType,
     status: enumValueOf(ASYNC_TASK_STATUSES, submittedParams.status),
     keyword: submittedParams.keyword,
     content: submittedParams.content,
     createdBy: submittedParams.createdBy,
-  }), [submittedParams]);
+  });
 
   const listQuery = useAsyncTaskList({ page, pageSize, ...filterQuery }, { refetchInterval });
   const statsQuery = useAsyncTaskStats({ refetchInterval });

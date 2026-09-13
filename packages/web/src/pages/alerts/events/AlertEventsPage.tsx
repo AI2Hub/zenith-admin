@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, Form, Tag, Toast, Tooltip } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
@@ -7,11 +7,10 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import ExportButton from '@/components/ExportButton';
 import AppModal from '@/components/AppModal';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { ListSearchToolbar, listTableProps, useRowSelection } from '@/components/list-page';
+import { ListSearchToolbar, useRowSelection } from '@/components/list-page';
 import { DateRangeFilter, FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { dateTimeColumn, renderEllipsis, EMPTY_PLACEHOLDER } from '@/utils/table-columns';
 import { formatDateTimeRangeForApi } from '@/utils/date';
-import { useListSearch } from '@/hooks/useListSearch';
 import { usePermission } from '@/hooks/usePermission';
 import type { MonitorAlertEvent, MonitorAlertHandleStatus } from '@zenith/shared/platform';
 import { enumValueOf } from '@zenith/shared/core';
@@ -44,7 +43,7 @@ import {
   MonitorMetricCondition,
   MonitorMetricFilterSelect,
 } from '../monitor-alert-display';
-import { compactParams } from '@/lib/query';
+import { useListPage } from '@/hooks/useListPage';
 
 /** 日志级别计数指标 → 日志文件页深链的级别过滤 */
 const LOG_METRIC_LEVEL: Record<string, 'error' | 'warn'> = {
@@ -102,37 +101,41 @@ export default function AlertEventsPage() {
   >(null);
   const [handleFormApi, setHandleFormApi] = useState<FormApi | null>(null);
 
+  // URL 携带的筛选作为初始条件，保证跳转过来时表单控件与列表结果一致
+  const searchDefaults: () => (SearchParams) = () => ({
+    ...defaultSearchParams,
+    level: urlParams.get('level') ?? '',
+    status: urlParams.get('status') ?? '',
+    notifyStatus: urlParams.get('notifyStatus') ?? '',
+    handleStatus: urlParams.get('handleStatus') ?? '',
+  });
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({
-    // URL 携带的筛选作为初始条件，保证跳转过来时表单控件与列表结果一致
-    defaults: () => ({
-      ...defaultSearchParams,
-      level: urlParams.get('level') ?? '',
-      status: urlParams.get('status') ?? '',
-      notifyStatus: urlParams.get('notifyStatus') ?? '',
-      handleStatus: urlParams.get('handleStatus') ?? '',
-    }),
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+    filterQuery,
+  } = useListPage({
+    defaults: searchDefaults,
     listKey: monitorAlertKeys.eventLists,
     onSearch: clearSelection,
     onReset: clearSelection,
+    useList: useMonitorAlertEventList,
+    toQuery: (s) => ({
+      keyword: s.keyword,
+      metric: enumValueOf(MONITOR_METRICS, s.metric),
+      level: enumValueOf(MONITOR_ALERT_LEVELS, s.level),
+      status: enumValueOf(MONITOR_ALERT_EVENT_STATUSES, s.status),
+      notifyStatus: enumValueOf(MONITOR_ALERT_NOTIFY_STATUSES, s.notifyStatus),
+      handleStatus: enumValueOf(MONITOR_ALERT_HANDLE_STATUSES, s.handleStatus),
+      ruleId,
+      ...formatDateTimeRangeForApi(s.timeRange),
+    }),
+    table: { rowSelection: canHandle ? rowSelection : undefined },
   });
 
-  // 已提交筛选 → 契约查询参数：列表与导出共用同一份映射
-  const filterQuery = useMemo(() => compactParams({
-    keyword: submittedParams.keyword,
-    metric: enumValueOf(MONITOR_METRICS, submittedParams.metric),
-    level: enumValueOf(MONITOR_ALERT_LEVELS, submittedParams.level),
-    status: enumValueOf(MONITOR_ALERT_EVENT_STATUSES, submittedParams.status),
-    notifyStatus: enumValueOf(MONITOR_ALERT_NOTIFY_STATUSES, submittedParams.notifyStatus),
-    handleStatus: enumValueOf(MONITOR_ALERT_HANDLE_STATUSES, submittedParams.handleStatus),
-    ruleId,
-    ...formatDateTimeRangeForApi(submittedParams.timeRange),
-  }), [submittedParams, ruleId]);
 
-  const listQuery = useMonitorAlertEventList({ page, pageSize, ...filterQuery });
   const handleMutation = useHandleMonitorAlertEvent();
   const batchHandleMutation = useBatchHandleMonitorAlertEvents();
   const submitting = handleMutation.isPending || batchHandleMutation.isPending;
@@ -290,12 +293,7 @@ export default function AlertEventsPage() {
       <ConfigurableTable<MonitorAlertEvent>
         columns={columns}
         empty="暂无告警记录"
-        {...listTableProps(listQuery, {
-          pagination: buildPagination,
-          rowSelection: canHandle
-            ? rowSelection
-            : undefined,
-        })}
+        {...tableProps}
       />
 
       {/* 处理弹窗不走 useEditModal：它不是实体的新增 / 编辑，而是对既有记录的状态流转 */}

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Button, Form, Toast, Banner } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -18,7 +18,6 @@ import {
   useRefundMemberWallet,
 } from '@/hooks/queries/member-admin';
 import { abortSubmit } from '@/lib/abort-submit';
-import { compactParams } from '@/lib/query';
 import { signedYuanChange } from './member-admin-display';
 import {
   MemberLedgerToolbar,
@@ -28,6 +27,7 @@ import {
   ledgerTypeOptions,
   useMemberLedgerSearch,
 } from './member-ledger';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 const typeOptions = ledgerTypeOptions(WALLET_TX_TYPE_LABELS);
 const TYPE_COLORS: Record<string, string> = { recharge: 'green', consume: 'orange', refund: 'cyan', adjust: 'blue' };
@@ -42,10 +42,10 @@ export default function MemberWalletPage() {
   const [modalVisible, setModalVisible] = useState(false);
   const [mode, setMode] = useState<'adjust' | 'refund'>('adjust');
   // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
+  const filterQuery = useFilterQuery({
     memberKeyword: submittedParams.memberKeyword,
     type: enumValueOf(WALLET_TX_TYPES, submittedParams.type),
-  }), [submittedParams]);
+  });
   const listQuery = useMemberWalletTransactions({
     page,
     pageSize,

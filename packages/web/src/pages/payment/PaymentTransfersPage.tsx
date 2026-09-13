@@ -10,7 +10,6 @@ import { EMPTY_PLACEHOLDER, copyableNoColumn, createdAtColumn, dateTimeColumn, r
 import { usePermission } from '@/hooks/usePermission';
 import { useAuth } from '@/hooks/useAuth';
 import { useListSearch } from '@/hooks/useListSearch';
-import { compactParams } from '@/lib/query';
 import { useEditModal } from '@/hooks/useEditModal';
 import {
   paymentTransferKeys,
@@ -35,6 +34,7 @@ import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-fi
 import { PaymentChannelTag } from './payment-display';
 import { useEnabledPaymentAppLookup } from './payment-app-options';
 import { PaymentAppField, PaymentCurrencyField } from './payment-form-fields';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 const yuan = formatYuan;
 const STATUS_COLOR = { pending: 'grey', processing: 'blue', unknown: 'orange', success: 'green', failed: 'red' } as const satisfies Record<PaymentTransferStatus, string>;
@@ -73,12 +73,12 @@ export default function PaymentTransfersPage() {
   } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: paymentTransferKeys.lists });
 
   // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
+  const filterQuery = useFilterQuery({
     keyword: submittedParams.keyword,
     channel: enumValueOf(PAYMENT_CHANNELS, submittedParams.channel),
     status: enumValueOf(PAYMENT_TRANSFER_STATUSES, submittedParams.status),
     approvalStatus: enumValueOf(PAYMENT_TRANSFER_APPROVAL_STATUSES, submittedParams.approvalStatus),
-  }), [submittedParams]);
+  });
   const listQuery = usePaymentTransferList({
     page,
     pageSize,

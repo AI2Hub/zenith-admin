@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { compactParams } from '@/lib/query';
 import { Banner, Button, Form, Input, Tag, Toast, Typography, Tabs, TabPane, Modal, Select } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -33,6 +33,7 @@ import { confirmAndDelete, deleteAction, ListSearchToolbar, listTableProps } fro
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import { FormStatusRadioGroup } from '@/components/FormStatusRadioGroup';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 // ─── 检索测试 Tab ─────────────────────────────────────────────────────────────
 interface SearchTestParams {
   keyword: string;
@@ -161,12 +162,12 @@ function DictTab({ siteId, onSiteChange }: Readonly<{ siteId: number | undefined
   });
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
+  const filterQuery = useFilterQuery({
     keyword: submittedParams.keyword,
     type: submittedParams.type,
     groupName: submittedParams.groupName,
     status: enumValueOf(USER_STATUSES, submittedParams.status),
-  }), [submittedParams]);
+  });
   const listQuery = useCmsSearchWordList({
     page, pageSize, siteId: siteId ?? 0,
     ...filterQuery,

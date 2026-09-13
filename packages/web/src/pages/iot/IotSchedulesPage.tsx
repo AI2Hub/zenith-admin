@@ -12,7 +12,6 @@ import { EMPTY_PLACEHOLDER, createdAtColumn, dateTimeColumn, renderEllipsis, ena
 import { useEditModal } from '@/hooks/useEditModal';
 import { usePermission } from '@/hooks/usePermission';
 import { useListSearch } from '@/hooks/useListSearch';
-import { compactParams } from '@/lib/query';
 import { usePagination } from '@/hooks/usePagination';
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import { useDictItems } from '@/hooks/useDictItems';
@@ -31,6 +30,7 @@ import {
   iotScheduleKeys, useDeleteIotSchedules, useIotScheduleList,
   useIotScheduleRunList, useSaveIotSchedule,
 } from '@/hooks/queries/iot-schedules';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 const { Text } = Typography;
 
@@ -63,10 +63,10 @@ function SchedulesTab({ onShowRuns }: Readonly<{ onShowRuns: (schedule: IotSched
   } = useListSearch<ScheduleSearchParams>({ defaults: defaultSearch, listKey: iotScheduleKeys.lists });
 
   // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
+  const filterQuery = useFilterQuery({
     keyword: submittedParams.keyword,
     status: enumValueOf(USER_STATUSES, submittedParams.status),
-  }), [submittedParams]);
+  });
   const listQuery = useIotScheduleList({
     page,
     pageSize,

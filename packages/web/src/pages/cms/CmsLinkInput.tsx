@@ -10,11 +10,11 @@ import type { CmsChannel, CmsContent } from '@zenith/shared/cms';
 import { cmsContentKeys, useAllCmsSites, useCmsChannelTree, useCmsContentList, useCmsLinkTarget } from '@/hooks/queries/cms';
 import { useIsMobile } from '@/hooks/useMediaQuery';
 import { useListSearch } from '@/hooks/useListSearch';
-import { compactParams } from '@/lib/query';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { dateTimeColumn } from '@/utils/table-columns';
 import { channelsToTree } from './channel-tree';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 type PickerMode = 'content' | 'channel' | null;
 
@@ -41,10 +41,10 @@ function ContentPickerModal({ siteId, visible, onCancel, onSelect, excludeId }: 
   } = useListSearch<ContentPickerSearchParams>({ defaults: defaultContentPickerSearch, listKey: cmsContentKeys.lists, pageSize: 10 });
   const isMobile = useIsMobile();
   const enabled = visible && siteId !== undefined;
-  const filterQuery = useMemo(() => compactParams({
+  const filterQuery = useFilterQuery({
     keyword: submittedParams.keyword,
     channelId: submittedParams.channelId,
-  }), [submittedParams]);
+  });
   const listQuery = useCmsContentList(
     { page, pageSize, siteId: siteId ?? 0, ...filterQuery, status: 'published' },
     enabled,

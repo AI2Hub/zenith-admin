@@ -50,7 +50,7 @@ import { confirmDelete, confirmDangerAsync } from '@/utils/confirm';
 import { deleteAction, ListSearchToolbar, useStatusToggle } from '@/components/list-page';
 import { abortSubmit } from '@/lib/abort-submit';
 import { KeywordInput, StatusSelect } from '@/components/search-filters';
-import { compactParams } from '@/lib/query';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 interface ItemSearchParams {
   keyword: string;
@@ -76,9 +76,9 @@ export default function DictsPage() {
     draftParams, setField, submittedParams, handleSearch,
   } = useListSearch<{ keyword: string }>({ defaults: { keyword: '' }, listKey: dictKeys.lists });
   // 已提交筛选 → 契约查询参数：列表与导出共用同一份映射
-  const filterQuery = useMemo(() => compactParams({
+  const filterQuery = useFilterQuery({
     keyword: submittedParams.keyword,
-  }), [submittedParams]);
+  });
   // ─── 字典项列表 ────────────────────────────────────────────────────────────
   // 显式选中的字典以 `?dict=` 同步到 URL（深链/刷新/页签直达）；选中对象按 key 派生
   const [selectedDictKey, setSelectedDictKey] = useUrlSelectionState('dict');

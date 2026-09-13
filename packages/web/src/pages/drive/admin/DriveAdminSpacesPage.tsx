@@ -1,5 +1,4 @@
-import { useMemo, lazy, Suspense, useState } from 'react';
-import { compactParams } from '@/lib/query';
+import { lazy, Suspense, useState } from 'react';
 import { ListSearchToolbar, listTableProps } from '@/components/list-page';
 import { Button, Checkbox, Form, Input, InputNumber, Select, Skeleton, Space, Spin, Tag, Toast, Typography, withField } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -30,6 +29,7 @@ import { useHandoffDriveSpace } from '@/hooks/queries/drive-collaboration';
 import { EMPTY_PLACEHOLDER, renderEnabledStatusTag } from '@/utils/table-columns';
 import { driveSpaceDefaultRoleColumn, driveSpaceNameColumn, driveSpaceOwnerColumn, driveSpaceTypeColumn, driveSpaceUsageColumn } from '../drive-space-columns';
 import { FormStatusRadioGroup } from '@/components/FormStatusRadioGroup';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 import '../drive.css';
 
 const DriveAdminCharts = lazy(() => import('./DriveAdminCharts'));
@@ -100,13 +100,13 @@ export default function DriveAdminSpacesPage() {
   const { page, pageSize, buildPagination, draftParams, setField, bind, bindKeyword, submittedParams, handleSearch, handleReset } =
     useListSearch<SearchParams>({ defaults: { keyword: '', type: undefined, status: undefined, orphaned: false, archived: false }, listKey: driveKeys.adminSpacesPrefix, extraKeys: [driveKeys.adminStats] });
   // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
+  const filterQuery = useFilterQuery({
     keyword: submittedParams.keyword,
     type: submittedParams.type,
     status: submittedParams.status,
     orphaned: submittedParams.orphaned,
     archived: submittedParams.archived ? true : undefined,
-  }), [submittedParams]);
+  });
   const listQuery = useDriveAdminSpaces({ page, pageSize, ...filterQuery });
   const update = useAdminUpdateDriveSpace();
   const remove = useAdminDeleteDriveSpace();

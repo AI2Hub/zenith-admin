@@ -29,7 +29,7 @@ import { formatDateTimeRangeForApi } from '@/utils/date';
 import { dateTimeColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '@/utils/table-columns';
 import { DriveFolderPicker } from '../components/DriveFolderPicker';
 import '../drive.css';
-import { compactParams } from '@/lib/query';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 /**
  * 合规治理：法律保留 / 扩容审批 / 外链访问日志 / 开放应用授权。
@@ -66,10 +66,10 @@ function LegalHoldsTab() {
   const { page, pageSize, buildPagination, draftParams, setField, bind, submittedParams, handleSearch, handleReset } =
     useListSearch<HoldSearch>({ defaults: { spaceId: undefined, activeOnly: true }, listKey: driveKeys.adminLegalHoldsPrefix });
   // 已提交筛选 → 契约查询参数：列表与导出共用同一份映射
-  const filterQuery = useMemo(() => compactParams({
+  const filterQuery = useFilterQuery({
     spaceId: submittedParams.spaceId,
     active: submittedParams.activeOnly ? true : undefined,
-  }), [submittedParams]);
+  });
   const query = useDriveLegalHolds({ page, pageSize, ...filterQuery });
   const release = useReleaseDriveLegalHold();
   const create = useCreateDriveLegalHold();
@@ -158,10 +158,10 @@ function QuotaRequestsTab() {
   const { page, pageSize, buildPagination, bind, submittedParams, handleSearch, handleReset } =
     useListSearch<QuotaSearch>({ defaults: { status: 'pending', spaceId: undefined }, listKey: driveKeys.adminQuotaRequestsPrefix });
   // 已提交筛选 → 契约查询参数：列表与导出共用同一份映射
-  const filterQuery = useMemo(() => compactParams({
+  const filterQuery = useFilterQuery({
     status: submittedParams.status,
     spaceId: submittedParams.spaceId,
-  }), [submittedParams]);
+  });
   const query = useDriveAdminQuotaRequests({ page, pageSize, ...filterQuery });
   const decide = useDecideDriveQuotaRequest();
   const [approving, setApproving] = useState<DriveQuotaRequest | null>(null);
@@ -233,13 +233,13 @@ function ShareAccessLogsTab() {
   const { page, pageSize, buildPagination, bind, submittedParams, handleSearch, handleReset } =
     useListSearch<LogSearch>({ defaults: { spaceId: undefined, shareId: undefined, action: undefined, ok: undefined, timeRange: null }, listKey: driveKeys.adminShareAccessLogsPrefix });
   // 已提交筛选 → 契约查询参数：列表与导出共用同一份映射
-  const filterQuery = useMemo(() => compactParams({
+  const filterQuery = useFilterQuery({
     spaceId: submittedParams.spaceId,
     shareId: submittedParams.shareId,
     action: submittedParams.action,
     ok: submittedParams.ok === undefined ? undefined : submittedParams.ok === 'true',
     ...formatDateTimeRangeForApi(submittedParams.timeRange),
-  }), [submittedParams]);
+  });
   const query = useDriveAdminShareAccessLogs({ page, pageSize, ...filterQuery });
 
   const columns: ColumnProps<DriveShareAccessLog>[] = [

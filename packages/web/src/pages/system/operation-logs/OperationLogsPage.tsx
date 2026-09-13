@@ -1,4 +1,3 @@
-import { useMemo } from 'react';
 import { Tabs, TabPane } from '@douyinfe/semi-ui';
 import { ListSearchToolbar } from '@/components/list-page';
 import ExportButton from '@/components/ExportButton';
@@ -6,7 +5,6 @@ import { OperationLogsTable } from '@/components/logs/OperationLogsTable';
 import { ClearLogsButtons, ClearLogsModal } from '@/components/logs/ClearLogsControl';
 import { useClearLogs } from '@/hooks/useClearLogs';
 import { formatDateTimeRangeForApi } from '@/utils/date';
-import { compactParams } from '@/lib/query';
 import OperationLogStatsPanel from './OperationLogStatsPanel';
 import { operationLogKeys, useCleanOperationLogs, useOperationLogList } from '@/hooks/queries/operation-logs';
 import { useListSearch } from '@/hooks/useListSearch';
@@ -16,6 +14,7 @@ import { OPERATION_LOG_RESULT_OPTIONS, OPERATION_LOG_RESULTS } from '@zenith/sha
 
 const METHOD_OPTIONS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].map((value) => ({ value, label: value }));
 import { useUrlTabState } from '@/hooks/useUrlTabState';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 interface SearchParams {
   username: string;
   module: string;
@@ -41,7 +40,7 @@ export default function OperationLogsPage() {
     handleSearch, handleReset,
   } = useListSearch<SearchParams>({ defaults: defaultParams, listKey: operationLogKeys.all });
   // 已提交筛选 → 契约查询参数：列表与导出共用同一份映射
-  const filterQuery = useMemo(() => compactParams({
+  const filterQuery = useFilterQuery({
     username: submittedParams.username,
     module: submittedParams.module,
     description: submittedParams.description,
@@ -53,7 +52,7 @@ export default function OperationLogsPage() {
     ...formatDateTimeRangeForApi(submittedParams.timeRange),
     minDurationMs: submittedParams.minDurationMs,
     maxDurationMs: submittedParams.maxDurationMs,
-  }), [submittedParams]);
+  });
   const listQuery = useOperationLogList({ page, pageSize, ...filterQuery });
   const data = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;

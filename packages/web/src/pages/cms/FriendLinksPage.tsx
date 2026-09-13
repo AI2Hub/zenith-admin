@@ -1,5 +1,4 @@
-import { useMemo, useState } from 'react';
-import { compactParams } from '@/lib/query';
+import { useState } from 'react';
 import { Button, Form, SideSheet, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { FolderTree } from 'lucide-react';
@@ -22,6 +21,7 @@ import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { abortSubmit } from '@/lib/abort-submit';
 import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
 import { FormStatusRadioGroup } from '@/components/FormStatusRadioGroup';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 interface SearchParams { keyword: string; groupId?: number }
 const defaultSearch: SearchParams = { keyword: '', groupId: undefined };
@@ -38,10 +38,10 @@ export default function FriendLinksPage() {
   const groupOptions = useAllCmsFriendLinkGroups(siteId).data ?? [];
 
   // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
+  const filterQuery = useFilterQuery({
     keyword: submittedParams.keyword,
     groupId: submittedParams.groupId,
-  }), [submittedParams]);
+  });
   const listQuery = useCmsFriendLinkList({
     page, pageSize, siteId: siteId ?? 0,
     ...filterQuery,

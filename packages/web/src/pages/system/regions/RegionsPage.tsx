@@ -21,7 +21,7 @@ import { enumValueOf, USER_STATUSES } from '@zenith/shared/core';
 import { CreateButton } from '@/components/toolbar-controls';
 import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { deleteAction, ListSearchToolbar, listTableProps, useStatusToggle } from '@/components/list-page';
-import { compactParams } from '@/lib/query';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 const LEVEL_LABELS: Record<string, string> = REGION_LEVEL_LABELS;
 
@@ -47,11 +47,11 @@ export default function RegionsPage() {
 
   const { items: statusItems, options: statusOptions } = useDictItems('common_status');
   // 已提交筛选 → 契约查询参数：树列表与导出共用同一份映射
-  const filterQuery = useMemo(() => compactParams({
+  const filterQuery = useFilterQuery({
     keyword: submittedParams.keyword,
     status: enumValueOf(USER_STATUSES, submittedParams.status),
     level: enumValueOf(REGION_LEVELS, submittedParams.level),
-  }), [submittedParams]);
+  });
   const treeQuery = useRegionTree(filterQuery);
   const data = useMemo(() => treeQuery.data ?? [], [treeQuery.data]);
   const flatQuery = useFlatRegions();

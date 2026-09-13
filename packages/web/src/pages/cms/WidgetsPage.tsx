@@ -1,5 +1,4 @@
-import { useMemo, useEffect, useRef, useState } from 'react';
-import { compactParams } from '@/lib/query';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, Modal, SideSheet, Tag, Toast, Typography } from '@douyinfe/semi-ui';
@@ -28,6 +27,7 @@ import { CmsSiteSelect } from './CmsSiteSelect';
 import { CreateButton } from '@/components/toolbar-controls';
 import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 interface SearchState {
   keyword: string;
@@ -59,11 +59,11 @@ export default function WidgetsPage() {
   const [refsWidget, setRefsWidget] = useState<CmsWidget | null>(null);
 
   // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
+  const filterQuery = useFilterQuery({
     keyword: submitted.keyword.trim(),
     status: submitted.status,
     type: submitted.type,
-  }), [submitted]);
+  });
   const listQuery = useCmsWidgetList({ page, pageSize, siteId, ...filterQuery });
   const refsQuery = useCmsWidgetRefs(refsWidget?.id, !!refsWidget);
   const publishMutation = usePublishCmsWidget();

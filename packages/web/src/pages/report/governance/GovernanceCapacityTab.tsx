@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Banner, Col, Empty, Form, Row, SideSheet, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { ReportQueryCostLog, ReportQueryCostTrendPoint, ReportQueryQuota, ReportQuotaScope } from '@zenith/shared/report';
@@ -13,7 +13,6 @@ import { useListSearch } from '@/hooks/useListSearch';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
-import { compactParams } from '@/lib/query';
 import {
   reportQueryCapacityKeys,
   useDeleteReportQueryQuota,
@@ -33,6 +32,7 @@ import { DateRangeFilter, NumberFilter } from '@/components/search-filters';
 import { confirmDanger } from '@/utils/confirm';
 import { dateTimeColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '@/utils/table-columns';
 import { DEFAULT_TIMEZONE } from '@/utils/timezones';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 interface CostSearchParams {
   datasetId?: number;
@@ -57,11 +57,9 @@ export default function GovernanceCapacityTab() {
   const quotasQuery = useReportQueryQuotaList({ page, pageSize });
   const usageQuery = useReportQueryQuotaUsage(usageQuota?.id, undefined, !!usageQuota);
   // 已提交筛选 → 契约查询参数：只映射一次，日志 / 统计 / 趋势 / 导出共用（契约端点键名为 start / end，取元组形态）
-  const costParams = useMemo(() => {
-    const submitted = costs.submittedParams;
-    const [start, end] = formatDateTimeRangeValuesForApi(submitted.timeRange);
-    return compactParams({ datasetId: submitted.datasetId, datasourceId: submitted.datasourceId, start, end });
-  }, [costs.submittedParams]);
+  const submitted = costs.submittedParams;
+  const [start, end] = formatDateTimeRangeValuesForApi(submitted.timeRange);
+  const costParams = useFilterQuery({ datasetId: submitted.datasetId, datasourceId: submitted.datasourceId, start, end });
   const costsQuery = useReportQueryCostLogs({ ...costParams, page: costs.page, pageSize: costs.pageSize });
   const statsQuery = useReportQueryCostStats(costParams);
   const trendQuery = useReportQueryCostTrend({ ...costParams, bucket: 'day' });

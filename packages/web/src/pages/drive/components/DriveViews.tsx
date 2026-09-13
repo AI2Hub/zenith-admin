@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { compactParams } from '@/lib/query';
 import { Button, Empty, Space, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { RotateCcw, Trash2 } from 'lucide-react';
@@ -33,6 +32,7 @@ import { nodeDownloadUrl, nodeToManagedFile, roleAtLeast } from '../drive-utils'
 import {
   shareLinkAccessColumn, shareLinkCapabilitiesColumn, shareLinkCopyAction, shareLinkExpireColumn, shareLinkFileColumn, shareLinkStateColumn,
 } from '../drive-share-link-columns';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 type ListView = Exclude<DriveView, 'space'>;
 
@@ -70,11 +70,11 @@ export function DriveViews({ view, onOpenFolder, onOpenDetail }: DriveViewsProps
   const { page, pageSize, buildPagination, bind, bindKeyword, submittedParams, handleSearch, handleReset } =
     useListSearch<ViewSearch>({ defaults: { keyword: '', spaceId: undefined }, listKey });
   // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({ keyword: submittedParams.keyword }), [submittedParams]);
-  const recycleFilterQuery = useMemo(() => compactParams({
+  const filterQuery = useFilterQuery({ keyword: submittedParams.keyword });
+  const recycleFilterQuery = useFilterQuery({
     keyword: submittedParams.keyword,
     spaceId: submittedParams.spaceId,
-  }), [submittedParams]);
+  });
   const baseParams = { page, pageSize, ...filterQuery };
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
 
@@ -258,14 +258,14 @@ export function DriveSearchView({ keyword, fullText, onOpenFolder, onOpenDetail,
   const spaces = useMyDriveSpaces();
   const tags = useDriveTags(draftParams.spaceId);
   // 已提交筛选 → 契约查询参数：只映射一次
-  const searchFilterQuery = useMemo(() => compactParams({
+  const searchFilterQuery = useFilterQuery({
     spaceId: submittedParams.spaceId,
     type: submittedParams.type,
     extension: submittedParams.extension,
     tagId: submittedParams.tagId,
     createdBy: submittedParams.createdBy,
     ...formatDateTimeRangeForApi(submittedParams.timeRange),
-  }), [submittedParams]);
+  });
   const query = useDriveSearch({ keyword, fullText, page, pageSize, ...searchFilterQuery });
   const list = query.data?.list ?? [];
   const preview = useFilePreview(() => list.filter((n) => n.type === 'file' && n.url).map(nodeToManagedFile));

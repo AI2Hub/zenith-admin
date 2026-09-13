@@ -1,5 +1,4 @@
-import { useMemo, useEffect, useState } from 'react';
-import { compactParams } from '@/lib/query';
+import { useEffect, useState } from 'react';
 import { Banner, Button, Form, Tag, Toast, Tabs, TabPane, TextArea } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Search, Send } from 'lucide-react';
@@ -29,6 +28,7 @@ import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/li
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import { FormStatusRadioGroup } from '@/components/FormStatusRadioGroup';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 interface KeywordSearch { keyword: string }
 const defaultKeywordSearch: KeywordSearch = { keyword: '' };
 
@@ -41,7 +41,7 @@ function RedirectsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
     handleSearch, handleReset,
   } = useListSearch<KeywordSearch>({ defaults: defaultKeywordSearch, listKey: cmsRedirectKeys.lists });
   // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({ keyword: submittedParams.keyword }), [submittedParams]);
+  const filterQuery = useFilterQuery({ keyword: submittedParams.keyword });
   const listQuery = useCmsRedirectList({ page, pageSize, siteId: siteId ?? 0, ...filterQuery }, siteId !== undefined);
   const saveMutation = useSaveCmsRedirect();
   const modal = useEditModal<CmsRedirect, Partial<CmsRedirect>, Record<string, unknown>>({
@@ -116,7 +116,7 @@ function LinkWordsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
     handleSearch, handleReset,
   } = useListSearch<KeywordSearch>({ defaults: defaultKeywordSearch, listKey: cmsLinkWordKeys.lists });
   // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({ keyword: submittedParams.keyword }), [submittedParams]);
+  const filterQuery = useFilterQuery({ keyword: submittedParams.keyword });
   const listQuery = useCmsLinkWordList({ page, pageSize, siteId: siteId ?? 0, ...filterQuery }, siteId !== undefined);
   const saveMutation = useSaveCmsLinkWord();
   const modal = useEditModal<CmsLinkWord, Partial<CmsLinkWord>, Record<string, unknown>>({

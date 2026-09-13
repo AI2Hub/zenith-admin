@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { Button, Modal, Space, Tabs, Tag, TextArea, Timeline, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Check, X } from 'lucide-react';
@@ -12,7 +12,6 @@ import AppModal from '@/components/AppModal';
 import MarkdownPreviewPanel from '@/components/MarkdownPreviewPanel';
 import { EMPTY_PLACEHOLDER, renderEllipsis, updatedAtColumn, dateTimeColumn } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
-import { compactParams } from '@/lib/query';
 import { useListSearch } from '@/hooks/useListSearch';
 import { usePagination } from '@/hooks/usePagination';
 import { useUrlTabState } from '@/hooks/useUrlTabState';
@@ -21,6 +20,7 @@ import {
   useWikiDocReviewRecords, useWithdrawWikiDoc, wikiDocKeys,
 } from '@/hooks/queries/wiki-docs';
 import { WIKI_DOC_STATUS_TAG_COLOR } from '../wiki-tag-colors';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 const { Text } = Typography;
 
@@ -49,7 +49,7 @@ function PendingPane() {
   } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: wikiDocKeys.lists });
 
   // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({ keyword: submittedParams.keyword }), [submittedParams]);
+  const filterQuery = useFilterQuery({ keyword: submittedParams.keyword });
 
   const listQuery = useWikiDocList({ page, pageSize, status: 'pending', ...filterQuery });
 

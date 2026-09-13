@@ -34,15 +34,15 @@ export type CompactParams<T> = { [K in keyof T]?: Exclude<T[K], null | undefined
 
 /**
  * 已提交筛选 → 契约查询参数：丢弃 `undefined` / `null` / 空串，保留 `0` / `false`，并**保留键的类型**，
- * 结果可直接展开进 `QueryOf<typeof xxxContract.list>`。列表查询、导出条件、深链都从同一份映射派生，
- * 页面不再为列表写一份 `x || undefined`、为导出再写一份 `compactQuery({...})`。
+ * 结果可直接展开进 `QueryOf<typeof xxxContract.list>`。页面内经 `useFilterQuery` 使用（同内容同引用）；
+ * 列表查询、导出条件、深链都从同一份映射派生，不再为列表写一份 `x || undefined`、为导出再写一份 `compactQuery({...})`。
  *
  * @example
- * const filterQuery = useMemo(() => compactParams({
+ * const filterQuery = useFilterQuery({
  *   keyword: submittedParams.keyword,
  *   status: enumValueOf(XXX_STATUSES, submittedParams.status),
  *   ...formatDateTimeRangeForApi(submittedParams.timeRange),
- * }), [submittedParams]);
+ * });
  * const listQuery = useXxxList({ page, pageSize, ...filterQuery });
  * <ExportButton entity="system.xxxs" query={filterQuery} permission="system:xxx:export" />
  */

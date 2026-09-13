@@ -61,7 +61,7 @@ import {
   useReportDashboardDetail,
   useReportDashboardLookup,
 } from '@/hooks/queries/report-dashboards';
-import { ApiError, compactParams } from '@/lib/query';
+import { ApiError } from '@/lib/query';
 import { confirmDelete } from '@/utils/confirm';
 import { abortSubmit } from '@/lib/abort-submit';
 import {
@@ -71,6 +71,7 @@ import {
   getChatbiSavedResourceAction,
   supportedChatbiChartTypes,
 } from './report-p2-utils';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 import './ChatBiPage.css';
 
 function StructuredAnswer({
@@ -162,9 +163,9 @@ export default function ChatBiPage() {
   } = useListSearch<{ keyword: string }>({ defaults: { keyword: '' }, listKey: reportChatbiKeys.lists, pageSize: 20 });
   const [status, setStatus] = useState<'active' | 'archived'>('active');
   // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
+  const filterQuery = useFilterQuery({
     keyword: submittedParams.keyword.trim(),
-  }), [submittedParams]);
+  });
   const [activeSessionId, setActiveSessionId] = useState<number>();
   const [saveTarget, setSaveTarget] = useState<ReportChatbiMessage | null>(null);
   const [contextType, setContextType] = useState<'dataset' | 'datasource'>('dataset');

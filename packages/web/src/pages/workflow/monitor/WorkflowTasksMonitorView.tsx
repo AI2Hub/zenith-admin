@@ -3,7 +3,6 @@
  * 字段对齐审批平台惯例：流程 / 发起人 / 发起时间 / 当前任务 / 任务起止时间 / 审批人 /
  * 审批状态 / 审批建议 / 耗时 / 流程编号 / 任务编号；行操作：详情（实例详情抽屉）/ 催办。
  */
-import { useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Modal, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -17,7 +16,6 @@ import {
   taskAssigneeColumn, taskCommentColumn, taskIdColumn, taskNodeColumn, taskStatusColumn, taskStayDurationColumn,
 } from '@/components/workflow/workflow-task-columns';
 import WorkflowInstanceCell from '@/components/workflow/WorkflowInstanceCell';
-import { compactParams } from '@/lib/query';
 import { useListSearch } from '@/hooks/useListSearch';
 import { usePermission } from '@/hooks/usePermission';
 import { useWorkflowTaskMonitorList, workflowMonitorKeys, type WorkflowTaskMonitorParams } from '@/hooks/queries/workflow-monitor';
@@ -26,6 +24,7 @@ import { formatDateTimeRangeForApi } from '@/utils/date';
 import { EMPTY_PLACEHOLDER, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { DateRangeFilter, FilterSelect, KeywordInput } from '@/components/search-filters';
 import { ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 const STUCK_OPTIONS = [
   { value: 30, label: '停留 > 30 分钟' },
@@ -60,14 +59,14 @@ export default function WorkflowTasksMonitorView({ onOpenInstance }: Props) {
   } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: workflowMonitorKeys.taskMonitorLists });
 
   // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
+  const filterQuery = useFilterQuery({
     keyword: submittedParams.keyword,
     assigneeKeyword: submittedParams.assigneeKeyword,
     status: enumValueOf(WORKFLOW_TASK_STATUSES, submittedParams.status),
     nodeType: enumValueOf(WORKFLOW_TASK_MONITOR_NODE_TYPES, submittedParams.nodeType),
     stuckMinutes: submittedParams.stuckMinutes,
     ...formatDateTimeRangeForApi(submittedParams.createdRange),
-  }), [submittedParams]);
+  });
 
   const params: WorkflowTaskMonitorParams = { page, pageSize, ...filterQuery };
   const listQuery = useWorkflowTaskMonitorList(params);

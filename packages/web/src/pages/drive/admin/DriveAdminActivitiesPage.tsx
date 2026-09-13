@@ -1,4 +1,3 @@
-import { useMemo } from 'react';
 import { Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { ListSearchToolbar, listTableProps } from '@/components/list-page';
@@ -14,7 +13,7 @@ import { driveKeys, useDriveAdminActivities, useDriveSpaceList } from '@/hooks/q
 import { formatDateTimeRangeForApi } from '@/utils/date';
 import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { describeActivityDetail } from '../drive-utils';
-import { compactParams } from '@/lib/query';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 interface SearchParams {
   keyword: string;
@@ -31,13 +30,13 @@ export default function DriveAdminActivitiesPage() {
   const { page, pageSize, buildPagination, bind, bindKeyword, submittedParams, handleSearch, handleReset } =
     useListSearch<SearchParams>({ defaults: { keyword: '', spaceId: undefined, actorId: undefined, action: undefined, timeRange: null }, listKey: driveKeys.adminActivitiesPrefix });
   // 已提交筛选 → 契约查询参数：列表与导出共用同一份映射
-  const filterQuery = useMemo(() => compactParams({
+  const filterQuery = useFilterQuery({
     keyword: submittedParams.keyword,
     spaceId: submittedParams.spaceId,
     actorId: submittedParams.actorId,
     action: submittedParams.action,
     ...formatDateTimeRangeForApi(submittedParams.timeRange),
-  }), [submittedParams]);
+  });
   const query = useDriveAdminActivities({ page, pageSize, ...filterQuery });
   const spacesQuery = useDriveSpaceList({ page: 1, pageSize: 200 });
 

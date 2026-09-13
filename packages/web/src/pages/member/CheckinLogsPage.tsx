@@ -5,20 +5,19 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { CalendarPlus } from 'lucide-react';
 import type { MemberCheckin, MemberCheckinCalendarDay } from '@zenith/shared/member';
 import { usePermission } from '@/hooks/usePermission';
-import { ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { ListSearchToolbar } from '@/components/list-page';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import ExportButton from '@/components/ExportButton';
 import { AppModal } from '@/components/AppModal';
 import { MemberSelect } from '@/components/MemberSelect';
 import { formatDateForApi, formatDateRangeValuesForApi } from '@/utils/date';
 import { memberAdminKeys, useCheckinCalendar, useCheckinDayMembersInfinite, useCheckinLogList, useMakeupCheckin } from '@/hooks/queries/member-admin';
-import { useListSearch } from '@/hooks/useListSearch';
 import { useListDeepLink } from '@/hooks/useListDeepLink';
 import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 import { dateColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { abortSubmit } from '@/lib/abort-submit';
 import { memberCellColumn, renderMemberName } from './member-admin-display';
-import { compactParams } from '@/lib/query';
+import { useListPage } from '@/hooks/useListPage';
 
 interface SearchParams {
   memberKeyword?: string;
@@ -96,10 +95,23 @@ function CheckinDayPopoverContent({ day }: Readonly<{ day: MemberCheckinCalendar
 export default function CheckinLogsPage() {
   const { hasPermission } = usePermission();
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch, handleReset, applySearch,
-  } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: memberAdminKeys.checkinLogLists });
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    applySearch,
+    tableProps,
+    filterQuery,
+  } = useListPage({
+    defaults: defaultSearch,
+    listKey: memberAdminKeys.checkinLogLists,
+    useList: useCheckinLogList,
+    toQuery: (s) => {
+      const [dateStart, dateEnd] = formatDateRangeValuesForApi(s.dateRange);
+      return { memberKeyword: s.memberKeyword, dateStart, dateEnd };
+    },
+    table: { empty: '暂无签到记录' },
+  });
   // 会员详情等入口的深链筛选（?memberKeyword=，消费后即从 URL 移除）
   useListDeepLink(['memberKeyword'], (p) => applySearch({ memberKeyword: p.memberKeyword, dateRange: null }));
   const [makeupVisible, setMakeupVisible] = useState(false);
@@ -113,16 +125,6 @@ export default function CheckinLogsPage() {
     () => new Map((calendarQuery.data ?? []).map((d) => [d.date, d])),
     [calendarQuery.data],
   );
-  // 已提交筛选 → 契约查询参数：列表与导出共用同一份映射
-  const filterQuery = useMemo(() => {
-    const [dateStart, dateEnd] = formatDateRangeValuesForApi(submittedParams.dateRange);
-    return compactParams({
-      memberKeyword: submittedParams.memberKeyword,
-      dateStart,
-      dateEnd,
-    });
-  }, [submittedParams]);
-  const listQuery = useCheckinLogList({ page, pageSize, ...filterQuery });
   const makeupMutation = useMakeupCheckin();
 
   const handleMakeup = async () => {
@@ -211,7 +213,7 @@ export default function CheckinLogsPage() {
       {view === 'list' ? (
         <ConfigurableTable<MemberCheckin>
           columns={columns}
-          {...listTableProps(listQuery, { pagination: buildPagination, empty: '暂无签到记录' })}
+          {...tableProps}
         />
       ) : (
         <div>

@@ -1,5 +1,4 @@
 /* eslint-disable react-refresh/only-export-components */
-import { useMemo } from 'react';
 import type { ReactNode } from 'react';
 import { Tag } from '@douyinfe/semi-ui';
 import type { ColumnProps, Data } from '@douyinfe/semi-ui/lib/es/table';
@@ -11,7 +10,7 @@ import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { useListSearch, type UseListSearchReturn } from '@/hooks/useListSearch';
 import { EMPTY_PLACEHOLDER, createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { memberCellColumn, useMemberKeywordDeepLink } from './member-admin-display';
-import { compactParams } from '@/lib/query';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 /**
  * 会员流水页（积分 / 钱包）的公共骨架：会员关键字 + 类型筛选、深链、会员 / 类型 / 业务类型 / 备注 / 时间列、
@@ -71,10 +70,10 @@ interface MemberLedgerToolbarProps {
 
 export function MemberLedgerToolbar({ search, typeOptions, exportEntity, exportPermission, filterTitle, create }: Readonly<MemberLedgerToolbarProps>) {
   const { bind, bindKeyword, submittedParams, handleSearch, handleReset } = search;
-  const exportQuery = useMemo(() => compactParams({
+  const exportQuery = useFilterQuery({
     memberKeyword: submittedParams.memberKeyword,
     type: submittedParams.type,
-  }), [submittedParams]);
+  });
   return (
     <ListSearchToolbar
       keyword={<KeywordInput placeholder="会员ID/昵称" {...bindKeyword('memberKeyword')} width={180} />}

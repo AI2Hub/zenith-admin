@@ -11,7 +11,6 @@ import { EMPTY_PLACEHOLDER, createdAtColumn, dateTimeColumn, renderEllipsis, ena
 import { useEditModal } from '@/hooks/useEditModal';
 import { usePermission } from '@/hooks/usePermission';
 import { useListSearch } from '@/hooks/useListSearch';
-import { compactParams } from '@/lib/query';
 import { usePagination } from '@/hooks/usePagination';
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import { useDictItems } from '@/hooks/useDictItems';
@@ -29,6 +28,7 @@ import {
   iotForwardRuleKeys, useDeleteIotForwardRules, useIotForwardLogList,
   useIotForwardRuleList, useSaveIotForwardRule,
 } from '@/hooks/queries/iot-forwards';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 const { Text } = Typography;
 
@@ -55,11 +55,11 @@ function ForwardRulesTab({ onShowLogs }: Readonly<{ onShowLogs: (rule: IotForwar
   } = useListSearch<ForwardSearchParams>({ defaults: defaultSearch, listKey: iotForwardRuleKeys.lists });
 
   // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
+  const filterQuery = useFilterQuery({
     keyword: submittedParams.keyword,
     source: enumValueOf(IOT_FORWARD_SOURCES, submittedParams.source),
     status: enumValueOf(USER_STATUSES, submittedParams.status),
-  }), [submittedParams]);
+  });
   const listQuery = useIotForwardRuleList({
     page,
     pageSize,

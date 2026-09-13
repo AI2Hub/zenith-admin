@@ -33,9 +33,9 @@ import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-fi
 import { abortSubmit } from '@/lib/abort-submit';
 import { dateTimeColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '@/utils/table-columns';
 import { ListSearchToolbar, listTableProps } from '@/components/list-page';
-import { compactParams } from '@/lib/query';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 interface MineFilters {
   keyword: string;
   status?: ReportFillRecordStatus;
@@ -92,16 +92,16 @@ export default function FillRecordsPage() {
   const templates = templateLookupQuery.data ?? [];
   const users = useAllUsers({ enabled: canReview }).data ?? [];
   // 已提交筛选 → 契约查询参数：列表与导出共用同一份映射
-  const mineFilterQuery = useMemo(() => compactParams({
+  const mineFilterQuery = useFilterQuery({
     keyword: mineSubmitted.keyword,
     status: mineSubmitted.status,
     templateId: mineSubmitted.templateId,
-  }), [mineSubmitted]);
-  const adminFilterQuery = useMemo(() => compactParams({
+  });
+  const adminFilterQuery = useFilterQuery({
     status: adminSubmitted.status,
     templateId: adminSubmitted.templateId,
     submitterId: adminSubmitted.submitterId,
-  }), [adminSubmitted]);
+  });
   const mineQuery = useReportFillRecordMine({
     page: mineSearch.page,
     pageSize: mineSearch.pageSize,

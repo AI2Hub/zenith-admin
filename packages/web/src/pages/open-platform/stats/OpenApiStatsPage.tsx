@@ -1,5 +1,4 @@
 import { useMemo } from 'react';
-import { listTableProps } from '@/components/list-page';
 import { Banner, Select, Typography, Tag, Tooltip, Space, Card } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import dayjs from 'dayjs';
@@ -9,7 +8,6 @@ import { openAppEnvironmentColumn } from '../open-app-columns';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { ExportButton } from '@/components/ExportButton';
-import { useListSearch } from '@/hooks/useListSearch';
 import { AreaChart, BarChart, chartOptions, makeAreaSpec, makeBarSpec, useChartPalette, EmptyChart, StatCard, StatGrid } from '@/components/charts';
 import {
   openApiStatsKeys,
@@ -24,7 +22,7 @@ import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, FilterSelect, KeywordInput, NumberFilter } from '@/components/search-filters';
 import { dateTimeColumn, EMPTY_PLACEHOLDER } from '@/utils/table-columns';
 import { formatDateRangeForApi } from '@/utils/date';
-import { compactParams } from '@/lib/query';
+import { useListPage } from '@/hooks/useListPage';
 
 const { Text, Title } = Typography;
 
@@ -47,10 +45,28 @@ export default function OpenApiStatsPage() {
     keyword: '',
   });
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams,
-    handleSearch: handleApply, handleReset,
-  } = useListSearch<SearchParams>({ defaults: createDefaultParams, listKey: openApiStatsKeys.all });
+    bind,
+    bindKeyword,
+    submittedParams,
+    handleSearch: handleApply,
+    handleReset,
+    tableProps,
+    filterQuery,
+  } = useListPage({
+    defaults: createDefaultParams,
+    listKey: openApiStatsKeys.all,
+    useList: useOpenApiCallLogs,
+    // 调用日志与统计卡共用同一份区间 / 应用 / 环境映射（rangeParams 在下方由同一 submittedParams 派生）
+    toQuery: (s) => ({
+      ...formatDateRangeForApi(s.range),
+      clientId: s.clientId,
+      environment: s.environment,
+      keyword: s.keyword,
+      method: s.method,
+      success: s.success === undefined ? undefined : s.success === 'true',
+      statusCode: s.statusCode,
+    }),
+  });
   const appOptions = useOpenAppOptions().data ?? [];
   // 统计区间必选：清空时回到默认的近 7 天
   const bindRange = () => bind('range', (range: [Date, Date] | null) => range ?? createDefaultParams().range);
@@ -65,15 +81,6 @@ export default function OpenApiStatsPage() {
   const trendQuery = useOpenApiStatsTrend({ ...rangeParams, granularity: submittedParams.granularity });
   const byAppQuery = useOpenApiStatsByApp(rangeParams);
   const byEndpointQuery = useOpenApiStatsByEndpoint(rangeParams);
-  // 已提交筛选 → 契约查询参数：列表与导出共用同一份映射
-  const filterQuery = useMemo(() => compactParams({
-    ...rangeParams,
-    keyword: submittedParams.keyword,
-    method: submittedParams.method,
-    success: submittedParams.success === undefined ? undefined : submittedParams.success === 'true',
-    statusCode: submittedParams.statusCode,
-  }), [rangeParams, submittedParams]);
-  const logsQuery = useOpenApiCallLogs({ page, pageSize, ...filterQuery });
   // 明细筛选只作用于日志表，KPI/图表走预聚合表，口径差异需向用户显式说明
   const hasDetailFilters = Boolean(
     submittedParams.keyword
@@ -292,7 +299,7 @@ export default function OpenApiStatsPage() {
 
 
           empty="暂无调用记录"
-        {...listTableProps(logsQuery, { pagination: buildPagination })}
+        {...tableProps}
       />
       </Card>
     </div>

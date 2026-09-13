@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   Button, Form, Progress, SideSheet, TabPane, Tabs, Tag, Toast, Typography, Upload,
 } from '@douyinfe/semi-ui';
@@ -20,7 +20,6 @@ import { useDictItems } from '@/hooks/useDictItems';
 import { confirmAndDelete, deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
 import { FormStatusRadioGroup } from '@/components/FormStatusRadioGroup';
 import { abortSubmit } from '@/lib/abort-submit';
-import { compactParams } from '@/lib/query';
 import {
   IOT_OTA_DEVICE_STATUSES, IOT_OTA_DEVICE_STATUS_LABELS, IOT_OTA_DEVICE_STATUS_OPTIONS, IOT_OTA_TASK_STATUSES,
   IOT_OTA_TASK_STATUS_LABELS, IOT_OTA_TASK_STATUS_OPTIONS,
@@ -33,6 +32,7 @@ import {
   useIotFirmwareList, useIotOtaTaskDevices, useIotOtaTaskList, useSaveIotFirmware, useUploadIotFirmware,
 } from '@/hooks/queries/iot-ota';
 import { USER_STATUSES, enumValueOf, formatBytes } from '@zenith/shared/core';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 const { Text } = Typography;
 
@@ -64,11 +64,11 @@ function FirmwaresTab({ onCreateTask }: Readonly<{ onCreateTask: (firmware: IotF
   } = useListSearch<FirmwareSearchParams>({ defaults: defaultFirmwareSearch, listKey: iotFirmwareKeys.lists });
 
   // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
+  const filterQuery = useFilterQuery({
     keyword: submittedParams.keyword,
     productId: submittedParams.productId,
     status: enumValueOf(USER_STATUSES, submittedParams.status),
-  }), [submittedParams]);
+  });
   const listQuery = useIotFirmwareList({
     page,
     pageSize,
@@ -249,10 +249,10 @@ function OtaTasksTab({ detailTask, onOpenDetail }: Readonly<{
   } = useListSearch<TaskSearchParams>({ defaults: defaultTaskSearch, listKey: iotOtaTaskKeys.lists });
 
   // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
+  const filterQuery = useFilterQuery({
     keyword: submittedParams.keyword,
     status: enumValueOf(IOT_OTA_TASK_STATUSES, submittedParams.status),
-  }), [submittedParams]);
+  });
   const listQuery = useIotOtaTaskList({
     page,
     pageSize,

@@ -13,7 +13,6 @@ import { MemberSelect } from '@/components/MemberSelect';
 import { memberAdminKeys, useAdjustMemberPoints, useMemberPointTransactions } from '@/hooks/queries/member-admin';
 import { useEditModal } from '@/hooks/useEditModal';
 import { signedNumberChange } from './member-admin-display';
-import { compactParams } from '@/lib/query';
 import {
   MemberLedgerToolbar,
   ledgerMemberColumn,
@@ -22,6 +21,7 @@ import {
   ledgerTypeOptions,
   useMemberLedgerSearch,
 } from './member-ledger';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 const typeOptions = ledgerTypeOptions(POINT_TX_TYPE_LABELS);
 const TYPE_COLORS: Record<string, string> = { earn: 'green', redeem: 'orange', expire: 'grey', adjust: 'blue', refund: 'cyan' };
@@ -37,10 +37,10 @@ export default function MemberPointsPage() {
   const search = useMemberLedgerSearch(memberAdminKeys.pointLists);
   const { page, pageSize, buildPagination, submittedParams } = search;
   // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
+  const filterQuery = useFilterQuery({
     memberKeyword: submittedParams.memberKeyword,
     type: enumValueOf(POINT_TX_TYPES, submittedParams.type),
-  }), [submittedParams]);
+  });
   const listQuery = useMemberPointTransactions({
     page,
     pageSize,

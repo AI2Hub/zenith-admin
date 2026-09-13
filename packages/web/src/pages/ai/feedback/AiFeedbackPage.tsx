@@ -1,5 +1,4 @@
-import { useMemo, useState, useRef } from 'react';
-import { compactParams } from '@/lib/query';
+import { useState, useRef } from 'react';
 import { Button, Form, Tag, Toast } from '@douyinfe/semi-ui';
 import { Download, ThumbsUp, ThumbsDown } from 'lucide-react';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -21,6 +20,7 @@ import { abortSubmit } from '@/lib/abort-submit';
 import AiConversationContextModal from '../components/AiConversationContextModal';
 import { AiMessageSnippet, AiUserCell } from '../ai-display';
 import { ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 const FEEDBACK_OPTIONS = [
   { value: '1', label: '👍 点赞' },
@@ -77,13 +77,13 @@ export default function AiFeedbackPage() {
   // 筛选值来自 Select 字符串，收窄为契约枚举后再进入查询
   // 已提交筛选 → 契约查询参数：只映射一次；日期级区间按契约键名 startDate / endDate 取元组形态
   const [startDate, endDate] = formatDateRangeValuesForApi(submittedParams.timeRange);
-  const filterQuery = useMemo(() => compactParams({
+  const filterQuery = useFilterQuery({
     feedback: enumValueOf(FEEDBACK_FILTER_VALUES, submittedParams.feedback),
     status: enumValueOf(AI_FEEDBACK_STATUSES, submittedParams.status),
     model: submittedParams.model,
     startDate,
     endDate,
-  }), [submittedParams, startDate, endDate]);
+  });
   const listQuery = useAiFeedbackList({ page, pageSize, ...filterQuery });
   const data = listQuery.data ?? null;
   const handleMutation = useHandleAiFeedback();

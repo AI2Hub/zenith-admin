@@ -13,7 +13,6 @@ import { useThemeController } from '@/providers/theme-controller';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { ListSearchToolbar, listTableProps } from '@/components/list-page';
-import { compactParams } from '@/lib/query';
 import { useListSearch } from '@/hooks/useListSearch';
 import { EMPTY_PLACEHOLDER, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { useTerminalPreferences } from './useTerminalPreferences';
@@ -26,6 +25,7 @@ import {
 import type { TerminalSession, TerminalSessionKind } from '@zenith/shared/ops';
 import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { confirmDanger } from '@/utils/confirm';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 const KIND_META: Record<TerminalSessionKind, { label: string; color: 'blue' | 'green' | 'cyan' | 'purple' }> = {
   local: { label: '本地', color: 'blue' },
@@ -135,10 +135,10 @@ export default function TerminalSessionsPage() {
   const [takeover, setTakeover] = useState(false);
 
   // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
+  const filterQuery = useFilterQuery({
     keyword: submittedParams.keyword,
     kind: submittedParams.kind,
-  }), [submittedParams]);
+  });
 
   const listQuery = useTerminalSessionList({ page, pageSize, ...filterQuery }, { refetchInterval: autoRefresh ? 5000 : false });
   const terminateMutation = useTerminateTerminalSession();

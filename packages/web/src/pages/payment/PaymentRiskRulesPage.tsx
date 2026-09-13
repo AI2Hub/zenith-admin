@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { formatYuan } from '@/utils/payment';
 import { Banner, Form, Space, Tabs, TabPane, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -25,13 +25,13 @@ import type { CreatePaymentRiskRuleInput, PaymentChannel, PaymentRiskAction, Pay
 import { useDictItems } from '@/hooks/useDictItems';
 import { useRuleListList } from '@/hooks/queries/rules';
 import { useListSearch } from '@/hooks/useListSearch';
-import { compactParams } from '@/lib/query';
 import { CreateButton } from '@/components/toolbar-controls';
 import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { deleteAction, useStatusToggle, ListSearchToolbar, listTableProps } from '@/components/list-page';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import { useListPage } from '@/hooks/useListPage';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 const yuan = formatYuan;
 const channelOptions = PAYMENT_CHANNEL_OPTIONS;
 const scopeOptions = PAYMENT_RISK_SCOPE_OPTIONS;
@@ -92,21 +92,21 @@ export default function PaymentRiskRulesPage() {
   const submittedReviewParams = reviewSearch.submittedParams;
 
   // 已提交筛选 → 契约查询参数：只映射一次
-  const hitFilterQuery = useMemo(() => compactParams({
+  const hitFilterQuery = useFilterQuery({
     keyword: submittedHitParams.keyword,
     action: enumValueOf(PAYMENT_RISK_ACTIONS, submittedHitParams.action),
     dimension: enumValueOf(PAYMENT_RISK_HIT_QUERY_DIMENSIONS, submittedHitParams.dimension),
-  }), [submittedHitParams]);
+  });
   const hitQuery = usePaymentRiskHitList({
     page: hitSearch.page,
     pageSize: hitSearch.pageSize,
     ...hitFilterQuery,
   });
   // 已提交筛选 → 契约查询参数：只映射一次
-  const reviewFilterQuery = useMemo(() => compactParams({
+  const reviewFilterQuery = useFilterQuery({
     keyword: submittedReviewParams.keyword,
     status: enumValueOf(PAYMENT_RISK_REVIEW_STATUSES, submittedReviewParams.status),
-  }), [submittedReviewParams]);
+  });
   const reviewQuery = usePaymentRiskReviewList({
     page: reviewSearch.page,
     pageSize: reviewSearch.pageSize,

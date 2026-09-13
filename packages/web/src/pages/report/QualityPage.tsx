@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { Banner, Col, Empty, Form, Modal, Row, SideSheet, Space, TabPane, Tabs, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { ReportDqAnomaly, ReportDqAnomalyStatus, ReportDqRule, ReportDqRuleType, ReportDqRun, ReportDqRunStatus, ReportDqScore } from '@zenith/shared/report';
@@ -36,11 +36,11 @@ import {
 } from './report-platform-utils';
 import { CreateButton } from '@/components/toolbar-controls';
 import { deleteAction, ListSearchToolbar, listTableProps, useStatusToggle } from '@/components/list-page';
-import { compactParams } from '@/lib/query';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import { FilterSelect } from '@/components/search-filters';
 import { useListPage } from '@/hooks/useListPage';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 const ruleTypeOptions: { value: ReportDqRuleType; label: string }[] = [
   { value: 'not_null', label: '非空' },
   { value: 'uniqueness', label: '唯一性' },
@@ -127,14 +127,14 @@ export default function QualityPage() {
 
   const datasetsQuery = useEnabledReportDatasets();
   const datasetOptions = (datasetsQuery.data ?? []).map((item) => ({ value: item.id, label: item.name }));
-  const runFilterQuery = useMemo(() => compactParams({
+  const runFilterQuery = useFilterQuery({
     datasetId: submitted.datasetId,
     status: submitted.runStatus,
-  }), [submitted]);
-  const anomalyFilterQuery = useMemo(() => compactParams({
+  });
+  const anomalyFilterQuery = useFilterQuery({
     datasetId: submitted.datasetId,
     status: submitted.anomalyStatus,
-  }), [submitted]);
+  });
   const runsQuery = useReportDqRunList({ page, pageSize, ...runFilterQuery });
   const historyQuery = useReportDqRunList({ page: 1, pageSize: 30, ruleId: historyRule?.id });
   const anomaliesQuery = useReportDqAnomalyList({ page, pageSize, ...anomalyFilterQuery });

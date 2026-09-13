@@ -1,13 +1,12 @@
-import { useMemo } from 'react';
 import { Button, Empty, Pagination, Spin, Upload, Toast } from '@douyinfe/semi-ui';
 import { FileText, UploadCloud } from 'lucide-react';
 import { AppModal } from '@/components/AppModal';
 import { fileKeys, useFileList, useUploadFile } from '@/hooks/queries/files';
 import { useListSearch } from '@/hooks/useListSearch';
-import { compactParams } from '@/lib/query';
 import type { ManagedFile } from '@zenith/shared/platform';
 import { SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 export interface MediaPickerModalProps {
   visible: boolean;
@@ -38,10 +37,10 @@ export function MediaPickerModal({ visible, onCancel, onSelect, imageOnly = true
     listKey: fileKeys.lists,
     pageSize: PAGE_SIZE,
   });
-  const filterQuery = useMemo(() => compactParams({
+  const filterQuery = useFilterQuery({
     keyword: submittedParams.keyword.trim(),
     fileType: imageOnly ? 'image' as const : undefined,
-  }), [submittedParams, imageOnly]);
+  });
 
   const listQuery = useFileList({ page, pageSize: PAGE_SIZE, ...filterQuery });
   const uploadMutation = useUploadFile();

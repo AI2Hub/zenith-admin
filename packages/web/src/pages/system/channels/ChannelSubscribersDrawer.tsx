@@ -5,7 +5,7 @@
  * - 系统号（system）：订阅者为全员，只读，不可手动增减。
  * - 运营号（business）：可添加订阅者（用户选择器）、按行移除、导出。
  */
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { Banner, SideSheet, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { ChannelAdmin, ChannelSubscriber } from '@zenith/shared/messaging';
@@ -27,7 +27,7 @@ import {
 import { CreateButton, ResetButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { dateTimeColumn } from '@/utils/table-columns';
-import { compactParams } from '@/lib/query';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 interface Props {
   channel: ChannelAdmin | null;
@@ -48,9 +48,9 @@ export function ChannelSubscribersDrawer({ channel, visible, onClose }: Readonly
   const [addVisible, setAddVisible] = useState(false);
   const [addUserIds, setAddUserIds] = useState<number[]>([]);
   // 已提交筛选 → 契约查询参数：列表与导出共用同一份映射
-  const filterQuery = useMemo(() => compactParams({
+  const filterQuery = useFilterQuery({
     keyword: submittedParams.keyword,
-  }), [submittedParams]);
+  });
   const listQuery = useChannelSubscribers(channel?.id, {
     page,
     pageSize,
@@ -59,10 +59,10 @@ export function ChannelSubscribersDrawer({ channel, visible, onClose }: Readonly
   const addMutation = useAddChannelSubscribers();
   const removeMutation = useRemoveChannelSubscriber();
   // 导出接口需要 channelId 路径上下文，列表 hook 已用独立形参传入。
-  const exportQuery = useMemo(() => compactParams({
+  const exportQuery = useFilterQuery({
     channelId: channel?.id,
     ...filterQuery,
-  }), [channel?.id, filterQuery]);
+  });
 
   // 每次打开抽屉都从空条件、第 1 页开始
   useEffect(() => {

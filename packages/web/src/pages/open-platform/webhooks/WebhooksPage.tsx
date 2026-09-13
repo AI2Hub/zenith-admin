@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { deleteAction, ListSearchToolbar, listTableProps, useRowSelection } from '@/components/list-page';
 import { Button, Tag, TagGroup, Modal, Form, Toast, Typography, Banner, SideSheet, Descriptions } from '@douyinfe/semi-ui';
@@ -34,6 +34,7 @@ import { useEditModal } from '@/hooks/useEditModal';
 import { abortSubmit } from '@/lib/abort-submit';
 import { compactParams } from '@/lib/query';
 import { dateTimeColumn, EMPTY_PLACEHOLDER, renderEllipsis, enabledStatusColumn } from '@/utils/table-columns';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 const { Text, Paragraph } = Typography;
 
@@ -103,11 +104,11 @@ export default function WebhooksPage({ scope = 'open' }: Readonly<WebhooksPagePr
   });
 
   // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
+  const filterQuery = useFilterQuery({
     keyword: submittedParams.keyword,
     clientId: submittedParams.clientId,
     status: enumValueOf(USER_STATUSES, submittedParams.status),
-  }), [submittedParams]);
+  });
   const listQuery = useWebhookList({
     page,
     pageSize,

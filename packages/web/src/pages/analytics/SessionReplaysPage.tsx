@@ -3,7 +3,6 @@
  * 与页面点击热力两个 Tab。支持 ?replay={id} 深链直达。
  */
 import { useEffect, useMemo, useState } from 'react';
-import { compactParams } from '@/lib/query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, Checkbox, Descriptions, SideSheet, Space, TabPane, Tabs, Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -27,6 +26,7 @@ import { StatCard, StatGrid } from '@/components/charts';
 import { replayKeys, useBatchDeleteReplays, useReplayDetail, useReplayList, useReplayStorageStats } from '@/hooks/queries/session-replays';
 import { formatBytes } from '@zenith/shared/core';
 import { ListSearchToolbar, listTableProps, useRowSelection } from '@/components/list-page';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 const { Text } = Typography;
 
@@ -77,7 +77,7 @@ export default function SessionReplaysPage() {
   const { selectedRowKeys, clear: clearSelection, rowSelection } = useRowSelection<string>();
 
   // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
+  const filterQuery = useFilterQuery({
     status: enumValueOf(REPLAY_STATUSES, submittedParams.status),
     triggerType: enumValueOf(REPLAY_TRIGGER_TYPES, submittedParams.triggerType),
     source: enumValueOf(REPLAY_SOURCES, submittedParams.source),
@@ -85,7 +85,7 @@ export default function SessionReplaysPage() {
     hasError: submittedParams.hasError ? true : undefined,
     pagePath: submittedParams.pagePath,
     clickLabel: submittedParams.clickLabel,
-  }), [submittedParams]);
+  });
   const listQuery = useReplayList({ page, pageSize, ...filterQuery });
   const total = listQuery.data?.total ?? 0;
 

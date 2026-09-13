@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Banner, Col, Empty, Form, Input, Modal, Row, Select, SideSheet, Space, TabPane, Tabs, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { ReportAssetCatalogItem, ReportAssetTemplate, ReportAssetTemplateType, ReportAssetUsageSummary, ReportAssetUsageTrendPoint, ReportDeprecationNotice, ReportResourceType } from '@zenith/shared/report';
@@ -12,7 +12,6 @@ import { useListSearch } from '@/hooks/useListSearch';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
-import { compactParams } from '@/lib/query';
 import {
   reportAssetKeys,
   useApplyReportAssetTemplate,
@@ -44,6 +43,7 @@ import { abortSubmit } from '@/lib/abort-submit';
 import { JsonBlock } from '@/components/JsonBlock';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 const resourceTypeOptions = REPORT_RESOURCE_TYPE_OPTIONS;
 const templateTypeOptions: FilterOption<ReportAssetTemplateType>[] = [
   { value: 'dashboard', label: '仪表盘模板' },
@@ -87,23 +87,21 @@ export default function AssetsPage() {
   const templateFoldersQuery = useReportFolderTree({ resourceType: 'asset_template' });
   const templateFolders = flattenReportFolders(templateFoldersQuery.data ?? []);
   // 已提交筛选 → 契约查询参数：只映射一次，列表与导出共用
-  const catalogFilterQuery = useMemo(() => {
-    const submitted = catalog.submittedParams;
-    const [updatedStart, updatedEnd] = formatDateTimeRangeValuesForApi(submitted.timeRange);
-    return compactParams({
-      keyword: submitted.keyword,
-      types: submitted.types.length ? submitted.types.join(',') : undefined,
-      ownerId: submitted.ownerId,
-      folderId: submitted.folderId,
-      lifecycle: submitted.lifecycle,
-      updatedStart,
-      updatedEnd,
-    });
-  }, [catalog.submittedParams]);
-  const templateFilterQuery = useMemo(() => compactParams({
+  const submitted = catalog.submittedParams;
+  const [updatedStart, updatedEnd] = formatDateTimeRangeValuesForApi(submitted.timeRange);
+  const catalogFilterQuery = useFilterQuery({
+    keyword: submitted.keyword,
+    types: submitted.types.length ? submitted.types.join(',') : undefined,
+    ownerId: submitted.ownerId,
+    folderId: submitted.folderId,
+    lifecycle: submitted.lifecycle,
+    updatedStart,
+    updatedEnd,
+  });
+  const templateFilterQuery = useFilterQuery({
     keyword: templates.submittedParams.keyword,
     type: templates.submittedParams.type,
-  }), [templates.submittedParams]);
+  });
   const catalogQuery = useReportAssetCatalog({ page: catalog.page, pageSize: catalog.pageSize, ...catalogFilterQuery });
   const usageQuery = useReportAssetUsage(usageTarget?.resourceType, usageTarget?.resourceId, usageDays, !!usageTarget);
   const templatesQuery = useReportAssetTemplateList({ page: templates.page, pageSize: templates.pageSize, ...templateFilterQuery });

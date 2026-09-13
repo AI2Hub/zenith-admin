@@ -1,5 +1,4 @@
-import { useMemo, useState } from 'react';
-import { compactParams } from '@/lib/query';
+import { useState } from 'react';
 import { Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { aiAuditContract } from '@zenith/shared/ai';
@@ -18,6 +17,7 @@ import { contractKey, useApiQuery } from '@/lib/contract-query';
 import { DateRangeFilter, FilterSelect, KeywordInput } from '@/components/search-filters';
 import { AiMessageSnippet, AiUserCell } from '../ai-display';
 import { ListSearchToolbar, listTableProps } from '@/components/list-page';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 const { Text } = Typography;
 
@@ -55,12 +55,12 @@ export default function AiAuditPage() {
   const [traceMsg, setTraceMsg] = useState<AiFeedbackItem | null>(null);
   // 已提交筛选 → 契约查询参数：只映射一次；日期级区间按契约键名 startDate / endDate 取元组形态
   const [startDate, endDate] = formatDateRangeValuesForApi(submitted.range);
-  const filterQuery = useMemo(() => compactParams({
+  const filterQuery = useFilterQuery({
     keyword: submitted.keyword,
     role: enumValueOf(AUDIT_ROLES, submitted.role),
     startDate,
     endDate,
-  }), [submitted, startDate, endDate]);
+  });
   const listQuery = useAuditList({ page, pageSize, ...filterQuery });
   const contextQuery = useAuditContext(contextMsgId);
 

@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { compactParams } from '@/lib/query';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { confirmAndDelete, deleteAction, ListSearchToolbar, listTableProps, useRowSelection } from '@/components/list-page';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -95,6 +94,7 @@ import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-fi
 import { EMPTY_PLACEHOLDER, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { toUserOptions } from '@/hooks/queries/users';
 import { formatBytes } from '@zenith/shared/core';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 const { Text, Title, Paragraph } = Typography;
 
@@ -424,13 +424,13 @@ export default function FrontendErrorsPage() {
   const overviewQuery = useFrontendErrorOverview(overviewDays, activeTab === 'overview');
   const overview = overviewQuery.data ?? null;
   // 已提交筛选 → 契约查询参数：只映射一次
-  const groupFilterQuery = useMemo(() => compactParams({
+  const groupFilterQuery = useFilterQuery({
     status: submittedIssueFilters.status,
     errorType: submittedIssueFilters.errorType,
     level: submittedIssueFilters.level,
     keyword: submittedIssueFilters.keyword.trim(),
     environment: submittedIssueFilters.environment,
-  }), [submittedIssueFilters]);
+  });
   const groupsQuery = useFrontendErrorGroups({
     page: groupPage,
     pageSize: groupPageSize,
@@ -442,7 +442,7 @@ export default function FrontendErrorsPage() {
   const adminUsers = adminUsersQuery.data?.list ?? EMPTY_ADMIN_USERS;
   const eventsQuery = useFrontendErrorEvents({ page: eventPage, pageSize: eventPageSize }, activeTab === 'events');
   // 已提交筛选 → 契约查询参数：只映射一次
-  const sourceMapFilterQuery = useMemo(() => compactParams({ release: submittedSourceRelease.trim() }), [submittedSourceRelease]);
+  const sourceMapFilterQuery = useFilterQuery({ release: submittedSourceRelease.trim() });
   const sourceMapsQuery = useFrontendSourceMaps({ page: sourceMapPage, pageSize: sourceMapPageSize, ...sourceMapFilterQuery }, activeTab === 'sourcemaps');
   const alertsQuery = useFrontendAlerts({ page: alertPage, pageSize: alertPageSize }, activeTab === 'alerts');
   const alertLogsQuery = useFrontendAlertLogs({ page: alertLogPage, pageSize: alertLogPageSize }, activeTab === 'alertlogs');

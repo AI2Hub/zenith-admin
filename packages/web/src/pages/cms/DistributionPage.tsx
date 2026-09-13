@@ -32,11 +32,11 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { CreateButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, FilterSelect, KeywordInput } from '@/components/search-filters';
-import { compactParams } from '@/lib/query';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
 import { FormStatusRadioGroup } from '@/components/FormStatusRadioGroup';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 interface RuleSearch {
   keyword: string;
   sourceSiteId?: number;
@@ -72,19 +72,19 @@ export default function DistributionPage() {
   const [detailRunId, setDetailRunId] = useState<number>();
 
   // 已提交筛选 → 契约查询参数：列表与导出共用同一份映射
-  const ruleFilterQuery = useMemo(() => compactParams({
+  const ruleFilterQuery = useFilterQuery({
     keyword: ruleSubmitted.keyword,
     sourceSiteId: ruleSubmitted.sourceSiteId,
     targetSiteId: ruleSubmitted.targetSiteId,
     mode: enumValueOf(CMS_DISTRIBUTION_MODES, ruleSubmitted.mode),
     status: enumValueOf(USER_STATUSES, ruleSubmitted.status),
-  }), [ruleSubmitted]);
-  const runFilterQuery = useMemo(() => compactParams({
+  });
+  const runFilterQuery = useFilterQuery({
     ruleId: runSubmitted.ruleId,
     siteId: runSubmitted.siteId,
     status: enumValueOf(CMS_DISTRIBUTION_TASK_STATUSES, runSubmitted.status),
     ...formatDateTimeRangeForApi(runSubmitted.range),
-  }), [runSubmitted]);
+  });
   const ruleQuery = useCmsDistributionRuleList({
     page: ruleSearch.page,
     pageSize: ruleSearch.pageSize,

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { Tag } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { WorkflowInstance } from '@zenith/shared/workflow';
@@ -7,7 +7,6 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import WorkflowInstanceDetailSheet from '@/components/workflow/WorkflowInstanceDetailSheet';
 import { dateTimeColumn, EMPTY_PLACEHOLDER } from '../../../utils/table-columns';
-import { compactParams } from '@/lib/query';
 import { useListSearch } from '@/hooks/useListSearch';
 import { ListSearchToolbar, listTableProps } from '@/components/list-page';
 import { KeywordInput } from '@/components/search-filters';
@@ -19,6 +18,7 @@ import {
   workflowSerialNoColumn,
 } from '@/components/workflow/WorkflowInstanceListColumns';
 import { useHandledWorkflowInstances, workflowInstanceKeys } from '@/hooks/queries/workflow-instances';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 type TagColor = 'amber' | 'blue' | 'green' | 'grey' | 'orange' | 'purple' | 'red';
 
@@ -38,7 +38,7 @@ export default function HandledPage() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
 
   // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({ keyword: submittedParams.keyword }), [submittedParams]);
+  const filterQuery = useFilterQuery({ keyword: submittedParams.keyword });
 
   const listQuery = useHandledWorkflowInstances({ page, pageSize, ...filterQuery });
 

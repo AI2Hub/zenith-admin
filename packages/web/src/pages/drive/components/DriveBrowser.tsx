@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
-import { compactParams } from '@/lib/query';
 import { Breadcrumb, Button, Dropdown, Empty, Form, Progress, Space, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { ChevronDown, Copy, Download, FolderPlus, LayoutGrid, List as ListIcon, Lock, MoveRight, Star, Trash2, Upload } from 'lucide-react';
@@ -28,6 +27,7 @@ import { DriveNodeCard } from './DriveNodeCard';
 import type { UploaderTarget } from '../hooks/useDriveUploader';
 import { nodeDownloadUrl, nodeToManagedFile, roleAtLeast, usagePercent } from '../drive-utils';
 import { collectDroppedDirectory, type DirectoryUploadFile } from '@/utils/directory-upload';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 type ViewMode = 'list' | 'grid';
 type SortBy = DriveNodeSortField;
@@ -69,12 +69,12 @@ export function DriveBrowser({ spaceId, folderId, onNavigate, onOpenDetail, onUp
   const tags = useDriveTags(spaceId);
 
   // 已提交筛选 → 契约查询参数：只映射一次
-  const filterQuery = useMemo(() => compactParams({
+  const filterQuery = useFilterQuery({
     keyword: submittedParams.keyword,
     sortBy: submittedParams.sortBy,
     order: submittedParams.order,
     tagId: submittedParams.tagId,
-  }), [submittedParams]);
+  });
   const dirQuery = useDriveDir({
     spaceId, parentId: folderId, page, pageSize,
     ...filterQuery,
