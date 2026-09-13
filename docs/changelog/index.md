@@ -4,6 +4,54 @@
 
 ---
 
+## v2.34.0 - 2026-09-13
+
+**契约派生补到最后一层：标准资源的 CRUD 行为在四端派生**。架构文档规定「路由、hooks、Mock 与 OpenAPI 都由契约派生」，此前派生止步于类型与路径，CRUD 行为仍逐资源手写。本版把「一个标准资源只写①契约②表结构③业务钩子④列与表单字段」变成默认路径：server `defineCrudService` + `mountCrud`（可见范围只声明一次，对 detail / update / remove / list 全部生效），web `useListPage({ contract })` + 契约派生筛选控件 + `useCrudOperationColumn`，mock `mockResource`，契约查询积木写入 `x-filter` 语义供三端共用；db/schema 通用列改用列积木，行 → 实体映射改 `pickEntity` 按契约实体投影。jscpd（min-tokens 50 / min-lines 5，排除测试与快照，三端 src）：925 克隆 / 6,477 行（1.09%）→ 812 / 5,699（0.97%）；结构性指标：手写标准操作路由块 708 → 260、手写 `mapXxx` 232 → 81、页面 `toQuery` 108 → 69、schema 克隆 91 → 42。
+
+### 升级注意
+
+- 本次**没有**数据库迁移：`db/schema` 765 处列声明改列积木后 `drizzle-kit generate` 报告 No schema changes。
+- 服务端行为变化：经 `mountCrud` 派生的更新 / 删除路由，审计 before 快照由数据库行改为**契约实体**（与 after 同形，加密列 / 内部列不再进入操作日志）；`defineCrudService` 的 `unique` 对创建与更新同时生效（此前少数资源只在创建时映射唯一冲突为 400）。
+- 契约：`keywordQuery` 参数语义改为「人可读的匹配字段」（`keywordQuery('名称 / 编码')` → 描述「按名称 / 编码模糊匹配」），`dateRangeBound(desc, 'start' | 'end')` 止端显式标注，`queryEnum(values, { description, dict | options })` 可声明标签来源；OpenAPI 查询参数新增 `x-filter` 扩展（keyword / enum / bool / id / date-bound），19 处枚举筛选参数附带 `options`。解析行为不变。
+- 前端行为变化：39 个切到契约模式的列表页，关键字框占位统一为「搜索 + 契约匹配字段」（此前页面文案与服务端实际检索字段存在漂移），枚举下拉占位统一为「全部 + 字段名」；`mp` 等域的筛选状态键与契约键对齐（`filterStatus` → `status`）。
+- Demo 模式：`mockResource` 派生的 26 个契约组，创建时 id 由 `nextIdFrom(store)` 生成（此前部分 handler 用独立计数器）。
+- 公共 API（仅影响自定义代码）：新增 `defineCrudService` / `mountCrud` / `readGuard` / `writeGuard` / `pickEntity` / `entityMapper` / `toPgUniqueViolationError`、`idColumn` / `statusColumn` / `sortColumn` / `remarkColumn` / `tenantIdColumn`、`useListPage` 契约模式（`toolbarProps` / `filterSchema` / `bindRange`）、`ListSearchToolbar` 契约写法（`page` / `filters` / `overrides` / `extraFilters`）、`useCrudOperationColumn`、`mockResource`、`filterMeta` / `filterMetaOf` / `filterMetaMap`、`OPEN_SIGNATURE_ALGORITHM_DOC`、`SystemPaymentJournalInput`。新增 ESLint 守卫（见 Added），命中的旧写法需迁移或加 `eslint-disable-next-line no-restricted-syntax -- 理由`。
+
+### Added
+
+#### 契约（shared）
+
+- `core/filter-meta`：`FilterMeta`（keyword / enum / bool / id / date-bound）、`filterMeta()`、`filterMetaOf()`（沿 optional / default / pipe 包装层向内查找）、`filterMetaMap()`；`keywordQuery` / `queryEnum` / `queryBool` / `idQuery` / `dateRangeBound` / `dateRangeQuery` 构造时写入 `x-filter`，前端筛选控件、Mock 列表筛选与 OpenAPI 文档共用一份语义。
+- `OPEN_SIGNATURE_STEPS` / `OPEN_SIGNATURE_STRING_TO_SIGN_FORMAT` / `OPEN_SIGNATURE_ALGORITHM_DOC`、`SystemPaymentJournalLine` / `SystemPaymentJournalInput`（server 与 Demo Mock 共用，不再各写一份）。
+
+#### 服务端（server）
+
+- `lib/crud-service`：`defineCrudService(contract, { table, map, notFound, unique?, tenant? | scope?, defaults?, list, create? / update? / remove? 钩子 })` → `{ list, get, ensure, create, update, remove, removeMany, snapshot, scope, whereId }`，类型全部从契约派生；27 个标准资源 Service 迁入（cms 敏感词 / 易错词、优惠券、邮件 / 站内 / 短信模板、公众号草稿 / 素材 / 客服、字典、决策流、定时任务、wiki 模板、workflow 分类 / 连接器 / 远程数据源、支付费率 / 风控等），旧函数名以解构别名保留。
+- `routes/_crud`：`mountCrud` / `crudRoutes` / `orderRoutes` / `readGuard` / `writeGuard`——按契约存在的标准操作生成路由（权限前缀 + 约定后缀、审计文案、实体快照、静态路径先于参数路径）；150 个路由文件、491 个标准操作块改为派生，17 个服务与契约返回形态不一致的文件保持显式。
+- `lib/entity-map`：`pickEntity(schema, row, overrides?)` / `entityMapper(schema, overrides?)`——按契约实体 schema 投影数据库行（Date 格式化、`undefined → null`、多余列不泄漏，可缺省的实体键行上可无），类型层要求每个必填键由行或 overrides 提供；125 个纯投影 `mapXxx` 改写，映射体 3,770 → 1,823 行。
+- `db/schema/common`：`idColumn` / `statusColumn` / `sortColumn` / `remarkColumn`；`db/schema/core`：`tenantIdColumn`。
+- `lib/sharp-loader`（sharp 惰性加载唯一入口）、`lib/db-errors` 的 `toPgUniqueViolationError`、`routes/workflow/instances/_batch-audit` 的 `runBatchWithAudit`、`failure-policy` 的 `insertCatchTask`。
+- `permission-audit` 测试：对账范围覆盖 `mountCrud` 派生的权限码。
+
+#### 前端（web）
+
+- `hooks/useListPage` 契约模式：`useListPage({ contract, useList, defaults?, params?, enabled?, table? })`，筛选状态类型 = 契约 list query 去分页键，`listKey` 由 `contractKey(contract.list)` 派生；返回值增 `toolbarProps` / `filterSchema` / `bindRange`。映射模式保留给非契约形状的筛选状态。
+- `components/list-page/ContractFilters`（`deriveFilterControls`）与 `ListSearchToolbar` 契约写法 `page` / `filters` / `overrides` / `extraFilters`：控件按 `x-filter` 语义派生，未声明语义的键报错而不是渲染空控件；39 个列表页迁入。
+- `components/list-page/useCrudOperationColumn`：标准操作列 `[...extra, 编辑, ...extraBetween, 删除, ...extraAfter]`，权限 / 行级隐藏 / 禁用 / 确认文案 / 成功提示 / 收尾按约定接好；62 个操作列迁入。
+- `mocks/utils/resource`：`mockResource(contract, options)` 派生标准 Mock 操作（列表筛选由 `x-filter` 驱动）；26 个契约组 / 88 个 handler 迁入。
+
+#### 守卫（ESLint）
+
+- server：`src/db/schema/*.ts` 封禁直写 `integer().primaryKey().generatedAlwaysAsIdentity()` / `statusEnum().notNull().default(...)` / `integer().references(() => tenants.id, …)`。
+- web：契约写法的 `ListSearchToolbar` 不得再传 `keyword` / `onSearch` / `onReset`；`createOperationColumn` 里相邻的「编辑 + deleteAction」二元组须改 `useCrudOperationColumn`（条件数组 / useMemo 内 / 仅删除的列加注释豁免，15 处已登记）。
+
+### Changed
+
+- 规范：`crud-backend.md` Step 1 / 4 / 5 / 6 与 `crud-frontend.md` Step 8b、`crud-mock.md` 11b 模板改为工厂 / 契约派生写法，显式写法降为「判据不满足时的例外」；`constraints.md`（Schema / Service / Route / Mock 层）与 `constraints-frontend.md`（搜索状态 / 工具栏 / 标准操作列）条目同步；`docs/backend/api-conventions.md`、`docs/frontend/data-fetching.md` / `components.md` 同步。
+- 19 处契约 `queryEnum` 补 `options: XXX_OPTIONS`（标签来源在契约声明一次）；151 处 `keywordQuery` 改为匹配字段写法；17 处自定义键名的时间止端补 `'end'`。
+
+---
+
 ## v2.33.0 - 2026-09-13
 
 **列表页查询区域与服务端列表查询的第三轮去重：从「遵守规范」到「再抽一层壳」**。对照 zenith skill 逐条核实规范与实现的偏移后，把规范此前允许每页手写一遍的机制性接线收口为新一层积木：前端 `useListPage`（搜索状态 → 筛选映射 → 列表查询 → 表格 props 一次接好，109 页迁入）、`useFilterQuery`（按内容稳定引用，取代 187 处手写依赖数组的 memo）、`EditFormModal` / `EditFormSheet`（159 个新增 / 编辑壳），契约 `keywordQuery`、服务端 `listRows` / `emptyListResult`；随之补齐 6 条 ESLint 守卫与规范 / 文档同步。前置的 Phase 1–6（即时筛选工具栏、移动端更多菜单复用 actions、新增按钮权限门、批量启停、共享列与菜单片段）与三处修复一并发布。jscpd（min-tokens 50 / min-lines 5，排除测试与 mock）：总重复行 8,022（1.36%）→ 7,336（1.18%），前端查询区域子集 1,691 → 1,420 行；规范偏移的手写模式计数全部归零。
