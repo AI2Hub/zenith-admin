@@ -9,7 +9,6 @@ import { enumValueOf } from '@zenith/shared/core';
 import { formatDateRangeValuesForApi } from '@/utils/date';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { useListSearch } from '@/hooks/useListSearch';
 import { useDictItems } from '@/hooks/useDictItems';
 import { usePermission } from '@/hooks/usePermission';
 import AppModal from '@/components/AppModal';
@@ -19,8 +18,8 @@ import { DateRangeFilter, FilterSelect } from '@/components/search-filters';
 import { abortSubmit } from '@/lib/abort-submit';
 import AiConversationContextModal from '../components/AiConversationContextModal';
 import { AiMessageSnippet, AiUserCell } from '../ai-display';
-import { ListSearchToolbar, listTableProps } from '@/components/list-page';
-import { useFilterQuery } from '@/hooks/useFilterQuery';
+import { ListSearchToolbar } from '@/components/list-page';
+import { useListPage } from '@/hooks/useListPage';
 
 const FEEDBACK_OPTIONS = [
   { value: '1', label: '👍 点赞' },
@@ -67,24 +66,25 @@ export default function AiFeedbackPage() {
   // useEditModal 例外：反馈处理动作表单（标记处理结果 / 备注），非实体新增 / 编辑
   const formApi = useRef<FormApi | null>(null);
   const {
-    page, pageSize, buildPagination,
-    bind, submittedParams,
-    handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: aiFeedbackKeys.lists });
+    bind,
+    handleSearch,
+    handleReset,
+    tableProps,
+    filterQuery,
+    listQuery,
+  } = useListPage({
+    pageSizeOpts: [10, 20, 50],
+    defaults: defaultSearchParams,
+    listKey: aiFeedbackKeys.lists,
+    useList: useAiFeedbackList,
+    toQuery: (s) => {
+      const [startDate, endDate] = formatDateRangeValuesForApi(s.timeRange);
+      return { feedback: enumValueOf(FEEDBACK_FILTER_VALUES, s.feedback), status: enumValueOf(AI_FEEDBACK_STATUSES, s.status), model: s.model, startDate, endDate };
+    },
+  });
   const [modalVisible, setModalVisible] = useState(false);
   const [handlingMessage, setHandlingMessage] = useState<AiFeedbackItem | null>(null);
   const [contextMsgId, setContextMsgId] = useState<number | null>(null);
-  // 筛选值来自 Select 字符串，收窄为契约枚举后再进入查询
-  // 已提交筛选 → 契约查询参数：只映射一次；日期级区间按契约键名 startDate / endDate 取元组形态
-  const [startDate, endDate] = formatDateRangeValuesForApi(submittedParams.timeRange);
-  const filterQuery = useFilterQuery({
-    feedback: enumValueOf(FEEDBACK_FILTER_VALUES, submittedParams.feedback),
-    status: enumValueOf(AI_FEEDBACK_STATUSES, submittedParams.status),
-    model: submittedParams.model,
-    startDate,
-    endDate,
-  });
-  const listQuery = useAiFeedbackList({ page, pageSize, ...filterQuery });
   const data = listQuery.data ?? null;
   const handleMutation = useHandleAiFeedback();
   const contextQuery = useAiFeedbackContext(contextMsgId);
@@ -250,10 +250,7 @@ export default function AiFeedbackPage() {
       />
       <ConfigurableTable<AiFeedbackItem>
         columns={columns}
-        {...listTableProps(listQuery, {
-          // showTotal / showSizeChanger 由 ConfigurableTable 按桌面 / 移动端决定，这里只覆盖页大小候选
-          pagination: (total) => ({ ...buildPagination(total), pageSizeOpts: [10, 20, 50] }),
-        })}
+        {...tableProps}
       />
       <AppModal
         title="处理反馈"

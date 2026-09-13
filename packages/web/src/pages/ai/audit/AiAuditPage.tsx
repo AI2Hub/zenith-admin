@@ -9,15 +9,14 @@ import { enumValueOf } from '@zenith/shared/core';
 import { formatDateRangeValuesForApi } from '@/utils/date';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { useListSearch } from '@/hooks/useListSearch';
 import AppModal from '@/components/AppModal';
 import AiConversationContextModal from '../components/AiConversationContextModal';
 import { dateTimeColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '@/utils/table-columns';
 import { contractKey, useApiQuery } from '@/lib/contract-query';
 import { DateRangeFilter, FilterSelect, KeywordInput } from '@/components/search-filters';
 import { AiMessageSnippet, AiUserCell } from '../ai-display';
-import { ListSearchToolbar, listTableProps } from '@/components/list-page';
-import { useFilterQuery } from '@/hooks/useFilterQuery';
+import { ListSearchToolbar } from '@/components/list-page';
+import { useListPage } from '@/hooks/useListPage';
 
 const { Text } = Typography;
 
@@ -46,22 +45,25 @@ interface AuditSearch { keyword: string; role?: string; range: [Date, Date] | nu
 
 /** 对话内容合规审计：跨用户全量消息检索 */
 export default function AiAuditPage() {
+  const defaultSearchParams: AuditSearch = { keyword: '', range: null };
   const {
-    page, pageSize, buildPagination,
-    bind, bindKeyword, submittedParams: submitted,
-    handleSearch, handleReset,
-  } = useListSearch<AuditSearch>({ defaults: { keyword: '', range: null }, listKey: auditKeys.lists });
+    bind,
+    bindKeyword,
+    handleSearch,
+    handleReset,
+    tableProps,
+  } = useListPage({
+    pageSizeOpts: [10, 20, 50],
+    defaults: defaultSearchParams,
+    listKey: auditKeys.lists,
+    useList: useAuditList,
+    toQuery: (s) => {
+      const [startDate, endDate] = formatDateRangeValuesForApi(s.range);
+      return { keyword: s.keyword, role: enumValueOf(AUDIT_ROLES, s.role), startDate, endDate };
+    },
+  });
   const [contextMsgId, setContextMsgId] = useState<number | null>(null);
   const [traceMsg, setTraceMsg] = useState<AiFeedbackItem | null>(null);
-  // 已提交筛选 → 契约查询参数：只映射一次；日期级区间按契约键名 startDate / endDate 取元组形态
-  const [startDate, endDate] = formatDateRangeValuesForApi(submitted.range);
-  const filterQuery = useFilterQuery({
-    keyword: submitted.keyword,
-    role: enumValueOf(AUDIT_ROLES, submitted.role),
-    startDate,
-    endDate,
-  });
-  const listQuery = useAuditList({ page, pageSize, ...filterQuery });
   const contextQuery = useAuditContext(contextMsgId);
 
   const columns: ColumnProps<AiFeedbackItem>[] = [
@@ -130,10 +132,7 @@ export default function AiAuditPage() {
       />
       <ConfigurableTable<AiFeedbackItem>
         columns={columns}
-        {...listTableProps(listQuery, {
-          // showTotal / showSizeChanger 由 ConfigurableTable 按桌面 / 移动端决定，这里只覆盖页大小候选
-          pagination: (total) => ({ ...buildPagination(total), pageSizeOpts: [10, 20, 50] }),
-        })}
+        {...tableProps}
       />
       <AiConversationContextModal
         visible={contextMsgId !== null}

@@ -28,7 +28,8 @@ export default function CommentsPage() {
   const [siteId, setSiteId] = useState<number | undefined>(undefined);
   const [activeTab, setActiveTab] = useUrlTabState(['pending', 'approved', 'rejected', 'all'] as const, 'pending');
   const [source, setSource] = useState<'member' | 'guest' | undefined>(undefined);
-  const { page, pageSize, setPage, buildPagination } = usePagination();
+  // 站点 / Tab / 来源任一变化即回到第 1 页（渲染期派生，新作用域首个请求就带 page=1）
+  const { page, pageSize, buildPagination } = usePagination({ resetKey: [siteId, activeTab, source] });
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
 
   const listQuery = useCmsCommentList({
@@ -50,7 +51,6 @@ export default function CommentsPage() {
 
   function handleTabChange(key: string) {
     setActiveTab(key as TabKey);
-    setPage(1);
     setSelectedIds([]);
   }
 
@@ -121,12 +121,12 @@ export default function CommentsPage() {
   const tableContent = (
     <>
       <SearchToolbar>
-        <CmsSiteSelect value={siteId} onChange={(v) => { setSiteId(v); setPage(1); setSelectedIds([]); }} width={200} />
+        <CmsSiteSelect value={siteId} onChange={(v) => { setSiteId(v); setSelectedIds([]); }} width={200} />
         <FilterSelect
           placeholder="全部评论来源"
           items={[{ label: '会员评论', value: 'member' }, { label: '游客评论', value: 'guest' }]}
           value={source}
-          onChange={(v) => { setSource(v as 'member' | 'guest' | undefined); setPage(1); setSelectedIds([]); }}
+          onChange={(v) => { setSource(v as 'member' | 'guest' | undefined); setSelectedIds([]); }}
           width={140}
         />
         {batchBar}

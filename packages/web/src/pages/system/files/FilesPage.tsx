@@ -132,9 +132,10 @@ export default function FilesPage() {
     bind, bindKeyword, submittedParams,
     handleSearch, handleReset,
   } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: fileKeys.lists });
-  const { page, pageSize, setPage, setPageSize, buildPagination } = usePagination(
-    (preferences.filesViewMode ?? 'list') === 'grid' ? FILE_GRID_PAGE_SIZE : FILE_LIST_PAGE_SIZE,
-  );
+  const { page, pageSize, setPage, setPageSize, buildPagination } = usePagination({
+    pageSize: (preferences.filesViewMode ?? 'list') === 'grid' ? FILE_GRID_PAGE_SIZE : FILE_LIST_PAGE_SIZE,
+    pageSizeOpts: FILE_LIST_PAGE_SIZE_OPTIONS,
+  });
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
   const [batchDownloadLoading, setBatchDownloadLoading] = useState(false);
   const [detailFile, setDetailFile] = useState<ManagedFile | null>(null);
@@ -525,7 +526,7 @@ export default function FilesPage() {
           columns={columns}
           empty="暂无文件记录"
           {...listTableProps(listQuery, {
-            pagination: (total) => ({ ...buildPagination(total), pageSizeOpts: FILE_LIST_PAGE_SIZE_OPTIONS }),
+            pagination: buildPagination,
             rowSelection: hasPermission('system:file:delete') ? {
               selectedRowKeys,
               onChange: (keys) => setSelectedRowKeys((keys ?? []).map(String)),
