@@ -24,7 +24,7 @@ import { requireItem, removeByIds } from '@/mocks/utils/crud';
 import { mockDateTime, mockDateTimeOffset, mockDate } from '@/mocks/utils/date';
 import { badRequest, conflict, notFound } from '@/mocks/utils/handlers';
 import { recordMockPaymentSucceeded, recordMockRefundSucceeded } from './payment-ext';
-import { filterByKeyword, includesKeyword, matchesFilter } from '@/mocks/utils/filter';
+import { filterByKeyword, includesKeyword, matchesFilter, withinDateRange } from '@/mocks/utils/filter';
 
 interface MockRefundIdempotencyRecord {
   requestHash: string;
@@ -208,8 +208,7 @@ export const paymentHandlers = [
         matchesFilter(o.payMethod, query.payMethod) &&
         (query.minAmount == null || o.amount >= query.minAmount) &&
         (query.maxAmount == null || o.amount <= query.maxAmount) &&
-        (!query.startTime || o.createdAt >= query.startTime) &&
-        (!query.endTime || o.createdAt <= query.endTime),
+        withinDateRange(o.createdAt, query.startTime, query.endTime),
     );
     return ok(paginate(filtered));
   }),
@@ -307,8 +306,7 @@ export const paymentHandlers = [
         matchesFilter(r.channel, query.channel) &&
         matchesFilter(r.status, query.status) &&
         matchesFilter(r.approvalStatus, query.approvalStatus) &&
-        (!query.startTime || r.createdAt >= query.startTime) &&
-        (!query.endTime || r.createdAt <= query.endTime),
+        withinDateRange(r.createdAt, query.startTime, query.endTime),
     );
     return ok(paginate(filtered));
   }),
@@ -341,8 +339,7 @@ export const paymentHandlers = [
         matchesFilter(l.channel, query.channel) &&
         matchesFilter(l.scene, query.scene) &&
         (matchesFilter(l.signatureValid, query.signatureValid)) &&
-        (!query.startTime || l.createdAt >= query.startTime) &&
-        (!query.endTime || l.createdAt <= query.endTime),
+        withinDateRange(l.createdAt, query.startTime, query.endTime),
     );
     return ok(paginate(filtered));
   }),

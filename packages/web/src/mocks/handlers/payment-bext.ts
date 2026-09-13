@@ -41,7 +41,7 @@ import { SEED_PAYMENT_METHOD_CONFIGS } from '@zenith/shared/seed';
 import { recordMockPaymentSucceeded } from './payment-ext';
 import { recordMockSystemJournal } from './payment-journals';
 import { mockOAuth2Clients } from './oauth2-apps';
-import { filterByKeyword, includesKeyword, matchesFilter } from '@/mocks/utils/filter';
+import { filterByKeyword, includesKeyword, matchesFilter, withinDateRange } from '@/mocks/utils/filter';
 import { removeByIds, requireItem, updateItem } from '@/mocks/utils/crud';
 
 const SEED = PAYMENT_MOCK_SEED_TIME;
@@ -285,8 +285,7 @@ const sharingHandlers = [
     const filtered = sharingReversals.filter((record) =>
       matchesFilter(record.sharingOrderId, query.sharingOrderId)
       && matchesFilter(record.status, query.status)
-      && (!query.startTime || record.createdAt >= query.startTime)
-      && (!query.endTime || record.createdAt <= query.endTime));
+      && withinDateRange(record.createdAt, query.startTime, query.endTime));
     return ok(paginate([...filtered].reverse()));
   }),
   mock(paymentSharingContract.reversalDetail, ({ params, ok }) => {
@@ -763,8 +762,7 @@ const transferHandlers = [
         matchesFilter(t.channel, query.channel) &&
         matchesFilter(t.status, query.status) &&
         matchesFilter(t.approvalStatus, query.approvalStatus) &&
-        (!query.startTime || t.createdAt >= query.startTime) &&
-        (!query.endTime || t.createdAt <= query.endTime),
+        withinDateRange(t.createdAt, query.startTime, query.endTime),
     );
     return ok(paginate([...filtered].reverse()));
   }),

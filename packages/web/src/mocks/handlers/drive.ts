@@ -35,7 +35,7 @@ import { badRequest, conflict, forbidden, locked, notFound, unauthorized } from 
 import { mockDateTime } from '@/mocks/utils/date';
 import { removeWhere } from '@/mocks/utils/array';
 import { createImmediateMockTask } from './async-tasks';
-import { filterByKeyword, matchesFilter } from '@/mocks/utils/filter';
+import { filterByKeyword, matchesFilter, withinDateRange } from '@/mocks/utils/filter';
 import {
   MOCK_USER,
   getNextDriveCommentId,
@@ -1318,8 +1318,7 @@ const collaborationHandlers = [
     requireItem(mockDriveSpaces, params.id, '空间不存在');
     const list = filterByKeyword(mockDriveActivities.filter((activity) => activity.spaceId === params.id), query.keyword, [(activity) => activity.nodeName])
       .filter((activity) => matchesFilter(activity.action, query.action)
-        && (!query.startTime || activity.createdAt >= query.startTime)
-        && (!query.endTime || activity.createdAt <= (query.endTime.length === 10 ? `${query.endTime} 23:59:59` : query.endTime)))
+        && withinDateRange(activity.createdAt, query.startTime, query.endTime))
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id - a.id);
     return ok(paginate(list));
   }),

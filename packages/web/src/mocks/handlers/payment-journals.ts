@@ -11,7 +11,7 @@ import { mock } from '@/mocks/utils/contract';
 import { requireItem } from '@/mocks/utils/crud';
 import { mockDateTime } from '@/mocks/utils/date';
 import { badRequest, conflict } from '@/mocks/utils/handlers';
-import { filterByKeyword, matchesFilter } from '@/mocks/utils/filter';
+import { filterByKeyword, matchesFilter, withinDateRange } from '@/mocks/utils/filter';
 
 const accounts: PaymentLedgerAccount[] = [];
 const journals: PaymentJournal[] = [];
@@ -166,8 +166,7 @@ export const paymentJournalHandlers = [
     const filtered = reservations.filter((reservation) => matchesFilter(reservation.accountId, query.accountId)
       && matchesFilter(reservation.sourceType, query.sourceType)
       && matchesFilter(reservation.status, query.status)
-      && (!query.startTime || reservation.createdAt >= query.startTime)
-      && (!query.endTime || reservation.createdAt <= query.endTime));
+      && withinDateRange(reservation.createdAt, query.startTime, query.endTime));
     return ok(paginate([...filtered].reverse()));
   }),
   mock(paymentJournalContract.createReservation, ({ body, ok }) => {
@@ -208,8 +207,7 @@ export const paymentJournalHandlers = [
       && matchesFilter(journal.appId, query.appId)
       && matchesFilter(journal.channelConfigId, query.channelConfigId)
       && matchesFilter(journal.currency, query.currency)
-      && (!query.startTime || journal.postedAt >= query.startTime)
-      && (!query.endTime || journal.postedAt <= query.endTime));
+      && withinDateRange(journal.postedAt, query.startTime, query.endTime));
     return ok(paginate(filtered));
   }),
   mock(paymentJournalContract.detail, ({ params, ok }) => {

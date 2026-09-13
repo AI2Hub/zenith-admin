@@ -44,3 +44,19 @@ export function filterByKeyword<T>(
 export function matchesFilter<T>(actual: T, expected: T | null | undefined | ''): boolean {
   return expected === undefined || expected === null || expected === '' || actual === expected;
 }
+
+/**
+ * 时间范围筛选（闭区间）：`start` / `end` 未传即不限制；`end` 为纯日期（`YYYY-MM-DD`）时补到当天 `23:59:59`，
+ * 与服务端 `dateRangeConditions` 的语义一致——「到 8 月 1 日」包含整个 8 月 1 日。
+ * 值与端点都按 `YYYY-MM-DD HH:mm:ss` 字符串比较，与契约 `dateRangeBound` 的两种输入格式兼容。
+ *
+ * @example
+ * list.filter((o) => matchesFilter(o.status, query.status) && withinDateRange(o.createdAt, query.startTime, query.endTime))
+ */
+export function withinDateRange(value: string | null | undefined, start: string | null | undefined, end: string | null | undefined): boolean {
+  if (!start && !end) return true;
+  const v = value ?? '';
+  if (start && v < start) return false;
+  if (end && v > (end.length === 10 ? `${end} 23:59:59` : end)) return false;
+  return true;
+}

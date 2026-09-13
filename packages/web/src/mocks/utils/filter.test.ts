@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { filterByKeyword, includesKeyword, matchesFilter } from './filter';
+import { filterByKeyword, includesKeyword, matchesFilter, withinDateRange } from './filter';
 
 describe('matchesFilter', () => {
   it('未传（undefined / null / 空串）不过滤，否则严格相等', () => {
@@ -32,5 +32,16 @@ describe('mock keyword filters', () => {
     const rows = [{ name: 'Alpha', code: 'A1' }, { name: 'Beta', code: 'B1' }];
     expect(filterByKeyword(rows, 'A1', [(row) => row.name, (row) => row.code])).toEqual([rows[0]]);
     expect(filterByKeyword(rows, '', [(row) => row.name])).toEqual(rows);
+  });
+});
+
+describe('withinDateRange', () => {
+  it('端点未传不限制；闭区间比较；纯日期终点补到当天 23:59:59', () => {
+    expect(withinDateRange('2026-08-01 10:00:00', undefined, undefined)).toBe(true);
+    expect(withinDateRange('2026-08-01 10:00:00', '2026-08-01 10:00:00', '2026-08-01 10:00:00')).toBe(true);
+    expect(withinDateRange('2026-08-01 10:00:00', '2026-08-01 10:00:01', undefined)).toBe(false);
+    expect(withinDateRange('2026-08-01 23:30:00', undefined, '2026-08-01')).toBe(true);
+    expect(withinDateRange('2026-08-02 00:00:00', undefined, '2026-08-01')).toBe(false);
+    expect(withinDateRange(null, '2026-08-01', undefined)).toBe(false);
   });
 });

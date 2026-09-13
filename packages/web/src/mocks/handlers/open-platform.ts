@@ -4,21 +4,15 @@ import type { OpenApiCallLog, OpenApiStatsGroupItem } from '@zenith/shared/open-
 import type { QueryOf } from '@zenith/shared/core';
 import { mock } from '@/mocks/utils/contract';
 import { mockOpenApiLogs } from '@/mocks/data/open-api-logs';
-import { includesKeyword, matchesFilter } from '@/mocks/utils/filter';
+import { includesKeyword, matchesFilter, withinDateRange } from '@/mocks/utils/filter';
 
 type LogFilter = QueryOf<typeof openApiStatsContract.logs>;
-
-function inRange(log: OpenApiCallLog, start: string | undefined, end: string | undefined): boolean {
-  if (start && log.createdAt < start) return false;
-  if (end && log.createdAt > end) return false;
-  return true;
-}
 
 /** 概览 / 趋势 / 分组只按范围维度过滤；日志表额外支持关键字、方法、结果、状态码 */
 function filtered(query: LogFilter): OpenApiCallLog[] {
   const keyword = query.keyword?.toLowerCase();
   return mockOpenApiLogs.filter((log) =>
-    inRange(log, query.startTime, query.endTime)
+    withinDateRange(log.createdAt, query.startTime, query.endTime)
     && matchesFilter(log.clientId, query.clientId)
     && includesKeyword(keyword, log.path, log.appName, { caseInsensitive: true })
     && matchesFilter(log.method, query.method)

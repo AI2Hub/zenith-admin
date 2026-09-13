@@ -5,7 +5,7 @@ import { badRequest, notFound } from '@/mocks/utils/handlers';
 import { removeWhere } from '@/mocks/utils/array';
 import type { SystemSchedulerNode, SystemSchedulerRun, SystemSchedulerTask } from '@zenith/shared/platform';
 import { mockDateTime, mockDateTimeOffset } from '@/mocks/utils/date';
-import { matchesFilter } from '@/mocks/utils/filter';
+import { matchesFilter, withinDateRange } from '@/mocks/utils/filter';
 
 function baseTask(extra: Partial<SystemSchedulerTask>): SystemSchedulerTask {
   return {
@@ -314,8 +314,7 @@ export const systemSchedulerHandlers = [
       .filter((item) => matchesFilter(item.status, query.status))
       .filter((item) => query.alertStatus !== 'alerted' || !!item.alertMessage)
       .filter((item) => query.alertStatus !== 'unacked' || (!!item.alertMessage && !item.alertAckAt))
-      .filter((item) => !query.startTime || item.startedAt >= query.startTime)
-      .filter((item) => !query.endTime || item.startedAt <= query.endTime)
+      .filter((item) => withinDateRange(item.startedAt, query.startTime, query.endTime))
       .sort((a, b) => b.startedAt.localeCompare(a.startedAt));
     return ok(paginate(filtered));
   }),
