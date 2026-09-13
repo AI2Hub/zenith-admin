@@ -249,7 +249,7 @@ export async function getAnnouncementReadStats(id: number, q: QueryOutputOf<type
   const { page, pageSize, tab: rawTab } = q;
   const tab = rawTab === 'unread' ? 'unread' : 'read';
   const announcement = await requireFirstRow(
-    db.select().from(announcements).where(eq(announcements.id, id)),
+    db.select().from(announcements).where(and(eq(announcements.id, id), tenantCondition(announcements, user))),
     '公告不存在',
   );
 

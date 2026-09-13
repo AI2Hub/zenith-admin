@@ -19,6 +19,7 @@ import { advanceAndMaterialize, killInstanceTokens } from './materialize';
 import { getInstanceDetail } from './queries';
 import { emitInstanceEvent, emitNodeEvent, emitTaskEvent, lockInstanceExpecting, requireVisibleInstance } from './shared';
 import { requireRow } from '../../../lib/db-assert';
+import { requireTenantUser } from '../../../lib/user-nicknames';
 import { buildWhere } from '../../../lib/where-helpers';
 
 /** 强制跳转：终止当前活动任务，直接推进到指定审批/办理节点 */
@@ -113,8 +114,7 @@ export async function reassignTask(taskId: number, targetUserId: number, comment
   if (task.status !== 'pending' && task.status !== 'waiting') {
     throw new HTTPException(400, { message: '仅未处理的任务可改派' });
   }
-  const [tgt] = await db.select({ id: users.id }).from(users).where(eq(users.id, targetUserId)).limit(1);
-  requireRow(tgt, '目标处理人不存在', 400);
+  await requireTenantUser(targetUserId, '目标处理人不存在');
   const inst = await requireVisibleInstance(task.instanceId, '任务不存在或无权操作');
   // 目标人已在本节点同轮持有活动任务时给出友好 409（否则撞 wf_tasks_active_uniq 唯一索引）；
   // 离职交接逐条改派复用本函数，冲突任务会按「单条失败不阻断」记入结果
@@ -345,9 +345,7 @@ function handoverTaskScopeWhere(fromUserId: number, user: ReturnType<typeof curr
 /** 离职交接影响范围预览（不落库） */
 export async function previewHandover(fromUserId: number): Promise<WorkflowHandoverPreview> {
   const user = currentUser();
-  const [from] = await db.select({ id: users.id, nickname: users.nickname, username: users.username })
-    .from(users).where(eq(users.id, fromUserId)).limit(1);
-  requireRow(from, '交接人不存在');
+  const from = await requireTenantUser(fromUserId, '交接人不存在', { status: 404 });
 
   const tasks = await db.select({ id: workflowTasks.id, status: workflowTasks.status })
     .from(workflowTasks)

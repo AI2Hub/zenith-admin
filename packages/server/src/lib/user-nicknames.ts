@@ -1,11 +1,36 @@
-import { inArray } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
+import { HTTPException } from 'hono/http-exception';
 import { db } from '../db';
 import { users } from '../db/schema';
 import type { DbExecutor } from '../db/types';
-import { keywordCondition } from './where-helpers';
+import { requireRow } from './db-assert';
+import { tenantScope } from './tenant';
+import { buildWhere, keywordCondition } from './where-helpers';
 
 /** 用户 id → 展示名（昵称，空则回退用户名） */
 export type UserNameMap = Map<number, string>;
+
+export interface TenantUserRef {
+  readonly id: number;
+  readonly username: string;
+  readonly nickname: string;
+  readonly status: (typeof users.$inferSelect)['status'];
+}
+
+/**
+ * 请求侧指定的目标用户（转办 / 委派 / 负责人 / 交接人）必须存在于**当前租户可见范围**内：
+ * 只按 id 查 users 会让租户用户把任务、委托、归属指到别的租户的账号上。
+ * `enabledOnly` 时停用账号一并按不存在处理。
+ */
+export async function requireTenantUser(id: number, message: string, options: { enabledOnly?: boolean; status?: 400 | 404 } = {}): Promise<TenantUserRef> {
+  const [row] = await db.select({ id: users.id, username: users.username, nickname: users.nickname, status: users.status })
+    .from(users)
+    .where(buildWhere(eq(users.id, id), tenantScope(users)))
+    .limit(1);
+  const user = requireRow(row, message, options.status ?? 400);
+  if (options.enabledOnly && user.status !== 'enabled') throw new HTTPException(options.status ?? 400, { message });
+  return user;
+}
 
 /**
  * 批量解析用户 id → 展示名（昵称 || 用户名），供列表行的 createdBy / ownerId / actorId 等补充展示名。

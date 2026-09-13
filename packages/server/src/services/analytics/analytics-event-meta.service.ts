@@ -1,9 +1,10 @@
 import { eq, desc, sql } from 'drizzle-orm';
 import { listRows } from '../../lib/list-query';
 import { requireFirstRow } from '../../lib/db-assert';
+import { requireTenantUser } from '../../lib/user-nicknames';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
-import { analyticsEventMeta, analyticsSavedReports, analyticsUserSegments, analyticsExperiments, users } from '../../db/schema';
+import { analyticsEventMeta, analyticsSavedReports, analyticsUserSegments, analyticsExperiments } from '../../db/schema';
 import type { AnalyticsEventMetaRow } from '../../db/schema';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { analyticsContract } from '@zenith/shared/analytics';
@@ -61,8 +62,7 @@ export async function touchEventMeta(events: TrackEventInput[], tenantId: number
 // ─── 责任人存在性校验（不信任客户端 ownerName，服务端解析）──────────────────────
 /** 校验 ownerId 对应用户存在且启用，返回服务端解析的展示名，杜绝客户端伪造 ownerName。 */
 async function resolveOwnerName(ownerId: number): Promise<string> {
-  const [owner] = await db.select({ nickname: users.nickname, status: users.status }).from(users).where(eq(users.id, ownerId)).limit(1);
-  if (!owner || owner.status !== 'enabled') throw new HTTPException(400, { message: '负责人不存在或已停用' });
+  const owner = await requireTenantUser(ownerId, '负责人不存在或已停用', { enabledOnly: true });
   return owner.nickname;
 }
 

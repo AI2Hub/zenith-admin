@@ -18,6 +18,7 @@ import logger from '../../../lib/logger';
 import { bridgeReportFillWorkflowOutcome } from '../../report/report-fill-workflow-bridge.service';
 import { submitReportFillSyncForWorkflowInstance } from '../../report/report-fill-task.service';
 import { requireRow } from '../../../lib/db-assert';
+import { requireTenantUser } from '../../../lib/user-nicknames';
 
 /** 转办：将当前任务的处理人改为目标用户 */
 export async function transferTask(taskId: number, targetUserId: number, comment?: string, attachments?: WorkflowTaskAttachment[]) {
@@ -33,9 +34,7 @@ export async function transferTask(taskId: number, targetUserId: number, comment
   if (handled.has(targetUserId) || targetUserId === original) {
     throw new HTTPException(400, { message: '禁止将任务转回曾经经手的处理人' });
   }
-  const [target] = await db.select({ id: users.id, nickname: users.nickname })
-    .from(users).where(eq(users.id, targetUserId)).limit(1);
-  requireRow(target, '转办人不存在', 400);
+  const target = await requireTenantUser(targetUserId, '转办人不存在');
   const transferSuffix = comment ? `：${comment}` : '';
   const transferComment = `[转办] 由 ${actor.name ?? '系统'} 转办${transferSuffix}`;
   // 事务 + 实例行级锁：任务改派、转办留痕与事件 outbox 原子提交，并与同实例的审批/加减签等并发操作串行化
@@ -129,9 +128,7 @@ export async function delegateTask(taskId: number, targetUserId: number, comment
   if (handled.has(targetUserId) || targetUserId === original) {
     throw new HTTPException(400, { message: '禁止将任务委派给曾经经手的处理人' });
   }
-  const [target] = await db.select({ id: users.id, nickname: users.nickname })
-    .from(users).where(eq(users.id, targetUserId)).limit(1);
-  requireRow(target, '委派人不存在', 400);
+  const target = await requireTenantUser(targetUserId, '委派人不存在');
   const delegateSuffix = comment ? `：${comment}` : '';
   const delegateComment = `[委派] 由 ${actor.name ?? '系统'} 委派${delegateSuffix}`;
   // delegatedFromId 仅在首次委派时设置（保留最原始的委派人，以便回执时返还）

@@ -156,6 +156,13 @@
   且同样禁止串行 `await`
 - **存在性断言**：「取首行，不存在则抛 HTTPException」用 `lib/db-assert.ts` 的 `requireRow(row, message, status?)` /
   `requireFirstRow(queryPromise, message)`；查询本身（投影、租户 / 数据范围条件）留在调用方，**禁止**为此再抽 `ensureById(table, id)` 之类隐藏条件的通用查询
+- **按请求 id 访问必须带租户条件**（`services/tenant-isolation.test.ts` 静态守卫）：对带 `tenantId` 列的表，凡以请求侧 id
+  （入参 `id` / `xxxId` / `ids`，或 `input` / `query` / `body` 的属性）做 `select / update / delete`，所在函数须满足其一——
+  同一 where 叠加 `tenantScope(T)` / `tenantCondition(T, user)`；走 `defineCrudService` 产物的 `whereId` / `ensure` / `get` / `update` / `remove`；
+  对同一 id 先调 `ensureXxx(id)` 一类校验函数（校验函数自身受同一规则约束）；或按归属用户 `eq(T.userId, user.userId)` 校验。
+  平台级 / 后台作业 / 公开接口等确无租户上下文的访问点登记到 `services/_tenant-isolation-baseline.ts`（带理由，只准缩小）。
+  请求侧指定的**目标用户**（转办人 / 委派人 / 负责人 / 交接人）用 `lib/user-nicknames.ts` 的 `requireTenantUser(id, message, { enabledOnly? })`，
+  **禁止**再手写 `db.select().from(users).where(eq(users.id, targetUserId))` + `requireRow`（会把任务 / 归属指到别的租户的账号）
 - **租户归属匹配**：与一条已知归属（订单 / 应用 / 事件所属租户）做行到行匹配用 `lib/tenant.ts` 的
   `exactTenantCondition(col, tenantId)`（`null → IS NULL`）、`optionalExactTenantCondition`（`undefined` 不过滤）、
   `inheritedTenantCondition`（平台级可被租户继承：`IS NULL OR =`）；**禁止**手写 `tenantId == null ? isNull(col) : eq(col, tenantId)` 三目。

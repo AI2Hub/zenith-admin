@@ -3,7 +3,8 @@ import { db } from '../../db';
 import { workflowSavedViews } from '../../db/schema';
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../lib/context';
-import { getCreateTenantId } from '../../lib/tenant';
+import { getCreateTenantId, tenantCondition } from '../../lib/tenant';
+import { buildWhere } from '../../lib/where-helpers';
 import { formatTimestamps } from '../../lib/datetime';
 import { clearDefaultFlag } from '../../lib/default-flag';
 import type { QueryOutputOf } from '@zenith/shared/core';
@@ -31,7 +32,8 @@ function mapView(row: Row): WorkflowSavedView {
 
 async function ensureOwn(id: number): Promise<Row> {
   const user = currentUser();
-  const [row] = await db.select().from(workflowSavedViews).where(eq(workflowSavedViews.id, id)).limit(1);
+  const [row] = await db.select().from(workflowSavedViews)
+    .where(buildWhere(eq(workflowSavedViews.id, id), tenantCondition(workflowSavedViews, user))).limit(1);
   if (!row || row.userId !== user.userId) throw new HTTPException(404, { message: '视图不存在' });
   return row;
 }

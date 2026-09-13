@@ -108,7 +108,7 @@ export async function getWorkflowSchedule(id: number): Promise<WorkflowSchedule>
     .from(workflowSchedules)
     .leftJoin(workflowDefinitions, eq(workflowSchedules.definitionId, workflowDefinitions.id))
     .leftJoin(users, eq(workflowSchedules.initiatorId, users.id))
-    .where(eq(workflowSchedules.id, id))
+    .where(buildWhere(eq(workflowSchedules.id, id), tenantCondition(workflowSchedules, currentUser())))
     .limit(1);
   requireRow(r, '定时规则不存在');
   return mapSchedule(r.row, { definitionName: r.definitionName, initiatorName: r.initiatorName });

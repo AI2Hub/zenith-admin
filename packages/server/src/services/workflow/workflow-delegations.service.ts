@@ -2,7 +2,7 @@ import { workflowDelegationContract, workflowDelegationSchema } from '@zenith/sh
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { and, desc, eq, isNull, or } from 'drizzle-orm';
 import { db } from '../../db';
-import { workflowDelegations, users } from '../../db/schema';
+import { workflowDelegations } from '../../db/schema';
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../lib/context';
 import { isSuperAdmin } from '../../lib/permissions';
@@ -11,6 +11,7 @@ import { pageOffset } from '../../lib/pagination';
 import { parseDateTimeInput } from '../../lib/datetime';
 import { buildListResult } from '../../lib/list-query';
 import { requireRow } from '../../lib/db-assert';
+import { requireTenantUser } from '../../lib/user-nicknames';
 import type { DbExecutor } from '../../db/types';
 import type { WorkflowDelegation, CreateWorkflowDelegationInput, UpdateWorkflowDelegationInput } from '@zenith/shared/workflow';
 import { buildWhere } from '../../lib/where-helpers';
@@ -64,8 +65,7 @@ export async function resolveActiveDelegate(
 }
 
 async function ensureUserExists(id: number, msg: string) {
-  const [row] = await db.select({ id: users.id }).from(users).where(eq(users.id, id)).limit(1);
-  requireRow(row, msg, 400);
+  await requireTenantUser(id, msg);
 }
 
 async function ensureDelegationAccess(id: number): Promise<DelegationRow> {

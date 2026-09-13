@@ -22,6 +22,7 @@ vi.mock('../../lib/context', () => ({
 
 vi.mock('../../lib/tenant', () => ({
   isPlatformAdmin: () => true,
+  tenantScope: () => undefined,
 }));
 
 import { createEventMeta, updateEventMeta } from './analytics-event-meta.service';
