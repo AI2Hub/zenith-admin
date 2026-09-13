@@ -9,6 +9,7 @@ import { mockPaymentRiskRules } from './payment-bext';
 import { evaluateMockDecisionTable } from './decision-tables';
 import { mockDateTime } from '@/mocks/utils/date';
 import { filterByKeyword } from '@/mocks/utils/filter';
+import { mockResource } from '@/mocks/utils/resource';
 
 /** mock 决策流求值：与后端 rules-flow 引擎语义对齐（条件跳过/命名空间合并/逐步 trace） */
 function evaluateFlow(steps: RuleFlowStep[], input: Record<string, unknown>) {
@@ -107,13 +108,11 @@ export const rulesP2Handlers = [
     if (r.status === 'disabled') return badRequest('决策流已禁用', { status: 400 });
     return ok(evaluateFlow(r.status === 'published' && r.publishedSteps ? r.publishedSteps : r.steps, input));
   }),
-  mock(decisionFlowContract.removeBatch, ({ body, ok }) => {
-    removeByIds(mockDecisionFlows, body.ids);
-    return ok(null, '删除成功');
-  }),
-  mock(decisionFlowContract.detail, ({ params, ok }) => {
-    const r = requireItem(mockDecisionFlows, params.id, '决策流不存在', { status: 404 });
-    return ok(r);
+  ...mockResource(decisionFlowContract, {
+    store: mockDecisionFlows,
+    notFound: '决策流不存在',
+    messages: { removeBatch: () => '删除成功' },
+    exclude: ['list', 'create', 'update'],
   }),
   mock(decisionFlowContract.update, ({ params, body, ok }) => {
     const r = requireItem(mockDecisionFlows, params.id, '决策流不存在', { status: 404 });
@@ -155,11 +154,6 @@ export const rulesP2Handlers = [
   mock(decisionFlowContract.test, ({ params, body, ok }) => {
     const r = requireItem(mockDecisionFlows, params.id, '决策流不存在', { status: 404 });
     return ok(evaluateFlow(r.steps, body.input));
-  }),
-  mock(decisionFlowContract.remove, ({ params, ok }) => {
-    requireItem(mockDecisionFlows, params.id, '决策流不存在', { status: 404 });
-    removeByIds(mockDecisionFlows, [params.id]);
-    return ok(null, '删除成功');
   }),
 
   // ── 评分卡 ──────────────────────────────────────────────────────────────────

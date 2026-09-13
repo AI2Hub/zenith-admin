@@ -2,12 +2,12 @@ import type { FileStorageConfig, FolderEntry, ManagedFile, StorageBrowseResult }
 import { fillPath } from '@zenith/shared/core';
 import { fileContract, fileStorageConfigContract } from '@zenith/shared/platform';
 import { mock } from '@/mocks/utils/contract';
-import { removeByIds, removeItem, requireItem } from '@/mocks/utils/crud';
+import { removeByIds, requireItem } from '@/mocks/utils/crud';
 import { badRequest, notFound, nextIdFrom } from '@/mocks/utils/handlers';
 import { abortMockUploadSession, completeMockUploadSession, initMockUploadSession, mockUploadSessionStatus, receiveMockUploadChunk } from '@/mocks/utils/upload-sessions';
 import { mockFileStorageConfigs, STORAGE_SECRET_FIELDS, type MockFileStorageConfig } from '@/mocks/data/system';
 import { mockDateTime } from '@/mocks/utils/date';
-import { includesKeyword } from '@/mocks/utils/filter';
+import { mockResource } from '@/mocks/utils/resource';
 
 function mockUuidV7() {
   const timeHex = Date.now().toString(16).padStart(12, '0').slice(-12);
@@ -181,13 +181,11 @@ function stripStorageSecrets(config: MockFileStorageConfig): FileStorageConfig {
 }
 
 export const filesHandlers = [
-  // 文件列表（分页）
-  mock(fileContract.list, ({ query, ok, paginate }) => {
-    const list = mockManagedFiles.filter((f) => {
-      if (query.keyword && !includesKeyword(query.keyword, f.originalName)) return false;
-      return true;
-    });
-    return ok(paginate(list));
+  ...mockResource(fileContract, {
+    store: mockManagedFiles,
+    notFound: '文件不存在',
+    keyword: (item) => [item.originalName],
+    exclude: ['removeBatch'],
   }),
 
   // 按存储配置浏览文件目录（必须放在 detail 之前）
@@ -286,12 +284,6 @@ export const filesHandlers = [
     return ok({ url: file.directUrl ?? file.url, strategy: file.directUrl ? 'public' : 'proxy', expiresAt: null });
   }),
 
-  // 获取单个文件详情
-  mock(fileContract.detail, ({ params, ok }) => {
-    const file = requireItem(mockManagedFiles, params.id, '文件不存在');
-    return ok(file);
-  }),
-
   // 批量删除文件（静态 /batch 必须早于动态 /{id}）
   mock(fileContract.removeBatch, ({ body, ok }) => {
     let count = 0;
@@ -303,12 +295,6 @@ export const filesHandlers = [
       }
     }
     return ok(null, `已删除 ${count} 个文件`);
-  }),
-
-  // 删除文件
-  mock(fileContract.remove, ({ params, ok }) => {
-    removeItem(mockManagedFiles, params.id, '文件不存在');
-    return ok(null, '删除成功');
   }),
 
   // ─── 文件存储配置 ───────────────────────────────────────────────────────────

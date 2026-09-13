@@ -7,6 +7,7 @@ import { mockUsers } from '@/mocks/data/users';
 import { mockDateTime } from '@/mocks/utils/date';
 import { includesKeyword } from '@/mocks/utils/filter';
 import { removeByIds, requireItem } from '@/mocks/utils/crud';
+import { mockResource } from '@/mocks/utils/resource';
 
 /** 按关键词 / 类型 / 已读状态过滤（我的收件箱与管理员视角共用） */
 function filterMessages(list: InAppMessage[], query: { keyword?: string; type?: InAppMessage['type']; isRead?: boolean }) {
@@ -56,10 +57,11 @@ export const inAppMessagesHandlers = [
   mock(inAppMessageContract.list, ({ query, ok, paginate }) => ok(paginate(filterMessages(mockInAppMessages, query)))),
 
   mock(inAppMessageContract.unreadCount, ({ ok }) => ok({ count: mockInAppMessages.filter((m) => !m.isRead).length })),
-
-  mock(inAppMessageContract.detail, ({ params, ok }) => {
-    const m = requireItem(mockInAppMessages, params.id, '站内信不存在', { status: 404 });
-    return ok(m);
+  ...mockResource(inAppMessageContract, {
+    store: mockInAppMessages,
+    notFound: '站内信不存在',
+    messages: { removeBatch: (count) => `已删除 ${count} 条记录` },
+    exclude: ['list'],
   }),
 
   mock(inAppMessageContract.markRead, ({ params, ok }) => {
@@ -108,16 +110,5 @@ export const inAppMessagesHandlers = [
       sentCount += 1;
     }
     return ok({ sentCount }, `已发送 ${sentCount} 条站内信`);
-  }),
-
-  mock(inAppMessageContract.removeBatch, ({ body, ok }) => {
-    const count = removeByIds(mockInAppMessages, body.ids);
-    return ok(null, `已删除 ${count} 条记录`);
-  }),
-
-  mock(inAppMessageContract.remove, ({ params, ok }) => {
-    requireItem(mockInAppMessages, params.id, '站内信不存在', { status: 404 });
-    removeByIds(mockInAppMessages, [params.id]);
-    return ok(null, '删除成功');
   }),
 ];

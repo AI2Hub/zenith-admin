@@ -1,5 +1,5 @@
 import { mock } from '@/mocks/utils/contract';
-import { removeByIds, requireItem, updateItem } from '@/mocks/utils/crud';
+import { removeByIds, requireItem } from '@/mocks/utils/crud';
 import { badRequest, fail, forbidden, notFound } from '@/mocks/utils/handlers';
 import { resolveIdempotent } from '@/mocks/utils/idempotency';
 import {
@@ -41,6 +41,7 @@ import { mockWorkflowInstances, mockWorkflowTasks, mockWorkflowDefinitions, getN
 import { mockUsers } from '@/mocks/data/users';
 import { mockDateTime } from '@/mocks/utils/date';
 import { filterByKeyword } from '@/mocks/utils/filter';
+import { mockResource } from '@/mocks/utils/resource';
 
 /** 批量审批的幂等缓存：同一 X-Idempotency-Key 重复提交时原样回放首次结果 */
 const batchActionCache = new Map<string, { data: WorkflowBatchActionResponse; message: string }>();
@@ -121,7 +122,6 @@ function runBatchTaskAction(taskIds: number[], act: (task: WorkflowTask, now: st
 // ── 抄送已读 / 保存视图 / 定时发起 内存态 ──
 const ccReadState = new Set<number>();
 const mockSavedViews: WorkflowSavedView[] = [];
-let nextSavedViewId = 1;
 const mockSchedules: WorkflowSchedule[] = [];
 let nextScheduleId = 1;
 
@@ -417,20 +417,12 @@ export const workflowExtraHandlers = [
 
   // ── 列表保存视图 ──
   mock(workflowSavedViewContract.list, ({ query, ok }) => ok(mockSavedViews.filter((v) => v.pageKey === query.pageKey))),
-  mock(workflowSavedViewContract.create, ({ body, ok }) => {
-    const now = mockDateTime();
-    const view: WorkflowSavedView = { id: nextSavedViewId++, userId: 1, pageKey: body.pageKey, name: body.name, filters: body.filters, isDefault: body.isDefault ?? false, sort: body.sort ?? 0, createdAt: now, updatedAt: now };
-    mockSavedViews.push(view);
-    return ok(view, '已保存');
-  }),
-  mock(workflowSavedViewContract.update, ({ params, body, ok }) => {
-    const v = updateItem(mockSavedViews, params.id, body, { notFoundMessage: '视图不存在', now: mockDateTime });
-    return ok(v, '已更新');
-  }),
-  mock(workflowSavedViewContract.remove, ({ params, ok }) => {
-    requireItem(mockSavedViews, params.id, '视图不存在');
-    removeByIds(mockSavedViews, [params.id]);
-    return ok(null, '已删除');
+  ...mockResource(workflowSavedViewContract, {
+    store: mockSavedViews,
+    notFound: '视图不存在',
+    create: (body, id, now): WorkflowSavedView => ({ id, userId: 1, pageKey: body.pageKey, name: body.name, filters: body.filters, isDefault: body.isDefault ?? false, sort: body.sort ?? 0, createdAt: now, updatedAt: now }),
+    messages: { create: '已保存', update: '已更新', remove: '已删除' },
+    exclude: ['list'],
   }),
 
   // ── 定时发起 ──

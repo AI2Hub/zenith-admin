@@ -2,13 +2,14 @@ import dayjs from 'dayjs';
 import { cronJobContract } from '@zenith/shared/platform';
 import type { CronJob } from '@zenith/shared/platform';
 import { mock } from '@/mocks/utils/contract';
-import { requireItem, updateItem, removeByIds } from '@/mocks/utils/crud';
+import { requireItem } from '@/mocks/utils/crud';
 import { notFound } from '@/mocks/utils/handlers';
 import { mockCronJobs, getNextCronJobId } from '@/mocks/data/system';
 import { mockCronJobLogs } from '@/mocks/data/cron-job-logs';
 import { mockDateTime } from '@/mocks/utils/date';
 import { filterByKeyword, matchesFilter } from '@/mocks/utils/filter';
 import { buildMockCronJobDetailStats, buildMockCronJobStats } from './cron-job-stats';
+import { mockResource } from '@/mocks/utils/resource';
 
 export const cronJobsHandlers = [
   // 获取可用任务处理器列表（必须在 :id 路由之前声明）
@@ -50,11 +51,10 @@ export const cronJobsHandlers = [
       .filter((j) => matchesFilter(j.status, query.status));
     return ok(paginate(list));
   }),
-
-  // 获取单个任务
-  mock(cronJobContract.detail, ({ params, ok }) => {
-    const job = requireItem(mockCronJobs, params.id, '任务不存在');
-    return ok(job);
+  ...mockResource(cronJobContract, {
+    store: mockCronJobs,
+    notFound: '任务不存在',
+    exclude: ['list', 'create'],
   }),
 
   // 新增任务：body 即 CreateCronJobInput（已校验、已补默认值）
@@ -81,12 +81,6 @@ export const cronJobsHandlers = [
     return ok(newJob, '新增成功');
   }),
 
-  // 更新任务
-  mock(cronJobContract.update, ({ params, body, ok }) => {
-    const job = updateItem(mockCronJobs, params.id, body, { notFoundMessage: '任务不存在', now: mockDateTime });
-    return ok(job, '更新成功');
-  }),
-
   // 清除所有执行日志（必须在 DELETE /:id 之前声明）
   mock(cronJobContract.clearLogs, ({ query, ok }) => ok(null, `已清除 ${query.days} 天前的日志`)),
 
@@ -94,13 +88,6 @@ export const cronJobsHandlers = [
   mock(cronJobContract.clearJobLogs, ({ params, query, ok }) => {
     const job = requireItem(mockCronJobs, params.id, '任务不存在');
     return ok(null, `已清除「${job.name}」${query.days} 天前的日志`);
-  }),
-
-  // 删除任务
-  mock(cronJobContract.remove, ({ params, ok }) => {
-    requireItem(mockCronJobs, params.id, '任务不存在');
-    removeByIds(mockCronJobs, [params.id]);
-    return ok(null, '删除成功');
   }),
 
   // 立即执行任务（demo 模式仅更新 lastRunAt）

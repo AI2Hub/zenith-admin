@@ -1,7 +1,7 @@
 import { HTTPException } from 'hono/http-exception';
 import { requireRow } from '../../lib/db-assert';
 import { eq } from 'drizzle-orm';
-import { OPEN_SIGNATURE_ALGORITHM, OPEN_SIGNATURE_TIMESTAMP_WINDOW, OPEN_SIGNATURE_HEADERS } from '@zenith/shared/open-platform';
+import { OPEN_SIGNATURE_ALGORITHM_DOC } from '@zenith/shared/open-platform';
 import type { OpenSignatureVerifyInput } from '@zenith/shared/open-platform';
 import { getAppSigningSecret } from './oauth2-clients.service';
 import { signRequest, timingSafeEqualHex } from '../../lib/open-signature';
@@ -10,26 +10,9 @@ import { oauth2Clients } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { isSuperAdmin, getUserPermissions } from '../../lib/permissions';
 
-/** 返回签名算法说明（供前端验签工具页展示） */
+/** 返回签名算法说明（供前端验签工具页展示）；文案与 Demo Mock 共用 shared 常量 */
 export function getSignatureAlgorithmDoc() {
-  return {
-    algorithm: OPEN_SIGNATURE_ALGORITHM,
-    timestampWindow: OPEN_SIGNATURE_TIMESTAMP_WINDOW,
-    headers: {
-      appKey: OPEN_SIGNATURE_HEADERS.appKey,
-      timestamp: OPEN_SIGNATURE_HEADERS.timestamp,
-      nonce: OPEN_SIGNATURE_HEADERS.nonce,
-      signature: OPEN_SIGNATURE_HEADERS.signature,
-    },
-    stringToSignFormat: 'METHOD\\nPATH\\nCANONICAL_QUERY\\nTIMESTAMP\\nNONCE\\nSHA256_HEX(BODY)',
-    steps: [
-      '1. 规整 query：按参数名排序后以 k=v&k=v 拼接（无 query 则为空字符串）',
-      '2. 计算请求体的 SHA-256 十六进制摘要（无 body 则对空字符串求摘要）',
-      '3. 以换行符顺序拼接 METHOD、PATH、CANONICAL_QUERY、TIMESTAMP、NONCE、BODY_HASH 得到待签名串',
-      '4. 用 AppSecret 作为密钥对待签名串做 HMAC-SHA256，输出十六进制即 X-Signature',
-      '5. 请求时携带 X-App-Key、X-Timestamp（秒级）、X-Nonce（随机串）、X-Signature 四个请求头',
-    ],
-  };
+  return OPEN_SIGNATURE_ALGORITHM_DOC;
 }
 
 /**

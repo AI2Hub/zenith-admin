@@ -90,6 +90,32 @@ export const OPEN_SIGNATURE_ALGORITHM = 'HMAC-SHA256';
 /** 允许的时间戳偏移窗口（秒），超出视为过期，防重放 */
 export const OPEN_SIGNATURE_TIMESTAMP_WINDOW = 300;
 
+/** 待签名串格式（人可读说明，供验签工具页展示） */
+export const OPEN_SIGNATURE_STRING_TO_SIGN_FORMAT = 'METHOD\\nPATH\\nCANONICAL_QUERY\\nTIMESTAMP\\nNONCE\\nSHA256_HEX(BODY)';
+
+/** 签名步骤说明（服务端 `/algorithm` 端点与 Demo Mock 共用同一份文案） */
+export const OPEN_SIGNATURE_STEPS: string[] = [
+  '1. 规整 query：按参数名排序后以 k=v&k=v 拼接（无 query 则为空字符串）',
+  '2. 计算请求体的 SHA-256 十六进制摘要（无 body 则对空字符串求摘要）',
+  '3. 以换行符顺序拼接 METHOD、PATH、CANONICAL_QUERY、TIMESTAMP、NONCE、BODY_HASH 得到待签名串',
+  '4. 用 AppSecret 作为密钥对待签名串做 HMAC-SHA256，输出十六进制即 X-Signature',
+  '5. 请求时携带 X-App-Key、X-Timestamp（秒级）、X-Nonce（随机串）、X-Signature 四个请求头',
+];
+
+/** 签名算法说明对象（`openSignatureContract.algorithm` 的响应载荷） */
+export const OPEN_SIGNATURE_ALGORITHM_DOC = {
+  algorithm: OPEN_SIGNATURE_ALGORITHM,
+  timestampWindow: OPEN_SIGNATURE_TIMESTAMP_WINDOW,
+  headers: {
+    appKey: OPEN_SIGNATURE_HEADERS.appKey,
+    timestamp: OPEN_SIGNATURE_HEADERS.timestamp,
+    nonce: OPEN_SIGNATURE_HEADERS.nonce,
+    signature: OPEN_SIGNATURE_HEADERS.signature,
+  },
+  stringToSignFormat: OPEN_SIGNATURE_STRING_TO_SIGN_FORMAT,
+  steps: OPEN_SIGNATURE_STEPS,
+};
+
 /** 开放网关鉴权通道：bearer = OAuth2 令牌；signature = AppKey + HMAC */
 export const OPEN_AUTH_CHANNELS = ['bearer', 'signature'] as const;
 

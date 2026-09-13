@@ -12,12 +12,25 @@ import { removeWhere } from '@/mocks/utils/array';
 import { mockDateTime } from '@/mocks/utils/date';
 import { includesKeyword, filterByKeyword } from '@/mocks/utils/filter';
 import {
-  getNextWikiCommentId, getNextWikiDocId, getNextWikiSpaceId, getNextWikiTagId,
-  getNextWikiTemplateId, getNextWikiVersionId, mockWikiComments, mockWikiDocVersions,
-  mockWikiDocs, mockWikiFavoriteDocIds, mockWikiReadConfirmedDocIds, mockWikiSettings,
-  mockWikiSpaceMembers, mockWikiSpaces, mockWikiSubscribedDocIds, mockWikiTags,
-  mockWikiTemplates, type MockWikiDoc,
+  getNextWikiCommentId,
+  getNextWikiDocId,
+  getNextWikiSpaceId,
+  getNextWikiTagId,
+  getNextWikiVersionId,
+  mockWikiComments,
+  mockWikiDocVersions,
+  mockWikiDocs,
+  mockWikiFavoriteDocIds,
+  mockWikiReadConfirmedDocIds,
+  mockWikiSettings,
+  mockWikiSpaceMembers,
+  mockWikiSpaces,
+  mockWikiSubscribedDocIds,
+  mockWikiTags,
+  mockWikiTemplates,
+  type MockWikiDoc,
 } from '../data/wiki';
+import { mockResource } from '@/mocks/utils/resource';
 
 /** 审核时间线（内存） */
 const mockReviewRecords: WikiReviewRecord[] = [];
@@ -513,37 +526,11 @@ const templateHandlers = [
     if (query.status) list = list.filter((t) => t.status === query.status);
     return ok(paginate(list));
   }),
-
-  mock(wikiTemplateContract.detail, ({ params, ok }) => {
-    const tpl = requireItem(mockWikiTemplates, params.id, '模板不存在', { status: 404 });
-    return ok(tpl);
-  }),
-
-  mock(wikiTemplateContract.create, ({ body, ok }) => {
-    const now = mockDateTime();
-    const tpl: WikiTemplate = {
-      id: getNextWikiTemplateId(),
-      name: body.name,
-      description: body.description ?? null,
-      content: body.content,
-      status: body.status,
-      sort: body.sort,
-      createdAt: now,
-      updatedAt: now,
-    };
-    mockWikiTemplates.push(tpl);
-    return ok(tpl, '创建成功');
-  }),
-
-  mock(wikiTemplateContract.update, ({ params, body, ok }) => {
-    const tpl = updateItem(mockWikiTemplates, params.id, body, { notFoundMessage: '模板不存在', now: mockDateTime, init: { status: 404 } });
-    return ok(tpl, '更新成功');
-  }),
-
-  mock(wikiTemplateContract.remove, ({ params, ok }) => {
-    requireItem(mockWikiTemplates, params.id, '模板不存在', { status: 404 });
-    removeByIds(mockWikiTemplates, [params.id]);
-    return ok(null, '删除成功');
+  ...mockResource(wikiTemplateContract, {
+    store: mockWikiTemplates,
+    notFound: '模板不存在',
+    create: (body, id, now): WikiTemplate => ({ id, name: body.name, description: body.description ?? null, content: body.content, status: body.status, sort: body.sort, createdAt: now, updatedAt: now }),
+    exclude: ['list'],
   }),
 ];
 

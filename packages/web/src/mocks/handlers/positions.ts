@@ -4,8 +4,8 @@ import { mockPositions, getNextPositionId } from '@/mocks/data/positions';
 import { mockUsers } from '@/mocks/data/users';
 import { mockDepartments } from '@/mocks/data/departments';
 import { mockDateTime } from '@/mocks/utils/date';
-import { removeByIds, requireItem, updateItem } from '@/mocks/utils/crud';
-import { includesKeyword } from '@/mocks/utils/filter';
+import { removeByIds, requireItem } from '@/mocks/utils/crud';
+import { mockResource } from '@/mocks/utils/resource';
 
 function findDepartmentName(departmentId: number | null | undefined): string | null {
   if (!departmentId) return null;
@@ -24,28 +24,17 @@ export const positionsHandlers = [
   mock(positionContract.all, ({ ok }) => {
     return ok(mockPositions);
   }),
-
-  // 岗位列表（分页，与真实后端一致）
-  mock(positionContract.list, ({ query, ok, paginate }) => {
-    const { keyword, status } = query;
-    const filtered = mockPositions.filter((p) => {
-      if (keyword && !includesKeyword(keyword, p.name, p.code)) return false;
-      if (status && p.status !== status) return false;
-      return true;
-    });
-    return ok(paginate(filtered));
+  ...mockResource(positionContract, {
+    store: mockPositions,
+    notFound: '岗位不存在',
+    keyword: (item) => [item.name, item.code],
+    exclude: ['create', 'removeBatch'],
   }),
 
   // 批量删除岗位
   mock(positionContract.removeBatch, ({ body, ok }) => {
     removeByIds(mockPositions, body.ids);
     return ok(null, `已删除 ${body.ids.length} 个岗位`);
-  }),
-
-  // 获取单个岗位
-  mock(positionContract.detail, ({ params, ok }) => {
-    const pos = requireItem(mockPositions, params.id, '岗位不存在', { status: 404 });
-    return ok(pos);
   }),
 
   // 新增岗位
@@ -58,19 +47,6 @@ export const positionsHandlers = [
     };
     mockPositions.push(newPos);
     return ok(newPos, '新增成功');
-  }),
-
-  // 更新岗位
-  mock(positionContract.update, ({ params, body, ok }) => {
-    const pos = updateItem(mockPositions, params.id, body, { notFoundMessage: '岗位不存在', now: mockDateTime, init: { status: 404 } });
-    return ok(pos, '更新成功');
-  }),
-
-  // 删除岗位
-  mock(positionContract.remove, ({ params, ok }) => {
-    requireItem(mockPositions, params.id, '岗位不存在', { status: 404 });
-    removeByIds(mockPositions, [params.id]);
-    return ok(null, '删除成功');
   }),
 
   // 获取岗位成员

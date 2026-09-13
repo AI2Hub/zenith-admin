@@ -5,7 +5,7 @@ import { badRequest, nextIdFrom } from '@/mocks/utils/handlers';
 import { mockApiScopes } from '@/mocks/data/api-scopes';
 import { mockDateTime } from '@/mocks/utils/date';
 import { filterByKeyword } from '@/mocks/utils/filter';
-import { removeByIds, requireItem, updateItem } from '@/mocks/utils/crud';
+import { mockResource } from '@/mocks/utils/resource';
 
 const scopes: ApiScope[] = mockApiScopes.map((s) => ({ ...s }));
 let nextId = nextIdFrom(scopes);
@@ -40,25 +40,10 @@ export const apiScopesHandlers = [
     scopes.unshift(created);
     return ok(created, '创建成功');
   }),
-
-  mock(apiScopeContract.removeBatch, ({ body, ok }) => {
-    const deleted = removeByIds(scopes, body.ids);
-    return ok(null, `已删除 ${deleted} 条记录`);
-  }),
-
-  mock(apiScopeContract.detail, ({ params, ok }) => {
-    const found = requireItem(scopes, params.id, 'API Scope 不存在', { status: 404 });
-    return ok(found);
-  }),
-
-  mock(apiScopeContract.update, ({ params, body, ok }) => {
-    const updated = updateItem(scopes, params.id, body, { notFoundMessage: 'API Scope 不存在', now: mockDateTime, init: { status: 404 } });
-    return ok(updated, '更新成功');
-  }),
-
-  mock(apiScopeContract.remove, ({ params, ok }) => {
-    requireItem(scopes, params.id, 'API Scope 不存在', { status: 404 });
-    removeByIds(scopes, [params.id]);
-    return ok(null, '删除成功');
+  ...mockResource(apiScopeContract, {
+    store: scopes,
+    notFound: 'API Scope 不存在',
+    messages: { removeBatch: (count) => `已删除 ${count} 条记录` },
+    exclude: ['list', 'create'],
   }),
 ];

@@ -1,29 +1,21 @@
 import { mpDraftContract, type MpDraft } from '@zenith/shared/mp';
 import { mock } from '@/mocks/utils/contract';
-import { requireItem, removeByIds } from '@/mocks/utils/crud';
-import { mockMpDrafts, getNextMpDraftId } from '@/mocks/data/mp-drafts';
+import { requireItem } from '@/mocks/utils/crud';
+import { mockMpDrafts } from '@/mocks/data/mp-drafts';
 import { mockDateTime } from '@/mocks/utils/date';
 import { filterByKeyword } from '@/mocks/utils/filter';
+import { mockResource } from '@/mocks/utils/resource';
 
 export const mpDraftsHandlers = [
   mock(mpDraftContract.list, ({ query, ok, paginate }) => {
     const filtered = filterByKeyword(mockMpDrafts, query.keyword, [(d) => d.title]).filter((d) => d.accountId === query.accountId);
     return ok(paginate([...filtered].sort((a, b) => b.id - a.id)));
   }),
-
-  mock(mpDraftContract.detail, ({ params, ok }) => {
-    const d = requireItem(mockMpDrafts, params.id, '图文草稿不存在', { status: 404 });
-    return ok(d);
-  }),
-
-  mock(mpDraftContract.create, ({ body, ok }) => {
-    const now = mockDateTime();
-    const item: MpDraft = {
-      id: getNextMpDraftId(), accountId: body.accountId, title: body.articles[0]?.title ?? '未命名图文',
-      articles: body.articles, wechatMediaId: null, status: 'draft', createdAt: now, updatedAt: now,
-    };
-    mockMpDrafts.push(item);
-    return ok(item, '创建成功');
+  ...mockResource(mpDraftContract, {
+    store: mockMpDrafts,
+    notFound: '图文草稿不存在',
+    create: (body, id, now): MpDraft => ({ id, accountId: body.accountId, title: body.articles[0]?.title ?? '未命名图文', articles: body.articles, wechatMediaId: null, status: 'draft', createdAt: now, updatedAt: now }),
+    exclude: ['list', 'update'],
   }),
 
   mock(mpDraftContract.update, ({ params, body, ok }) => {
@@ -42,11 +34,5 @@ export const mpDraftsHandlers = [
     d.wechatMediaId = `mock_draft_${d.id}`;
     d.updatedAt = mockDateTime();
     return ok(d, '推送成功');
-  }),
-
-  mock(mpDraftContract.remove, ({ params, ok }) => {
-    requireItem(mockMpDrafts, params.id, '图文草稿不存在', { status: 404 });
-    removeByIds(mockMpDrafts, [params.id]);
-    return ok(null, '删除成功');
   }),
 ];

@@ -43,6 +43,7 @@ import { recordMockSystemJournal } from './payment-journals';
 import { mockOAuth2Clients } from './oauth2-apps';
 import { filterByKeyword, includesKeyword, matchesFilter, withinDateRange } from '@/mocks/utils/filter';
 import { removeByIds, requireItem, updateItem } from '@/mocks/utils/crud';
+import { mockResource } from '@/mocks/utils/resource';
 
 const SEED = PAYMENT_MOCK_SEED_TIME;
 const methodConfigs: PaymentMethodConfig[] = SEED_PAYMENT_METHOD_CONFIGS.map((m) => ({
@@ -70,30 +71,17 @@ const feeRules: PaymentFeeRule[] = [
   { id: 1, name: '微信标准费率', channel: 'wechat', payMethod: null, rateBps: 60, fixedFee: 0, minFee: null, maxFee: null, status: 'enabled', priority: 10, remark: '0.6%', createdAt: SEED, updatedAt: SEED },
   { id: 2, name: '支付宝标准费率', channel: 'alipay', payMethod: null, rateBps: 55, fixedFee: 0, minFee: null, maxFee: 5000, status: 'enabled', priority: 10, remark: '0.55%，封顶 50 元', createdAt: SEED, updatedAt: SEED },
 ];
-let nextFeeId = 3;
 
 const feeHandlers = [
   mock(paymentFeeRuleContract.list, ({ query, ok, paginate }) => {
     const filtered = feeRules.filter((r) => matchesFilter(r.channel, query.channel) && matchesFilter(r.status, query.status));
     return ok(paginate([...filtered].sort((a, b) => b.priority - a.priority)));
   }),
-  mock(paymentFeeRuleContract.detail, ({ params, ok }) => {
-    const r = requireItem(feeRules, params.id, '费率规则不存在');
-    return ok(r);
-  }),
-  mock(paymentFeeRuleContract.create, ({ body, ok }) => {
-    const now = mockDateTime();
-    const item: PaymentFeeRule = {
-      id: nextFeeId++, name: body.name, channel: body.channel, payMethod: body.payMethod ?? null,
-      rateBps: body.rateBps, fixedFee: body.fixedFee, minFee: body.minFee ?? null, maxFee: body.maxFee ?? null,
-      status: body.status, priority: body.priority, remark: body.remark ?? null, createdAt: now, updatedAt: now,
-    };
-    feeRules.push(item);
-    return ok(item, '创建成功');
-  }),
-  mock(paymentFeeRuleContract.update, ({ params, body, ok }) => {
-    const r = updateItem(feeRules, params.id, body, { notFoundMessage: '费率规则不存在', now: mockDateTime });
-    return ok(r, '更新成功');
+  ...mockResource(paymentFeeRuleContract, {
+    store: feeRules,
+    notFound: '费率规则不存在',
+    create: (body, id, now): PaymentFeeRule => ({ id, name: body.name, channel: body.channel, payMethod: body.payMethod ?? null, rateBps: body.rateBps, fixedFee: body.fixedFee, minFee: body.minFee ?? null, maxFee: body.maxFee ?? null, status: body.status, priority: body.priority, remark: body.remark ?? null, createdAt: now, updatedAt: now }),
+    exclude: ['list', 'remove'],
   }),
   mock(paymentFeeRuleContract.remove, ({ params, ok }) => {
     const deleted = removeByIds(feeRules, [params.id]);
@@ -611,31 +599,17 @@ export const mockPaymentRiskRules: PaymentRiskRule[] = [
   { id: 2, name: '会员业务限频', scope: 'bizType', channel: null, bizType: 'membership', singleLimit: null, dailyLimit: 2000000, dailyCountLimit: 50, blockListKeys: [], allowListKeys: [], action: 'review', status: 'enabled', remark: null, createdAt: SEED, updatedAt: SEED },
 ];
 const riskRules = mockPaymentRiskRules;
-let nextRiskId = 3;
 
 const riskHandlers = [
   mock(paymentRiskRuleContract.list, ({ query, ok, paginate }) => {
     const filtered = riskRules.filter((r) => matchesFilter(r.scope, query.scope) && matchesFilter(r.status, query.status));
     return ok(paginate([...filtered].reverse()));
   }),
-  mock(paymentRiskRuleContract.detail, ({ params, ok }) => {
-    const r = requireItem(riskRules, params.id, '风控规则不存在');
-    return ok(r);
-  }),
-  mock(paymentRiskRuleContract.create, ({ body, ok }) => {
-    const now = mockDateTime();
-    const item: PaymentRiskRule = {
-      id: nextRiskId++, name: body.name, scope: body.scope, channel: body.channel ?? null, bizType: body.bizType ?? null,
-      singleLimit: body.singleLimit ?? null, dailyLimit: body.dailyLimit ?? null, dailyCountLimit: body.dailyCountLimit ?? null, blockListKeys: body.blockListKeys,
-      allowListKeys: body.allowListKeys, action: body.action,
-      status: body.status, remark: body.remark ?? null, createdAt: now, updatedAt: now,
-    };
-    riskRules.push(item);
-    return ok(item, '创建成功');
-  }),
-  mock(paymentRiskRuleContract.update, ({ params, body, ok }) => {
-    const r = updateItem(riskRules, params.id, body, { notFoundMessage: '风控规则不存在', now: mockDateTime });
-    return ok(r, '更新成功');
+  ...mockResource(paymentRiskRuleContract, {
+    store: riskRules,
+    notFound: '风控规则不存在',
+    create: (body, id, now): PaymentRiskRule => ({ id, name: body.name, scope: body.scope, channel: body.channel ?? null, bizType: body.bizType ?? null, singleLimit: body.singleLimit ?? null, dailyLimit: body.dailyLimit ?? null, dailyCountLimit: body.dailyCountLimit ?? null, blockListKeys: body.blockListKeys, allowListKeys: body.allowListKeys, action: body.action, status: body.status, remark: body.remark ?? null, createdAt: now, updatedAt: now }),
+    exclude: ['list', 'remove'],
   }),
   mock(paymentRiskRuleContract.remove, ({ params, ok }) => {
     const deleted = removeByIds(riskRules, [params.id]);

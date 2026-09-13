@@ -40,20 +40,58 @@ import {
 } from '@zenith/shared/cms';
 import { SEED_CMS_EDITOR_USER } from '@zenith/shared/seed';
 import {
-  mockCmsSites, mockCmsModels, mockCmsChannels, mockCmsContents, mockCmsTags,
-  mockCmsFriendLinks, mockCmsFriendLinkGroups, buildMockChannelTree,
-  getNextCmsSiteId, getNextCmsModelId, getNextCmsModelFieldId, getNextCmsChannelId,
-  getNextCmsContentId, getNextCmsTagId, getNextCmsFriendLinkId, getNextCmsFriendLinkGroupId,
-  mockCmsAdSlots, mockCmsAds, mockCmsForms, mockCmsFormSubmissions, mockCmsSensitiveWords,
-  mockCmsErrorProneWords, mockCmsContentOpLogs, mockCmsLinkWords, mockCmsComments, mockCmsRedirects, mockCmsPushLogs, mockCmsContentVersions,
-  getNextCmsAdSlotId, getNextCmsAdId, getNextCmsFormId, getNextCmsSensitiveWordId,
-  getNextCmsErrorProneWordId, getNextCmsContentOpLogId, getNextCmsLinkWordId, getNextCmsRedirectId,
-  mockCmsSearchWords, mockCmsHotKeywords, mockCmsHotwordGroups,
-  getNextCmsSearchWordId, getNextCmsHotwordGroupId, getNextCmsHotwordId,
-  mockCmsResources, mockCmsResourceFolders, getNextCmsResourceId, getNextCmsResourceFolderId,
-  mockCmsOpenGrants, getNextCmsOpenGrantId,
-  mockCmsCollectRules, mockCmsCollectItems, getNextCmsCollectRuleId,
-  mockCmsPages, getNextCmsPageId, mockCmsWidgetRefs, getNextCmsWidgetRefId, mockCmsWidgets,
+  mockCmsSites,
+  mockCmsModels,
+  mockCmsChannels,
+  mockCmsContents,
+  mockCmsTags,
+  mockCmsFriendLinks,
+  mockCmsFriendLinkGroups,
+  buildMockChannelTree,
+  getNextCmsSiteId,
+  getNextCmsModelId,
+  getNextCmsModelFieldId,
+  getNextCmsChannelId,
+  getNextCmsContentId,
+  getNextCmsFriendLinkId,
+  getNextCmsFriendLinkGroupId,
+  mockCmsAdSlots,
+  mockCmsAds,
+  mockCmsForms,
+  mockCmsFormSubmissions,
+  mockCmsSensitiveWords,
+  mockCmsErrorProneWords,
+  mockCmsContentOpLogs,
+  mockCmsLinkWords,
+  mockCmsComments,
+  mockCmsRedirects,
+  mockCmsPushLogs,
+  mockCmsContentVersions,
+  getNextCmsAdSlotId,
+  getNextCmsAdId,
+  getNextCmsFormId,
+  getNextCmsContentOpLogId,
+  getNextCmsLinkWordId,
+  getNextCmsRedirectId,
+  mockCmsSearchWords,
+  mockCmsHotKeywords,
+  mockCmsHotwordGroups,
+  getNextCmsSearchWordId,
+  getNextCmsHotwordGroupId,
+  getNextCmsHotwordId,
+  mockCmsResources,
+  mockCmsResourceFolders,
+  getNextCmsResourceId,
+  getNextCmsResourceFolderId,
+  mockCmsOpenGrants,
+  getNextCmsOpenGrantId,
+  mockCmsCollectRules,
+  mockCmsCollectItems,
+  mockCmsPages,
+  getNextCmsPageId,
+  mockCmsWidgetRefs,
+  getNextCmsWidgetRefId,
+  mockCmsWidgets,
 } from '../data/cms';
 import { mockCmsPublishingTasks } from '../data/cms-stage3';
 import { mockCmsDistributionRules } from '../data/cms-stage5';
@@ -61,6 +99,7 @@ import { createProgressingMockTask } from './async-tasks';
 import { submitMockCmsWidgetSourceRefresh } from './cms-widgets';
 import { mockDateTime, mockDate } from '../utils/date';
 import { filterByKeyword } from '@/mocks/utils/filter';
+import { mockResource } from '@/mocks/utils/resource';
 
 type MockContent = CmsContent & { tagIds: number[]; deleted?: boolean };
 
@@ -707,33 +746,11 @@ export const cmsHandlers = [
     list = filterByKeyword(list, keyword, [(t) => t.name, (t) => t.slug]);
     return ok(paginate(list));
   }),
-  mock(cmsTagContract.detail, ({ params, ok }) => {
-    const tag = requireItem(mockCmsTags, params.id, '标签不存在', { status: 404 });
-    return ok(tag);
-  }),
-  mock(cmsTagContract.create, ({ body, ok }) => {
-    const now = mockDateTime();
-    const tag = {
-      id: getNextCmsTagId(),
-      siteId: body.siteId,
-      name: body.name,
-      slug: body.slug,
-      groupName: body.groupName ?? null,
-      contentCount: 0,
-      createdAt: now,
-      updatedAt: now,
-    };
-    mockCmsTags.push(tag);
-    return ok(tag, '创建成功');
-  }),
-  mock(cmsTagContract.update, ({ params, body, ok }) => {
-    const item = updateItem(mockCmsTags, params.id, body, { notFoundMessage: '标签不存在', now: mockDateTime, init: { status: 404 } });
-    return ok(item, '更新成功');
-  }),
-  mock(cmsTagContract.remove, ({ params, ok }) => {
-    requireItem(mockCmsTags, params.id, '标签不存在', { status: 404 });
-    removeByIds(mockCmsTags, [params.id]);
-    return ok(null, '删除成功');
+  ...mockResource(cmsTagContract, {
+    store: mockCmsTags,
+    notFound: '标签不存在',
+    create: (body, id, now) => ({ id, siteId: body.siteId, name: body.name, slug: body.slug, groupName: body.groupName ?? null, contentCount: 0, createdAt: now, updatedAt: now }),
+    exclude: ['list'],
   }),
 
   // ═══ 友情链接分组 ═══════════════════════════════════════════════════════
@@ -1368,27 +1385,11 @@ export const cmsP2Handlers = [
     list = filterByKeyword(list, keyword, [(w) => w.word]);
     return ok(paginate(list));
   }),
-  mock(cmsSensitiveWordContract.create, ({ body, ok }) => {
-    const now = mockDateTime();
-    const row = {
-      id: getNextCmsSensitiveWordId(),
-      word: body.word,
-      replaceWith: body.replaceWith ?? null,
-      status: body.status,
-      createdAt: now,
-      updatedAt: now,
-    };
-    mockCmsSensitiveWords.push(row);
-    return ok(row, '创建成功');
-  }),
-  mock(cmsSensitiveWordContract.update, ({ params, body, ok }) => {
-    const item = updateItem(mockCmsSensitiveWords, params.id, body, { notFoundMessage: '敏感词不存在', now: mockDateTime, init: { status: 404 } });
-    return ok(item, '更新成功');
-  }),
-  mock(cmsSensitiveWordContract.remove, ({ params, ok }) => {
-    requireItem(mockCmsSensitiveWords, params.id, '敏感词不存在', { status: 404 });
-    removeByIds(mockCmsSensitiveWords, [params.id]);
-    return ok(null, '删除成功');
+  ...mockResource(cmsSensitiveWordContract, {
+    store: mockCmsSensitiveWords,
+    notFound: '敏感词不存在',
+    create: (body, id, now) => ({ id, word: body.word, replaceWith: body.replaceWith ?? null, status: body.status, createdAt: now, updatedAt: now }),
+    exclude: ['list'],
   }),
 
   // ═══ 易错词库 ═════════════════════════════════════════════════════════════
@@ -1399,31 +1400,12 @@ export const cmsP2Handlers = [
     if (status) list = list.filter((w) => w.status === status);
     return ok(paginate(list));
   }),
-  mock(cmsErrorProneWordContract.create, ({ body, ok }) => {
-    if (mockCmsErrorProneWords.some((w) => w.word === body.word)) {
-      return badRequest('该易错词已存在', { status: 400 });
-    }
-    const now = mockDateTime();
-    const row = {
-      id: getNextCmsErrorProneWordId(),
-      word: body.word,
-      correction: body.correction,
-      status: body.status,
-      remark: body.remark ?? null,
-      createdAt: now,
-      updatedAt: now,
-    };
-    mockCmsErrorProneWords.push(row);
-    return ok(row, '创建成功');
-  }),
-  mock(cmsErrorProneWordContract.update, ({ params, body, ok }) => {
-    const item = updateItem(mockCmsErrorProneWords, params.id, body, { notFoundMessage: '易错词不存在', now: mockDateTime, init: { status: 404 } });
-    return ok(item, '更新成功');
-  }),
-  mock(cmsErrorProneWordContract.remove, ({ params, ok }) => {
-    requireItem(mockCmsErrorProneWords, params.id, '易错词不存在', { status: 404 });
-    removeByIds(mockCmsErrorProneWords, [params.id]);
-    return ok(null, '删除成功');
+  ...mockResource(cmsErrorProneWordContract, {
+    store: mockCmsErrorProneWords,
+    notFound: '易错词不存在',
+    unique: { field: 'word', message: '该易错词已存在' },
+    create: (body, id, now) => ({ id, word: body.word, correction: body.correction, status: body.status, remark: body.remark ?? null, createdAt: now, updatedAt: now }),
+    exclude: ['list'],
   }),
 
   // ═══ 栏目运维（合并 / 清空 / 批量新增）═════════════════════════════════════
@@ -1896,43 +1878,11 @@ export const cmsP3Handlers = [
     list = filterByKeyword(list, keyword, [(r) => r.name]);
     return ok(paginate(list));
   }),
-  mock(cmsCollectContract.create, ({ body, ok }) => {
-    const now = mockDateTime();
-    const row = {
-      id: getNextCmsCollectRuleId(),
-      siteId: body.siteId,
-      channelId: body.channelId,
-      channelName: mockCmsChannels.find((c) => c.id === body.channelId)?.name ?? null,
-      name: body.name,
-      listUrl: body.listUrl,
-      pageStart: body.pageStart,
-      pageEnd: body.pageEnd,
-      listSelector: body.listSelector,
-      titleSelector: body.titleSelector,
-      bodySelector: body.bodySelector,
-      summarySelector: body.summarySelector || null,
-      coverSelector: body.coverSelector || null,
-      removeSelectors: body.removeSelectors,
-      autoPublish: body.autoPublish,
-      localizeImages: body.localizeImages,
-      maxItems: body.maxItems,
-      status: body.status,
-      lastRunAt: null,
-      remark: body.remark || null,
-      createdAt: now,
-      updatedAt: now,
-    };
-    mockCmsCollectRules.push(row);
-    return ok(row, '创建成功');
-  }),
-  mock(cmsCollectContract.update, ({ params, body, ok }) => {
-    const item = updateItem(mockCmsCollectRules, params.id, body, { notFoundMessage: '采集规则不存在', now: mockDateTime, init: { status: 404 } });
-    return ok(item, '更新成功');
-  }),
-  mock(cmsCollectContract.remove, ({ params, ok }) => {
-    requireItem(mockCmsCollectRules, params.id, '采集规则不存在', { status: 404 });
-    removeByIds(mockCmsCollectRules, [params.id]);
-    return ok(null, '删除成功');
+  ...mockResource(cmsCollectContract, {
+    store: mockCmsCollectRules,
+    notFound: '采集规则不存在',
+    create: (body, id, now) => ({ id, siteId: body.siteId, channelId: body.channelId, channelName: mockCmsChannels.find((c) => c.id === body.channelId)?.name ?? null, name: body.name, listUrl: body.listUrl, pageStart: body.pageStart, pageEnd: body.pageEnd, listSelector: body.listSelector, titleSelector: body.titleSelector, bodySelector: body.bodySelector, summarySelector: body.summarySelector || null, coverSelector: body.coverSelector || null, removeSelectors: body.removeSelectors, autoPublish: body.autoPublish, localizeImages: body.localizeImages, maxItems: body.maxItems, status: body.status, lastRunAt: null, remark: body.remark || null, createdAt: now, updatedAt: now }),
+    exclude: ['list'],
   }),
 ];
 

@@ -43,6 +43,7 @@ import type {
   ReportPrintTemplate,
   ReportPublicDashboard,
 } from '@zenith/shared/report';
+import { mockResource } from '@/mocks/utils/resource';
 
 function applyDatasetQuery(data: ReturnType<typeof getMockDatasetData>, query?: Pick<ReportDatasetQueryOptions, 'limit' | 'page' | 'pageSize' | 'sortField' | 'sortOrder'>) {
   const rows = [...data.rows];
@@ -194,9 +195,10 @@ export const reportHandlers = [
       includesKeyword(query.keyword, d.name) && matchesFilter(d.type, query.type) && matchesFilter(d.status, query.status));
     return ok(paginate(list));
   }),
-  mock(reportDatasourceContract.detail, ({ params, ok }) => {
-    const d = requireItem(mockReportDatasources, params.id, '数据源不存在');
-    return ok(d);
+  ...mockResource(reportDatasourceContract, {
+    store: mockReportDatasources,
+    notFound: '数据源不存在',
+    exclude: ['list', 'create'],
   }),
   mock(reportDatasourceContract.create, ({ body, ok }) => {
     const item: ReportDatasource = {
@@ -206,15 +208,6 @@ export const reportHandlers = [
     };
     mockReportDatasources.push(item);
     return ok(item, '新增成功');
-  }),
-  mock(reportDatasourceContract.update, ({ params, body, ok }) => {
-    const d = updateItem(mockReportDatasources, params.id, body, { notFoundMessage: '数据源不存在', now: mockDateTime });
-    return ok(d, '更新成功');
-  }),
-  mock(reportDatasourceContract.remove, ({ params, ok }) => {
-    requireItem(mockReportDatasources, params.id, '数据源不存在');
-    removeByIds(mockReportDatasources, [params.id]);
-    return ok(null, '删除成功');
   }),
 
   // ─── 数据集 ───────────────────────────────────────────────
@@ -526,9 +519,10 @@ export const reportHandlers = [
     const list = filterByKeyword(mockReportAlerts, query.keyword, [(a) => a.name]);
     return ok(paginate(list));
   }),
-  mock(reportAlertContract.detail, ({ params, ok }) => {
-    const a = requireItem(mockReportAlerts, params.id, '预警规则不存在');
-    return ok(a);
+  ...mockResource(reportAlertContract, {
+    store: mockReportAlerts,
+    notFound: '预警规则不存在',
+    exclude: ['list', 'create'],
   }),
   mock(reportAlertContract.create, ({ body, ok }) => {
     const item: ReportAlertRule = {
@@ -544,15 +538,6 @@ export const reportHandlers = [
     };
     mockReportAlerts.push(item);
     return ok(item, '新增成功');
-  }),
-  mock(reportAlertContract.update, ({ params, body, ok }) => {
-    const a = updateItem(mockReportAlerts, params.id, body, { notFoundMessage: '预警规则不存在', now: mockDateTime });
-    return ok(a, '更新成功');
-  }),
-  mock(reportAlertContract.remove, ({ params, ok }) => {
-    requireItem(mockReportAlerts, params.id, '预警规则不存在');
-    removeByIds(mockReportAlerts, [params.id]);
-    return ok(null, '删除成功');
   }),
 
   // ─── AI（NL2SQL）────────────────────────────────────────
@@ -578,9 +563,10 @@ export const reportHandlers = [
     if (query.entityRefId) list = list.filter((t) => t.entityRefId == null || t.entityRefId === query.entityRefId);
     return ok(paginate(list));
   }),
-  mock(reportPrintContract.detail, ({ params, ok }) => {
-    const t = requireItem(mockReportPrintTemplates, params.id, '打印模板不存在');
-    return ok(t);
+  ...mockResource(reportPrintContract, {
+    store: mockReportPrintTemplates,
+    notFound: '打印模板不存在',
+    exclude: ['list', 'create'],
   }),
   mock(reportPrintContract.create, ({ body, ok }) => {
     const item: ReportPrintTemplate = {
@@ -593,15 +579,6 @@ export const reportHandlers = [
     };
     mockReportPrintTemplates.push(item);
     return ok(item, '新增成功');
-  }),
-  mock(reportPrintContract.update, ({ params, body, ok }) => {
-    const t = updateItem(mockReportPrintTemplates, params.id, body, { notFoundMessage: '打印模板不存在', now: mockDateTime });
-    return ok(t, '更新成功');
-  }),
-  mock(reportPrintContract.remove, ({ params, ok }) => {
-    requireItem(mockReportPrintTemplates, params.id, '打印模板不存在');
-    removeByIds(mockReportPrintTemplates, [params.id]);
-    return ok(null, '删除成功');
   }),
 
   // ─── 订阅推送 ─────────────────────────────────────────────

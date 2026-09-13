@@ -1,6 +1,6 @@
 import * as z from 'zod';
 import { partialForUpdate } from '../core/validation';
-import { PAYMENT_FUND_RESERVATION_STATUSES, PAYMENT_LEDGER_ACCOUNT_CODES, PAYMENT_LINK_PAY_METHODS, PAYMENT_METHOD_CHANNEL } from './constants';
+import { PAYMENT_FUND_RESERVATION_STATUSES, PAYMENT_LEDGER_ACCOUNT_CODES, PAYMENT_LINK_PAY_METHODS, PAYMENT_METHOD_CHANNEL, type PaymentLedgerAccountCode } from './constants';
 import { entityStatusSchema } from '../core/api-schemas';
 
 // ─── 支付中心 ────────────────────────────────────────────────────────
@@ -467,6 +467,25 @@ export const paymentFundReservationStatusSchema = z.enum(PAYMENT_FUND_RESERVATIO
 export type CreatePaymentLedgerAccountInput = z.infer<typeof createPaymentLedgerAccountSchema>;
 
 export type PostPaymentJournalInput = z.infer<typeof postPaymentJournalSchema>;
+
+/** 系统内部记账（支付成功 / 退款 / 结算等）按科目编码给出的分录 */
+export interface SystemPaymentJournalLine {
+  accountCode: PaymentLedgerAccountCode;
+  debitAmount?: string;
+  creditAmount?: string;
+  memo?: string;
+}
+
+/** 系统内部记账入参：来源 + 资金域 + 按科目编码的分录；server 追加租户 / 操作人后入账，Demo Mock 直接复用 */
+export interface SystemPaymentJournalInput {
+  sourceType: string;
+  sourceId: string;
+  description: string;
+  appId: number;
+  channelConfigId: number;
+  currency: string;
+  lines: SystemPaymentJournalLine[];
+}
 
 export type ReversePaymentJournalInput = z.infer<typeof reversePaymentJournalSchema>;
 

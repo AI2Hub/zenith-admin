@@ -1,10 +1,11 @@
 import { workflowDataSourceContract } from '@zenith/shared/workflow';
 import type { WorkflowDataSource } from '@zenith/shared/workflow';
 import { mock } from '@/mocks/utils/contract';
-import { removeByIds, requireItem } from '@/mocks/utils/crud';
-import { mockWorkflowDataSources, getNextDataSourceId, MOCK_DATA_SOURCE_OPTIONS } from '@/mocks/data/workflow-data-sources';
+import { requireItem } from '@/mocks/utils/crud';
+import { mockWorkflowDataSources, MOCK_DATA_SOURCE_OPTIONS } from '@/mocks/data/workflow-data-sources';
 import { mockDateTime } from '@/mocks/utils/date';
 import { filterByKeyword } from '@/mocks/utils/filter';
+import { mockResource } from '@/mocks/utils/resource';
 
 export const workflowDataSourcesHandlers = [
   // 代理拉取选项（demo 返回示例数据 + 关键词过滤）
@@ -30,42 +31,16 @@ export const workflowDataSourcesHandlers = [
     if (query.status) list = list.filter((x) => x.status === query.status);
     return ok(paginate(list));
   }),
-
-  mock(workflowDataSourceContract.detail, ({ params, ok }) => {
-    const item = requireItem(mockWorkflowDataSources, params.id, '数据源不存在', { status: 404 });
-    return ok(item);
-  }),
-
-  mock(workflowDataSourceContract.create, ({ body, ok }) => {
-    const now = mockDateTime();
-    const item: WorkflowDataSource = {
-      id: getNextDataSourceId(),
-      name: body.name,
-      method: body.method,
-      url: body.url,
-      headers: body.headers ?? null,
-      itemsPath: body.itemsPath ?? null,
-      valueField: body.valueField,
-      labelField: body.labelField,
-      keywordParam: body.keywordParam ?? null,
-      status: body.status,
-      remark: body.remark ?? null,
-      createdAt: now,
-      updatedAt: now,
-    };
-    mockWorkflowDataSources.push(item);
-    return ok(item, '创建成功');
+  ...mockResource(workflowDataSourceContract, {
+    store: mockWorkflowDataSources,
+    notFound: '数据源不存在',
+    create: (body, id, now): WorkflowDataSource => ({ id, name: body.name, method: body.method, url: body.url, headers: body.headers ?? null, itemsPath: body.itemsPath ?? null, valueField: body.valueField, labelField: body.labelField, keywordParam: body.keywordParam ?? null, status: body.status, remark: body.remark ?? null, createdAt: now, updatedAt: now }),
+    exclude: ['list', 'update'],
   }),
 
   mock(workflowDataSourceContract.update, ({ params, body, ok }) => {
     const item = requireItem(mockWorkflowDataSources, params.id, '数据源不存在', { status: 404 });
     Object.assign(item, { ...body, updatedAt: mockDateTime() });
     return ok(item, '更新成功');
-  }),
-
-  mock(workflowDataSourceContract.remove, ({ params, ok }) => {
-    requireItem(mockWorkflowDataSources, params.id, '数据源不存在', { status: 404 });
-    removeByIds(mockWorkflowDataSources, [params.id]);
-    return ok(null, '删除成功');
   }),
 ];

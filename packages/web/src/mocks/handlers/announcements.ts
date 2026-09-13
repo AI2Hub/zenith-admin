@@ -4,7 +4,8 @@ import { mock } from '@/mocks/utils/contract';
 import { mockAnnouncements, getNextAnnouncementId } from '@/mocks/data/announcements';
 import { mockManagedFiles } from '@/mocks/handlers/files';
 import { mockDateTime } from '@/mocks/utils/date';
-import { removeByIds, requireItem } from '@/mocks/utils/crud';
+import { requireItem } from '@/mocks/utils/crud';
+import { mockResource } from '@/mocks/utils/resource';
 
 function buildAnnouncementAttachments(fileIds: string[] = []): AnnouncementAttachment[] {
   return fileIds
@@ -82,10 +83,11 @@ export const announcementsHandlers = [
   }),
 
   mock(announcementContract.markAllRead, ({ ok }) => ok(null)),
-
-  mock(announcementContract.detail, ({ params, ok }) => {
-    const notice = requireItem(mockAnnouncements, params.id, '公告不存在');
-    return ok(notice);
+  ...mockResource(announcementContract, {
+    store: mockAnnouncements,
+    notFound: '公告不存在',
+    messages: { removeBatch: (count) => `已删除 ${count} 条公告` },
+    exclude: ['list', 'create', 'update'],
   }),
 
   mock(announcementContract.create, ({ body, ok }) => {
@@ -128,17 +130,6 @@ export const announcementsHandlers = [
       notice.attachments = buildAnnouncementAttachments(fileIds);
     }
     return ok(notice, '更新成功');
-  }),
-
-  mock(announcementContract.removeBatch, ({ body, ok }) => {
-    const deleted = removeByIds(mockAnnouncements, body.ids);
-    return ok(null, `已删除 ${deleted} 条公告`);
-  }),
-
-  mock(announcementContract.remove, ({ params, ok }) => {
-    requireItem(mockAnnouncements, params.id, '公告不存在');
-    removeByIds(mockAnnouncements, [params.id]);
-    return ok(null, '删除成功');
   }),
 
   // 已读统计详情（管理视角）

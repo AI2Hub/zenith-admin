@@ -3,7 +3,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { and, desc, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import { PAYMENT_LEDGER_STANDARD_ACCOUNTS, type CreatePaymentFundReservationInput, type CreatePaymentLedgerAccountInput, type PaymentActiveReservationAmount, type PaymentFundReservation, type PaymentJournal, type PaymentJournalLine, type PaymentLedgerAccount, type PaymentLedgerAccountCode, type PostPaymentJournalInput, type TransitionPaymentFundReservationInput, paymentJournalContract } from '@zenith/shared/payment';
+import { PAYMENT_LEDGER_STANDARD_ACCOUNTS, type SystemPaymentJournalInput, type CreatePaymentFundReservationInput, type CreatePaymentLedgerAccountInput, type PaymentActiveReservationAmount, type PaymentFundReservation, type PaymentJournal, type PaymentJournalLine, type PaymentLedgerAccount, type PaymentLedgerAccountCode, type PostPaymentJournalInput, type TransitionPaymentFundReservationInput, paymentJournalContract } from '@zenith/shared/payment';
 import { db } from '../../db';
 import { buildListResult, listRows } from '../../lib/list-query';
 import { paymentApps, paymentChannelConfigs, paymentFundReservations, paymentJournalLines, paymentJournals, paymentLedgerAccounts, type PaymentFundReservationRow, type PaymentJournalRow, type PaymentLedgerAccountRow } from '../../db/schema';
@@ -493,21 +493,9 @@ export async function ensureSystemLedgerAccount(
   });
 }
 
-export interface PostSystemPaymentJournalInput {
+export interface PostSystemPaymentJournalInput extends SystemPaymentJournalInput {
   tenantId: number | null;
   operatorId: number | null;
-  sourceType: string;
-  sourceId: string;
-  description: string;
-  appId: number;
-  channelConfigId: number;
-  currency: string;
-  lines: Array<{
-    accountCode: PaymentLedgerAccountCode;
-    debitAmount?: string;
-    creditAmount?: string;
-    memo?: string;
-  }>;
 }
 
 async function postSystemJournalWithExecutor(

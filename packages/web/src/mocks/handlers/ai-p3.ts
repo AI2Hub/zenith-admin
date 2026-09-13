@@ -13,6 +13,7 @@ import { mock } from '@/mocks/utils/contract';
 import { removeByIds, removeItem, requireItem, updateItem } from '@/mocks/utils/crud';
 import { notFound } from '@/mocks/utils/handlers';
 import { mockDateTime } from '../utils/date';
+import { mockResource } from '@/mocks/utils/resource';
 
 /* ─── 智能体(创建即用,注册进 Mastra) ─────────────────────── */
 
@@ -161,9 +162,10 @@ const resultStore = new Map<string, AiEvalExperimentResult[]>([
 export const aiP3Handlers = [
   // ── 智能体（静态 /builtin 早于动态 /:id）──
   mock(aiAgentContract.builtin, ({ ok }) => ok(BUILTIN_AGENTS)),
-  mock(aiAgentContract.detail, ({ params, ok }) => {
-    const agent = requireItem(agentStore, params.id, '智能体不存在', { status: 404 });
-    return ok(agent);
+  ...mockResource(aiAgentContract, {
+    store: agentStore,
+    notFound: '智能体不存在',
+    exclude: ['list', 'create'],
   }),
   mock(aiAgentContract.list, ({ ok }) => ok(agentStore)),
   mock(aiAgentContract.create, ({ body, ok }) => {
@@ -190,15 +192,6 @@ export const aiP3Handlers = [
     };
     agentStore.unshift(agent);
     return ok(agent, '创建成功');
-  }),
-  mock(aiAgentContract.update, ({ params, body, ok }) => {
-    const agent = updateItem(agentStore, params.id, body, { notFoundMessage: '智能体不存在', now: mockDateTime, init: { status: 404 } });
-    return ok(agent, '更新成功');
-  }),
-  mock(aiAgentContract.remove, ({ params, ok }) => {
-    requireItem(agentStore, params.id, '智能体不存在', { status: 404 });
-    removeByIds(agentStore, [params.id]);
-    return ok(null, '删除成功');
   }),
 
   // ── HTTP 工具（静态 /available 早于动态 /:id）──

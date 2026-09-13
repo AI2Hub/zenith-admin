@@ -5,8 +5,9 @@ import { mock } from '@/mocks/utils/contract';
 import { badRequest } from '@/mocks/utils/handlers';
 import { mockShortLinks, getNextShortLinkId } from '../data/short-links';
 import { mockDateTime } from '../utils/date';
-import { removeByIds, requireItem, updateItem } from '@/mocks/utils/crud';
+import { removeByIds, requireItem } from '@/mocks/utils/crud';
 import { filterByKeyword } from '@/mocks/utils/filter';
+import { mockResource } from '@/mocks/utils/resource';
 
 function generateMockCode(): string {
   let code = '';
@@ -192,11 +193,10 @@ export const shortLinksHandlers = [
     };
     return ok(stats);
   }),
-
-  // ─── 详情 ───────────────────────────────────────────────────────────────────
-  mock(shortLinkContract.detail, ({ params, ok }) => {
-    const link = requireItem(mockShortLinks, params.id, '短链不存在', { status: 404 });
-    return ok(link);
+  ...mockResource(shortLinkContract, {
+    store: mockShortLinks,
+    notFound: '短链不存在',
+    exclude: ['list', 'create', 'removeBatch'],
   }),
 
   // ─── 创建：body 即 CreateShortLinkInput（已校验、已补默认值）────────────────
@@ -233,18 +233,5 @@ export const shortLinksHandlers = [
     };
     mockShortLinks.push(newLink);
     return ok(newLink, '创建成功');
-  }),
-
-  // ─── 更新（code 不可修改，契约请求体不含 code）─────────────────────────────
-  mock(shortLinkContract.update, ({ params, body, ok }) => {
-    const link = updateItem(mockShortLinks, params.id, body, { notFoundMessage: '短链不存在', now: mockDateTime, init: { status: 404 } });
-    return ok(link, '更新成功');
-  }),
-
-  // ─── 删除 ───────────────────────────────────────────────────────────────────
-  mock(shortLinkContract.remove, ({ params, ok }) => {
-    requireItem(mockShortLinks, params.id, '短链不存在', { status: 404 });
-    removeByIds(mockShortLinks, [params.id]);
-    return ok(null, '删除成功');
   }),
 ];
