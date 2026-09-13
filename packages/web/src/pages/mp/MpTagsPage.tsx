@@ -1,9 +1,8 @@
-import { Button, Form, Spin, Toast } from '@douyinfe/semi-ui';
+import { Button, Form, Toast } from '@douyinfe/semi-ui';
 import { RefreshCw } from 'lucide-react';
 import type { CreateMpTagInput, MpTag } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
-import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { deleteAction, ListSearchToolbar } from '@/components/list-page';
@@ -16,6 +15,7 @@ import { CreateButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { abortSubmit } from '@/lib/abort-submit';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormModal } from '@/components/EditFormModal';
 
 export default function MpTagsPage() {
   const { hasPermission: can } = usePermission();
@@ -107,14 +107,10 @@ export default function MpTagsPage() {
 
       <ConfigurableTable<MpTag> columns={columns} {...tableProps} />
 
-      <AppModal {...modal.modalProps} width={480}>
-        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
-          <Form key={modal.formKey} {...modal.formProps}>
-            <Form.Input field="name" label="标签名称" placeholder="请输入标签名称（最多30字）"
-              maxLength={30} rules={[{ required: true, message: '请输入标签名称' }]} />
-          </Form>
-        </Spin>
-      </AppModal>
+      <EditFormModal modal={modal} width={480}>
+        <Form.Input field="name" label="标签名称" placeholder="请输入标签名称（最多30字）"
+          maxLength={30} rules={[{ required: true, message: '请输入标签名称' }]} />
+      </EditFormModal>
     </div>
   );
 }

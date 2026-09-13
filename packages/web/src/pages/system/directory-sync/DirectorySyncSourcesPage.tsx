@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
-import ModalFooter from '@/components/ModalFooter';
-import { Divider, Form, Modal, SideSheet, Spin, Tag, Toast, Typography, Row, Col } from '@douyinfe/semi-ui';
+import { Divider, Form, Modal, Tag, Toast, Typography, Row, Col } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { CronBuilderPopover } from '@/components/CronBuilderPopover';
@@ -32,6 +31,7 @@ import {
 } from '@zenith/shared/identity';
 import { DIRECTORY_SYNC_RUN_STATUS_TAG_COLOR } from './directory-sync-tag-colors';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormSheet } from '@/components/EditFormModal';
 
 const CALLBACK_TYPE_SET = new Set<string>(DIRECTORY_SYNC_CALLBACK_TYPES);
 
@@ -281,196 +281,185 @@ export default function DirectorySyncSourcesPage() {
         {...tableProps}
       />
 
-      <SideSheet
-        title={modal.modalProps.title}
-        visible={modal.visible}
-        onCancel={modal.close}
-        closeOnEsc
-        width={660}
-        footer={<ModalFooter {...modal.footerProps} okText="保存" />}
-      >
-        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
-          <Form key={modal.formKey} {...modal.formProps}>
-            {({ formState }) => {
-              const type = (formState.values as { type?: string }).type ?? 'ldap';
-              return (
+      <EditFormSheet modal={modal} width={660}>
+        {({ formState }) => {
+          const type = (formState.values as { type?: string }).type ?? 'ldap';
+          return (
+            <>
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Input field="name" label="名称" placeholder="如：总部 AD 域"
+                    rules={[{ required: true, message: '名称不能为空' }]} />
+                </Col>
+                <Col span={12}>
+                  <Form.Select field="type" label="源类型" style={{ width: '100%' }}
+                    disabled={modal.isEdit}
+                    optionList={DIRECTORY_SYNC_SOURCE_TYPES.map((t) => ({ value: t, label: DIRECTORY_SYNC_SOURCE_TYPE_LABELS[t] }))}
+                    rules={[{ required: true, message: '请选择源类型' }]} />
+                </Col>
+              </Row>
+              {type === 'ldap' && (
+                <Form.Select field="identityProviderId" label="企业身份源" style={{ width: '100%' }}
+                  placeholder="选择 LDAP/AD 身份源（连接与凭证复用该配置）"
+                  optionList={ldapProviders.map((p) => ({ value: p.id, label: p.name }))}
+                  loading={providersQuery.isFetching}
+                  rules={[{ required: true, message: 'LDAP 源必须绑定企业身份源' }]}
+                  helpText="连接地址、Bind 凭证与属性映射在「企业身份源」页维护，此处仅引用" />
+              )}
+              {type === 'dingtalk' && (
+                <Form.Slot label="凭证来源">
+                  <Tag color="blue">OAuth 配置 → 钉钉（appKey / appSecret）</Tag>
+                  <div style={{ color: 'var(--semi-color-text-2)', fontSize: 12, marginTop: 4 }}>
+                    复用「OAuth 配置」页的钉钉凭证；需在钉钉开放平台为该应用开通通讯录只读权限
+                  </div>
+                </Form.Slot>
+              )}
+              {type === 'wechat_work' && (
                 <>
-                  <Row gutter={16}>
-                    <Col span={12}>
-                      <Form.Input field="name" label="名称" placeholder="如：总部 AD 域"
-                        rules={[{ required: true, message: '名称不能为空' }]} />
-                    </Col>
-                    <Col span={12}>
-                      <Form.Select field="type" label="源类型" style={{ width: '100%' }}
-                        disabled={modal.isEdit}
-                        optionList={DIRECTORY_SYNC_SOURCE_TYPES.map((t) => ({ value: t, label: DIRECTORY_SYNC_SOURCE_TYPE_LABELS[t] }))}
-                        rules={[{ required: true, message: '请选择源类型' }]} />
-                    </Col>
-                  </Row>
-                  {type === 'ldap' && (
-                    <Form.Select field="identityProviderId" label="企业身份源" style={{ width: '100%' }}
-                      placeholder="选择 LDAP/AD 身份源（连接与凭证复用该配置）"
-                      optionList={ldapProviders.map((p) => ({ value: p.id, label: p.name }))}
-                      loading={providersQuery.isFetching}
-                      rules={[{ required: true, message: 'LDAP 源必须绑定企业身份源' }]}
-                      helpText="连接地址、Bind 凭证与属性映射在「企业身份源」页维护，此处仅引用" />
-                  )}
-                  {type === 'dingtalk' && (
-                    <Form.Slot label="凭证来源">
-                      <Tag color="blue">OAuth 配置 → 钉钉（appKey / appSecret）</Tag>
-                      <div style={{ color: 'var(--semi-color-text-2)', fontSize: 12, marginTop: 4 }}>
-                        复用「OAuth 配置」页的钉钉凭证；需在钉钉开放平台为该应用开通通讯录只读权限
-                      </div>
-                    </Form.Slot>
-                  )}
-                  {type === 'wechat_work' && (
-                    <>
-                      <Form.Slot label="凭证来源">
-                        <Tag color="green">OAuth 配置 → 企业微信（Corp ID）</Tag>
-                        <div style={{ color: 'var(--semi-color-text-2)', fontSize: 12, marginTop: 4 }}>
-                          Corp ID 复用「OAuth 配置」页；通讯录同步使用独立的通讯录 Secret（≠ 应用 Secret），在下方填写
-                        </div>
-                      </Form.Slot>
-                      <Form.Input field="contactSecret" label="通讯录 Secret" type="password"
-                        placeholder={modal.isEdit && modal.editing?.contactSecretSet ? '已配置；留空保持不变' : '企业微信管理后台 → 通讯录同步 → Secret'}
-                        rules={modal.isEdit && modal.editing?.contactSecretSet ? [] : [{ required: true, message: '企业微信源必须填写通讯录 Secret' }]} />
-                    </>
-                  )}
-                  {type === 'feishu' && (
-                    <Form.Slot label="凭证来源">
-                      <Tag color="cyan">OAuth 配置 → 飞书（App ID / App Secret）</Tag>
-                      <div style={{ color: 'var(--semi-color-text-2)', fontSize: 12, marginTop: 4 }}>
-                        复用「OAuth 配置」页的飞书凭证；需在飞书开放平台为该应用开通通讯录读取权限
-                      </div>
-                    </Form.Slot>
-                  )}
-                  {type === 'scim' && (
-                    <>
-                      <Form.Slot label="SCIM Base URL">
-                        {modal.isEdit && modal.editing?.callbackUrlKey ? (
-                          <Typography.Text code copyable>
-                            {`${window.location.origin}/api/directory-sync/scim/${modal.editing.callbackUrlKey}/v2`}
-                          </Typography.Text>
-                        ) : (
-                          <Typography.Text type="tertiary">保存后自动生成，配置到 Azure AD / Okta 的租户 URL</Typography.Text>
-                        )}
-                      </Form.Slot>
-                      <Form.Input field="callbackToken" label="Bearer Token" type="password"
-                        placeholder={modal.isEdit && modal.editing?.callbackTokenSet ? '已配置；留空保持不变' : 'IdP 侧 Secret Token，建议 32 位以上随机串'}
-                        rules={modal.isEdit && modal.editing?.callbackTokenSet ? [] : [{ required: true, message: 'SCIM 源必须设置 Bearer Token' }]}
-                        helpText="IdP 以 Authorization: Bearer <token> 调用本端 SCIM 接口" />
-                    </>
-                  )}
-                  {type !== 'scim' && (
-                    <Row gutter={16}>
-                      <Col span={12}>
-                        <Form.Select field="matchKey" label="匹配键" style={{ width: '100%' }}
-                          optionList={DIRECTORY_SYNC_MATCH_KEYS.map((k) => ({ value: k, label: DIRECTORY_SYNC_MATCH_KEY_LABELS[k] }))}
-                          helpText="未绑定的外部用户按此字段匹配本地账号" />
-                      </Col>
-                      <Col span={12}>
-                        <Form.Select field="conflictPolicy" label="冲突策略" style={{ width: '100%' }}
-                          optionList={DIRECTORY_SYNC_CONFLICT_POLICIES.map((p) => ({ value: p, label: DIRECTORY_SYNC_CONFLICT_POLICY_LABELS[p] }))} />
-                      </Col>
-                    </Row>
-                  )}
-                  {type !== 'scim' && (
-                    <Row gutter={16}>
-                      <Col span={12}>
-                        <Form.Switch field="syncDepartments" label="同步部门树" />
-                      </Col>
-                      <Col span={12}>
-                        <Form.InputNumber field="circuitBreakerPercent" label="熔断阈值 (%)" style={{ width: '100%' }}
-                          min={0} max={100}
-                          helpText="单次计划禁用人数占已绑定人数比例超过该值时中止同步" />
-                      </Col>
-                    </Row>
-                  )}
-                  <Row gutter={16}>
-                    <Col span={12}>
-                      <Form.Switch field="lifecycle.disableOnLeave" label="离职自动禁用" />
-                    </Col>
-                    <Col span={12}>
-                      <Form.Switch field="lifecycle.kickSessions" label="禁用时强制下线" />
-                    </Col>
-                  </Row>
-                  <Form.Select field="lifecycle.defaultRoleIds" label="默认角色" multiple style={{ width: '100%' }}
-                    placeholder="新建账号自动授予的角色（可空）"
-                    extraText="只能选择本租户的普通角色；平台保留角色需由平台管理员手动分配"
-                    optionList={roleOptions} loading={rolesQuery.isFetching} />
-                  {type !== 'scim' && (
-                    <>
-                      <Form.Input field="cronExpression" label="定时表达式"
-                        placeholder="如 0 2 * * *（每天 2 点），留空则仅手动同步"
-                        helpText="由系统调度每分钟扫描到期源"
-                        addonAfter={(
-                          <CronBuilderPopover
-                            value={(formState.values as { cronExpression?: string }).cronExpression ?? ''}
-                            onApply={(expr) => modal.formApi.current?.setValue('cronExpression', expr)}
-                          />
-                        )} />
-                      <Form.TagInput field="scopeConfig.deptExternalIds" label="部门范围"
-                        placeholder="外部部门 ID，回车添加；留空同步全部" />
-                      <Form.TagInput field="scopeConfig.excludeUserExternalIds" label="排除人员"
-                        placeholder="外部用户 ID，回车添加" />
-                    </>
-                  )}
-                  {CALLBACK_TYPE_SET.has(type) && (
-                    <>
-                      <Divider align="left">事件回调（准实时增量）</Divider>
-                      <Form.Slot label="回调 URL">
-                        {modal.isEdit && modal.editing?.callbackUrlKey ? (
-                          <Typography.Text code copyable>
-                            {`${window.location.origin}/api/directory-sync/callbacks/${modal.editing.callbackUrlKey}`}
-                          </Typography.Text>
-                        ) : (
-                          <Typography.Text type="tertiary">保存后自动生成，配置到平台的事件订阅地址</Typography.Text>
-                        )}
-                      </Form.Slot>
-                      <Form.Input field="callbackToken" label="回调 Token" type="password"
-                        placeholder={modal.isEdit && modal.editing?.callbackTokenSet ? '已配置；留空保持不变' : type === 'feishu' ? 'Verification Token（可空）' : '与平台回调配置一致的 Token'}
-                        helpText="收到事件后置位标记，由系统调度在一分钟内触发一次幂等同步" />
-                      <Form.Input field="callbackAesKey" label="回调 AES Key" type="password"
-                        placeholder={modal.isEdit && modal.editing?.callbackAesKeySet ? '已配置；留空保持不变' : type === 'feishu' ? 'Encrypt Key（明文模式可空）' : '43 位 EncodingAESKey'} />
-                    </>
-                  )}
-                  {type !== 'scim' && (
-                    <>
-                      <Divider align="left">字段映射</Divider>
-                      <Row gutter={16}>
-                        <Col span={12}>
-                          <Form.Select field="fieldMapping.username" label="登录名来源" style={{ width: '100%' }}
-                            placeholder="默认：登录名（username）" showClear
-                            optionList={MAPPING_SOURCE_OPTIONS}
-                            helpText="仅建号时使用" />
-                        </Col>
-                        <Col span={12}>
-                          <Form.Select field="fieldMapping.nickname" label="姓名来源" style={{ width: '100%' }}
-                            placeholder="默认：姓名（nickname）" showClear
-                            optionList={[...MAPPING_SOURCE_OPTIONS, { value: DIRECTORY_SYNC_FIELD_IGNORE, label: '不同步' }]} />
-                        </Col>
-                      </Row>
-                      <Row gutter={16}>
-                        <Col span={12}>
-                          <Form.Select field="fieldMapping.email" label="邮箱来源" style={{ width: '100%' }}
-                            placeholder="默认：邮箱（email）" showClear
-                            optionList={[...MAPPING_SOURCE_OPTIONS, { value: DIRECTORY_SYNC_FIELD_IGNORE, label: '不同步' }]} />
-                        </Col>
-                        <Col span={12}>
-                          <Form.Select field="fieldMapping.phone" label="手机号来源" style={{ width: '100%' }}
-                            placeholder="默认：手机号（phone）" showClear
-                            optionList={[...MAPPING_SOURCE_OPTIONS, { value: DIRECTORY_SYNC_FIELD_IGNORE, label: '不同步' }]} />
-                        </Col>
-                      </Row>
-                    </>
-                  )}
-                  <Form.TextArea field="remark" label="备注" placeholder="选填" rows={2} />
+                  <Form.Slot label="凭证来源">
+                    <Tag color="green">OAuth 配置 → 企业微信（Corp ID）</Tag>
+                    <div style={{ color: 'var(--semi-color-text-2)', fontSize: 12, marginTop: 4 }}>
+                      Corp ID 复用「OAuth 配置」页；通讯录同步使用独立的通讯录 Secret（≠ 应用 Secret），在下方填写
+                    </div>
+                  </Form.Slot>
+                  <Form.Input field="contactSecret" label="通讯录 Secret" type="password"
+                    placeholder={modal.isEdit && modal.editing?.contactSecretSet ? '已配置；留空保持不变' : '企业微信管理后台 → 通讯录同步 → Secret'}
+                    rules={modal.isEdit && modal.editing?.contactSecretSet ? [] : [{ required: true, message: '企业微信源必须填写通讯录 Secret' }]} />
                 </>
-              );
-            }}
-          </Form>
-        </Spin>
-      </SideSheet>
+              )}
+              {type === 'feishu' && (
+                <Form.Slot label="凭证来源">
+                  <Tag color="cyan">OAuth 配置 → 飞书（App ID / App Secret）</Tag>
+                  <div style={{ color: 'var(--semi-color-text-2)', fontSize: 12, marginTop: 4 }}>
+                    复用「OAuth 配置」页的飞书凭证；需在飞书开放平台为该应用开通通讯录读取权限
+                  </div>
+                </Form.Slot>
+              )}
+              {type === 'scim' && (
+                <>
+                  <Form.Slot label="SCIM Base URL">
+                    {modal.isEdit && modal.editing?.callbackUrlKey ? (
+                      <Typography.Text code copyable>
+                        {`${window.location.origin}/api/directory-sync/scim/${modal.editing.callbackUrlKey}/v2`}
+                      </Typography.Text>
+                    ) : (
+                      <Typography.Text type="tertiary">保存后自动生成，配置到 Azure AD / Okta 的租户 URL</Typography.Text>
+                    )}
+                  </Form.Slot>
+                  <Form.Input field="callbackToken" label="Bearer Token" type="password"
+                    placeholder={modal.isEdit && modal.editing?.callbackTokenSet ? '已配置；留空保持不变' : 'IdP 侧 Secret Token，建议 32 位以上随机串'}
+                    rules={modal.isEdit && modal.editing?.callbackTokenSet ? [] : [{ required: true, message: 'SCIM 源必须设置 Bearer Token' }]}
+                    helpText="IdP 以 Authorization: Bearer <token> 调用本端 SCIM 接口" />
+                </>
+              )}
+              {type !== 'scim' && (
+                <Row gutter={16}>
+                  <Col span={12}>
+                    <Form.Select field="matchKey" label="匹配键" style={{ width: '100%' }}
+                      optionList={DIRECTORY_SYNC_MATCH_KEYS.map((k) => ({ value: k, label: DIRECTORY_SYNC_MATCH_KEY_LABELS[k] }))}
+                      helpText="未绑定的外部用户按此字段匹配本地账号" />
+                  </Col>
+                  <Col span={12}>
+                    <Form.Select field="conflictPolicy" label="冲突策略" style={{ width: '100%' }}
+                      optionList={DIRECTORY_SYNC_CONFLICT_POLICIES.map((p) => ({ value: p, label: DIRECTORY_SYNC_CONFLICT_POLICY_LABELS[p] }))} />
+                  </Col>
+                </Row>
+              )}
+              {type !== 'scim' && (
+                <Row gutter={16}>
+                  <Col span={12}>
+                    <Form.Switch field="syncDepartments" label="同步部门树" />
+                  </Col>
+                  <Col span={12}>
+                    <Form.InputNumber field="circuitBreakerPercent" label="熔断阈值 (%)" style={{ width: '100%' }}
+                      min={0} max={100}
+                      helpText="单次计划禁用人数占已绑定人数比例超过该值时中止同步" />
+                  </Col>
+                </Row>
+              )}
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Switch field="lifecycle.disableOnLeave" label="离职自动禁用" />
+                </Col>
+                <Col span={12}>
+                  <Form.Switch field="lifecycle.kickSessions" label="禁用时强制下线" />
+                </Col>
+              </Row>
+              <Form.Select field="lifecycle.defaultRoleIds" label="默认角色" multiple style={{ width: '100%' }}
+                placeholder="新建账号自动授予的角色（可空）"
+                extraText="只能选择本租户的普通角色；平台保留角色需由平台管理员手动分配"
+                optionList={roleOptions} loading={rolesQuery.isFetching} />
+              {type !== 'scim' && (
+                <>
+                  <Form.Input field="cronExpression" label="定时表达式"
+                    placeholder="如 0 2 * * *（每天 2 点），留空则仅手动同步"
+                    helpText="由系统调度每分钟扫描到期源"
+                    addonAfter={(
+                      <CronBuilderPopover
+                        value={(formState.values as { cronExpression?: string }).cronExpression ?? ''}
+                        onApply={(expr) => modal.formApi.current?.setValue('cronExpression', expr)}
+                      />
+                    )} />
+                  <Form.TagInput field="scopeConfig.deptExternalIds" label="部门范围"
+                    placeholder="外部部门 ID，回车添加；留空同步全部" />
+                  <Form.TagInput field="scopeConfig.excludeUserExternalIds" label="排除人员"
+                    placeholder="外部用户 ID，回车添加" />
+                </>
+              )}
+              {CALLBACK_TYPE_SET.has(type) && (
+                <>
+                  <Divider align="left">事件回调（准实时增量）</Divider>
+                  <Form.Slot label="回调 URL">
+                    {modal.isEdit && modal.editing?.callbackUrlKey ? (
+                      <Typography.Text code copyable>
+                        {`${window.location.origin}/api/directory-sync/callbacks/${modal.editing.callbackUrlKey}`}
+                      </Typography.Text>
+                    ) : (
+                      <Typography.Text type="tertiary">保存后自动生成，配置到平台的事件订阅地址</Typography.Text>
+                    )}
+                  </Form.Slot>
+                  <Form.Input field="callbackToken" label="回调 Token" type="password"
+                    placeholder={modal.isEdit && modal.editing?.callbackTokenSet ? '已配置；留空保持不变' : type === 'feishu' ? 'Verification Token（可空）' : '与平台回调配置一致的 Token'}
+                    helpText="收到事件后置位标记，由系统调度在一分钟内触发一次幂等同步" />
+                  <Form.Input field="callbackAesKey" label="回调 AES Key" type="password"
+                    placeholder={modal.isEdit && modal.editing?.callbackAesKeySet ? '已配置；留空保持不变' : type === 'feishu' ? 'Encrypt Key（明文模式可空）' : '43 位 EncodingAESKey'} />
+                </>
+              )}
+              {type !== 'scim' && (
+                <>
+                  <Divider align="left">字段映射</Divider>
+                  <Row gutter={16}>
+                    <Col span={12}>
+                      <Form.Select field="fieldMapping.username" label="登录名来源" style={{ width: '100%' }}
+                        placeholder="默认：登录名（username）" showClear
+                        optionList={MAPPING_SOURCE_OPTIONS}
+                        helpText="仅建号时使用" />
+                    </Col>
+                    <Col span={12}>
+                      <Form.Select field="fieldMapping.nickname" label="姓名来源" style={{ width: '100%' }}
+                        placeholder="默认：姓名（nickname）" showClear
+                        optionList={[...MAPPING_SOURCE_OPTIONS, { value: DIRECTORY_SYNC_FIELD_IGNORE, label: '不同步' }]} />
+                    </Col>
+                  </Row>
+                  <Row gutter={16}>
+                    <Col span={12}>
+                      <Form.Select field="fieldMapping.email" label="邮箱来源" style={{ width: '100%' }}
+                        placeholder="默认：邮箱（email）" showClear
+                        optionList={[...MAPPING_SOURCE_OPTIONS, { value: DIRECTORY_SYNC_FIELD_IGNORE, label: '不同步' }]} />
+                    </Col>
+                    <Col span={12}>
+                      <Form.Select field="fieldMapping.phone" label="手机号来源" style={{ width: '100%' }}
+                        placeholder="默认：手机号（phone）" showClear
+                        optionList={[...MAPPING_SOURCE_OPTIONS, { value: DIRECTORY_SYNC_FIELD_IGNORE, label: '不同步' }]} />
+                    </Col>
+                  </Row>
+                </>
+              )}
+              <Form.TextArea field="remark" label="备注" placeholder="选填" rows={2} />
+            </>
+          );
+        }}
+      </EditFormSheet>
     </div>
   );
 }

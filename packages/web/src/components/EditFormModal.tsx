@@ -33,11 +33,11 @@ function EditFormBody({ modal, header, formProps, children }: Readonly<EditFormB
   );
 }
 
-export interface EditFormModalProps extends EditFormBodyProps, Omit<AppModalProps, 'visible' | 'onOk' | 'onCancel' | 'okButtonProps' | 'children'> {}
+export interface EditFormModalProps extends EditFormBodyProps, Omit<AppModalProps, 'visible' | 'onOk' | 'children'> {}
 
 /**
  * 新增 / 编辑弹窗壳：`AppModal({...modal.modalProps}) > Spin(detailLoading) > Form(key=formKey, formProps)`。
- * 页面只写字段；`title` / `okText` / `width` / `closeOnEsc` 等直接作为属性覆盖 `modalProps`。
+ * 页面只写字段；`title` / `okText` / `width` / `okButtonProps` / `onCancel`（追加收尾）等直接作为属性覆盖 `modalProps`。
  *
  * @example
  * <EditFormModal modal={modal} width={660}>

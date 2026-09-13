@@ -7,7 +7,6 @@ import { CHECKIN_MILESTONE_REWARD_TYPE_LABELS } from '@zenith/shared/member';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { AppModal } from '@/components/AppModal';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { deleteAction, listTableProps } from '@/components/list-page';
 import { EMPTY_PLACEHOLDER, renderEllipsis } from '@/utils/table-columns';
@@ -21,6 +20,7 @@ import {
 } from '@/hooks/queries/member-admin';
 import { CreateButton, RefreshButton } from '@/components/toolbar-controls';
 import { useEditModal } from '@/hooks/useEditModal';
+import { EditFormModal } from '@/components/EditFormModal';
 
 interface CouponOption {
   value: number;
@@ -113,29 +113,21 @@ export default function CheckinMilestonesPage() {
         {...listTableProps(listQuery, { empty: '暂无里程碑配置' })}
       />
 
-      <AppModal
-        {...modal.modalProps}
-        width={560}
-      >
-        <Form
-          key={modal.formKey} {...modal.formProps}
-          onValueChange={(values) => setRewardType(values.rewardType as CheckinMilestoneRewardType)}
-        >
-          <Form.Input field="title" label="名称" maxLength={64} rules={[{ required: true, message: '请输入名称' }]} />
-          <Form.InputNumber field="cumulativeDays" label="累计天数" min={1} style={{ width: '100%' }} rules={[{ required: true, message: '请输入累计天数' }]} />
-          <Form.Select field="rewardType" label="奖励类型" style={{ width: '100%' }} rules={[{ required: true, message: '请选择奖励类型' }]}>
-            <Form.Select.Option value="points">积分</Form.Select.Option>
-            <Form.Select.Option value="coupon">优惠券</Form.Select.Option>
-          </Form.Select>
-          {rewardType === 'points' ? (
-            <Form.InputNumber field="rewardPoints" label="积分奖励" min={0} style={{ width: '100%' }} rules={[{ required: true, message: '请输入积分奖励' }]} />
-          ) : (
-            <Form.Select field="couponId" label="优惠券" style={{ width: '100%' }} optionList={coupons} filter rules={[{ required: true, message: '请选择优惠券' }]} placeholder="请选择优惠券" />
-          )}
-          <Form.Switch field="enabled" label="启用" />
-          <Form.TextArea field="remark" label="备注" maxCount={256} placeholder="请输入备注" />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={modal} width={560} formProps={{ onValueChange: (values) => setRewardType(values.rewardType as CheckinMilestoneRewardType) }}>
+        <Form.Input field="title" label="名称" maxLength={64} rules={[{ required: true, message: '请输入名称' }]} />
+        <Form.InputNumber field="cumulativeDays" label="累计天数" min={1} style={{ width: '100%' }} rules={[{ required: true, message: '请输入累计天数' }]} />
+        <Form.Select field="rewardType" label="奖励类型" style={{ width: '100%' }} rules={[{ required: true, message: '请选择奖励类型' }]}>
+          <Form.Select.Option value="points">积分</Form.Select.Option>
+          <Form.Select.Option value="coupon">优惠券</Form.Select.Option>
+        </Form.Select>
+        {rewardType === 'points' ? (
+          <Form.InputNumber field="rewardPoints" label="积分奖励" min={0} style={{ width: '100%' }} rules={[{ required: true, message: '请输入积分奖励' }]} />
+        ) : (
+          <Form.Select field="couponId" label="优惠券" style={{ width: '100%' }} optionList={coupons} filter rules={[{ required: true, message: '请选择优惠券' }]} placeholder="请选择优惠券" />
+        )}
+        <Form.Switch field="enabled" label="启用" />
+        <Form.TextArea field="remark" label="备注" maxCount={256} placeholder="请输入备注" />
+      </EditFormModal>
     </div>
   );
 }

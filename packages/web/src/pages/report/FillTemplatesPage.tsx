@@ -8,7 +8,6 @@ import type { ReportFillTemplate } from '@zenith/shared/report';
 import type { WorkflowFormField, WorkflowFormSettings } from '@zenith/shared/workflow';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import AppModal from '@/components/AppModal';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import { ReportFolderFilter, ReportOwnerFilter } from './report-filters';
@@ -32,6 +31,7 @@ import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { abortSubmit } from '@/lib/abort-submit';
 import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormModal } from '@/components/EditFormModal';
 
 interface SearchState {
   keyword: string;
@@ -458,24 +458,18 @@ export default function FillTemplatesPage() {
         </div>
       </SideSheet>
 
-      <AppModal
-        {...cloneModal.modalProps}
-        title={`克隆模板 · ${cloneModal.editing?.name ?? ''}`}
-        width={520}
-      >
-        <Form key={cloneModal.formKey} {...cloneModal.formProps}>
-          <Form.Input field="name" label="模板名称" prefix={<Copy size={14} />} rules={[{ required: true, message: '请输入名称' }]} />
-          <Form.Input field="code" label="模板编码" rules={[{ required: true, message: '请输入编码' }]} />
-          <Form.Select
-            field="folderId"
-            label="资源目录"
-            showClear
-            filter
-            style={{ width: '100%' }}
-            optionList={folderOptions}
-          />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={cloneModal} title={`克隆模板 · ${cloneModal.editing?.name ?? ''}`} width={520}>
+        <Form.Input field="name" label="模板名称" prefix={<Copy size={14} />} rules={[{ required: true, message: '请输入名称' }]} />
+        <Form.Input field="code" label="模板编码" rules={[{ required: true, message: '请输入编码' }]} />
+        <Form.Select
+          field="folderId"
+          label="资源目录"
+          showClear
+          filter
+          style={{ width: '100%' }}
+          optionList={folderOptions}
+        />
+      </EditFormModal>
     </div>
   );
 }

@@ -27,6 +27,7 @@ import { confirmDanger } from '@/utils/confirm';
 import { copyTextWithToast } from '@/utils/clipboard';
 import { abortSubmit } from '@/lib/abort-submit';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormModal } from '@/components/EditFormModal';
 
 const { Text } = Typography;
 
@@ -225,28 +226,23 @@ export default function ChatBotsPage() {
         {...tableProps}
       />
 
-      <AppModal
-        {...botModal.modalProps}
-        width={520}
-      >
-        <Form key={botModal.formKey} {...botModal.formProps}>
-          <Form.Input field="name" label="名称" placeholder="请输入机器人名称" rules={[{ required: true, message: '请输入机器人名称' }]} />
-          <Form.Select
-            field="conversationId"
-            label="目标会话"
-            placeholder="请选择目标群聊"
-            rules={[{ required: true, message: '请选择目标会话' }]}
-            optionList={conversationOptions}
-            loading={groupConversationsQuery.isFetching}
-            disabled={botModal.isEdit}
-            filter
-            style={{ width: '100%' }}
-          />
-          <Form.Input field="avatar" label="头像" placeholder="请输入头像 URL（可选）" />
-          <Form.TextArea field="description" label="描述" placeholder="请输入描述（可选）" autosize={{ minRows: 3, maxRows: 5 }} />
-          <Form.Switch field="enabled" label="状态" />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={botModal} width={520}>
+        <Form.Input field="name" label="名称" placeholder="请输入机器人名称" rules={[{ required: true, message: '请输入机器人名称' }]} />
+        <Form.Select
+          field="conversationId"
+          label="目标会话"
+          placeholder="请选择目标群聊"
+          rules={[{ required: true, message: '请选择目标会话' }]}
+          optionList={conversationOptions}
+          loading={groupConversationsQuery.isFetching}
+          disabled={botModal.isEdit}
+          filter
+          style={{ width: '100%' }}
+        />
+        <Form.Input field="avatar" label="头像" placeholder="请输入头像 URL（可选）" />
+        <Form.TextArea field="description" label="描述" placeholder="请输入描述（可选）" autosize={{ minRows: 3, maxRows: 5 }} />
+        <Form.Switch field="enabled" label="状态" />
+      </EditFormModal>
 
       <AppModal
         title="Webhook 机器人凭据"

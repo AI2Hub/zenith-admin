@@ -1,10 +1,9 @@
 import { useState } from 'react';
-import { Col, Form, Row, SideSheet, Spin, Tag, Typography } from '@douyinfe/semi-ui';
+import { Col, Form, Row, SideSheet, Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { deleteAction, listTableProps } from '@/components/list-page';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import AppModal from '@/components/AppModal';
 import { CreateButton } from '@/components/toolbar-controls';
 import { useEditModal } from '@/hooks/useEditModal';
 import { usePermission } from '@/hooks/usePermission';
@@ -17,6 +16,7 @@ import {
 } from '@zenith/shared/marketing';
 import type { MarketingCampaign, MarketingPrize, SaveMarketingPrizeInput } from '@zenith/shared/marketing';
 import { EMPTY_PLACEHOLDER } from '@/utils/table-columns';
+import { EditFormModal } from '@/components/EditFormModal';
 
 const { Text } = Typography;
 
@@ -137,46 +137,42 @@ export default function MarketingPrizesDrawer({ campaign, onClose }: MarketingPr
         />
       </div>
 
-      <AppModal {...modal.modalProps} width={520}>
-        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
-          <Form key={modal.formKey} {...modal.formProps}>
-            <Form.Input field="name" label="奖品名称" placeholder="如：100 积分"
-              rules={[{ required: true, message: '奖品名称不能为空' }]} />
-            <Form.Select
-              field="prizeType" label="奖品类型" style={{ width: '100%' }}
-              optionList={MARKETING_PRIZE_TYPE_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
-              onChange={(v) => setPrizeType(v as MarketingPrize['prizeType'])}
-              rules={[{ required: true, message: '请选择奖品类型' }]}
+      <EditFormModal modal={modal} width={520}>
+        <Form.Input field="name" label="奖品名称" placeholder="如：100 积分"
+          rules={[{ required: true, message: '奖品名称不能为空' }]} />
+        <Form.Select
+          field="prizeType" label="奖品类型" style={{ width: '100%' }}
+          optionList={MARKETING_PRIZE_TYPE_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+          onChange={(v) => setPrizeType(v as MarketingPrize['prizeType'])}
+          rules={[{ required: true, message: '请选择奖品类型' }]}
+        />
+        {prizeType === 'points' && (
+          <Form.InputNumber field="points" label="积分数" style={{ width: '100%' }} min={1}
+            rules={[{ required: true, message: '请填写积分数' }]} />
+        )}
+        {prizeType === 'coupon' && (
+          <Form.Select
+            field="couponId" label="优惠券" style={{ width: '100%' }} placeholder="选择优惠券模板"
+            optionList={couponOptions} loading={couponsQuery.isFetching} filter
+            rules={[{ required: true, message: '请选择优惠券' }]}
+          />
+        )}
+        <Row gutter={16}>
+          {prizeType !== 'none' && (
+            <Col span={12}>
+              <Form.InputNumber field="stock" label="库存" style={{ width: '100%' }} min={0}
+                rules={[{ required: true, message: '请填写库存' }]} />
+            </Col>
+          )}
+          <Col span={12}>
+            <Form.InputNumber
+              field="weight" label="权重" style={{ width: '100%' }} min={1}
+              extraText="数值越大越易抽中，占比 = 权重 / 全部奖品权重和"
+              rules={[{ required: true, message: '请填写权重' }]}
             />
-            {prizeType === 'points' && (
-              <Form.InputNumber field="points" label="积分数" style={{ width: '100%' }} min={1}
-                rules={[{ required: true, message: '请填写积分数' }]} />
-            )}
-            {prizeType === 'coupon' && (
-              <Form.Select
-                field="couponId" label="优惠券" style={{ width: '100%' }} placeholder="选择优惠券模板"
-                optionList={couponOptions} loading={couponsQuery.isFetching} filter
-                rules={[{ required: true, message: '请选择优惠券' }]}
-              />
-            )}
-            <Row gutter={16}>
-              {prizeType !== 'none' && (
-                <Col span={12}>
-                  <Form.InputNumber field="stock" label="库存" style={{ width: '100%' }} min={0}
-                    rules={[{ required: true, message: '请填写库存' }]} />
-                </Col>
-              )}
-              <Col span={12}>
-                <Form.InputNumber
-                  field="weight" label="权重" style={{ width: '100%' }} min={1}
-                  extraText="数值越大越易抽中，占比 = 权重 / 全部奖品权重和"
-                  rules={[{ required: true, message: '请填写权重' }]}
-                />
-              </Col>
-            </Row>
-          </Form>
-        </Spin>
-      </AppModal>
+          </Col>
+        </Row>
+      </EditFormModal>
     </SideSheet>
   );
 }

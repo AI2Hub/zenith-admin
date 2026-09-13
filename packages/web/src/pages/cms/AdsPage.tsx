@@ -6,7 +6,6 @@ import { Trash2 } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import ExportButton from '@/components/ExportButton';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import AppModal from '@/components/AppModal';
 import { formatDateTimeForApi, formatDateTimeRangeForApi } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -30,6 +29,7 @@ import { compactParams } from '@/lib/query';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import { FormStatusRadioGroup } from '@/components/FormStatusRadioGroup';
+import { EditFormModal } from '@/components/EditFormModal';
 // ─── 广告位 Tab ───────────────────────────────────────────────────────────────
 function SlotsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
   const { hasPermission } = usePermission();
@@ -76,13 +76,11 @@ function SlotsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
         columns={columns}
         {...listTableProps(slotsQuery, { empty: '暂无广告位；默认主题支持 home-ad（首页横幅下方）' })}
       />
-      <AppModal {...slotModal.modalProps} width={480}>
-        <Form key={slotModal.formKey} {...slotModal.formProps}>
-          <Form.Input field="name" label="广告位名称" rules={[{ required: true, message: '请输入名称' }]} />
-          <Form.Input field="code" label="引用标识" disabled={slotModal.isEdit} placeholder="如 home-ad（主题模板中引用）" rules={[{ required: true, message: '请输入标识' }]} />
-          <Form.Input field="remark" label="备注" />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={slotModal} width={480}>
+        <Form.Input field="name" label="广告位名称" rules={[{ required: true, message: '请输入名称' }]} />
+        <Form.Input field="code" label="引用标识" disabled={slotModal.isEdit} placeholder="如 home-ad（主题模板中引用）" rules={[{ required: true, message: '请输入标识' }]} />
+        <Form.Input field="remark" label="备注" />
+      </EditFormModal>
     </>
   );
 }
@@ -167,19 +165,17 @@ function AdsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
         columns={columns}
         {...listTableProps(listQuery, { pagination: buildPagination, empty: '暂无广告' })}
       />
-      <AppModal {...adModal.modalProps} width={560}>
-        <Form key={adModal.formKey} {...adModal.formProps}>
-          <Form.Select field="slotId" label="广告位" style={{ width: '100%' }} rules={[{ required: true, message: '请选择广告位' }]}
-            optionList={(slotsQuery.data ?? []).map((s) => ({ value: s.id, label: s.name }))} />
-          <Form.Input field="name" label="广告名称" rules={[{ required: true, message: '请输入名称' }]} />
-          <Form.Input field="image" label="图片 URL" placeholder="留空显示文字条" />
-          <Form.Input field="linkUrl" label="跳转地址" placeholder="/products/enterprise.html 或 https://..." />
-          <Form.DatePicker field="startAt" label="开始时间" type="dateTime" density="compact" style={{ width: '100%' }} placeholder="不限" />
-          <Form.DatePicker field="endAt" label="结束时间" type="dateTime" density="compact" style={{ width: '100%' }} placeholder="不限" />
-          <Form.InputNumber field="sort" label="排序" style={{ width: 160 }} />
-          <FormStatusRadioGroup />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={adModal} width={560}>
+        <Form.Select field="slotId" label="广告位" style={{ width: '100%' }} rules={[{ required: true, message: '请选择广告位' }]}
+          optionList={(slotsQuery.data ?? []).map((s) => ({ value: s.id, label: s.name }))} />
+        <Form.Input field="name" label="广告名称" rules={[{ required: true, message: '请输入名称' }]} />
+        <Form.Input field="image" label="图片 URL" placeholder="留空显示文字条" />
+        <Form.Input field="linkUrl" label="跳转地址" placeholder="/products/enterprise.html 或 https://..." />
+        <Form.DatePicker field="startAt" label="开始时间" type="dateTime" density="compact" style={{ width: '100%' }} placeholder="不限" />
+        <Form.DatePicker field="endAt" label="结束时间" type="dateTime" density="compact" style={{ width: '100%' }} placeholder="不限" />
+        <Form.InputNumber field="sort" label="排序" style={{ width: 160 }} />
+        <FormStatusRadioGroup />
+      </EditFormModal>
     </>
   );
 }

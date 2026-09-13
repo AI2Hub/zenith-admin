@@ -1,4 +1,4 @@
-import { Form, Spin, Tag } from '@douyinfe/semi-ui';
+import { Form, Tag } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { CreateWikiTagInput, WikiTag } from '@zenith/shared/wiki';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -6,12 +6,12 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { KeywordInput } from '@/components/search-filters';
 import { CreateButton } from '@/components/toolbar-controls';
-import AppModal from '@/components/AppModal';
 import { createdAtColumn } from '@/utils/table-columns';
 import { useEditModal } from '@/hooks/useEditModal';
 import { usePermission } from '@/hooks/usePermission';
 import { useDeleteWikiTags, useSaveWikiTag, useWikiTagList, wikiTagKeys } from '@/hooks/queries/wiki-tags';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormModal } from '@/components/EditFormModal';
 
 interface SearchParams {
   keyword: string;
@@ -95,21 +95,17 @@ export default function WikiTagsPage() {
         {...tableProps}
       />
 
-      <AppModal {...modal.modalProps} width={480}>
-        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
-          <Form key={modal.formKey} {...modal.formProps}>
-            <Form.Input field="name" label="名称" placeholder="请输入标签名称"
-              rules={[{ required: true, message: '标签名称不能为空' }]} />
-            <Form.RadioGroup field="color" label="颜色" type="pureCard" direction="horizontal">
-              {TAG_COLOR_PRESETS.map((c) => (
-                <Form.Radio key={c} value={c} style={{ padding: 4 }}>
-                  <span style={{ display: 'inline-block', width: 22, height: 22, borderRadius: 'var(--semi-border-radius-small)', backgroundColor: c }} />
-                </Form.Radio>
-              ))}
-            </Form.RadioGroup>
-          </Form>
-        </Spin>
-      </AppModal>
+      <EditFormModal modal={modal} width={480}>
+        <Form.Input field="name" label="名称" placeholder="请输入标签名称"
+          rules={[{ required: true, message: '标签名称不能为空' }]} />
+        <Form.RadioGroup field="color" label="颜色" type="pureCard" direction="horizontal">
+          {TAG_COLOR_PRESETS.map((c) => (
+            <Form.Radio key={c} value={c} style={{ padding: 4 }}>
+              <span style={{ display: 'inline-block', width: 22, height: 22, borderRadius: 'var(--semi-border-radius-small)', backgroundColor: c }} />
+            </Form.Radio>
+          ))}
+        </Form.RadioGroup>
+      </EditFormModal>
     </div>
   );
 }

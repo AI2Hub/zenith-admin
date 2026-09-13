@@ -1,11 +1,10 @@
 import { useState } from 'react';
-import { Form, Spin, Tag, Typography } from '@douyinfe/semi-ui';
+import { Form, Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { CreateButton } from '@/components/toolbar-controls';
-import AppModal from '@/components/AppModal';
 import { createdAtColumn, renderEllipsis, EMPTY_PLACEHOLDER, enabledStatusColumn } from '@/utils/table-columns';
 import { useEditModal } from '@/hooks/useEditModal';
 import { usePermission } from '@/hooks/usePermission';
@@ -20,6 +19,7 @@ import {
 } from '@/hooks/queries/iot-products';
 import IotThingModelDrawer from './IotThingModelDrawer';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormModal } from '@/components/EditFormModal';
 
 const { Text } = Typography;
 
@@ -152,21 +152,17 @@ export default function IotProductsPage() {
         {...tableProps}
       />
 
-      <AppModal {...modal.modalProps} width={560}>
-        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
-          <Form key={modal.formKey} {...modal.formProps}>
-            <Form.Input field="name" label="产品名称" placeholder="如：温湿度传感器"
-              rules={[{ required: true, message: '产品名称不能为空' }]} />
-            <Form.Select
-              field="validationMode" label="遥测校验" style={{ width: '100%' }}
-              optionList={IOT_VALIDATION_MODE_OPTIONS}
-              extraText="宽松：校验已声明属性（不符丢弃该键），未声明键放行；严格：仅接受已声明属性"
-            />
-            <FormStatusRadioGroup />
-            <Form.TextArea field="description" label="描述" rows={3} placeholder="产品用途说明（选填）" maxCount={2000} />
-          </Form>
-        </Spin>
-      </AppModal>
+      <EditFormModal modal={modal} width={560}>
+        <Form.Input field="name" label="产品名称" placeholder="如：温湿度传感器"
+          rules={[{ required: true, message: '产品名称不能为空' }]} />
+        <Form.Select
+          field="validationMode" label="遥测校验" style={{ width: '100%' }}
+          optionList={IOT_VALIDATION_MODE_OPTIONS}
+          extraText="宽松：校验已声明属性（不符丢弃该键），未声明键放行；严格：仅接受已声明属性"
+        />
+        <FormStatusRadioGroup />
+        <Form.TextArea field="description" label="描述" rows={3} placeholder="产品用途说明（选填）" maxCount={2000} />
+      </EditFormModal>
 
       <IotThingModelDrawer product={modelProduct} onClose={() => setModelProduct(null)} />
     </div>

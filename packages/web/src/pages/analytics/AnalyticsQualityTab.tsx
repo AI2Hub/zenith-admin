@@ -7,7 +7,6 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { AlertTriangle, ShieldAlert } from 'lucide-react';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import AppModal from '@/components/AppModal';
 import { config } from '@/config';
 import {
   analyticsKeys,
@@ -26,6 +25,7 @@ import { EMPTY_PLACEHOLDER, dateColumn, dateTimeColumn, renderEllipsis, renderEn
 import { ANALYTICS_ISSUE_TAG_COLOR } from './analytics-tag-colors';
 import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
 import { useFilterQuery } from '@/hooks/useFilterQuery';
+import { EditFormModal } from '@/components/EditFormModal';
 
 const PAGE_SIZE = 20;
 const DAY_OPTIONS = [7, 30, 90].map((value) => ({ value, label: `${value} 天` }));
@@ -203,16 +203,11 @@ export default function AnalyticsQualityTab() {
         )}
       </div>
 
-      <AppModal
-        {...overrideModal.modalProps}
-        width={480}
-      >
-        <Form key={overrideModal.formKey} {...overrideModal.formProps}>
-          <Form.Input field="eventName" label="事件名" placeholder="如 order_submit" disabled={overrideModal.isEdit} rules={[{ required: true, message: '请输入事件名' }]} />
-          <Form.Select field="status" label="状态" optionList={ANALYTICS_EVENT_OVERRIDE_STATUS_OPTIONS} style={{ width: '100%' }} />
-          <Form.TextArea field="reason" label="原因" placeholder="启停原因（可选，便于审计追溯）" maxCount={256} />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={overrideModal} width={480}>
+        <Form.Input field="eventName" label="事件名" placeholder="如 order_submit" disabled={overrideModal.isEdit} rules={[{ required: true, message: '请输入事件名' }]} />
+        <Form.Select field="status" label="状态" optionList={ANALYTICS_EVENT_OVERRIDE_STATUS_OPTIONS} style={{ width: '100%' }} />
+        <Form.TextArea field="reason" label="原因" placeholder="启停原因（可选，便于审计追溯）" maxCount={256} />
+      </EditFormModal>
     </div>
   );
 }

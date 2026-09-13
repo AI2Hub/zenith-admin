@@ -1,10 +1,9 @@
 import { useNavigate } from 'react-router-dom';
-import { Form, Space, Spin, Toast, Tag, Row, Col, Select, withField } from '@douyinfe/semi-ui';
+import { Form, Space, Toast, Tag, Row, Col, Select, withField } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { batchStatusHandler, confirmAndDelete, deleteAction, ListSearchToolbar, useStatusToggle, useRowSelection } from '@/components/list-page';
-import AppModal from '@/components/AppModal';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import type { CreateMonitorAlertRuleInput, MonitorAlertRule, MonitorMetric } from '@zenith/shared/platform';
@@ -38,6 +37,7 @@ import {
   MONITOR_OPERATOR_SYMBOLS,
 } from '../monitor-alert-display';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormModal } from '@/components/EditFormModal';
 
 const OP_OPTIONS = (['gt', 'gte', 'lt', 'lte'] as const)
   .map((value) => ({ value, label: BASIC_COMPARISON_OPERATOR_LABELS[value] }));
@@ -304,90 +304,83 @@ export default function AlertRulesPage() {
         {...tableProps}
       />
 
-      <AppModal
-        {...alertModal.modalProps}
-        width={660}
-      >
-        <Spin spinning={alertModal.detailLoading} wrapperClassName="modal-spin-wrapper">
-          <Form key={alertModal.formKey} {...alertModal.formProps}>
-            {({ values }) => {
-              const selectedMetric = values.metric as MonitorMetric | undefined;
-              const selectedChannels = Array.isArray(values.channels) ? values.channels as string[] : [];
-              const usesUserRecipients = selectedChannels.includes('inapp') || selectedChannels.includes('email');
-              return (
-                <>
-                  <Form.Input field="name" label="规则名称" placeholder="如：CPU 使用率过高" rules={[{ required: true, message: '请输入规则名称' }]} />
-                  <Row gutter={16}>
-                    <Col span={12}>
-                      <Form.Select
-                        field="metric"
-                        label="监控指标"
-                        style={{ width: '100%' }}
-                        filter
-                        extraText={selectedMetric ? METRIC_META[selectedMetric]?.description : undefined}
-                        rules={[{ required: true, message: '请选择指标' }]}
-                      >
-                        {METRIC_GROUPS.map((group) => (
-                          <Select.OptGroup key={group.group} label={group.label}>
-                            {group.children.map((option) => (
-                              <Select.Option key={option.value} value={option.value}>{option.label}</Select.Option>
-                            ))}
-                          </Select.OptGroup>
+      <EditFormModal modal={alertModal} width={660}>
+        {({ values }) => {
+          const selectedMetric = values.metric as MonitorMetric | undefined;
+          const selectedChannels = Array.isArray(values.channels) ? values.channels as string[] : [];
+          const usesUserRecipients = selectedChannels.includes('inapp') || selectedChannels.includes('email');
+          return (
+            <>
+              <Form.Input field="name" label="规则名称" placeholder="如：CPU 使用率过高" rules={[{ required: true, message: '请输入规则名称' }]} />
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Select
+                    field="metric"
+                    label="监控指标"
+                    style={{ width: '100%' }}
+                    filter
+                    extraText={selectedMetric ? METRIC_META[selectedMetric]?.description : undefined}
+                    rules={[{ required: true, message: '请选择指标' }]}
+                  >
+                    {METRIC_GROUPS.map((group) => (
+                      <Select.OptGroup key={group.group} label={group.label}>
+                        {group.children.map((option) => (
+                          <Select.Option key={option.value} value={option.value}>{option.label}</Select.Option>
                         ))}
-                      </Form.Select>
-                    </Col>
-                    <Col span={12}>
-                      <Form.Select field="operator" label="比较符" style={{ width: '100%' }} optionList={OP_OPTIONS} rules={[{ required: true }]} />
-                    </Col>
-                  </Row>
-                  <Row gutter={16}>
-                    <Col span={12}>
-                      <Form.InputNumber field="threshold" label="阈值" style={{ width: '100%' }} placeholder={thresholdHint(selectedMetric)} rules={[{ required: true, message: '请输入阈值' }]} />
-                    </Col>
-                    <Col span={12}>
-                      <Form.InputNumber field="durationMinutes" label="持续达标" min={0} max={1440} suffix="分钟" style={{ width: '100%' }} />
-                    </Col>
-                  </Row>
-                  <Row gutter={16}>
-                    <Col span={12}>
-                      <Form.Select field="level" label="告警级别" style={{ width: '100%' }} optionList={MONITOR_ALERT_LEVEL_OPTIONS} />
-                    </Col>
-                    <Col span={12}>
-                      <Form.InputNumber field="silenceMinutes" label="静默期" min={0} max={10080} suffix="分钟" style={{ width: '100%' }} />
-                    </Col>
-                  </Row>
-                  <Form.Select field="channels" label="通知渠道" multiple style={{ width: '100%' }} optionList={NOTIFY_CHANNEL_OPTIONS} />
-                  {usesUserRecipients && (
-                    <FormAlertRecipientUserSelect
-                      field="recipientUserIds"
-                      label="接收用户"
-                      extraText="站内信直接发送给所选用户；邮件渠道同时使用用户账号当前邮箱，无邮箱用户仅接收站内信"
-                    />
-                  )}
-                  {selectedChannels.includes('email') && (
-                    <Form.TagInput
-                      field="recipientEmails"
-                      label="额外邮箱"
-                      placeholder="输入群组邮箱或外部联系邮箱后回车"
-                      extraText="仅用于邮件渠道，不绑定系统用户；会与所选用户的账号邮箱自动去重"
-                      rules={[{
-                        validator: (_rule: unknown, value: unknown) =>
-                          !Array.isArray(value) || value.every((email) => EMAIL_PATTERN.test(String(email))),
-                        message: '请输入有效的邮箱地址',
-                      }]}
-                      style={{ width: '100%' }}
-                    />
-                  )}
-                  {selectedChannels.includes('webhook') && (
-                    <Form.Input field="webhookUrl" label="Webhook" placeholder="https://example.com/webhook" />
-                  )}
-                  <Form.Switch field="enabled" label="启用" />
-                </>
-              );
-            }}
-          </Form>
-        </Spin>
-      </AppModal>
+                      </Select.OptGroup>
+                    ))}
+                  </Form.Select>
+                </Col>
+                <Col span={12}>
+                  <Form.Select field="operator" label="比较符" style={{ width: '100%' }} optionList={OP_OPTIONS} rules={[{ required: true }]} />
+                </Col>
+              </Row>
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.InputNumber field="threshold" label="阈值" style={{ width: '100%' }} placeholder={thresholdHint(selectedMetric)} rules={[{ required: true, message: '请输入阈值' }]} />
+                </Col>
+                <Col span={12}>
+                  <Form.InputNumber field="durationMinutes" label="持续达标" min={0} max={1440} suffix="分钟" style={{ width: '100%' }} />
+                </Col>
+              </Row>
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Select field="level" label="告警级别" style={{ width: '100%' }} optionList={MONITOR_ALERT_LEVEL_OPTIONS} />
+                </Col>
+                <Col span={12}>
+                  <Form.InputNumber field="silenceMinutes" label="静默期" min={0} max={10080} suffix="分钟" style={{ width: '100%' }} />
+                </Col>
+              </Row>
+              <Form.Select field="channels" label="通知渠道" multiple style={{ width: '100%' }} optionList={NOTIFY_CHANNEL_OPTIONS} />
+              {usesUserRecipients && (
+                <FormAlertRecipientUserSelect
+                  field="recipientUserIds"
+                  label="接收用户"
+                  extraText="站内信直接发送给所选用户；邮件渠道同时使用用户账号当前邮箱，无邮箱用户仅接收站内信"
+                />
+              )}
+              {selectedChannels.includes('email') && (
+                <Form.TagInput
+                  field="recipientEmails"
+                  label="额外邮箱"
+                  placeholder="输入群组邮箱或外部联系邮箱后回车"
+                  extraText="仅用于邮件渠道，不绑定系统用户；会与所选用户的账号邮箱自动去重"
+                  rules={[{
+                    validator: (_rule: unknown, value: unknown) =>
+                      !Array.isArray(value) || value.every((email) => EMAIL_PATTERN.test(String(email))),
+                    message: '请输入有效的邮箱地址',
+                  }]}
+                  style={{ width: '100%' }}
+                />
+              )}
+              {selectedChannels.includes('webhook') && (
+                <Form.Input field="webhookUrl" label="Webhook" placeholder="https://example.com/webhook" />
+              )}
+              <Form.Switch field="enabled" label="启用" />
+            </>
+          );
+        }}
+      </EditFormModal>
     </div>
   );
 }

@@ -13,7 +13,6 @@ import {
   type DbBackupType,
 } from '@zenith/shared/ops';
 import { fileContract } from '@zenith/shared/platform';
-import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -26,6 +25,7 @@ import { urlOf } from '@/lib/contract-query';
 import { formatDurationMs } from '@/utils/format';
 import { request } from '@/utils/request';
 import { createdAtColumn, EMPTY_PLACEHOLDER } from '@/utils/table-columns';
+import { EditFormModal } from '@/components/EditFormModal';
 
 const { Text } = Typography;
 
@@ -166,20 +166,18 @@ export function BackupsPanel({ canMaintain, active }: Readonly<{ canMaintain: bo
         {...listTableProps(listQuery, { pagination: buildPagination })}
       />
 
-      <AppModal {...createModal.modalProps} title="创建备份" okText="确定" cancelText="取消">
-        <Form key={createModal.formKey} {...createModal.formProps}>
-          <Form.Select
-            field="type"
-            label="备份类型"
-            rules={[{ required: true, message: '请选择备份类型' }]}
-            optionList={DB_BACKUP_TYPE_OPTIONS}
-            style={{ width: '100%' }}
-            placeholder="请选择备份类型"
-            extraText="pg_dump 生成完整 SQL（gzip 压缩，需服务器安装 PostgreSQL 客户端）；Drizzle 导出逐表生成 JSON"
-          />
-          <Form.Input field="name" label="备份名称" placeholder="可选，默认自动生成" style={{ width: '100%' }} />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={createModal} title="创建备份" okText="确定" cancelText="取消">
+        <Form.Select
+          field="type"
+          label="备份类型"
+          rules={[{ required: true, message: '请选择备份类型' }]}
+          optionList={DB_BACKUP_TYPE_OPTIONS}
+          style={{ width: '100%' }}
+          placeholder="请选择备份类型"
+          extraText="pg_dump 生成完整 SQL（gzip 压缩，需服务器安装 PostgreSQL 客户端）；Drizzle 导出逐表生成 JSON"
+        />
+        <Form.Input field="name" label="备份名称" placeholder="可选，默认自动生成" style={{ width: '100%' }} />
+      </EditFormModal>
     </div>
   );
 }

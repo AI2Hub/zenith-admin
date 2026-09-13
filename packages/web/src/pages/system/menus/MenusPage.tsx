@@ -1,9 +1,8 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { Button, Form, Radio, TreeSelect, Row, Col, Spin, Tooltip, Banner } from '@douyinfe/semi-ui';
+import { Button, Form, Radio, TreeSelect, Row, Col, Tooltip, Banner } from '@douyinfe/semi-ui';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree';
 import { ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
 import type { Menu } from '@zenith/shared/identity';
-import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { renderLucideIcon } from '@/utils/icons';
 import IconPicker from '@/components/IconPicker';
@@ -22,6 +21,7 @@ import { menuKeys, useDeleteMenu, useMenuDetail, useMenuTree, useSaveMenu, type 
 import { CreateButton } from '@/components/toolbar-controls';
 import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { deleteAction, ListSearchToolbar, useStatusToggle } from '@/components/list-page';
+import { EditFormModal } from '@/components/EditFormModal';
 
 interface SearchParams {
   keyword: string;
@@ -329,142 +329,134 @@ export default function MenusPage() {
         />
       </div>
 
-      <AppModal
-        {...menuModal.modalProps}
-        width={680}
+      <EditFormModal modal={menuModal} width={680}>
+        <Form.RadioGroup
+          field="type"
+          label="菜单类型"
+          rules={[{ required: true }]}
+          onChange={(e) => setMenuType((e.target as HTMLInputElement).value)}
+          type="button"
+        >
+          {menuTypeItems.map((i) => (
+            <Radio key={i.value} value={i.value}>{i.label}</Radio>
+          ))}
+        </Form.RadioGroup>
 
-      >
-        <Spin spinning={menuModal.detailLoading} wrapperClassName="modal-spin-wrapper">
-        <Form key={menuModal.formKey} {...menuModal.formProps}>
-          <Form.RadioGroup
-            field="type"
-            label="菜单类型"
-            rules={[{ required: true }]}
-            onChange={(e) => setMenuType((e.target as HTMLInputElement).value)}
-            type="button"
-          >
-            {menuTypeItems.map((i) => (
-              <Radio key={i.value} value={i.value}>{i.label}</Radio>
-            ))}
-          </Form.RadioGroup>
+        <Form.Slot label={{ text: '父级菜单' }}>
+          <TreeSelect
+            treeData={parentTreeData}
+            value={parentId ?? 0}
+            onChange={(val) => setParentId(val as number)}
+            style={{ width: '100%' }}
+            placeholder="请选择父级菜单"
+            filterTreeNode
+            showFilteredOnly
+            virtualize={{ height: 300, itemSize: 36 }}
+          />
+        </Form.Slot>
 
-          <Form.Slot label={{ text: '父级菜单' }}>
-            <TreeSelect
-              treeData={parentTreeData}
-              value={parentId ?? 0}
-              onChange={(val) => setParentId(val as number)}
-              style={{ width: '100%' }}
-              placeholder="请选择父级菜单"
-              filterTreeNode
-              showFilteredOnly
-              virtualize={{ height: 300, itemSize: 36 }}
-            />
-          </Form.Slot>
-
-          <Row gutter={16}>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Input field="title" label="菜单名称" placeholder="请输入菜单名称" rules={[{ required: true, message: '请输入菜单名称' }]} />
+          </Col>
+          {menuType !== 'button' && (
             <Col span={12}>
-              <Form.Input field="title" label="菜单名称" placeholder="请输入菜单名称" rules={[{ required: true, message: '请输入菜单名称' }]} />
+              <Form.Slot label={{ text: '图标' }}>
+                <IconPicker value={iconValue} onChange={setIconValue} />
+              </Form.Slot>
             </Col>
-            {menuType !== 'button' && (
-              <Col span={12}>
-                <Form.Slot label={{ text: '图标' }}>
-                  <IconPicker value={iconValue} onChange={setIconValue} />
-                </Form.Slot>
-              </Col>
-            )}
-            {(menuType === 'menu' || menuType === 'directory') && (
-              <Col span={12}>
-                <Form.Input
-                  field="path"
-                  label="路由路径"
-                  placeholder="请输入路由路径"
-                  rules={menuType === 'menu' ? [{ required: true, message: '请输入路由路径' }] : undefined}
-                />
-              </Col>
-            )}
-            {menuType === 'menu' && !isExternalVal && (
-              <Col span={12}>
-                <Form.Input field="component" label="组件路径" placeholder="例如: users/UsersPage" rules={[{ required: true, message: '请输入组件路径' }]} />
-              </Col>
-            )}
-            {menuType === 'menu' && !isExternalVal && (
-              <Col span={12}>
-                <Form.Input field="name" label="组件名" placeholder="前端组件Name" />
-              </Col>
-            )}
-            {(menuType === 'menu' || menuType === 'directory') && (
-              <Col span={12}>
-                <Form.Input
-                  field="query"
-                  label={<Tooltip content='访问路由的默认传递参数，如：{"id": 1, "name": "ry"}'>路由参数</Tooltip>}
-                  placeholder='如：{"id": 1, "name": "ry"}'
-                />
-              </Col>
-            )}
-            {(menuType === 'menu' || menuType === 'directory') && (
-              <Col span={12}>
-                <Form.RadioGroup
-                  field="isExternal"
-                  label={<Tooltip content="选择是外链则路由地址需要以 http(s):// 开头">是否外链</Tooltip>}
-                  type="button"
-                  onChange={(e) => setIsExternalVal((e.target as HTMLInputElement).value as unknown as boolean)}
-                >
-                  <Radio value={true}>是</Radio>
-                  <Radio value={false}>否</Radio>
-                </Form.RadioGroup>
-              </Col>
-            )}
-            {(menuType === 'menu' || menuType === 'directory') && isExternalVal && (
-              <Col span={12}>
-                <Form.RadioGroup
-                  field="embed"
-                  label={<Tooltip content="内嵌：在系统内以 iframe 打开外链，保留侧边栏与页签；新窗口：浏览器新标签页打开">打开方式</Tooltip>}
-                  type="button"
-                >
-                  <Radio value={false}>新窗口</Radio>
-                  <Radio value={true}>内嵌</Radio>
-                </Form.RadioGroup>
-              </Col>
-            )}
-            {menuType === 'menu' && (
-              <Col span={12}>
-                <Form.RadioGroup
-                  field="keepAlive"
-                  label={<Tooltip content="开启后，多页签模式下切换页签保留该页面状态（搜索条件、滚动位置等），关闭页签时释放">页面缓存</Tooltip>}
-                  type="button"
-                >
-                  <Radio value={true}>开启</Radio>
-                  <Radio value={false}>关闭</Radio>
-                </Form.RadioGroup>
-              </Col>
-            )}
-            {menuType === 'button' && (
-              <Col span={12}>
-                <Form.Input field="permission" label="权限标识" placeholder="如：system:user:list" rules={[{ required: true, message: '请输入权限标识' }]} />
-              </Col>
-            )}
+          )}
+          {(menuType === 'menu' || menuType === 'directory') && (
             <Col span={12}>
-              <Form.InputNumber field="sort" label="排序" placeholder="请输入排序" min={0} style={{ width: '100%' }} />
+              <Form.Input
+                field="path"
+                label="路由路径"
+                placeholder="请输入路由路径"
+                rules={menuType === 'menu' ? [{ required: true, message: '请输入路由路径' }] : undefined}
+              />
             </Col>
-          </Row>
+          )}
+          {menuType === 'menu' && !isExternalVal && (
+            <Col span={12}>
+              <Form.Input field="component" label="组件路径" placeholder="例如: users/UsersPage" rules={[{ required: true, message: '请输入组件路径' }]} />
+            </Col>
+          )}
+          {menuType === 'menu' && !isExternalVal && (
+            <Col span={12}>
+              <Form.Input field="name" label="组件名" placeholder="前端组件Name" />
+            </Col>
+          )}
+          {(menuType === 'menu' || menuType === 'directory') && (
+            <Col span={12}>
+              <Form.Input
+                field="query"
+                label={<Tooltip content='访问路由的默认传递参数，如：{"id": 1, "name": "ry"}'>路由参数</Tooltip>}
+                placeholder='如：{"id": 1, "name": "ry"}'
+              />
+            </Col>
+          )}
+          {(menuType === 'menu' || menuType === 'directory') && (
+            <Col span={12}>
+              <Form.RadioGroup
+                field="isExternal"
+                label={<Tooltip content="选择是外链则路由地址需要以 http(s):// 开头">是否外链</Tooltip>}
+                type="button"
+                onChange={(e) => setIsExternalVal((e.target as HTMLInputElement).value as unknown as boolean)}
+              >
+                <Radio value={true}>是</Radio>
+                <Radio value={false}>否</Radio>
+              </Form.RadioGroup>
+            </Col>
+          )}
+          {(menuType === 'menu' || menuType === 'directory') && isExternalVal && (
+            <Col span={12}>
+              <Form.RadioGroup
+                field="embed"
+                label={<Tooltip content="内嵌：在系统内以 iframe 打开外链，保留侧边栏与页签；新窗口：浏览器新标签页打开">打开方式</Tooltip>}
+                type="button"
+              >
+                <Radio value={false}>新窗口</Radio>
+                <Radio value={true}>内嵌</Radio>
+              </Form.RadioGroup>
+            </Col>
+          )}
+          {menuType === 'menu' && (
+            <Col span={12}>
+              <Form.RadioGroup
+                field="keepAlive"
+                label={<Tooltip content="开启后，多页签模式下切换页签保留该页面状态（搜索条件、滚动位置等），关闭页签时释放">页面缓存</Tooltip>}
+                type="button"
+              >
+                <Radio value={true}>开启</Radio>
+                <Radio value={false}>关闭</Radio>
+              </Form.RadioGroup>
+            </Col>
+          )}
+          {menuType === 'button' && (
+            <Col span={12}>
+              <Form.Input field="permission" label="权限标识" placeholder="如：system:user:list" rules={[{ required: true, message: '请输入权限标识' }]} />
+            </Col>
+          )}
+          <Col span={12}>
+            <Form.InputNumber field="sort" label="排序" placeholder="请输入排序" min={0} style={{ width: '100%' }} />
+          </Col>
+        </Row>
 
-          <Row gutter={16}>
+        <Row gutter={16}>
+          <Col span={12}>
+            <FormStatusRadioGroup type="button" rules={[{ required: true }]} />
+          </Col>
+          {menuType !== 'button' && (
             <Col span={12}>
-              <FormStatusRadioGroup type="button" rules={[{ required: true }]} />
+              <Form.RadioGroup field="visible" label="显示状态" type="button" rules={[{ required: true }]}>
+                {menuVisibleItems.map((i) => (
+                  <Radio key={i.value} value={i.value}>{i.label}</Radio>
+                ))}
+              </Form.RadioGroup>
             </Col>
-            {menuType !== 'button' && (
-              <Col span={12}>
-                <Form.RadioGroup field="visible" label="显示状态" type="button" rules={[{ required: true }]}>
-                  {menuVisibleItems.map((i) => (
-                    <Radio key={i.value} value={i.value}>{i.label}</Radio>
-                  ))}
-                </Form.RadioGroup>
-              </Col>
-            )}
-          </Row>
-        </Form>
-        </Spin>
-      </AppModal>
+          )}
+        </Row>
+      </EditFormModal>
     </div>
   );
 }

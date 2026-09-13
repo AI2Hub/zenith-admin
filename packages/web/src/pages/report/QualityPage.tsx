@@ -3,7 +3,6 @@ import { Banner, Col, Empty, Form, Modal, Row, SideSheet, Space, TabPane, Tabs, 
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { ReportDqAnomaly, ReportDqAnomalyStatus, ReportDqRule, ReportDqRuleType, ReportDqRun, ReportDqRunStatus, ReportDqScore } from '@zenith/shared/report';
 import { MetricMeter } from '@/components/data-viz/MetricMeter';
-import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { CronBuilderPopover } from '@/components/CronBuilderPopover';
 import ExportButton from '@/components/ExportButton';
@@ -41,6 +40,7 @@ import { useUrlTabState } from '@/hooks/useUrlTabState';
 import { FilterSelect } from '@/components/search-filters';
 import { useListPage } from '@/hooks/useListPage';
 import { useFilterQuery } from '@/hooks/useFilterQuery';
+import { EditFormModal } from '@/components/EditFormModal';
 const ruleTypeOptions: { value: ReportDqRuleType; label: string }[] = [
   { value: 'not_null', label: '非空' },
   { value: 'uniqueness', label: '唯一性' },
@@ -360,45 +360,40 @@ export default function QualityPage() {
         </TabPane>
       </Tabs>
 
-      <AppModal {...ruleModal.modalProps} width={680}>
-        <Form
-          key={ruleModal.formKey} {...ruleModal.formProps}
-          onValueChange={(values: Record<string, unknown>) => {
+      <EditFormModal modal={ruleModal} width={680} formProps={{ onValueChange: (values: Record<string, unknown>) => {
             if (values.type) setFormRuleType(values.type as ReportDqRuleType);
             if (typeof values.cron === 'string') setCronExprValue(values.cron);
-          }}
-        >
-          <Row gutter={16}>
-            <Col xs={24} md={12}><Form.Input field="name" label="规则名称" rules={[{ required: true, message: '请输入规则名称' }]} /></Col>
-            <Col xs={24} md={12}><Form.Select field="datasetId" label="数据集" filter style={{ width: '100%' }} optionList={datasetOptions} rules={[{ required: true, message: '请选择数据集' }]} /></Col>
-            <Col xs={24} md={12}><Form.Select field="type" label="规则类型" style={{ width: '100%' }} optionList={ruleTypeOptions} rules={[{ required: true }]} /></Col>
-            <Col xs={24} md={12}><Form.Select field="severity" label="严重度" style={{ width: '100%' }} optionList={severityOptions} rules={[{ required: true }]} /></Col>
-            {!['row_count', 'custom_sql'].includes(formRuleType) && <Col xs={24} md={12}><Form.Input field="field" label="校验字段" rules={[{ required: true, message: '请输入校验字段' }]} /></Col>}
-            <Col xs={24} md={12}><Form.Switch field="enabled" label="启用规则" /></Col>
-            <Col xs={24} md={12}>
-              <Form.Input
-                field="cron"
-                label="Cron 表达式"
-                placeholder="留空仅手动执行"
-                showClear
-                addonAfter={(
-                  <CronBuilderPopover
-                    value={cronExprValue}
-                    onApply={(expression) => {
-                      ruleModal.formApi.current?.setValue('cron', expression);
-                      setCronExprValue(expression);
-                    }}
-                  />
-                )}
-              />
-            </Col>
-            <Col xs={24} md={12}>
-              <FormTimezoneSelect />
-            </Col>
-          </Row>
-          <RuleConfigFields type={formRuleType} />
-        </Form>
-      </AppModal>
+          } }}>
+        <Row gutter={16}>
+          <Col xs={24} md={12}><Form.Input field="name" label="规则名称" rules={[{ required: true, message: '请输入规则名称' }]} /></Col>
+          <Col xs={24} md={12}><Form.Select field="datasetId" label="数据集" filter style={{ width: '100%' }} optionList={datasetOptions} rules={[{ required: true, message: '请选择数据集' }]} /></Col>
+          <Col xs={24} md={12}><Form.Select field="type" label="规则类型" style={{ width: '100%' }} optionList={ruleTypeOptions} rules={[{ required: true }]} /></Col>
+          <Col xs={24} md={12}><Form.Select field="severity" label="严重度" style={{ width: '100%' }} optionList={severityOptions} rules={[{ required: true }]} /></Col>
+          {!['row_count', 'custom_sql'].includes(formRuleType) && <Col xs={24} md={12}><Form.Input field="field" label="校验字段" rules={[{ required: true, message: '请输入校验字段' }]} /></Col>}
+          <Col xs={24} md={12}><Form.Switch field="enabled" label="启用规则" /></Col>
+          <Col xs={24} md={12}>
+            <Form.Input
+              field="cron"
+              label="Cron 表达式"
+              placeholder="留空仅手动执行"
+              showClear
+              addonAfter={(
+                <CronBuilderPopover
+                  value={cronExprValue}
+                  onApply={(expression) => {
+                    ruleModal.formApi.current?.setValue('cron', expression);
+                    setCronExprValue(expression);
+                  }}
+                />
+              )}
+            />
+          </Col>
+          <Col xs={24} md={12}>
+            <FormTimezoneSelect />
+          </Col>
+        </Row>
+        <RuleConfigFields type={formRuleType} />
+      </EditFormModal>
 
       <SideSheet title={`运行历史：${historyRule?.name ?? ''}`} visible={!!historyRule} width={980} onCancel={() => setHistoryRule(null)}>
         {historyQuery.isError && <Banner type="danger" description="规则运行历史加载失败" />}

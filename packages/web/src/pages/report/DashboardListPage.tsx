@@ -5,7 +5,6 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { FolderTree, Star } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import AppModal from '@/components/AppModal';
 import { ShareModal, VersionModal } from './components/DashboardOpsModals';
 import { createdAtColumn, EMPTY_PLACEHOLDER, enabledStatusColumn, renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
@@ -36,6 +35,7 @@ import { BatchStatusButtons, CreateButton } from '@/components/toolbar-controls'
 import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { batchStatusHandler, confirmAndDelete, deleteAction, ListSearchToolbar, useRowSelection } from '@/components/list-page';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormModal } from '@/components/EditFormModal';
 
 interface SearchParams { keyword: string; status?: string; lifecycleStatus?: ReportDashboard['lifecycleStatus']; categoryId?: number; favorited: boolean; ownerId?: number; folderId?: number }
 const defaultSearchParams: SearchParams = { keyword: '', status: undefined, lifecycleStatus: undefined, favorited: false, ownerId: undefined, folderId: undefined };
@@ -284,20 +284,15 @@ export default function DashboardListPage() {
         {...tableProps}
       />
 
-      <AppModal
-        {...dashboardModal.modalProps}
-        width={520}
-      >
-        <Form key={dashboardModal.formKey} {...dashboardModal.formProps}>
-          <Form.Input field="name" label="名称" rules={[{ required: true, message: '请输入名称' }]} maxLength={64} showClear />
-          <ReportOwnerFolderFields userOptions={userOptions} folderOptions={folderOptions} />
-          <Form.Select field="status" label="状态" style={{ width: '100%' }}
-            optionList={statusOptions} />
-          <Form.Select field="categoryId" label="分类" style={{ width: '100%' }} showClear placeholder="未分类"
-            optionList={categories.map((c) => ({ value: c.id, label: c.name }))} />
-          <Form.TextArea field="remark" label="备注" maxLength={256} autosize={{ minRows: 1, maxRows: 3 }} />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={dashboardModal} width={520}>
+        <Form.Input field="name" label="名称" rules={[{ required: true, message: '请输入名称' }]} maxLength={64} showClear />
+        <ReportOwnerFolderFields userOptions={userOptions} folderOptions={folderOptions} />
+        <Form.Select field="status" label="状态" style={{ width: '100%' }}
+          optionList={statusOptions} />
+        <Form.Select field="categoryId" label="分类" style={{ width: '100%' }} showClear placeholder="未分类"
+          optionList={categories.map((c) => ({ value: c.id, label: c.name }))} />
+        <Form.TextArea field="remark" label="备注" maxLength={256} autosize={{ minRows: 1, maxRows: 3 }} />
+      </EditFormModal>
 
       <ShareModal visible={shareTarget !== null} dashboardId={shareTarget} onClose={() => setShareTarget(null)} />
       <VersionModal visible={versionTarget !== null} dashboardId={versionTarget} onClose={() => setVersionTarget(null)} onRestored={() => void queryClient.invalidateQueries({ queryKey: reportDashboardKeys.lists })} />
@@ -338,16 +333,11 @@ export default function DashboardListPage() {
         />
       </SideSheet>
 
-      <AppModal
-        {...categoryModal.modalProps}
-        width={520}
-      >
-        <Form key={categoryModal.formKey} {...categoryModal.formProps}>
-          <Form.Input field="name" label="名称" rules={[{ required: true, message: '请输入分类名称' }]} maxLength={64} showClear />
-          <Form.InputNumber field="sort" label="排序" min={0} max={9999} />
-          <Form.TextArea field="remark" label="备注" maxLength={256} autosize={{ minRows: 2, maxRows: 4 }} />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={categoryModal} width={520}>
+        <Form.Input field="name" label="名称" rules={[{ required: true, message: '请输入分类名称' }]} maxLength={64} showClear />
+        <Form.InputNumber field="sort" label="排序" min={0} max={9999} />
+        <Form.TextArea field="remark" label="备注" maxLength={256} autosize={{ minRows: 2, maxRows: 4 }} />
+      </EditFormModal>
     </div>
   );
 }

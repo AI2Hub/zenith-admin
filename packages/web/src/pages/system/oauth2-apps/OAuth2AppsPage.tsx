@@ -1,7 +1,6 @@
 import { useState } from 'react';
-import ModalFooter from '@/components/ModalFooter';
 import { useNavigate } from 'react-router-dom';
-import { Button, Tag, TagGroup, Modal, Form, Toast, Typography, Checkbox, Spin, Banner, Row, Col, SideSheet, TextArea } from '@douyinfe/semi-ui';
+import { Button, Tag, TagGroup, Modal, Form, Toast, Typography, Checkbox, Banner, Row, Col, TextArea } from '@douyinfe/semi-ui';
 import { enumValueOf } from '@zenith/shared/core';
 import { OAUTH2_GRANT_TYPE_LABELS, OAUTH2_GRANT_TYPES, OAUTH2_SCOPE_LABELS, OAUTH2_SCOPES, OPEN_APP_ENVIRONMENT_OPTIONS, OPEN_APP_REVIEW_STATUS_OPTIONS } from '@zenith/shared/open-platform';
 import type { OAuth2Client, OAuth2GrantType } from '@zenith/shared/open-platform';
@@ -30,6 +29,7 @@ import { CreateButton } from '@/components/toolbar-controls';
 import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { confirmDanger } from '@/utils/confirm';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormSheet } from '@/components/EditFormModal';
 
 const { Text, Paragraph } = Typography;
 
@@ -319,160 +319,149 @@ export default function OAuth2AppsPage() {
       />
 
       {/* 新增 / 编辑抽屉 */}
-      <SideSheet
-        title={appModal.modalProps.title}
-        visible={appModal.visible}
-        onCancel={appModal.close}
-        closeOnEsc
-        width={800}
-        footer={<ModalFooter {...appModal.footerProps} okText="保存" />}
-      >
-        <Spin spinning={appModal.detailLoading} wrapperClassName="modal-spin-wrapper">
-          <Form key={appModal.formKey} {...appModal.formProps}>
-            {/* 必填：应用名称（全宽） */}
-            <Row gutter={16}>
-              <Col span={24}>
-                <Form.Input
-                  field="name"
-                  label="应用名称"
-                  placeholder="请输入应用名称"
-                  rules={[{ required: true, message: '应用名称不能为空' }]}
-                />
-              </Col>
-            </Row>
-            {/* 必填：回调 URL（全宽） */}
-            <Row gutter={16}>
-              <Col span={24}>
-                <Form.TagInput
-                  field="redirectUris"
-                  label="回调 URL"
-                  placeholder="输入后回车添加"
-                  rules={[{ required: true, message: '至少填写一个回调 URL' }]}
-                />
-              </Col>
-            </Row>
-            {/* 必填：允许的 scope（全宽） */}
-            <Row gutter={16}>
-              <Col span={24}>
-                <Form.CheckboxGroup
-                  field="allowedScopes"
-                  label="允许的 scope"
-                  direction="horizontal"
-                  rules={[{ required: true, message: '至少选择一个' }]}
-                >
-                  {(scopeOptions.length
-                    ? scopeOptions.map((s) => ({ value: s.code, label: `${s.name}（${s.code}）` }))
-                    : OAUTH2_SCOPES.map((s) => ({ value: s, label: OAUTH2_SCOPE_LABELS[s] ?? s }))
-                  ).map((o) => (
-                    <Checkbox key={o.value} value={o.value}>{o.label}</Checkbox>
-                  ))}
-                </Form.CheckboxGroup>
-              </Col>
-            </Row>
-            {/* 必填：授权类型（全宽） */}
-            <Row gutter={16}>
-              <Col span={24}>
-                <Form.CheckboxGroup
-                  field="grantTypes"
-                  label="授权类型"
-                  direction="horizontal"
-                  rules={[{ required: true, message: '至少选择一种' }]}
-                >
-                  {OAUTH2_GRANT_TYPES.map((t) => (
-                    <Checkbox key={t} value={t}>{OAUTH2_GRANT_TYPE_LABELS[t]}</Checkbox>
-                  ))}
-                </Form.CheckboxGroup>
-              </Col>
-            </Row>
-            {/* 可选：Logo URL（全宽） */}
-            <Row gutter={16}>
-              <Col span={24}>
-                <Form.Input
-                  field="logoUrl"
-                  label="Logo URL"
-                  placeholder="https://example.com/logo.png"
-                />
-              </Col>
-            </Row>
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Select
-                  field="environment"
-                  label="运行环境"
-                  optionList={OPEN_APP_ENVIRONMENT_OPTIONS}
-                  style={{ width: '100%' }}
-                  rules={[{ required: true, message: '请选择运行环境' }]}
-                />
-              </Col>
-            </Row>
-            {/* 可选：公开客户端 + 状态（编辑时） */}
-            <Row gutter={16}>
-              <Col span={editing ? 12 : 24}>
-                <Form.Switch
-                  field="isPublic"
-                  label="公开客户端"
-                  extraText="不使用 client_secret，需配合 PKCE"
-                />
-              </Col>
-              {editing && (
-                <Col span={12}>
-                  <Form.Select
-                    field="status"
-                    label="状态"
-                    style={{ width: '100%' }}
-                    optionList={statusOptions}
-                    rules={[{ required: true, message: '请选择状态' }]}
-                  />
-                </Col>
-              )}
-            </Row>
-            {/* 开放平台：限流套餐 + 签名验签 */}
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Select
-                  field="ratePlanId"
-                  label="限流套餐"
-                  placeholder="默认套餐"
-                  showClear
-                  style={{ width: '100%' }}
-                  optionList={ratePlans.map((p) => ({
-                    value: p.id,
-                    label: `${p.name}（${p.qpsLimit > 0 ? `${p.qpsLimit}/s` : '不限'}）`,
-                  }))}
-                />
-              </Col>
-              <Col span={12}>
-                <Form.Switch
-                  field="signEnabled"
-                  label="AppKey 签名通道"
-                  extraText="开启后可用 AppKey + HMAC 签名调用（签名强制）；关闭则仅支持 OAuth2 Bearer 令牌"
-                />
-              </Col>
-            </Row>
-            <Row gutter={16}>
-              <Col span={24}>
-                <Form.TagInput
-                  field="ipAllowlist"
-                  label="IP 白名单"
-                  placeholder="输入 IP 或 CIDR 后回车；留空表示不限制"
-                  extraText="示例：203.0.113.10、10.0.0.0/8、2001:db8::/32"
-                />
-              </Col>
-            </Row>
-            {/* 可选：应用描述（全宽，放最后） */}
-            <Row gutter={16}>
-              <Col span={24}>
-                <Form.TextArea
-                  field="description"
-                  label="应用描述"
-                  placeholder="请输入描述（可选）"
-                  rows={2}
-                />
-              </Col>
-            </Row>
-          </Form>
-        </Spin>
-      </SideSheet>
+      <EditFormSheet modal={appModal} width={800}>
+        {/* 必填：应用名称（全宽） */}
+        <Row gutter={16}>
+          <Col span={24}>
+            <Form.Input
+              field="name"
+              label="应用名称"
+              placeholder="请输入应用名称"
+              rules={[{ required: true, message: '应用名称不能为空' }]}
+            />
+          </Col>
+        </Row>
+        {/* 必填：回调 URL（全宽） */}
+        <Row gutter={16}>
+          <Col span={24}>
+            <Form.TagInput
+              field="redirectUris"
+              label="回调 URL"
+              placeholder="输入后回车添加"
+              rules={[{ required: true, message: '至少填写一个回调 URL' }]}
+            />
+          </Col>
+        </Row>
+        {/* 必填：允许的 scope（全宽） */}
+        <Row gutter={16}>
+          <Col span={24}>
+            <Form.CheckboxGroup
+              field="allowedScopes"
+              label="允许的 scope"
+              direction="horizontal"
+              rules={[{ required: true, message: '至少选择一个' }]}
+            >
+              {(scopeOptions.length
+                ? scopeOptions.map((s) => ({ value: s.code, label: `${s.name}（${s.code}）` }))
+                : OAUTH2_SCOPES.map((s) => ({ value: s, label: OAUTH2_SCOPE_LABELS[s] ?? s }))
+              ).map((o) => (
+                <Checkbox key={o.value} value={o.value}>{o.label}</Checkbox>
+              ))}
+            </Form.CheckboxGroup>
+          </Col>
+        </Row>
+        {/* 必填：授权类型（全宽） */}
+        <Row gutter={16}>
+          <Col span={24}>
+            <Form.CheckboxGroup
+              field="grantTypes"
+              label="授权类型"
+              direction="horizontal"
+              rules={[{ required: true, message: '至少选择一种' }]}
+            >
+              {OAUTH2_GRANT_TYPES.map((t) => (
+                <Checkbox key={t} value={t}>{OAUTH2_GRANT_TYPE_LABELS[t]}</Checkbox>
+              ))}
+            </Form.CheckboxGroup>
+          </Col>
+        </Row>
+        {/* 可选：Logo URL（全宽） */}
+        <Row gutter={16}>
+          <Col span={24}>
+            <Form.Input
+              field="logoUrl"
+              label="Logo URL"
+              placeholder="https://example.com/logo.png"
+            />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Select
+              field="environment"
+              label="运行环境"
+              optionList={OPEN_APP_ENVIRONMENT_OPTIONS}
+              style={{ width: '100%' }}
+              rules={[{ required: true, message: '请选择运行环境' }]}
+            />
+          </Col>
+        </Row>
+        {/* 可选：公开客户端 + 状态（编辑时） */}
+        <Row gutter={16}>
+          <Col span={editing ? 12 : 24}>
+            <Form.Switch
+              field="isPublic"
+              label="公开客户端"
+              extraText="不使用 client_secret，需配合 PKCE"
+            />
+          </Col>
+          {editing && (
+            <Col span={12}>
+              <Form.Select
+                field="status"
+                label="状态"
+                style={{ width: '100%' }}
+                optionList={statusOptions}
+                rules={[{ required: true, message: '请选择状态' }]}
+              />
+            </Col>
+          )}
+        </Row>
+        {/* 开放平台：限流套餐 + 签名验签 */}
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Select
+              field="ratePlanId"
+              label="限流套餐"
+              placeholder="默认套餐"
+              showClear
+              style={{ width: '100%' }}
+              optionList={ratePlans.map((p) => ({
+                value: p.id,
+                label: `${p.name}（${p.qpsLimit > 0 ? `${p.qpsLimit}/s` : '不限'}）`,
+              }))}
+            />
+          </Col>
+          <Col span={12}>
+            <Form.Switch
+              field="signEnabled"
+              label="AppKey 签名通道"
+              extraText="开启后可用 AppKey + HMAC 签名调用（签名强制）；关闭则仅支持 OAuth2 Bearer 令牌"
+            />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={24}>
+            <Form.TagInput
+              field="ipAllowlist"
+              label="IP 白名单"
+              placeholder="输入 IP 或 CIDR 后回车；留空表示不限制"
+              extraText="示例：203.0.113.10、10.0.0.0/8、2001:db8::/32"
+            />
+          </Col>
+        </Row>
+        {/* 可选：应用描述（全宽，放最后） */}
+        <Row gutter={16}>
+          <Col span={24}>
+            <Form.TextArea
+              field="description"
+              label="应用描述"
+              placeholder="请输入描述（可选）"
+              rows={2}
+            />
+          </Col>
+        </Row>
+      </EditFormSheet>
 
       {/* 一次性 Secret 展示弹窗 */}
       <Modal

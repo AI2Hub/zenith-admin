@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import ModalFooter from '@/components/ModalFooter';
-import { Col, Collapse, Form, Modal, Row, SideSheet, Spin, Tag, Typography } from '@douyinfe/semi-ui';
+import { Col, Collapse, Form, Modal, Row, Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { QRCodeSVG } from 'qrcode.react';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -26,6 +25,7 @@ import {
 import type { CreateShortLinkInput, ShortLink } from '@zenith/shared/short-link';
 import ShortLinkStatsDrawer from './ShortLinkStatsDrawer';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormSheet } from '@/components/EditFormModal';
 
 const { Text } = Typography;
 
@@ -254,102 +254,91 @@ export default function ShortLinksPage() {
       />
 
       {/* 新增 / 编辑 */}
-      <SideSheet
-        title={modal.modalProps.title}
-        visible={modal.visible}
-        onCancel={modal.close}
-        closeOnEsc
-        width={660}
-        footer={<ModalFooter {...modal.footerProps} okText="保存" />}
-      >
-        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
-          <Form key={modal.formKey} {...modal.formProps}>
+      <EditFormSheet modal={modal} width={660}>
+        <Form.Input
+          field="targetUrl" label="目标地址" placeholder="https://example.com/landing"
+          rules={[
+            { required: true, message: '目标地址不能为空' },
+            { validator: (_r, v: string) => !v || /^https?:\/\//.test(v), message: '仅支持 http/https 地址' },
+          ]}
+        />
+        <Row gutter={16}>
+          <Col span={12}>
             <Form.Input
-              field="targetUrl" label="目标地址" placeholder="https://example.com/landing"
-              rules={[
-                { required: true, message: '目标地址不能为空' },
-                { validator: (_r, v: string) => !v || /^https?:\/\//.test(v), message: '仅支持 http/https 地址' },
-              ]}
+              field="code" label="自定义短码" placeholder="留空自动生成"
+              disabled={modal.isEdit}
+              extraText={modal.isEdit ? '短码一经分发不可修改' : '4-32 位字母 / 数字 / - / _'}
             />
+          </Col>
+          <Col span={12}>
+            <Form.Input field="title" label="标题" placeholder="便于识别的名称" />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Select
+              field="redirectType" label="跳转方式" style={{ width: '100%' }}
+              optionList={SHORT_LINK_REDIRECT_TYPE_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+              rules={[{ required: true, message: '请选择跳转方式' }]}
+              extraText="301 会被浏览器缓存，改址与统计不生效，营销场景建议 302"
+            />
+          </Col>
+          <Col span={12}>
+            <Form.Select
+              field="status" label="状态" style={{ width: '100%' }}
+              optionList={statusOptions}
+              rules={[{ required: true, message: '请选择状态' }]}
+            />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.DatePicker
+              field="expiresAt" label="过期时间" type="dateTime"
+              style={{ width: '100%' }} placeholder="留空永久有效" showClear
+            />
+          </Col>
+          <Col span={12}>
+            <Form.InputNumber
+              field="maxVisits" label="访问上限" style={{ width: '100%' }}
+              placeholder="留空不限次数" min={1} showClear
+            />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Input field="password" label="访问密码" placeholder="留空无需密码，至少 4 位" />
+          </Col>
+        </Row>
+        {/* UTM 低频选填：默认折叠压缩弹窗高度；编辑已填 UTM 的记录时自动展开。
+            keepDOM 保证折叠时字段仍注册在表单中，提交不丢值 */}
+        <Collapse keepDOM key={modal.formKey} defaultActiveKey={editingHasUtm ? ['utm'] : []} style={{ marginBottom: 12 }}>
+          <Collapse.Panel header="UTM 跟踪参数（选填，跳转时自动拼接）" itemKey="utm">
             <Row gutter={16}>
               <Col span={12}>
-                <Form.Input
-                  field="code" label="自定义短码" placeholder="留空自动生成"
-                  disabled={modal.isEdit}
-                  extraText={modal.isEdit ? '短码一经分发不可修改' : '4-32 位字母 / 数字 / - / _'}
-                />
+                <Form.Input field="utmSource" label="utm_source" placeholder="流量来源，如 sms" />
               </Col>
               <Col span={12}>
-                <Form.Input field="title" label="标题" placeholder="便于识别的名称" />
+                <Form.Input field="utmMedium" label="utm_medium" placeholder="媒介，如 shortlink" />
               </Col>
             </Row>
             <Row gutter={16}>
               <Col span={12}>
-                <Form.Select
-                  field="redirectType" label="跳转方式" style={{ width: '100%' }}
-                  optionList={SHORT_LINK_REDIRECT_TYPE_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
-                  rules={[{ required: true, message: '请选择跳转方式' }]}
-                  extraText="301 会被浏览器缓存，改址与统计不生效，营销场景建议 302"
-                />
+                <Form.Input field="utmCampaign" label="utm_campaign" placeholder="活动名称" />
               </Col>
               <Col span={12}>
-                <Form.Select
-                  field="status" label="状态" style={{ width: '100%' }}
-                  optionList={statusOptions}
-                  rules={[{ required: true, message: '请选择状态' }]}
-                />
+                <Form.Input field="utmTerm" label="utm_term" placeholder="关键词" />
               </Col>
             </Row>
             <Row gutter={16}>
               <Col span={12}>
-                <Form.DatePicker
-                  field="expiresAt" label="过期时间" type="dateTime"
-                  style={{ width: '100%' }} placeholder="留空永久有效" showClear
-                />
-              </Col>
-              <Col span={12}>
-                <Form.InputNumber
-                  field="maxVisits" label="访问上限" style={{ width: '100%' }}
-                  placeholder="留空不限次数" min={1} showClear
-                />
+                <Form.Input field="utmContent" label="utm_content" placeholder="内容标识" />
               </Col>
             </Row>
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Input field="password" label="访问密码" placeholder="留空无需密码，至少 4 位" />
-              </Col>
-            </Row>
-            {/* UTM 低频选填：默认折叠压缩弹窗高度；编辑已填 UTM 的记录时自动展开。
-                keepDOM 保证折叠时字段仍注册在表单中，提交不丢值 */}
-            <Collapse keepDOM key={modal.formKey} defaultActiveKey={editingHasUtm ? ['utm'] : []} style={{ marginBottom: 12 }}>
-              <Collapse.Panel header="UTM 跟踪参数（选填，跳转时自动拼接）" itemKey="utm">
-                <Row gutter={16}>
-                  <Col span={12}>
-                    <Form.Input field="utmSource" label="utm_source" placeholder="流量来源，如 sms" />
-                  </Col>
-                  <Col span={12}>
-                    <Form.Input field="utmMedium" label="utm_medium" placeholder="媒介，如 shortlink" />
-                  </Col>
-                </Row>
-                <Row gutter={16}>
-                  <Col span={12}>
-                    <Form.Input field="utmCampaign" label="utm_campaign" placeholder="活动名称" />
-                  </Col>
-                  <Col span={12}>
-                    <Form.Input field="utmTerm" label="utm_term" placeholder="关键词" />
-                  </Col>
-                </Row>
-                <Row gutter={16}>
-                  <Col span={12}>
-                    <Form.Input field="utmContent" label="utm_content" placeholder="内容标识" />
-                  </Col>
-                </Row>
-              </Collapse.Panel>
-            </Collapse>
-            <Form.TextArea field="remark" label="备注" placeholder="选填" rows={2} maxCount={256} />
-          </Form>
-        </Spin>
-      </SideSheet>
+          </Collapse.Panel>
+        </Collapse>
+        <Form.TextArea field="remark" label="备注" placeholder="选填" rows={2} maxCount={256} />
+      </EditFormSheet>
 
       {/* 二维码 */}
       <Modal

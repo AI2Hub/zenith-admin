@@ -1,10 +1,9 @@
 import { deleteAction, ListSearchToolbar } from '@/components/list-page';
-import { Avatar, Button, Form, Space, Spin, Tag, Toast } from '@douyinfe/semi-ui';
+import { Avatar, Button, Form, Space, Tag, Toast } from '@douyinfe/semi-ui';
 import { RefreshCw } from 'lucide-react';
 import type { CreateMpKfAccountInput, MpKfAccount } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
-import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { createdAtColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '../../utils/table-columns';
@@ -22,6 +21,7 @@ import { CreateButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { abortSubmit } from '@/lib/abort-submit';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormModal } from '@/components/EditFormModal';
 
 const INVITE_LABEL: Record<string, { label: string; color: 'green' | 'orange' | 'grey' }> = {
   none: { label: '未邀请', color: 'grey' },
@@ -129,15 +129,11 @@ export default function MpKfAccountsPage() {
         {...tableProps}
       />
 
-      <AppModal {...modal.modalProps} title={modal.isEdit ? '编辑客服' : '添加客服'} width={520}>
-        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
-          <Form key={modal.formKey} {...modal.formProps}>
-            <Form.Input field="kfAccount" label="客服账号" disabled={modal.isEdit}
-              placeholder="形如 kf2001@公众号微信号" rules={[{ required: true, message: '请输入客服账号' }]} />
-            <Form.Input field="nickname" label="客服昵称" placeholder="请输入客服昵称" rules={[{ required: true, message: '请输入客服昵称' }]} />
-          </Form>
-        </Spin>
-      </AppModal>
+      <EditFormModal modal={modal} title={modal.isEdit ? '编辑客服' : '添加客服'} width={520}>
+        <Form.Input field="kfAccount" label="客服账号" disabled={modal.isEdit}
+          placeholder="形如 kf2001@公众号微信号" rules={[{ required: true, message: '请输入客服账号' }]} />
+        <Form.Input field="nickname" label="客服昵称" placeholder="请输入客服昵称" rules={[{ required: true, message: '请输入客服昵称' }]} />
+      </EditFormModal>
     </div>
   );
 }

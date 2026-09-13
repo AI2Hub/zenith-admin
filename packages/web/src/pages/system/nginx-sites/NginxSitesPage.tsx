@@ -25,6 +25,7 @@ import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { StatCard, StatGrid } from '@/components/charts/StatCard';
+import { EditFormModal } from '@/components/EditFormModal';
 
 const { Text } = Typography;
 
@@ -280,43 +281,38 @@ export default function NginxSitesPage() {
         pagination={{ pageSize: 20, showSizeChanger: true }}
       />
 
-      <AppModal
-        {...createModal.modalProps}
-        width={660}
-      >
-        <Form key={createModal.formKey} {...createModal.formProps}>
-          {({ values }) => (
-            <>
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Form.Input field="name" label="站点名" placeholder="如 example.com" rules={[{ required: true, message: '请输入站点名' }]} />
-                </Col>
-                <Col span={12}>
-                  <Form.Input field="serverName" label="域名" placeholder="如 example.com www.example.com" rules={[{ required: true, message: '请输入域名' }]} />
-                </Col>
-              </Row>
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Form.InputNumber field="listenPort" label="监听端口" min={1} max={65535} style={{ width: '100%' }} />
-                </Col>
-                <Col span={12}>
-                  <Form.RadioGroup field="sslEnabled" label="SSL" type="button">
-                    <Radio value>开启</Radio>
-                    <Radio value={false}>关闭</Radio>
-                  </Form.RadioGroup>
-                </Col>
-              </Row>
-              <Form.RadioGroup field="type" label="站点类型">
-                <Radio value="static">静态文件</Radio>
-                <Radio value="proxy">反向代理</Radio>
-              </Form.RadioGroup>
-              {values.type === 'proxy'
-                ? <Form.Input field="proxyPass" label="代理地址" placeholder="如 http://127.0.0.1:3000" rules={[{ required: true, message: '请输入反向代理地址' }]} />
-                : <Form.Input field="root" label="根目录" placeholder="如 /var/www/example.com" rules={[{ required: true, message: '请输入站点根目录' }]} />}
-            </>
-          )}
-        </Form>
-      </AppModal>
+      <EditFormModal modal={createModal} width={660}>
+        {({ values }) => (
+          <>
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Input field="name" label="站点名" placeholder="如 example.com" rules={[{ required: true, message: '请输入站点名' }]} />
+              </Col>
+              <Col span={12}>
+                <Form.Input field="serverName" label="域名" placeholder="如 example.com www.example.com" rules={[{ required: true, message: '请输入域名' }]} />
+              </Col>
+            </Row>
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.InputNumber field="listenPort" label="监听端口" min={1} max={65535} style={{ width: '100%' }} />
+              </Col>
+              <Col span={12}>
+                <Form.RadioGroup field="sslEnabled" label="SSL" type="button">
+                  <Radio value>开启</Radio>
+                  <Radio value={false}>关闭</Radio>
+                </Form.RadioGroup>
+              </Col>
+            </Row>
+            <Form.RadioGroup field="type" label="站点类型">
+              <Radio value="static">静态文件</Radio>
+              <Radio value="proxy">反向代理</Radio>
+            </Form.RadioGroup>
+            {values.type === 'proxy'
+              ? <Form.Input field="proxyPass" label="代理地址" placeholder="如 http://127.0.0.1:3000" rules={[{ required: true, message: '请输入反向代理地址' }]} />
+              : <Form.Input field="root" label="根目录" placeholder="如 /var/www/example.com" rules={[{ required: true, message: '请输入站点根目录' }]} />}
+          </>
+        )}
+      </EditFormModal>
 
       <AppModal
         title={editorSite ? `编辑配置 · ${editorSite.name}` : '编辑配置'}

@@ -1,12 +1,11 @@
 import { useEffect, useState, useRef } from 'react';
-import { Form, Input, Space, Spin, Typography } from '@douyinfe/semi-ui';
+import { Form, Input, Space, Typography } from '@douyinfe/semi-ui';
 import { Tags } from 'lucide-react';
 import type { CreateTagInput, Tag } from '@zenith/shared/platform';
 import { enumValueOf, USER_STATUSES } from '@zenith/shared/core';
 import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useEditModal } from '@/hooks/useEditModal';
-import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { confirmAndDelete, deleteAction, ListSearchToolbar, useStatusToggle, useRowSelection } from '@/components/list-page';
@@ -23,6 +22,7 @@ import {
 import { BatchDeleteButton, CreateButton } from '@/components/toolbar-controls';
 import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormModal } from '@/components/EditFormModal';
 
 const { Text } = Typography;
 
@@ -268,52 +268,43 @@ export default function TagsPage() {
         {...tableProps}
       />
 
-      <AppModal
-        {...tagModal.modalProps}
-        afterClose={() => { setColorValue(''); }}
-        width={520}
-
-      >
-        <Spin spinning={tagModal.detailLoading} wrapperClassName="modal-spin-wrapper">
-        <Form key={tagModal.formKey} {...tagModal.formProps}>
-          <Form.Input
-            field="name"
-            label="标签名称"
-            placeholder="请输入标签名称"
-            rules={[{ required: true, message: '标签名称不能为空' }]}
-          />
-          <Form.Slot label="颜色">
-            <ColorInput value={colorValue} onChange={setColorValue} />
-          </Form.Slot>
-          <Form.Input
-            field="groupName"
-            label="所属分组"
-            placeholder="请输入分组名称（选填）"
-          />
-          <Form.TextArea
-            field="description"
-            label="描述"
-            placeholder="请输入标签描述（选填）"
-            rows={3}
-          />
-          <Form.Select
-            field="status"
-            label="状态"
-            placeholder="请选择状态"
-            style={{ width: '100%' }}
-            optionList={statusOptions}
-          />
-          <Form.InputNumber
-            field="sortOrder"
-            label="排序"
-            min={0}
-            max={9999}
-            innerButtons
-            style={{ width: '100%' }}
-          />
-        </Form>
-        </Spin>
-      </AppModal>
+      <EditFormModal modal={tagModal} afterClose={() => { setColorValue(''); }} width={520}>
+        <Form.Input
+          field="name"
+          label="标签名称"
+          placeholder="请输入标签名称"
+          rules={[{ required: true, message: '标签名称不能为空' }]}
+        />
+        <Form.Slot label="颜色">
+          <ColorInput value={colorValue} onChange={setColorValue} />
+        </Form.Slot>
+        <Form.Input
+          field="groupName"
+          label="所属分组"
+          placeholder="请输入分组名称（选填）"
+        />
+        <Form.TextArea
+          field="description"
+          label="描述"
+          placeholder="请输入标签描述（选填）"
+          rows={3}
+        />
+        <Form.Select
+          field="status"
+          label="状态"
+          placeholder="请选择状态"
+          style={{ width: '100%' }}
+          optionList={statusOptions}
+        />
+        <Form.InputNumber
+          field="sortOrder"
+          label="排序"
+          min={0}
+          max={9999}
+          innerButtons
+          style={{ width: '100%' }}
+        />
+      </EditFormModal>
     </div>
   );
 }

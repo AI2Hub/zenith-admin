@@ -1,9 +1,5 @@
 import { useState, useMemo } from 'react';
-import {
-  Button, Form, Toast, Typography, Tag, Space, Popconfirm,
-  Select, Row, Col, Collapse, Input, Tooltip,
-} from '@douyinfe/semi-ui';
-import { AppModal } from '@/components/AppModal';
+import { Button, Form, Toast, Typography, Tag, Space, Popconfirm, Select, Row, Col, Collapse, Input, Tooltip } from '@douyinfe/semi-ui';
 import { useEditModal } from '@/hooks/useEditModal';
 import { Plus, Pencil, Trash2, Server, ChevronUp, ChevronDown, Search, FolderOpen } from 'lucide-react';
 import { SSH_AUTH_TYPES, type CreateSshProfileInput, type SshAuthType, type SshProfile } from '@zenith/shared/ops';
@@ -14,6 +10,7 @@ import {
   useSshProfiles,
   useUpdateSshProfileOrder,
 } from '@/hooks/queries/terminal';
+import { EditFormModal } from '@/components/EditFormModal';
 
 export type { SshAuthType, SshProfile };
 
@@ -307,109 +304,95 @@ export default function SshProfilesManager({ onConnect, onBrowseSftp }: Readonly
       </div>
 
       {/* 新建/编辑弹窗 */}
-      <AppModal
-        {...profileModal.modalProps}
-        title={profileModal.isEdit ? '编辑 SSH 配置' : '新建 SSH 配置'}
-        okText="保存"
-        cancelText="取消"
-        fullscreenable={false}
-        width={680}
-        style={{ top: '5vh' }}
-        keepDOM={false}
-      >
-        <Form
-          key={profileModal.formKey} {...profileModal.formProps}
-          style={{ padding: '0 8px' }}
-        >
-          <Form.Input field="name" label="名称" placeholder="我的服务器" rules={[{ required: true, message: '请输入连接名称' }]} />
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Select
-                field="groupName"
-                label="分组"
-                placeholder="未分组（可输入新建）"
-                style={{ width: '100%' }}
-                filter
-                allowCreate
-                showClear
-              >
-                {allGroups.map((g) => (
-                  <Select.Option key={g} value={g}>{g}</Select.Option>
-                ))}
-              </Form.Select>
-            </Col>
-            <Col span={12}>
-              <Form.TagInput
-                field="tags"
-                label="标签"
-                placeholder="回车添加，如 prod"
-                style={{ width: '100%' }}
-              />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={16}><Form.Input field="host" label="主机地址" placeholder="192.168.1.1 或 example.com" rules={[{ required: true, message: '请输入主机地址' }]} /></Col>
-            <Col span={8}><Form.InputNumber field="port" label="端口" min={1} max={65535} style={{ width: '100%' }} /></Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}><Form.Input field="username" label="用户名" placeholder="root" rules={[{ required: true, message: '请输入用户名' }]} /></Col>
-            <Col span={12}>
-              <Form.Select
-                field="authType"
-                label="认证方式"
-                style={{ width: '100%' }}
-                onChange={(v) => setFormAuthType(enumValueOf(SSH_AUTH_TYPES, v) ?? 'password')}
-              >
-                <Select.Option value="password">密码</Select.Option>
-                <Select.Option value="key_path">服务器私钥路径</Select.Option>
-                <Select.Option value="key_content">粘贴私钥内容</Select.Option>
-                <Select.Option value="agent">SSH Agent</Select.Option>
-              </Form.Select>
-            </Col>
-          </Row>
-
-          {formAuthType === 'password' && (
-            <Form.Input
-              field="password"
-              label="密码"
-              type="password"
-              placeholder={profileModal.editing?.hasPassword ? '（已设置，留空保持不变）' : '输入 SSH 密码'}
+      <EditFormModal modal={profileModal} title={profileModal.isEdit ? '编辑 SSH 配置' : '新建 SSH 配置'} okText="保存" cancelText="取消" fullscreenable={false} width={680} style={{ top: '5vh' }} keepDOM={false} formProps={{ style: { padding: '0 8px' } }}>
+        <Form.Input field="name" label="名称" placeholder="我的服务器" rules={[{ required: true, message: '请输入连接名称' }]} />
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Select
+              field="groupName"
+              label="分组"
+              placeholder="未分组（可输入新建）"
+              style={{ width: '100%' }}
+              filter
+              allowCreate
+              showClear
+            >
+              {allGroups.map((g) => (
+                <Select.Option key={g} value={g}>{g}</Select.Option>
+              ))}
+            </Form.Select>
+          </Col>
+          <Col span={12}>
+            <Form.TagInput
+              field="tags"
+              label="标签"
+              placeholder="回车添加，如 prod"
+              style={{ width: '100%' }}
             />
-          )}
-          {formAuthType === 'key_path' && (
-            <Row gutter={16}>
-              <Col span={12}><Form.Input field="keyPath" label="私钥路径" placeholder="~/.ssh/id_rsa" /></Col>
-              <Col span={12}><Form.Input field="keyPassphrase" label="私钥口令" type="password" placeholder={profileModal.editing?.hasKeyPassphrase ? '（已设置）' : '无口令则留空'} /></Col>
-            </Row>
-          )}
-          {formAuthType === 'key_content' && (
-            <>
-              <Form.TextArea
-                field="keyContent"
-                label="私钥内容"
-                placeholder={profileModal.editing?.hasKeyContent ? '（已设置，留空保持不变）' : '粘贴 PEM 格式私钥'}
-                rows={5}
-              />
-              <Form.Input field="keyPassphrase" label="私钥口令" type="password" placeholder={profileModal.editing?.hasKeyPassphrase ? '（已设置）' : '无口令则留空'} />
-            </>
-          )}
-          {formAuthType === 'agent' && (
-            <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 12, marginLeft: 90 }}>
-              使用服务端 SSH_AUTH_SOCK 环境变量对应的 ssh-agent。
-            </Typography.Text>
-          )}
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={16}><Form.Input field="host" label="主机地址" placeholder="192.168.1.1 或 example.com" rules={[{ required: true, message: '请输入主机地址' }]} /></Col>
+          <Col span={8}><Form.InputNumber field="port" label="端口" min={1} max={65535} style={{ width: '100%' }} /></Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={12}><Form.Input field="username" label="用户名" placeholder="root" rules={[{ required: true, message: '请输入用户名' }]} /></Col>
+          <Col span={12}>
+            <Form.Select
+              field="authType"
+              label="认证方式"
+              style={{ width: '100%' }}
+              onChange={(v) => setFormAuthType(enumValueOf(SSH_AUTH_TYPES, v) ?? 'password')}
+            >
+              <Select.Option value="password">密码</Select.Option>
+              <Select.Option value="key_path">服务器私钥路径</Select.Option>
+              <Select.Option value="key_content">粘贴私钥内容</Select.Option>
+              <Select.Option value="agent">SSH Agent</Select.Option>
+            </Form.Select>
+          </Col>
+        </Row>
 
-          <Form.TextArea
-            field="envVarsText"
-            label="环境变量"
-            placeholder={'KEY=VALUE\nNODE_ENV=production'}
-            rows={3}
+        {formAuthType === 'password' && (
+          <Form.Input
+            field="password"
+            label="密码"
+            type="password"
+            placeholder={profileModal.editing?.hasPassword ? '（已设置，留空保持不变）' : '输入 SSH 密码'}
           />
+        )}
+        {formAuthType === 'key_path' && (
+          <Row gutter={16}>
+            <Col span={12}><Form.Input field="keyPath" label="私钥路径" placeholder="~/.ssh/id_rsa" /></Col>
+            <Col span={12}><Form.Input field="keyPassphrase" label="私钥口令" type="password" placeholder={profileModal.editing?.hasKeyPassphrase ? '（已设置）' : '无口令则留空'} /></Col>
+          </Row>
+        )}
+        {formAuthType === 'key_content' && (
+          <>
+            <Form.TextArea
+              field="keyContent"
+              label="私钥内容"
+              placeholder={profileModal.editing?.hasKeyContent ? '（已设置，留空保持不变）' : '粘贴 PEM 格式私钥'}
+              rows={5}
+            />
+            <Form.Input field="keyPassphrase" label="私钥口令" type="password" placeholder={profileModal.editing?.hasKeyPassphrase ? '（已设置）' : '无口令则留空'} />
+          </>
+        )}
+        {formAuthType === 'agent' && (
           <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 12, marginLeft: 90 }}>
-            每行一个，格式：KEY=VALUE
+            使用服务端 SSH_AUTH_SOCK 环境变量对应的 ssh-agent。
           </Typography.Text>
-        </Form>
-      </AppModal>
+        )}
+
+        <Form.TextArea
+          field="envVarsText"
+          label="环境变量"
+          placeholder={'KEY=VALUE\nNODE_ENV=production'}
+          rows={3}
+        />
+        <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 12, marginLeft: 90 }}>
+          每行一个，格式：KEY=VALUE
+        </Typography.Text>
+      </EditFormModal>
     </div>
   );
 }

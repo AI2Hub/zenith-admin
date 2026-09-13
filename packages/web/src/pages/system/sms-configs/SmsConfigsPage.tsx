@@ -1,11 +1,10 @@
-import { Col, Form, Row, Spin, Tag, Toast } from '@douyinfe/semi-ui';
+import { Col, Form, Row, Tag, Toast } from '@douyinfe/semi-ui';
 import { enumValueOf, USER_STATUSES } from '@zenith/shared/core';
 import { SMS_PROVIDER_OPTIONS } from '@zenith/shared/messaging';
 import type { CreateSmsConfigInput, SmsConfig, SmsProvider } from '@zenith/shared/messaging';
 import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useEditModal } from '@/hooks/useEditModal';
-import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { deleteAction, ListSearchToolbar, useStatusToggle } from '@/components/list-page';
@@ -21,6 +20,7 @@ import {
 import { CreateButton } from '@/components/toolbar-controls';
 import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormModal } from '@/components/EditFormModal';
 
 export default function SmsConfigsPage() {
   const { hasPermission: can } = usePermission();
@@ -153,56 +153,52 @@ export default function SmsConfigsPage() {
         {...tableProps}
       />
 
-      <AppModal {...configModal.modalProps} width={720}>
-        <Spin spinning={configModal.detailLoading} wrapperClassName="modal-spin-wrapper">
-        <Form key={configModal.formKey} {...configModal.formProps}>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Input field="name" label="名称" placeholder="请输入名称"
-                rules={[{ required: true, message: '请输入名称' }]} />
-            </Col>
-            <Col span={12}>
-              <Form.Select field="provider" label="服务商" style={{ width: '100%' }} optionList={SMS_PROVIDER_OPTIONS}
-                placeholder="请选择服务商" rules={[{ required: true, message: '请选择服务商' }]} />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Input field="signName" label="短信签名" placeholder="请输入短信签名"
-                rules={[{ required: true, message: '请输入短信签名' }]} />
-            </Col>
-            <Col span={12}>
-              <Form.Input field="region" label="地域" placeholder="如：cn-hangzhou" />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Input field="accessKeyId" label="AccessKeyId" placeholder="请输入 AccessKeyId"
-                rules={[{ required: true, message: '请输入 AccessKeyId' }]} />
-            </Col>
-            <Col span={12}>
-              <Form.Input field="accessKeySecret" label="AccessKeySecret" mode="password"
-                placeholder={configModal.isEdit ? '不修改请留空' : '请输入 AccessKeySecret'}
-                rules={configModal.isEdit ? [] : [{ required: true, message: '请输入 AccessKeySecret' }]} />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Select field="status" label="状态" style={{ width: '100%' }} placeholder="请选择状态"
-                optionList={statusOptions} />
-            </Col>
-            <Col span={12}>
-              <Form.Switch field="isDefault" label="设为默认" />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={24}>
-              <Form.TextArea field="remark" label="备注" rows={2} placeholder="请输入备注" />
-            </Col>
-          </Row>
-        </Form>
-        </Spin>
-      </AppModal>
+      <EditFormModal modal={configModal} width={720}>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Input field="name" label="名称" placeholder="请输入名称"
+              rules={[{ required: true, message: '请输入名称' }]} />
+          </Col>
+          <Col span={12}>
+            <Form.Select field="provider" label="服务商" style={{ width: '100%' }} optionList={SMS_PROVIDER_OPTIONS}
+              placeholder="请选择服务商" rules={[{ required: true, message: '请选择服务商' }]} />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Input field="signName" label="短信签名" placeholder="请输入短信签名"
+              rules={[{ required: true, message: '请输入短信签名' }]} />
+          </Col>
+          <Col span={12}>
+            <Form.Input field="region" label="地域" placeholder="如：cn-hangzhou" />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Input field="accessKeyId" label="AccessKeyId" placeholder="请输入 AccessKeyId"
+              rules={[{ required: true, message: '请输入 AccessKeyId' }]} />
+          </Col>
+          <Col span={12}>
+            <Form.Input field="accessKeySecret" label="AccessKeySecret" mode="password"
+              placeholder={configModal.isEdit ? '不修改请留空' : '请输入 AccessKeySecret'}
+              rules={configModal.isEdit ? [] : [{ required: true, message: '请输入 AccessKeySecret' }]} />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Select field="status" label="状态" style={{ width: '100%' }} placeholder="请选择状态"
+              optionList={statusOptions} />
+          </Col>
+          <Col span={12}>
+            <Form.Switch field="isDefault" label="设为默认" />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={24}>
+            <Form.TextArea field="remark" label="备注" rows={2} placeholder="请输入备注" />
+          </Col>
+        </Row>
+      </EditFormModal>
     </div>
   );
 }

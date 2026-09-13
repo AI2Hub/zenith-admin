@@ -35,6 +35,7 @@ import { PaymentResultModal } from '@/pages/payment/PaymentResultModal';
 import { usePaymentAppList } from '@/hooks/queries/payment-apps';
 import { usePaymentMethodList } from '@/hooks/queries/payment-methods';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormModal } from '@/components/EditFormModal';
 
 type TagColor = 'grey' | 'blue' | 'green' | 'orange';
 
@@ -299,16 +300,10 @@ export default function PayDemoPage() {
         </Collapse.Panel>
       </Collapse>
 
-      <AppModal
-        {...createModal.modalProps}
-        title="新建支付示例单"
-        width={480}
-      >
-        <Form key={createModal.formKey} {...createModal.formProps}>
-          <Form.Input field="subject" label="示例事项" placeholder="如 示例商品 A / 示例服务开通" rules={[{ required: true, message: '请输入示例事项名称' }]} />
-          <Form.InputNumber field="amount" label="金额(元)" min={0.01} precision={2} style={{ width: '100%' }} rules={[{ required: true, message: '请输入金额' }]} />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={createModal} title="新建支付示例单" width={480}>
+        <Form.Input field="subject" label="示例事项" placeholder="如 示例商品 A / 示例服务开通" rules={[{ required: true, message: '请输入示例事项名称' }]} />
+        <Form.InputNumber field="amount" label="金额(元)" min={0.01} precision={2} style={{ width: '100%' }} rules={[{ required: true, message: '请输入金额' }]} />
+      </EditFormModal>
 
       <AppModal
         title={`发起支付${payTarget ? ` · ${payTarget.subject}（${yuan(payTarget.amount)}）` : ''}`}

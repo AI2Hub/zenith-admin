@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Form, Spin } from '@douyinfe/semi-ui';
+import { Button, Form } from '@douyinfe/semi-ui';
 import type { CascaderData } from '@douyinfe/semi-ui/lib/es/cascader';
 import { ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
 import type { CreateRegionInput, Region } from '@zenith/shared/platform';
@@ -8,7 +8,6 @@ import { useDictItems } from '@/hooks/useDictItems';
 import { createdAtColumn, EMPTY_PLACEHOLDER } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import ExportButton from '@/components/ExportButton';
-import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { regionKeys, useDeleteRegion, useFlatRegions, useRegionDetail, useRegionTree, useSaveRegion } from '@/hooks/queries/regions';
@@ -22,6 +21,7 @@ import { CreateButton } from '@/components/toolbar-controls';
 import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { deleteAction, ListSearchToolbar, listTableProps, useStatusToggle } from '@/components/list-page';
 import { useFilterQuery } from '@/hooks/useFilterQuery';
+import { EditFormModal } from '@/components/EditFormModal';
 
 const LEVEL_LABELS: Record<string, string> = REGION_LEVEL_LABELS;
 
@@ -236,62 +236,58 @@ export default function RegionsPage() {
         />
       </div>
 
-      <AppModal {...regionModal.modalProps} width={520}>
-        <Spin spinning={regionModal.detailLoading} wrapperClassName="modal-spin-wrapper">
-        <Form key={regionModal.formKey} {...regionModal.formProps}>
-          <Form.Select
-            field="level"
-            label="级别"
-            optionList={LEVEL_OPTIONS}
-            rules={[{ required: true, message: '请选择级别' }]}
-            onChange={(v) => setEditingLevel(v as string)}
-            placeholder="请选择级别"
+      <EditFormModal modal={regionModal} width={520}>
+        <Form.Select
+          field="level"
+          label="级别"
+          optionList={LEVEL_OPTIONS}
+          rules={[{ required: true, message: '请选择级别' }]}
+          onChange={(v) => setEditingLevel(v as string)}
+          placeholder="请选择级别"
+          style={{ width: '100%' }}
+        />
+        {editingLevel !== 'province' && (
+          <Form.Cascader
+            field="parentCode"
+            label="父级地区"
+            placeholder={flatQuery.isFetching ? '加载父级地区中...' : '请选择父级地区'}
+            treeData={parentTreeData}
+            changeOnSelect
+            filterTreeNode
+            showClear
+            disabled={flatQuery.isFetching}
+            rules={[{ required: true, message: '请选择父级地区' }]}
             style={{ width: '100%' }}
           />
-          {editingLevel !== 'province' && (
-            <Form.Cascader
-              field="parentCode"
-              label="父级地区"
-              placeholder={flatQuery.isFetching ? '加载父级地区中...' : '请选择父级地区'}
-              treeData={parentTreeData}
-              changeOnSelect
-              filterTreeNode
-              showClear
-              disabled={flatQuery.isFetching}
-              rules={[{ required: true, message: '请选择父级地区' }]}
-              style={{ width: '100%' }}
-            />
-          )}
-          <Form.Input
-            field="code"
-            label="区划代码"
-            placeholder="请输入区划代码"
-            rules={[{ required: true, message: '区划代码不能为空' }]}
-          />
-          <Form.Input
-            field="name"
-            label="地区名称"
-            placeholder="请输入地区名称"
-            rules={[{ required: true, message: '名称不能为空' }]}
-          />
-          <Form.InputNumber
-            field="sort"
-            label="排序"
-            placeholder="排序值"
-            min={0}
-            style={{ width: '100%' }}
-          />
-          <Form.Select
-            field="status"
-            label="状态"
-            optionList={statusOptions}
-            rules={[{ required: true, message: '请选择状态' }]}
-            placeholder="请选择状态"
-            style={{ width: '100%' }}
-          />
-        </Form>
-        </Spin>
-      </AppModal>
+        )}
+        <Form.Input
+          field="code"
+          label="区划代码"
+          placeholder="请输入区划代码"
+          rules={[{ required: true, message: '区划代码不能为空' }]}
+        />
+        <Form.Input
+          field="name"
+          label="地区名称"
+          placeholder="请输入地区名称"
+          rules={[{ required: true, message: '名称不能为空' }]}
+        />
+        <Form.InputNumber
+          field="sort"
+          label="排序"
+          placeholder="排序值"
+          min={0}
+          style={{ width: '100%' }}
+        />
+        <Form.Select
+          field="status"
+          label="状态"
+          optionList={statusOptions}
+          rules={[{ required: true, message: '请选择状态' }]}
+          placeholder="请选择状态"
+          style={{ width: '100%' }}
+        />
+      </EditFormModal>
     </div>
   );
 }

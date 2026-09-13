@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import ModalFooter from '@/components/ModalFooter';
-import { Button, Form, SideSheet, Spin, Toast, Tag, Row, Col } from '@douyinfe/semi-ui';
+import { Button, Form, Toast, Tag, Row, Col } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -25,6 +24,7 @@ import { EMPTY_PLACEHOLDER, dateTimeColumn, renderEllipsis } from '@/utils/table
 import { deleteAction, ListSearchToolbar, useStatusToggle } from '@/components/list-page';
 import { PaymentChannelTag } from './payment-display';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormSheet } from '@/components/EditFormModal';
 
 interface SearchParams {
   keyword: string;
@@ -198,71 +198,59 @@ export default function PaymentChannelsPage() {
         {...tableProps}
       />
 
-      <SideSheet
-        title={modal.modalProps.title}
-        visible={modal.visible}
-        onCancel={modal.close}
-        closeOnEsc
-        width={720}
-        footer={<ModalFooter {...modal.footerProps} okText="保存" />}
-      >
-        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
-          <Form key={modal.formKey} {...modal.formProps}
-            onValueChange={(v) => { if (v.channel) setFormChannel(v.channel as PaymentChannel); }}>
+      <EditFormSheet modal={modal} width={720} formProps={{ onValueChange: (v) => { if (v.channel) setFormChannel(v.channel as PaymentChannel); } }}>
+        <Row gutter={16}>
+          <Col span={12}><Form.Input field="name" label="名称" placeholder="如：微信主商户" rules={[{ required: true, message: '名称不能为空' }]} /></Col>
+          <Col span={12}><Form.Select field="channel" label="渠道" style={{ width: '100%' }} disabled={modal.isEdit} optionList={PAYMENT_CHANNEL_OPTIONS} rules={[{ required: true }]} /></Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={12}><Form.Select field="status" label="状态" style={{ width: '100%' }} optionList={statusOptions} /></Col>
+          <Col span={12}><Form.Switch field="isDefault" label="设为默认" /></Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={12}><Form.Switch field="sandbox" label="沙箱模式" /></Col>
+        </Row>
+        <Form.Input field="notifyUrl" label="回调基址" placeholder="如 https://your-host.com（留空用环境变量）" />
+
+        {formChannel === 'wechat' && (
+          <>
             <Row gutter={16}>
-              <Col span={12}><Form.Input field="name" label="名称" placeholder="如：微信主商户" rules={[{ required: true, message: '名称不能为空' }]} /></Col>
-              <Col span={12}><Form.Select field="channel" label="渠道" style={{ width: '100%' }} disabled={modal.isEdit} optionList={PAYMENT_CHANNEL_OPTIONS} rules={[{ required: true }]} /></Col>
+              <Col span={12}><Form.Input field="wechatAppId" label="AppID" placeholder="公众号/小程序/APP AppID" /></Col>
+              <Col span={12}><Form.Input field="wechatMchId" label="商户号" placeholder="mchid" /></Col>
             </Row>
+            <Form.Input field="wechatSerialNo" label="证书序列号" placeholder="商户 API 证书序列号" />
+            <Form.Input field="wechatApiV3Key" label="APIv3 Key" mode="password" placeholder={secretPlaceholder(editingDetail?.hasWechatApiV3Key)} />
+            <Form.TextArea field="wechatPrivateKey" label="商户私钥" autosize rows={3} placeholder={secretPlaceholder(editingDetail?.hasWechatPrivateKey)} />
+            <Form.TextArea field="wechatPlatformCert" label="平台证书" autosize rows={3} placeholder="微信支付平台证书（PEM，验签用）" />
+          </>
+        )}
+
+        {formChannel === 'alipay' && (
+          <>
             <Row gutter={16}>
-              <Col span={12}><Form.Select field="status" label="状态" style={{ width: '100%' }} optionList={statusOptions} /></Col>
-              <Col span={12}><Form.Switch field="isDefault" label="设为默认" /></Col>
+              <Col span={12}><Form.Input field="alipayAppId" label="AppID" placeholder="支付宝应用 AppID" /></Col>
+              <Col span={12}><Form.Select field="alipaySignType" label="签名算法" style={{ width: '100%' }} optionList={[{ value: 'RSA2', label: 'RSA2' }, { value: 'RSA', label: 'RSA' }]} /></Col>
             </Row>
+            <Form.TextArea field="alipayPrivateKey" label="应用私钥" autosize rows={3} placeholder={secretPlaceholder(editingDetail?.hasAlipayPrivateKey)} />
+            <Form.TextArea field="alipayPublicKey" label="支付宝公钥" autosize rows={3} placeholder="支付宝公钥（PEM，验签用）" />
+            <Form.Input field="alipayGateway" label="网关地址" placeholder="留空则按沙箱开关自动选择" />
+          </>
+        )}
+
+        {formChannel === 'unionpay' && (
+          <>
             <Row gutter={16}>
-              <Col span={12}><Form.Switch field="sandbox" label="沙箱模式" /></Col>
+              <Col span={12}><Form.Input field="unionpayMerId" label="商户号" placeholder="云闪付商户号" rules={[{ required: true, message: '商户号不能为空' }]} /></Col>
+              <Col span={12}><Form.Input field="unionpayCertId" label="证书序列号" placeholder="证书序列号" /></Col>
             </Row>
-            <Form.Input field="notifyUrl" label="回调基址" placeholder="如 https://your-host.com（留空用环境变量）" />
+            <Form.TextArea field="unionpayPrivateKey" label="商户私钥" autosize rows={3} placeholder={secretPlaceholder(editingDetail?.hasUnionpayPrivateKey)} />
+            <Form.TextArea field="unionpayPublicKey" label="银联公钥" autosize rows={3} placeholder="银联验签公钥" />
+            <Form.Input field="unionpayGateway" label="网关地址" placeholder="https://gateway.95516.com/gateway/api/backTransReq.do" />
+          </>
+        )}
 
-            {formChannel === 'wechat' && (
-              <>
-                <Row gutter={16}>
-                  <Col span={12}><Form.Input field="wechatAppId" label="AppID" placeholder="公众号/小程序/APP AppID" /></Col>
-                  <Col span={12}><Form.Input field="wechatMchId" label="商户号" placeholder="mchid" /></Col>
-                </Row>
-                <Form.Input field="wechatSerialNo" label="证书序列号" placeholder="商户 API 证书序列号" />
-                <Form.Input field="wechatApiV3Key" label="APIv3 Key" mode="password" placeholder={secretPlaceholder(editingDetail?.hasWechatApiV3Key)} />
-                <Form.TextArea field="wechatPrivateKey" label="商户私钥" autosize rows={3} placeholder={secretPlaceholder(editingDetail?.hasWechatPrivateKey)} />
-                <Form.TextArea field="wechatPlatformCert" label="平台证书" autosize rows={3} placeholder="微信支付平台证书（PEM，验签用）" />
-              </>
-            )}
-
-            {formChannel === 'alipay' && (
-              <>
-                <Row gutter={16}>
-                  <Col span={12}><Form.Input field="alipayAppId" label="AppID" placeholder="支付宝应用 AppID" /></Col>
-                  <Col span={12}><Form.Select field="alipaySignType" label="签名算法" style={{ width: '100%' }} optionList={[{ value: 'RSA2', label: 'RSA2' }, { value: 'RSA', label: 'RSA' }]} /></Col>
-                </Row>
-                <Form.TextArea field="alipayPrivateKey" label="应用私钥" autosize rows={3} placeholder={secretPlaceholder(editingDetail?.hasAlipayPrivateKey)} />
-                <Form.TextArea field="alipayPublicKey" label="支付宝公钥" autosize rows={3} placeholder="支付宝公钥（PEM，验签用）" />
-                <Form.Input field="alipayGateway" label="网关地址" placeholder="留空则按沙箱开关自动选择" />
-              </>
-            )}
-
-            {formChannel === 'unionpay' && (
-              <>
-                <Row gutter={16}>
-                  <Col span={12}><Form.Input field="unionpayMerId" label="商户号" placeholder="云闪付商户号" rules={[{ required: true, message: '商户号不能为空' }]} /></Col>
-                  <Col span={12}><Form.Input field="unionpayCertId" label="证书序列号" placeholder="证书序列号" /></Col>
-                </Row>
-                <Form.TextArea field="unionpayPrivateKey" label="商户私钥" autosize rows={3} placeholder={secretPlaceholder(editingDetail?.hasUnionpayPrivateKey)} />
-                <Form.TextArea field="unionpayPublicKey" label="银联公钥" autosize rows={3} placeholder="银联验签公钥" />
-                <Form.Input field="unionpayGateway" label="网关地址" placeholder="https://gateway.95516.com/gateway/api/backTransReq.do" />
-              </>
-            )}
-
-            <Form.TextArea field="remark" label="备注" autosize rows={1} placeholder="可选" />
-          </Form>
-        </Spin>
-      </SideSheet>
+        <Form.TextArea field="remark" label="备注" autosize rows={1} placeholder="可选" />
+      </EditFormSheet>
     </div>
   );
 }

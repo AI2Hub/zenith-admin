@@ -32,6 +32,7 @@ import { formatBytes, mapTree } from '@zenith/shared/core';
 import { confirmAndDelete, deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
 import ModalFooter from '@/components/ModalFooter';
 import { compactParams } from '@/lib/query';
+import { EditFormModal } from '@/components/EditFormModal';
 
 const TYPE_COLORS: Record<CmsResourceType, 'blue' | 'purple' | 'cyan' | 'orange' | 'grey'> = {
   image: 'blue', video: 'purple', audio: 'cyan', document: 'orange', other: 'grey',
@@ -642,24 +643,16 @@ export default function ResourcesPage() {
         ) : null}
       </AppModal>
 
-      <AppModal
-        {...folderModal.modalProps}
-        title={folderModal.isEdit ? '编辑素材文件夹' : '新建素材文件夹'}
-        width={480}
-      >
-        <Form
-          key={folderModal.formKey} {...folderModal.formProps}
-        >
-          <Form.Input field="name" label="名称" maxLength={100} rules={[{ required: true, message: '请输入文件夹名称' }]} />
-          <Form.TreeSelect
-            field="parentId"
-            label="父文件夹"
-            treeData={[{ key: '0', value: 0, label: '根目录', children: foldersToTree(foldersQuery.data ?? []) }]}
-            style={{ width: '100%' }}
-          />
-          <Form.InputNumber field="sort" label="排序" style={{ width: '100%' }} />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={folderModal} title={folderModal.isEdit ? '编辑素材文件夹' : '新建素材文件夹'} width={480}>
+        <Form.Input field="name" label="名称" maxLength={100} rules={[{ required: true, message: '请输入文件夹名称' }]} />
+        <Form.TreeSelect
+          field="parentId"
+          label="父文件夹"
+          treeData={[{ key: '0', value: 0, label: '根目录', children: foldersToTree(foldersQuery.data ?? []) }]}
+          style={{ width: '100%' }}
+        />
+        <Form.InputNumber field="sort" label="排序" style={{ width: '100%' }} />
+      </EditFormModal>
 
       <CropModal resource={cropTarget} onClose={() => setCropTarget(null)} />
       <ReferencesModal resource={refsTarget} onClose={() => setRefsTarget(null)} />

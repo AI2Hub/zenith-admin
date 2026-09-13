@@ -3,7 +3,6 @@ import { Button, Form, Tag, Toast, Modal, SideSheet, Typography } from '@douyinf
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import AppModal from '@/components/AppModal';
 import { CronBuilderPopover } from '@/components/CronBuilderPopover';
 import { FormTimezoneSelect } from '@/components/FormTimezoneSelect';
 import { dateTimeColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '@/utils/table-columns';
@@ -30,6 +29,7 @@ import { KeywordInput } from '@/components/search-filters';
 import { deleteAction, ListSearchToolbar, useRowSelection } from '@/components/list-page';
 import { DEFAULT_TIMEZONE } from '@/utils/timezones';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormModal } from '@/components/EditFormModal';
 
 const deliveryStatusColorMap: Record<string, 'green' | 'red' | 'orange' | 'grey' | 'blue' | 'amber'> = {
   success: 'green',
@@ -178,32 +178,29 @@ export default function SubscriptionsPage() {
         {...tableProps}
       />
 
-      <AppModal {...subscriptionModal.modalProps} width={560}>
-        <Form key={subscriptionModal.formKey} {...subscriptionModal.formProps}
-          onValueChange={(v: Record<string, unknown>) => {
+      <EditFormModal modal={subscriptionModal} width={560} formProps={{ onValueChange: (v: Record<string, unknown>) => {
             if (typeof v.cron === 'string') setCronExprValue(v.cron);
             if (Array.isArray(v.channels)) setSelectedChannels(v.channels as string[]);
-          }}>
-          <Form.Select field="dashboardId" label="仪表盘" style={{ width: '100%' }} rules={[{ required: true, message: '请选择仪表盘' }]} filter
-            extraText="定时推送在无用户上下文执行：使用数据权限变量（${__userId} 等）、必填参数或行级权限数据集的仪表盘无法订阅"
-            optionList={dashboards.map((d) => ({ value: d.id, label: d.name }))} />
-          <Form.Input field="cron" label="Cron 表达式" rules={[{ required: true, message: '请输入 Cron 表达式' }]} placeholder="如 0 0 9 * * *（每天 9 点）"
-            addonAfter={<CronBuilderPopover value={cronExprValue} onApply={(expr) => { subscriptionModal.formApi.current?.setValue('cron', expr); setCronExprValue(expr); }} />} />
-          <FormTimezoneSelect />
-          <Form.Select field="misfirePolicy" label="错过策略" style={{ width: '100%' }} optionList={REPORT_MISFIRE_POLICY_OPTIONS} />
-          <Form.Select field="channels" label="推送通道" multiple style={{ width: '100%' }} rules={[{ required: true, message: '至少一个通道' }]}
-            optionList={[{ value: 'inApp', label: '站内信（推给创建者）' }, { value: 'email', label: '邮件' }, { value: 'webhook', label: 'Webhook（企微/钉钉机器人）' }]} />
-          {selectedChannels.includes('email') && (
-            <Form.Input field="recipients" label="收件邮箱" placeholder="多个用逗号分隔（仅邮件通道）" />
-          )}
-          {selectedChannels.includes('webhook') && (
-            <Form.Input field="webhookUrl" label="Webhook 地址" placeholder="企微/钉钉机器人 Webhook URL 或通用 JSON 端点"
-              rules={[{ required: true, message: '请填写 Webhook 地址' }]} showClear />
-          )}
-          <Form.Select field="enabled" label="状态" style={{ width: '100%' }} optionList={statusOptions} />
-          <Form.TextArea field="remark" label="备注" maxLength={256} autosize={{ minRows: 1, maxRows: 3 }} />
-        </Form>
-      </AppModal>
+          } }}>
+        <Form.Select field="dashboardId" label="仪表盘" style={{ width: '100%' }} rules={[{ required: true, message: '请选择仪表盘' }]} filter
+          extraText="定时推送在无用户上下文执行：使用数据权限变量（${__userId} 等）、必填参数或行级权限数据集的仪表盘无法订阅"
+          optionList={dashboards.map((d) => ({ value: d.id, label: d.name }))} />
+        <Form.Input field="cron" label="Cron 表达式" rules={[{ required: true, message: '请输入 Cron 表达式' }]} placeholder="如 0 0 9 * * *（每天 9 点）"
+          addonAfter={<CronBuilderPopover value={cronExprValue} onApply={(expr) => { subscriptionModal.formApi.current?.setValue('cron', expr); setCronExprValue(expr); }} />} />
+        <FormTimezoneSelect />
+        <Form.Select field="misfirePolicy" label="错过策略" style={{ width: '100%' }} optionList={REPORT_MISFIRE_POLICY_OPTIONS} />
+        <Form.Select field="channels" label="推送通道" multiple style={{ width: '100%' }} rules={[{ required: true, message: '至少一个通道' }]}
+          optionList={[{ value: 'inApp', label: '站内信（推给创建者）' }, { value: 'email', label: '邮件' }, { value: 'webhook', label: 'Webhook（企微/钉钉机器人）' }]} />
+        {selectedChannels.includes('email') && (
+          <Form.Input field="recipients" label="收件邮箱" placeholder="多个用逗号分隔（仅邮件通道）" />
+        )}
+        {selectedChannels.includes('webhook') && (
+          <Form.Input field="webhookUrl" label="Webhook 地址" placeholder="企微/钉钉机器人 Webhook URL 或通用 JSON 端点"
+            rules={[{ required: true, message: '请填写 Webhook 地址' }]} showClear />
+        )}
+        <Form.Select field="enabled" label="状态" style={{ width: '100%' }} optionList={statusOptions} />
+        <Form.TextArea field="remark" label="备注" maxLength={256} autosize={{ minRows: 1, maxRows: 3 }} />
+      </EditFormModal>
 
       <SideSheet
         title={historyTarget ? `订阅历史 · ${historyTarget.dashboardName}` : '订阅历史'}

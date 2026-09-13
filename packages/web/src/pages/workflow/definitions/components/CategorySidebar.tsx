@@ -5,11 +5,11 @@ import { useState } from 'react';
 import { Button, Form, Input } from '@douyinfe/semi-ui';
 import { Plus, Layers, LayoutGrid, Pencil, Trash2 } from 'lucide-react';
 import type { CreateWorkflowCategoryInput, WorkflowCategory } from '@zenith/shared/workflow';
-import AppModal from '@/components/AppModal';
 import { useDeleteWorkflowCategories, useSaveWorkflowCategory } from '@/hooks/useWorkflowCategories';
 import { NavListPanel, NavListItem, NavListItemActions } from '@/components/NavListPanel';
 import { confirmAndDelete } from '@/components/list-page';
 import { useEditModal } from '@/hooks/useEditModal';
+import { EditFormModal } from '@/components/EditFormModal';
 
 interface Props {
   categories: WorkflowCategory[];
@@ -118,51 +118,41 @@ export default function CategorySidebar({ categories, selectedId, onSelect, onCh
         }}
       />
 
-      <AppModal
-        {...modal.modalProps}
-        title={modal.isEdit ? '编辑分类' : '新增分类'}
-        okText="保存"
-        width={520}
-
-      >
-        <Form
-          key={modal.formKey} {...modal.formProps}
-        >
-          <Form.Input
-            field="name" label="名称"
-            placeholder="如：人事 / 财务 / IT"
-            rules={[{ required: true, message: '请填写名称' }]}
-          />
-          <Form.Input field="code" label="编码" placeholder="可选，仅字母数字" />
-          <Form.Slot label="颜色">
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-              {PRESET_COLORS.map(color => (
-                <button
-                  key={color}
-                  type="button"
-                  onClick={() => setSelectedColor(selectedColor === color ? '' : color)}
-                  style={{
-                    width: 24, height: 24, borderRadius: '50%', background: color,
-                    border: selectedColor === color ? '2px solid var(--semi-color-text-0)' : '2px solid transparent',
-                    cursor: 'pointer',
-                    flexShrink: 0,
-                  }}
-                  aria-label={color}
-                />
-              ))}
-              <Input
-                value={selectedColor}
-                onChange={setSelectedColor}
-                placeholder="自定义 #hex"
-                size="small"
-                style={{ width: 110 }}
+      <EditFormModal modal={modal} title={modal.isEdit ? '编辑分类' : '新增分类'} okText="保存" width={520}>
+        <Form.Input
+          field="name" label="名称"
+          placeholder="如：人事 / 财务 / IT"
+          rules={[{ required: true, message: '请填写名称' }]}
+        />
+        <Form.Input field="code" label="编码" placeholder="可选，仅字母数字" />
+        <Form.Slot label="颜色">
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+            {PRESET_COLORS.map(color => (
+              <button
+                key={color}
+                type="button"
+                onClick={() => setSelectedColor(selectedColor === color ? '' : color)}
+                style={{
+                  width: 24, height: 24, borderRadius: '50%', background: color,
+                  border: selectedColor === color ? '2px solid var(--semi-color-text-0)' : '2px solid transparent',
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                }}
+                aria-label={color}
               />
-            </div>
-          </Form.Slot>
-          <Form.InputNumber field="sort" label="排序" min={0} style={{ width: '100%' }} />
-          <Form.TextArea field="description" label="描述" autosize={{ minRows: 2, maxRows: 4 }} />
-        </Form>
-      </AppModal>
+            ))}
+            <Input
+              value={selectedColor}
+              onChange={setSelectedColor}
+              placeholder="自定义 #hex"
+              size="small"
+              style={{ width: 110 }}
+            />
+          </div>
+        </Form.Slot>
+        <Form.InputNumber field="sort" label="排序" min={0} style={{ width: '100%' }} />
+        <Form.TextArea field="description" label="描述" autosize={{ minRows: 2, maxRows: 4 }} />
+      </EditFormModal>
     </>
   );
 }

@@ -22,6 +22,7 @@ import { deleteAction, ListSearchToolbar, useStatusToggle } from '@/components/l
 import { parseHeadersJson } from '../components/http-integration';
 import { useEditModal } from '@/hooks/useEditModal';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormModal } from '@/components/EditFormModal';
 
 interface SearchParams { keyword: string; status?: string }
 const defaultSearchParams: SearchParams = { keyword: '', status: undefined };
@@ -168,48 +169,40 @@ export default function WorkflowDataSourcesPage() {
         {...tableProps}
       />
 
-      <AppModal
-        {...dataSourceModal.modalProps}
-        width={660}
-        closeOnEsc
-      >
-        <Form
-          key={dataSourceModal.formKey} {...dataSourceModal.formProps}
-        >
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Input field="name" label="名称" placeholder="请输入名称" rules={[{ required: true, message: '名称不能为空' }]} />
-            </Col>
-            <Col span={12}>
-              <Form.Select field="method" label="请求方法" style={{ width: '100%' }} optionList={[{ value: 'GET', label: 'GET' }, { value: 'POST', label: 'POST' }]} rules={[{ required: true, message: '请选择请求方法' }]} />
-            </Col>
-          </Row>
-          <Form.Input field="url" label="接口地址" placeholder="https://..." rules={[{ required: true, message: 'URL 不能为空' }, { pattern: /^https?:\/\/.+/i, message: 'URL 需以 http:// 或 https:// 开头' }]} />
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Input field="valueField" label="取值字段" placeholder="如 id" rules={[{ required: true, message: '取值字段不能为空' }]} />
-            </Col>
-            <Col span={12}>
-              <Form.Input field="labelField" label="显示字段" placeholder="如 name" rules={[{ required: true, message: '显示字段不能为空' }]} />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Input field="itemsPath" label="数组路径" placeholder="如 data.list（留空=根为数组）" />
-            </Col>
-            <Col span={12}>
-              <Form.Input field="keywordParam" label="搜索参数名" placeholder="留空=不支持远程搜索" />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Select field="status" label="状态" style={{ width: '100%' }} optionList={statusOptions} rules={[{ required: true, message: '请选择状态' }]} />
-            </Col>
-          </Row>
-          <Form.TextArea field="headersText" label="请求头(JSON)" placeholder='可选，如 {"Authorization":"Bearer xxx"}' autosize={{ minRows: 2, maxRows: 5 }} />
-          <Form.TextArea field="remark" label="备注" placeholder="可选" autosize={{ minRows: 1, maxRows: 3 }} />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={dataSourceModal} width={660}>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Input field="name" label="名称" placeholder="请输入名称" rules={[{ required: true, message: '名称不能为空' }]} />
+          </Col>
+          <Col span={12}>
+            <Form.Select field="method" label="请求方法" style={{ width: '100%' }} optionList={[{ value: 'GET', label: 'GET' }, { value: 'POST', label: 'POST' }]} rules={[{ required: true, message: '请选择请求方法' }]} />
+          </Col>
+        </Row>
+        <Form.Input field="url" label="接口地址" placeholder="https://..." rules={[{ required: true, message: 'URL 不能为空' }, { pattern: /^https?:\/\/.+/i, message: 'URL 需以 http:// 或 https:// 开头' }]} />
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Input field="valueField" label="取值字段" placeholder="如 id" rules={[{ required: true, message: '取值字段不能为空' }]} />
+          </Col>
+          <Col span={12}>
+            <Form.Input field="labelField" label="显示字段" placeholder="如 name" rules={[{ required: true, message: '显示字段不能为空' }]} />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Input field="itemsPath" label="数组路径" placeholder="如 data.list（留空=根为数组）" />
+          </Col>
+          <Col span={12}>
+            <Form.Input field="keywordParam" label="搜索参数名" placeholder="留空=不支持远程搜索" />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Select field="status" label="状态" style={{ width: '100%' }} optionList={statusOptions} rules={[{ required: true, message: '请选择状态' }]} />
+          </Col>
+        </Row>
+        <Form.TextArea field="headersText" label="请求头(JSON)" placeholder='可选，如 {"Authorization":"Bearer xxx"}' autosize={{ minRows: 2, maxRows: 5 }} />
+        <Form.TextArea field="remark" label="备注" placeholder="可选" autosize={{ minRows: 1, maxRows: 3 }} />
+      </EditFormModal>
 
       <AppModal
         title={`测试拉取 · ${testSource?.name ?? ''}`}

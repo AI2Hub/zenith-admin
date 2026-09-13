@@ -4,7 +4,6 @@ import { Button, Col, Form, Modal, Row, SideSheet, Space, Spin, Tag, Toast, Typo
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { useQueryClient } from '@tanstack/react-query';
 import type { AiPromptTemplate, AiPromptScope, CreateAiPromptTemplateInput } from '@zenith/shared/ai';
-import { AppModal } from '@/components/AppModal';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePermission } from '@/hooks/usePermission';
@@ -21,6 +20,7 @@ import { CreateButton } from '@/components/toolbar-controls';
 import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { useEditModal } from '@/hooks/useEditModal';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormModal } from '@/components/EditFormModal';
 
 interface SearchParams {
   keyword: string;
@@ -169,54 +169,44 @@ export default function PromptTemplatesPage() {
         {...tableProps}
       />
 
-      <AppModal
-        {...promptModal.modalProps}
-        width={660}
-        closeOnEsc
-      >
-        <Spin spinning={promptModal.detailLoading} wrapperClassName="modal-spin-wrapper">
-          <Form
-            key={promptModal.formKey} {...promptModal.formProps}
-          >
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Input field="name" label="名称" placeholder="请输入名称" rules={[{ required: true, message: '请输入名称' }]} />
-              </Col>
-              <Col span={12}>
-                <Form.Input field="category" label="分类" placeholder="请输入分类" />
-              </Col>
-            </Row>
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Select
-                  field="scope"
-                  label="范围"
-                  optionList={scopeFormOptions}
-                  style={{ width: '100%' }}
-                  rules={[{ required: true, message: '请选择范围' }]}
-                />
-              </Col>
-              <Col span={12}>
-                <Form.InputNumber field="sort" label="排序" min={0} style={{ width: '100%' }} />
-              </Col>
-            </Row>
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Switch field="isEnabled" label="启用" />
-              </Col>
-            </Row>
-            <Form.Input field="description" label="描述" placeholder="请输入描述（可选）" maxLength={300} />
-            <Form.TextArea
-              field="content"
-              label="内容"
-              rows={6}
+      <EditFormModal modal={promptModal} width={660}>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Input field="name" label="名称" placeholder="请输入名称" rules={[{ required: true, message: '请输入名称' }]} />
+          </Col>
+          <Col span={12}>
+            <Form.Input field="category" label="分类" placeholder="请输入分类" />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Select
+              field="scope"
+              label="范围"
+              optionList={scopeFormOptions}
               style={{ width: '100%' }}
-              placeholder="请输入提示词内容，支持 {{变量}} 占位符（应用时弹出表单填充，如：请把以下内容翻译成{{目标语言}}）"
-              rules={[{ required: true, message: '请输入提示词内容' }]}
+              rules={[{ required: true, message: '请选择范围' }]}
             />
-          </Form>
-        </Spin>
-      </AppModal>
+          </Col>
+          <Col span={12}>
+            <Form.InputNumber field="sort" label="排序" min={0} style={{ width: '100%' }} />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Switch field="isEnabled" label="启用" />
+          </Col>
+        </Row>
+        <Form.Input field="description" label="描述" placeholder="请输入描述（可选）" maxLength={300} />
+        <Form.TextArea
+          field="content"
+          label="内容"
+          rows={6}
+          style={{ width: '100%' }}
+          placeholder="请输入提示词内容，支持 {{变量}} 占位符（应用时弹出表单填充，如：请把以下内容翻译成{{目标语言}}）"
+          rules={[{ required: true, message: '请输入提示词内容' }]}
+        />
+      </EditFormModal>
       <SideSheet
         title={`版本历史 — ${versionTemplate?.name ?? ''}`}
         visible={versionTemplate !== null}

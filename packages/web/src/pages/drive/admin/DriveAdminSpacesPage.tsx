@@ -1,6 +1,6 @@
 import { lazy, Suspense, useState } from 'react';
 import { ListSearchToolbar, listTableProps } from '@/components/list-page';
-import { Button, Checkbox, Form, Input, InputNumber, Select, Skeleton, Space, Spin, Tag, Toast, Typography, withField } from '@douyinfe/semi-ui';
+import { Button, Checkbox, Form, Input, InputNumber, Select, Skeleton, Space, Tag, Toast, Typography, withField } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { useNavigate } from 'react-router-dom';
 import { Building2, Files, HardDrive, Link2, RefreshCcw, Search, Upload } from 'lucide-react';
@@ -30,6 +30,7 @@ import { EMPTY_PLACEHOLDER, renderEnabledStatusTag } from '@/utils/table-columns
 import { driveSpaceDefaultRoleColumn, driveSpaceNameColumn, driveSpaceOwnerColumn, driveSpaceTypeColumn, driveSpaceUsageColumn } from '../drive-space-columns';
 import { FormStatusRadioGroup } from '@/components/FormStatusRadioGroup';
 import { useFilterQuery } from '@/hooks/useFilterQuery';
+import { EditFormModal } from '@/components/EditFormModal';
 import '../drive.css';
 
 const DriveAdminCharts = lazy(() => import('./DriveAdminCharts'));
@@ -229,30 +230,24 @@ export default function DriveAdminSpacesPage() {
         {...listTableProps(listQuery, { pagination: buildPagination })}
       />
 
-      <AppModal {...modal.modalProps} width={600}>
-        <Spin spinning={modal.detailLoading}>
-          <Form key={modal.formKey} {...modal.formProps}>
-            <Form.Input field="name" label="空间名称" rules={[{ required: true, message: '请输入空间名称' }, { max: 100 }]} />
-            <Form.TextArea field="description" label="描述" maxCount={300} rows={2} />
-            <Form.InputNumber field="quotaGb" label="配额 (GB)" min={0} precision={2} placeholder="留空跟随系统默认" style={{ width: 200 }} extraText="0 表示不限" />
-            <Form.InputNumber field="maxVersions" label="最多版本数" min={1} max={200} placeholder="留空跟随系统默认" style={{ width: 200 }} />
-            <Form.Switch field="allowExternalShare" label="允许外链分享" />
-            {modal.editing?.type !== 'personal' && <Form.Select field="defaultMemberRole" label="默认成员角色" optionList={ROLE_OPTIONS_WITH_NONE} style={{ width: '100%' }} />}
-            {modal.editing?.type === 'team' && (
-              <FormUserSelect field="ownerId" label="所有者" style={{ width: '100%' }} placeholder="选择所有者" />
-            )}
-            <FormStatusRadioGroup type="button" />
-          </Form>
-        </Spin>
-      </AppModal>
+      <EditFormModal modal={modal} width={600}>
+        <Form.Input field="name" label="空间名称" rules={[{ required: true, message: '请输入空间名称' }, { max: 100 }]} />
+        <Form.TextArea field="description" label="描述" maxCount={300} rows={2} />
+        <Form.InputNumber field="quotaGb" label="配额 (GB)" min={0} precision={2} placeholder="留空跟随系统默认" style={{ width: 200 }} extraText="0 表示不限" />
+        <Form.InputNumber field="maxVersions" label="最多版本数" min={1} max={200} placeholder="留空跟随系统默认" style={{ width: 200 }} />
+        <Form.Switch field="allowExternalShare" label="允许外链分享" />
+        {modal.editing?.type !== 'personal' && <Form.Select field="defaultMemberRole" label="默认成员角色" optionList={ROLE_OPTIONS_WITH_NONE} style={{ width: '100%' }} />}
+        {modal.editing?.type === 'team' && (
+          <FormUserSelect field="ownerId" label="所有者" style={{ width: '100%' }} placeholder="选择所有者" />
+        )}
+        <FormStatusRadioGroup type="button" />
+      </EditFormModal>
       <DepartmentSpaceModal visible={deptModal} onClose={() => setDeptModal(false)} />
-      <AppModal {...handoff.modalProps} title="交接空间" width={560}>
-        <Form key={handoff.formKey} {...handoff.formProps}>
-          <FormUserSelect field="recipientId" label="接收人" rules={[{ required: true }]} />
-          <Form.Select field="mode" label="交接方式" optionList={DRIVE_HANDOFF_MODE_OPTIONS} style={{ width: '100%' }} />
-          <Form.Input field="name" label="新空间名称" maxLength={100} placeholder="可选，仅新建空间时使用" />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={handoff} title="交接空间" width={560}>
+        <FormUserSelect field="recipientId" label="接收人" rules={[{ required: true }]} />
+        <Form.Select field="mode" label="交接方式" optionList={DRIVE_HANDOFF_MODE_OPTIONS} style={{ width: '100%' }} />
+        <Form.Input field="name" label="新空间名称" maxLength={100} placeholder="可选，仅新建空间时使用" />
+      </EditFormModal>
     </div>
   );
 }

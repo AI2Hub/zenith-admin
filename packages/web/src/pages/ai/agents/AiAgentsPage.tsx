@@ -1,23 +1,6 @@
 import { useMemo } from 'react';
-import ModalFooter from '@/components/ModalFooter';
 import { useNavigate } from 'react-router-dom';
-import {
-  Button,
-  Card,
-  Col,
-  Empty,
-  Form,
-  Popconfirm,
-  Row,
-  SideSheet,
-  Space,
-  Spin,
-  TabPane,
-  Tabs,
-  Tag,
-  Toast,
-  Typography,
-} from '@douyinfe/semi-ui';
+import { Button, Card, Col, Empty, Form, Popconfirm, Row, Space, Spin, TabPane, Tabs, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import { Bot, Code2, MessageSquare } from 'lucide-react';
 import {
   useMyAiAgents,
@@ -33,6 +16,7 @@ import { CreateButton } from '@/components/toolbar-controls';
 import { useEditModal } from '@/hooks/useEditModal';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
+import { EditFormSheet } from '@/components/EditFormModal';
 const { Text, Paragraph } = Typography;
 
 const EMOJI_CHOICES = ['🤖', '🧠', '📚', '💼', '🩺', '⚖️', '💻', '✍️', '🌐', '📈', '🎨', '🧮'];
@@ -235,66 +219,53 @@ export default function AiAgentsPage() {
         </TabPane>
       </Tabs>
 
-      <SideSheet
-        title={modal.isEdit ? '编辑智能体' : '新建智能体'}
-        visible={modal.visible}
-        onCancel={modal.close}
-        closeOnEsc
-        width={640}
-        footer={<ModalFooter {...modal.footerProps} okText="保存" />}
-      >
-        <Spin spinning={modal.detailLoading}>
-          <Form
-            key={modal.formKey} {...modal.formProps}
-          >
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Input field="name" label="名称" rules={[{ required: true, message: '请输入名称' }]} maxLength={100} placeholder="如：合同审阅助手" />
-            </Col>
-            <Col span={12}>
-              <Form.Select field="avatar" label="头像" style={{ width: '100%' }}>
-                {EMOJI_CHOICES.map((e) => <Form.Select.Option key={e} value={e}>{e}</Form.Select.Option>)}
-              </Form.Select>
-            </Col>
-          </Row>
-          <Form.Input field="description" label="描述" maxLength={300} placeholder="一句话介绍" />
-          <Form.TextArea field="instructions" label="Agent 指令" rules={[{ required: true, message: '请输入指令' }]} maxCount={8192} rows={5} placeholder="定义智能体的角色、能力边界与回答风格（Mastra instructions）" />
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Select field="modelValue" label="模型" optionList={modelOptions} style={{ width: '100%' }} placeholder="跟随系统默认" />
-            </Col>
-            <Col span={12}>
-              <Form.Select
-                field="knowledgeBaseId"
-                label="知识库"
-                style={{ width: '100%' }}
-                placeholder="不绑定"
-                showClear
-                optionList={(kbQuery.data ?? []).map((kb) => ({ value: kb.id, label: `${kb.name}（${kb.documentCount} 文档）` }))}
-              />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.InputNumber field="temperature" label="温度" min={0} max={2} step={0.1} style={{ width: '100%' }} placeholder="跟随模型默认" extraText="采样温度 0-2，留空跟随默认" />
-            </Col>
-            <Col span={12}>
-              <Form.InputNumber field="maxSteps" label="最大步数" min={1} max={20} style={{ width: '100%' }} placeholder="系统默认" extraText="工具调用循环上限" />
-            </Col>
-          </Row>
-          <Form.Select
-            field="tools"
-            label="工具"
-            multiple
-            style={{ width: '100%' }}
-            placeholder="不启用工具"
-            optionList={(toolsQuery.data ?? []).map((t) => ({ value: t.name, label: `${t.name}（${t.source === 'builtin' ? '内置' : 'HTTP'}）` }))}
-          />
-          <Form.TextArea field="openingMessage" label="开场白" rows={2} maxCount={2000} placeholder="新对话开始时展示给用户的欢迎语" />
-          <Form.TagInput field="suggestedQuestions" label="建议问题" max={6} placeholder="输入后回车添加（最多 6 条）" style={{ width: '100%' }} />
-          </Form>
-        </Spin>
-      </SideSheet>
+      <EditFormSheet modal={modal} title={modal.isEdit ? '编辑智能体' : '新建智能体'} width={640}>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Input field="name" label="名称" rules={[{ required: true, message: '请输入名称' }]} maxLength={100} placeholder="如：合同审阅助手" />
+          </Col>
+          <Col span={12}>
+            <Form.Select field="avatar" label="头像" style={{ width: '100%' }}>
+              {EMOJI_CHOICES.map((e) => <Form.Select.Option key={e} value={e}>{e}</Form.Select.Option>)}
+            </Form.Select>
+          </Col>
+        </Row>
+        <Form.Input field="description" label="描述" maxLength={300} placeholder="一句话介绍" />
+        <Form.TextArea field="instructions" label="Agent 指令" rules={[{ required: true, message: '请输入指令' }]} maxCount={8192} rows={5} placeholder="定义智能体的角色、能力边界与回答风格（Mastra instructions）" />
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Select field="modelValue" label="模型" optionList={modelOptions} style={{ width: '100%' }} placeholder="跟随系统默认" />
+          </Col>
+          <Col span={12}>
+            <Form.Select
+              field="knowledgeBaseId"
+              label="知识库"
+              style={{ width: '100%' }}
+              placeholder="不绑定"
+              showClear
+              optionList={(kbQuery.data ?? []).map((kb) => ({ value: kb.id, label: `${kb.name}（${kb.documentCount} 文档）` }))}
+            />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.InputNumber field="temperature" label="温度" min={0} max={2} step={0.1} style={{ width: '100%' }} placeholder="跟随模型默认" extraText="采样温度 0-2，留空跟随默认" />
+          </Col>
+          <Col span={12}>
+            <Form.InputNumber field="maxSteps" label="最大步数" min={1} max={20} style={{ width: '100%' }} placeholder="系统默认" extraText="工具调用循环上限" />
+          </Col>
+        </Row>
+        <Form.Select
+          field="tools"
+          label="工具"
+          multiple
+          style={{ width: '100%' }}
+          placeholder="不启用工具"
+          optionList={(toolsQuery.data ?? []).map((t) => ({ value: t.name, label: `${t.name}（${t.source === 'builtin' ? '内置' : 'HTTP'}）` }))}
+        />
+        <Form.TextArea field="openingMessage" label="开场白" rows={2} maxCount={2000} placeholder="新对话开始时展示给用户的欢迎语" />
+        <Form.TagInput field="suggestedQuestions" label="建议问题" max={6} placeholder="输入后回车添加（最多 6 条）" style={{ width: '100%' }} />
+      </EditFormSheet>
     </div>
   );
 }

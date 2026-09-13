@@ -4,7 +4,6 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { ReportEnvironment, ReportEnvironmentPromotion, ReportPromotionStatus, ReportResourceType } from '@zenith/shared/report';
 import { REPORT_PROMOTION_STATUS_LABELS } from '@zenith/shared/report';
 import { Rocket } from 'lucide-react';
-import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { confirmAndDelete, listTableProps } from '@/components/list-page';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -26,6 +25,7 @@ import { REPORT_RESOURCE_TYPE_OPTIONS, reportResourceTypeLabel } from '../report
 import { CreateButton } from '@/components/toolbar-controls';
 import { confirmDanger } from '@/utils/confirm';
 import { dateTimeColumn, EMPTY_PLACEHOLDER, renderEllipsis, renderEnabledStatusTag } from '@/utils/table-columns';
+import { EditFormModal } from '@/components/EditFormModal';
 
 const environmentKindOptions = [
   { value: 'development', label: '开发' },
@@ -160,33 +160,29 @@ export default function GovernanceEnvironmentTab() {
       {promotionsQuery.isError && <Banner type="danger" description="环境发布历史加载失败" />}
       <ConfigurableTable columns={promotionColumns} {...listTableProps(promotionsQuery, { pagination: buildPagination, empty: <Empty title="暂无环境发布" /> })} />
 
-      <AppModal {...environmentModal.modalProps} width={650}>
-        <Form key={environmentModal.formKey} {...environmentModal.formProps}>
-          <Row gutter={16}>
-            <Col xs={24} md={12}><Form.Input field="name" label="环境名称" rules={[{ required: true }]} /></Col>
-            <Col xs={24} md={12}><Form.Input field="code" label="环境编码" disabled={environmentModal.isEdit} rules={[{ required: true }]} /></Col>
-            <Col xs={24} md={12}><Form.Select field="kind" label="环境类型" style={{ width: '100%' }} optionList={environmentKindOptions} rules={[{ required: true }]} /></Col>
-            <Col xs={24} md={12}><Form.Select field="status" label="状态" style={{ width: '100%' }} optionList={[{ value: 'enabled', label: '启用' }, { value: 'disabled', label: '停用' }]} /></Col>
-          </Row>
-          <Form.Input field="baseUrl" label="环境地址" />
-          <Form.TextArea field="description" label="说明" autosize rows={2} />
-          <Form.TextArea field="config" label="配置 JSON" autosize rows={5} />
-          <Form.Switch field="isDefault" label="默认环境" />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={environmentModal} width={650}>
+        <Row gutter={16}>
+          <Col xs={24} md={12}><Form.Input field="name" label="环境名称" rules={[{ required: true }]} /></Col>
+          <Col xs={24} md={12}><Form.Input field="code" label="环境编码" disabled={environmentModal.isEdit} rules={[{ required: true }]} /></Col>
+          <Col xs={24} md={12}><Form.Select field="kind" label="环境类型" style={{ width: '100%' }} optionList={environmentKindOptions} rules={[{ required: true }]} /></Col>
+          <Col xs={24} md={12}><Form.Select field="status" label="状态" style={{ width: '100%' }} optionList={[{ value: 'enabled', label: '启用' }, { value: 'disabled', label: '停用' }]} /></Col>
+        </Row>
+        <Form.Input field="baseUrl" label="环境地址" />
+        <Form.TextArea field="description" label="说明" autosize rows={2} />
+        <Form.TextArea field="config" label="配置 JSON" autosize rows={5} />
+        <Form.Switch field="isDefault" label="默认环境" />
+      </EditFormModal>
 
-      <AppModal {...promotionModal.modalProps} title="创建环境发布" width={680}>
-        <Form key={promotionModal.formKey} {...promotionModal.formProps}>
-          <Row gutter={16}>
-            <Col xs={24} md={12}><Form.Select field="resourceType" label="资源类型" style={{ width: '100%' }} optionList={REPORT_RESOURCE_TYPE_OPTIONS} rules={[{ required: true }]} onChange={(v) => setPromotionType(v as ReportResourceType)} /></Col>
-            <Col xs={24} md={12}><Form.Select field="resourceId" label="资源" filter style={{ width: '100%' }} optionList={(assetsQuery.data?.list ?? []).map((item) => ({ value: item.resourceId, label: item.name }))} rules={[{ required: true }]} /></Col>
-            <Col xs={24} md={12}><Form.Select field="sourceEnvironmentId" label="来源环境" style={{ width: '100%' }} optionList={(environmentsQuery.data ?? []).map((item) => ({ value: item.id, label: item.name }))} rules={[{ required: true }]} /></Col>
-            <Col xs={24} md={12}><Form.Select field="targetEnvironmentId" label="目标环境" style={{ width: '100%' }} optionList={(environmentsQuery.data ?? []).map((item) => ({ value: item.id, label: item.name }))} rules={[{ required: true }]} /></Col>
-            <Col xs={24} md={12}><Form.InputNumber field="sourceRevision" label="来源修订" min={1} style={{ width: '100%' }} rules={[{ required: true }]} /></Col>
-          </Row>
-          <Form.TextArea field="sourceSnapshot" label="来源快照" autosize rows={7} rules={[{ required: true }]} />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={promotionModal} title="创建环境发布" width={680}>
+        <Row gutter={16}>
+          <Col xs={24} md={12}><Form.Select field="resourceType" label="资源类型" style={{ width: '100%' }} optionList={REPORT_RESOURCE_TYPE_OPTIONS} rules={[{ required: true }]} onChange={(v) => setPromotionType(v as ReportResourceType)} /></Col>
+          <Col xs={24} md={12}><Form.Select field="resourceId" label="资源" filter style={{ width: '100%' }} optionList={(assetsQuery.data?.list ?? []).map((item) => ({ value: item.resourceId, label: item.name }))} rules={[{ required: true }]} /></Col>
+          <Col xs={24} md={12}><Form.Select field="sourceEnvironmentId" label="来源环境" style={{ width: '100%' }} optionList={(environmentsQuery.data ?? []).map((item) => ({ value: item.id, label: item.name }))} rules={[{ required: true }]} /></Col>
+          <Col xs={24} md={12}><Form.Select field="targetEnvironmentId" label="目标环境" style={{ width: '100%' }} optionList={(environmentsQuery.data ?? []).map((item) => ({ value: item.id, label: item.name }))} rules={[{ required: true }]} /></Col>
+          <Col xs={24} md={12}><Form.InputNumber field="sourceRevision" label="来源修订" min={1} style={{ width: '100%' }} rules={[{ required: true }]} /></Col>
+        </Row>
+        <Form.TextArea field="sourceSnapshot" label="来源快照" autosize rows={7} rules={[{ required: true }]} />
+      </EditFormModal>
     </>
   );
 }

@@ -24,6 +24,7 @@ import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { useAppPaymentMethodOptions, useEnabledPaymentAppLookup } from './payment-app-options';
 import { paymentMoneyColumn } from './payment-display';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormModal } from '@/components/EditFormModal';
 
 const yuan = (cents: number | null | undefined) => formatYuan(cents, '用户填写');
 const LINK_STATUS_COLOR = { active: 'green', disabled: 'grey', expired: 'red' } as const satisfies Record<PaymentLinkStatus, string>;
@@ -252,49 +253,47 @@ export default function PaymentLinksPage() {
         {...tableProps}
       />
 
-      <AppModal {...modal.modalProps} width={700}>
-        <Form key={modal.formKey} {...modal.formProps}>
-          <Form.Input field="subject" label="标题" placeholder="如：会员年费收款" rules={[{ required: true, message: '标题不能为空' }]} />
-          {modal.isEdit ? (
-            <Form.Slot label="支付应用">{modal.editing ? (appNameById.get(modal.editing.appId) ?? `应用 #${modal.editing.appId}`) : EMPTY_PLACEHOLDER}</Form.Slot>
-          ) : (
-            <Form.Select
-              field="applicationId"
-              label="支付应用"
-              style={{ width: '100%' }}
-              optionList={appOptions}
-              filter
-              loading={appsFetching}
-              onChange={(value) => {
-                setSelectedApplicationId(value as number | undefined);
-                modal.formApi.current?.setValue('payMethod', undefined);
-              }}
-              rules={[{ required: true, message: '请选择支付应用' }]}
-            />
-          )}
-          <div className="auto-grid" style={{ ['--auto-grid-min']: '220px', ['--auto-grid-cols']: 2 } as CSSProperties}>
-            <Form.InputNumber field="amountYuan" label="金额(元)" min={0.01} step={0.01} precision={2} style={{ width: '100%' }} placeholder="留空=由用户填写" />
-            <Form.Select
-              field="payMethod"
-              label="支付方式"
-              style={{ width: '100%' }}
-              optionList={methodOptions}
-              showClear
-              disabled={!selectedPaymentApp || methodOptions.length === 0}
-              placeholder={selectedPaymentApp ? (methodOptions.length > 0 ? '留空=用户选择' : '该应用暂无可用收银台方式') : '请先选择支付应用'}
-            />
-          </div>
-          <div className="auto-grid" style={{ ['--auto-grid-min']: '220px', ['--auto-grid-cols']: 2 } as CSSProperties}>
-            <Form.Input field="bizType" label="业务类型" placeholder="如：general" rules={[{ required: true, message: '业务类型不能为空' }]} />
-            <Form.InputNumber field="maxUses" label="使用次数上限" min={1} step={1} precision={0} style={{ width: '100%' }} placeholder="留空=不限次" />
-          </div>
-          <div className="auto-grid" style={{ ['--auto-grid-min']: '220px', ['--auto-grid-cols']: 2 } as CSSProperties}>
-            <Form.DatePicker field="expiredAt" label="失效时间" type="dateTime" style={{ width: '100%' }} placeholder="留空=永久有效" />
-            <Form.Select field="status" label="状态" style={{ width: '100%' }} optionList={[{ value: 'active', label: '生效中' }, { value: 'disabled', label: '已停用' }]} />
-          </div>
-          <Form.TextArea field="remark" label="备注" autosize rows={1} placeholder="可选" />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={modal} width={700}>
+        <Form.Input field="subject" label="标题" placeholder="如：会员年费收款" rules={[{ required: true, message: '标题不能为空' }]} />
+        {modal.isEdit ? (
+          <Form.Slot label="支付应用">{modal.editing ? (appNameById.get(modal.editing.appId) ?? `应用 #${modal.editing.appId}`) : EMPTY_PLACEHOLDER}</Form.Slot>
+        ) : (
+          <Form.Select
+            field="applicationId"
+            label="支付应用"
+            style={{ width: '100%' }}
+            optionList={appOptions}
+            filter
+            loading={appsFetching}
+            onChange={(value) => {
+              setSelectedApplicationId(value as number | undefined);
+              modal.formApi.current?.setValue('payMethod', undefined);
+            }}
+            rules={[{ required: true, message: '请选择支付应用' }]}
+          />
+        )}
+        <div className="auto-grid" style={{ ['--auto-grid-min']: '220px', ['--auto-grid-cols']: 2 } as CSSProperties}>
+          <Form.InputNumber field="amountYuan" label="金额(元)" min={0.01} step={0.01} precision={2} style={{ width: '100%' }} placeholder="留空=由用户填写" />
+          <Form.Select
+            field="payMethod"
+            label="支付方式"
+            style={{ width: '100%' }}
+            optionList={methodOptions}
+            showClear
+            disabled={!selectedPaymentApp || methodOptions.length === 0}
+            placeholder={selectedPaymentApp ? (methodOptions.length > 0 ? '留空=用户选择' : '该应用暂无可用收银台方式') : '请先选择支付应用'}
+          />
+        </div>
+        <div className="auto-grid" style={{ ['--auto-grid-min']: '220px', ['--auto-grid-cols']: 2 } as CSSProperties}>
+          <Form.Input field="bizType" label="业务类型" placeholder="如：general" rules={[{ required: true, message: '业务类型不能为空' }]} />
+          <Form.InputNumber field="maxUses" label="使用次数上限" min={1} step={1} precision={0} style={{ width: '100%' }} placeholder="留空=不限次" />
+        </div>
+        <div className="auto-grid" style={{ ['--auto-grid-min']: '220px', ['--auto-grid-cols']: 2 } as CSSProperties}>
+          <Form.DatePicker field="expiredAt" label="失效时间" type="dateTime" style={{ width: '100%' }} placeholder="留空=永久有效" />
+          <Form.Select field="status" label="状态" style={{ width: '100%' }} optionList={[{ value: 'active', label: '生效中' }, { value: 'disabled', label: '已停用' }]} />
+        </div>
+        <Form.TextArea field="remark" label="备注" autosize rows={1} placeholder="可选" />
+      </EditFormModal>
 
       <AppModal title="收款码" visible={!!qrLink} onCancel={() => setQrLink(null)} footer={null} width={420} closeOnEsc>
         {qrLink && (

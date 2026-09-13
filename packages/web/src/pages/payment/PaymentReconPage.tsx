@@ -5,7 +5,6 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { CloudDownload } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { AppModal } from '@/components/AppModal';
 import { formatDateForApi } from '@/utils/date';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
@@ -32,6 +31,7 @@ import { deleteAction, listTableProps, ListSearchToolbar } from '@/components/li
 import { PaymentChannelTag, paymentMoneyColumn } from './payment-display';
 import { resolveAppConfigBinding, useAppMerchantConfigLookup } from './payment-app-options';
 import { PaymentAppField, PaymentCurrencyField, PaymentMerchantConfigField } from './payment-form-fields';
+import { EditFormModal } from '@/components/EditFormModal';
 
 const STATUS_COLOR = { pending: 'grey', comparing: 'blue', done: 'green', failed: 'red' } as const satisfies Record<PaymentReconStatus, string>;
 const RESULT_COLOR = { matched: 'green', local_only: 'amber', channel_only: 'orange', amount_diff: 'red', status_diff: 'red' } as const satisfies Record<PaymentReconResult, string>;
@@ -308,25 +308,23 @@ export default function PaymentReconPage() {
         {...listTableProps(listQuery, { pagination: buildPagination })}
       />
 
-      <AppModal {...createModal.modalProps} title="新建对账" width={720}>
-        <Form key={createModal.formKey} {...createModal.formProps}>
-          <PaymentAppField
-            optionList={appOptions}
-            loading={appsFetching}
-            requiredMessage="请选择启用的支付应用"
-            onChange={(appId) => {
-              setSelectedAppId(appId);
-              createModal.formApi.current?.setValue('channelConfigId', undefined);
-            }}
-          />
-          <PaymentMerchantConfigField optionList={merchantConfigOptions} loading={channelConfigsQuery.isFetching} />
-          <PaymentCurrencyField disabled />
-          <Form.DatePicker field="billDate" label="账单日期" type="date" style={{ width: '100%' }} rules={[{ required: true, message: '请选择账单日期' }]} />
-          <Button type="tertiary" loading={sampleBillMutation.isPending} onClick={handleSampleBill} style={{ marginLeft: 100, marginBottom: 12 }}>生成模拟账单</Button>
-          <Form.TextArea field="billText" label="账单内容" rows={8} placeholder="订单号,渠道交易号,金额(分),状态" rules={[{ required: true, message: '请输入账单内容' }]} />
-          <Form.TextArea field="remark" label="备注" autosize rows={1} placeholder="可选" />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={createModal} title="新建对账" width={720}>
+        <PaymentAppField
+          optionList={appOptions}
+          loading={appsFetching}
+          requiredMessage="请选择启用的支付应用"
+          onChange={(appId) => {
+            setSelectedAppId(appId);
+            createModal.formApi.current?.setValue('channelConfigId', undefined);
+          }}
+        />
+        <PaymentMerchantConfigField optionList={merchantConfigOptions} loading={channelConfigsQuery.isFetching} />
+        <PaymentCurrencyField disabled />
+        <Form.DatePicker field="billDate" label="账单日期" type="date" style={{ width: '100%' }} rules={[{ required: true, message: '请选择账单日期' }]} />
+        <Button type="tertiary" loading={sampleBillMutation.isPending} onClick={handleSampleBill} style={{ marginLeft: 100, marginBottom: 12 }}>生成模拟账单</Button>
+        <Form.TextArea field="billText" label="账单内容" rows={8} placeholder="订单号,渠道交易号,金额(分),状态" rules={[{ required: true, message: '请输入账单内容' }]} />
+        <Form.TextArea field="remark" label="备注" autosize rows={1} placeholder="可选" />
+      </EditFormModal>
 
       {/* 明细用抽屉而非全宽 Modal：保留批次列表上下文，与订单/投诉详情形态统一 */}
       <SideSheet title={`对账明细${detailBatch ? `（${detailBatch.batchNo}）` : ''}`} visible={!!detailBatch} onCancel={() => setDetailBatch(null)} width={760} closeOnEsc>
@@ -354,38 +352,34 @@ export default function PaymentReconPage() {
         </Spin>
       </SideSheet>
 
-      <AppModal {...autoModal.modalProps} title="自动拉取渠道账单对账" width={480}>
-        <Form key={autoModal.formKey} {...autoModal.formProps}>
-            <Form.Select field="channel" label="应用与商户配置" style={{ width: '100%' }} optionList={autoOptions} loading={channelConfigsQuery.isFetching || appsFetching} rules={[{ required: true, message: '请选择应用与商户配置' }]} />
-          <Form.DatePicker field="billDate" label="账单日期" type="date" style={{ width: '100%' }} rules={[{ required: true, message: '请选择账单日期' }]} />
-          <Typography.Text type="tertiary" size="small">沙箱渠道生成模拟账单演示闭环；生产微信渠道自动下载交易账单，支付宝暂需手动上传。</Typography.Text>
-        </Form>
-      </AppModal>
+      <EditFormModal modal={autoModal} title="自动拉取渠道账单对账" width={480}>
+        <Form.Select field="channel" label="应用与商户配置" style={{ width: '100%' }} optionList={autoOptions} loading={channelConfigsQuery.isFetching || appsFetching} rules={[{ required: true, message: '请选择应用与商户配置' }]} />
+      <Form.DatePicker field="billDate" label="账单日期" type="date" style={{ width: '100%' }} rules={[{ required: true, message: '请选择账单日期' }]} />
+      <Typography.Text type="tertiary" size="small">沙箱渠道生成模拟账单演示闭环；生产微信渠道自动下载交易账单，支付宝暂需手动上传。</Typography.Text>
+      </EditFormModal>
 
-      <AppModal {...handleModal.modalProps} title={`处理差异${handleModal.editing?.orderNo ? `（${handleModal.editing.orderNo}）` : ''}`} width={520}>
-        <Form key={handleModal.formKey} {...handleModal.formProps}>
-          <Typography.Paragraph type="tertiary" size="small" style={{ marginBottom: 12 }}>
-            {canAdjustSelectedItem
-              ? '渠道下载账单可在人工核验后直接调账；该操作会立即生成资金凭证。'
-              : canAdjustDetailBatch
-                ? '该差异没有可自动计算的调账金额，只能挂账归档或忽略。'
-                : '人工上传或沙箱模拟账单仅用于差异核验，不允许自动入账；挂账为终态，请在备注中记录人工核验依据。'}
-          </Typography.Paragraph>
-          <Form.Select field="action" label="处理方式" style={{ width: '100%' }} optionList={handleActionOptions} rules={[{ required: true, message: '请选择处理方式' }]} />
-          <Form.TextArea
-            field="remark"
-            label="处理备注"
-            autosize
-            rows={2}
-            maxCount={256}
-            placeholder="请填写核实过程和处理依据"
-            rules={[
-              { required: true, message: '请填写处理备注' },
-              { validator: (_rule: unknown, value: unknown) => Boolean(String(value ?? '').trim()), message: '处理备注不能只包含空格' },
-            ]}
-          />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={handleModal} title={`处理差异${handleModal.editing?.orderNo ? `（${handleModal.editing.orderNo}）` : ''}`} width={520}>
+        <Typography.Paragraph type="tertiary" size="small" style={{ marginBottom: 12 }}>
+          {canAdjustSelectedItem
+            ? '渠道下载账单可在人工核验后直接调账；该操作会立即生成资金凭证。'
+            : canAdjustDetailBatch
+              ? '该差异没有可自动计算的调账金额，只能挂账归档或忽略。'
+              : '人工上传或沙箱模拟账单仅用于差异核验，不允许自动入账；挂账为终态，请在备注中记录人工核验依据。'}
+        </Typography.Paragraph>
+        <Form.Select field="action" label="处理方式" style={{ width: '100%' }} optionList={handleActionOptions} rules={[{ required: true, message: '请选择处理方式' }]} />
+        <Form.TextArea
+          field="remark"
+          label="处理备注"
+          autosize
+          rows={2}
+          maxCount={256}
+          placeholder="请填写核实过程和处理依据"
+          rules={[
+            { required: true, message: '请填写处理备注' },
+            { validator: (_rule: unknown, value: unknown) => Boolean(String(value ?? '').trim()), message: '处理备注不能只包含空格' },
+          ]}
+        />
+      </EditFormModal>
     </div>
   );
 }

@@ -25,6 +25,7 @@ import { CreateButton, ResetButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { useEditModal } from '@/hooks/useEditModal';
 import { abortSubmit } from '@/lib/abort-submit';
+import { EditFormModal } from '@/components/EditFormModal';
 
 const { Text } = Typography;
 
@@ -208,18 +209,10 @@ export default function AiKnowledgePage() {
         pagination={false}
       />
 
-      <AppModal
-        {...kbModal.modalProps}
-        width={480}
-        closeOnEsc
-      >
-        <Form
-          key={kbModal.formKey} {...kbModal.formProps}
-        >
-          <Form.Input field="name" label="名称" placeholder="请输入名称" rules={[{ required: true, message: '请输入名称' }]} />
-          <Form.Input field="description" label="描述" placeholder="可选" maxLength={300} />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={kbModal} width={480}>
+        <Form.Input field="name" label="名称" placeholder="请输入名称" rules={[{ required: true, message: '请输入名称' }]} />
+        <Form.Input field="description" label="描述" placeholder="可选" maxLength={300} />
+      </EditFormModal>
 
         <SideSheet
         title={
@@ -296,32 +289,30 @@ export default function AiKnowledgePage() {
         )}
       </AppModal>
 
-      <AppModal {...docModal.modalProps} title="添加文档" width={640}>
-        <Form key={docModal.formKey} {...docModal.formProps}>
-          <div style={{ marginBottom: 8 }}>
-            <Upload
-              action=""
-              accept=".txt,.md,.markdown,text/plain,text/markdown"
-              showUploadList={false}
-              beforeUpload={({ file }) => {
-                const fi = (file as { fileInstance?: File }).fileInstance;
-                if (fi) handleFileRead(fi);
-                return false;
-              }}
-            >
-              <Button icon={<FileUp size={14} />}>读取 txt / md 文件</Button>
-            </Upload>
-          </div>
-          <Form.Input field="name" label="文档名称" placeholder="请输入名称" rules={[{ required: true, message: '请输入名称' }]} />
-          <Form.TextArea
-            field="content"
-            label="文档内容"
-            rows={10}
-            placeholder="粘贴文档纯文本内容（最长 50 万字符），入库时自动按段落分块"
-            rules={[{ required: true, message: '请输入内容' }]}
-          />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={docModal} title="添加文档" width={640}>
+        <div style={{ marginBottom: 8 }}>
+          <Upload
+            action=""
+            accept=".txt,.md,.markdown,text/plain,text/markdown"
+            showUploadList={false}
+            beforeUpload={({ file }) => {
+              const fi = (file as { fileInstance?: File }).fileInstance;
+              if (fi) handleFileRead(fi);
+              return false;
+            }}
+          >
+            <Button icon={<FileUp size={14} />}>读取 txt / md 文件</Button>
+          </Upload>
+        </div>
+        <Form.Input field="name" label="文档名称" placeholder="请输入名称" rules={[{ required: true, message: '请输入名称' }]} />
+        <Form.TextArea
+          field="content"
+          label="文档内容"
+          rows={10}
+          placeholder="粘贴文档纯文本内容（最长 50 万字符），入库时自动按段落分块"
+          rules={[{ required: true, message: '请输入内容' }]}
+        />
+      </EditFormModal>
 
       <AppModal
         title="从 URL 导入网页"

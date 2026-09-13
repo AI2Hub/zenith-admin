@@ -1,12 +1,11 @@
 import { useState } from 'react';
-import { Col, Form, Modal, Row, Spin, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Col, Form, Modal, Row, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { DateRangeFilter, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { CreateButton } from '@/components/toolbar-controls';
-import AppModal from '@/components/AppModal';
 import { createdAtColumn, EMPTY_PLACEHOLDER } from '@/utils/table-columns';
 import { useEditModal } from '@/hooks/useEditModal';
 import { usePermission } from '@/hooks/usePermission';
@@ -23,6 +22,7 @@ import type { CreateMarketingCampaignInput, MarketingCampaign } from '@zenith/sh
 import MarketingPrizesDrawer from './MarketingPrizesDrawer';
 import MarketingRecordsDrawer from './MarketingRecordsDrawer';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormModal } from '@/components/EditFormModal';
 
 const { Text } = Typography;
 
@@ -213,40 +213,36 @@ export default function MarketingCampaignsPage() {
       />
 
       {/* 新增 / 编辑 */}
-      <AppModal {...modal.modalProps} width={660}>
-        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
-          <Form key={modal.formKey} {...modal.formProps}>
-            <Form.Input field="name" label="活动名称" placeholder="如：新春抽奖 · 天天有礼"
-              rules={[{ required: true, message: '活动名称不能为空' }]} />
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.DatePicker field="startAt" label="开始时间" type="dateTime" style={{ width: '100%' }}
-                  rules={[{ required: true, message: '请选择开始时间' }]} />
-              </Col>
-              <Col span={12}>
-                <Form.DatePicker field="endAt" label="结束时间" type="dateTime" style={{ width: '100%' }}
-                  rules={[{ required: true, message: '请选择结束时间' }]} />
-              </Col>
-            </Row>
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.InputNumber field="perMemberLimit" label="每人总次数" style={{ width: '100%' }} min={1}
-                  rules={[{ required: true, message: '请填写每人参与次数上限' }]} />
-              </Col>
-              <Col span={12}>
-                <Form.InputNumber field="dailyPerMemberLimit" label="每人每日次数" style={{ width: '100%' }}
-                  min={1} placeholder="留空不限" showClear />
-              </Col>
-            </Row>
-            <Form.Input
-              field="landingUrl" label="活动落地页" placeholder="https://example.com/activity（选填）"
-              extraText="发布时自动生成分享短链，便于短信/海报分发与点击统计"
-              rules={[{ validator: (_r, v: string) => !v || /^https?:\/\//.test(v), message: '仅支持 http/https 地址' }]}
-            />
-            <Form.TextArea field="description" label="活动说明" rows={3} placeholder="活动规则说明（选填）" maxCount={2000} />
-          </Form>
-        </Spin>
-      </AppModal>
+      <EditFormModal modal={modal} width={660}>
+        <Form.Input field="name" label="活动名称" placeholder="如：新春抽奖 · 天天有礼"
+          rules={[{ required: true, message: '活动名称不能为空' }]} />
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.DatePicker field="startAt" label="开始时间" type="dateTime" style={{ width: '100%' }}
+              rules={[{ required: true, message: '请选择开始时间' }]} />
+          </Col>
+          <Col span={12}>
+            <Form.DatePicker field="endAt" label="结束时间" type="dateTime" style={{ width: '100%' }}
+              rules={[{ required: true, message: '请选择结束时间' }]} />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.InputNumber field="perMemberLimit" label="每人总次数" style={{ width: '100%' }} min={1}
+              rules={[{ required: true, message: '请填写每人参与次数上限' }]} />
+          </Col>
+          <Col span={12}>
+            <Form.InputNumber field="dailyPerMemberLimit" label="每人每日次数" style={{ width: '100%' }}
+              min={1} placeholder="留空不限" showClear />
+          </Col>
+        </Row>
+        <Form.Input
+          field="landingUrl" label="活动落地页" placeholder="https://example.com/activity（选填）"
+          extraText="发布时自动生成分享短链，便于短信/海报分发与点击统计"
+          rules={[{ validator: (_r, v: string) => !v || /^https?:\/\//.test(v), message: '仅支持 http/https 地址' }]}
+        />
+        <Form.TextArea field="description" label="活动说明" rows={3} placeholder="活动规则说明（选填）" maxCount={2000} />
+      </EditFormModal>
 
       <MarketingPrizesDrawer campaign={prizesCampaign} onClose={() => setPrizesCampaign(null)} />
       <MarketingRecordsDrawer campaign={recordsCampaign} onClose={() => setRecordsCampaign(null)} />

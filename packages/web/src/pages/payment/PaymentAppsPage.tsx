@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react';
 import { Banner, Form, Tag } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { AppModal } from '@/components/AppModal';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -17,6 +16,7 @@ import { CreateButton } from '@/components/toolbar-controls';
 import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormModal } from '@/components/EditFormModal';
 
 interface SearchParams { keyword: string; status?: string; }
 const defaultSearch: SearchParams = { keyword: '', status: undefined };
@@ -160,37 +160,35 @@ export default function PaymentAppsPage() {
         {...tableProps}
       />
 
-      <AppModal {...modal.modalProps} width={620}>
-        <Form key={modal.formKey} {...modal.formProps}>
-          <Form.Input field="name" label="应用名称" placeholder="如：官网商城" rules={[{ required: true, message: '应用名称不能为空' }]} />
-          {modal.isEdit ? (
-            <Form.Slot label="开放客户端">
-              {modal.editing ? `${modal.editing.openClientName} · ${modal.editing.openClientKey}` : EMPTY_PLACEHOLDER}
-            </Form.Slot>
-          ) : (
-            <Form.Select
-              field="openClientId"
-              label="开放客户端"
-              style={{ width: '100%' }}
-              optionList={openClientOptions}
-              filter
-              loading={openClientQuery.isFetching}
-              onChange={(value) => {
-                setEnvironmentWatch(openClientById.get(value as number)?.environment ?? null);
-                modal.formApi.current?.setValue('wechatConfigId', null);
-                modal.formApi.current?.setValue('alipayConfigId', null);
-                modal.formApi.current?.setValue('unionpayConfigId', null);
-              }}
-              rules={[{ required: true, message: '请选择已审核的开放客户端' }]}
-            />
-          )}
-          <Form.Select field="wechatConfigId" label="微信配置" style={{ width: '100%' }} optionList={channelSelectOptions.wechat} showClear placeholder="可选" />
-          <Form.Select field="alipayConfigId" label="支付宝配置" style={{ width: '100%' }} optionList={channelSelectOptions.alipay} showClear placeholder="可选" />
-          <Form.Select field="unionpayConfigId" label="云闪付配置" style={{ width: '100%' }} optionList={channelSelectOptions.unionpay} showClear placeholder="可选" />
-          <Form.Select field="status" label="状态" style={{ width: '100%' }} optionList={statusOptions} rules={[{ required: true, message: '请选择状态' }]} />
-          <Form.TextArea field="remark" label="备注" autosize rows={1} placeholder="可选" />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={modal} width={620}>
+        <Form.Input field="name" label="应用名称" placeholder="如：官网商城" rules={[{ required: true, message: '应用名称不能为空' }]} />
+        {modal.isEdit ? (
+          <Form.Slot label="开放客户端">
+            {modal.editing ? `${modal.editing.openClientName} · ${modal.editing.openClientKey}` : EMPTY_PLACEHOLDER}
+          </Form.Slot>
+        ) : (
+          <Form.Select
+            field="openClientId"
+            label="开放客户端"
+            style={{ width: '100%' }}
+            optionList={openClientOptions}
+            filter
+            loading={openClientQuery.isFetching}
+            onChange={(value) => {
+              setEnvironmentWatch(openClientById.get(value as number)?.environment ?? null);
+              modal.formApi.current?.setValue('wechatConfigId', null);
+              modal.formApi.current?.setValue('alipayConfigId', null);
+              modal.formApi.current?.setValue('unionpayConfigId', null);
+            }}
+            rules={[{ required: true, message: '请选择已审核的开放客户端' }]}
+          />
+        )}
+        <Form.Select field="wechatConfigId" label="微信配置" style={{ width: '100%' }} optionList={channelSelectOptions.wechat} showClear placeholder="可选" />
+        <Form.Select field="alipayConfigId" label="支付宝配置" style={{ width: '100%' }} optionList={channelSelectOptions.alipay} showClear placeholder="可选" />
+        <Form.Select field="unionpayConfigId" label="云闪付配置" style={{ width: '100%' }} optionList={channelSelectOptions.unionpay} showClear placeholder="可选" />
+        <Form.Select field="status" label="状态" style={{ width: '100%' }} optionList={statusOptions} rules={[{ required: true, message: '请选择状态' }]} />
+        <Form.TextArea field="remark" label="备注" autosize rows={1} placeholder="可选" />
+      </EditFormModal>
     </div>
   );
 }

@@ -34,6 +34,7 @@ import { deleteAction, useStatusToggle, ListSearchToolbar } from '@/components/l
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormModal } from '@/components/EditFormModal';
 const yuan = formatYuan;
 const receiverTypeOptions = PAYMENT_SHARING_RECEIVER_TYPE_OPTIONS;
 const ORDER_STATUS_COLOR = { pending: 'grey', processing: 'blue', success: 'green', failed: 'red', reversed: 'orange' } as const satisfies Record<PaymentSharingOrderStatus, string>;
@@ -323,27 +324,23 @@ export default function PaymentSharingPage() {
         </TabPane>
       </Tabs>
 
-      <AppModal {...receiverModal.modalProps} width={520}>
-        <Form key={receiverModal.formKey} {...receiverModal.formProps}>
-          <Form.Input field="name" label="名称" placeholder="如：合作商户 A" rules={[{ required: true, message: '名称不能为空' }]} />
-          <Form.Select field="receiverType" label="类型" style={{ width: '100%' }} optionList={receiverTypeOptions} rules={[{ required: true, message: '请选择类型' }]} />
-          <Form.Input field="account" label="账号" placeholder="商户号 / 个人 openid" rules={[{ required: true, message: '账号不能为空' }]} />
-          <Form.InputNumber field="ratioPercent" label="默认比例(%)" min={0} max={100} step={0.01} precision={2} style={{ width: '100%' }} placeholder="可选，发起分账时可覆盖" />
-          <Form.Switch field="autoShare" label="自动分账" extraText="开启后支付成功将按默认比例自动向该接收方发起分账" />
-          <Form.Select field="status" label="状态" style={{ width: '100%' }} optionList={statusOptions} />
-          <Form.TextArea field="remark" label="备注" autosize rows={1} placeholder="可选" />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={receiverModal} width={520}>
+        <Form.Input field="name" label="名称" placeholder="如：合作商户 A" rules={[{ required: true, message: '名称不能为空' }]} />
+        <Form.Select field="receiverType" label="类型" style={{ width: '100%' }} optionList={receiverTypeOptions} rules={[{ required: true, message: '请选择类型' }]} />
+        <Form.Input field="account" label="账号" placeholder="商户号 / 个人 openid" rules={[{ required: true, message: '账号不能为空' }]} />
+        <Form.InputNumber field="ratioPercent" label="默认比例(%)" min={0} max={100} step={0.01} precision={2} style={{ width: '100%' }} placeholder="可选，发起分账时可覆盖" />
+        <Form.Switch field="autoShare" label="自动分账" extraText="开启后支付成功将按默认比例自动向该接收方发起分账" />
+        <Form.Select field="status" label="状态" style={{ width: '100%' }} optionList={statusOptions} />
+        <Form.TextArea field="remark" label="备注" autosize rows={1} placeholder="可选" />
+      </EditFormModal>
 
-      <AppModal {...dispatchModal.modalProps} title="发起分账" width={520}>
-        <Form key={dispatchModal.formKey} {...dispatchModal.formProps}>
-          <Form.Input field="orderNo" label="订单号" placeholder="已支付成功的支付订单号" rules={[{ required: true, message: '订单号不能为空' }]} />
-          <Form.Select field="receiverId" label="接收方" style={{ width: '100%' }} rules={[{ required: true, message: '请选择接收方' }]}
-            optionList={dispatchReceivers.map((r) => ({ value: r.id, label: `${r.name}（${PAYMENT_SHARING_RECEIVER_TYPE_LABELS[r.receiverType]}）` }))} />
-          <Form.InputNumber field="amountYuan" label="分账金额(元)" min={0.01} step={0.01} precision={2} style={{ width: '100%' }} placeholder="留空=按接收方默认比例计算" />
-          <Form.TextArea field="remark" label="备注" autosize rows={1} placeholder="可选" />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={dispatchModal} title="发起分账" width={520}>
+        <Form.Input field="orderNo" label="订单号" placeholder="已支付成功的支付订单号" rules={[{ required: true, message: '订单号不能为空' }]} />
+        <Form.Select field="receiverId" label="接收方" style={{ width: '100%' }} rules={[{ required: true, message: '请选择接收方' }]}
+          optionList={dispatchReceivers.map((r) => ({ value: r.id, label: `${r.name}（${PAYMENT_SHARING_RECEIVER_TYPE_LABELS[r.receiverType]}）` }))} />
+        <Form.InputNumber field="amountYuan" label="分账金额(元)" min={0.01} step={0.01} precision={2} style={{ width: '100%' }} placeholder="留空=按接收方默认比例计算" />
+        <Form.TextArea field="remark" label="备注" autosize rows={1} placeholder="可选" />
+      </EditFormModal>
 
       <AppModal
         title="发起分账冲正"

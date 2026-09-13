@@ -1,11 +1,10 @@
 import { useMemo, useState } from 'react';
-import { Col, Form, Modal, Row, Space, Spin, Tag, TagGroup, Toast, Typography } from '@douyinfe/semi-ui';
+import { Col, Form, Modal, Row, Space, Tag, TagGroup, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Info } from 'lucide-react';
 import { MASK_TYPES, MASK_TYPE_LABELS, MASK_TYPE_OPTIONS, enumValueOf, previewMask, type CustomMaskRule, type MaskType } from '@zenith/shared/core';
 import type { Menu } from '@zenith/shared/identity';
 import { DATA_MASK_BYPASS_PERMISSION, type DataMaskField, type SaveDataMaskPolicyInput } from '@zenith/shared/platform';
-import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { ListSearchToolbar, listTableProps, useStatusToggle } from '@/components/list-page';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -18,6 +17,7 @@ import { useListSearch } from '@/hooks/useListSearch';
 import { usePermission } from '@/hooks/usePermission';
 import { EMPTY_PLACEHOLDER, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { useFilterQuery } from '@/hooks/useFilterQuery';
+import { EditFormModal } from '@/components/EditFormModal';
 
 const { Text } = Typography;
 
@@ -256,63 +256,55 @@ export default function DataMaskPage() {
         {...listTableProps({ ...listQuery, data: rows }, { rowKey: 'key' })}
       />
 
-      <AppModal {...modal.modalProps} title="编辑脱敏策略" okText="保存" width={640}>
-        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
-          <Form
-            key={modal.formKey}
-            {...modal.formProps}
-            onValueChange={(vals: Record<string, unknown>) => {
+      <EditFormModal modal={modal} title="编辑脱敏策略" okText="保存" width={640} formProps={{ onValueChange: (vals: Record<string, unknown>) => {
               const v = vals as Partial<FormValues>;
               const maskType = (v.maskType ?? preview.maskType) as MaskType;
               setPreview({ maskType, rule: customRuleOf({ maskType, prefixKeep: v.prefixKeep, suffixKeep: v.suffixKeep, maskChar: v.maskChar }) });
-            }}
-          >
-            <Form.Slot label="字段">
-              <Space spacing={6}>
-                <Text code>{modal.editing?.key}</Text>
-                <Text type="tertiary">{modal.editing?.label}</Text>
-                <Text type="quaternary" size="small">契约默认：{modal.editing ? MASK_TYPE_LABELS[modal.editing.kind] : ''}</Text>
-              </Space>
+            } }}>
+        <Form.Slot label="字段">
+          <Space spacing={6}>
+            <Text code>{modal.editing?.key}</Text>
+            <Text type="tertiary">{modal.editing?.label}</Text>
+            <Text type="quaternary" size="small">契约默认：{modal.editing ? MASK_TYPE_LABELS[modal.editing.kind] : ''}</Text>
+          </Space>
+        </Form.Slot>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Select field="maskType" label="脱敏类型" style={{ width: '100%' }} rules={[{ required: true }]} optionList={MASK_TYPE_OPTIONS} />
+          </Col>
+          <Col span={12}>
+            <Form.Slot label="效果预览">
+              <Tag color="orange" size="large" style={{ fontFamily: 'monospace' }}>{previewMask(preview.maskType, preview.rule)}</Tag>
             </Form.Slot>
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Select field="maskType" label="脱敏类型" style={{ width: '100%' }} rules={[{ required: true }]} optionList={MASK_TYPE_OPTIONS} />
-              </Col>
-              <Col span={12}>
-                <Form.Slot label="效果预览">
-                  <Tag color="orange" size="large" style={{ fontFamily: 'monospace' }}>{previewMask(preview.maskType, preview.rule)}</Tag>
-                </Form.Slot>
-              </Col>
-            </Row>
-            {preview.maskType === 'custom' && (
-              <Row gutter={16}>
-                <Col span={8}>
-                  <Form.InputNumber field="prefixKeep" label="保留前 N 位" min={0} max={20} style={{ width: '100%' }} rules={[{ required: true, message: '请填写保留位数' }]} />
-                </Col>
-                <Col span={8}>
-                  <Form.InputNumber field="suffixKeep" label="保留后 N 位" min={0} max={20} style={{ width: '100%' }} rules={[{ required: true, message: '请填写保留位数' }]} />
-                </Col>
-                <Col span={8}>
-                  <Form.Input field="maskChar" label="掩码字符" maxLength={1} placeholder="默认 *" />
-                </Col>
-              </Row>
-            )}
-            <Form.Select
-              field="exemptPermissions"
-              label="豁免权限"
-              multiple
-              filter
-              allowCreate
-              style={{ width: '100%' }}
-              optionList={permissionOptions}
-              placeholder={`拥有任一权限即看到明文；平台超管无需配置。推荐 ${DATA_MASK_BYPASS_PERMISSION}`}
-              extraText="按钮权限码来自菜单管理；也可输入自定义权限码"
-            />
-            <Form.Switch field="enabled" label="启用脱敏" />
-            <Form.TextArea field="remark" label="备注" maxCount={256} rows={2} />
-          </Form>
-        </Spin>
-      </AppModal>
+          </Col>
+        </Row>
+        {preview.maskType === 'custom' && (
+          <Row gutter={16}>
+            <Col span={8}>
+              <Form.InputNumber field="prefixKeep" label="保留前 N 位" min={0} max={20} style={{ width: '100%' }} rules={[{ required: true, message: '请填写保留位数' }]} />
+            </Col>
+            <Col span={8}>
+              <Form.InputNumber field="suffixKeep" label="保留后 N 位" min={0} max={20} style={{ width: '100%' }} rules={[{ required: true, message: '请填写保留位数' }]} />
+            </Col>
+            <Col span={8}>
+              <Form.Input field="maskChar" label="掩码字符" maxLength={1} placeholder="默认 *" />
+            </Col>
+          </Row>
+        )}
+        <Form.Select
+          field="exemptPermissions"
+          label="豁免权限"
+          multiple
+          filter
+          allowCreate
+          style={{ width: '100%' }}
+          optionList={permissionOptions}
+          placeholder={`拥有任一权限即看到明文；平台超管无需配置。推荐 ${DATA_MASK_BYPASS_PERMISSION}`}
+          extraText="按钮权限码来自菜单管理；也可输入自定义权限码"
+        />
+        <Form.Switch field="enabled" label="启用脱敏" />
+        <Form.TextArea field="remark" label="备注" maxCount={256} rows={2} />
+      </EditFormModal>
     </div>
   );
 }

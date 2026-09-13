@@ -5,7 +5,6 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { AppModal } from '@/components/AppModal';
 import { formatDateForApi } from '@/utils/date';
 import { EMPTY_PLACEHOLDER, copyableNoColumn, createdAtColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
@@ -28,6 +27,7 @@ import { deleteAction, listTableProps, ListSearchToolbar } from '@/components/li
 import { PaymentChannelTag, paymentMoneyColumn } from './payment-display';
 import { resolveAppConfigBinding, useAppMerchantConfigLookup } from './payment-app-options';
 import { PaymentAppField, PaymentCurrencyField, PaymentMerchantConfigField } from './payment-form-fields';
+import { EditFormModal } from '@/components/EditFormModal';
 
 const yuan = formatYuan;
 const channelOptions = PAYMENT_CHANNEL_OPTIONS;
@@ -239,40 +239,38 @@ export default function PaymentSettlementsPage() {
         {...listTableProps(listQuery, { pagination: buildPagination })}
       />
 
-      <AppModal {...generateModal.modalProps} title="生成结算批次" width={520}>
-        <Form key={generateModal.formKey} {...generateModal.formProps}>
-          <PaymentAppField
-            optionList={appOptions}
-            loading={appsFetching}
-            requiredMessage="请选择启用的支付应用"
-            onChange={(appId) => {
-              setSelectedAppId(appId);
-              generateModal.formApi.current?.setValue('channelConfigId', undefined);
-            }}
-          />
-          <PaymentMerchantConfigField optionList={merchantConfigOptions} loading={channelConfigsQuery.isFetching} />
-          <PaymentCurrencyField />
-          <Form.DatePicker
-            field="period"
-            label="账期"
-            type="dateRange"
-            style={{ width: '100%' }}
-            rules={[
-              { required: true, message: '请选择账期' },
-              {
-                validator: (_rule: unknown, value: unknown) => {
-                  if (!Array.isArray(value) || value.length !== 2) return false;
-                  const [start, end] = value as [Date, Date];
-                  return start <= end;
-                },
-                message: '账期开始不能晚于结束',
+      <EditFormModal modal={generateModal} title="生成结算批次" width={520}>
+        <PaymentAppField
+          optionList={appOptions}
+          loading={appsFetching}
+          requiredMessage="请选择启用的支付应用"
+          onChange={(appId) => {
+            setSelectedAppId(appId);
+            generateModal.formApi.current?.setValue('channelConfigId', undefined);
+          }}
+        />
+        <PaymentMerchantConfigField optionList={merchantConfigOptions} loading={channelConfigsQuery.isFetching} />
+        <PaymentCurrencyField />
+        <Form.DatePicker
+          field="period"
+          label="账期"
+          type="dateRange"
+          style={{ width: '100%' }}
+          rules={[
+            { required: true, message: '请选择账期' },
+            {
+              validator: (_rule: unknown, value: unknown) => {
+                if (!Array.isArray(value) || value.length !== 2) return false;
+                const [start, end] = value as [Date, Date];
+                return start <= end;
               },
-            ]}
-          />
-          <Form.TextArea field="remark" label="备注" autosize rows={1} placeholder="可选" />
-          <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginLeft: 90 }}>将聚合该渠道账期内成功订单，净额 = 收款 - 手续费 - 退款 - 分账</Typography.Text>
-        </Form>
-      </AppModal>
+              message: '账期开始不能晚于结束',
+            },
+          ]}
+        />
+        <Form.TextArea field="remark" label="备注" autosize rows={1} placeholder="可选" />
+        <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginLeft: 90 }}>将聚合该渠道账期内成功订单，净额 = 收款 - 手续费 - 退款 - 分账</Typography.Text>
+      </EditFormModal>
 
       <SideSheet
         title={`结算资金明细${detailBatch ? `（${detailBatch.batchNo}）` : ''}`}
@@ -298,45 +296,36 @@ export default function PaymentSettlementsPage() {
         )}
       </SideSheet>
 
-      <AppModal {...settleModal.modalProps} title="确认结算到账" width={520}>
-        <Form key={settleModal.formKey} {...settleModal.formProps}>
-          <Form.Slot label="批次号">{settleModal.editing?.batchNo ?? EMPTY_PLACEHOLDER}</Form.Slot>
-          <Form.Slot label="结算净额">{settleModal.editing ? yuan(settleModal.editing.netAmount) : EMPTY_PLACEHOLDER}</Form.Slot>
-          <Form.Input
-            field="reference"
-            label="到账参考号"
-            maxLength={128}
-            placeholder="银行流水号、渠道出款单号或到账凭证号"
-            rules={[
-              { required: true, message: '请填写到账参考号' },
-              { validator: (_rule: unknown, value: unknown) => Boolean(String(value ?? '').trim()), message: '到账参考号不能只包含空格' },
-            ]}
-          />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={settleModal} title="确认结算到账" width={520}>
+        <Form.Slot label="批次号">{settleModal.editing?.batchNo ?? EMPTY_PLACEHOLDER}</Form.Slot>
+        <Form.Slot label="结算净额">{settleModal.editing ? yuan(settleModal.editing.netAmount) : EMPTY_PLACEHOLDER}</Form.Slot>
+        <Form.Input
+          field="reference"
+          label="到账参考号"
+          maxLength={128}
+          placeholder="银行流水号、渠道出款单号或到账凭证号"
+          rules={[
+            { required: true, message: '请填写到账参考号' },
+            { validator: (_rule: unknown, value: unknown) => Boolean(String(value ?? '').trim()), message: '到账参考号不能只包含空格' },
+          ]}
+        />
+      </EditFormModal>
 
-      <AppModal
-        {...failModal.modalProps}
-        title="标记结算失败"
-        width={520}
-        okButtonProps={{ ...failModal.modalProps.okButtonProps, type: 'danger', theme: 'solid' }}
-      >
-        <Form key={failModal.formKey} {...failModal.formProps}>
-          <Form.Slot label="批次号">{failModal.editing?.batchNo ?? EMPTY_PLACEHOLDER}</Form.Slot>
-          <Form.TextArea
-            field="reference"
-            label="失败原因"
-            autosize
-            rows={3}
-            maxCount={512}
-            placeholder="请填写失败阶段、渠道返回和后续处理建议"
-            rules={[
-              { required: true, message: '请填写失败原因' },
-              { validator: (_rule: unknown, value: unknown) => Boolean(String(value ?? '').trim()), message: '失败原因不能只包含空格' },
-            ]}
-          />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={failModal} title="标记结算失败" width={520} okButtonProps={{ ...failModal.modalProps.okButtonProps, type: 'danger', theme: 'solid' }}>
+        <Form.Slot label="批次号">{failModal.editing?.batchNo ?? EMPTY_PLACEHOLDER}</Form.Slot>
+        <Form.TextArea
+          field="reference"
+          label="失败原因"
+          autosize
+          rows={3}
+          maxCount={512}
+          placeholder="请填写失败阶段、渠道返回和后续处理建议"
+          rules={[
+            { required: true, message: '请填写失败原因' },
+            { validator: (_rule: unknown, value: unknown) => Boolean(String(value ?? '').trim()), message: '失败原因不能只包含空格' },
+          ]}
+        />
+      </EditFormModal>
     </div>
   );
 }

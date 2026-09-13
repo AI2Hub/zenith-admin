@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Banner, Col, Empty, Form, Modal, Row, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { ReportSlaRule, ReportSlaType, ReportSlaViolation, ReportSlaViolationStatus } from '@zenith/shared/report';
-import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { confirmAndDelete, listTableProps } from '@/components/list-page';
 import { CronBuilderPopover } from '@/components/CronBuilderPopover';
@@ -25,6 +24,7 @@ import { CreateButton } from '@/components/toolbar-controls';
 import { dateTimeColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '@/utils/table-columns';
 import { DEFAULT_TIMEZONE } from '@/utils/timezones';
 import { FilterSelect } from '@/components/search-filters';
+import { EditFormModal } from '@/components/EditFormModal';
 
 const slaTypeOptions = [
   { value: 'freshness', label: '数据新鲜度' },
@@ -176,38 +176,35 @@ export default function GovernanceSlaTab() {
       {violationsQuery.isError && <Banner type="danger" description="SLA 违规加载失败" />}
       <ConfigurableTable columns={violationColumns} {...listTableProps(violationsQuery, { pagination: buildPagination, empty: <Empty title="暂无 SLA 违规" /> })} />
 
-      <AppModal {...ruleModal.modalProps} width={720}>
-        <Form key={ruleModal.formKey} {...ruleModal.formProps}
-          onValueChange={(v: Record<string, unknown>) => { if (typeof v.cron === 'string') setCronExprValue(v.cron); }}>
-          <Row gutter={16}>
-            <Col xs={24} md={12}><Form.Input field="name" label="规则名称" rules={[{ required: true }]} /></Col>
-            <Col xs={24} md={12}><Form.Select field="datasetId" label="数据集" filter style={{ width: '100%' }} optionList={datasetOptions} rules={[{ required: true }]} /></Col>
-            <Col xs={24} md={12}><Form.Select field="type" label="SLA 类型" style={{ width: '100%' }} optionList={slaTypeOptions} rules={[{ required: true }]} /></Col>
-            <Col xs={24} md={12}><Form.Select field="severity" label="严重度" style={{ width: '100%' }} optionList={severityOptions} rules={[{ required: true }]} /></Col>
-            <Col xs={24} md={12}><Form.InputNumber field="targetValue" label="目标值" min={0} style={{ width: '100%' }} rules={[{ required: true }]} /></Col>
-            <Col xs={24} md={12}><Form.InputNumber field="warningValue" label="预警值" min={0} style={{ width: '100%' }} /></Col>
-            <Col xs={24} md={12}><Form.InputNumber field="windowMinutes" label="统计窗口" min={1} suffix="分钟" style={{ width: '100%' }} rules={[{ required: true }]} /></Col>
-            <Col xs={24} md={12}>
-              <Form.Input field="cron" label="Cron" placeholder="留空仅手动评估"
-                addonAfter={(
-                  <CronBuilderPopover
-                    value={cronExprValue}
-                    onApply={(expr) => {
-                      ruleModal.formApi.current?.setValue('cron', expr);
-                      setCronExprValue(expr);
-                    }}
-                  />
-                )} />
-            </Col>
-            <Col xs={24} md={12}><FormTimezoneSelect /></Col>
-            <Col xs={24} md={12}><Form.InputNumber field="silenceMins" label="静默分钟" min={0} style={{ width: '100%' }} /></Col>
-          </Row>
-          <Form.Select multiple field="channels" label="通知渠道" style={{ width: '100%' }} optionList={[{ value: 'email', label: '邮件' }, { value: 'inApp', label: '站内信' }, { value: 'webhook', label: 'Webhook' }]} />
-          <Form.Input field="recipients" label="邮件收件人" placeholder="多个邮箱以逗号分隔" />
-          <Form.Input field="webhookUrl" label="Webhook" />
-          <Form.Switch field="enabled" label="启用规则" />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={ruleModal} width={720} formProps={{ onValueChange: (v: Record<string, unknown>) => { if (typeof v.cron === 'string') setCronExprValue(v.cron); } }}>
+        <Row gutter={16}>
+          <Col xs={24} md={12}><Form.Input field="name" label="规则名称" rules={[{ required: true }]} /></Col>
+          <Col xs={24} md={12}><Form.Select field="datasetId" label="数据集" filter style={{ width: '100%' }} optionList={datasetOptions} rules={[{ required: true }]} /></Col>
+          <Col xs={24} md={12}><Form.Select field="type" label="SLA 类型" style={{ width: '100%' }} optionList={slaTypeOptions} rules={[{ required: true }]} /></Col>
+          <Col xs={24} md={12}><Form.Select field="severity" label="严重度" style={{ width: '100%' }} optionList={severityOptions} rules={[{ required: true }]} /></Col>
+          <Col xs={24} md={12}><Form.InputNumber field="targetValue" label="目标值" min={0} style={{ width: '100%' }} rules={[{ required: true }]} /></Col>
+          <Col xs={24} md={12}><Form.InputNumber field="warningValue" label="预警值" min={0} style={{ width: '100%' }} /></Col>
+          <Col xs={24} md={12}><Form.InputNumber field="windowMinutes" label="统计窗口" min={1} suffix="分钟" style={{ width: '100%' }} rules={[{ required: true }]} /></Col>
+          <Col xs={24} md={12}>
+            <Form.Input field="cron" label="Cron" placeholder="留空仅手动评估"
+              addonAfter={(
+                <CronBuilderPopover
+                  value={cronExprValue}
+                  onApply={(expr) => {
+                    ruleModal.formApi.current?.setValue('cron', expr);
+                    setCronExprValue(expr);
+                  }}
+                />
+              )} />
+          </Col>
+          <Col xs={24} md={12}><FormTimezoneSelect /></Col>
+          <Col xs={24} md={12}><Form.InputNumber field="silenceMins" label="静默分钟" min={0} style={{ width: '100%' }} /></Col>
+        </Row>
+        <Form.Select multiple field="channels" label="通知渠道" style={{ width: '100%' }} optionList={[{ value: 'email', label: '邮件' }, { value: 'inApp', label: '站内信' }, { value: 'webhook', label: 'Webhook' }]} />
+        <Form.Input field="recipients" label="邮件收件人" placeholder="多个邮箱以逗号分隔" />
+        <Form.Input field="webhookUrl" label="Webhook" />
+        <Form.Switch field="enabled" label="启用规则" />
+      </EditFormModal>
     </>
   );
 }

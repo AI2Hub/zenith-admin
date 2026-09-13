@@ -1,16 +1,5 @@
-import {
-  ArrayField,
-  Button,
-  Col,
-  Form,
-  Row,
-  Space,
-  Tag,
-  Toast,
-  Typography,
-} from '@douyinfe/semi-ui';
+import { ArrayField, Button, Col, Form, Row, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import { Plus, Trash2 } from 'lucide-react';
-import { AppModal } from '@/components/AppModal';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { listTableProps } from '@/components/list-page';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -20,6 +9,7 @@ import { CreateButton } from '@/components/toolbar-controls';
 import { confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
 import { abortSubmit } from '@/lib/abort-submit';
+import { EditFormModal } from '@/components/EditFormModal';
 
 const { Text } = Typography;
 
@@ -141,59 +131,51 @@ export default function AiToolsPage() {
         {...listTableProps(listQuery)}
       />
 
-      <AppModal
-        {...modal.modalProps}
-        title={modal.isEdit ? '编辑工具' : '新增工具'}
-        width={720}
-      >
-        <Form
-          key={modal.formKey} {...modal.formProps}
-        >
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Input
-                field="name"
-                label="工具名"
-                rules={[
-                  { required: true, message: '请输入工具名' },
-                  { pattern: /^[a-z][a-z0-9_]{1,59}$/, message: '仅限小写字母/数字/下划线，字母开头' },
-                ]}
-                placeholder="LLM 通过该名称调用"
-              />
-            </Col>
-            <Col span={12}>
-              <Form.Select field="method" label="方法" style={{ width: '100%' }} optionList={['GET', 'POST', 'PUT', 'DELETE'].map((m) => ({ value: m, label: m }))} />
-            </Col>
-          </Row>
-          <Form.Input field="urlTemplate" label="URL 模板" rules={[{ required: true, message: '请输入 URL' }]} placeholder="https://api.example.com/orders/{orderId}（支持 {param} 路径占位符）" />
-          <Form.TextArea field="description" label="描述" rules={[{ required: true, message: '请输入描述' }]} rows={2} maxCount={500} placeholder="告诉模型这个工具能做什么、什么时候调用（写清楚可显著提升调用准确率）" />
-          <Form.TextArea field="headersText" label="请求头" rows={2} placeholder='可选，JSON 对象，如 {"Authorization": "Bearer xxx"}' />
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Switch field="isEnabled" label="启用" />
-            </Col>
-          </Row>
-          <Form.Slot label={{ text: '参数定义' }}>
-            <ArrayField field="params">
-              {({ add, arrayFields }) => (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  {arrayFields.map(({ field, key, remove }) => (
-                    <Space key={key} align="start">
-                      <Form.Input noLabel field={`${field}[name]`} placeholder="参数名" style={{ width: 120 }} rules={[{ required: true, message: '必填' }]} />
-                      <Form.Select noLabel field={`${field}[type]`} initValue="string" style={{ width: 92 }} optionList={[{ value: 'string', label: 'string' }, { value: 'number', label: 'number' }, { value: 'boolean', label: 'boolean' }]} />
-                      <Form.Select noLabel field={`${field}[location]`} initValue="query" style={{ width: 92 }} optionList={[{ value: 'query', label: 'query' }, { value: 'body', label: 'body' }, { value: 'path', label: 'path' }]} />
-                      <Form.Input noLabel field={`${field}[description]`} placeholder="参数说明（供 LLM 理解）" style={{ width: 220 }} rules={[{ required: true, message: '必填' }]} />
-                      <Form.Checkbox noLabel field={`${field}[required]`} initValue={false}>必填</Form.Checkbox>
-                      <Button theme="borderless" type="danger" size="small" icon={<Trash2 size={13} />} onClick={() => remove()} />
-                    </Space>
-                  ))}
-                  <Button theme="light" size="small" icon={<Plus size={13} />} onClick={() => add()} style={{ alignSelf: 'flex-start' }}>添加参数</Button>
-                </div>
-              )}
-            </ArrayField>
-          </Form.Slot>
-        </Form>
-      </AppModal>
+      <EditFormModal modal={modal} title={modal.isEdit ? '编辑工具' : '新增工具'} width={720}>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Input
+              field="name"
+              label="工具名"
+              rules={[
+                { required: true, message: '请输入工具名' },
+                { pattern: /^[a-z][a-z0-9_]{1,59}$/, message: '仅限小写字母/数字/下划线，字母开头' },
+              ]}
+              placeholder="LLM 通过该名称调用"
+            />
+          </Col>
+          <Col span={12}>
+            <Form.Select field="method" label="方法" style={{ width: '100%' }} optionList={['GET', 'POST', 'PUT', 'DELETE'].map((m) => ({ value: m, label: m }))} />
+          </Col>
+        </Row>
+        <Form.Input field="urlTemplate" label="URL 模板" rules={[{ required: true, message: '请输入 URL' }]} placeholder="https://api.example.com/orders/{orderId}（支持 {param} 路径占位符）" />
+        <Form.TextArea field="description" label="描述" rules={[{ required: true, message: '请输入描述' }]} rows={2} maxCount={500} placeholder="告诉模型这个工具能做什么、什么时候调用（写清楚可显著提升调用准确率）" />
+        <Form.TextArea field="headersText" label="请求头" rows={2} placeholder='可选，JSON 对象，如 {"Authorization": "Bearer xxx"}' />
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Switch field="isEnabled" label="启用" />
+          </Col>
+        </Row>
+        <Form.Slot label={{ text: '参数定义' }}>
+          <ArrayField field="params">
+            {({ add, arrayFields }) => (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {arrayFields.map(({ field, key, remove }) => (
+                  <Space key={key} align="start">
+                    <Form.Input noLabel field={`${field}[name]`} placeholder="参数名" style={{ width: 120 }} rules={[{ required: true, message: '必填' }]} />
+                    <Form.Select noLabel field={`${field}[type]`} initValue="string" style={{ width: 92 }} optionList={[{ value: 'string', label: 'string' }, { value: 'number', label: 'number' }, { value: 'boolean', label: 'boolean' }]} />
+                    <Form.Select noLabel field={`${field}[location]`} initValue="query" style={{ width: 92 }} optionList={[{ value: 'query', label: 'query' }, { value: 'body', label: 'body' }, { value: 'path', label: 'path' }]} />
+                    <Form.Input noLabel field={`${field}[description]`} placeholder="参数说明（供 LLM 理解）" style={{ width: 220 }} rules={[{ required: true, message: '必填' }]} />
+                    <Form.Checkbox noLabel field={`${field}[required]`} initValue={false}>必填</Form.Checkbox>
+                    <Button theme="borderless" type="danger" size="small" icon={<Trash2 size={13} />} onClick={() => remove()} />
+                  </Space>
+                ))}
+                <Button theme="light" size="small" icon={<Plus size={13} />} onClick={() => add()} style={{ alignSelf: 'flex-start' }}>添加参数</Button>
+              </div>
+            )}
+          </ArrayField>
+        </Form.Slot>
+      </EditFormModal>
     </div>
   );
 }

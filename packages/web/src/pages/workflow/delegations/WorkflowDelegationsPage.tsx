@@ -3,7 +3,6 @@ import { Form, Select, Tag } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { WorkflowDelegation } from '@zenith/shared/workflow';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
-import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePermission } from '@/hooks/usePermission';
@@ -20,6 +19,7 @@ import { CreateButton } from '@/components/toolbar-controls';
 import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
 import { useEditModal } from '@/hooks/useEditModal';
 import { dateTimeColumn } from '@/utils/table-columns';
+import { EditFormModal } from '@/components/EditFormModal';
 
 type Scope = 'mine' | 'all';
 
@@ -196,75 +196,67 @@ export default function WorkflowDelegationsPage() {
       />
 
       {canManage && (
-        <AppModal
-          {...delegationModal.modalProps}
-          closeOnEsc
-          width={560}
-        >
-          <Form
-            key={delegationModal.formKey} {...delegationModal.formProps}
-          >
-            {canManage && (
-              <Form.Select
-                field="principalId"
-                label="委托人"
-                style={{ width: '100%' }}
-                optionList={userOptions}
-                filter
-                showClear
-                placeholder="不选则默认当前用户"
-              />
-            )}
+        <EditFormModal modal={delegationModal} width={560}>
+          {canManage && (
             <Form.Select
-              field="delegateId"
-              label="代理人"
+              field="principalId"
+              label="委托人"
               style={{ width: '100%' }}
               optionList={userOptions}
               filter
-              rules={[{ required: true, message: '请选择代理人' }]}
-            />
-            <Form.Select
-              field="definitionId"
-              label="适用流程"
-              style={{ width: '100%' }}
-              optionList={defOptions}
-              filter
               showClear
-              placeholder="不选则对全部流程生效"
+              placeholder="不选则默认当前用户"
             />
-            <Form.Select
-              field="mode"
-              label="代理模式"
-              style={{ width: '100%' }}
-              initValue="full"
-              optionList={[
-                { value: 'full', label: '直接代批（代理人审批即推进流程，留痕「代 xxx 审批」）' },
-                { value: 'suggest', label: '建议制（代理人意见回执给委托人，由委托人最终确认）' },
-              ]}
-            />
-            <Form.DatePicker
-              field="startAt"
-              label="生效开始"
-              type="dateTime"
-              style={{ width: '100%' }}
-              placeholder="不填则立即生效"
-            />
-            <Form.DatePicker
-              field="endAt"
-              label="生效结束"
-              type="dateTime"
-              style={{ width: '100%' }}
-              placeholder="不填则长期有效"
-            />
-            <Form.Input
-              field="reason"
-              label="原因"
-              placeholder="可选"
-              maxLength={255}
-            />
-            <Form.Switch field="enabled" label="启用" initValue={true} />
-          </Form>
-        </AppModal>
+          )}
+          <Form.Select
+            field="delegateId"
+            label="代理人"
+            style={{ width: '100%' }}
+            optionList={userOptions}
+            filter
+            rules={[{ required: true, message: '请选择代理人' }]}
+          />
+          <Form.Select
+            field="definitionId"
+            label="适用流程"
+            style={{ width: '100%' }}
+            optionList={defOptions}
+            filter
+            showClear
+            placeholder="不选则对全部流程生效"
+          />
+          <Form.Select
+            field="mode"
+            label="代理模式"
+            style={{ width: '100%' }}
+            initValue="full"
+            optionList={[
+              { value: 'full', label: '直接代批（代理人审批即推进流程，留痕「代 xxx 审批」）' },
+              { value: 'suggest', label: '建议制（代理人意见回执给委托人，由委托人最终确认）' },
+            ]}
+          />
+          <Form.DatePicker
+            field="startAt"
+            label="生效开始"
+            type="dateTime"
+            style={{ width: '100%' }}
+            placeholder="不填则立即生效"
+          />
+          <Form.DatePicker
+            field="endAt"
+            label="生效结束"
+            type="dateTime"
+            style={{ width: '100%' }}
+            placeholder="不填则长期有效"
+          />
+          <Form.Input
+            field="reason"
+            label="原因"
+            placeholder="可选"
+            maxLength={255}
+          />
+          <Form.Switch field="enabled" label="启用" initValue={true} />
+        </EditFormModal>
       )}
     </div>
   );

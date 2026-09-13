@@ -1,7 +1,6 @@
 import { lazy, Suspense, useState, useRef, useMemo } from 'react';
-import ModalFooter from '@/components/ModalFooter';
 import { useNavigate } from 'react-router-dom';
-import { Button, Col, Empty, Form, Input, InputNumber, Row, Select, SideSheet, Space, Spin, Switch, Table, TabPane, Tabs, TextArea, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Col, Empty, Form, Input, InputNumber, Row, Select, Space, Spin, Switch, Table, TabPane, Tabs, TextArea, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Play, Upload as UploadIcon, Sparkles, Blocks } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -40,6 +39,7 @@ import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { abortSubmit } from '@/lib/abort-submit';
 import { batchStatusHandler, deleteAction, ListSearchToolbar, useRowSelection } from '@/components/list-page';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormSheet } from '@/components/EditFormModal';
 
 const DatasetRefsModal = lazy(() => import('./components/DatasetRefsModal').then((module) => ({
   default: module.DatasetRefsModal,
@@ -595,375 +595,366 @@ export default function DatasetsPage() {
         {...tableProps}
       />
 
-      <SideSheet
-        title={datasetModal.modalProps.title}
-        visible={datasetModal.visible}
-        onCancel={datasetModal.close}
-        width={900}
-        closeOnEsc
-        footer={<ModalFooter {...datasetModal.footerProps} okText="保存" />}
-      >
-        <Form key={datasetModal.formKey} {...datasetModal.formProps} onValueChange={(v) => {
+      <EditFormSheet modal={datasetModal} width={900} formProps={{ onValueChange: (v) => {
             if (v.datasourceId === undefined) return;
             setSelectedDsId((prev) => {
               const next = v.datasourceId as number;
               if (prev !== next) setPreview(null);
               return next;
             });
-          }}>
-          {/* keepDOM（默认）保证非激活页字段仍挂载，切换标签不丢值、validate 全量生效 */}
-          <Tabs collapsible="auto" type="line" activeKey={activeDatasetTab} onChange={setDatasetTab}>
-            <TabPane tab="基本信息" itemKey="basic">
-              <Row gutter={16} style={{ paddingTop: 16 }}>
-                <Col span={12}>
-                  <Form.Input field="name" label="名称" rules={[{ required: true, message: '请输入名称' }]} maxLength={64} showClear />
-                </Col>
-                <Col span={12}>
-                  <Form.Select field="datasourceId" label="数据源" style={{ width: '100%' }} rules={[{ required: true, message: '请选择数据源' }]}
-                    placeholder="选择数据源"
-                    optionList={datasources.map((d) => {
-                      const type = d.type as ReportDatasourceType | undefined;
-                      return { value: d.id, label: `${d.name}（${type ? REPORT_DATASOURCE_TYPE_LABELS[type] : '未知类型'}）` };
-                    })}
-                  />
-                </Col>
-              </Row>
-              <ReportOwnerFolderFields layout="row" userOptions={userOptions} folderOptions={folderOptions} />
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Form.Select field="status" label="状态" style={{ width: '100%' }}
-                    optionList={statusOptions} />
-                </Col>
-                <Col span={12}>
-                  <Form.InputNumber field="cacheTtl" label="缓存(秒)" min={0} max={86400} style={{ width: '100%' }} helpText="0=不缓存；命中按数据集+参数缓存" />
-                </Col>
-              </Row>
-              <Form.TextArea field="remark" label="备注" maxLength={256} autosize={{ minRows: 1, maxRows: 3 }} />
-            </TabPane>
+          } }}>
+        {/* keepDOM（默认）保证非激活页字段仍挂载，切换标签不丢值、validate 全量生效 */}
+        <Tabs collapsible="auto" type="line" activeKey={activeDatasetTab} onChange={setDatasetTab}>
+          <TabPane tab="基本信息" itemKey="basic">
+            <Row gutter={16} style={{ paddingTop: 16 }}>
+              <Col span={12}>
+                <Form.Input field="name" label="名称" rules={[{ required: true, message: '请输入名称' }]} maxLength={64} showClear />
+              </Col>
+              <Col span={12}>
+                <Form.Select field="datasourceId" label="数据源" style={{ width: '100%' }} rules={[{ required: true, message: '请选择数据源' }]}
+                  placeholder="选择数据源"
+                  optionList={datasources.map((d) => {
+                    const type = d.type as ReportDatasourceType | undefined;
+                    return { value: d.id, label: `${d.name}（${type ? REPORT_DATASOURCE_TYPE_LABELS[type] : '未知类型'}）` };
+                  })}
+                />
+              </Col>
+            </Row>
+            <ReportOwnerFolderFields layout="row" userOptions={userOptions} folderOptions={folderOptions} />
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Select field="status" label="状态" style={{ width: '100%' }}
+                  optionList={statusOptions} />
+              </Col>
+              <Col span={12}>
+                <Form.InputNumber field="cacheTtl" label="缓存(秒)" min={0} max={86400} style={{ width: '100%' }} helpText="0=不缓存；命中按数据集+参数缓存" />
+              </Col>
+            </Row>
+            <Form.TextArea field="remark" label="备注" maxLength={256} autosize={{ minRows: 1, maxRows: 3 }} />
+          </TabPane>
 
-            <TabPane tab="取数配置" itemKey="source">
-              <div style={{ paddingTop: 16 }}>
-                {!selectedType && <Empty description="请先在「基本信息」中选择数据源" style={{ padding: '24px 0' }} />}
+          <TabPane tab="取数配置" itemKey="source">
+            <div style={{ paddingTop: 16 }}>
+              {!selectedType && <Empty description="请先在「基本信息」中选择数据源" style={{ padding: '24px 0' }} />}
 
-                {isSqlAuthoringType(selectedType) && (
-                  <>
-                    <Form.TextArea field="sql" label="SQL" placeholder="SELECT col1, col2 FROM your_table WHERE ..."
-                      autosize={{ minRows: 4, maxRows: 10 }} style={{ fontFamily: 'var(--semi-font-family-mono, monospace)' }}
-                      rules={[{ required: true, message: '请输入 SQL' }]} />
-                    <Form.Slot label="辅助生成">
-                      <div style={{ width: '100%' }}>
-                        <Space>
-                          <Button icon={<Sparkles size={14} />} onClick={() => { setAiAskVisible((v) => !v); setVisualVisible(false); }}>AI 问数</Button>
-                          <Button icon={<Blocks size={14} />} onClick={() => { setVisualVisible((v) => !v); setAiAskVisible(false); }}>可视化建模</Button>
-                          <Button
-                            icon={<Play size={14} />}
-                            loading={previewMutation.isPending}
-                            disabled={!selectedDsId}
-                            onClick={() => { setDatasetTab('preview'); void handlePreview(); }}
-                          >
-                            试跑预览
-                          </Button>
+              {isSqlAuthoringType(selectedType) && (
+                <>
+                  <Form.TextArea field="sql" label="SQL" placeholder="SELECT col1, col2 FROM your_table WHERE ..."
+                    autosize={{ minRows: 4, maxRows: 10 }} style={{ fontFamily: 'var(--semi-font-family-mono, monospace)' }}
+                    rules={[{ required: true, message: '请输入 SQL' }]} />
+                  <Form.Slot label="辅助生成">
+                    <div style={{ width: '100%' }}>
+                      <Space>
+                        <Button icon={<Sparkles size={14} />} onClick={() => { setAiAskVisible((v) => !v); setVisualVisible(false); }}>AI 问数</Button>
+                        <Button icon={<Blocks size={14} />} onClick={() => { setVisualVisible((v) => !v); setAiAskVisible(false); }}>可视化建模</Button>
+                        <Button
+                          icon={<Play size={14} />}
+                          loading={previewMutation.isPending}
+                          disabled={!selectedDsId}
+                          onClick={() => { setDatasetTab('preview'); void handlePreview(); }}
+                        >
+                          试跑预览
+                        </Button>
+                      </Space>
+                      {aiAskVisible && (
+                        <Space vertical align="start" style={{ width: '100%', marginTop: 8 }}>
+                          <TextArea
+                            value={aiQuestion}
+                            onChange={setAiQuestion}
+                            placeholder="例如：统计最近 7 天每天的订单金额"
+                            autosize={{ minRows: 2, maxRows: 4 }}
+                          />
+                          <Button type="primary" icon={<Sparkles size={14} />} loading={generateSqlMutation.isPending} onClick={handleGenerateSql}>生成 SQL</Button>
                         </Space>
-                        {aiAskVisible && (
-                          <Space vertical align="start" style={{ width: '100%', marginTop: 8 }}>
-                            <TextArea
-                              value={aiQuestion}
-                              onChange={setAiQuestion}
-                              placeholder="例如：统计最近 7 天每天的订单金额"
-                              autosize={{ minRows: 2, maxRows: 4 }}
-                            />
-                            <Button type="primary" icon={<Sparkles size={14} />} loading={generateSqlMutation.isPending} onClick={handleGenerateSql}>生成 SQL</Button>
+                      )}
+                      {visualVisible && (
+                        <VisualModelBuilder
+                          initial={visualModel}
+                          onGenerate={(sql, model) => {
+                            datasetModal.formApi.current?.setValue('sql', sql);
+                            setVisualModel(model);
+                          }}
+                        />
+                      )}
+                    </div>
+                  </Form.Slot>
+                </>
+              )}
+              {selectedType === 'api' && (
+                <>
+                  <Row gutter={16}>
+                    <Col span={12}>
+                      <Form.Input field="itemsPath" label="数组路径" placeholder="选填，如 data.list；留空表示响应根即数组" showClear />
+                    </Col>
+                  </Row>
+                  <Form.TextArea field="paramsText" label="附加参数" placeholder={'选填，JSON 键值，如：\n{ "status": "paid" }'} autosize={{ minRows: 2, maxRows: 5 }} />
+                </>
+              )}
+              {selectedType === 'static' && (
+                <>
+                  <Form.Slot label="静态数据">
+                    <TextArea
+                      value={staticJsonText}
+                      onChange={setStaticJsonText}
+                      onBlur={handleStaticJsonBlur}
+                      placeholder={'粘贴 JSON 数组，例如：\n[{"city":"北京","sales":120}]'}
+                      autosize={{ minRows: 4, maxRows: 10 }}
+                      style={{ fontFamily: 'var(--semi-font-family-mono, monospace)' }}
+                    />
+                  </Form.Slot>
+                  <Form.Slot label="文件">
+                    <Space>
+                      <Button icon={<UploadIcon size={14} />} loading={parseFileMutation.isPending} onClick={() => staticFileInputRef.current?.click()}>上传 Excel/CSV</Button>
+                      <Typography.Text type="tertiary" size="small">仅支持 .xlsx / .csv，解析后自动生成字段</Typography.Text>
+                    </Space>
+                    <input
+                      ref={staticFileInputRef}
+                      type="file"
+                      accept=".xlsx,.csv"
+                      style={{ display: 'none' }}
+                      onChange={(e) => {
+                        const file = e.currentTarget.files?.[0];
+                        if (file) void handleStaticFile(file);
+                        e.currentTarget.value = '';
+                      }}
+                    />
+                  </Form.Slot>
+                </>
+              )}
+
+            </div>
+          </TabPane>
+
+          <TabPane tab="预览与字段" itemKey="preview">
+            <div style={{ paddingTop: 16 }}>
+              <Space style={{ marginBottom: 8 }}>
+                <Button icon={<Play size={14} />} onClick={handlePreview} loading={previewMutation.isPending} disabled={!selectedDsId}>试跑预览</Button>
+                <Button onClick={applyFieldsFromPreview} disabled={!preview}>用结果生成字段</Button>
+                <Typography.Text type="tertiary" size="small">
+                  当前字段：{fields.length} 个{fields.length ? `（${fields.slice(0, 6).map((f) => f.name).join(', ')}${fields.length > 6 ? '…' : ''}）` : ''}
+                </Typography.Text>
+              </Space>
+              {selectedType !== 'static' && paramDefs.length > 0 && (
+                <Space wrap style={{ marginBottom: 8 }}>
+                  <Typography.Text type="tertiary" size="small">试跑参数：</Typography.Text>
+                  {paramDefs.filter((p) => p.name.trim()).map((p) => (
+                    <Input
+                      key={p.name}
+                      prefix={p.label || p.name}
+                      placeholder={p.defaultValue != null ? `默认 ${p.defaultValue}` : (p.required ? '必填' : '选填')}
+                      value={previewParamValues[p.name] == null ? '' : String(previewParamValues[p.name])}
+                      onChange={(v) => setPreviewParamValues((prev) => ({ ...prev, [p.name]: v }))}
+                      style={{ width: 200 }}
+                      showClear
+                    />
+                  ))}
+                </Space>
+              )}
+              {preview ? (
+                <>
+                  <Space style={{ marginBottom: 8 }}>
+                    <Typography.Text type="tertiary" size="small">返回 {preview.total} 行</Typography.Text>
+                    {preview.bytes != null ? <Typography.Text type="tertiary" size="small">约 {preview.bytes} bytes</Typography.Text> : null}
+                    {preview.truncated ? <Tag color="orange" size="small">已截断{preview.truncatedReason ? `：${preview.truncatedReason}` : ''}</Tag> : null}
+                  </Space>
+                  <div style={{ maxHeight: 240, overflow: 'auto', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)' }}>
+                    <Table size="small" bordered={false} columns={previewColumns} dataSource={previewData} rowKey="__rk" pagination={false}
+                      scroll={{ x: Math.max(600, previewColumns.length * 140) }} />
+                  </div>
+                </>
+              ) : (
+                <Empty description="点击「试跑预览」查看取数结果" style={{ padding: '16px 0' }} />
+              )}
+
+              {fields.length > 0 && (
+                <div style={{ borderTop: '1px solid var(--semi-color-border)', marginTop: 12, paddingTop: 12 }}>
+                  <Typography.Text strong>字段设置</Typography.Text>
+                  <Space vertical align="start" style={{ width: '100%', marginTop: 8 }}>
+                    {fields.map((field, index) => (
+                      <div key={`${field.name}-${index}`} style={{ width: '100%', display: 'flex', gap: 8, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                        <Typography.Text type="tertiary" ellipsis={{ showTooltip: true }} style={{ width: 110, lineHeight: '32px' }}>{field.name}</Typography.Text>
+                        <Input placeholder="标题" value={field.label} onChange={(v) => updateField(index, { label: v })} style={{ width: 120 }} showClear />
+                        <Select
+                          value={field.type}
+                          optionList={COMPUTED_FIELD_TYPE_OPTIONS}
+                          onChange={(v) => updateField(index, { type: v as ReportField['type'] })}
+                          style={{ width: 105 }}
+                        />
+                        <Select
+                          value={field.format?.kind ?? ''}
+                          optionList={FIELD_FORMAT_KIND_OPTIONS}
+                          onChange={(v) => updateFieldFormat(index, v as ReportFieldFormat['kind'] | '')}
+                          style={{ width: 115 }}
+                        />
+                        {field.format && ['number', 'percent', 'currency'].includes(field.format.kind) && (
+                          <InputNumber
+                            value={field.format.decimals}
+                            placeholder="小数"
+                            min={0}
+                            max={8}
+                            style={{ width: 88 }}
+                            onChange={(v) => patchFieldFormat(index, { decimals: typeof v === 'number' ? v : undefined })}
+                          />
+                        )}
+                        {field.format && ['number', 'currency'].includes(field.format.kind) && (
+                          <Space style={{ height: 32 }}>
+                            <Typography.Text type="tertiary" size="small">千分位</Typography.Text>
+                            <Switch size="small" checked={field.format.thousands ?? true} onChange={(thousands) => patchFieldFormat(index, { thousands })} />
                           </Space>
                         )}
-                        {visualVisible && (
-                          <VisualModelBuilder
-                            initial={visualModel}
-                            onGenerate={(sql, model) => {
-                              datasetModal.formApi.current?.setValue('sql', sql);
-                              setVisualModel(model);
-                            }}
+                        {field.format?.kind === 'currency' && (
+                          <Input
+                            placeholder="符号"
+                            value={field.format.currencySymbol ?? '¥'}
+                            onChange={(currencySymbol) => patchFieldFormat(index, { currencySymbol })}
+                            style={{ width: 78 }}
+                          />
+                        )}
+                        {field.format?.kind === 'dict' && (
+                          <Input
+                            placeholder="字典编码"
+                            value={field.format.dictCode ?? ''}
+                            onChange={(dictCode) => patchFieldFormat(index, { dictCode })}
+                            style={{ width: 140 }}
+                            showClear
                           />
                         )}
                       </div>
-                    </Form.Slot>
-                  </>
-                )}
-                {selectedType === 'api' && (
-                  <>
-                    <Row gutter={16}>
-                      <Col span={12}>
-                        <Form.Input field="itemsPath" label="数组路径" placeholder="选填，如 data.list；留空表示响应根即数组" showClear />
-                      </Col>
-                    </Row>
-                    <Form.TextArea field="paramsText" label="附加参数" placeholder={'选填，JSON 键值，如：\n{ "status": "paid" }'} autosize={{ minRows: 2, maxRows: 5 }} />
-                  </>
-                )}
-                {selectedType === 'static' && (
-                  <>
-                    <Form.Slot label="静态数据">
-                      <TextArea
-                        value={staticJsonText}
-                        onChange={setStaticJsonText}
-                        onBlur={handleStaticJsonBlur}
-                        placeholder={'粘贴 JSON 数组，例如：\n[{"city":"北京","sales":120}]'}
-                        autosize={{ minRows: 4, maxRows: 10 }}
-                        style={{ fontFamily: 'var(--semi-font-family-mono, monospace)' }}
-                      />
-                    </Form.Slot>
-                    <Form.Slot label="文件">
-                      <Space>
-                        <Button icon={<UploadIcon size={14} />} loading={parseFileMutation.isPending} onClick={() => staticFileInputRef.current?.click()}>上传 Excel/CSV</Button>
-                        <Typography.Text type="tertiary" size="small">仅支持 .xlsx / .csv，解析后自动生成字段</Typography.Text>
-                      </Space>
-                      <input
-                        ref={staticFileInputRef}
-                        type="file"
-                        accept=".xlsx,.csv"
-                        style={{ display: 'none' }}
-                        onChange={(e) => {
-                          const file = e.currentTarget.files?.[0];
-                          if (file) void handleStaticFile(file);
-                          e.currentTarget.value = '';
-                        }}
-                      />
-                    </Form.Slot>
-                  </>
-                )}
+                    ))}
+                  </Space>
+                </div>
+              )}
+            </div>
+          </TabPane>
 
-              </div>
-            </TabPane>
-
-            <TabPane tab="预览与字段" itemKey="preview">
+          {paramsTabVisible && (
+            <TabPane tab="参数定义" itemKey="params">
               <div style={{ paddingTop: 16 }}>
-                <Space style={{ marginBottom: 8 }}>
-                  <Button icon={<Play size={14} />} onClick={handlePreview} loading={previewMutation.isPending} disabled={!selectedDsId}>试跑预览</Button>
-                  <Button onClick={applyFieldsFromPreview} disabled={!preview}>用结果生成字段</Button>
-                  <Typography.Text type="tertiary" size="small">
-                    当前字段：{fields.length} 个{fields.length ? `（${fields.slice(0, 6).map((f) => f.name).join(', ')}${fields.length > 6 ? '…' : ''}）` : ''}
-                  </Typography.Text>
+                <Space style={{ marginBottom: 6 }}>
+                  <Button size="small" onClick={() => setParamDefs((prev) => [...prev, { name: '', label: '', type: 'string' }])}>添加参数</Button>
                 </Space>
-                {selectedType !== 'static' && paramDefs.length > 0 && (
-                  <Space wrap style={{ marginBottom: 8 }}>
-                    <Typography.Text type="tertiary" size="small">试跑参数：</Typography.Text>
-                    {paramDefs.filter((p) => p.name.trim()).map((p) => (
-                      <Input
-                        key={p.name}
-                        prefix={p.label || p.name}
-                        placeholder={p.defaultValue != null ? `默认 ${p.defaultValue}` : (p.required ? '必填' : '选填')}
-                        value={previewParamValues[p.name] == null ? '' : String(previewParamValues[p.name])}
-                        onChange={(v) => setPreviewParamValues((prev) => ({ ...prev, [p.name]: v }))}
-                        style={{ width: 200 }}
-                        showClear
-                      />
+                <div>
+                  <Typography.Text type="tertiary" size="small">
+                    SQL 中用 {'${参数名}'} 引用（自动绑定参数防注入）；API 数据集作为请求参数注入。仪表盘筛选器可绑定到参数。
+                  </Typography.Text>
+                </div>
+                {paramDefs.length === 0 && <Empty description="暂无参数，点击「添加参数」新增" style={{ padding: '16px 0' }} />}
+                {paramDefs.length > 0 && (
+                  <Space vertical align="start" style={{ width: '100%', marginTop: 8 }}>
+                    {paramDefs.map((p, index) => (
+                      <Space key={index} align="start" style={{ width: '100%' }}>
+                        <Input placeholder="参数名" value={p.name} onChange={(v) => updateParamDef(index, { name: v })} style={{ width: 130 }} showClear />
+                        <Input placeholder="标题" value={p.label} onChange={(v) => updateParamDef(index, { label: v })} style={{ width: 110 }} showClear />
+                        <Select
+                          value={p.type}
+                          optionList={COMPUTED_FIELD_TYPE_OPTIONS}
+                          onChange={(v) => updateParamDef(index, { type: v as ReportDatasetParam['type'] })}
+                          style={{ width: 100 }}
+                        />
+                        <Input
+                          placeholder="默认值"
+                          value={p.defaultValue == null ? '' : String(p.defaultValue)}
+                          onChange={(v) => updateParamDef(index, { defaultValue: v === '' ? null : v })}
+                          style={{ width: 130 }}
+                          showClear
+                        />
+                        <Space style={{ height: 32 }}>
+                          <Typography.Text type="tertiary" size="small">必填</Typography.Text>
+                          <Switch size="small" checked={p.required ?? false} onChange={(required) => updateParamDef(index, { required })} />
+                        </Space>
+                        <Button theme="borderless" type="danger" onClick={() => setParamDefs((prev) => prev.filter((_, i) => i !== index))}>删除</Button>
+                      </Space>
                     ))}
                   </Space>
                 )}
-                {preview ? (
-                  <>
-                    <Space style={{ marginBottom: 8 }}>
-                      <Typography.Text type="tertiary" size="small">返回 {preview.total} 行</Typography.Text>
-                      {preview.bytes != null ? <Typography.Text type="tertiary" size="small">约 {preview.bytes} bytes</Typography.Text> : null}
-                      {preview.truncated ? <Tag color="orange" size="small">已截断{preview.truncatedReason ? `：${preview.truncatedReason}` : ''}</Tag> : null}
-                    </Space>
-                    <div style={{ maxHeight: 240, overflow: 'auto', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)' }}>
-                      <Table size="small" bordered={false} columns={previewColumns} dataSource={previewData} rowKey="__rk" pagination={false}
-                        scroll={{ x: Math.max(600, previewColumns.length * 140) }} />
-                    </div>
-                  </>
-                ) : (
-                  <Empty description="点击「试跑预览」查看取数结果" style={{ padding: '16px 0' }} />
-                )}
-
-                {fields.length > 0 && (
-                  <div style={{ borderTop: '1px solid var(--semi-color-border)', marginTop: 12, paddingTop: 12 }}>
-                    <Typography.Text strong>字段设置</Typography.Text>
-                    <Space vertical align="start" style={{ width: '100%', marginTop: 8 }}>
-                      {fields.map((field, index) => (
-                        <div key={`${field.name}-${index}`} style={{ width: '100%', display: 'flex', gap: 8, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-                          <Typography.Text type="tertiary" ellipsis={{ showTooltip: true }} style={{ width: 110, lineHeight: '32px' }}>{field.name}</Typography.Text>
-                          <Input placeholder="标题" value={field.label} onChange={(v) => updateField(index, { label: v })} style={{ width: 120 }} showClear />
-                          <Select
-                            value={field.type}
-                            optionList={COMPUTED_FIELD_TYPE_OPTIONS}
-                            onChange={(v) => updateField(index, { type: v as ReportField['type'] })}
-                            style={{ width: 105 }}
-                          />
-                          <Select
-                            value={field.format?.kind ?? ''}
-                            optionList={FIELD_FORMAT_KIND_OPTIONS}
-                            onChange={(v) => updateFieldFormat(index, v as ReportFieldFormat['kind'] | '')}
-                            style={{ width: 115 }}
-                          />
-                          {field.format && ['number', 'percent', 'currency'].includes(field.format.kind) && (
-                            <InputNumber
-                              value={field.format.decimals}
-                              placeholder="小数"
-                              min={0}
-                              max={8}
-                              style={{ width: 88 }}
-                              onChange={(v) => patchFieldFormat(index, { decimals: typeof v === 'number' ? v : undefined })}
-                            />
-                          )}
-                          {field.format && ['number', 'currency'].includes(field.format.kind) && (
-                            <Space style={{ height: 32 }}>
-                              <Typography.Text type="tertiary" size="small">千分位</Typography.Text>
-                              <Switch size="small" checked={field.format.thousands ?? true} onChange={(thousands) => patchFieldFormat(index, { thousands })} />
-                            </Space>
-                          )}
-                          {field.format?.kind === 'currency' && (
-                            <Input
-                              placeholder="符号"
-                              value={field.format.currencySymbol ?? '¥'}
-                              onChange={(currencySymbol) => patchFieldFormat(index, { currencySymbol })}
-                              style={{ width: 78 }}
-                            />
-                          )}
-                          {field.format?.kind === 'dict' && (
-                            <Input
-                              placeholder="字典编码"
-                              value={field.format.dictCode ?? ''}
-                              onChange={(dictCode) => patchFieldFormat(index, { dictCode })}
-                              style={{ width: 140 }}
-                              showClear
-                            />
-                          )}
-                        </div>
-                      ))}
-                    </Space>
-                  </div>
-                )}
               </div>
             </TabPane>
+          )}
 
-            {paramsTabVisible && (
-              <TabPane tab="参数定义" itemKey="params">
-                <div style={{ paddingTop: 16 }}>
-                  <Space style={{ marginBottom: 6 }}>
-                    <Button size="small" onClick={() => setParamDefs((prev) => [...prev, { name: '', label: '', type: 'string' }])}>添加参数</Button>
-                  </Space>
-                  <div>
-                    <Typography.Text type="tertiary" size="small">
-                      SQL 中用 {'${参数名}'} 引用（自动绑定参数防注入）；API 数据集作为请求参数注入。仪表盘筛选器可绑定到参数。
-                    </Typography.Text>
-                  </div>
-                  {paramDefs.length === 0 && <Empty description="暂无参数，点击「添加参数」新增" style={{ padding: '16px 0' }} />}
-                  {paramDefs.length > 0 && (
-                    <Space vertical align="start" style={{ width: '100%', marginTop: 8 }}>
-                      {paramDefs.map((p, index) => (
-                        <Space key={index} align="start" style={{ width: '100%' }}>
-                          <Input placeholder="参数名" value={p.name} onChange={(v) => updateParamDef(index, { name: v })} style={{ width: 130 }} showClear />
-                          <Input placeholder="标题" value={p.label} onChange={(v) => updateParamDef(index, { label: v })} style={{ width: 110 }} showClear />
-                          <Select
-                            value={p.type}
-                            optionList={COMPUTED_FIELD_TYPE_OPTIONS}
-                            onChange={(v) => updateParamDef(index, { type: v as ReportDatasetParam['type'] })}
-                            style={{ width: 100 }}
-                          />
-                          <Input
-                            placeholder="默认值"
-                            value={p.defaultValue == null ? '' : String(p.defaultValue)}
-                            onChange={(v) => updateParamDef(index, { defaultValue: v === '' ? null : v })}
-                            style={{ width: 130 }}
-                            showClear
-                          />
-                          <Space style={{ height: 32 }}>
-                            <Typography.Text type="tertiary" size="small">必填</Typography.Text>
-                            <Switch size="small" checked={p.required ?? false} onChange={(required) => updateParamDef(index, { required })} />
-                          </Space>
-                          <Button theme="borderless" type="danger" onClick={() => setParamDefs((prev) => prev.filter((_, i) => i !== index))}>删除</Button>
-                        </Space>
-                      ))}
-                    </Space>
+          <TabPane tab="高级" itemKey="advanced">
+            <div style={{ paddingTop: 16 }}>
+              <Form.Slot label="物化快照">
+                <Space vertical align="start" style={{ width: '100%' }}>
+                  <Switch checked={materialize.enabled} onChange={(enabled) => setMaterialize((prev) => ({ ...prev, enabled }))} />
+                  {materialize.enabled && (
+                    <Input
+                      value={materialize.cron ?? ''}
+                      onChange={(cron) => setMaterialize((prev) => ({ ...prev, cron }))}
+                      placeholder="0 */10 * * * *"
+                      showClear
+                      style={{ width: '100%' }}
+                    />
                   )}
-                </div>
-              </TabPane>
-            )}
+                  <Typography.Text type="tertiary" size="small">启用后取数优先返回快照（忽略运行时参数），适合大屏降压；Cron 留空=仅手动。</Typography.Text>
+                </Space>
+              </Form.Slot>
 
-            <TabPane tab="高级" itemKey="advanced">
-              <div style={{ paddingTop: 16 }}>
-                <Form.Slot label="物化快照">
-                  <Space vertical align="start" style={{ width: '100%' }}>
-                    <Switch checked={materialize.enabled} onChange={(enabled) => setMaterialize((prev) => ({ ...prev, enabled }))} />
-                    {materialize.enabled && (
-                      <Input
-                        value={materialize.cron ?? ''}
-                        onChange={(cron) => setMaterialize((prev) => ({ ...prev, cron }))}
-                        placeholder="0 */10 * * * *"
-                        showClear
-                        style={{ width: '100%' }}
-                      />
-                    )}
-                    <Typography.Text type="tertiary" size="small">启用后取数优先返回快照（忽略运行时参数），适合大屏降压；Cron 留空=仅手动。</Typography.Text>
-                  </Space>
-                </Form.Slot>
-
-                {isSqlAuthoringType(selectedType) && (
-                  <div style={{ borderTop: '1px solid var(--semi-color-border)', marginTop: 12, paddingTop: 12 }}>
-                    <Space style={{ marginBottom: 6 }}>
-                      <Typography.Text strong>行级权限</Typography.Text>
-                      <Button size="small" onClick={() => setRowRules((prev) => [...prev, { roles: [], where: '', enabled: true }])}>添加规则</Button>
-                    </Space>
-                    <div>
-                      <Typography.Text type="tertiary" size="small">
-                        命中规则的用户仅能看到满足条件的行（多条命中规则按「或」合并）；未命中任何规则或超级管理员不受限。
-                        WHERE 片段可用 {'${__userId}'} / {'${__deptId}'} 等系统变量，如 dept_id = {'${__deptId}'}。
-                      </Typography.Text>
-                    </div>
-                    {rowRules.length > 0 && (
-                      <Space vertical align="start" style={{ width: '100%', marginTop: 8 }}>
-                        {rowRules.map((rule, index) => (
-                          <Space key={index} align="start" style={{ width: '100%' }}>
-                            <Select multiple filter placeholder="全部角色" value={rule.roles ?? []} style={{ width: 180 }} maxTagCount={2}
-                              optionList={roleOptions}
-                              onChange={(v) => updateRowRule(index, { roles: (v as string[]) ?? [] })} />
-                            <Input placeholder={'WHERE 片段，如 dept_id = ${__deptId}'} value={rule.where} style={{ width: 280 }} showClear
-                              onChange={(v) => updateRowRule(index, { where: v })} />
-                            <Space style={{ height: 32 }}>
-                              <Typography.Text type="tertiary" size="small">启用</Typography.Text>
-                              <Switch size="small" checked={rule.enabled ?? true} onChange={(enabled) => updateRowRule(index, { enabled })} />
-                            </Space>
-                            <Button theme="borderless" type="danger" onClick={() => setRowRules((prev) => prev.filter((_, i) => i !== index))}>删除</Button>
-                          </Space>
-                        ))}
-                      </Space>
-                    )}
-                  </div>
-                )}
-
+              {isSqlAuthoringType(selectedType) && (
                 <div style={{ borderTop: '1px solid var(--semi-color-border)', marginTop: 12, paddingTop: 12 }}>
                   <Space style={{ marginBottom: 6 }}>
-                    <Typography.Text strong>计算字段</Typography.Text>
-                    <Button size="small" onClick={() => setComputedFields((prev) => [...prev, { name: '', label: '', expression: '', type: 'string' }])}>添加计算字段</Button>
+                    <Typography.Text strong>行级权限</Typography.Text>
+                    <Button size="small" onClick={() => setRowRules((prev) => [...prev, { roles: [], where: '', enabled: true }])}>添加规则</Button>
                   </Space>
                   <div>
                     <Typography.Text type="tertiary" size="small">
-                      表达式支持 + - * / %、比较、三元 ?:、函数 round/concat/upper/coalesce 等，列名直接引用。
+                      命中规则的用户仅能看到满足条件的行（多条命中规则按「或」合并）；未命中任何规则或超级管理员不受限。
+                      WHERE 片段可用 {'${__userId}'} / {'${__deptId}'} 等系统变量，如 dept_id = {'${__deptId}'}。
                     </Typography.Text>
                   </div>
-                  {computedFields.length > 0 && (
+                  {rowRules.length > 0 && (
                     <Space vertical align="start" style={{ width: '100%', marginTop: 8 }}>
-                      {computedFields.map((field, index) => (
+                      {rowRules.map((rule, index) => (
                         <Space key={index} align="start" style={{ width: '100%' }}>
-                          <Input placeholder="字段名" value={field.name} onChange={(v) => updateComputedField(index, { name: v })} style={{ width: 110 }} showClear />
-                          <Input placeholder="标题" value={field.label} onChange={(v) => updateComputedField(index, { label: v })} style={{ width: 110 }} showClear />
-                          <Input placeholder="a + b 或 round(amount/100, 2)" value={field.expression} onChange={(v) => updateComputedField(index, { expression: v })} style={{ width: 260 }} showClear />
-                          <Select
-                            value={field.type ?? 'string'}
-                            optionList={COMPUTED_FIELD_TYPE_OPTIONS}
-                            onChange={(v) => updateComputedField(index, { type: v as ReportComputedField['type'] })}
-                            style={{ width: 110 }}
-                          />
-                          <Button theme="borderless" type="danger" onClick={() => setComputedFields((prev) => prev.filter((_, i) => i !== index))}>删除</Button>
+                          <Select multiple filter placeholder="全部角色" value={rule.roles ?? []} style={{ width: 180 }} maxTagCount={2}
+                            optionList={roleOptions}
+                            onChange={(v) => updateRowRule(index, { roles: (v as string[]) ?? [] })} />
+                          <Input placeholder={'WHERE 片段，如 dept_id = ${__deptId}'} value={rule.where} style={{ width: 280 }} showClear
+                            onChange={(v) => updateRowRule(index, { where: v })} />
+                          <Space style={{ height: 32 }}>
+                            <Typography.Text type="tertiary" size="small">启用</Typography.Text>
+                            <Switch size="small" checked={rule.enabled ?? true} onChange={(enabled) => updateRowRule(index, { enabled })} />
+                          </Space>
+                          <Button theme="borderless" type="danger" onClick={() => setRowRules((prev) => prev.filter((_, i) => i !== index))}>删除</Button>
                         </Space>
                       ))}
                     </Space>
                   )}
                 </div>
+              )}
+
+              <div style={{ borderTop: '1px solid var(--semi-color-border)', marginTop: 12, paddingTop: 12 }}>
+                <Space style={{ marginBottom: 6 }}>
+                  <Typography.Text strong>计算字段</Typography.Text>
+                  <Button size="small" onClick={() => setComputedFields((prev) => [...prev, { name: '', label: '', expression: '', type: 'string' }])}>添加计算字段</Button>
+                </Space>
+                <div>
+                  <Typography.Text type="tertiary" size="small">
+                    表达式支持 + - * / %、比较、三元 ?:、函数 round/concat/upper/coalesce 等，列名直接引用。
+                  </Typography.Text>
+                </div>
+                {computedFields.length > 0 && (
+                  <Space vertical align="start" style={{ width: '100%', marginTop: 8 }}>
+                    {computedFields.map((field, index) => (
+                      <Space key={index} align="start" style={{ width: '100%' }}>
+                        <Input placeholder="字段名" value={field.name} onChange={(v) => updateComputedField(index, { name: v })} style={{ width: 110 }} showClear />
+                        <Input placeholder="标题" value={field.label} onChange={(v) => updateComputedField(index, { label: v })} style={{ width: 110 }} showClear />
+                        <Input placeholder="a + b 或 round(amount/100, 2)" value={field.expression} onChange={(v) => updateComputedField(index, { expression: v })} style={{ width: 260 }} showClear />
+                        <Select
+                          value={field.type ?? 'string'}
+                          optionList={COMPUTED_FIELD_TYPE_OPTIONS}
+                          onChange={(v) => updateComputedField(index, { type: v as ReportComputedField['type'] })}
+                          style={{ width: 110 }}
+                        />
+                        <Button theme="borderless" type="danger" onClick={() => setComputedFields((prev) => prev.filter((_, i) => i !== index))}>删除</Button>
+                      </Space>
+                    ))}
+                  </Space>
+                )}
               </div>
-            </TabPane>
-          </Tabs>
-        </Form>
-      </SideSheet>
+            </div>
+          </TabPane>
+        </Tabs>
+      </EditFormSheet>
 
       {refsMounted && (
         <Suspense fallback={<div style={{ padding: 48, textAlign: 'center' }}><Spin /></div>}>

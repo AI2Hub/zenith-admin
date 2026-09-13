@@ -1,4 +1,4 @@
-import { Col, Form, Row, Spin } from '@douyinfe/semi-ui';
+import { Col, Form, Row } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { CreateWikiTemplateInput, WikiTemplate } from '@zenith/shared/wiki';
 import { USER_STATUSES, enumValueOf } from '@zenith/shared/core';
@@ -7,7 +7,6 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { deleteAction, ListSearchToolbar, useStatusToggle } from '@/components/list-page';
 import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { CreateButton } from '@/components/toolbar-controls';
-import AppModal from '@/components/AppModal';
 import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -16,6 +15,7 @@ import {
   useDeleteWikiTemplates, useSaveWikiTemplate, useWikiTemplateDetail, useWikiTemplateList, wikiTemplateKeys,
 } from '@/hooks/queries/wiki-templates';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormModal } from '@/components/EditFormModal';
 
 interface SearchParams {
   keyword: string;
@@ -119,31 +119,27 @@ export default function WikiTemplatesPage() {
         {...tableProps}
       />
 
-      <AppModal {...modal.modalProps} width={660}>
-        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
-          <Form key={modal.formKey} {...modal.formProps}>
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Input field="name" label="模板名称" placeholder="请输入模板名称"
-                  rules={[{ required: true, message: '模板名称不能为空' }]} />
-              </Col>
-              <Col span={12}>
-                <Form.InputNumber field="sort" label="排序" style={{ width: '100%' }} />
-              </Col>
-            </Row>
-            <Form.Input field="description" label="描述" placeholder="模板用途简介（选填）" />
-            <Form.TextArea field="content" label="模板内容" placeholder="Markdown 模板内容"
-              rows={12} style={{ fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace", fontSize: 13 }} />
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Select field="status" label="状态" style={{ width: '100%' }}
-                  optionList={statusOptions}
-                  rules={[{ required: true, message: '请选择状态' }]} />
-              </Col>
-            </Row>
-          </Form>
-        </Spin>
-      </AppModal>
+      <EditFormModal modal={modal} width={660}>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Input field="name" label="模板名称" placeholder="请输入模板名称"
+              rules={[{ required: true, message: '模板名称不能为空' }]} />
+          </Col>
+          <Col span={12}>
+            <Form.InputNumber field="sort" label="排序" style={{ width: '100%' }} />
+          </Col>
+        </Row>
+        <Form.Input field="description" label="描述" placeholder="模板用途简介（选填）" />
+        <Form.TextArea field="content" label="模板内容" placeholder="Markdown 模板内容"
+          rows={12} style={{ fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace", fontSize: 13 }} />
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Select field="status" label="状态" style={{ width: '100%' }}
+              optionList={statusOptions}
+              rules={[{ required: true, message: '请选择状态' }]} />
+          </Col>
+        </Row>
+      </EditFormModal>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Col, Row, SideSheet, Form, Modal, Popover, Space, Spin, Tabs, Tag, Toast, Tooltip } from '@douyinfe/semi-ui';
+import { Button, Col, Row, SideSheet, Form, Modal, Popover, Space, Tabs, Tag, Toast, Tooltip } from '@douyinfe/semi-ui';
 import { ScrollText, HelpCircle } from 'lucide-react';
 import { USER_STATUSES, enumValueOf } from '@zenith/shared/core';
 import type { CreateCronJobInput, CronJob, CronJobLog, CronRunTrigger } from '@zenith/shared/platform';
@@ -12,7 +12,6 @@ import dayjs from 'dayjs';
 import { CronBuilderPopover } from '@/components/CronBuilderPopover';
 import ExportButton from '@/components/ExportButton';
 import { ClearLogsButtons } from '@/components/logs/ClearLogsControl';
-import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { deleteAction, ListSearchToolbar, listTableProps, useStatusToggle } from '@/components/list-page';
@@ -43,6 +42,7 @@ import { CLEAR_LOGS_LABELS } from '@/hooks/useClearLogs';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormModal } from '@/components/EditFormModal';
 interface SearchParams {
   keyword: string;
   status?: string;
@@ -411,94 +411,84 @@ export default function CronJobsPage() {
         </Tabs.TabPane>
       </Tabs>
 
-      <AppModal
-        {...modal.modalProps}
-        width={720}
-      >
-        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
-        <Form
-          key={modal.formKey} {...modal.formProps}
-          onValueChange={(v: Record<string, unknown>) => {
+      <EditFormModal modal={modal} width={720} formProps={{ onValueChange: (v: Record<string, unknown>) => {
             if (typeof v.cronExpression === 'string') setCronExprValue(v.cronExpression);
-          }}
-        >
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Input field="name" label="任务名称" placeholder="请输入任务名称" rules={[{ required: true, message: '请输入任务名称' }]} />
-            </Col>
-            <Col span={12}>
-              <Form.Select
-                field="status"
-                label="状态"
-                optionList={statusOptions}
-                style={{ width: '100%' }}
-              />
-            </Col>
-          </Row>
-          <Form.Input
-            field="cronExpression"
-            label="Cron 表达式"
-            rules={[{ required: true, message: '请输入 Cron 表达式' }]}
-            placeholder="如 0 */5 * * * *"
-            addonAfter={
-              <CronBuilderPopover
-                value={cronExprValue}
-                onApply={(expr) => {
-                  modal.formApi.current?.setValue('cronExpression', expr);
-                  setCronExprValue(expr);
-                }}
-              />
-            }
-          />
-          <Form.Select
-            field="handler"
-            label="处理器"
-            rules={[{ required: true, message: '请选择处理器' }]}
-            optionList={handlers.map((h) => ({ value: h, label: h }))}
-            style={{ width: '100%' }}
-            filter
-            placeholder="请选择处理器"
-          />
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.InputNumber
-                field="retryCount"
-                label="重试次数"
-                rules={[{ required: true, message: '请输入重试次数' }]}
-                placeholder="0 表示不重试"
-                min={0}
-                max={10}
-                style={{ width: '100%' }}
-              />
-            </Col>
-            <Col span={12}>
-              <Form.InputNumber
-                field="retryInterval"
-                label="重试间隔(秒)"
-                rules={[{ required: true, message: '请输入重试间隔' }]}
-                placeholder="0 表示无间隔"
-                min={0}
-                style={{ width: '100%' }}
-              />
-            </Col>
-            <Col span={12}>
-              <Form.Switch field="retryBackoff" label="指数退避重试" />
-            </Col>
-            <Col span={12}>
-              <Form.InputNumber
-                field="monitorTimeout"
-                label="监控超时(秒)"
-                placeholder="可选，超过该秒数仍未完成则记为超时"
-                min={0}
-                style={{ width: '100%' }}
-              />
-            </Col>
-          </Row>
-          <Form.TextArea field="params" label="参数 JSON" placeholder='可选，如 {"key":"value"}' rows={2} />
-          <Form.TextArea field="description" label="描述" placeholder="请输入描述" maxCount={256} rows={2} />
-        </Form>
-        </Spin>
-      </AppModal>
+          } }}>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Input field="name" label="任务名称" placeholder="请输入任务名称" rules={[{ required: true, message: '请输入任务名称' }]} />
+          </Col>
+          <Col span={12}>
+            <Form.Select
+              field="status"
+              label="状态"
+              optionList={statusOptions}
+              style={{ width: '100%' }}
+            />
+          </Col>
+        </Row>
+        <Form.Input
+          field="cronExpression"
+          label="Cron 表达式"
+          rules={[{ required: true, message: '请输入 Cron 表达式' }]}
+          placeholder="如 0 */5 * * * *"
+          addonAfter={
+            <CronBuilderPopover
+              value={cronExprValue}
+              onApply={(expr) => {
+                modal.formApi.current?.setValue('cronExpression', expr);
+                setCronExprValue(expr);
+              }}
+            />
+          }
+        />
+        <Form.Select
+          field="handler"
+          label="处理器"
+          rules={[{ required: true, message: '请选择处理器' }]}
+          optionList={handlers.map((h) => ({ value: h, label: h }))}
+          style={{ width: '100%' }}
+          filter
+          placeholder="请选择处理器"
+        />
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.InputNumber
+              field="retryCount"
+              label="重试次数"
+              rules={[{ required: true, message: '请输入重试次数' }]}
+              placeholder="0 表示不重试"
+              min={0}
+              max={10}
+              style={{ width: '100%' }}
+            />
+          </Col>
+          <Col span={12}>
+            <Form.InputNumber
+              field="retryInterval"
+              label="重试间隔(秒)"
+              rules={[{ required: true, message: '请输入重试间隔' }]}
+              placeholder="0 表示无间隔"
+              min={0}
+              style={{ width: '100%' }}
+            />
+          </Col>
+          <Col span={12}>
+            <Form.Switch field="retryBackoff" label="指数退避重试" />
+          </Col>
+          <Col span={12}>
+            <Form.InputNumber
+              field="monitorTimeout"
+              label="监控超时(秒)"
+              placeholder="可选，超过该秒数仍未完成则记为超时"
+              min={0}
+              style={{ width: '100%' }}
+            />
+          </Col>
+        </Row>
+        <Form.TextArea field="params" label="参数 JSON" placeholder='可选，如 {"key":"value"}' rows={2} />
+        <Form.TextArea field="description" label="描述" placeholder="请输入描述" maxCount={256} rows={2} />
+      </EditFormModal>
 
       {/* 全量执行日志抽屉 */}
       <SideSheet

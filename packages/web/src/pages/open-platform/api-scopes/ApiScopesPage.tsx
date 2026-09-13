@@ -4,7 +4,6 @@ import { USER_STATUSES, enumValueOf } from '@zenith/shared/core';
 import { API_SCOPE_GROUPS, API_SCOPE_GROUP_LABELS } from '@zenith/shared/open-platform';
 import type { ApiScope, CreateApiScopeInput } from '@zenith/shared/open-platform';
 import { copyableNoColumn, createdAtColumn, renderEnabledStatusTag } from '@/utils/table-columns';
-import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { confirmAndDelete, deleteAction, ListSearchToolbar, useRowSelection } from '@/components/list-page';
@@ -20,6 +19,7 @@ import { useDictItems } from '@/hooks/useDictItems';
 import { BatchDeleteButton, CreateButton } from '@/components/toolbar-controls';
 import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormModal } from '@/components/EditFormModal';
 
 const { Text } = Typography;
 
@@ -147,32 +147,26 @@ export default function ApiScopesPage() {
         {...tableProps}
       />
 
-      <AppModal
-        {...modal.modalProps}
-        title={modal.isEdit ? '编辑 API Scope' : '新增 API Scope'}
-        width={520}
-      >
-        <Form key={modal.formKey} {...modal.formProps}>
-          <Form.Input
-            field="code"
-            label="Scope 编码"
-            placeholder="如 user:read"
-            disabled={modal.isEdit}
-            extraText={modal.isEdit ? '编码创建后不可修改' : '小写字母开头，可含 : . _ -'}
-            rules={[{ required: true, message: 'Scope 编码不能为空' }]}
-          />
-          <Form.Input field="name" label="名称" placeholder="如 读取用户信息" rules={[{ required: true, message: '名称不能为空' }]} />
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Select field="scopeGroup" label="分组" style={{ width: '100%' }} optionList={GROUP_OPTIONS} filter allowCreate rules={[{ required: true, message: '请选择分组' }]} />
-            </Col>
-            <Col span={12}>
-              <Form.Select field="status" label="状态" style={{ width: '100%' }} optionList={statusOptions} rules={[{ required: true, message: '请选择状态' }]} />
-            </Col>
-          </Row>
-          <Form.TextArea field="description" label="描述" placeholder="该 scope 授予的权限说明（可选）" rows={2} />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={modal} title={modal.isEdit ? '编辑 API Scope' : '新增 API Scope'} width={520}>
+        <Form.Input
+          field="code"
+          label="Scope 编码"
+          placeholder="如 user:read"
+          disabled={modal.isEdit}
+          extraText={modal.isEdit ? '编码创建后不可修改' : '小写字母开头，可含 : . _ -'}
+          rules={[{ required: true, message: 'Scope 编码不能为空' }]}
+        />
+        <Form.Input field="name" label="名称" placeholder="如 读取用户信息" rules={[{ required: true, message: '名称不能为空' }]} />
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Select field="scopeGroup" label="分组" style={{ width: '100%' }} optionList={GROUP_OPTIONS} filter allowCreate rules={[{ required: true, message: '请选择分组' }]} />
+          </Col>
+          <Col span={12}>
+            <Form.Select field="status" label="状态" style={{ width: '100%' }} optionList={statusOptions} rules={[{ required: true, message: '请选择状态' }]} />
+          </Col>
+        </Row>
+        <Form.TextArea field="description" label="描述" placeholder="该 scope 授予的权限说明（可选）" rows={2} />
+      </EditFormModal>
     </div>
   );
 }

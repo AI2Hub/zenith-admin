@@ -5,7 +5,6 @@ import { Search, Send } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
-import AppModal from '@/components/AppModal';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import { usePagination } from '@/hooks/usePagination';
@@ -29,6 +28,7 @@ import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/li
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import { FormStatusRadioGroup } from '@/components/FormStatusRadioGroup';
 import { useFilterQuery } from '@/hooks/useFilterQuery';
+import { EditFormModal } from '@/components/EditFormModal';
 interface KeywordSearch { keyword: string }
 const defaultKeywordSearch: KeywordSearch = { keyword: '' };
 
@@ -91,18 +91,16 @@ function RedirectsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
         columns={columns}
         {...listTableProps(listQuery, { pagination: buildPagination, empty: '暂无重定向规则' })}
       />
-      <AppModal {...modal.modalProps} width={520}>
-        <Form key={modal.formKey} {...modal.formProps}>
-          <Form.Input field="fromPath" label="来源路径" placeholder="/old-page.html（须以 / 开头）" rules={[{ required: true, message: '请输入来源路径' }]} />
-          <Form.Input field="toUrl" label="目标地址" placeholder="/news/ 或 https://..." rules={[{ required: true, message: '请输入目标地址' }]} />
-          <Form.RadioGroup field="redirectType" label="跳转类型">
-            <Form.Radio value="301">301 永久</Form.Radio>
-            <Form.Radio value="302">302 临时</Form.Radio>
-          </Form.RadioGroup>
-          <FormStatusRadioGroup />
-          <Form.Input field="remark" label="备注" />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={modal} width={520}>
+        <Form.Input field="fromPath" label="来源路径" placeholder="/old-page.html（须以 / 开头）" rules={[{ required: true, message: '请输入来源路径' }]} />
+        <Form.Input field="toUrl" label="目标地址" placeholder="/news/ 或 https://..." rules={[{ required: true, message: '请输入目标地址' }]} />
+        <Form.RadioGroup field="redirectType" label="跳转类型">
+          <Form.Radio value="301">301 永久</Form.Radio>
+          <Form.Radio value="302">302 临时</Form.Radio>
+        </Form.RadioGroup>
+        <FormStatusRadioGroup />
+        <Form.Input field="remark" label="备注" />
+      </EditFormModal>
     </>
   );
 }
@@ -167,14 +165,12 @@ function LinkWordsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
         columns={columns}
         {...listTableProps(listQuery, { pagination: buildPagination, empty: '暂无内链词' })}
       />
-      <AppModal {...modal.modalProps} width={520}>
-        <Form key={modal.formKey} {...modal.formProps}>
-          <Form.Input field="keyword" label="关键词" rules={[{ required: true, message: '请输入关键词' }]} />
-          <Form.Input field="url" label="链接地址" placeholder="/news/1.html 或 https://..." rules={[{ required: true, message: '请输入链接地址' }]} />
-          <Form.InputNumber field="maxReplaces" label="每篇最多替换" min={1} max={10} style={{ width: 160 }} />
-          <FormStatusRadioGroup />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={modal} width={520}>
+        <Form.Input field="keyword" label="关键词" rules={[{ required: true, message: '请输入关键词' }]} />
+        <Form.Input field="url" label="链接地址" placeholder="/news/1.html 或 https://..." rules={[{ required: true, message: '请输入链接地址' }]} />
+        <Form.InputNumber field="maxReplaces" label="每篇最多替换" min={1} max={10} style={{ width: 160 }} />
+        <FormStatusRadioGroup />
+      </EditFormModal>
     </>
   );
 }

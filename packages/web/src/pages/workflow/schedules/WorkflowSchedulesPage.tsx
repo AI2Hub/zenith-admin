@@ -3,7 +3,6 @@ import { Form, Space, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui'
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { WorkflowSchedule } from '@zenith/shared/workflow';
 import { formatDateTime } from '@/utils/date';
-import { AppModal } from '@/components/AppModal';
 import { CronBuilderPopover } from '@/components/CronBuilderPopover';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { FormTimezoneSelect } from '@/components/FormTimezoneSelect';
@@ -27,6 +26,7 @@ import { dateTimeColumn, EMPTY_PLACEHOLDER, enabledStatusColumn } from '@/utils/
 import { DEFAULT_TIMEZONE } from '@/utils/timezones';
 import { FilterSelect, StatusSelect } from '@/components/search-filters';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormModal } from '@/components/EditFormModal';
 
 type ScheduleStatus = WorkflowSchedule['status'];
 
@@ -267,100 +267,89 @@ export default function WorkflowSchedulesPage() {
         {...tableProps}
       />
 
-      <AppModal
-        {...scheduleModal.modalProps}
-        title={editing ? '编辑定时发起规则' : '新建定时发起规则'}
-        okText={editing ? '保存' : '创建'}
-        closeOnEsc
-        width={620}
-      >
-        <Form
-          key={scheduleModal.formKey} {...scheduleModal.formProps}
-          onValueChange={(v) => {
+      <EditFormModal modal={scheduleModal} title={editing ? '编辑定时发起规则' : '新建定时发起规则'} okText={editing ? '保存' : '创建'} width={620} formProps={{ onValueChange: (v) => {
             if (typeof v.cronExpression === 'string') setCronExprValue(v.cronExpression);
             const defId = typeof v.definitionId === 'number' ? v.definitionId : null;
             setModalDefinitionId((prev) => (prev === defId ? prev : defId));
-          }}
-        >
-          <Form.Select
-            field="definitionId"
-            label="流程"
-            style={{ width: '100%' }}
-            optionList={definitionOptions}
-            filter
-            rules={[{ required: true, message: '请选择流程' }]}
-          />
-          <Form.Input
-            field="name"
-            label="规则名称"
-            maxLength={64}
-            rules={[{ required: true, message: '请输入规则名称' }]}
-          />
-          <Form.Input
-            field="cronExpression"
-            label="Cron 表达式"
-            maxLength={64}
-            rules={[{ required: true, message: '请输入 Cron 表达式' }]}
-            extraText="标准 5 段 cron，按下方时区解释，例：0 9 * * 1 表示每周一 9:00"
-            addonAfter={
-              <CronBuilderPopover
-                value={toSixField(cronExprValue)}
-                onApply={(expr) => {
-                  const five = toFiveField(expr);
-                  scheduleModal.formApi.current?.setValue('cronExpression', five);
-                  setCronExprValue(five);
-                }}
-              />
-            }
-          />
-          <FormTimezoneSelect
-            required={false}
-            extraText={`Cron 按该 IANA 时区计算触发时间；留空使用 ${DEFAULT_TIMEZONE}`}
-          />
-          <Form.Select
-            field="initiatorId"
-            label="发起人"
-            style={{ width: '100%' }}
-            optionList={userOptions}
-            filter
-            rules={[{ required: true, message: '请选择发起人' }]}
-          />
-          <Form.Input
-            field="titleTemplate"
-            label="标题模板"
-            maxLength={255}
-            extraText="支持 {{date}} {{datetime}} 占位，留空用规则名"
-          />
-          <Form.TextArea
-            field="formDataJson"
-            label="表单数据"
-            autosize={{ minRows: 3, maxRows: 10 }}
-            placeholder={'JSON 对象，作为发起实例的表单数据\n例：{\n  "leave_type": "年假",\n  "leave_days": 1\n}'}
-            extraText={(() => {
-              const def = definitionDetailQuery.data;
-              if (!def) return '发起时作为实例表单数据；含必填字段或条件分支的流程建议预填，否则实例将以空表单发起';
-              const fields = def.formType === 'designer'
-                ? (def.formFields ?? []).map((f) => `${f.key}（${f.label}${f.required ? '，必填' : ''}）`)
-                : (def.customForm?.variables ?? []).map((v) => `${v.key}（${v.label}）`);
-              return fields.length
-                ? (
-                  <Typography.Text type="tertiary" size="small">
-                    可用字段：{fields.join('、')}
-                  </Typography.Text>
-                )
-                : '该流程未声明表单字段';
-            })()}
-          />
-          <Form.Select
-            field="status"
-            label="状态"
-            style={{ width: '100%' }}
-            optionList={statusOptions}
-            rules={[{ required: true, message: '请选择状态' }]}
-            initValue="enabled"
-          />
-        </Form>
-      </AppModal>
+          } }}>
+        <Form.Select
+          field="definitionId"
+          label="流程"
+          style={{ width: '100%' }}
+          optionList={definitionOptions}
+          filter
+          rules={[{ required: true, message: '请选择流程' }]}
+        />
+        <Form.Input
+          field="name"
+          label="规则名称"
+          maxLength={64}
+          rules={[{ required: true, message: '请输入规则名称' }]}
+        />
+        <Form.Input
+          field="cronExpression"
+          label="Cron 表达式"
+          maxLength={64}
+          rules={[{ required: true, message: '请输入 Cron 表达式' }]}
+          extraText="标准 5 段 cron，按下方时区解释，例：0 9 * * 1 表示每周一 9:00"
+          addonAfter={
+            <CronBuilderPopover
+              value={toSixField(cronExprValue)}
+              onApply={(expr) => {
+                const five = toFiveField(expr);
+                scheduleModal.formApi.current?.setValue('cronExpression', five);
+                setCronExprValue(five);
+              }}
+            />
+          }
+        />
+        <FormTimezoneSelect
+          required={false}
+          extraText={`Cron 按该 IANA 时区计算触发时间；留空使用 ${DEFAULT_TIMEZONE}`}
+        />
+        <Form.Select
+          field="initiatorId"
+          label="发起人"
+          style={{ width: '100%' }}
+          optionList={userOptions}
+          filter
+          rules={[{ required: true, message: '请选择发起人' }]}
+        />
+        <Form.Input
+          field="titleTemplate"
+          label="标题模板"
+          maxLength={255}
+          extraText="支持 {{date}} {{datetime}} 占位，留空用规则名"
+        />
+        <Form.TextArea
+          field="formDataJson"
+          label="表单数据"
+          autosize={{ minRows: 3, maxRows: 10 }}
+          placeholder={'JSON 对象，作为发起实例的表单数据\n例：{\n  "leave_type": "年假",\n  "leave_days": 1\n}'}
+          extraText={(() => {
+            const def = definitionDetailQuery.data;
+            if (!def) return '发起时作为实例表单数据；含必填字段或条件分支的流程建议预填，否则实例将以空表单发起';
+            const fields = def.formType === 'designer'
+              ? (def.formFields ?? []).map((f) => `${f.key}（${f.label}${f.required ? '，必填' : ''}）`)
+              : (def.customForm?.variables ?? []).map((v) => `${v.key}（${v.label}）`);
+            return fields.length
+              ? (
+                <Typography.Text type="tertiary" size="small">
+                  可用字段：{fields.join('、')}
+                </Typography.Text>
+              )
+              : '该流程未声明表单字段';
+          })()}
+        />
+        <Form.Select
+          field="status"
+          label="状态"
+          style={{ width: '100%' }}
+          optionList={statusOptions}
+          rules={[{ required: true, message: '请选择状态' }]}
+          initValue="enabled"
+        />
+      </EditFormModal>
     </div>
   );
 }

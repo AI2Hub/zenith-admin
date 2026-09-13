@@ -2,7 +2,6 @@ import { Banner, Form, Tag } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import AppModal from '@/components/AppModal';
 import { createdAtColumn, renderEllipsis, renderEnabledStatusTag } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -13,6 +12,7 @@ import { KeywordInput } from '@/components/search-filters';
 import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { FormStatusRadioGroup } from '@/components/FormStatusRadioGroup';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormModal } from '@/components/EditFormModal';
 
 interface SearchParams { keyword: string }
 const defaultSearch: SearchParams = { keyword: '' };
@@ -84,14 +84,12 @@ export default function ErrorProneWordsPage() {
         {...tableProps}
       />
 
-      <AppModal {...modal.modalProps} width={480}>
-        <Form key={modal.formKey} {...modal.formProps}>
-          <Form.Input field="word" label="易错词" rules={[{ required: true, message: '请输入易错词' }]} />
-          <Form.Input field="correction" label="正确写法" rules={[{ required: true, message: '请输入正确写法' }]} />
-          <Form.Input field="remark" label="备注" placeholder="可选" />
-          <FormStatusRadioGroup />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={modal} width={480}>
+        <Form.Input field="word" label="易错词" rules={[{ required: true, message: '请输入易错词' }]} />
+        <Form.Input field="correction" label="正确写法" rules={[{ required: true, message: '请输入正确写法' }]} />
+        <Form.Input field="remark" label="备注" placeholder="可选" />
+        <FormStatusRadioGroup />
+      </EditFormModal>
     </div>
   );
 }

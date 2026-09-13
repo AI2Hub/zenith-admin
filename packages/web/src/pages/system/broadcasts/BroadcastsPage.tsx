@@ -5,7 +5,7 @@
  * (站内信/推送/邮件复用各渠道适配器与用户免打扰设置),进度实时展示。
  */
 import { useEffect, useRef, useState } from 'react';
-import { Form, Modal, Spin, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Form, Modal, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import {
   BROADCAST_AUDIENCE_TYPE_LABELS,
@@ -23,7 +23,6 @@ import {
 } from '@zenith/shared/messaging';
 import { enumValueOf } from '@zenith/shared/core';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import AppModal from '@/components/AppModal';
 import AsyncTaskProgress from '@/components/AsyncTaskProgress';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { deleteAction, ListSearchToolbar } from '@/components/list-page';
@@ -44,6 +43,7 @@ import {
 } from '@/hooks/queries/broadcasts';
 import { useQueryClient } from '@tanstack/react-query';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormModal } from '@/components/EditFormModal';
 
 const { Text } = Typography;
 
@@ -246,46 +246,42 @@ export default function BroadcastsPage() {
         {...tableProps}
       />
 
-      <AppModal {...modal.modalProps} width={640}>
-        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
-          <Form key={modal.formKey} {...modal.formProps}>
-            <Form.Input field="title" label="标题" placeholder="通知标题(即推送/站内信标题)" maxLength={200}
-              rules={[{ required: true, message: '标题不能为空' }]} />
-            <Form.TextArea field="content" label="内容" rows={4} maxCount={2000}
-              rules={[{ required: true, message: '内容不能为空' }]}
-              extraText={(
-                <InsertShortLinkButton
-                  onInsert={(url) => {
-                    const api = modal.formApi.current;
-                    if (!api) return;
-                    const current = (api.getValue('content') as string | undefined) ?? '';
-                    api.setValue('content', current ? `${current} ${url}` : url);
-                  }}
-                />
-              )} />
-            <Form.Input field="link" label="跳转链接" placeholder="可选,站内路由(/path)或外链" maxLength={500} />
-            <Form.CheckboxGroup field="channels" label="投递渠道" direction="horizontal" options={CHANNEL_OPTIONS}
-              rules={[{ required: true, message: '至少选择一个投递渠道' }]} />
-            <Form.Select field="audienceType" label="受众" style={{ width: '100%' }}
-              optionList={BROADCAST_AUDIENCE_TYPE_OPTIONS}
-              onChange={(v) => setAudienceType(v as BroadcastAudienceType)} />
-            {needIds && (
-              <Form.TagInput
-                field="audienceIds"
-                label="ID 名单"
-                placeholder="输入数字 ID 后回车,可粘贴逗号分隔列表"
-                separator=","
-                rules={[{
-                  required: true,
-                  validator: (_r, value: unknown[]) => Array.isArray(value) && value.length > 0 && value.every((v) => /^\d+$/.test(String(v))),
-                  message: '至少一个纯数字 ID',
-                }]}
-              />
-            )}
-            <Form.Input field="remark" label="备注" placeholder="可选" maxLength={500} />
-          </Form>
-        </Spin>
-      </AppModal>
+      <EditFormModal modal={modal} width={640}>
+        <Form.Input field="title" label="标题" placeholder="通知标题(即推送/站内信标题)" maxLength={200}
+          rules={[{ required: true, message: '标题不能为空' }]} />
+        <Form.TextArea field="content" label="内容" rows={4} maxCount={2000}
+          rules={[{ required: true, message: '内容不能为空' }]}
+          extraText={(
+            <InsertShortLinkButton
+              onInsert={(url) => {
+                const api = modal.formApi.current;
+                if (!api) return;
+                const current = (api.getValue('content') as string | undefined) ?? '';
+                api.setValue('content', current ? `${current} ${url}` : url);
+              }}
+            />
+          )} />
+        <Form.Input field="link" label="跳转链接" placeholder="可选,站内路由(/path)或外链" maxLength={500} />
+        <Form.CheckboxGroup field="channels" label="投递渠道" direction="horizontal" options={CHANNEL_OPTIONS}
+          rules={[{ required: true, message: '至少选择一个投递渠道' }]} />
+        <Form.Select field="audienceType" label="受众" style={{ width: '100%' }}
+          optionList={BROADCAST_AUDIENCE_TYPE_OPTIONS}
+          onChange={(v) => setAudienceType(v as BroadcastAudienceType)} />
+        {needIds && (
+          <Form.TagInput
+            field="audienceIds"
+            label="ID 名单"
+            placeholder="输入数字 ID 后回车,可粘贴逗号分隔列表"
+            separator=","
+            rules={[{
+              required: true,
+              validator: (_r, value: unknown[]) => Array.isArray(value) && value.length > 0 && value.every((v) => /^\d+$/.test(String(v))),
+              message: '至少一个纯数字 ID',
+            }]}
+          />
+        )}
+        <Form.Input field="remark" label="备注" placeholder="可选" maxLength={500} />
+      </EditFormModal>
     </div>
   );
 }

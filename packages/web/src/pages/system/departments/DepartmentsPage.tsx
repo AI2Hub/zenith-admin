@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Button, Col, Form, Row, Spin } from '@douyinfe/semi-ui';
+import { Button, Col, Form, Row } from '@douyinfe/semi-ui';
 import { ChevronsUpDown, ChevronsDownUp } from 'lucide-react';
 import { DEPARTMENT_CATEGORIES, type Department } from '@zenith/shared/identity';
 import { enumValueOf } from '@zenith/shared/core';
@@ -12,7 +12,6 @@ import { useListSearch } from '@/hooks/useListSearch';
 import { useTreeExpansion } from '@/hooks/useTreeExpansion';
 import { useEditModal } from '@/hooks/useEditModal';
 import ExportButton from '@/components/ExportButton';
-import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { createdAtColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '../../../utils/table-columns';
@@ -32,6 +31,7 @@ import { deleteAction, ListSearchToolbar, listTableProps, useStatusToggle } from
 import { memberPreviewColumn } from '@/components/members/MemberAssignmentSheet';
 import { compactParams } from '@/lib/query';
 import { useFilterQuery } from '@/hooks/useFilterQuery';
+import { EditFormModal } from '@/components/EditFormModal';
 
 interface SearchParams {
   keyword: string;
@@ -218,82 +218,72 @@ export default function DepartmentsPage() {
         onExpandedRowsChange={onExpandedRowsChange}
       />
 
-      <AppModal
-        {...modal.modalProps}
-        width={660}
-
-      >
-        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
-        <Form
-          key={modal.formKey} {...modal.formProps}
-        >
-          <Form.TreeSelect
-            field="parentId"
-            label="上级部门"
-            style={{ width: '100%' }}
-            treeData={parentTreeData}
-            placeholder="请选择上级部门"
-            filterTreeNode
-          />
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Input field="name" label="部门名称" placeholder="请输入部门名称" rules={[{ required: true, message: '请输入部门名称' }]} />
-            </Col>
-            <Col span={12}>
-              <Form.Input field="code" label="部门编码" placeholder="请输入部门编码" rules={[{ required: true, message: '请输入部门编码' }]} />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Select
-                field="category"
-                label="类别"
-                optionList={categoryOptions}
-                style={{ width: '100%' }}
-                placeholder="请选择类别"
-                rules={[{ required: true, message: '请选择类别' }]}
-              />
-            </Col>
-            <Col span={12}>
-              <Form.Select
-                field="leaderId"
-                label="负责人"
-                placeholder="请选择负责人"
-                showClear
-                filter
-                remote
-                loading={leaderOptionsQuery.isFetching}
-                optionList={leaderOptions}
-                onSearch={setLeaderKeyword}
-                style={{ width: '100%' }}
-              />
-            </Col>
-            <Col span={12}>
-              <Form.Input field="phone" label="联系电话" placeholder="请输入联系电话" />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Input field="email" label="邮箱" placeholder="请输入邮箱" />
-            </Col>
-            <Col span={12}>
-              <Form.InputNumber field="sort" label="排序" placeholder="请输入排序" min={0} style={{ width: '100%' }} />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Select
-                field="status"
-                label="状态"
-                optionList={statusOptions}
-                style={{ width: '100%' }}
-                placeholder="请选择状态"
-              />
-            </Col>
-          </Row>
-        </Form>
-        </Spin>
-      </AppModal>
+      <EditFormModal modal={modal} width={660}>
+        <Form.TreeSelect
+          field="parentId"
+          label="上级部门"
+          style={{ width: '100%' }}
+          treeData={parentTreeData}
+          placeholder="请选择上级部门"
+          filterTreeNode
+        />
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Input field="name" label="部门名称" placeholder="请输入部门名称" rules={[{ required: true, message: '请输入部门名称' }]} />
+          </Col>
+          <Col span={12}>
+            <Form.Input field="code" label="部门编码" placeholder="请输入部门编码" rules={[{ required: true, message: '请输入部门编码' }]} />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Select
+              field="category"
+              label="类别"
+              optionList={categoryOptions}
+              style={{ width: '100%' }}
+              placeholder="请选择类别"
+              rules={[{ required: true, message: '请选择类别' }]}
+            />
+          </Col>
+          <Col span={12}>
+            <Form.Select
+              field="leaderId"
+              label="负责人"
+              placeholder="请选择负责人"
+              showClear
+              filter
+              remote
+              loading={leaderOptionsQuery.isFetching}
+              optionList={leaderOptions}
+              onSearch={setLeaderKeyword}
+              style={{ width: '100%' }}
+            />
+          </Col>
+          <Col span={12}>
+            <Form.Input field="phone" label="联系电话" placeholder="请输入联系电话" />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Input field="email" label="邮箱" placeholder="请输入邮箱" />
+          </Col>
+          <Col span={12}>
+            <Form.InputNumber field="sort" label="排序" placeholder="请输入排序" min={0} style={{ width: '100%' }} />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Select
+              field="status"
+              label="状态"
+              optionList={statusOptions}
+              style={{ width: '100%' }}
+              placeholder="请选择状态"
+            />
+          </Col>
+        </Row>
+      </EditFormModal>
     </div>
   );
 }

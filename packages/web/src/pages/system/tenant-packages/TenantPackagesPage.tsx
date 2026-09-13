@@ -23,6 +23,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { BatchDeleteButton, CreateButton } from '@/components/toolbar-controls';
 import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmAndDelete, deleteAction, ListSearchToolbar, useRowSelection, useStatusToggle } from '@/components/list-page';
+import { EditFormModal } from '@/components/EditFormModal';
 
 interface SearchParams {
   keyword: string;
@@ -172,28 +173,24 @@ export default function TenantPackagesPage() {
         {...tableProps}
       />
 
-      <AppModal {...modal.modalProps} width={520}>
-        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
-          <Form key={modal.formKey} {...modal.formProps}>
-            <Form.Input field="name" label="套餐名称" placeholder="请输入套餐名称" rules={[{ required: true, message: '请输入套餐名称' }]} />
-            <Form.InputNumber
-              field="quotas.maxUsers"
-              label="席位上限"
-              placeholder="留空表示不限制"
-              min={1}
-              style={{ width: '100%' }}
-            />
-            <Form.Select
-              field="status"
-              label="状态"
-              style={{ width: '100%' }}
-              optionList={statusOptions}
-              placeholder="请选择状态"
-            />
-            <Form.TextArea field="remark" label="备注" placeholder="请输入备注" rows={3} />
-          </Form>
-        </Spin>
-      </AppModal>
+      <EditFormModal modal={modal} width={520}>
+        <Form.Input field="name" label="套餐名称" placeholder="请输入套餐名称" rules={[{ required: true, message: '请输入套餐名称' }]} />
+        <Form.InputNumber
+          field="quotas.maxUsers"
+          label="席位上限"
+          placeholder="留空表示不限制"
+          min={1}
+          style={{ width: '100%' }}
+        />
+        <Form.Select
+          field="status"
+          label="状态"
+          style={{ width: '100%' }}
+          optionList={statusOptions}
+          placeholder="请选择状态"
+        />
+        <Form.TextArea field="remark" label="备注" placeholder="请输入备注" rows={3} />
+      </EditFormModal>
 
       <AppModal
         title={`分配功能 — ${featurePackage?.name ?? ''}`}

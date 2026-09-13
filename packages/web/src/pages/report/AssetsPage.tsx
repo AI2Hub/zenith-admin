@@ -3,7 +3,6 @@ import { Banner, Col, Empty, Form, Input, Modal, Row, Select, SideSheet, Space, 
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { ReportAssetCatalogItem, ReportAssetTemplate, ReportAssetTemplateType, ReportAssetUsageSummary, ReportAssetUsageTrendPoint, ReportDeprecationNotice, ReportResourceType } from '@zenith/shared/report';
 import { REPORT_DASHBOARD_LIFECYCLE_LABELS } from '@zenith/shared/report';
-import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import ExportButton from '@/components/ExportButton';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -44,6 +43,7 @@ import { JsonBlock } from '@/components/JsonBlock';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import { useFilterQuery } from '@/hooks/useFilterQuery';
+import { EditFormModal } from '@/components/EditFormModal';
 const resourceTypeOptions = REPORT_RESOURCE_TYPE_OPTIONS;
 const templateTypeOptions: FilterOption<ReportAssetTemplateType>[] = [
   { value: 'dashboard', label: '仪表盘模板' },
@@ -363,35 +363,31 @@ export default function AssetsPage() {
         )}
       </SideSheet>
 
-      <AppModal {...templateModal.modalProps} width={680}>
-        <Form key={templateModal.formKey} {...templateModal.formProps}>
-          <Row gutter={16}>
-            <Col xs={24} md={12}><Form.Input field="name" label="模板名称" rules={[{ required: true }]} /></Col>
-            <Col xs={24} md={12}><Form.Input field="code" label="模板编码" disabled={templateModal.isEdit} rules={[{ required: true }]} /></Col>
-            <Col xs={24} md={12}><Form.Select field="type" label="模板类型" style={{ width: '100%' }} optionList={templateTypeOptions} rules={[{ required: true }]} /></Col>
-            <Col xs={24} md={12}><Form.Select field="status" label="状态" style={{ width: '100%' }} optionList={[{ value: 'enabled', label: '启用' }, { value: 'disabled', label: '停用' }]} /></Col>
-            <Col xs={24} md={12}><Form.Select field="ownerId" label="负责人" filter showClear style={{ width: '100%' }} optionList={userOptions} /></Col>
-            <Col xs={24} md={12}><Form.Select field="folderId" label="模板目录" filter showClear style={{ width: '100%' }} optionList={templateFolders.map((f) => ({ value: f.id, label: f.name }))} /></Col>
-          </Row>
-          <Form.TextArea field="description" label="说明" autosize rows={2} />
-          <Form.TextArea field="content" label="模板 JSON" autosize rows={9} rules={[{ required: true }]} />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={templateModal} width={680}>
+        <Row gutter={16}>
+          <Col xs={24} md={12}><Form.Input field="name" label="模板名称" rules={[{ required: true }]} /></Col>
+          <Col xs={24} md={12}><Form.Input field="code" label="模板编码" disabled={templateModal.isEdit} rules={[{ required: true }]} /></Col>
+          <Col xs={24} md={12}><Form.Select field="type" label="模板类型" style={{ width: '100%' }} optionList={templateTypeOptions} rules={[{ required: true }]} /></Col>
+          <Col xs={24} md={12}><Form.Select field="status" label="状态" style={{ width: '100%' }} optionList={[{ value: 'enabled', label: '启用' }, { value: 'disabled', label: '停用' }]} /></Col>
+          <Col xs={24} md={12}><Form.Select field="ownerId" label="负责人" filter showClear style={{ width: '100%' }} optionList={userOptions} /></Col>
+          <Col xs={24} md={12}><Form.Select field="folderId" label="模板目录" filter showClear style={{ width: '100%' }} optionList={templateFolders.map((f) => ({ value: f.id, label: f.name }))} /></Col>
+        </Row>
+        <Form.TextArea field="description" label="说明" autosize rows={2} />
+        <Form.TextArea field="content" label="模板 JSON" autosize rows={9} rules={[{ required: true }]} />
+      </EditFormModal>
 
-      <AppModal {...deprecationModal.modalProps} width={680}>
-        <Form key={deprecationModal.formKey} {...deprecationModal.formProps}>
-          <Row gutter={16}>
-            <Col xs={24} md={12}><Form.Select field="resourceType" label="资源类型" disabled={deprecationModal.isEdit} style={{ width: '100%' }} optionList={resourceTypeOptions} rules={[{ required: true }]} /></Col>
-            <Col xs={24} md={12}><Form.InputNumber field="resourceId" label="资源 ID" disabled={deprecationModal.isEdit} min={1} style={{ width: '100%' }} rules={[{ required: true }]} /></Col>
-            <Col xs={24} md={12}><Form.DatePicker field="effectiveAt" label="生效时间" type="dateTime" style={{ width: '100%' }} rules={[{ required: true }]} /></Col>
-            <Col xs={24} md={12}><Form.DatePicker field="expiresAt" label="到期时间" type="dateTime" style={{ width: '100%' }} /></Col>
-            <Col xs={24} md={12}><Form.Select field="replacementResourceType" label="替代资源类型" showClear style={{ width: '100%' }} optionList={resourceTypeOptions} /></Col>
-            <Col xs={24} md={12}><Form.InputNumber field="replacementResourceId" label="替代资源 ID" min={1} style={{ width: '100%' }} /></Col>
-          </Row>
-          <Form.Input field="title" label="公告标题" rules={[{ required: true }]} />
-          <Form.TextArea field="message" label="公告内容" autosize rows={4} rules={[{ required: true }]} />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={deprecationModal} width={680}>
+        <Row gutter={16}>
+          <Col xs={24} md={12}><Form.Select field="resourceType" label="资源类型" disabled={deprecationModal.isEdit} style={{ width: '100%' }} optionList={resourceTypeOptions} rules={[{ required: true }]} /></Col>
+          <Col xs={24} md={12}><Form.InputNumber field="resourceId" label="资源 ID" disabled={deprecationModal.isEdit} min={1} style={{ width: '100%' }} rules={[{ required: true }]} /></Col>
+          <Col xs={24} md={12}><Form.DatePicker field="effectiveAt" label="生效时间" type="dateTime" style={{ width: '100%' }} rules={[{ required: true }]} /></Col>
+          <Col xs={24} md={12}><Form.DatePicker field="expiresAt" label="到期时间" type="dateTime" style={{ width: '100%' }} /></Col>
+          <Col xs={24} md={12}><Form.Select field="replacementResourceType" label="替代资源类型" showClear style={{ width: '100%' }} optionList={resourceTypeOptions} /></Col>
+          <Col xs={24} md={12}><Form.InputNumber field="replacementResourceId" label="替代资源 ID" min={1} style={{ width: '100%' }} /></Col>
+        </Row>
+        <Form.Input field="title" label="公告标题" rules={[{ required: true }]} />
+        <Form.TextArea field="message" label="公告内容" autosize rows={4} rules={[{ required: true }]} />
+      </EditFormModal>
 
       <SideSheet title={`模板预览：${previewTemplate?.name ?? ''}`} visible={!!previewTemplate} width={640} onCancel={() => setPreviewTemplate(null)}>
         <Banner type="info" description="以下为模板安全预览，不会创建或修改任何资源。" />

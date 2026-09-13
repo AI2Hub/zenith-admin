@@ -6,7 +6,6 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { MemberLevel } from '@zenith/shared/member';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
-import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { deleteAction, listTableProps } from '@/components/list-page';
@@ -15,6 +14,7 @@ import { memberAdminKeys, useDeleteMemberLevel, useMemberLevels, useSaveMemberLe
 import { useDictItems } from '@/hooks/useDictItems';
 import { CreateButton, RefreshButton } from '@/components/toolbar-controls';
 import { useEditModal } from '@/hooks/useEditModal';
+import { EditFormModal } from '@/components/EditFormModal';
 
 export default function MemberLevelsPage() {
   const navigate = useNavigate();
@@ -72,20 +72,18 @@ export default function MemberLevelsPage() {
 
       <ConfigurableTable<MemberLevel> columns={columns} {...listTableProps(listQuery, { empty: '暂无数据' })} />
 
-      <AppModal {...levelModal.modalProps} width={660}>
-        <Form key={levelModal.formKey} {...levelModal.formProps}>
-          <Row gutter={16}>
-            <Col span={12}><Form.Input field="name" label="等级名称" placeholder="如：黄金会员" rules={[{ required: true, message: '请输入等级名称' }]} /></Col>
-            <Col span={12}><Form.InputNumber field="level" label="等级序号" min={0} style={{ width: '100%' }} rules={[{ required: true, message: '请输入序号' }]} /></Col>
-            <Col span={12}><Form.InputNumber field="growthThreshold" label="成长值门槛" min={0} style={{ width: '100%' }} /></Col>
-            <Col span={12}><Form.InputNumber field="discount" label="折扣(%)" min={1} max={100} style={{ width: '100%' }} suffix="%" /></Col>
-            <Col span={12}><Form.InputNumber field="sort" label="排序" min={0} style={{ width: '100%' }} /></Col>
-            <Col span={12}><Form.Select field="status" label="状态" style={{ width: '100%' }} optionList={statusOptions} /></Col>
-          </Row>
-          <Form.TagInput field="benefits" label="权益说明" placeholder="输入权益后回车，如：生日礼券" />
-          <Form.TextArea field="description" label="描述" placeholder="请输入等级描述" maxCount={256} />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={levelModal} width={660}>
+        <Row gutter={16}>
+          <Col span={12}><Form.Input field="name" label="等级名称" placeholder="如：黄金会员" rules={[{ required: true, message: '请输入等级名称' }]} /></Col>
+          <Col span={12}><Form.InputNumber field="level" label="等级序号" min={0} style={{ width: '100%' }} rules={[{ required: true, message: '请输入序号' }]} /></Col>
+          <Col span={12}><Form.InputNumber field="growthThreshold" label="成长值门槛" min={0} style={{ width: '100%' }} /></Col>
+          <Col span={12}><Form.InputNumber field="discount" label="折扣(%)" min={1} max={100} style={{ width: '100%' }} suffix="%" /></Col>
+          <Col span={12}><Form.InputNumber field="sort" label="排序" min={0} style={{ width: '100%' }} /></Col>
+          <Col span={12}><Form.Select field="status" label="状态" style={{ width: '100%' }} optionList={statusOptions} /></Col>
+        </Row>
+        <Form.TagInput field="benefits" label="权益说明" placeholder="输入权益后回车，如：生日礼券" />
+        <Form.TextArea field="description" label="描述" placeholder="请输入等级描述" maxCount={256} />
+      </EditFormModal>
     </div>
   );
 }

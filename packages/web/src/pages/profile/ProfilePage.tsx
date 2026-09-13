@@ -1,8 +1,5 @@
 import { useState } from 'react';
-import {
-  Form, Button, Typography, Toast, Tag, Space, Spin, Avatar,
-  Modal, Tabs, List as SemiList, Descriptions, Divider, PinCode,
-} from '@douyinfe/semi-ui';
+import { Form, Button, Typography, Toast, Tag, Space, Spin, Avatar, Modal, Tabs, List as SemiList, Descriptions, Divider, PinCode } from '@douyinfe/semi-ui';
 import { UserRound, Shield, Monitor, List, Key, LogOut, Plus, Copy, CheckCircle, Smartphone, ShieldCheck, BellRing } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 
@@ -58,6 +55,7 @@ import { rememberOAuthPending } from '@/lib/oauth-pending';
 import { useEditModal } from '@/hooks/useEditModal';
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import NotificationSettingsTab from './NotificationSettingsTab';
+import { EditFormModal } from '@/components/EditFormModal';
 const { Title, Text } = Typography;
 
 type SectionKey = 'profile' | 'security' | 'notifications' | 'devices' | 'login' | 'operation' | 'api-tokens' | 'authorized-apps';
@@ -860,32 +858,23 @@ export default function ProfilePage({ user }: ProfilePageProps) {
       <AvatarCropperModal {...avatarUpload.cropperProps} confirmLoading={avatarLoading} />
 
       {/* ── 新建 Token Modal ──────────────────────────────────────────────────────────────── */}
-      <AppModal
-        {...tokenModal.modalProps}
-        title="新建 API Token"
-        okText="创建"
-        cancelText="取消"
-        width={480}
-        centered
-      >
-        <Form key={tokenModal.formKey} {...tokenModal.formProps}>
-          <Form.Input
-            field="name"
-            label="Token 名称"
-            placeholder="如：本地开发、CI/CD 环境"
-            rules={[{ required: true, message: '请填写 Token 名称' }]}
-            style={{ width: '100%' }}
-          />
-          <Form.DatePicker
-            field="expiresAt"
-            label="过期时间"
-            type="dateTime"
-            placeholder="不填则永久有效"
-            style={{ width: '100%' }}
-            disabledDate={(date) => !!date && date < new Date()}
-          />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={tokenModal} title="新建 API Token" okText="创建" cancelText="取消" width={480} centered>
+        <Form.Input
+          field="name"
+          label="Token 名称"
+          placeholder="如：本地开发、CI/CD 环境"
+          rules={[{ required: true, message: '请填写 Token 名称' }]}
+          style={{ width: '100%' }}
+        />
+        <Form.DatePicker
+          field="expiresAt"
+          label="过期时间"
+          type="dateTime"
+          placeholder="不填则永久有效"
+          style={{ width: '100%' }}
+          disabledDate={(date) => !!date && date < new Date()}
+        />
+      </EditFormModal>
 
       {/* ── 创建成功展示完整 Token ──────────────────────────────────────────── */}
       <Modal

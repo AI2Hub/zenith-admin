@@ -1,10 +1,9 @@
-import { Col, Form, Row, Spin } from '@douyinfe/semi-ui';
+import { Col, Form, Row } from '@douyinfe/semi-ui';
 import { enumValueOf, USER_STATUSES } from '@zenith/shared/core';
 import type { CreateEmailTemplateInput, EmailTemplate } from '@zenith/shared/messaging';
 import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useEditModal } from '@/hooks/useEditModal';
-import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { deleteAction, ListSearchToolbar, useStatusToggle } from '@/components/list-page';
@@ -20,6 +19,7 @@ import { CreateButton } from '@/components/toolbar-controls';
 import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { TemplateNameCodeRow, TemplateVariablesRemarkRows } from '../message-template-form';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormModal } from '@/components/EditFormModal';
 
 export default function EmailTemplatesPage() {
   const { hasPermission: can } = usePermission();
@@ -116,30 +116,26 @@ export default function EmailTemplatesPage() {
         {...tableProps}
       />
 
-      <AppModal {...modal.modalProps} width={720}>
-        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
-        <Form key={modal.formKey} {...modal.formProps}>
-          <TemplateNameCodeRow isEdit={modal.isEdit} codePlaceholder="如：welcome_email" />
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Input field="subject" label="邮件主题" placeholder="请输入邮件主题"
-                rules={[{ required: true, message: '请输入邮件主题' }]} />
-            </Col>
-            <Col span={12}>
-              <Form.Select field="status" label="状态" style={{ width: '100%' }} placeholder="请选择状态"
-                optionList={statusOptions} />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={24}>
-              <Form.TextArea field="content" label="邮件内容" rows={6} placeholder="请输入邮件内容"
-                rules={[{ required: true, message: '请输入邮件内容' }]} />
-            </Col>
-          </Row>
-          <TemplateVariablesRemarkRows />
-        </Form>
-        </Spin>
-      </AppModal>
+      <EditFormModal modal={modal} width={720}>
+        <TemplateNameCodeRow isEdit={modal.isEdit} codePlaceholder="如：welcome_email" />
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Input field="subject" label="邮件主题" placeholder="请输入邮件主题"
+              rules={[{ required: true, message: '请输入邮件主题' }]} />
+          </Col>
+          <Col span={12}>
+            <Form.Select field="status" label="状态" style={{ width: '100%' }} placeholder="请选择状态"
+              optionList={statusOptions} />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={24}>
+            <Form.TextArea field="content" label="邮件内容" rows={6} placeholder="请输入邮件内容"
+              rules={[{ required: true, message: '请输入邮件内容' }]} />
+          </Col>
+        </Row>
+        <TemplateVariablesRemarkRows />
+      </EditFormModal>
     </div>
   );
 }

@@ -3,7 +3,6 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { USER_STATUSES, enumValueOf } from '@zenith/shared/core';
 import type { CreateRatePlanInput, RatePlan } from '@zenith/shared/open-platform';
 import { copyableNoColumn, createdAtColumn, renderEnabledStatusTag } from '@/utils/table-columns';
-import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { deleteAction, ListSearchToolbar } from '@/components/list-page';
@@ -14,6 +13,7 @@ import { useDictItems } from '@/hooks/useDictItems';
 import { CreateButton } from '@/components/toolbar-controls';
 import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormModal } from '@/components/EditFormModal';
 
 const { Text } = Typography;
 
@@ -122,45 +122,43 @@ export default function RatePlansPage() {
         {...tableProps}
       />
 
-      <AppModal {...modal.modalProps} width={660}>
-        <Form key={modal.formKey} {...modal.formProps}>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Input
-                field="code"
-                label="套餐编码"
-                placeholder="如 free / pro"
-                disabled={modal.isEdit}
-                extraText={modal.isEdit ? '编码不可修改' : '小写字母开头'}
-                rules={[{ required: true, message: '套餐编码不能为空' }]}
-              />
-            </Col>
-            <Col span={12}>
-              <Form.Input field="name" label="套餐名称" placeholder="如 免费版" rules={[{ required: true, message: '名称不能为空' }]} />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={8}>
-              <Form.InputNumber field="qpsLimit" label="QPS" min={0} style={{ width: '100%' }} extraText="0=不限" rules={[{ required: true, message: '必填' }]} />
-            </Col>
-            <Col span={8}>
-              <Form.InputNumber field="dailyQuota" label="每日配额" min={0} style={{ width: '100%' }} extraText="0=不限" rules={[{ required: true, message: '必填' }]} />
-            </Col>
-            <Col span={8}>
-              <Form.InputNumber field="monthlyQuota" label="每月配额" min={0} style={{ width: '100%' }} extraText="0=不限" rules={[{ required: true, message: '必填' }]} />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Switch field="isDefault" label="默认套餐" extraText="应用未绑定套餐时回退使用" />
-            </Col>
-            <Col span={12}>
-              <Form.Select field="status" label="状态" style={{ width: '100%' }} optionList={statusOptions} rules={[{ required: true, message: '请选择状态' }]} />
-            </Col>
-          </Row>
-          <Form.TextArea field="description" label="描述" placeholder="套餐说明（可选）" rows={2} />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={modal} width={660}>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Input
+              field="code"
+              label="套餐编码"
+              placeholder="如 free / pro"
+              disabled={modal.isEdit}
+              extraText={modal.isEdit ? '编码不可修改' : '小写字母开头'}
+              rules={[{ required: true, message: '套餐编码不能为空' }]}
+            />
+          </Col>
+          <Col span={12}>
+            <Form.Input field="name" label="套餐名称" placeholder="如 免费版" rules={[{ required: true, message: '名称不能为空' }]} />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={8}>
+            <Form.InputNumber field="qpsLimit" label="QPS" min={0} style={{ width: '100%' }} extraText="0=不限" rules={[{ required: true, message: '必填' }]} />
+          </Col>
+          <Col span={8}>
+            <Form.InputNumber field="dailyQuota" label="每日配额" min={0} style={{ width: '100%' }} extraText="0=不限" rules={[{ required: true, message: '必填' }]} />
+          </Col>
+          <Col span={8}>
+            <Form.InputNumber field="monthlyQuota" label="每月配额" min={0} style={{ width: '100%' }} extraText="0=不限" rules={[{ required: true, message: '必填' }]} />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Switch field="isDefault" label="默认套餐" extraText="应用未绑定套餐时回退使用" />
+          </Col>
+          <Col span={12}>
+            <Form.Select field="status" label="状态" style={{ width: '100%' }} optionList={statusOptions} rules={[{ required: true, message: '请选择状态' }]} />
+          </Col>
+        </Row>
+        <Form.TextArea field="description" label="描述" placeholder="套餐说明（可选）" rows={2} />
+      </EditFormModal>
     </div>
   );
 }

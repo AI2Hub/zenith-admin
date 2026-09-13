@@ -10,7 +10,6 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { deleteAction, ListSearchToolbar, useStatusToggle } from '@/components/list-page';
 import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { CreateButton } from '@/components/toolbar-controls';
-import AppModal from '@/components/AppModal';
 import { UserTransferSelect } from '@/components/UserTransferSelect';
 import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { useDictItems } from '@/hooks/useDictItems';
@@ -23,6 +22,7 @@ import {
 } from '@/hooks/queries/wiki-spaces';
 import ModalFooter from '@/components/ModalFooter';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormModal } from '@/components/EditFormModal';
 
 const { Text } = Typography;
 
@@ -195,39 +195,35 @@ export default function WikiSpacesPage() {
         {...tableProps}
       />
 
-      <AppModal {...modal.modalProps} width={660}>
-        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
-          <Form key={modal.formKey} {...modal.formProps}>
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Input field="name" label="空间名称" placeholder="请输入空间名称"
-                  rules={[{ required: true, message: '空间名称不能为空' }]} />
-              </Col>
-              <Col span={12}>
-                <Form.Select field="visibility" label="可见性" style={{ width: '100%' }}
-                  optionList={WIKI_SPACE_VISIBILITY_OPTIONS}
-                  rules={[{ required: true, message: '请选择可见性' }]} />
-              </Col>
-            </Row>
-            <Form.Input field="description" label="描述" placeholder="空间用途简介（选填）" />
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.InputNumber field="sort" label="排序" style={{ width: '100%' }} />
-              </Col>
-              <Col span={12}>
-                <Form.Select field="status" label="状态" style={{ width: '100%' }}
-                  optionList={statusOptions}
-                  rules={[{ required: true, message: '请选择状态' }]} />
-              </Col>
-            </Row>
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Switch field="aiSyncEnabled" label="同步 AI 知识库" />
-              </Col>
-            </Row>
-          </Form>
-        </Spin>
-      </AppModal>
+      <EditFormModal modal={modal} width={660}>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Input field="name" label="空间名称" placeholder="请输入空间名称"
+              rules={[{ required: true, message: '空间名称不能为空' }]} />
+          </Col>
+          <Col span={12}>
+            <Form.Select field="visibility" label="可见性" style={{ width: '100%' }}
+              optionList={WIKI_SPACE_VISIBILITY_OPTIONS}
+              rules={[{ required: true, message: '请选择可见性' }]} />
+          </Col>
+        </Row>
+        <Form.Input field="description" label="描述" placeholder="空间用途简介（选填）" />
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.InputNumber field="sort" label="排序" style={{ width: '100%' }} />
+          </Col>
+          <Col span={12}>
+            <Form.Select field="status" label="状态" style={{ width: '100%' }}
+              optionList={statusOptions}
+              rules={[{ required: true, message: '请选择状态' }]} />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Switch field="aiSyncEnabled" label="同步 AI 知识库" />
+          </Col>
+        </Row>
+      </EditFormModal>
 
       {/* 成员授权抽屉 */}
       <SideSheet

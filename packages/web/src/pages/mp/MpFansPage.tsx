@@ -1,10 +1,9 @@
 import { ListSearchToolbar } from '@/components/list-page';
-import { Avatar, Button, Form, Modal, Space, Spin, Tag, Toast } from '@douyinfe/semi-ui';
+import { Avatar, Button, Form, Modal, Space, Tag, Toast } from '@douyinfe/semi-ui';
 import { RefreshCw, Ban } from 'lucide-react';
 import { MP_FAN_SUBSCRIBE_OPTIONS, MP_FAN_SUBSCRIBES, type MpFan, type MpFanSubscribe, type UpdateMpFanInput } from '@zenith/shared/mp';
 import { enumValueOf } from '@zenith/shared/core';
 import { usePermission } from '@/hooks/usePermission';
-import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { dateTimeColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '../../utils/table-columns';
@@ -27,6 +26,7 @@ import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { confirmDanger } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormModal } from '@/components/EditFormModal';
 
 const SEX_LABELS: Record<number, string> = { 0: '未知', 1: '男', 2: '女' };
 
@@ -237,15 +237,11 @@ export default function MpFansPage() {
         {...tableProps}
       />
 
-      <AppModal {...fanModal.modalProps} title="编辑粉丝" width={520}>
-        <Spin spinning={false} wrapperClassName="modal-spin-wrapper">
-          <Form key={fanModal.formKey} {...fanModal.formProps}>
-            <Form.Input field="remark" label="备注" placeholder="请输入备注（最多128字）" maxLength={128} />
-            <Form.Select field="tagIds" label="标签" multiple style={{ width: '100%' }}
-              placeholder="为该粉丝选择标签" optionList={tags.map((t) => ({ label: t.name, value: t.id }))} />
-          </Form>
-        </Spin>
-      </AppModal>
+      <EditFormModal modal={fanModal} title="编辑粉丝" width={520}>
+        <Form.Input field="remark" label="备注" placeholder="请输入备注（最多128字）" maxLength={128} />
+        <Form.Select field="tagIds" label="标签" multiple style={{ width: '100%' }}
+          placeholder="为该粉丝选择标签" optionList={tags.map((t) => ({ label: t.name, value: t.id }))} />
+      </EditFormModal>
     </div>
   );
 }

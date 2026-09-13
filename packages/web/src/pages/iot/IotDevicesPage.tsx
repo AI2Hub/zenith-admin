@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import ModalFooter from '@/components/ModalFooter';
-import { Badge, Button, Col, Form, Row, SideSheet, Spin, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
+import { Badge, Button, Col, Form, Row, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -29,6 +28,7 @@ import {
 import { useAllIotGroups, useDeleteIotGroups, useSaveIotGroup } from '@/hooks/queries/iot-groups';
 import IotDeviceDetailDrawer from './IotDeviceDetailDrawer';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormModal, EditFormSheet } from '@/components/EditFormModal';
 
 const { Text } = Typography;
 
@@ -356,75 +356,64 @@ export default function IotDevicesPage() {
       />
 
       {/* 注册 / 编辑设备 */}
-      <SideSheet
-        title={modal.modalProps.title}
-        visible={modal.visible}
-        onCancel={modal.close}
-        closeOnEsc
-        width={660}
-        footer={<ModalFooter {...modal.footerProps} okText="保存" />}
-      >
-        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
-          <Form key={modal.formKey} {...modal.formProps}>
-            {({ formState }) => {
-              const nodeType = (formState.values as Record<string, unknown>).nodeType as string | undefined;
-              return (
-                <>
-                  <IotProductSelectField />
-                  <Form.Input field="name" label="设备名称" placeholder="如：机房 A-01 温湿度"
-                    rules={[{ required: true, message: '设备名称不能为空' }]} />
-                  {!modal.editing && (
-                    <Form.Input
-                      field="sn" label="设备 SN" placeholder="留空自动生成"
-                      extraText="仅字母、数字、连字符；一经接入不可变更"
-                      rules={[{ validator: (_r, v: string) => !v || /^[0-9A-Za-z-]{4,64}$/.test(v), message: 'SN 为 4-64 位字母、数字或连字符' }]}
-                    />
-                  )}
-                  <Form.RadioGroup field="nodeType" label="设备形态"
-                    extraText={nodeType === 'gateway' ? '网关可代理子设备接入（gateway:batch 帧）' : nodeType === 'sub' ? '子设备经网关代理接入，无需自己的连接与密钥' : undefined}>
-                    {IOT_NODE_TYPE_OPTIONS.map((o) => (
-                      <Form.Radio key={o.value} value={o.value}>{o.label}</Form.Radio>
-                    ))}
-                  </Form.RadioGroup>
-                  {nodeType === 'sub' && (
-                    <Form.Select
-                      field="gatewayId" label="所属网关" placeholder="选择网关设备" style={{ width: '100%' }}
-                      optionList={gatewayOptions}
-                      rules={[{ required: true, message: '子设备必须指定所属网关' }]}
-                      emptyContent="暂无网关设备（先注册形态为「网关」的设备）"
-                    />
-                  )}
-                  <Form.Select
-                    field="groupIds" label="所属分组" placeholder="选择分组（可多选）" multiple showClear style={{ width: '100%' }}
-                    optionList={groupOptions}
-                  />
-                  <Row gutter={16}>
-                    <Col span={12}>
-                      <Form.InputNumber field="latitude" label="纬度" hideButtons style={{ width: '100%' }}
-                        min={-90} max={90} placeholder="如 39.9087（选填）" />
-                    </Col>
-                    <Col span={12}>
-                      <Form.InputNumber field="longitude" label="经度" hideButtons style={{ width: '100%' }}
-                        min={-180} max={180} placeholder="如 116.3975（选填）" />
-                    </Col>
-                  </Row>
-                  <Form.Input field="address" label="安装地址" placeholder="如：北京市东城区 A 栋机房（选填）"
-                    extraText="填写经纬度后设备将出现在「设备地图」中" />
-                  <Row gutter={16}>
-                    <Col span={12}>
-                      <Form.Input field="firmwareVersion" label="固件版本" placeholder="如 1.0.0（选填）" />
-                    </Col>
-                    <Col span={12}>
-                      <FormStatusRadioGroup />
-                    </Col>
-                  </Row>
-                  <Form.TextArea field="remark" label="备注" rows={2} placeholder="安装位置等说明（选填）" maxCount={256} />
-                </>
-              );
-            }}
-          </Form>
-        </Spin>
-      </SideSheet>
+      <EditFormSheet modal={modal} width={660}>
+        {({ formState }) => {
+          const nodeType = (formState.values as Record<string, unknown>).nodeType as string | undefined;
+          return (
+            <>
+              <IotProductSelectField />
+              <Form.Input field="name" label="设备名称" placeholder="如：机房 A-01 温湿度"
+                rules={[{ required: true, message: '设备名称不能为空' }]} />
+              {!modal.editing && (
+                <Form.Input
+                  field="sn" label="设备 SN" placeholder="留空自动生成"
+                  extraText="仅字母、数字、连字符；一经接入不可变更"
+                  rules={[{ validator: (_r, v: string) => !v || /^[0-9A-Za-z-]{4,64}$/.test(v), message: 'SN 为 4-64 位字母、数字或连字符' }]}
+                />
+              )}
+              <Form.RadioGroup field="nodeType" label="设备形态"
+                extraText={nodeType === 'gateway' ? '网关可代理子设备接入（gateway:batch 帧）' : nodeType === 'sub' ? '子设备经网关代理接入，无需自己的连接与密钥' : undefined}>
+                {IOT_NODE_TYPE_OPTIONS.map((o) => (
+                  <Form.Radio key={o.value} value={o.value}>{o.label}</Form.Radio>
+                ))}
+              </Form.RadioGroup>
+              {nodeType === 'sub' && (
+                <Form.Select
+                  field="gatewayId" label="所属网关" placeholder="选择网关设备" style={{ width: '100%' }}
+                  optionList={gatewayOptions}
+                  rules={[{ required: true, message: '子设备必须指定所属网关' }]}
+                  emptyContent="暂无网关设备（先注册形态为「网关」的设备）"
+                />
+              )}
+              <Form.Select
+                field="groupIds" label="所属分组" placeholder="选择分组（可多选）" multiple showClear style={{ width: '100%' }}
+                optionList={groupOptions}
+              />
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.InputNumber field="latitude" label="纬度" hideButtons style={{ width: '100%' }}
+                    min={-90} max={90} placeholder="如 39.9087（选填）" />
+                </Col>
+                <Col span={12}>
+                  <Form.InputNumber field="longitude" label="经度" hideButtons style={{ width: '100%' }}
+                    min={-180} max={180} placeholder="如 116.3975（选填）" />
+                </Col>
+              </Row>
+              <Form.Input field="address" label="安装地址" placeholder="如：北京市东城区 A 栋机房（选填）"
+                extraText="填写经纬度后设备将出现在「设备地图」中" />
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Input field="firmwareVersion" label="固件版本" placeholder="如 1.0.0（选填）" />
+                </Col>
+                <Col span={12}>
+                  <FormStatusRadioGroup />
+                </Col>
+              </Row>
+              <Form.TextArea field="remark" label="备注" rows={2} placeholder="安装位置等说明（选填）" maxCount={256} />
+            </>
+          );
+        }}
+      </EditFormSheet>
 
       {/* 分组管理 */}
       <AppModal
@@ -448,13 +437,11 @@ export default function IotDevicesPage() {
         </Text>
       </AppModal>
 
-      <AppModal {...groupModal.modalProps} width={480}>
-        <Form key={groupModal.formKey} {...groupModal.formProps}>
-          <Form.Input field="name" label="分组名称" placeholder="如：机房 A 区"
-            rules={[{ required: true, message: '分组名称不能为空' }]} />
-          <Form.TextArea field="description" label="描述" rows={2} placeholder="选填" maxCount={256} />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={groupModal} width={480}>
+        <Form.Input field="name" label="分组名称" placeholder="如：机房 A 区"
+          rules={[{ required: true, message: '分组名称不能为空' }]} />
+        <Form.TextArea field="description" label="描述" rows={2} placeholder="选填" maxCount={256} />
+      </EditFormModal>
 
       {/* 批量操作 */}
       <AppModal

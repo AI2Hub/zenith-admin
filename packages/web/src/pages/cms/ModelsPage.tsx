@@ -1,10 +1,9 @@
-import { Button, Form, Tag, ArrayField, Row, Col, useFormApi, Spin } from '@douyinfe/semi-ui';
+import { Button, Form, Tag, ArrayField, Row, Col, useFormApi } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import AppModal from '@/components/AppModal';
 import { createdAtColumn, renderEllipsis, renderEnabledStatusTag } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -19,6 +18,7 @@ import { abortSubmit } from '@/lib/abort-submit';
 import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { FormStatusRadioGroup } from '@/components/FormStatusRadioGroup';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormModal } from '@/components/EditFormModal';
 
 const FIELD_TYPE_OPTIONS = CMS_FIELD_TYPES.map((t) => ({ value: t, label: CMS_FIELD_TYPE_LABELS[t] }));
 const OPTION_SOURCE_OPTIONS = CMS_FIELD_OPTION_SOURCES.map((s) => ({ value: s, label: CMS_FIELD_OPTION_SOURCE_LABELS[s] }));
@@ -209,64 +209,60 @@ export default function ModelsPage() {
         {...tableProps}
       />
 
-      <AppModal {...modal.modalProps} width={860}>
-        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
-        <Form key={modal.formKey} {...modal.formProps}>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Input field="name" label="模型名称" rules={[{ required: true, message: '请输入模型名称' }]} />
-            </Col>
-            <Col span={12}>
-              <Form.Input field="code" label="模型标识" disabled={modal.isEdit} placeholder="如 article" rules={[{ required: true, message: '请输入模型标识' }]} />
-            </Col>
-            <Col span={12}>
-              <Form.Input field="description" label="描述" />
-            </Col>
-            <Col span={12}>
-              <FormStatusRadioGroup />
-            </Col>
-            <Col span={24}>
-              <Form.RadioGroup
-                field="ownerScope"
-                label="归属"
-                disabled={modal.isEdit}
-                extraText={modal.isEdit ? '归属创建后不可变更' : '专属模型仅当前站点可见、可绑定；共享模型全部站点可用'}
-              >
-                <Form.Radio value="site">当前站点专属</Form.Radio>
-                <Form.Radio value="shared">平台共享</Form.Radio>
-              </Form.RadioGroup>
-            </Col>
-          </Row>
-          <Form.Section text="自定义字段（基础字段：标题/摘要/正文/封面/作者等已内置，此处配置扩展字段）">
-            <ArrayField field="fields">
-              {({ add, arrayFields }) => (
-                <>
-                  {arrayFields.map(({ field, key, remove }) => (
-                    <div key={key} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 4, flexWrap: 'wrap' }}>
-                      <Form.Input field={`${field}[name]`} noLabel placeholder="字段标识（英文）" style={{ width: 140 }}
-                        rules={[{ required: true, message: '必填' }, { pattern: /^[a-z][a-z0-9_]*$/, message: '小写字母开头' }]} />
-                      <Form.Input field={`${field}[label]`} noLabel placeholder="字段名称" style={{ width: 120 }}
-                        rules={[{ required: true, message: '必填' }]} />
-                      <Form.Select field={`${field}[fieldType]`} noLabel initValue="text" style={{ width: 120 }} optionList={FIELD_TYPE_OPTIONS} />
-                      <Form.Input field={`${field}[placeholder]`} noLabel placeholder="提示文案" style={{ width: 150 }} />
-                      <Form.Input field={`${field}[defaultValue]`} noLabel placeholder="默认值（新建内容自动填充）" style={{ width: 180 }} />
-                      <Form.Checkbox field={`${field}[required]`} noLabel>必填</Form.Checkbox>
-                      <Form.Checkbox field={`${field}[searchable]`} noLabel>检索</Form.Checkbox>
-                      <Form.Checkbox field={`${field}[showInList]`} noLabel>列表显示</Form.Checkbox>
-                      <Form.Checkbox field={`${field}[showInDetail]`} noLabel>详情展示</Form.Checkbox>
-                      <Form.Input field={`${field}[detailGroup]`} noLabel placeholder="详情分组（如 文件信息）" style={{ width: 150 }} />
-                      <Button type="danger" theme="borderless" icon={<Trash2 size={14} />} onClick={() => remove()} style={{ marginTop: 4 }} />
-                      <FieldOptionSource field={field} />
-                    </div>
-                  ))}
-                  <Button icon={<Plus size={14} />} onClick={() => add()}>添加字段</Button>
-                </>
-              )}
-            </ArrayField>
-          </Form.Section>
-        </Form>
-        </Spin>
-      </AppModal>
+      <EditFormModal modal={modal} width={860}>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Input field="name" label="模型名称" rules={[{ required: true, message: '请输入模型名称' }]} />
+          </Col>
+          <Col span={12}>
+            <Form.Input field="code" label="模型标识" disabled={modal.isEdit} placeholder="如 article" rules={[{ required: true, message: '请输入模型标识' }]} />
+          </Col>
+          <Col span={12}>
+            <Form.Input field="description" label="描述" />
+          </Col>
+          <Col span={12}>
+            <FormStatusRadioGroup />
+          </Col>
+          <Col span={24}>
+            <Form.RadioGroup
+              field="ownerScope"
+              label="归属"
+              disabled={modal.isEdit}
+              extraText={modal.isEdit ? '归属创建后不可变更' : '专属模型仅当前站点可见、可绑定；共享模型全部站点可用'}
+            >
+              <Form.Radio value="site">当前站点专属</Form.Radio>
+              <Form.Radio value="shared">平台共享</Form.Radio>
+            </Form.RadioGroup>
+          </Col>
+        </Row>
+        <Form.Section text="自定义字段（基础字段：标题/摘要/正文/封面/作者等已内置，此处配置扩展字段）">
+          <ArrayField field="fields">
+            {({ add, arrayFields }) => (
+              <>
+                {arrayFields.map(({ field, key, remove }) => (
+                  <div key={key} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 4, flexWrap: 'wrap' }}>
+                    <Form.Input field={`${field}[name]`} noLabel placeholder="字段标识（英文）" style={{ width: 140 }}
+                      rules={[{ required: true, message: '必填' }, { pattern: /^[a-z][a-z0-9_]*$/, message: '小写字母开头' }]} />
+                    <Form.Input field={`${field}[label]`} noLabel placeholder="字段名称" style={{ width: 120 }}
+                      rules={[{ required: true, message: '必填' }]} />
+                    <Form.Select field={`${field}[fieldType]`} noLabel initValue="text" style={{ width: 120 }} optionList={FIELD_TYPE_OPTIONS} />
+                    <Form.Input field={`${field}[placeholder]`} noLabel placeholder="提示文案" style={{ width: 150 }} />
+                    <Form.Input field={`${field}[defaultValue]`} noLabel placeholder="默认值（新建内容自动填充）" style={{ width: 180 }} />
+                    <Form.Checkbox field={`${field}[required]`} noLabel>必填</Form.Checkbox>
+                    <Form.Checkbox field={`${field}[searchable]`} noLabel>检索</Form.Checkbox>
+                    <Form.Checkbox field={`${field}[showInList]`} noLabel>列表显示</Form.Checkbox>
+                    <Form.Checkbox field={`${field}[showInDetail]`} noLabel>详情展示</Form.Checkbox>
+                    <Form.Input field={`${field}[detailGroup]`} noLabel placeholder="详情分组（如 文件信息）" style={{ width: 150 }} />
+                    <Button type="danger" theme="borderless" icon={<Trash2 size={14} />} onClick={() => remove()} style={{ marginTop: 4 }} />
+                    <FieldOptionSource field={field} />
+                  </div>
+                ))}
+                <Button icon={<Plus size={14} />} onClick={() => add()}>添加字段</Button>
+              </>
+            )}
+          </ArrayField>
+        </Form.Section>
+      </EditFormModal>
     </div>
   );
 }

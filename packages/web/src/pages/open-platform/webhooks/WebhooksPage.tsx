@@ -6,7 +6,6 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { USER_STATUSES, enumValueOf } from '@zenith/shared/core';
 import { OPEN_WEBHOOK_DELIVERY_STATUS_LABELS, OPEN_WEBHOOK_EVENTS, OPEN_WEBHOOK_EVENT_LABELS, OPEN_WEBHOOK_SIGN_MODE_OPTIONS, PAYMENT_WEBHOOK_EVENTS, OPEN_WEBHOOK_DELIVERY_STATUS_OPTIONS } from '@zenith/shared/open-platform';
 import type { AppWebhookSubscription, AppWebhookDelivery, OpenWebhookEvent, OpenWebhookSignMode } from '@zenith/shared/open-platform';
-import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePermission } from '@/hooks/usePermission';
@@ -35,6 +34,7 @@ import { abortSubmit } from '@/lib/abort-submit';
 import { compactParams } from '@/lib/query';
 import { dateTimeColumn, EMPTY_PLACEHOLDER, renderEllipsis, enabledStatusColumn } from '@/utils/table-columns';
 import { useFilterQuery } from '@/hooks/useFilterQuery';
+import { EditFormModal } from '@/components/EditFormModal';
 
 const { Text, Paragraph } = Typography;
 
@@ -342,38 +342,32 @@ export default function WebhooksPage({ scope = 'open' }: Readonly<WebhooksPagePr
       />
 
       {/* 新增 / 编辑 */}
-      <AppModal
-        {...modal.modalProps}
-        title={modal.isEdit ? '编辑 Webhook 订阅' : '新增 Webhook 订阅'}
-        width={600}
-      >
-        <Form key={modal.formKey} {...modal.formProps}>
-          <Form.Select field="clientId" label="所属应用" disabled={modal.isEdit} style={{ width: '100%' }} filter optionList={appOptions.map((a) => ({ value: a.clientId, label: a.name }))} rules={[{ required: true, message: '请选择所属应用' }]} />
-          <Form.Input field="name" label="名称" placeholder="如 订单回调" rules={[{ required: true, message: '名称不能为空' }]} />
-          <Form.Input field="url" label="回调地址" placeholder="https://your-app.com/webhook" rules={[{ required: true, message: '请输入回调地址' }]} />
-          <Form.Select
-            field="events"
-            label="订阅事件"
-            multiple
-            style={{ width: '100%' }}
-            placeholder={paymentScope ? '请选择支付或退款事件' : '留空表示订阅全部非支付事件'}
-            optionList={eventOptions.map((e) => ({ value: e.code, label: e.label }))}
-            onChange={(value) => {
-              const events = (value as string[] | undefined) ?? [];
-              setFormEvents(events);
-              if (events.some((event) => SENSITIVE_EVENTS.has(event))) {
-                modal.formApi.current?.setValue('signMode', 'hmacSha256');
-              }
-            }}
-            rules={paymentScope ? [{ required: true, message: '请至少选择一个支付或退款事件' }] : undefined}
-          />
-          <Form.Select field="signMode" label="签名方式" style={{ width: '100%' }} optionList={OPEN_WEBHOOK_SIGN_MODE_OPTIONS}
-            disabled={formEvents.some((event) => SENSITIVE_EVENTS.has(event))}
-            rules={[{ required: true, message: '请选择签名方式' }]} />
-          <Form.TextArea field="headersText" label="自定义请求头" placeholder='JSON 格式，如 {"X-Custom":"abc"}（可选）' rows={2} />
-          <Form.Select field="status" label="状态" style={{ width: '100%' }} optionList={statusOptions} rules={[{ required: true, message: '请选择状态' }]} />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={modal} title={modal.isEdit ? '编辑 Webhook 订阅' : '新增 Webhook 订阅'} width={600}>
+        <Form.Select field="clientId" label="所属应用" disabled={modal.isEdit} style={{ width: '100%' }} filter optionList={appOptions.map((a) => ({ value: a.clientId, label: a.name }))} rules={[{ required: true, message: '请选择所属应用' }]} />
+        <Form.Input field="name" label="名称" placeholder="如 订单回调" rules={[{ required: true, message: '名称不能为空' }]} />
+        <Form.Input field="url" label="回调地址" placeholder="https://your-app.com/webhook" rules={[{ required: true, message: '请输入回调地址' }]} />
+        <Form.Select
+          field="events"
+          label="订阅事件"
+          multiple
+          style={{ width: '100%' }}
+          placeholder={paymentScope ? '请选择支付或退款事件' : '留空表示订阅全部非支付事件'}
+          optionList={eventOptions.map((e) => ({ value: e.code, label: e.label }))}
+          onChange={(value) => {
+            const events = (value as string[] | undefined) ?? [];
+            setFormEvents(events);
+            if (events.some((event) => SENSITIVE_EVENTS.has(event))) {
+              modal.formApi.current?.setValue('signMode', 'hmacSha256');
+            }
+          }}
+          rules={paymentScope ? [{ required: true, message: '请至少选择一个支付或退款事件' }] : undefined}
+        />
+        <Form.Select field="signMode" label="签名方式" style={{ width: '100%' }} optionList={OPEN_WEBHOOK_SIGN_MODE_OPTIONS}
+          disabled={formEvents.some((event) => SENSITIVE_EVENTS.has(event))}
+          rules={[{ required: true, message: '请选择签名方式' }]} />
+        <Form.TextArea field="headersText" label="自定义请求头" placeholder='JSON 格式，如 {"X-Custom":"abc"}（可选）' rows={2} />
+        <Form.Select field="status" label="状态" style={{ width: '100%' }} optionList={statusOptions} rules={[{ required: true, message: '请选择状态' }]} />
+      </EditFormModal>
 
       {/* 一次性 secret */}
       <Modal title="请复制保存 Webhook 签名密钥" visible={secretModal} onCancel={() => setSecretModal(false)} footer={<Button type="primary" onClick={() => setSecretModal(false)}>我已复制，关闭</Button>} closeOnEsc={false} maskClosable={false}>

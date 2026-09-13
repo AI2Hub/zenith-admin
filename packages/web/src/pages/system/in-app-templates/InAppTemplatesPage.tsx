@@ -1,10 +1,9 @@
-import { Col, Form, Row, Spin, Tag } from '@douyinfe/semi-ui';
+import { Col, Form, Row, Tag } from '@douyinfe/semi-ui';
 import { enumValueOf, USER_STATUSES } from '@zenith/shared/core';
 import type { CreateInAppTemplateInput, InAppMessageType, InAppTemplate } from '@zenith/shared/messaging';
 import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useEditModal } from '@/hooks/useEditModal';
-import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { deleteAction, ListSearchToolbar, useStatusToggle } from '@/components/list-page';
@@ -21,6 +20,7 @@ import { CreateButton } from '@/components/toolbar-controls';
 import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { TemplateNameCodeRow, TemplateVariablesRemarkRows } from '../message-template-form';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormModal } from '@/components/EditFormModal';
 
 export default function InAppTemplatesPage() {
   const { hasPermission: can } = usePermission();
@@ -129,37 +129,33 @@ export default function InAppTemplatesPage() {
         {...tableProps}
       />
 
-      <AppModal {...modal.modalProps} width={720}>
-        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
-        <Form key={modal.formKey} {...modal.formProps}>
-          <TemplateNameCodeRow isEdit={modal.isEdit} />
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Select field="type" label="类型" style={{ width: '100%' }} optionList={TYPE_OPTIONS}
-                placeholder="请选择类型"
-                rules={[{ required: true, message: '请选择类型' }]} />
-            </Col>
-            <Col span={12}>
-              <Form.Select field="status" label="状态" style={{ width: '100%' }} placeholder="请选择状态"
-                optionList={statusOptions} />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={24}>
-              <Form.Input field="title" label="标题" placeholder="请输入标题"
-                rules={[{ required: true, message: '请输入标题' }]} />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={24}>
-              <Form.TextArea field="content" label="内容" rows={5} placeholder="请输入内容"
-                rules={[{ required: true, message: '请输入内容' }]} />
-            </Col>
-          </Row>
-          <TemplateVariablesRemarkRows />
-        </Form>
-        </Spin>
-      </AppModal>
+      <EditFormModal modal={modal} width={720}>
+        <TemplateNameCodeRow isEdit={modal.isEdit} />
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Select field="type" label="类型" style={{ width: '100%' }} optionList={TYPE_OPTIONS}
+              placeholder="请选择类型"
+              rules={[{ required: true, message: '请选择类型' }]} />
+          </Col>
+          <Col span={12}>
+            <Form.Select field="status" label="状态" style={{ width: '100%' }} placeholder="请选择状态"
+              optionList={statusOptions} />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={24}>
+            <Form.Input field="title" label="标题" placeholder="请输入标题"
+              rules={[{ required: true, message: '请输入标题' }]} />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={24}>
+            <Form.TextArea field="content" label="内容" rows={5} placeholder="请输入内容"
+              rules={[{ required: true, message: '请输入内容' }]} />
+          </Col>
+        </Row>
+        <TemplateVariablesRemarkRows />
+      </EditFormModal>
     </div>
   );
 }

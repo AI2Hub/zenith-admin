@@ -1,6 +1,5 @@
 
 import { Button, Col, Form, Modal, Row, Tag, Toast } from '@douyinfe/semi-ui';
-import { AppModal } from '@/components/AppModal';
 import { CheckCheck, Plus } from 'lucide-react';
 import type { InAppMessage, InAppMessageType } from '@zenith/shared/messaging';
 import { usePermission } from '@/hooks/usePermission';
@@ -24,6 +23,7 @@ import { IN_APP_MESSAGE_TYPE_OPTIONS_WITH_COLOR as TYPE_OPTIONS } from '../in-ap
 import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { parseTemplateVariables } from '../send-log-constants';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormModal } from '@/components/EditFormModal';
 
 const READ_OPTIONS = [
   { label: '未读', value: 'false' },
@@ -177,49 +177,47 @@ export default function InAppMessagesPage() {
         {...tableProps}
       />
 
-      <AppModal {...sendModal.modalProps} title="发送站内信" width={720}>
-        <Form key={sendModal.formKey} {...sendModal.formProps}>
-          <Row gutter={16}>
-            <Col span={24}>
-              <Form.Select field="userIds" label="收件人" multiple filter style={{ width: '100%' }}
-                optionList={users.map((u) => ({ label: `${u.nickname || u.username} (${u.username})`, value: u.id }))}
-                placeholder="请选择收件人"
-                rules={[{ required: true, message: '请选择收件人' }]} />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={24}>
-              <Form.Select field="templateId" label="模板" style={{ width: '100%' }} showClear filter
-                optionList={templates.map((t) => ({ label: `${t.name} (${t.code})`, value: t.id }))}
-                placeholder="可选，使用模板自动填充" />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={24}>
-              <Form.Select field="type" label="类型" style={{ width: '100%' }} optionList={TYPE_OPTIONS}
-                placeholder="请选择类型"
-                rules={[{ required: true, message: '请选择类型' }]} />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={24}>
-              <Form.Input field="title" label="标题" placeholder="请输入标题"
-                rules={[{ required: true, message: '请输入标题' }]} />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={24}>
-              <Form.TextArea field="content" label="内容" rows={5} placeholder="请输入内容"
-                rules={[{ required: true, message: '请输入内容' }]} />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={24}>
-              <Form.Input field="variables" label="变量" placeholder='如：{"username":"张三"}' />
-            </Col>
-          </Row>
-        </Form>
-      </AppModal>
+      <EditFormModal modal={sendModal} title="发送站内信" width={720}>
+        <Row gutter={16}>
+          <Col span={24}>
+            <Form.Select field="userIds" label="收件人" multiple filter style={{ width: '100%' }}
+              optionList={users.map((u) => ({ label: `${u.nickname || u.username} (${u.username})`, value: u.id }))}
+              placeholder="请选择收件人"
+              rules={[{ required: true, message: '请选择收件人' }]} />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={24}>
+            <Form.Select field="templateId" label="模板" style={{ width: '100%' }} showClear filter
+              optionList={templates.map((t) => ({ label: `${t.name} (${t.code})`, value: t.id }))}
+              placeholder="可选，使用模板自动填充" />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={24}>
+            <Form.Select field="type" label="类型" style={{ width: '100%' }} optionList={TYPE_OPTIONS}
+              placeholder="请选择类型"
+              rules={[{ required: true, message: '请选择类型' }]} />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={24}>
+            <Form.Input field="title" label="标题" placeholder="请输入标题"
+              rules={[{ required: true, message: '请输入标题' }]} />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={24}>
+            <Form.TextArea field="content" label="内容" rows={5} placeholder="请输入内容"
+              rules={[{ required: true, message: '请输入内容' }]} />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={24}>
+            <Form.Input field="variables" label="变量" placeholder='如：{"username":"张三"}' />
+          </Col>
+        </Row>
+      </EditFormModal>
     </div>
   );
 }

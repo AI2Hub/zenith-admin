@@ -1,7 +1,6 @@
 import { useState } from 'react';
-import ModalFooter from '@/components/ModalFooter';
 import { useNavigate } from 'react-router-dom';
-import { Banner, Button, Checkbox, Col, Form, Modal, Row, SideSheet, Spin, Toast, Typography } from '@douyinfe/semi-ui';
+import { Banner, Button, Checkbox, Col, Form, Modal, Row, SideSheet, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Activity } from 'lucide-react';
 import { enumValueOf } from '@zenith/shared/core';
@@ -28,6 +27,7 @@ import { MetricMeter, type MetricMeterTone } from '@/components/data-viz/MetricM
 import { copyableNoColumn, dateTimeColumn, renderEllipsis, renderEnabledStatusTag } from '@/utils/table-columns';
 import { openAppEnvironmentColumn, openAppReviewStatusColumn, openAppScopesColumn } from '../open-app-columns';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormSheet } from '@/components/EditFormModal';
 
 const { Paragraph, Text } = Typography;
 
@@ -230,37 +230,26 @@ export default function MyAppsPage() {
         {...tableProps}
       />
 
-      <SideSheet
-        title={modal.isEdit ? '编辑我的应用' : '创建应用'}
-        visible={modal.visible}
-        onCancel={modal.close}
-        closeOnEsc
-        width={800}
-        footer={<ModalFooter {...modal.footerProps} okText="保存" />}
-      >
-        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
-          <Form key={modal.formKey} {...modal.formProps}>
-            <Row gutter={16}>
-              <Col span={12}><Form.Input field="name" label="应用名称" rules={[{ required: true, message: '请输入应用名称' }]} /></Col>
-              <Col span={12}><Form.Select field="environment" label="环境" optionList={OPEN_APP_ENVIRONMENT_OPTIONS} rules={[{ required: true, message: '请选择环境' }]} style={{ width: '100%' }} /></Col>
-            </Row>
-            <Form.TagInput field="redirectUris" label="回调 URL" placeholder="授权码模式必填，输入后回车" />
-            <Form.CheckboxGroup field="allowedScopes" label="允许 Scope" direction="horizontal" rules={[{ required: true, message: '请选择 Scope' }]}>
-              {scopes.map((scope) => <Checkbox key={scope.code} value={scope.code}>{scope.name}</Checkbox>)}
-            </Form.CheckboxGroup>
-            <Form.CheckboxGroup field="grantTypes" label="授权类型" direction="horizontal" rules={[{ required: true, message: '请选择授权类型' }]}>
-              {OAUTH2_GRANT_TYPES.map((value) => <Checkbox key={value} value={value}>{OAUTH2_GRANT_TYPE_LABELS[value]}</Checkbox>)}
-            </Form.CheckboxGroup>
-            <Row gutter={16}>
-              <Col span={12}><Form.Switch field="isPublic" label="公开客户端" extraText="公开客户端必须使用 PKCE S256" /></Col>
-              <Col span={12}><Form.Switch field="signEnabled" label="AppKey 签名通道" extraText="开启后可用 AppKey + HMAC 签名调用；关闭则仅支持 OAuth2 Bearer" /></Col>
-            </Row>
-            <Form.Input field="logoUrl" label="Logo URL" />
-            <Form.TagInput field="ipAllowlist" label="IP 白名单" placeholder="IP 或 CIDR，留空不限制" />
-            <Form.TextArea field="description" label="应用描述" rows={3} />
-          </Form>
-        </Spin>
-      </SideSheet>
+      <EditFormSheet modal={modal} title={modal.isEdit ? '编辑我的应用' : '创建应用'} width={800}>
+        <Row gutter={16}>
+          <Col span={12}><Form.Input field="name" label="应用名称" rules={[{ required: true, message: '请输入应用名称' }]} /></Col>
+          <Col span={12}><Form.Select field="environment" label="环境" optionList={OPEN_APP_ENVIRONMENT_OPTIONS} rules={[{ required: true, message: '请选择环境' }]} style={{ width: '100%' }} /></Col>
+        </Row>
+        <Form.TagInput field="redirectUris" label="回调 URL" placeholder="授权码模式必填，输入后回车" />
+        <Form.CheckboxGroup field="allowedScopes" label="允许 Scope" direction="horizontal" rules={[{ required: true, message: '请选择 Scope' }]}>
+          {scopes.map((scope) => <Checkbox key={scope.code} value={scope.code}>{scope.name}</Checkbox>)}
+        </Form.CheckboxGroup>
+        <Form.CheckboxGroup field="grantTypes" label="授权类型" direction="horizontal" rules={[{ required: true, message: '请选择授权类型' }]}>
+          {OAUTH2_GRANT_TYPES.map((value) => <Checkbox key={value} value={value}>{OAUTH2_GRANT_TYPE_LABELS[value]}</Checkbox>)}
+        </Form.CheckboxGroup>
+        <Row gutter={16}>
+          <Col span={12}><Form.Switch field="isPublic" label="公开客户端" extraText="公开客户端必须使用 PKCE S256" /></Col>
+          <Col span={12}><Form.Switch field="signEnabled" label="AppKey 签名通道" extraText="开启后可用 AppKey + HMAC 签名调用；关闭则仅支持 OAuth2 Bearer" /></Col>
+        </Row>
+        <Form.Input field="logoUrl" label="Logo URL" />
+        <Form.TagInput field="ipAllowlist" label="IP 白名单" placeholder="IP 或 CIDR，留空不限制" />
+        <Form.TextArea field="description" label="应用描述" rows={3} />
+      </EditFormSheet>
 
       <Modal title="请立即保存应用密钥" visible={Boolean(secret)} onCancel={() => setSecret(null)} closeOnEsc={false} maskClosable={false} footer={<Button type="primary" onClick={() => setSecret(null)}>我已保存</Button>}>
         <Banner type="warning" description="密钥仅显示一次。请存入服务端密钥管理系统，不要写入前端代码或代码仓库。" style={{ marginBottom: 16 }} />

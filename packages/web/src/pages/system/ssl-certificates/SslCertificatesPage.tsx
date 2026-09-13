@@ -13,7 +13,6 @@ import {
   type SslCertificate,
 } from '@zenith/shared/ops';
 import type { UploadCertSchemaInput } from '@zenith/shared/platform';
-import AppModal from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { deleteAction, ListSearchToolbar } from '@/components/list-page';
@@ -32,6 +31,7 @@ import {
 } from '@/hooks/queries/ssl-certificates';
 import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormModal } from '@/components/EditFormModal';
 
 interface SearchParams {
   keyword: string;
@@ -210,32 +210,20 @@ export default function SslCertificatesPage() {
         {...tableProps}
       />
 
-      <AppModal
-        {...generateModal.modalProps}
-        title="生成自签名证书"
-        width={520}
-      >
-        <Form key={generateModal.formKey} {...generateModal.formProps}>
-          <Form.Input field="name" label="名称" rules={[{ required: true, message: '请输入名称' }]} />
-          <Form.Input field="domain" label="域名" rules={[{ required: true, message: '请输入域名' }]} />
-          <Form.InputNumber field="days" label="有效期" min={1} max={3650} suffix="天" style={{ width: '100%' }} />
-          <Form.Input field="country" label="国家" />
-          <Form.Input field="organization" label="组织" />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={generateModal} title="生成自签名证书" width={520}>
+        <Form.Input field="name" label="名称" rules={[{ required: true, message: '请输入名称' }]} />
+        <Form.Input field="domain" label="域名" rules={[{ required: true, message: '请输入域名' }]} />
+        <Form.InputNumber field="days" label="有效期" min={1} max={3650} suffix="天" style={{ width: '100%' }} />
+        <Form.Input field="country" label="国家" />
+        <Form.Input field="organization" label="组织" />
+      </EditFormModal>
 
-      <AppModal
-        {...uploadModal.modalProps}
-        title="上传证书"
-        width={660}
-      >
-        <Form key={uploadModal.formKey} {...uploadModal.formProps}>
-          <Form.Input field="name" label="名称" rules={[{ required: true, message: '请输入名称' }]} />
-          <Form.Input field="domain" label="域名" rules={[{ required: true, message: '请输入域名' }]} />
-          <Form.TextArea field="certContent" label="证书内容" rows={8} rules={[{ required: true, message: '请输入证书内容' }]} />
-          <Form.TextArea field="keyContent" label="私钥内容" rows={8} rules={[{ required: true, message: '请输入私钥内容' }]} />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={uploadModal} title="上传证书" width={660}>
+        <Form.Input field="name" label="名称" rules={[{ required: true, message: '请输入名称' }]} />
+        <Form.Input field="domain" label="域名" rules={[{ required: true, message: '请输入域名' }]} />
+        <Form.TextArea field="certContent" label="证书内容" rows={8} rules={[{ required: true, message: '请输入证书内容' }]} />
+        <Form.TextArea field="keyContent" label="私钥内容" rows={8} rules={[{ required: true, message: '请输入私钥内容' }]} />
+      </EditFormModal>
 
       <SideSheet
         title={displayDetail ? `证书详情 · ${displayDetail.name}` : '证书详情'}

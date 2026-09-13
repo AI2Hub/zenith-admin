@@ -1,5 +1,4 @@
 import { Button, Form } from '@douyinfe/semi-ui';
-import { AppModal } from '@/components/AppModal';
 import { Plus } from 'lucide-react';
 import type { EmailSendLog, SendEmailInput, SendSource, SendStatus } from '@zenith/shared/messaging';
 import { usePermission } from '@/hooks/usePermission';
@@ -21,6 +20,7 @@ import { KeywordInput } from '@/components/search-filters';
 import { SendLogStatusSourceFilters } from '../send-log-ui';
 import { sendLogErrorColumn, sendLogOperatorColumn, sendLogSourceColumn, sendLogStatusColumn } from '../send-log-columns';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormModal } from '@/components/EditFormModal';
 
 /** 测试发送表单值：变量以 JSON 文本输入 */
 interface TestEmailFormValues {
@@ -117,16 +117,14 @@ export default function EmailSendLogsPage() {
         {...tableProps}
       />
 
-      <AppModal {...testModal.modalProps} title="测试发送邮件" width={560}>
-        <Form key={testModal.formKey} {...testModal.formProps}>
-          <Form.Select field="templateId" label="模板" style={{ width: '100%' }} showClear
-            optionList={templates.map((t) => ({ label: `${t.name} (${t.code})`, value: t.id }))} />
-          <Form.Input field="toEmail" label="收件人" rules={[{ required: true, message: '请输入收件人邮箱' }]} />
-          <Form.Input field="subject" label="邮件主题" rules={[{ required: true, message: '请输入邮件主题' }]} />
-          <Form.TextArea field="content" label="邮件内容" rows={5} rules={[{ required: true, message: '请输入邮件内容' }]} />
-          <Form.Input field="variables" label="变量" placeholder='如：{"username":"张三"}' />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={testModal} title="测试发送邮件" width={560}>
+        <Form.Select field="templateId" label="模板" style={{ width: '100%' }} showClear
+          optionList={templates.map((t) => ({ label: `${t.name} (${t.code})`, value: t.id }))} />
+        <Form.Input field="toEmail" label="收件人" rules={[{ required: true, message: '请输入收件人邮箱' }]} />
+        <Form.Input field="subject" label="邮件主题" rules={[{ required: true, message: '请输入邮件主题' }]} />
+        <Form.TextArea field="content" label="邮件内容" rows={5} rules={[{ required: true, message: '请输入邮件内容' }]} />
+        <Form.Input field="variables" label="变量" placeholder='如：{"username":"张三"}' />
+      </EditFormModal>
     </div>
   );
 }

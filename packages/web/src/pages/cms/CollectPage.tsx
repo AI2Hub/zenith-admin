@@ -1,6 +1,5 @@
 /** 采集中心：规则 CRUD + 任务中心执行 + 采集明细（P3 Batch5） */
 import { useMemo, useState } from 'react';
-import ModalFooter from '@/components/ModalFooter';
 import { Col, Form, Row, SideSheet, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -24,6 +23,7 @@ import { channelsToSelectTree } from './channel-tree';
 import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
 import { FormStatusRadioGroup } from '@/components/FormStatusRadioGroup';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormSheet } from '@/components/EditFormModal';
 
 const ITEM_STATUS_META: Record<CmsCollectItem['status'], { label: string; color: 'green' | 'grey' | 'red' }> = {
   success: { label: '成功', color: 'green' },
@@ -167,78 +167,69 @@ export default function CollectPage() {
         {...tableProps}
       />
 
-      <SideSheet
-        title={modal.modalProps.title}
-        visible={modal.visible}
-        onCancel={modal.close}
-        closeOnEsc
-        width={720}
-        footer={<ModalFooter {...modal.footerProps} okText="保存" />}
-      >
-        <Form key={modal.formKey} {...modal.formProps}>
-          <Form.Section text="基础信息">
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Input field="name" label="规则名称" rules={[{ required: true, message: '请输入规则名称' }]} />
-              </Col>
-              <Col span={12}>
-                <Form.TreeSelect field="channelId" label="目标栏目" style={{ width: '100%' }}
-                  treeData={channelsToSelectTree(treeQuery.data ?? [])}
-                  rules={[{ required: true, message: '请选择目标栏目' }]} />
-              </Col>
-            </Row>
-            <Form.Input field="listUrl" label="列表页 URL" placeholder="https://example.com/news?page={page}（{page} 占位翻页）"
-              rules={[{ required: true, message: '请输入列表页 URL' }]} />
-            <Form.Slot label="翻页范围">
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <Form.InputNumber field="pageStart" noLabel min={1} style={{ width: 110 }} />
-                <span>至</span>
-                <Form.InputNumber field="pageEnd" noLabel min={1} style={{ width: 110 }} />
-                <Form.InputNumber field="maxItems" noLabel min={1} max={200} style={{ width: 130 }} prefix="上限" />
-              </div>
-            </Form.Slot>
-          </Form.Section>
+      <EditFormSheet modal={modal} width={720}>
+        <Form.Section text="基础信息">
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Input field="name" label="规则名称" rules={[{ required: true, message: '请输入规则名称' }]} />
+            </Col>
+            <Col span={12}>
+              <Form.TreeSelect field="channelId" label="目标栏目" style={{ width: '100%' }}
+                treeData={channelsToSelectTree(treeQuery.data ?? [])}
+                rules={[{ required: true, message: '请选择目标栏目' }]} />
+            </Col>
+          </Row>
+          <Form.Input field="listUrl" label="列表页 URL" placeholder="https://example.com/news?page={page}（{page} 占位翻页）"
+            rules={[{ required: true, message: '请输入列表页 URL' }]} />
+          <Form.Slot label="翻页范围">
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <Form.InputNumber field="pageStart" noLabel min={1} style={{ width: 110 }} />
+              <span>至</span>
+              <Form.InputNumber field="pageEnd" noLabel min={1} style={{ width: 110 }} />
+              <Form.InputNumber field="maxItems" noLabel min={1} max={200} style={{ width: 130 }} prefix="上限" />
+            </div>
+          </Form.Slot>
+        </Form.Section>
 
-          <Form.Section text="页面选择器">
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Input field="listSelector" label="条目选择器" placeholder="如 .news-list li a"
-                  rules={[{ required: true, message: '请输入条目链接选择器' }]} />
-              </Col>
-              <Col span={12}>
-                <Form.Input field="titleSelector" label="标题选择器" placeholder="如 h1.title"
-                  rules={[{ required: true, message: '请输入标题选择器' }]} />
-              </Col>
-            </Row>
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Input field="bodySelector" label="正文选择器" placeholder="如 .article-content"
-                  rules={[{ required: true, message: '请输入正文选择器' }]} />
-              </Col>
-              <Col span={12}>
-                <Form.Input field="summarySelector" label="摘要选择器" placeholder="选填，如 .summary" />
-              </Col>
-            </Row>
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Input field="coverSelector" label="封面选择器" placeholder="选填，如 .cover img" />
-              </Col>
-            </Row>
-            <Form.TagInput field="removeSelectors" label="清洗选择器" placeholder="回车添加：正文中要移除的节点（广告等）" />
-          </Form.Section>
+        <Form.Section text="页面选择器">
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Input field="listSelector" label="条目选择器" placeholder="如 .news-list li a"
+                rules={[{ required: true, message: '请输入条目链接选择器' }]} />
+            </Col>
+            <Col span={12}>
+              <Form.Input field="titleSelector" label="标题选择器" placeholder="如 h1.title"
+                rules={[{ required: true, message: '请输入标题选择器' }]} />
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Input field="bodySelector" label="正文选择器" placeholder="如 .article-content"
+                rules={[{ required: true, message: '请输入正文选择器' }]} />
+            </Col>
+            <Col span={12}>
+              <Form.Input field="summarySelector" label="摘要选择器" placeholder="选填，如 .summary" />
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Input field="coverSelector" label="封面选择器" placeholder="选填，如 .cover img" />
+            </Col>
+          </Row>
+          <Form.TagInput field="removeSelectors" label="清洗选择器" placeholder="回车添加：正文中要移除的节点（广告等）" />
+        </Form.Section>
 
-          <Form.Section text="采集选项">
-            <Form.Slot label="采集后处理">
-              <div style={{ display: 'flex', gap: 24 }}>
-                <Form.Switch field="autoPublish" noLabel label="自动发布" extraText="采集后直接发布并静态化" />
-                <Form.Switch field="localizeImages" noLabel label="图片本地化" extraText="下载远程图片转存文件中心" />
-              </div>
-            </Form.Slot>
-            <FormStatusRadioGroup />
-            <Form.Input field="remark" label="备注" />
-          </Form.Section>
-        </Form>
-      </SideSheet>
+        <Form.Section text="采集选项">
+          <Form.Slot label="采集后处理">
+            <div style={{ display: 'flex', gap: 24 }}>
+              <Form.Switch field="autoPublish" noLabel label="自动发布" extraText="采集后直接发布并静态化" />
+              <Form.Switch field="localizeImages" noLabel label="图片本地化" extraText="下载远程图片转存文件中心" />
+            </div>
+          </Form.Slot>
+          <FormStatusRadioGroup />
+          <Form.Input field="remark" label="备注" />
+        </Form.Section>
+      </EditFormSheet>
 
       <SideSheet
         title={itemsRule ? `采集明细：${itemsRule.name}` : '采集明细'}

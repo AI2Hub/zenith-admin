@@ -4,7 +4,6 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
-import { AppModal } from '@/components/AppModal';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import { PAYMENT_METHOD_LABELS } from '@zenith/shared/payment';
@@ -15,6 +14,7 @@ import { renderEllipsis } from '@/utils/table-columns';
 import { listTableProps, useStatusToggle } from '@/components/list-page';
 import { abortSubmit } from '@/lib/abort-submit';
 import { PaymentChannelTag } from './payment-display';
+import { EditFormModal } from '@/components/EditFormModal';
 
 interface MethodFormValues { label: string; icon?: string; sort?: number; enabled?: boolean; }
 
@@ -81,13 +81,11 @@ export default function PaymentMethodsPage() {
         {...listTableProps(listQuery)}
       />
 
-      <AppModal {...methodModal.modalProps} title="编辑支付方式" width={480}>
-        <Form key={methodModal.formKey} {...methodModal.formProps}>
-          <Form.Input field="label" label="展示名称" rules={[{ required: true, message: '名称不能为空' }]} />
-          <Form.Input field="icon" label="图标" placeholder="lucide 图标名，可选" />
-          <Form.InputNumber field="sort" label="排序" min={0} max={9999} step={1} precision={0} style={{ width: '100%' }} extraText="数值越小越靠前" />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={methodModal} title="编辑支付方式" width={480}>
+        <Form.Input field="label" label="展示名称" rules={[{ required: true, message: '名称不能为空' }]} />
+        <Form.Input field="icon" label="图标" placeholder="lucide 图标名，可选" />
+        <Form.InputNumber field="sort" label="排序" min={0} max={9999} step={1} precision={0} style={{ width: '100%' }} extraText="数值越小越靠前" />
+      </EditFormModal>
     </div>
   );
 }

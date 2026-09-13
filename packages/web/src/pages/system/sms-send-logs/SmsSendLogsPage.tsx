@@ -1,5 +1,4 @@
 import { Button, Form } from '@douyinfe/semi-ui';
-import { AppModal } from '@/components/AppModal';
 import { Plus } from 'lucide-react';
 import { SMS_PROVIDER_OPTIONS } from '@zenith/shared/messaging';
 import type { SendSmsInput, SendSource, SendStatus, SmsSendLog } from '@zenith/shared/messaging';
@@ -22,6 +21,7 @@ import { KeywordInput } from '@/components/search-filters';
 import { SendLogStatusSourceFilters } from '../send-log-ui';
 import { sendLogErrorColumn, sendLogOperatorColumn, sendLogSourceColumn, sendLogStatusColumn } from '../send-log-columns';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormModal } from '@/components/EditFormModal';
 
 /** 测试发送表单值：变量以 JSON 文本输入 */
 interface TestSmsFormValues {
@@ -118,15 +118,13 @@ export default function SmsSendLogsPage() {
         {...tableProps}
       />
 
-      <AppModal {...testModal.modalProps} title="测试发送短信" width={520}>
-        <Form key={testModal.formKey} {...testModal.formProps}>
-          <Form.Select field="templateId" label="模板" style={{ width: '100%' }}
-            optionList={templates.map((t) => ({ label: `${t.name} (${t.code})`, value: t.id }))}
-            rules={[{ required: true, message: '请选择模板' }]} />
-          <Form.Input field="phone" label="手机号" rules={[{ required: true, message: '请输入手机号' }]} />
-          <Form.Input field="variables" label="变量" placeholder='如：{"code":"1234"}' />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={testModal} title="测试发送短信" width={520}>
+        <Form.Select field="templateId" label="模板" style={{ width: '100%' }}
+          optionList={templates.map((t) => ({ label: `${t.name} (${t.code})`, value: t.id }))}
+          rules={[{ required: true, message: '请选择模板' }]} />
+        <Form.Input field="phone" label="手机号" rules={[{ required: true, message: '请输入手机号' }]} />
+        <Form.Input field="variables" label="变量" placeholder='如：{"code":"1234"}' />
+      </EditFormModal>
     </div>
   );
 }

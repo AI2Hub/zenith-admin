@@ -1,12 +1,12 @@
 import { Button, Form, Modal, Popconfirm, Space, Table, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { MemberTag } from '@zenith/shared/member';
-import { AppModal } from '@/components/AppModal';
 import { useDeleteMemberTag, useMemberTags, useSaveMemberTag, type MemberTagFormValues } from '@/hooks/queries/member-admin';
 import { useDictItems } from '@/hooks/useDictItems';
 import { CreateButton } from '@/components/toolbar-controls';
 import { useEditModal } from '@/hooks/useEditModal';
 import { renderEllipsis, renderEnabledStatusTag } from '@/utils/table-columns';
+import { EditFormModal } from '@/components/EditFormModal';
 
 const TAG_COLORS = ['red', 'orange', 'amber', 'green', 'teal', 'blue', 'purple', 'pink', 'grey'] as const;
 
@@ -76,19 +76,17 @@ export function MemberTagsManageModal({ visible, onClose }: Readonly<Props>) {
         style={{ maxHeight: 420, overflow: 'auto' }}
       />
 
-      <AppModal {...tagModal.modalProps} width={480}>
-        <Form key={tagModal.formKey} {...tagModal.formProps}>
-          <Form.Input field="name" label="名称" placeholder="如：高价值 / 易流失" maxLength={32}
-            rules={[{ required: true, message: '请输入标签名称' }]} />
-          <Form.Select field="color" label="颜色" style={{ width: '100%' }}
-            optionList={TAG_COLORS.map((c) => ({ value: c, label: c }))}
-            renderSelectedItem={(item: { value?: string }) => <Tag color={(item.value || 'blue') as 'blue'}>{item.value}</Tag>} />
-          <Form.Input field="description" label="说明" placeholder="选填" maxLength={256} />
-          <Form.InputNumber field="sort" label="排序" style={{ width: '100%' }} precision={0} />
-          <Form.Select field="status" label="状态" style={{ width: '100%' }}
-            optionList={statusOptions} />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={tagModal} width={480}>
+        <Form.Input field="name" label="名称" placeholder="如：高价值 / 易流失" maxLength={32}
+          rules={[{ required: true, message: '请输入标签名称' }]} />
+        <Form.Select field="color" label="颜色" style={{ width: '100%' }}
+          optionList={TAG_COLORS.map((c) => ({ value: c, label: c }))}
+          renderSelectedItem={(item: { value?: string }) => <Tag color={(item.value || 'blue') as 'blue'}>{item.value}</Tag>} />
+        <Form.Input field="description" label="说明" placeholder="选填" maxLength={256} />
+        <Form.InputNumber field="sort" label="排序" style={{ width: '100%' }} precision={0} />
+        <Form.Select field="status" label="状态" style={{ width: '100%' }}
+          optionList={statusOptions} />
+      </EditFormModal>
     </Modal>
   );
 }

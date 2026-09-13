@@ -4,7 +4,6 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Activity } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import AppModal from '@/components/AppModal';
 import { createdAtColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -31,6 +30,7 @@ import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-fi
 import { abortSubmit } from '@/lib/abort-submit';
 import { batchStatusHandler, deleteAction, ListSearchToolbar, useStatusToggle, useRowSelection } from '@/components/list-page';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormModal } from '@/components/EditFormModal';
 
 interface SearchParams { keyword: string; type?: string; status?: string; ownerId?: number; folderId?: number }
 const defaultSearchParams: SearchParams = { keyword: '', type: undefined, status: undefined, ownerId: undefined, folderId: undefined };
@@ -308,104 +308,99 @@ export default function DataSourcesPage() {
         {...tableProps}
       />
 
-      <AppModal
-        {...datasourceModal.modalProps}
-        width={660}
-      >
-        <Form key={datasourceModal.formKey} {...datasourceModal.formProps}>
-          {({ values }) => (
-            <>
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Form.Input field="name" label="名称" rules={[{ required: true, message: '请输入名称' }]} maxLength={64} showClear placeholder="如：订单库" />
-                </Col>
-                <Col span={12}>
-                  <Form.Select
-                    field="type"
-                    label="类型"
-                    optionList={REPORT_DATASOURCE_TYPE_OPTIONS}
-                    style={{ width: '100%' }}
-                    rules={[{ required: true }]}
-                    onChange={(v) => {
-                      if (v === 'mysql') datasourceModal.formApi.current?.setValue('port', 3306);
-                      if (v === 'postgresql') datasourceModal.formApi.current?.setValue('port', 5432);
-                      if (v === 'sqlserver') datasourceModal.formApi.current?.setValue('port', 1433);
-                    }}
-                  />
-                </Col>
-              </Row>
-              <ReportOwnerFolderFields layout="row" userOptions={userOptions} folderOptions={folderOptions} />
-              {values.type === 'api' ? (
-                <>
-                  <Row gutter={16}>
-                    <Col span={12}>
-                      <Form.Input field="url" label="URL" placeholder="https://api.example.com/data" rules={[{ required: true, message: '请输入 URL' }]} showClear />
-                    </Col>
-                    <Col span={12}>
-                      <Form.Select field="method" label="方法" optionList={[{ value: 'GET', label: 'GET' }, { value: 'POST', label: 'POST' }]} style={{ width: '100%' }} />
-                    </Col>
-                  </Row>
-                  <Form.TextArea field="headersText" label="请求头" placeholder={'选填，JSON 键值，如：\n{ "Authorization": "Bearer xxx" }'} autosize={{ minRows: 2, maxRows: 5 }} />
-                  <Form.Slot label=" ">
-                    <Button onClick={handleTestConnection} loading={testConnectionMutation.isPending}>测试连接</Button>
-                  </Form.Slot>
-                </>
-              ) : isExternalDbType(values.type) ? (
-                <>
-                  <Row gutter={16}>
-                    <Col span={12}>
-                      <Form.Input field="host" label="主机" placeholder="127.0.0.1" rules={[{ required: true, message: '请输入主机' }]} showClear />
-                    </Col>
-                    <Col span={12}>
-                      <Form.InputNumber field="port" label="端口" min={1} max={65535} style={{ width: '100%' }} rules={[{ required: true, message: '请输入端口' }]} />
-                    </Col>
-                  </Row>
-                  <Row gutter={16}>
-                    <Col span={12}>
-                      <Form.Input field="database" label="数据库" rules={[{ required: true, message: '请输入数据库名' }]} showClear />
-                    </Col>
-                    <Col span={12}>
-                      <Form.Input field="user" label="用户" rules={[{ required: true, message: '请输入用户名' }]} showClear />
-                    </Col>
-                  </Row>
-                  <Row gutter={16}>
-                    <Col span={12}>
-                      <Form.Input
-                        field="password"
-                        label="密码"
-                        mode="password"
-                        placeholder={editing ? '留空表示不修改' : '请输入密码'}
-                        helpText={editing && externalConfig.hasPassword ? '已保存密码，留空表示继续使用原密码' : undefined}
-                      />
-                    </Col>
-                    <Col span={12}>
-                      <Form.Switch field="ssl" label="SSL" />
-                    </Col>
-                  </Row>
-                  <Form.Slot label=" ">
-                    <Button onClick={handleTestConnection} loading={testConnectionMutation.isPending}>测试连接</Button>
-                  </Form.Slot>
-                </>
-              ) : values.type === 'static' ? (
-                <Form.Slot label="说明">
-                  <span style={{ color: 'var(--semi-color-text-2)', fontSize: 13 }}>静态数据源仅作容器，数据在「数据集」中以 JSON 粘贴或上传 Excel/CSV 维护。</span>
+      <EditFormModal modal={datasourceModal} width={660}>
+        {({ values }) => (
+          <>
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Input field="name" label="名称" rules={[{ required: true, message: '请输入名称' }]} maxLength={64} showClear placeholder="如：订单库" />
+              </Col>
+              <Col span={12}>
+                <Form.Select
+                  field="type"
+                  label="类型"
+                  optionList={REPORT_DATASOURCE_TYPE_OPTIONS}
+                  style={{ width: '100%' }}
+                  rules={[{ required: true }]}
+                  onChange={(v) => {
+                    if (v === 'mysql') datasourceModal.formApi.current?.setValue('port', 3306);
+                    if (v === 'postgresql') datasourceModal.formApi.current?.setValue('port', 5432);
+                    if (v === 'sqlserver') datasourceModal.formApi.current?.setValue('port', 1433);
+                  }}
+                />
+              </Col>
+            </Row>
+            <ReportOwnerFolderFields layout="row" userOptions={userOptions} folderOptions={folderOptions} />
+            {values.type === 'api' ? (
+              <>
+                <Row gutter={16}>
+                  <Col span={12}>
+                    <Form.Input field="url" label="URL" placeholder="https://api.example.com/data" rules={[{ required: true, message: '请输入 URL' }]} showClear />
+                  </Col>
+                  <Col span={12}>
+                    <Form.Select field="method" label="方法" optionList={[{ value: 'GET', label: 'GET' }, { value: 'POST', label: 'POST' }]} style={{ width: '100%' }} />
+                  </Col>
+                </Row>
+                <Form.TextArea field="headersText" label="请求头" placeholder={'选填，JSON 键值，如：\n{ "Authorization": "Bearer xxx" }'} autosize={{ minRows: 2, maxRows: 5 }} />
+                <Form.Slot label=" ">
+                  <Button onClick={handleTestConnection} loading={testConnectionMutation.isPending}>测试连接</Button>
                 </Form.Slot>
-              ) : (
-                <Form.Slot label="说明">
-                  <span style={{ color: 'var(--semi-color-text-2)', fontSize: 13 }}>内置只读主库，无需额外连接配置。SQL 语句在「数据集」中编写。</span>
+              </>
+            ) : isExternalDbType(values.type) ? (
+              <>
+                <Row gutter={16}>
+                  <Col span={12}>
+                    <Form.Input field="host" label="主机" placeholder="127.0.0.1" rules={[{ required: true, message: '请输入主机' }]} showClear />
+                  </Col>
+                  <Col span={12}>
+                    <Form.InputNumber field="port" label="端口" min={1} max={65535} style={{ width: '100%' }} rules={[{ required: true, message: '请输入端口' }]} />
+                  </Col>
+                </Row>
+                <Row gutter={16}>
+                  <Col span={12}>
+                    <Form.Input field="database" label="数据库" rules={[{ required: true, message: '请输入数据库名' }]} showClear />
+                  </Col>
+                  <Col span={12}>
+                    <Form.Input field="user" label="用户" rules={[{ required: true, message: '请输入用户名' }]} showClear />
+                  </Col>
+                </Row>
+                <Row gutter={16}>
+                  <Col span={12}>
+                    <Form.Input
+                      field="password"
+                      label="密码"
+                      mode="password"
+                      placeholder={editing ? '留空表示不修改' : '请输入密码'}
+                      helpText={editing && externalConfig.hasPassword ? '已保存密码，留空表示继续使用原密码' : undefined}
+                    />
+                  </Col>
+                  <Col span={12}>
+                    <Form.Switch field="ssl" label="SSL" />
+                  </Col>
+                </Row>
+                <Form.Slot label=" ">
+                  <Button onClick={handleTestConnection} loading={testConnectionMutation.isPending}>测试连接</Button>
                 </Form.Slot>
-              )}
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Form.Select field="status" label="状态" style={{ width: '100%' }}
-                    optionList={statusOptions} />
-                </Col>
-              </Row>
-              <Form.TextArea field="remark" label="备注" maxLength={256} autosize={{ minRows: 1, maxRows: 3 }} />
-            </>
-          )}
-        </Form>
-      </AppModal>
+              </>
+            ) : values.type === 'static' ? (
+              <Form.Slot label="说明">
+                <span style={{ color: 'var(--semi-color-text-2)', fontSize: 13 }}>静态数据源仅作容器，数据在「数据集」中以 JSON 粘贴或上传 Excel/CSV 维护。</span>
+              </Form.Slot>
+            ) : (
+              <Form.Slot label="说明">
+                <span style={{ color: 'var(--semi-color-text-2)', fontSize: 13 }}>内置只读主库，无需额外连接配置。SQL 语句在「数据集」中编写。</span>
+              </Form.Slot>
+            )}
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Select field="status" label="状态" style={{ width: '100%' }}
+                  optionList={statusOptions} />
+              </Col>
+            </Row>
+            <Form.TextArea field="remark" label="备注" maxLength={256} autosize={{ minRows: 1, maxRows: 3 }} />
+          </>
+        )}
+      </EditFormModal>
     </div>
   );
 }

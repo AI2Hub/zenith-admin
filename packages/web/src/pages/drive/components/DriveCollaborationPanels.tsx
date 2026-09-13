@@ -12,6 +12,7 @@ import { useCreateDriveTag, useDeleteDriveTag, useDriveTags, useUpdateDriveTag }
 import { abortSubmit } from '@/lib/abort-submit';
 import { confirmDelete } from '@/utils/confirm';
 import { roleAtLeast } from '../drive-utils';
+import { EditFormModal } from '@/components/EditFormModal';
 
 export function DriveSubscriptionButton({ nodeId }: { readonly nodeId: number }) {
   const query = useDriveSubscription(nodeId);
@@ -57,12 +58,10 @@ export function DriveProfilePanel({ node }: { readonly node: DriveNode }) {
           && <Button onClick={() => modal.openEdit({ ...profile, id: node.id })}>编辑说明与属性</Button>}
       </>}
     </Spin>
-    <AppModal {...modal.modalProps} width={620}>
-      <Form key={modal.formKey} {...modal.formProps}>
-        <Form.TextArea field="description" label="文件说明" maxLength={2000} autosize />
-        <Form.TextArea field="metadataJson" label="自定义属性" autosize={{ minRows: 5, maxRows: 14 }} extraText="JSON 对象，最多 30 项；值支持文字、数字、布尔和 null。" />
-      </Form>
-    </AppModal>
+    <EditFormModal modal={modal} width={620}>
+      <Form.TextArea field="description" label="文件说明" maxLength={2000} autosize />
+      <Form.TextArea field="metadataJson" label="自定义属性" autosize={{ minRows: 5, maxRows: 14 }} extraText="JSON 对象，最多 30 项；值支持文字、数字、布尔和 null。" />
+    </EditFormModal>
   </div>;
 }
 
@@ -105,10 +104,10 @@ function SpaceTagEditor({ space }: { readonly space: DriveSpace }) {
           <Button size="small" theme="borderless" onClick={() => { setMerging(tag); setTargetId(undefined); }}>合并</Button>
           <Button size="small" theme="borderless" type="danger" onClick={() => confirmDelete({ title: `删除标签「${tag.name}」？`, onOk: () => remove.mutateAsync({ params: { id: tag.id }, spaceId: space.id }) })}>删除</Button>
         </Space> : undefined} />} />
-    <AppModal {...modal.modalProps} width={460}><Form key={modal.formKey} {...modal.formProps}>
+    <EditFormModal modal={modal} width={460}>
       <Form.Input field="name" label="名称" maxLength={50} rules={[{ required: true }]} />
       <Form.Input field="color" label="颜色" maxLength={20} placeholder="如 blue 或 #1677ff" />
-    </Form></AppModal>
+    </EditFormModal>
     <AppModal title="合并标签" visible={!!merging} onCancel={() => setMerging(null)} closeOnEsc width={460}
       okButtonProps={{ disabled: !targetId, loading: merge.isPending }} onOk={async () => {
         if (!merging || !targetId) { Toast.warning('请选择目标标签'); return abortSubmit(); }

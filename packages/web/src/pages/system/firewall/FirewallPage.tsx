@@ -5,7 +5,6 @@ import { RefreshCw, Shield, ShieldOff } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { deleteAction, InstantFilterToolbar } from '@/components/list-page';
-import AppModal from '@/components/AppModal';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import {
@@ -29,6 +28,7 @@ import { HostSelector } from '@/components/HostSelector';
 import { useOpsHostSelection } from '@/hooks/useOpsHostSelection';
 import { StatCard, StatGrid } from '@/components/charts/StatCard';
 import { EMPTY_PLACEHOLDER } from '@/utils/table-columns';
+import { EditFormModal } from '@/components/EditFormModal';
 
 const RULE_TYPE_COLORS: Record<FirewallRule['type'], 'green' | 'red' | 'orange'> = {
   allow: 'green',
@@ -225,51 +225,45 @@ export default function FirewallPage() {
         pagination={{ pageSize: 20, showSizeChanger: true }}
       />
 
-      <AppModal
-        {...ruleModal.modalProps}
-        okText="保存"
-        width={620}
-      >
-        <Form key={ruleModal.formKey} {...ruleModal.formProps}>
-          <Form.Select
-            field="type"
-            label="规则类型"
-            style={{ width: '100%' }}
-            optionList={[
-              { label: '允许', value: 'allow' },
-              { label: '拒绝', value: 'deny' },
-              { label: '拒止', value: 'reject' },
-            ]}
-            rules={[{ required: true, message: '请选择规则类型' }]}
-          />
-          <Form.Select
-            field="protocol"
-            label="协议"
-            style={{ width: '100%' }}
-            optionList={[
-              { label: 'TCP', value: 'tcp' },
-              { label: 'UDP', value: 'udp' },
-              { label: 'ANY', value: 'any' },
-            ]}
-            rules={[{ required: true, message: '请选择协议' }]}
-          />
-          <Form.Input field="port" label="端口" placeholder="如 22、80、443、1000:2000 或 any" rules={[{ required: true, message: '请输入端口' }]} />
-          <Form.Input field="from" label="来源 IP" placeholder="默认 any" />
-          <Form.Input field="to" label="目标" placeholder="默认 any" />
-          <Form.Select
-            field="direction"
-            label="方向"
-            style={{ width: '100%' }}
-            optionList={[
-              { label: '入站', value: 'in' },
-              { label: '出站', value: 'out' },
-              { label: '任意', value: 'any' },
-            ]}
-            rules={[{ required: true, message: '请选择方向' }]}
-          />
-          <Form.Input field="comment" label="备注" placeholder="可选备注" maxLength={200} />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={ruleModal} okText="保存" width={620}>
+        <Form.Select
+          field="type"
+          label="规则类型"
+          style={{ width: '100%' }}
+          optionList={[
+            { label: '允许', value: 'allow' },
+            { label: '拒绝', value: 'deny' },
+            { label: '拒止', value: 'reject' },
+          ]}
+          rules={[{ required: true, message: '请选择规则类型' }]}
+        />
+        <Form.Select
+          field="protocol"
+          label="协议"
+          style={{ width: '100%' }}
+          optionList={[
+            { label: 'TCP', value: 'tcp' },
+            { label: 'UDP', value: 'udp' },
+            { label: 'ANY', value: 'any' },
+          ]}
+          rules={[{ required: true, message: '请选择协议' }]}
+        />
+        <Form.Input field="port" label="端口" placeholder="如 22、80、443、1000:2000 或 any" rules={[{ required: true, message: '请输入端口' }]} />
+        <Form.Input field="from" label="来源 IP" placeholder="默认 any" />
+        <Form.Input field="to" label="目标" placeholder="默认 any" />
+        <Form.Select
+          field="direction"
+          label="方向"
+          style={{ width: '100%' }}
+          optionList={[
+            { label: '入站', value: 'in' },
+            { label: '出站', value: 'out' },
+            { label: '任意', value: 'any' },
+          ]}
+          rules={[{ required: true, message: '请选择方向' }]}
+        />
+        <Form.Input field="comment" label="备注" placeholder="可选备注" maxLength={200} />
+      </EditFormModal>
     </div>
   );
 }

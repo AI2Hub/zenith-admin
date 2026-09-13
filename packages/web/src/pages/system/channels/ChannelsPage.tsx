@@ -11,7 +11,6 @@ import { usePermission } from '@/hooks/usePermission';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { AppModal } from '@/components/AppModal';
 import { UserAvatar } from '@/components/UserAvatar';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -30,6 +29,7 @@ import { CreateButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { dateTimeColumn, renderEnabledStatusTag } from '@/utils/table-columns';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormModal } from '@/components/EditFormModal';
 
 const TYPE_META: Record<string, { text: string; color: 'green' | 'blue' }> = {
   system: { text: '系统号', color: 'green' },
@@ -177,57 +177,48 @@ export default function ChannelsPage() {
         {...tableProps}
       />
 
-      <AppModal
-        {...modal.modalProps}
-        title={modal.isEdit ? '编辑频道' : '新建运营号'}
-        okText="保存"
-        width={520}
-      >
-        <Form
-          key={modal.formKey} {...modal.formProps}
-        >
-          <Form.Input
-            field="code"
-            label="编码"
-            placeholder="小写字母 / 数字 / 连字符"
-            disabled={modal.isEdit}
-            rules={modal.isEdit ? undefined : [{ required: true, message: '请填写编码' }]}
-          />
-          <Form.Input field="name" label="名称" rules={[{ required: true, message: '请填写名称' }]} />
-          <Form.Slot label="头像">
-            <Space align="center">
-              {avatarUrl
-                ? (
-                  <div style={{ position: 'relative', width: 64, height: 64 }}>
-                    <img src={avatarUrl} alt="头像" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 'var(--semi-border-radius-medium)', border: '1px solid var(--semi-color-border)' }} />
-                    <Button
-                      theme="borderless" type="danger" size="small" icon={<Trash2 size={14} />}
-                      style={{ position: 'absolute', top: -8, right: -8, background: 'var(--semi-color-bg-2)' }}
-                      onClick={() => setAvatarUrl('')}
-                    />
-                  </div>
-                )
-                : (
-                  <Upload
-                    action={`${config.apiBaseUrl}${urlOf(fileContract.uploadOne)}`}
-                    headers={() => request.authHeaders()}
-                    name="file"
-                    accept="image/*"
-                    limit={1}
-                    showUploadList={false}
-                    onSuccess={handleAvatarUpload}
-                  >
-                    <Button icon={<ImagePlus size={14} />}>上传头像</Button>
-                  </Upload>
-                )}
-            </Space>
-          </Form.Slot>
-          <Form.TextArea field="description" label="简介" autosize={{ minRows: 2, maxRows: 4 }} />
-          {modal.isEdit && (
-            <Form.Select field="status" label="状态" style={{ width: '100%' }} optionList={statusOptions} />
-          )}
-        </Form>
-      </AppModal>
+      <EditFormModal modal={modal} title={modal.isEdit ? '编辑频道' : '新建运营号'} okText="保存" width={520}>
+        <Form.Input
+          field="code"
+          label="编码"
+          placeholder="小写字母 / 数字 / 连字符"
+          disabled={modal.isEdit}
+          rules={modal.isEdit ? undefined : [{ required: true, message: '请填写编码' }]}
+        />
+        <Form.Input field="name" label="名称" rules={[{ required: true, message: '请填写名称' }]} />
+        <Form.Slot label="头像">
+          <Space align="center">
+            {avatarUrl
+              ? (
+                <div style={{ position: 'relative', width: 64, height: 64 }}>
+                  <img src={avatarUrl} alt="头像" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 'var(--semi-border-radius-medium)', border: '1px solid var(--semi-color-border)' }} />
+                  <Button
+                    theme="borderless" type="danger" size="small" icon={<Trash2 size={14} />}
+                    style={{ position: 'absolute', top: -8, right: -8, background: 'var(--semi-color-bg-2)' }}
+                    onClick={() => setAvatarUrl('')}
+                  />
+                </div>
+              )
+              : (
+                <Upload
+                  action={`${config.apiBaseUrl}${urlOf(fileContract.uploadOne)}`}
+                  headers={() => request.authHeaders()}
+                  name="file"
+                  accept="image/*"
+                  limit={1}
+                  showUploadList={false}
+                  onSuccess={handleAvatarUpload}
+                >
+                  <Button icon={<ImagePlus size={14} />}>上传头像</Button>
+                </Upload>
+              )}
+          </Space>
+        </Form.Slot>
+        <Form.TextArea field="description" label="简介" autosize={{ minRows: 2, maxRows: 4 }} />
+        {modal.isEdit && (
+          <Form.Select field="status" label="状态" style={{ width: '100%' }} optionList={statusOptions} />
+        )}
+      </EditFormModal>
 
       <ChannelPublishModal
         channel={publishTarget}

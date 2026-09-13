@@ -32,6 +32,7 @@ import { deleteAction, useStatusToggle, ListSearchToolbar, listTableProps } from
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import { useListPage } from '@/hooks/useListPage';
 import { useFilterQuery } from '@/hooks/useFilterQuery';
+import { EditFormModal } from '@/components/EditFormModal';
 const yuan = formatYuan;
 const channelOptions = PAYMENT_CHANNEL_OPTIONS;
 const scopeOptions = PAYMENT_RISK_SCOPE_OPTIONS;
@@ -334,52 +335,47 @@ export default function PaymentRiskRulesPage() {
         </TabPane>
       </Tabs>
 
-      <AppModal {...modal.modalProps} width={700}>
-        <Form
-          key={modal.formKey} {...modal.formProps}
-          onValueChange={(v) => { if (v.scope && v.scope !== scopeWatch) setScopeWatch(v.scope as PaymentRiskScope); }}
-        >
-          <div className="auto-grid" style={{ ['--auto-grid-min']: '220px', ['--auto-grid-cols']: 2 } as CSSProperties}>
-            <Form.Input field="name" label="名称" placeholder="如：大额交易拦截" rules={[{ required: true, message: '名称不能为空' }]} />
-            <Form.Select field="scope" label="作用域" style={{ width: '100%' }} optionList={scopeOptions} rules={[{ required: true, message: '请选择作用域' }]} />
-          </div>
-          {scopeWatch === 'channel' && <Form.Select field="channel" label="渠道" style={{ width: '100%' }} optionList={channelOptions} rules={[{ required: true, message: '请选择渠道' }]} />}
-          {scopeWatch === 'bizType' && <Form.Input field="bizType" label="业务类型" placeholder="如：membership" rules={[{ required: true, message: '请输入业务类型' }]} />}
-          <div className="auto-grid" style={{ ['--auto-grid-min']: '220px', ['--auto-grid-cols']: 2 } as CSSProperties}>
-            <Form.Select field="action" label="命中动作" style={{ width: '100%' }} optionList={actionOptions} rules={[{ required: true, message: '请选择命中动作' }]} />
-            <Form.Select field="status" label="状态" style={{ width: '100%' }} optionList={statusOptions} />
-          </div>
-          <Typography.Text type="tertiary" size="small" style={{ display: 'block', margin: '-8px 0 8px 100px' }}>直接拦截=命中即拒绝下单；人工审核=订单挂起进入审核队列，放行后可继续支付</Typography.Text>
-          <div className="auto-grid" style={{ ['--auto-grid-min']: '220px', ['--auto-grid-cols']: 2 } as CSSProperties}>
-            <Form.InputNumber field="singleYuan" label="单笔上限(元)" min={0} step={0.01} precision={2} style={{ width: '100%' }} placeholder="可选" />
-            <Form.InputNumber field="dailyYuan" label="当日累计(元)" min={0} step={0.01} precision={2} style={{ width: '100%' }} placeholder="可选" />
-          </div>
-          <Form.InputNumber field="dailyCountLimit" label="当日笔数" min={0} step={1} precision={0} style={{ width: '100%' }} placeholder="可选" />
-          {canReadRuleLists ? (
-            <>
-              <Form.Select
-                field="blockListKeys" label="黑名单" multiple filter showClear style={{ width: '100%' }}
-                placeholder="选择规则中心名单库（黑/灰名单）" optionList={blockListOptions}
-              />
-              <Form.Select
-                field="allowListKeys" label="白名单" multiple filter showClear style={{ width: '100%' }}
-                placeholder="选择规则中心名单库（白名单）" optionList={allowListOptions}
-              />
-              <Typography.Text type="tertiary" size="small" style={{ display: 'block', margin: '-8px 0 8px 100px' }}>
-                名单引用自规则中心名单库（条目、过期与批量导入在<Typography.Text link={{ href: '/rules/lists' }} size="small">名单库</Typography.Text>统一管理）；黑名单命中执行规则动作，白名单命中跳过本规则全部检查
-              </Typography.Text>
-            </>
-          ) : (
-            <Banner
-              type="warning"
-              closeIcon={null}
-              style={{ marginBottom: 12 }}
-              description="当前账号无规则中心名单库查看权限，不能选择或修改名单引用；编辑时将保留原有名单配置。"
+      <EditFormModal modal={modal} width={700} formProps={{ onValueChange: (v) => { if (v.scope && v.scope !== scopeWatch) setScopeWatch(v.scope as PaymentRiskScope); } }}>
+        <div className="auto-grid" style={{ ['--auto-grid-min']: '220px', ['--auto-grid-cols']: 2 } as CSSProperties}>
+          <Form.Input field="name" label="名称" placeholder="如：大额交易拦截" rules={[{ required: true, message: '名称不能为空' }]} />
+          <Form.Select field="scope" label="作用域" style={{ width: '100%' }} optionList={scopeOptions} rules={[{ required: true, message: '请选择作用域' }]} />
+        </div>
+        {scopeWatch === 'channel' && <Form.Select field="channel" label="渠道" style={{ width: '100%' }} optionList={channelOptions} rules={[{ required: true, message: '请选择渠道' }]} />}
+        {scopeWatch === 'bizType' && <Form.Input field="bizType" label="业务类型" placeholder="如：membership" rules={[{ required: true, message: '请输入业务类型' }]} />}
+        <div className="auto-grid" style={{ ['--auto-grid-min']: '220px', ['--auto-grid-cols']: 2 } as CSSProperties}>
+          <Form.Select field="action" label="命中动作" style={{ width: '100%' }} optionList={actionOptions} rules={[{ required: true, message: '请选择命中动作' }]} />
+          <Form.Select field="status" label="状态" style={{ width: '100%' }} optionList={statusOptions} />
+        </div>
+        <Typography.Text type="tertiary" size="small" style={{ display: 'block', margin: '-8px 0 8px 100px' }}>直接拦截=命中即拒绝下单；人工审核=订单挂起进入审核队列，放行后可继续支付</Typography.Text>
+        <div className="auto-grid" style={{ ['--auto-grid-min']: '220px', ['--auto-grid-cols']: 2 } as CSSProperties}>
+          <Form.InputNumber field="singleYuan" label="单笔上限(元)" min={0} step={0.01} precision={2} style={{ width: '100%' }} placeholder="可选" />
+          <Form.InputNumber field="dailyYuan" label="当日累计(元)" min={0} step={0.01} precision={2} style={{ width: '100%' }} placeholder="可选" />
+        </div>
+        <Form.InputNumber field="dailyCountLimit" label="当日笔数" min={0} step={1} precision={0} style={{ width: '100%' }} placeholder="可选" />
+        {canReadRuleLists ? (
+          <>
+            <Form.Select
+              field="blockListKeys" label="黑名单" multiple filter showClear style={{ width: '100%' }}
+              placeholder="选择规则中心名单库（黑/灰名单）" optionList={blockListOptions}
             />
-          )}
-          <Form.TextArea field="remark" label="备注" autosize rows={1} placeholder="可选" />
-        </Form>
-      </AppModal>
+            <Form.Select
+              field="allowListKeys" label="白名单" multiple filter showClear style={{ width: '100%' }}
+              placeholder="选择规则中心名单库（白名单）" optionList={allowListOptions}
+            />
+            <Typography.Text type="tertiary" size="small" style={{ display: 'block', margin: '-8px 0 8px 100px' }}>
+              名单引用自规则中心名单库（条目、过期与批量导入在<Typography.Text link={{ href: '/rules/lists' }} size="small">名单库</Typography.Text>统一管理）；黑名单命中执行规则动作，白名单命中跳过本规则全部检查
+            </Typography.Text>
+          </>
+        ) : (
+          <Banner
+            type="warning"
+            closeIcon={null}
+            style={{ marginBottom: 12 }}
+            description="当前账号无规则中心名单库查看权限，不能选择或修改名单引用；编辑时将保留原有名单配置。"
+          />
+        )}
+        <Form.TextArea field="remark" label="备注" autosize rows={1} placeholder="可选" />
+      </EditFormModal>
 
       <AppModal
         title={reviewDecision === 'reject' ? '拒绝风险审核' : '放行风险审核'}

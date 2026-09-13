@@ -1,11 +1,8 @@
 import { useState } from 'react';
-import {
-  Button, Col, Descriptions, Dropdown, Form, Row, SideSheet, Space, Spin, Tag, Toast, Typography,
-} from '@douyinfe/semi-ui';
+import { Button, Col, Descriptions, Dropdown, Form, Row, SideSheet, Space, Spin, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { KeyRound, Radar, RotateCcw } from 'lucide-react';
 import type { CreateOpsHostInput, OpsHost, OpsHostAuthType } from '@zenith/shared/ops';
-import AppModal from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import PageLoading from '@/components/PageLoading';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -30,6 +27,7 @@ import {
 } from '@/hooks/queries/ops-hosts';
 import { useSshProfiles } from '@/hooks/queries/terminal';
 import { formatBytes } from '@zenith/shared/core';
+import { EditFormModal } from '@/components/EditFormModal';
 
 const { Text } = Typography;
 
@@ -270,63 +268,59 @@ export default function HostsPage() {
         {...listTableProps(hostsQuery)}
       />
 
-      <AppModal {...modal.modalProps} width={760}>
-        <Spin spinning={modal.detailLoading}>
-          <Form key={modal.formKey} {...modal.formProps}>
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Input field="name" label="名称" rules={[{ required: true }]} />
-              </Col>
-              <Col span={12}>
-                <Form.Input field="host" label="主机地址" placeholder="IP 或域名" rules={[{ required: true }]} />
-              </Col>
-              <Col span={12}>
-                <Form.InputNumber
-                  field="port"
-                  label="SSH 端口"
-                  min={1}
-                  max={65535}
-                  style={{ width: '100%' }}
-                  rules={[{ required: true }]}
-                />
-              </Col>
-              <Col span={12}>
-                <Form.Input field="username" label="SSH 用户名" rules={[{ required: true }]} />
-              </Col>
-              <Col span={12}>
-                <Form.Select
-                  field="authType"
-                  label="认证方式"
-                  style={{ width: '100%' }}
-                  optionList={[
-                    { label: '密码', value: 'password' },
-                    { label: '私钥内容', value: 'key_content' },
-                  ]}
-                  onChange={(value) => setFormAuthType(value as OpsHostAuthType)}
-                  rules={[{ required: true }]}
-                />
-              </Col>
-              <Col span={12}>
-                <Form.Switch field="enabled" label="启用状态" />
-              </Col>
-            </Row>
-            {formAuthType === 'key_content' ? (
-              <>
-                <Form.TextArea
-                  field="keyContent"
-                  label="SSH 私钥"
-                  rows={8}
-                  placeholder={modal.isEdit ? '留空表示不修改' : '-----BEGIN OPENSSH PRIVATE KEY-----'}
-                />
-                <Form.Input mode="password" field="keyPassphrase" label="私钥口令" placeholder="可选，留空表示不修改" />
-              </>
-            ) : (
-              <Form.Input mode="password" field="password" label="SSH 密码" placeholder={modal.isEdit ? '留空表示不修改' : ''} />
-            )}
-            <Form.TextArea field="remark" label="备注" rows={2} />
-          </Form>
-        </Spin>
-      </AppModal>
+      <EditFormModal modal={modal} width={760}>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Input field="name" label="名称" rules={[{ required: true }]} />
+          </Col>
+          <Col span={12}>
+            <Form.Input field="host" label="主机地址" placeholder="IP 或域名" rules={[{ required: true }]} />
+          </Col>
+          <Col span={12}>
+            <Form.InputNumber
+              field="port"
+              label="SSH 端口"
+              min={1}
+              max={65535}
+              style={{ width: '100%' }}
+              rules={[{ required: true }]}
+            />
+          </Col>
+          <Col span={12}>
+            <Form.Input field="username" label="SSH 用户名" rules={[{ required: true }]} />
+          </Col>
+          <Col span={12}>
+            <Form.Select
+              field="authType"
+              label="认证方式"
+              style={{ width: '100%' }}
+              optionList={[
+                { label: '密码', value: 'password' },
+                { label: '私钥内容', value: 'key_content' },
+              ]}
+              onChange={(value) => setFormAuthType(value as OpsHostAuthType)}
+              rules={[{ required: true }]}
+            />
+          </Col>
+          <Col span={12}>
+            <Form.Switch field="enabled" label="启用状态" />
+          </Col>
+        </Row>
+        {formAuthType === 'key_content' ? (
+          <>
+            <Form.TextArea
+              field="keyContent"
+              label="SSH 私钥"
+              rows={8}
+              placeholder={modal.isEdit ? '留空表示不修改' : '-----BEGIN OPENSSH PRIVATE KEY-----'}
+            />
+            <Form.Input mode="password" field="keyPassphrase" label="私钥口令" placeholder="可选，留空表示不修改" />
+          </>
+        ) : (
+          <Form.Input mode="password" field="password" label="SSH 密码" placeholder={modal.isEdit ? '留空表示不修改' : ''} />
+        )}
+        <Form.TextArea field="remark" label="备注" rows={2} />
+      </EditFormModal>
 
       <SideSheet
         title={detail ? `主机详情：${detail.name}` : '主机详情'}

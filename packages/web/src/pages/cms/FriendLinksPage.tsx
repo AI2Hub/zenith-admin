@@ -4,7 +4,6 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { FolderTree } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import AppModal from '@/components/AppModal';
 import { createdAtColumn, renderEnabledStatusTag } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -22,6 +21,7 @@ import { abortSubmit } from '@/lib/abort-submit';
 import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
 import { FormStatusRadioGroup } from '@/components/FormStatusRadioGroup';
 import { useFilterQuery } from '@/hooks/useFilterQuery';
+import { EditFormModal } from '@/components/EditFormModal';
 
 interface SearchParams { keyword: string; groupId?: number }
 const defaultSearch: SearchParams = { keyword: '', groupId: undefined };
@@ -136,18 +136,16 @@ export default function FriendLinksPage() {
         {...listTableProps(listQuery, { pagination: buildPagination, empty: '暂无友情链接' })}
       />
 
-      <AppModal {...linkModal.modalProps} width={520}>
-        <Form key={linkModal.formKey} {...linkModal.formProps}>
-          <Form.Input field="name" label="链接名称" rules={[{ required: true, message: '请输入链接名称' }]} />
-          <Form.Input field="url" label="链接地址" placeholder="https://..." rules={[{ required: true, message: '请输入链接地址' }]} />
-          <Form.Select field="groupId" label="所属分组" showClear style={{ width: '100%' }} placeholder="未分组"
-            optionList={groupOptions.map((g) => ({ value: g.id, label: g.name }))} />
-          <Form.Input field="logo" label="Logo URL" />
-          <Form.InputNumber field="sort" label="排序" style={{ width: 160 }} />
-          <FormStatusRadioGroup />
-          <Form.Input field="remark" label="备注" />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={linkModal} width={520}>
+        <Form.Input field="name" label="链接名称" rules={[{ required: true, message: '请输入链接名称' }]} />
+        <Form.Input field="url" label="链接地址" placeholder="https://..." rules={[{ required: true, message: '请输入链接地址' }]} />
+        <Form.Select field="groupId" label="所属分组" showClear style={{ width: '100%' }} placeholder="未分组"
+          optionList={groupOptions.map((g) => ({ value: g.id, label: g.name }))} />
+        <Form.Input field="logo" label="Logo URL" />
+        <Form.InputNumber field="sort" label="排序" style={{ width: 160 }} />
+        <FormStatusRadioGroup />
+        <Form.Input field="remark" label="备注" />
+      </EditFormModal>
 
       <FriendLinkGroupSheet
         siteId={siteId}
@@ -205,17 +203,15 @@ function FriendLinkGroupSheet({ siteId, visible, onClose }: Readonly<{
         columns={columns}
         {...listTableProps(listQuery, { pagination: buildPagination, empty: '暂无分组' })}
       />
-      <AppModal {...groupModal.modalProps} width={480}>
-        <Form key={groupModal.formKey} {...groupModal.formProps}>
-          <Form.Input field="name" label="分组名称" rules={[{ required: true, message: '请输入分组名称' }]} />
-          <Form.Input field="code" label="分组标识" placeholder="如 tech" disabled={groupModal.isEdit}
-            extraText="主题按组取数的稳定引用，创建后不可修改"
-            rules={[{ required: true, message: '请输入分组标识' }, { pattern: /^[a-z0-9-]+$/, message: '仅支持小写字母、数字、中划线' }]} />
-          <Form.InputNumber field="sort" label="排序" style={{ width: 160 }} />
-          <FormStatusRadioGroup />
-          <Form.Input field="remark" label="备注" />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={groupModal} width={480}>
+        <Form.Input field="name" label="分组名称" rules={[{ required: true, message: '请输入分组名称' }]} />
+        <Form.Input field="code" label="分组标识" placeholder="如 tech" disabled={groupModal.isEdit}
+          extraText="主题按组取数的稳定引用，创建后不可修改"
+          rules={[{ required: true, message: '请输入分组标识' }, { pattern: /^[a-z0-9-]+$/, message: '仅支持小写字母、数字、中划线' }]} />
+        <Form.InputNumber field="sort" label="排序" style={{ width: 160 }} />
+        <FormStatusRadioGroup />
+        <Form.Input field="remark" label="备注" />
+      </EditFormModal>
     </SideSheet>
   );
 }

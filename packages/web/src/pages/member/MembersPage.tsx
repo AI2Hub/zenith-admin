@@ -44,6 +44,7 @@ import { SensitiveFormInput, SensitiveText } from '@/components/sensitive';
 import { abortSubmit } from '@/lib/abort-submit';
 import { MEMBER_STATUS_COLORS } from './member-tag-colors';
 import { useFilterQuery } from '@/hooks/useFilterQuery';
+import { EditFormModal } from '@/components/EditFormModal';
 
 const statusOptions = (['active', 'inactive', 'banned'] as const).map((v) => ({ value: v, label: MEMBER_STATUS_LABELS[v] }));
 const TAG_FALLBACK_COLOR = 'blue';
@@ -331,29 +332,27 @@ export default function MembersPage() {
         })} />
 
       {/* 编辑 / 新增 Modal */}
-      <AppModal {...memberModal.modalProps} width={660}>
-        <Form key={memberModal.formKey} {...memberModal.formProps}>
-          <Row gutter={16}>
-            <Col span={12}><Form.Input field="nickname" label="昵称" placeholder="请输入昵称" rules={[{ required: true, message: '请输入昵称' }]} /></Col>
-            <Col span={12}><Form.Input field="username" label="用户名" placeholder="用户名/手机号/邮箱至少填一个" disabled={!!editing} /></Col>
-            <Col span={12}><SensitiveFormInput control={sensitiveFields} field="phone" label="手机号" placeholder="用户名/手机号/邮箱至少填一个" /></Col>
-            <Col span={12}><SensitiveFormInput control={sensitiveFields} field="email" label="邮箱" placeholder="用户名/手机号/邮箱至少填一个" /></Col>
-            {!editing && <Col span={12}><Form.Input field="password" label="密码" type="password" placeholder="选填，留空则无密码" /></Col>}
-            <Col span={12}>
-              <Form.Select field="levelId" label="会员等级" placeholder="请选择" style={{ width: '100%' }} showClear
-                optionList={levels.map((l) => ({ value: l.id, label: l.name }))} />
-            </Col>
-            <Col span={12}>
-              <Form.Select field="status" label="状态" style={{ width: '100%' }} optionList={statusOptions} />
-            </Col>
-            <Col span={12}>
-              <Form.Select field="gender" label="性别" placeholder="请选择" style={{ width: '100%' }} showClear
-                optionList={genderOptions} />
-            </Col>
-          </Row>
-          <Form.TextArea field="remark" label="备注" placeholder="请输入备注" maxCount={256} />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={memberModal} width={660}>
+        <Row gutter={16}>
+          <Col span={12}><Form.Input field="nickname" label="昵称" placeholder="请输入昵称" rules={[{ required: true, message: '请输入昵称' }]} /></Col>
+          <Col span={12}><Form.Input field="username" label="用户名" placeholder="用户名/手机号/邮箱至少填一个" disabled={!!editing} /></Col>
+          <Col span={12}><SensitiveFormInput control={sensitiveFields} field="phone" label="手机号" placeholder="用户名/手机号/邮箱至少填一个" /></Col>
+          <Col span={12}><SensitiveFormInput control={sensitiveFields} field="email" label="邮箱" placeholder="用户名/手机号/邮箱至少填一个" /></Col>
+          {!editing && <Col span={12}><Form.Input field="password" label="密码" type="password" placeholder="选填，留空则无密码" /></Col>}
+          <Col span={12}>
+            <Form.Select field="levelId" label="会员等级" placeholder="请选择" style={{ width: '100%' }} showClear
+              optionList={levels.map((l) => ({ value: l.id, label: l.name }))} />
+          </Col>
+          <Col span={12}>
+            <Form.Select field="status" label="状态" style={{ width: '100%' }} optionList={statusOptions} />
+          </Col>
+          <Col span={12}>
+            <Form.Select field="gender" label="性别" placeholder="请选择" style={{ width: '100%' }} showClear
+              optionList={genderOptions} />
+          </Col>
+        </Row>
+        <Form.TextArea field="remark" label="备注" placeholder="请输入备注" maxCount={256} />
+      </EditFormModal>
 
       {/* 重置密码 Modal */}
       <AppModal title="重置会员密码" visible={pwdVisible} width={480}

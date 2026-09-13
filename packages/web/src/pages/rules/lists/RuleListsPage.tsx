@@ -5,7 +5,6 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { RULE_LIST_TYPE_OPTIONS, RULE_LIST_TYPES, type RuleList, type RuleListItem, type RuleUsageItem } from '@zenith/shared/rules';
 import { enumValueOf } from '@zenith/shared/core';
 import { EMPTY_PLACEHOLDER, createdAtColumn, dateTimeColumn, renderEllipsis, renderEnabledStatusTag } from '@/utils/table-columns';
-import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePagination } from '@/hooks/usePagination';
@@ -29,6 +28,7 @@ import { CreateButton } from '@/components/toolbar-controls';
 import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { useEditModal } from '@/hooks/useEditModal';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormModal } from '@/components/EditFormModal';
 
 const { Text } = Typography;
 
@@ -198,17 +198,12 @@ export default function RuleListsPage() {
         {...tableProps}
       />
 
-      <AppModal
-        {...modal.modalProps}
-        width={560}
-      >
-        <Form key={modal.formKey} {...modal.formProps}>
-          <Form.Input field="key" label="Key" disabled={modal.isEdit} rules={[{ required: true, message: 'key 必填' }]} placeholder="如 risk_blacklist" />
-          <Form.Input field="name" label="名称" rules={[{ required: true, message: '名称必填' }]} />
-          <Form.Select field="type" label="类型" optionList={RULE_LIST_TYPE_OPTIONS} style={{ width: '100%' }} />
-          <Form.TextArea field="description" label="描述" autosize={{ minRows: 2, maxRows: 3 }} maxCount={500} />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={modal} width={560}>
+        <Form.Input field="key" label="Key" disabled={modal.isEdit} rules={[{ required: true, message: 'key 必填' }]} placeholder="如 risk_blacklist" />
+        <Form.Input field="name" label="名称" rules={[{ required: true, message: '名称必填' }]} />
+        <Form.Select field="type" label="类型" optionList={RULE_LIST_TYPE_OPTIONS} style={{ width: '100%' }} />
+        <Form.TextArea field="description" label="描述" autosize={{ minRows: 2, maxRows: 3 }} maxCount={500} />
+      </EditFormModal>
 
       <SideSheet title={`条目管理 · ${itemsRow?.name ?? ''}`} visible={!!itemsRow} onCancel={() => setItemsRow(null)} width={680}>
         <div style={{ display: 'grid', gap: 12 }}>

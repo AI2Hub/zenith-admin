@@ -5,7 +5,6 @@ import { Tabs, TabPane } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { AppModal } from '@/components/AppModal';
 import ExportButton from '@/components/ExportButton';
 import { EMPTY_PLACEHOLDER, copyableNoColumn, createdAtColumn, dateTimeColumn, enabledStatusColumn, renderEllipsis } from '@/utils/table-columns';
 import { useListSearch } from '@/hooks/useListSearch';
@@ -37,6 +36,7 @@ import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/li
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import { compactParams } from '@/lib/query';
 import { useFilterQuery } from '@/hooks/useFilterQuery';
+import { EditFormModal } from '@/components/EditFormModal';
 const yuan = formatYuan;
 const CONTRACT_STATUS_COLOR = { pending: 'grey', unknown: 'orange', signed: 'green', paused: 'orange', terminated: 'red', failed: 'red' } as const satisfies Record<PaymentContractStatus, string>;
 const contractStatusOptions = PAYMENT_CONTRACT_STATUS_OPTIONS;
@@ -348,72 +348,68 @@ export default function PaymentContractsPage() {
         </TabPane>
       </Tabs>
 
-      <AppModal {...planModal.modalProps} width={660}>
-        <Form key={planModal.formKey} {...planModal.formProps}>
+      <EditFormModal modal={planModal} width={660}>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Input field="name" label="计划名称" placeholder="如：连续包月 VIP" rules={[{ required: true, message: '计划名称不能为空' }]} />
+          </Col>
+          <Col span={12}>
+            <Form.Select field="period" label="扣款周期" style={{ width: '100%' }} optionList={PAYMENT_DEDUCT_PERIOD_OPTIONS} onChange={(v) => setPlanPeriod(v as PaymentDeductPeriod)} rules={[{ required: true, message: '请选择周期' }]} />
+          </Col>
+        </Row>
+        {planPeriod === 'custom' && (
           <Row gutter={16}>
             <Col span={12}>
-              <Form.Input field="name" label="计划名称" placeholder="如：连续包月 VIP" rules={[{ required: true, message: '计划名称不能为空' }]} />
-            </Col>
-            <Col span={12}>
-              <Form.Select field="period" label="扣款周期" style={{ width: '100%' }} optionList={PAYMENT_DEDUCT_PERIOD_OPTIONS} onChange={(v) => setPlanPeriod(v as PaymentDeductPeriod)} rules={[{ required: true, message: '请选择周期' }]} />
+              <Form.InputNumber field="customDays" label="周期天数" min={1} max={3650} style={{ width: '100%' }} rules={[{ required: true, message: '自定义周期必须填写天数' }]} />
             </Col>
           </Row>
-          {planPeriod === 'custom' && (
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.InputNumber field="customDays" label="周期天数" min={1} max={3650} style={{ width: '100%' }} rules={[{ required: true, message: '自定义周期必须填写天数' }]} />
-              </Col>
-            </Row>
-          )}
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.InputNumber field="amountYuan" label="每期金额(元)" min={0.01} step={0.01} precision={2} style={{ width: '100%' }} rules={[{ required: true, message: '每期金额不能为空' }]} />
-            </Col>
-            <Col span={12}>
-              <Form.InputNumber field="maxRetries" label="失败重试上限" min={0} max={10} style={{ width: '100%' }} extraText="连续扣款失败达到上限后协议自动暂停" />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Select field="status" label="状态" style={{ width: '100%' }} optionList={[{ value: 'enabled', label: '启用' }, { value: 'disabled', label: '停用' }]} />
-            </Col>
-          </Row>
-          <Form.TextArea field="remark" label="备注" autosize rows={1} placeholder="可选" />
-        </Form>
-      </AppModal>
+        )}
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.InputNumber field="amountYuan" label="每期金额(元)" min={0.01} step={0.01} precision={2} style={{ width: '100%' }} rules={[{ required: true, message: '每期金额不能为空' }]} />
+          </Col>
+          <Col span={12}>
+            <Form.InputNumber field="maxRetries" label="失败重试上限" min={0} max={10} style={{ width: '100%' }} extraText="连续扣款失败达到上限后协议自动暂停" />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Select field="status" label="状态" style={{ width: '100%' }} optionList={[{ value: 'enabled', label: '启用' }, { value: 'disabled', label: '停用' }]} />
+          </Col>
+        </Row>
+        <Form.TextArea field="remark" label="备注" autosize rows={1} placeholder="可选" />
+      </EditFormModal>
 
-      <AppModal {...signModal.modalProps} title="新增签约（演示/测试）" width={660}>
-        <Form key={signModal.formKey} {...signModal.formProps} initValues={{ ...signModal.formProps.initValues, currency: 'CNY' }}>
-          <Row gutter={16}>
-            <Col span={12}>
-              <PaymentAppField optionList={appOptions} loading={appsFetching}
-                onChange={(appId) => { setSelectedAppId(appId); signModal.formApi.current?.setValue('payMethod', undefined); }} />
-            </Col>
-            <Col span={12}>
-              <Form.Select field="planId" label="扣款计划" style={{ width: '100%' }} rules={[{ required: true, message: '请选择扣款计划' }]}
-                optionList={allPlans.map((p) => ({ value: p.id, label: `${p.name}（${describePlanPeriod(p)} ${yuan(p.amount)}）` }))} />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Select field="payMethod" label="代扣方式" style={{ width: '100%' }} optionList={deductMethodOptions} disabled={selectedAppId == null} rules={[{ required: true, message: '请选择代扣方式' }]} />
-            </Col>
-            <Col span={12}>
-              <PaymentCurrencyField disabled />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Input field="signerAccount" label="签约账号" placeholder="微信 openid / 支付宝账号" rules={[{ required: true, message: '签约账号不能为空' }]} />
-            </Col>
-            <Col span={12}>
-              <Form.Input field="signerName" label="签约人" placeholder="可选" />
-            </Col>
-          </Row>
-          <Form.Switch field="firstDeductNow" label="立即首扣" extraText="签约成功后立即执行首期扣款（沙箱渠道即时成功）" />
-          <Form.TextArea field="remark" label="备注" autosize rows={1} placeholder="可选" />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={signModal} title="新增签约（演示/测试）" width={660} formProps={{ initValues: { ...signModal.formProps.initValues, currency: 'CNY' } }}>
+        <Row gutter={16}>
+          <Col span={12}>
+            <PaymentAppField optionList={appOptions} loading={appsFetching}
+              onChange={(appId) => { setSelectedAppId(appId); signModal.formApi.current?.setValue('payMethod', undefined); }} />
+          </Col>
+          <Col span={12}>
+            <Form.Select field="planId" label="扣款计划" style={{ width: '100%' }} rules={[{ required: true, message: '请选择扣款计划' }]}
+              optionList={allPlans.map((p) => ({ value: p.id, label: `${p.name}（${describePlanPeriod(p)} ${yuan(p.amount)}）` }))} />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Select field="payMethod" label="代扣方式" style={{ width: '100%' }} optionList={deductMethodOptions} disabled={selectedAppId == null} rules={[{ required: true, message: '请选择代扣方式' }]} />
+          </Col>
+          <Col span={12}>
+            <PaymentCurrencyField disabled />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Input field="signerAccount" label="签约账号" placeholder="微信 openid / 支付宝账号" rules={[{ required: true, message: '签约账号不能为空' }]} />
+          </Col>
+          <Col span={12}>
+            <Form.Input field="signerName" label="签约人" placeholder="可选" />
+          </Col>
+        </Row>
+        <Form.Switch field="firstDeductNow" label="立即首扣" extraText="签约成功后立即执行首期扣款（沙箱渠道即时成功）" />
+        <Form.TextArea field="remark" label="备注" autosize rows={1} placeholder="可选" />
+      </EditFormModal>
     </div>
   );
 }

@@ -1,5 +1,4 @@
 import { useRef, useState } from 'react';
-import ModalFooter from '@/components/ModalFooter';
 import { Button, Modal, Form, Row, Col, Spin, SideSheet, Descriptions, Tag, Divider } from '@douyinfe/semi-ui';
 import { USER_STATUSES, enumValueOf } from '@zenith/shared/core';
 import type { CreateTenantInput, Tenant } from '@zenith/shared/identity';
@@ -29,6 +28,7 @@ import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { deleteAction, ListSearchToolbar, useStatusToggle } from '@/components/list-page';
 import { copyTextWithToast } from '@/utils/clipboard';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormSheet } from '@/components/EditFormModal';
 
 interface SearchParams {
   keyword: string;
@@ -224,91 +224,80 @@ export default function TenantsPage() {
         {...tableProps}
       />
 
-      <SideSheet
-        title={tenantModal.modalProps.title}
-        visible={tenantModal.visible}
-        onCancel={tenantModal.close}
-        closeOnEsc
-        width={660}
-        footer={<ModalFooter {...tenantModal.footerProps} okText="保存" />}
-      >
-        <Spin spinning={tenantModal.detailLoading} wrapperClassName="modal-spin-wrapper">
-        <Form key={tenantModal.formKey} {...tenantModal.formProps}>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Input field="name" label="租户名称" placeholder="请输入租户名称" rules={[{ required: true, message: '请输入租户名称' }]} />
-            </Col>
-            <Col span={12}>
-              <Form.Input field="code" label="租户编码" placeholder="请输入租户编码" rules={[{ required: true, message: '请输入租户编码' }]} disabled={!!editingTenant} />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Input field="contactName" label="联系人" placeholder="请输入联系人" />
-            </Col>
-            <Col span={12}>
-              <SensitiveFormInput control={sensitiveFields} field="contactPhone" label="联系电话" placeholder="请输入联系电话" />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.InputNumber field="maxUsers" label="最大用户数" min={1} placeholder="不填则不限" style={{ width: '100%' }} />
-            </Col>
-            <Col span={12}>
-              <Form.Select
-                field="status"
-                label="状态"
-                style={{ width: '100%' }}
-                optionList={statusOptions}
-                placeholder="请选择状态"
-              />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.DatePicker field="expireAt" label="到期时间" type="dateTime" placeholder="不填则永不过期" style={{ width: '100%' }} />
-            </Col>
-            <Col span={12}>
-              <Form.Select
-                field="packageId"
-                label="租户套餐"
-                style={{ width: '100%' }}
-                placeholder="不绑定则不限制功能"
-                optionList={packageOptions}
-                showClear
-                filter
-              />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={24}>
-              <Form.TextArea field="remark" label="备注" placeholder="请输入备注" rows={3} />
-            </Col>
-          </Row>
-          {!editingTenant && (
-            <>
-              <Divider margin={12} align="left">初始管理员（选填）</Divider>
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Form.Input field="adminUsername" label="管理员账号" placeholder="不填则跳过初始化" />
-                </Col>
-                <Col span={12}>
-                  <Form.Input field="adminPassword" label="初始密码" mode="password" placeholder="不填则自动生成" />
-                </Col>
-              </Row>
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Form.Input field="adminNickname" label="管理员昵称" placeholder="默认：租户管理员" />
-                </Col>
-                <Col span={12}>
-                  <Form.Input field="adminEmail" label="管理员邮箱" placeholder="不填则自动生成" />
-                </Col>
-              </Row>
-            </>
-          )}
-        </Form>
-        </Spin>
-      </SideSheet>
+      <EditFormSheet modal={tenantModal} width={660}>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Input field="name" label="租户名称" placeholder="请输入租户名称" rules={[{ required: true, message: '请输入租户名称' }]} />
+          </Col>
+          <Col span={12}>
+            <Form.Input field="code" label="租户编码" placeholder="请输入租户编码" rules={[{ required: true, message: '请输入租户编码' }]} disabled={!!editingTenant} />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Input field="contactName" label="联系人" placeholder="请输入联系人" />
+          </Col>
+          <Col span={12}>
+            <SensitiveFormInput control={sensitiveFields} field="contactPhone" label="联系电话" placeholder="请输入联系电话" />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.InputNumber field="maxUsers" label="最大用户数" min={1} placeholder="不填则不限" style={{ width: '100%' }} />
+          </Col>
+          <Col span={12}>
+            <Form.Select
+              field="status"
+              label="状态"
+              style={{ width: '100%' }}
+              optionList={statusOptions}
+              placeholder="请选择状态"
+            />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.DatePicker field="expireAt" label="到期时间" type="dateTime" placeholder="不填则永不过期" style={{ width: '100%' }} />
+          </Col>
+          <Col span={12}>
+            <Form.Select
+              field="packageId"
+              label="租户套餐"
+              style={{ width: '100%' }}
+              placeholder="不绑定则不限制功能"
+              optionList={packageOptions}
+              showClear
+              filter
+            />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={24}>
+            <Form.TextArea field="remark" label="备注" placeholder="请输入备注" rows={3} />
+          </Col>
+        </Row>
+        {!editingTenant && (
+          <>
+            <Divider margin={12} align="left">初始管理员（选填）</Divider>
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Input field="adminUsername" label="管理员账号" placeholder="不填则跳过初始化" />
+              </Col>
+              <Col span={12}>
+                <Form.Input field="adminPassword" label="初始密码" mode="password" placeholder="不填则自动生成" />
+              </Col>
+            </Row>
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Input field="adminNickname" label="管理员昵称" placeholder="默认：租户管理员" />
+              </Col>
+              <Col span={12}>
+                <Form.Input field="adminEmail" label="管理员邮箱" placeholder="不填则自动生成" />
+              </Col>
+            </Row>
+          </>
+        )}
+      </EditFormSheet>
 
       <SideSheet
         title={`租户概览 — ${statsTenant?.name ?? ''}`}

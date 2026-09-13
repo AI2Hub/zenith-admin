@@ -1,10 +1,9 @@
 import type { CSSProperties } from 'react';
 import { formatYuan } from '@/utils/payment';
-import { Form, Spin } from '@douyinfe/semi-ui';
+import { Form } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { AppModal } from '@/components/AppModal';
 import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -23,6 +22,7 @@ import { CreateButton } from '@/components/toolbar-controls';
 import { FilterSelect, StatusSelect } from '@/components/search-filters';
 import { deleteAction, ListSearchToolbar, listTableProps, useStatusToggle } from '@/components/list-page';
 import { PaymentChannelTag, paymentMoneyColumn } from './payment-display';
+import { EditFormModal } from '@/components/EditFormModal';
 
 const yuan = formatYuan;
 const channelOptions = PAYMENT_CHANNEL_OPTIONS;
@@ -156,30 +156,26 @@ export default function PaymentFeeRulesPage() {
         {...listTableProps(listQuery, { pagination: buildPagination })}
       />
 
-      <AppModal {...modal.modalProps} width={700}>
-        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
-          <Form key={modal.formKey} {...modal.formProps}>
-            <Form.Input field="name" label="名称" placeholder="如：微信标准费率" rules={[{ required: true, message: '名称不能为空' }]} />
-            <div className="auto-grid" style={{ ['--auto-grid-min']: '220px', ['--auto-grid-cols']: 2 } as CSSProperties}>
-              <Form.Select field="channel" label="渠道" style={{ width: '100%' }} optionList={channelOptions} rules={[{ required: true, message: '请选择渠道' }]} />
-              <Form.Select field="payMethod" label="支付方式" style={{ width: '100%' }} optionList={methodOptions} showClear placeholder="留空=全部方式" />
-            </div>
-            <div className="auto-grid" style={{ ['--auto-grid-min']: '220px', ['--auto-grid-cols']: 2 } as CSSProperties}>
-              <Form.InputNumber field="ratePercent" label="费率(%)" min={0} max={100} step={0.01} precision={2} style={{ width: '100%' }} suffix="%" />
-              <Form.InputNumber field="fixedYuan" label="固定费(元)" min={0} step={0.01} precision={2} style={{ width: '100%' }} />
-            </div>
-            <div className="auto-grid" style={{ ['--auto-grid-min']: '220px', ['--auto-grid-cols']: 2 } as CSSProperties}>
-              <Form.InputNumber field="minYuan" label="最低手续费(元)" min={0} step={0.01} precision={2} style={{ width: '100%' }} placeholder="可选" />
-              <Form.InputNumber field="maxYuan" label="最高手续费(元)" min={0} step={0.01} precision={2} style={{ width: '100%' }} placeholder="可选" />
-            </div>
-            <div className="auto-grid" style={{ ['--auto-grid-min']: '220px', ['--auto-grid-cols']: 2 } as CSSProperties}>
-              <Form.InputNumber field="priority" label="优先级" min={0} max={9999} step={1} precision={0} style={{ width: '100%' }} extraText="数值越大越优先匹配" />
-              <Form.Select field="status" label="状态" style={{ width: '100%' }} optionList={statusOptions} />
-            </div>
-            <Form.TextArea field="remark" label="备注" autosize rows={1} placeholder="可选" />
-          </Form>
-        </Spin>
-      </AppModal>
+      <EditFormModal modal={modal} width={700}>
+        <Form.Input field="name" label="名称" placeholder="如：微信标准费率" rules={[{ required: true, message: '名称不能为空' }]} />
+        <div className="auto-grid" style={{ ['--auto-grid-min']: '220px', ['--auto-grid-cols']: 2 } as CSSProperties}>
+          <Form.Select field="channel" label="渠道" style={{ width: '100%' }} optionList={channelOptions} rules={[{ required: true, message: '请选择渠道' }]} />
+          <Form.Select field="payMethod" label="支付方式" style={{ width: '100%' }} optionList={methodOptions} showClear placeholder="留空=全部方式" />
+        </div>
+        <div className="auto-grid" style={{ ['--auto-grid-min']: '220px', ['--auto-grid-cols']: 2 } as CSSProperties}>
+          <Form.InputNumber field="ratePercent" label="费率(%)" min={0} max={100} step={0.01} precision={2} style={{ width: '100%' }} suffix="%" />
+          <Form.InputNumber field="fixedYuan" label="固定费(元)" min={0} step={0.01} precision={2} style={{ width: '100%' }} />
+        </div>
+        <div className="auto-grid" style={{ ['--auto-grid-min']: '220px', ['--auto-grid-cols']: 2 } as CSSProperties}>
+          <Form.InputNumber field="minYuan" label="最低手续费(元)" min={0} step={0.01} precision={2} style={{ width: '100%' }} placeholder="可选" />
+          <Form.InputNumber field="maxYuan" label="最高手续费(元)" min={0} step={0.01} precision={2} style={{ width: '100%' }} placeholder="可选" />
+        </div>
+        <div className="auto-grid" style={{ ['--auto-grid-min']: '220px', ['--auto-grid-cols']: 2 } as CSSProperties}>
+          <Form.InputNumber field="priority" label="优先级" min={0} max={9999} step={1} precision={0} style={{ width: '100%' }} extraText="数值越大越优先匹配" />
+          <Form.Select field="status" label="状态" style={{ width: '100%' }} optionList={statusOptions} />
+        </div>
+        <Form.TextArea field="remark" label="备注" autosize rows={1} placeholder="可选" />
+      </EditFormModal>
     </div>
   );
 }

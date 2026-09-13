@@ -27,6 +27,7 @@ import {
 import { CreateButton } from '@/components/toolbar-controls';
 import { abortSubmit } from '@/lib/abort-submit';
 import { StatusSelect } from '@/components/search-filters';
+import { EditFormModal } from '@/components/EditFormModal';
 
 /** 表单里定时发送用 DatePicker 的 Date，提交时再格式化为接口字符串 */
 interface BroadcastFormValues { content?: string; mediaId?: string; tagId?: number; scheduledAt?: Date }
@@ -191,41 +192,37 @@ export default function MpBroadcastsPage() {
         {...listTableProps(listQuery, { pagination: buildPagination })}
       />
 
-      <AppModal {...modal.modalProps} title={modal.isEdit ? '编辑群发草稿' : '新增群发'} width={600}>
-        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
-          <Form key={modal.formKey} {...modal.formProps}>
-            <Form.Slot label="内容类型">
-              <Select style={{ width: '100%' }} optionList={MP_BROADCAST_TYPE_OPTIONS} value={modalType} onChange={(v) => setModalType(v as MpBroadcastType)} />
-            </Form.Slot>
+      <EditFormModal modal={modal} title={modal.isEdit ? '编辑群发草稿' : '新增群发'} width={600}>
+        <Form.Slot label="内容类型">
+          <Select style={{ width: '100%' }} optionList={MP_BROADCAST_TYPE_OPTIONS} value={modalType} onChange={(v) => setModalType(v as MpBroadcastType)} />
+        </Form.Slot>
 
-            {modalType === 'text' ? (
-              <Form.TextArea field="content" label="文本内容" rows={4} placeholder="请输入群发文本内容"
-                rules={[{ required: true, message: '请输入群发文本内容' }]} />
-            ) : (
-              <Form.Select field="mediaId" label={modalType === 'image' ? '图片素材' : '图文素材'} style={{ width: '100%' }} filter showClear
-                placeholder={modalType === 'image' ? '请选择已同步到微信的图片素材' : '请选择已推送到微信的图文草稿'}
-                optionList={mediaOptions}
-                rules={[{ required: true, message: '请选择素材' }]}
-                emptyContent={modalType === 'image' ? '暂无可用图片素材（需含微信 media_id）' : '暂无可用图文草稿（需已推送到微信）'} />
-            )}
+        {modalType === 'text' ? (
+          <Form.TextArea field="content" label="文本内容" rows={4} placeholder="请输入群发文本内容"
+            rules={[{ required: true, message: '请输入群发文本内容' }]} />
+        ) : (
+          <Form.Select field="mediaId" label={modalType === 'image' ? '图片素材' : '图文素材'} style={{ width: '100%' }} filter showClear
+            placeholder={modalType === 'image' ? '请选择已同步到微信的图片素材' : '请选择已推送到微信的图文草稿'}
+            optionList={mediaOptions}
+            rules={[{ required: true, message: '请选择素材' }]}
+            emptyContent={modalType === 'image' ? '暂无可用图片素材（需含微信 media_id）' : '暂无可用图文草稿（需已推送到微信）'} />
+        )}
 
-            <Form.Slot label="群发对象">
-              <Select style={{ width: '100%' }} value={modalTarget} onChange={(v) => setModalTarget(v as MpBroadcastTarget)}
-                optionList={[{ label: '全部粉丝', value: 'all' }, { label: '指定标签', value: 'tag' }]} />
-            </Form.Slot>
+        <Form.Slot label="群发对象">
+          <Select style={{ width: '100%' }} value={modalTarget} onChange={(v) => setModalTarget(v as MpBroadcastTarget)}
+            optionList={[{ label: '全部粉丝', value: 'all' }, { label: '指定标签', value: 'tag' }]} />
+        </Form.Slot>
 
-            {modalTarget === 'tag' && (
-              <Form.Select field="tagId" label="选择标签" style={{ width: '100%' }} filter showClear placeholder="请选择标签"
-                optionList={tags.map((t) => ({ label: t.name, value: t.id }))}
-                rules={[{ required: true, message: '请选择标签' }]}
-                emptyContent="暂无标签，请先在「标签管理」创建并同步" />
-            )}
+        {modalTarget === 'tag' && (
+          <Form.Select field="tagId" label="选择标签" style={{ width: '100%' }} filter showClear placeholder="请选择标签"
+            optionList={tags.map((t) => ({ label: t.name, value: t.id }))}
+            rules={[{ required: true, message: '请选择标签' }]}
+            emptyContent="暂无标签，请先在「标签管理」创建并同步" />
+        )}
 
-            <Form.DatePicker field="scheduledAt" label="定时发送" type="dateTime" style={{ width: '100%' }}
-              placeholder="留空表示立即发送（保存草稿后手动发送）" />
-          </Form>
-        </Spin>
-      </AppModal>
+        <Form.DatePicker field="scheduledAt" label="定时发送" type="dateTime" style={{ width: '100%' }}
+          placeholder="留空表示立即发送（保存草稿后手动发送）" />
+      </EditFormModal>
 
       <AppModal title="群发预览" visible={previewState.visible} confirmLoading={previewMutation.isPending}
         onOk={() => void handlePreview()} okText="发送预览" onCancel={() => setPreviewState({ visible: false, id: null })} width={420}>

@@ -54,6 +54,7 @@ import { useSensitiveFormFields } from '@/hooks/useSensitiveFormFields';
 import { SensitiveFormInput, SensitiveText } from '@/components/sensitive';
 import { abortSubmit } from '@/lib/abort-submit';
 import { useFilterQuery } from '@/hooks/useFilterQuery';
+import { EditFormModal } from '@/components/EditFormModal';
 
 interface SearchParams {
   keyword: string;
@@ -630,179 +631,161 @@ export default function UsersPage() {
         style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}
       />
 
-      <AppModal
-        {...modal.modalProps}
-        okButtonProps={{ disabled: modal.detailLoading }}
-        width={660}
-      >
-        <Form
-          key={modal.formKey} {...modal.formProps}
-        >
-          <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
-          {editingUser ? (
-            <>
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Form.Input field="username" label="用户名" disabled />
-                </Col>
-                <Col span={12}>
-                  <Form.Input field="nickname" label="昵称" placeholder="请输入昵称" rules={[{ required: true, message: '请输入昵称' }]} />
-                </Col>
-              </Row>
-              <Row gutter={16}>
-                <Col span={12}>
-                  <SensitiveFormInput
-                    control={sensitiveFields}
-                    field="phone"
-                    label="手机号码"
-                    placeholder="请输入手机号码"
-                    rules={[{ pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号码' }]}
-                  />
-                </Col>
-              </Row>
-            </>
-          ) : (
-            <>
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Form.Input field="username" label="用户名" placeholder="请输入用户名" rules={[{ required: true, message: '请输入用户名' }]} />
-                </Col>
-                <Col span={12}>
-                  <Form.Input field="nickname" label="昵称" placeholder="请输入昵称" rules={[{ required: true, message: '请输入昵称' }]} />
-                </Col>
-              </Row>
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Form.Input
-                    field="phone"
-                    label="手机号码"
-                    placeholder="请输入手机号码"
-                    rules={[{ pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号码' }]}
-                  />
-                </Col>
-                <Col span={12}>
-                  <Form.Input
-                    field="password"
-                    label="密码"
-                    placeholder="请输入密码"
-                    type="password"
-                    rules={[{ required: true, message: '请输入密码' }]}
-                    onChange={(v) => setCreatePwdVal(String(v ?? ''))}
-                    helpText={<PasswordStrengthMeter password={createPwdVal} policy={passwordPolicy} />}
-                  />
-                </Col>
-              </Row>
-            </>
-          )}
-          <Row gutter={16}>
-            <Col span={12}>
-              <SensitiveFormInput
-                control={sensitiveFields}
-                field="email"
-                label="邮箱"
-                placeholder="请输入邮箱"
-                rules={[{ type: 'email', message: '邮箱格式不正确' }]}
-              />
-            </Col>
-            <Col span={12}>
-              <Form.Select
-                field="gender"
-                label="性别"
-                style={{ width: '100%' }}
-                showClear
-                optionList={genderOptions}
-                placeholder="请选择性别"
-              />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.TreeSelect
-                field="departmentId"
-                label="所属部门"
-                style={{ width: '100%' }}
-                treeData={departmentTreeData}
-                placeholder="请选择所属部门"
-                filterTreeNode
-                showClear
-              />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Select
-                field="positionIds"
-                label="岗位"
-                style={{ width: '100%' }}
-                multiple
-                filter
-                showClear
-                optionList={positionOptionList}
-                placeholder="请选择岗位"
-              />
-            </Col>
-            <Col span={12}>
-              <Form.Select
-                field="roleIds"
-                label="角色"
-                style={{ width: '100%' }}
-                multiple
-                filter
-                optionList={allRoles.map((r) => ({ value: r.id, label: r.name }))}
-                placeholder="请选择角色"
-              />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Select
-                field="status"
-                label="状态"
-                style={{ width: '100%' }}
-                optionList={statusItems.map((i) => ({
-                  value: i.value,
-                  label: i.label,
-                  disabled: editingUser ? (isAdminUser(editingUser) && i.value === 'disabled') : false,
-                }))}
-                placeholder="请选择状态"
-              />
-            </Col>
-          </Row>
-          </Spin>
-        </Form>
-      </AppModal>
+      <EditFormModal modal={modal} okButtonProps={{ disabled: modal.detailLoading }} width={660}>
+        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
+        {editingUser ? (
+          <>
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Input field="username" label="用户名" disabled />
+              </Col>
+              <Col span={12}>
+                <Form.Input field="nickname" label="昵称" placeholder="请输入昵称" rules={[{ required: true, message: '请输入昵称' }]} />
+              </Col>
+            </Row>
+            <Row gutter={16}>
+              <Col span={12}>
+                <SensitiveFormInput
+                  control={sensitiveFields}
+                  field="phone"
+                  label="手机号码"
+                  placeholder="请输入手机号码"
+                  rules={[{ pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号码' }]}
+                />
+              </Col>
+            </Row>
+          </>
+        ) : (
+          <>
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Input field="username" label="用户名" placeholder="请输入用户名" rules={[{ required: true, message: '请输入用户名' }]} />
+              </Col>
+              <Col span={12}>
+                <Form.Input field="nickname" label="昵称" placeholder="请输入昵称" rules={[{ required: true, message: '请输入昵称' }]} />
+              </Col>
+            </Row>
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Input
+                  field="phone"
+                  label="手机号码"
+                  placeholder="请输入手机号码"
+                  rules={[{ pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号码' }]}
+                />
+              </Col>
+              <Col span={12}>
+                <Form.Input
+                  field="password"
+                  label="密码"
+                  placeholder="请输入密码"
+                  type="password"
+                  rules={[{ required: true, message: '请输入密码' }]}
+                  onChange={(v) => setCreatePwdVal(String(v ?? ''))}
+                  helpText={<PasswordStrengthMeter password={createPwdVal} policy={passwordPolicy} />}
+                />
+              </Col>
+            </Row>
+          </>
+        )}
+        <Row gutter={16}>
+          <Col span={12}>
+            <SensitiveFormInput
+              control={sensitiveFields}
+              field="email"
+              label="邮箱"
+              placeholder="请输入邮箱"
+              rules={[{ type: 'email', message: '邮箱格式不正确' }]}
+            />
+          </Col>
+          <Col span={12}>
+            <Form.Select
+              field="gender"
+              label="性别"
+              style={{ width: '100%' }}
+              showClear
+              optionList={genderOptions}
+              placeholder="请选择性别"
+            />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.TreeSelect
+              field="departmentId"
+              label="所属部门"
+              style={{ width: '100%' }}
+              treeData={departmentTreeData}
+              placeholder="请选择所属部门"
+              filterTreeNode
+              showClear
+            />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Select
+              field="positionIds"
+              label="岗位"
+              style={{ width: '100%' }}
+              multiple
+              filter
+              showClear
+              optionList={positionOptionList}
+              placeholder="请选择岗位"
+            />
+          </Col>
+          <Col span={12}>
+            <Form.Select
+              field="roleIds"
+              label="角色"
+              style={{ width: '100%' }}
+              multiple
+              filter
+              optionList={allRoles.map((r) => ({ value: r.id, label: r.name }))}
+              placeholder="请选择角色"
+            />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Select
+              field="status"
+              label="状态"
+              style={{ width: '100%' }}
+              optionList={statusItems.map((i) => ({
+                value: i.value,
+                label: i.label,
+                disabled: editingUser ? (isAdminUser(editingUser) && i.value === 'disabled') : false,
+              }))}
+              placeholder="请选择状态"
+            />
+          </Col>
+        </Row>
+        </Spin>
+      </EditFormModal>
 
-      <AppModal
-        {...passwordModal.modalProps}
-        title={passwordModal.editing ? `修改密码 - ${passwordModal.editing.nickname}` : '修改密码'}
-        onCancel={() => {
-          passwordModal.close();
-          setEditPwdVal('');
-        }}
-        width={420}
-      >
-        <Form key={passwordModal.formKey} {...passwordModal.formProps}>
-          <Form.Input
-            field="password"
-            label="新密码"
-            placeholder="请输入新密码"
-            mode="password"
-            rules={[
-              { required: true, message: '请输入新密码' },
-              { min: 6, message: '密码至少 6 个字符' },
-            ]}
-            onChange={(v) => setEditPwdVal(String(v ?? ''))}
-            helpText={<PasswordStrengthMeter password={editPwdVal} policy={passwordPolicy} />}
-          />
-          <Form.Input
-            field="confirmPassword"
-            label="确认密码"
-            placeholder="请再次输入新密码"
-            mode="password"
-            rules={[{ required: true, message: '请确认新密码' }]}
-          />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={passwordModal} title={passwordModal.editing ? `修改密码 - ${passwordModal.editing.nickname}` : '修改密码'} onCancel={() => { passwordModal.close(); setEditPwdVal(''); }} width={420}>
+        <Form.Input
+          field="password"
+          label="新密码"
+          placeholder="请输入新密码"
+          mode="password"
+          rules={[
+            { required: true, message: '请输入新密码' },
+            { min: 6, message: '密码至少 6 个字符' },
+          ]}
+          onChange={(v) => setEditPwdVal(String(v ?? ''))}
+          helpText={<PasswordStrengthMeter password={editPwdVal} policy={passwordPolicy} />}
+        />
+        <Form.Input
+          field="confirmPassword"
+          label="确认密码"
+          placeholder="请再次输入新密码"
+          mode="password"
+          rules={[{ required: true, message: '请确认新密码' }]}
+        />
+      </EditFormModal>
 
       {/* 批量修改密码 */}
       <AppModal

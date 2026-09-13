@@ -22,6 +22,7 @@ import {
   useIotThingModel, useUpdateIotEvent, useUpdateIotProperty, useUpdateIotService,
 } from '@/hooks/queries/iot-products';
 import { IOT_EVENT_LEVEL_COLORS } from './iot-tag-colors';
+import { EditFormModal } from '@/components/EditFormModal';
 
 /** 属性表单值：枚举取值以「每行 值=显示名」文本编辑，提交前由 beforeSave 解析；记录里的 null 归一为空串 */
 interface PropertyFormValues extends Partial<Omit<CreateIotPropertyInput, 'enumOptions'>> {
@@ -524,43 +525,39 @@ export default function IotThingModelDrawer({ product, onClose }: Readonly<IotTh
       </AppModal>
 
       {/* 服务编辑弹窗 */}
-      <AppModal {...serviceModal.modalProps} width={720}>
-        <Form key={serviceModal.formKey} {...serviceModal.formProps}>
-          <Form.Input field="identifier" label="标识符" placeholder="如 reboot"
-            disabled={serviceModal.isEdit}
-            extraText={serviceModal.isEdit ? '标识符一经声明不可变更' : '字母开头，仅字母/数字/下划线'}
-            rules={serviceModal.isEdit ? [] : [
-              { required: true, message: '标识符不能为空' },
-              { pattern: /^[a-zA-Z][a-zA-Z0-9_]*$/, message: '需以字母开头，仅支持字母、数字、下划线' },
-            ]} />
-          <Form.Input field="name" label="名称" placeholder="如 重启设备"
-            rules={[{ required: true, message: '名称不能为空' }]} />
-          <ParamsArrayField />
-          <Form.Switch field="danger" label="高危服务" checkedText="是" uncheckedText="否"
-            extraText="下发前需要二次确认" />
-          <Form.InputNumber field="sort" label="排序" min={0} style={{ width: 120 }} />
-          <Form.Input field="description" label="描述" placeholder="选填" />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={serviceModal} width={720}>
+        <Form.Input field="identifier" label="标识符" placeholder="如 reboot"
+          disabled={serviceModal.isEdit}
+          extraText={serviceModal.isEdit ? '标识符一经声明不可变更' : '字母开头，仅字母/数字/下划线'}
+          rules={serviceModal.isEdit ? [] : [
+            { required: true, message: '标识符不能为空' },
+            { pattern: /^[a-zA-Z][a-zA-Z0-9_]*$/, message: '需以字母开头，仅支持字母、数字、下划线' },
+          ]} />
+        <Form.Input field="name" label="名称" placeholder="如 重启设备"
+          rules={[{ required: true, message: '名称不能为空' }]} />
+        <ParamsArrayField />
+        <Form.Switch field="danger" label="高危服务" checkedText="是" uncheckedText="否"
+          extraText="下发前需要二次确认" />
+        <Form.InputNumber field="sort" label="排序" min={0} style={{ width: 120 }} />
+        <Form.Input field="description" label="描述" placeholder="选填" />
+      </EditFormModal>
 
       {/* 事件编辑弹窗 */}
-      <AppModal {...eventModal.modalProps} width={720}>
-        <Form key={eventModal.formKey} {...eventModal.formProps}>
-          <Form.Input field="identifier" label="标识符" placeholder="如 high_temperature"
-            disabled={eventModal.isEdit}
-            extraText={eventModal.isEdit ? '标识符一经声明不可变更' : '字母开头，仅字母/数字/下划线'}
-            rules={eventModal.isEdit ? [] : [
-              { required: true, message: '标识符不能为空' },
-              { pattern: /^[a-zA-Z][a-zA-Z0-9_]*$/, message: '需以字母开头，仅支持字母、数字、下划线' },
-            ]} />
-          <Form.Input field="name" label="名称" placeholder="如 高温预警"
-            rules={[{ required: true, message: '名称不能为空' }]} />
-          <Form.Select field="level" label="级别" optionList={IOT_EVENT_LEVEL_OPTIONS} style={{ width: 200 }} />
-          <ParamsArrayField />
-          <Form.InputNumber field="sort" label="排序" min={0} style={{ width: 120 }} />
-          <Form.Input field="description" label="描述" placeholder="选填" />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={eventModal} width={720}>
+        <Form.Input field="identifier" label="标识符" placeholder="如 high_temperature"
+          disabled={eventModal.isEdit}
+          extraText={eventModal.isEdit ? '标识符一经声明不可变更' : '字母开头，仅字母/数字/下划线'}
+          rules={eventModal.isEdit ? [] : [
+            { required: true, message: '标识符不能为空' },
+            { pattern: /^[a-zA-Z][a-zA-Z0-9_]*$/, message: '需以字母开头，仅支持字母、数字、下划线' },
+          ]} />
+        <Form.Input field="name" label="名称" placeholder="如 高温预警"
+          rules={[{ required: true, message: '名称不能为空' }]} />
+        <Form.Select field="level" label="级别" optionList={IOT_EVENT_LEVEL_OPTIONS} style={{ width: 200 }} />
+        <ParamsArrayField />
+        <Form.InputNumber field="sort" label="排序" min={0} style={{ width: 120 }} />
+        <Form.Input field="description" label="描述" placeholder="选填" />
+      </EditFormModal>
 
       {/* TSL 导入弹窗 */}
       <AppModal

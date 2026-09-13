@@ -6,26 +6,7 @@
  * Tab「统计图表」：检查 / 下载 / 安装回执的升级看板（趋势、平台分布、版本分布）。
  */
 import { useMemo, useRef, useState } from 'react';
-import {
-  Button,
-  Card,
-  Col,
-  Empty,
-  Form,
-  Modal,
-  Row,
-  Select,
-  SideSheet,
-  Skeleton,
-  Space,
-  Spin,
-  TabPane,
-  Tabs,
-  Tag,
-  Toast,
-  Typography,
-  Upload,
-} from '@douyinfe/semi-ui';
+import { Button, Card, Col, Empty, Form, Modal, Row, Select, SideSheet, Skeleton, Space, Spin, TabPane, Tabs, Tag, Toast, Typography, Upload } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import {
@@ -118,6 +99,7 @@ import { formatBytes } from '@zenith/shared/core';
 import { urlOf } from '@/lib/contract-query';
 import { shortDate } from '@/utils/date';
 import { useFilterQuery } from '@/hooks/useFilterQuery';
+import { EditFormModal } from '@/components/EditFormModal';
 
 const { Text } = Typography;
 
@@ -210,23 +192,21 @@ function AppsManageModal({ visible, onClose }: { visible: boolean; onClose: () =
         />
       </Modal>
 
-      <AppModal {...modal.modalProps} width={560}>
-        <Form key={modal.formKey} {...modal.formProps}>
-          <Form.Input
-            field="appKey"
-            label="应用标识"
-            placeholder="如 zenith-desktop（客户端用它检查更新，创建后不可修改）"
-            disabled={modal.isEdit}
-            rules={[
-              { required: true, message: '应用标识不能为空' },
-              { pattern: /^[a-z0-9][a-z0-9-]*$/, message: '仅允许小写字母、数字与连字符' },
-            ]}
-          />
-          <Form.Input field="name" label="应用名称" placeholder="请输入应用名称"
-            rules={[{ required: true, message: '名称不能为空' }]} />
-          <Form.TextArea field="description" label="描述" placeholder="选填" rows={2} maxCount={500} />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={modal} width={560}>
+        <Form.Input
+          field="appKey"
+          label="应用标识"
+          placeholder="如 zenith-desktop（客户端用它检查更新，创建后不可修改）"
+          disabled={modal.isEdit}
+          rules={[
+            { required: true, message: '应用标识不能为空' },
+            { pattern: /^[a-z0-9][a-z0-9-]*$/, message: '仅允许小写字母、数字与连字符' },
+          ]}
+        />
+        <Form.Input field="name" label="应用名称" placeholder="请输入应用名称"
+          rules={[{ required: true, message: '名称不能为空' }]} />
+        <Form.TextArea field="description" label="描述" placeholder="选填" rows={2} maxCount={500} />
+      </EditFormModal>
     </>
   );
 }
@@ -645,39 +625,35 @@ function ReleaseManageTab({ active }: { active: boolean }) {
         {...listTableProps(listQuery, { pagination: buildPagination })}
       />
 
-      <AppModal {...modal.modalProps} width={660}>
-        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
-          <Form key={modal.formKey} {...modal.formProps}>
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Select field="appId" label="所属应用" style={{ width: '100%' }}
-                  optionList={appOptions} disabled={modal.isEdit}
-                  rules={[{ required: true, message: '请选择应用' }]} />
-              </Col>
-              <Col span={12}>
-                <Form.Select field="channel" label="渠道" style={{ width: '100%' }}
-                  optionList={APP_RELEASE_CHANNEL_OPTIONS} disabled={isEditLocked} />
-              </Col>
-            </Row>
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Input field="version" label="版本号" placeholder="如 1.86.0" disabled={isEditLocked}
-                  rules={[
-                    { required: true, message: '版本号不能为空' },
-                    { pattern: /^\d+\.\d+\.\d+(?:[-+][\w.-]+)?$/, message: '须为 semver 格式，如 1.2.3' },
-                  ]} />
-              </Col>
-              <Col span={12}>
-                <Form.Input field="minVersion" label="最低版本" placeholder="低于该版本强制更新（选填）"
-                  rules={[{ pattern: /^$|^\d+\.\d+\.\d+(?:[-+][\w.-]+)?$/, message: '须为 semver 格式' }]} />
-              </Col>
-            </Row>
-            <FormSliderInput field="rolloutPercent" label="灰度比例" min={0} max={100} suffix="%" />
-            <Form.Switch field="mandatory" label="强制更新" />
-            <Form.TextArea field="notes" label="更新日志" placeholder="支持 Markdown，客户端更新弹窗展示" rows={5} maxCount={20000} />
-          </Form>
-        </Spin>
-      </AppModal>
+      <EditFormModal modal={modal} width={660}>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Select field="appId" label="所属应用" style={{ width: '100%' }}
+              optionList={appOptions} disabled={modal.isEdit}
+              rules={[{ required: true, message: '请选择应用' }]} />
+          </Col>
+          <Col span={12}>
+            <Form.Select field="channel" label="渠道" style={{ width: '100%' }}
+              optionList={APP_RELEASE_CHANNEL_OPTIONS} disabled={isEditLocked} />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Input field="version" label="版本号" placeholder="如 1.86.0" disabled={isEditLocked}
+              rules={[
+                { required: true, message: '版本号不能为空' },
+                { pattern: /^\d+\.\d+\.\d+(?:[-+][\w.-]+)?$/, message: '须为 semver 格式，如 1.2.3' },
+              ]} />
+          </Col>
+          <Col span={12}>
+            <Form.Input field="minVersion" label="最低版本" placeholder="低于该版本强制更新（选填）"
+              rules={[{ pattern: /^$|^\d+\.\d+\.\d+(?:[-+][\w.-]+)?$/, message: '须为 semver 格式' }]} />
+          </Col>
+        </Row>
+        <FormSliderInput field="rolloutPercent" label="灰度比例" min={0} max={100} suffix="%" />
+        <Form.Switch field="mandatory" label="强制更新" />
+        <Form.TextArea field="notes" label="更新日志" placeholder="支持 Markdown，客户端更新弹窗展示" rows={5} maxCount={20000} />
+      </EditFormModal>
 
       <AppsManageModal visible={appsModalVisible} onClose={() => setAppsModalVisible(false)} />
       <ArtifactsSheet releaseId={artifactReleaseId} onClose={() => setArtifactReleaseId(null)} />

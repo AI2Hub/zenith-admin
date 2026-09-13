@@ -6,7 +6,6 @@ import type { AdjustMemberPointsInput, MemberPointTransaction } from '@zenith/sh
 import { POINT_TX_TYPES, POINT_TX_TYPE_LABELS } from '@zenith/shared/member';
 import { enumValueOf } from '@zenith/shared/core';
 import { usePermission } from '@/hooks/usePermission';
-import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { listTableProps } from '@/components/list-page';
 import { MemberSelect } from '@/components/MemberSelect';
@@ -22,6 +21,7 @@ import {
   useMemberLedgerSearch,
 } from './member-ledger';
 import { useFilterQuery } from '@/hooks/useFilterQuery';
+import { EditFormModal } from '@/components/EditFormModal';
 
 const typeOptions = ledgerTypeOptions(POINT_TX_TYPE_LABELS);
 const TYPE_COLORS: Record<string, string> = { earn: 'green', redeem: 'orange', expire: 'grey', adjust: 'blue', refund: 'cyan' };
@@ -84,14 +84,12 @@ export default function MemberPointsPage() {
 
       <ConfigurableTable<MemberPointTransaction> columns={columns} {...listTableProps(listQuery, { pagination: buildPagination, empty: '暂无积分流水' })} />
 
-      <AppModal {...adjustModal.modalProps} title="调整会员积分" width={480}>
-        <Form key={adjustModal.formKey} {...adjustModal.formProps}>
-          <MemberSelect field="memberId" required />
-          <Form.InputNumber field="delta" label="变动量" style={{ width: '100%' }} placeholder="正数增加，负数扣减"
-            rules={[{ required: true, message: '请输入变动量' }]} />
-          <Form.TextArea field="remark" label="备注" placeholder="调整原因" maxCount={256} />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={adjustModal} title="调整会员积分" width={480}>
+        <MemberSelect field="memberId" required />
+        <Form.InputNumber field="delta" label="变动量" style={{ width: '100%' }} placeholder="正数增加，负数扣减"
+          rules={[{ required: true, message: '请输入变动量' }]} />
+        <Form.TextArea field="remark" label="备注" placeholder="调整原因" maxCount={256} />
+      </EditFormModal>
     </div>
   );
 }

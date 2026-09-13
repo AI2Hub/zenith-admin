@@ -3,7 +3,6 @@ import { Banner, Button, Col, Empty, Form, Modal, Row, Tag, Toast } from '@douyi
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { ReportApprovalStatus, ReportPublishApproval, ReportResourceTransfer, ReportResourceType, ReportTransferStatus } from '@zenith/shared/report';
 import { Plus } from 'lucide-react';
-import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { listTableProps } from '@/components/list-page';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -28,6 +27,7 @@ import { REPORT_RESOURCE_TYPE_OPTIONS, reportResourceTypeLabel } from '../report
 import { dateTimeColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '@/utils/table-columns';
 import { confirmDanger } from '@/utils/confirm';
 import { FilterSelect } from '@/components/search-filters';
+import { EditFormModal } from '@/components/EditFormModal';
 
 const approvalStatuses = ['pending', 'approved', 'rejected', 'cancelled'] as const;
 const transferStatuses = ['pending', 'accepted', 'rejected', 'cancelled'] as const;
@@ -125,18 +125,16 @@ export function GovernanceApprovalTab() {
       </SearchToolbar>
       {listQuery.isError && <Banner type="danger" description="发布审批加载失败" />}
       <ConfigurableTable columns={columns} {...listTableProps(listQuery, { pagination: buildPagination, empty: <Empty title="暂无发布审批" /> })} />
-      <AppModal {...approvalModal.modalProps} title="申请发布审批" width={640}>
-        <Form key={approvalModal.formKey} {...approvalModal.formProps}>
-          <Row gutter={16}>
-            <Col xs={24} md={12}><Form.Select field="resourceType" label="资源类型" style={{ width: '100%' }} optionList={REPORT_RESOURCE_TYPE_OPTIONS} rules={[{ required: true }]} onChange={(v) => setResourceType(v as ReportResourceType)} /></Col>
-            <Col xs={24} md={12}><Form.Select field="resourceId" label="资源" filter style={{ width: '100%' }} optionList={(assetsQuery.data?.list ?? []).map((item) => ({ value: item.resourceId, label: item.name }))} rules={[{ required: true }]} /></Col>
-            <Col xs={24} md={12}><Form.Select field="action" label="发布动作" style={{ width: '100%' }} optionList={[{ value: 'publish', label: '发布' }, { value: 'promote', label: '环境晋级' }, { value: 'deprecate', label: '废弃' }]} rules={[{ required: true }]} /></Col>
-            <Col xs={24} md={12}><Form.InputNumber field="requestedRevision" label="申请修订" min={1} style={{ width: '100%' }} rules={[{ required: true }]} /></Col>
-          </Row>
-          <Form.TextArea field="snapshot" label="发布快照" autosize rows={6} rules={[{ required: true }]} />
-          <Form.TextArea field="note" label="申请说明" autosize rows={2} />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={approvalModal} title="申请发布审批" width={640}>
+        <Row gutter={16}>
+          <Col xs={24} md={12}><Form.Select field="resourceType" label="资源类型" style={{ width: '100%' }} optionList={REPORT_RESOURCE_TYPE_OPTIONS} rules={[{ required: true }]} onChange={(v) => setResourceType(v as ReportResourceType)} /></Col>
+          <Col xs={24} md={12}><Form.Select field="resourceId" label="资源" filter style={{ width: '100%' }} optionList={(assetsQuery.data?.list ?? []).map((item) => ({ value: item.resourceId, label: item.name }))} rules={[{ required: true }]} /></Col>
+          <Col xs={24} md={12}><Form.Select field="action" label="发布动作" style={{ width: '100%' }} optionList={[{ value: 'publish', label: '发布' }, { value: 'promote', label: '环境晋级' }, { value: 'deprecate', label: '废弃' }]} rules={[{ required: true }]} /></Col>
+          <Col xs={24} md={12}><Form.InputNumber field="requestedRevision" label="申请修订" min={1} style={{ width: '100%' }} rules={[{ required: true }]} /></Col>
+        </Row>
+        <Form.TextArea field="snapshot" label="发布快照" autosize rows={6} rules={[{ required: true }]} />
+        <Form.TextArea field="note" label="申请说明" autosize rows={2} />
+      </EditFormModal>
     </>
   );
 }
@@ -222,16 +220,14 @@ export function GovernanceTransferTab() {
       </SearchToolbar>
       {listQuery.isError && <Banner type="danger" description="所有权转移列表加载失败" />}
       <ConfigurableTable columns={columns} {...listTableProps(listQuery, { pagination: buildPagination, empty: <Empty title="暂无所有权转移" /> })} />
-      <AppModal {...transferModal.modalProps} title="申请所有权转移" width={600}>
-        <Form key={transferModal.formKey} {...transferModal.formProps}>
-          <Row gutter={16}>
-            <Col xs={24} md={12}><Form.Select field="resourceType" label="资源类型" style={{ width: '100%' }} optionList={REPORT_RESOURCE_TYPE_OPTIONS} rules={[{ required: true }]} onChange={(v) => setResourceType(v as ReportResourceType)} /></Col>
-            <Col xs={24} md={12}><Form.Select field="resourceId" label="资源" filter style={{ width: '100%' }} optionList={(assetsQuery.data?.list ?? []).map((item) => ({ value: item.resourceId, label: item.name }))} rules={[{ required: true }]} /></Col>
-          </Row>
-          <Form.Select field="toOwnerId" label="新负责人" filter style={{ width: '100%' }} optionList={toUserOptions(usersQuery.data ?? [])} rules={[{ required: true }]} />
-          <Form.TextArea field="reason" label="转移原因" autosize rows={3} />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={transferModal} title="申请所有权转移" width={600}>
+        <Row gutter={16}>
+          <Col xs={24} md={12}><Form.Select field="resourceType" label="资源类型" style={{ width: '100%' }} optionList={REPORT_RESOURCE_TYPE_OPTIONS} rules={[{ required: true }]} onChange={(v) => setResourceType(v as ReportResourceType)} /></Col>
+          <Col xs={24} md={12}><Form.Select field="resourceId" label="资源" filter style={{ width: '100%' }} optionList={(assetsQuery.data?.list ?? []).map((item) => ({ value: item.resourceId, label: item.name }))} rules={[{ required: true }]} /></Col>
+        </Row>
+        <Form.Select field="toOwnerId" label="新负责人" filter style={{ width: '100%' }} optionList={toUserOptions(usersQuery.data ?? [])} rules={[{ required: true }]} />
+        <Form.TextArea field="reason" label="转移原因" autosize rows={3} />
+      </EditFormModal>
     </>
   );
 }

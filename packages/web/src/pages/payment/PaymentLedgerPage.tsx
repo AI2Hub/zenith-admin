@@ -57,6 +57,7 @@ import { copyableNoColumn, createdAtColumn, dateTimeColumn, renderEllipsis, rend
 import { abortSubmit } from '@/lib/abort-submit';
 import { COMMON_STATUS_OPTIONS, enumValueOf } from '@zenith/shared/core';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormModal } from '@/components/EditFormModal';
 
 const RESERVATION_STATUS_COLORS = {
   active: 'blue',
@@ -652,17 +653,15 @@ export default function PaymentLedgerPage() {
         </TabPane>
       </Tabs>
 
-      <AppModal {...accountModal.modalProps} title="新建账本账户" width={620}>
-        <Form key={accountModal.formKey} {...accountModal.formProps}>
-          <Form.Input field="name" label="账户名称" maxLength={128} rules={[{ required: true, message: '请输入账户名称' }]} />
-          <div className="auto-grid" style={{ ['--auto-grid-min']: '220px', ['--auto-grid-cols']: 2 } as CSSProperties}>
-            <Form.Select field="code" label="科目" style={{ width: '100%' }} optionList={PAYMENT_LEDGER_ACCOUNT_CODES.map((value) => ({ value, label: PAYMENT_LEDGER_ACCOUNT_CODE_LABELS[value] }))} rules={[{ required: true, message: '请选择科目' }]} />
-            <Form.Select field="appId" label="支付应用" style={{ width: '100%' }} optionList={appOptions} filter rules={[{ required: true, message: '请选择支付应用' }]} />
-            <Form.Select field="channelConfigId" label="商户配置" style={{ width: '100%' }} optionList={merchantOptions} filter rules={[{ required: true, message: '请选择商户配置' }]} />
-            <Form.Select field="currency" label="币种" style={{ width: '100%' }} optionList={CURRENCY_OPTIONS} rules={[{ required: true, message: '请选择币种' }]} />
-          </div>
-        </Form>
-      </AppModal>
+      <EditFormModal modal={accountModal} title="新建账本账户" width={620}>
+        <Form.Input field="name" label="账户名称" maxLength={128} rules={[{ required: true, message: '请输入账户名称' }]} />
+        <div className="auto-grid" style={{ ['--auto-grid-min']: '220px', ['--auto-grid-cols']: 2 } as CSSProperties}>
+          <Form.Select field="code" label="科目" style={{ width: '100%' }} optionList={PAYMENT_LEDGER_ACCOUNT_CODES.map((value) => ({ value, label: PAYMENT_LEDGER_ACCOUNT_CODE_LABELS[value] }))} rules={[{ required: true, message: '请选择科目' }]} />
+          <Form.Select field="appId" label="支付应用" style={{ width: '100%' }} optionList={appOptions} filter rules={[{ required: true, message: '请选择支付应用' }]} />
+          <Form.Select field="channelConfigId" label="商户配置" style={{ width: '100%' }} optionList={merchantOptions} filter rules={[{ required: true, message: '请选择商户配置' }]} />
+          <Form.Select field="currency" label="币种" style={{ width: '100%' }} optionList={CURRENCY_OPTIONS} rules={[{ required: true, message: '请选择币种' }]} />
+        </div>
+      </EditFormModal>
 
       <SideSheet
         title="新建资金凭证"
@@ -697,29 +696,27 @@ export default function PaymentLedgerPage() {
         </Form>
       </SideSheet>
 
-      <AppModal {...reservationModal.modalProps} title="新建资金预占" width={720}>
-        <Form key={reservationModal.formKey} {...reservationModal.formProps}>
-          <Form.Select field="accountId" label="账本账户" style={{ width: '100%' }} optionList={accountOptions} filter rules={[{ required: true, message: '请选择账本账户' }]} />
-          <div className="auto-grid" style={{ ['--auto-grid-min']: '220px', ['--auto-grid-cols']: 2 } as CSSProperties}>
-            <Form.Input field="sourceType" label="来源类型" maxLength={64} rules={[{ required: true, message: '请输入来源类型' }]} />
-            <Form.Input field="sourceId" label="来源标识" maxLength={128} rules={[{ required: true, message: '请输入来源标识' }]} />
-            <Form.Input field="amount" label="金额（最小单位）" placeholder="10000" rules={[{ required: true, message: '请输入金额' }, { pattern: /^[1-9]\d*$/, message: '请输入正整数十进制字符串' }]} />
-            <Form.DatePicker field="expiresAt" label="到期时间" type="dateTime" style={{ width: '100%' }} />
-          </div>
-          <Form.TextArea
-            field="reason"
-            label="预占原因"
-            maxCount={256}
-            autosize
-            rows={2}
-            placeholder="请填写资金用途和预占依据"
-            rules={[
-              { required: true, message: '请输入预占原因' },
-              { validator: (_rule: unknown, value: unknown) => Boolean(String(value ?? '').trim()), message: '预占原因不能只包含空格' },
-            ]}
-          />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={reservationModal} title="新建资金预占" width={720}>
+        <Form.Select field="accountId" label="账本账户" style={{ width: '100%' }} optionList={accountOptions} filter rules={[{ required: true, message: '请选择账本账户' }]} />
+        <div className="auto-grid" style={{ ['--auto-grid-min']: '220px', ['--auto-grid-cols']: 2 } as CSSProperties}>
+          <Form.Input field="sourceType" label="来源类型" maxLength={64} rules={[{ required: true, message: '请输入来源类型' }]} />
+          <Form.Input field="sourceId" label="来源标识" maxLength={128} rules={[{ required: true, message: '请输入来源标识' }]} />
+          <Form.Input field="amount" label="金额（最小单位）" placeholder="10000" rules={[{ required: true, message: '请输入金额' }, { pattern: /^[1-9]\d*$/, message: '请输入正整数十进制字符串' }]} />
+          <Form.DatePicker field="expiresAt" label="到期时间" type="dateTime" style={{ width: '100%' }} />
+        </div>
+        <Form.TextArea
+          field="reason"
+          label="预占原因"
+          maxCount={256}
+          autosize
+          rows={2}
+          placeholder="请填写资金用途和预占依据"
+          rules={[
+            { required: true, message: '请输入预占原因' },
+            { validator: (_rule: unknown, value: unknown) => Boolean(String(value ?? '').trim()), message: '预占原因不能只包含空格' },
+          ]}
+        />
+      </EditFormModal>
 
       <SideSheet title={detailJournal ? `资金凭证 · ${detailJournal.journalNo}` : '资金凭证详情'} visible={!!journalDetailTarget} onCancel={() => setJournalDetailTarget(null)} width={820} closeOnEsc>
         {detailJournal && (

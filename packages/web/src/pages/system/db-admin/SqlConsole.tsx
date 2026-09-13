@@ -1,10 +1,7 @@
 import {
   forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState,
 } from 'react';
-import {
-  Banner, Button, Dropdown, Empty, Form, List, Popconfirm, SideSheet,
-  Space, Spin, Tag, Toast, Tooltip, Typography,
-} from '@douyinfe/semi-ui';
+import { Banner, Button, Dropdown, Empty, Form, List, Popconfirm, SideSheet, Space, Spin, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import {
   Play, Eye, Download, Plus, X, Bookmark, BookmarkPlus, ArrowRight, Pencil, Trash2,
   Sparkles, Copy, Code, Ban, BarChart3, ChevronDown, SquareTerminal,
@@ -37,6 +34,7 @@ import {
   useSaveDbQueryFavorite,
 } from '@/hooks/queries/db-admin';
 import { request } from '@/utils/request';
+import { EditFormModal } from '@/components/EditFormModal';
 
 const PAGE_SIZE = 100;
 const SAVE_FAVORITE_LABEL_WIDTH = 72;
@@ -716,24 +714,14 @@ export const SqlConsole = forwardRef<SqlConsoleHandle, SqlConsoleProps>(function
       </SideSheet>
 
       {/* 保存 / 编辑收藏 */}
-      <AppModal
-        {...saveFavoriteModal.modalProps}
-        title={saveFavoriteModal.isEdit ? '编辑收藏' : '收藏 SQL'}
-        okText="保存"
-        cancelText="取消"
-        width={480}
-      >
-        <Form
-          key={saveFavoriteModal.formKey} {...saveFavoriteModal.formProps}
-        >
-          <Form.Input field="name" label="名称" rules={[{ required: true, message: '请输入名称' }]} placeholder="为这条 SQL 起个名字" style={{ width: '100%' }} />
-          <Form.TextArea field="description" label="备注" placeholder="可选，描述这条 SQL 的用途" style={{ width: '100%' }} />
-          <Form.Input field="tags" label="标签" placeholder="多个标签用逗号分隔，如：报表, 监控" style={{ width: '100%' }} />
-          {!saveFavoriteModal.isEdit && (
-            <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginLeft: SAVE_FAVORITE_LABEL_WIDTH }}>将收藏当前编辑器中的 SQL 内容</Typography.Text>
-          )}
-        </Form>
-      </AppModal>
+      <EditFormModal modal={saveFavoriteModal} title={saveFavoriteModal.isEdit ? '编辑收藏' : '收藏 SQL'} okText="保存" cancelText="取消" width={480}>
+        <Form.Input field="name" label="名称" rules={[{ required: true, message: '请输入名称' }]} placeholder="为这条 SQL 起个名字" style={{ width: '100%' }} />
+        <Form.TextArea field="description" label="备注" placeholder="可选，描述这条 SQL 的用途" style={{ width: '100%' }} />
+        <Form.Input field="tags" label="标签" placeholder="多个标签用逗号分隔，如：报表, 监控" style={{ width: '100%' }} />
+        {!saveFavoriteModal.isEdit && (
+          <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginLeft: SAVE_FAVORITE_LABEL_WIDTH }}>将收藏当前编辑器中的 SQL 内容</Typography.Text>
+        )}
+      </EditFormModal>
 
       <CellDetailDrawer
         visible={resultDetail !== null}

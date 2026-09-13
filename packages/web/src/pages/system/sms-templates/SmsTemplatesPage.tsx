@@ -1,4 +1,4 @@
-import { Col, Form, Row, Spin } from '@douyinfe/semi-ui';
+import { Col, Form, Row } from '@douyinfe/semi-ui';
 import { enumValueOf, USER_STATUSES } from '@zenith/shared/core';
 import { SMS_PROVIDER_OPTIONS } from '@zenith/shared/messaging';
 import type { CreateSmsTemplateInput, SmsProvider, SmsTemplate } from '@zenith/shared/messaging';
@@ -6,7 +6,6 @@ import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useEditModal } from '@/hooks/useEditModal';
 import InsertShortLinkButton from '@/components/short-link/InsertShortLinkButton';
-import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { deleteAction, ListSearchToolbar, useStatusToggle } from '@/components/list-page';
@@ -22,6 +21,7 @@ import { CreateButton } from '@/components/toolbar-controls';
 import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { TemplateNameCodeRow, TemplateVariablesRemarkRows } from '../message-template-form';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormModal } from '@/components/EditFormModal';
 
 export default function SmsTemplatesPage() {
   const { hasPermission: can } = usePermission();
@@ -132,49 +132,45 @@ export default function SmsTemplatesPage() {
         {...tableProps}
       />
 
-      <AppModal {...templateModal.modalProps} width={720}>
-        <Spin spinning={templateModal.detailLoading} wrapperClassName="modal-spin-wrapper">
-        <Form key={templateModal.formKey} {...templateModal.formProps}>
-          <TemplateNameCodeRow isEdit={templateModal.isEdit} codePlaceholder="如：order_paid" />
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Input field="templateCode" label="服务商模板号" placeholder="请输入服务商模板号"
-                rules={[{ required: true, message: '请输入服务商模板号' }]} />
-            </Col>
-            <Col span={12}>
-              <Form.Input field="signName" label="短信签名" placeholder="可选" />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Select field="provider" label="服务商" style={{ width: '100%' }} optionList={SMS_PROVIDER_OPTIONS}
-                placeholder="请选择服务商" rules={[{ required: true, message: '请选择服务商' }]} />
-            </Col>
-            <Col span={12}>
-              <Form.Select field="status" label="状态" style={{ width: '100%' }} placeholder="请选择状态"
-                optionList={statusOptions} />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={24}>
-              <Form.TextArea field="content" label="模板内容" rows={4} placeholder="请输入模板内容"
-                rules={[{ required: true, message: '请输入模板内容' }]}
-                extraText={(
-                  <InsertShortLinkButton
-                    onInsert={(url) => {
-                      const api = templateModal.formApi.current;
-                      if (!api) return;
-                      const current = (api.getValue('content') as string | undefined) ?? '';
-                      api.setValue('content', current ? `${current} ${url}` : url);
-                    }}
-                  />
-                )} />
-            </Col>
-          </Row>
-          <TemplateVariablesRemarkRows variablesPlaceholder='如：{"code":"验证码"}' />
-        </Form>
-        </Spin>
-      </AppModal>
+      <EditFormModal modal={templateModal} width={720}>
+        <TemplateNameCodeRow isEdit={templateModal.isEdit} codePlaceholder="如：order_paid" />
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Input field="templateCode" label="服务商模板号" placeholder="请输入服务商模板号"
+              rules={[{ required: true, message: '请输入服务商模板号' }]} />
+          </Col>
+          <Col span={12}>
+            <Form.Input field="signName" label="短信签名" placeholder="可选" />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Select field="provider" label="服务商" style={{ width: '100%' }} optionList={SMS_PROVIDER_OPTIONS}
+              placeholder="请选择服务商" rules={[{ required: true, message: '请选择服务商' }]} />
+          </Col>
+          <Col span={12}>
+            <Form.Select field="status" label="状态" style={{ width: '100%' }} placeholder="请选择状态"
+              optionList={statusOptions} />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={24}>
+            <Form.TextArea field="content" label="模板内容" rows={4} placeholder="请输入模板内容"
+              rules={[{ required: true, message: '请输入模板内容' }]}
+              extraText={(
+                <InsertShortLinkButton
+                  onInsert={(url) => {
+                    const api = templateModal.formApi.current;
+                    if (!api) return;
+                    const current = (api.getValue('content') as string | undefined) ?? '';
+                    api.setValue('content', current ? `${current} ${url}` : url);
+                  }}
+                />
+              )} />
+          </Col>
+        </Row>
+        <TemplateVariablesRemarkRows variablesPlaceholder='如：{"code":"验证码"}' />
+      </EditFormModal>
     </div>
   );
 }

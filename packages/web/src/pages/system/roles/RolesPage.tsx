@@ -36,6 +36,7 @@ import { DateRangeFilter, KeywordInput, StatusSelect } from '@/components/search
 import { deleteAction, ListSearchToolbar, useStatusToggle } from '@/components/list-page';
 import ModalFooter from '@/components/ModalFooter';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormModal } from '@/components/EditFormModal';
 
 export default function RolesPage() {
   const { hasPermission } = usePermission();
@@ -266,29 +267,25 @@ export default function RolesPage() {
       />
 
       {/* 创建/编辑 Modal */}
-      <AppModal {...roleModal.modalProps} width={480}>
-        <Spin spinning={roleModal.detailLoading} wrapperClassName="modal-spin-wrapper">
-        <Form key={roleModal.formKey} {...roleModal.formProps}>
-          <Form.Input field="name" label="角色名称" placeholder="请输入角色名称" rules={[{ required: true, message: '请输入角色名称' }]} />
-          <Form.Input field="code" label="角色编码" placeholder="请输入角色编码" rules={[{ required: true, message: '请输入角色编码' }]} />
-          <Form.Input field="description" label="描述" placeholder="请输入描述" />
-          <Form.TreeSelect
-            field="deptScopeIds"
-            label="管理范围"
-            placeholder="默认全员（用于工作流「角色」审批人按部门过滤）"
-            multiple
-            filterTreeNode
-            treeData={departmentTreeToTreeData(deptTree)}
-            style={{ width: '100%' }}
-          />
-          <Form.Select field="status" label="状态" style={{ width: '100%' }}
-            disabled={editingRole?.code === 'super_admin'}
-            optionList={statusOptions}
-            placeholder="请选择状态"
-          />
-        </Form>
-        </Spin>
-      </AppModal>
+      <EditFormModal modal={roleModal} width={480}>
+        <Form.Input field="name" label="角色名称" placeholder="请输入角色名称" rules={[{ required: true, message: '请输入角色名称' }]} />
+        <Form.Input field="code" label="角色编码" placeholder="请输入角色编码" rules={[{ required: true, message: '请输入角色编码' }]} />
+        <Form.Input field="description" label="描述" placeholder="请输入描述" />
+        <Form.TreeSelect
+          field="deptScopeIds"
+          label="管理范围"
+          placeholder="默认全员（用于工作流「角色」审批人按部门过滤）"
+          multiple
+          filterTreeNode
+          treeData={departmentTreeToTreeData(deptTree)}
+          style={{ width: '100%' }}
+        />
+        <Form.Select field="status" label="状态" style={{ width: '100%' }}
+          disabled={editingRole?.code === 'super_admin'}
+          optionList={statusOptions}
+          placeholder="请选择状态"
+        />
+      </EditFormModal>
 
       {/* 菜单权限 Modal */}
       <AppModal

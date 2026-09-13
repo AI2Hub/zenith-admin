@@ -28,6 +28,7 @@ import { CreateButton } from '@/components/toolbar-controls';
 import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { abortSubmit } from '@/lib/abort-submit';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormModal } from '@/components/EditFormModal';
 
 const TYPE_TAG_COLOR: Record<MpAutoReplyType, 'green' | 'blue' | 'orange'> = {
   subscribe: 'green', keyword: 'blue', default: 'orange',
@@ -217,92 +218,88 @@ export default function MpAutoRepliesPage() {
         {...tableProps}
       />
 
-      <AppModal {...modal.modalProps} width={640}>
-        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
-          <Form key={modal.formKey} {...modal.formProps}>
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Slot label="回复类型">
-                  <Select style={{ width: '100%' }} optionList={MP_AUTO_REPLY_TYPE_OPTIONS} value={modalType}
-                    disabled={modal.isEdit} onChange={(v) => setModalType(v as MpAutoReplyType)} />
-                </Form.Slot>
-              </Col>
-              {modalType === 'keyword' && (
-                <Col span={12}>
-                  <Form.Select field="matchType" label="匹配方式" style={{ width: '100%' }} optionList={MP_AUTO_REPLY_MATCH_OPTIONS} />
-                </Col>
-              )}
-            </Row>
-            {modalType === 'keyword' && (
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Form.Input field="keyword" label="关键词" placeholder="请输入关键词"
-                    rules={[{ required: true, message: '请输入关键词' }]} />
-                </Col>
-                <Col span={12}>
-                  <Form.InputNumber field="sort" label="优先级" style={{ width: '100%' }} min={0} />
-                </Col>
-              </Row>
-            )}
-
-            <Form.Slot label="内容类型">
-              <Select style={{ width: '100%' }} optionList={MP_REPLY_CONTENT_TYPE_OPTIONS} value={contentType}
-                onChange={(v) => setContentType(v as MpReplyContentType)} />
+      <EditFormModal modal={modal} width={640}>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Slot label="回复类型">
+              <Select style={{ width: '100%' }} optionList={MP_AUTO_REPLY_TYPE_OPTIONS} value={modalType}
+                disabled={modal.isEdit} onChange={(v) => setModalType(v as MpAutoReplyType)} />
             </Form.Slot>
+          </Col>
+          {modalType === 'keyword' && (
+            <Col span={12}>
+              <Form.Select field="matchType" label="匹配方式" style={{ width: '100%' }} optionList={MP_AUTO_REPLY_MATCH_OPTIONS} />
+            </Col>
+          )}
+        </Row>
+        {modalType === 'keyword' && (
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Input field="keyword" label="关键词" placeholder="请输入关键词"
+                rules={[{ required: true, message: '请输入关键词' }]} />
+            </Col>
+            <Col span={12}>
+              <Form.InputNumber field="sort" label="优先级" style={{ width: '100%' }} min={0} />
+            </Col>
+          </Row>
+        )}
 
-            {contentType === 'text' && (
-              <Form.TextArea field="content" label="回复内容" rows={4} placeholder="请输入回复内容"
-                rules={[{ required: true, message: '请输入回复内容' }]} />
+        <Form.Slot label="内容类型">
+          <Select style={{ width: '100%' }} optionList={MP_REPLY_CONTENT_TYPE_OPTIONS} value={contentType}
+            onChange={(v) => setContentType(v as MpReplyContentType)} />
+        </Form.Slot>
+
+        {contentType === 'text' && (
+          <Form.TextArea field="content" label="回复内容" rows={4} placeholder="请输入回复内容"
+            rules={[{ required: true, message: '请输入回复内容' }]} />
+        )}
+
+        {(contentType === 'image' || contentType === 'voice' || contentType === 'video') && (
+          <>
+            <Form.Select field="mediaId" label="素材" style={{ width: '100%' }} filter showClear
+              placeholder={`请选择${MP_REPLY_CONTENT_TYPE_LABELS[contentType]}素材（来自素材库的永久素材）`}
+              optionList={materialOptions(contentType)}
+              rules={[{ required: true, message: '请选择素材' }]}
+              emptyContent="暂无对应类型的永久素材，请先在「素材管理」上传" />
+            {contentType === 'video' && (
+              <Form.Input field="content" label="视频标题" placeholder="可选，被动回复时作为视频标题" />
             )}
+          </>
+        )}
 
-            {(contentType === 'image' || contentType === 'voice' || contentType === 'video') && (
-              <>
-                <Form.Select field="mediaId" label="素材" style={{ width: '100%' }} filter showClear
-                  placeholder={`请选择${MP_REPLY_CONTENT_TYPE_LABELS[contentType]}素材（来自素材库的永久素材）`}
-                  optionList={materialOptions(contentType)}
-                  rules={[{ required: true, message: '请选择素材' }]}
-                  emptyContent="暂无对应类型的永久素材，请先在「素材管理」上传" />
-                {contentType === 'video' && (
-                  <Form.Input field="content" label="视频标题" placeholder="可选，被动回复时作为视频标题" />
-                )}
-              </>
-            )}
-
-            {contentType === 'news' && (
-              <Form.Slot label="图文文章">
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  {articles.map((a, idx) => (
-                    <div key={idx} style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: 12, position: 'relative' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                        <Typography.Text type="secondary" size="small">文章 {idx + 1}</Typography.Text>
-                        {articles.length > 1 && (
-                          <Button theme="borderless" type="danger" size="small" icon={<Trash2 size={13} />}
-                            onClick={() => setArticles((prev) => prev.filter((_, i) => i !== idx))} />
-                        )}
-                      </div>
-                      <Space vertical style={{ width: '100%' }} spacing={8}>
-                        <Input prefix="标题" value={a.title} onChange={(v) => updateArticle(idx, { title: v })} placeholder="必填" />
-                        <Input prefix="链接" value={a.url} onChange={(v) => updateArticle(idx, { url: v })} placeholder="必填，https://" />
-                        <Input prefix="封面" value={a.picUrl ?? ''} onChange={(v) => updateArticle(idx, { picUrl: v })} placeholder="可选，图片 URL" />
-                        <Input prefix="摘要" value={a.description ?? ''} onChange={(v) => updateArticle(idx, { description: v })} placeholder="可选" />
-                      </Space>
-                    </div>
-                  ))}
-                  {articles.length < 8 && (
-                    <Button theme="light" type="primary" icon={<Plus size={13} />} onClick={() => setArticles((prev) => [...prev, emptyArticle()])}>
-                      添加文章
-                    </Button>
-                  )}
+        {contentType === 'news' && (
+          <Form.Slot label="图文文章">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {articles.map((a, idx) => (
+                <div key={idx} style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: 12, position: 'relative' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <Typography.Text type="secondary" size="small">文章 {idx + 1}</Typography.Text>
+                    {articles.length > 1 && (
+                      <Button theme="borderless" type="danger" size="small" icon={<Trash2 size={13} />}
+                        onClick={() => setArticles((prev) => prev.filter((_, i) => i !== idx))} />
+                    )}
+                  </div>
+                  <Space vertical style={{ width: '100%' }} spacing={8}>
+                    <Input prefix="标题" value={a.title} onChange={(v) => updateArticle(idx, { title: v })} placeholder="必填" />
+                    <Input prefix="链接" value={a.url} onChange={(v) => updateArticle(idx, { url: v })} placeholder="必填，https://" />
+                    <Input prefix="封面" value={a.picUrl ?? ''} onChange={(v) => updateArticle(idx, { picUrl: v })} placeholder="可选，图片 URL" />
+                    <Input prefix="摘要" value={a.description ?? ''} onChange={(v) => updateArticle(idx, { description: v })} placeholder="可选" />
+                  </Space>
                 </div>
-              </Form.Slot>
-            )}
+              ))}
+              {articles.length < 8 && (
+                <Button theme="light" type="primary" icon={<Plus size={13} />} onClick={() => setArticles((prev) => [...prev, emptyArticle()])}>
+                  添加文章
+                </Button>
+              )}
+            </div>
+          </Form.Slot>
+        )}
 
-            <Form.Select field="status" label="状态" style={{ width: '100%' }}
-              optionList={statusOptions} />
-            <Form.Switch field="transferToKf" label="命中转人工" extraText="命中该关键词后引导粉丝进入多客服会话队列" />
-          </Form>
-        </Spin>
-      </AppModal>
+        <Form.Select field="status" label="状态" style={{ width: '100%' }}
+          optionList={statusOptions} />
+        <Form.Switch field="transferToKf" label="命中转人工" extraText="命中该关键词后引导粉丝进入多客服会话队列" />
+      </EditFormModal>
 
       <AppModal title="未命中热词（优化关键词库参考）" visible={hotwordsVisible} footer={null}
         onCancel={() => setHotwordsVisible(false)} width={520}>

@@ -1,7 +1,5 @@
 import { useRef, useState } from 'react';
-import {
-  Button, Form, Progress, SideSheet, TabPane, Tabs, Tag, Toast, Typography, Upload,
-} from '@douyinfe/semi-ui';
+import { Button, Form, Progress, SideSheet, TabPane, Tabs, Tag, Toast, Typography, Upload } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { FileUp } from 'lucide-react';
@@ -33,6 +31,7 @@ import {
 } from '@/hooks/queries/iot-ota';
 import { USER_STATUSES, enumValueOf, formatBytes } from '@zenith/shared/core';
 import { useFilterQuery } from '@/hooks/useFilterQuery';
+import { EditFormModal } from '@/components/EditFormModal';
 
 const { Text } = Typography;
 
@@ -219,12 +218,10 @@ function FirmwaresTab({ onCreateTask }: Readonly<{ onCreateTask: (firmware: IotF
       </AppModal>
 
       {/* 编辑固件 */}
-      <AppModal {...editModal.modalProps} width={520}>
-        <Form key={editModal.formKey} {...editModal.formProps}>
-          <Form.TextArea field="releaseNotes" label="发布说明" rows={3} maxCount={4000} />
-          <FormStatusRadioGroup extraText="禁用后不可再发起升级任务" />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={editModal} width={520}>
+        <Form.TextArea field="releaseNotes" label="发布说明" rows={3} maxCount={4000} />
+        <FormStatusRadioGroup extraText="禁用后不可再发起升级任务" />
+      </EditFormModal>
     </>
   );
 }

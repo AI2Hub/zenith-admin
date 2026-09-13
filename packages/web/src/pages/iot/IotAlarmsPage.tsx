@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Descriptions, Form, Modal, Spin, TabPane, Tabs, Tag, TextArea, Toast, Tooltip, Typography, withField } from '@douyinfe/semi-ui';
+import { Descriptions, Form, Modal, TabPane, Tabs, Tag, TextArea, Toast, Tooltip, Typography, withField } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -37,6 +37,7 @@ import {
 } from '@/hooks/queries/iot-alarms';
 import { IOT_ALARM_LEVEL_COLORS } from './iot-tag-colors';
 import { useFilterQuery } from '@/hooks/useFilterQuery';
+import { EditFormModal } from '@/components/EditFormModal';
 
 const { Text } = Typography;
 
@@ -461,18 +462,14 @@ function AlarmRulesTab() {
         {...listTableProps(listQuery, { pagination: buildPagination, empty: '暂无告警规则，点击「新增规则」创建第一条' })}
       />
 
-      <AppModal {...modal.modalProps} width={640}>
-        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
-          <Form key={modal.formKey} {...modal.formProps}>
-            {({ formState }) => (
-              <RuleFormBody
-                isEdit={modal.isEdit}
-                values={formState.values as Record<string, unknown>}
-              />
-            )}
-          </Form>
-        </Spin>
-      </AppModal>
+      <EditFormModal modal={modal} width={640}>
+        {({ formState }) => (
+          <RuleFormBody
+            isEdit={modal.isEdit}
+            values={formState.values as Record<string, unknown>}
+          />
+        )}
+      </EditFormModal>
     </>
   );
 }
@@ -637,23 +634,19 @@ function MaintenanceWindowsTab() {
         {...listTableProps(listQuery, { pagination: buildPagination, empty: '暂无维护窗口；窗口内命中设备的告警仍会记录，但不派发通知与升级' })}
       />
 
-      <AppModal {...modal.modalProps} width={560}>
-        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
-          <Form key={modal.formKey} {...modal.formProps}>
-            <Form.Input field="name" label="窗口名称" placeholder="如：B 栋机房年度检修"
-              rules={[{ required: true, message: '窗口名称不能为空' }]} />
-            <Form.Select field="productId" label="产品" placeholder="不限" showClear style={{ width: '100%' }}
-              optionList={productOptions}
-              extraText="产品/分组/设备至少指定一项，命中任一即静默" />
-            <Form.Select field="groupId" label="分组" placeholder="不限" showClear style={{ width: '100%' }}
-              optionList={groupOptions} />
-            <Form.InputNumber field="deviceId" label="设备 ID" placeholder="不限（填设备 id）" hideButtons showClear style={{ width: 200 }} />
-            <Form.DatePicker field="timeRange" label="静默时段" type="dateTimeRange" style={{ width: '100%' }}
-              rules={[{ required: true, message: '请选择静默时段' }]} />
-            <Form.TextArea field="reason" label="维护原因" rows={2} maxCount={256} placeholder="选填" />
-          </Form>
-        </Spin>
-      </AppModal>
+      <EditFormModal modal={modal} width={560}>
+        <Form.Input field="name" label="窗口名称" placeholder="如：B 栋机房年度检修"
+          rules={[{ required: true, message: '窗口名称不能为空' }]} />
+        <Form.Select field="productId" label="产品" placeholder="不限" showClear style={{ width: '100%' }}
+          optionList={productOptions}
+          extraText="产品/分组/设备至少指定一项，命中任一即静默" />
+        <Form.Select field="groupId" label="分组" placeholder="不限" showClear style={{ width: '100%' }}
+          optionList={groupOptions} />
+        <Form.InputNumber field="deviceId" label="设备 ID" placeholder="不限（填设备 id）" hideButtons showClear style={{ width: 200 }} />
+        <Form.DatePicker field="timeRange" label="静默时段" type="dateTimeRange" style={{ width: '100%' }}
+          rules={[{ required: true, message: '请选择静默时段' }]} />
+        <Form.TextArea field="reason" label="维护原因" rows={2} maxCount={256} placeholder="选填" />
+      </EditFormModal>
     </>
   );
 }

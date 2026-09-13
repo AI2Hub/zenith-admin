@@ -44,6 +44,7 @@ import { usePaymentAppList } from '@/hooks/queries/payment-apps';
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import { PaymentChannelTag, paymentMoneyColumn } from './payment-display';
 import { useAppPaymentMethodOptions } from './payment-app-options';
+import { EditFormModal } from '@/components/EditFormModal';
 const yuan = formatYuan;
 const PAYMENT_CREATE_METHODS = createPaymentSchema.shape.payMethod.options;
 
@@ -525,75 +526,73 @@ export default function PaymentOrdersPage() {
         )}
       </AppModal>
 
-      <AppModal {...createOrderModal.modalProps} title="手动下单" width={660}>
-        <Form key={createOrderModal.formKey} {...createOrderModal.formProps}>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Select
-                field="applicationId"
-                label="支付应用"
-                placeholder="请选择启用的支付应用"
-                style={{ width: '100%' }}
-                optionList={enabledAppOptions}
-                loading={appsQuery.isFetching}
-                filter
-                onChange={(value) => {
-                  setSelectedApplicationId(value as number | undefined);
-                  createOrderModal.formApi.current?.setValue('payMethod', undefined);
-                }}
-                rules={[{ required: true, message: '请选择支付应用' }]}
-              />
-            </Col>
-            <Col span={12}>
-              <Form.Select
-                field="payMethod"
-                label="支付方式"
-                placeholder={selectedPaymentApp ? '请选择应用支持的支付方式' : '请先选择支付应用'}
-                style={{ width: '100%' }}
-                optionList={paymentMethodOptions}
-                loading={canReadCapabilities && capabilitiesQuery.isFetching}
-                disabled={!selectedPaymentApp || (canReadCapabilities && capabilitiesQuery.isFetching) || paymentMethodOptions.length === 0}
-                rules={[{ required: true, message: '请选择支付方式' }]}
-              />
-            </Col>
-          </Row>
-          {selectedPaymentApp && (!canReadCapabilities || capabilitiesQuery.isError) && (
-            <Banner
-              type="warning"
-              closeIcon={null}
-              description="暂时无法读取渠道实时能力，支付方式按应用已绑定渠道展示，提交时仍由服务端校验。"
+      <EditFormModal modal={createOrderModal} title="手动下单" width={660}>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Select
+              field="applicationId"
+              label="支付应用"
+              placeholder="请选择启用的支付应用"
+              style={{ width: '100%' }}
+              optionList={enabledAppOptions}
+              loading={appsQuery.isFetching}
+              filter
+              onChange={(value) => {
+                setSelectedApplicationId(value as number | undefined);
+                createOrderModal.formApi.current?.setValue('payMethod', undefined);
+              }}
+              rules={[{ required: true, message: '请选择支付应用' }]}
             />
-          )}
-          {selectedPaymentApp && capabilitiesQuery.data && paymentMethodOptions.length === 0 && (
-            <Banner
-              type="warning"
-              closeIcon={null}
-              description="该应用当前没有可用的支付下单能力，请先检查支付应用与商户渠道配置。"
+          </Col>
+          <Col span={12}>
+            <Form.Select
+              field="payMethod"
+              label="支付方式"
+              placeholder={selectedPaymentApp ? '请选择应用支持的支付方式' : '请先选择支付应用'}
+              style={{ width: '100%' }}
+              optionList={paymentMethodOptions}
+              loading={canReadCapabilities && capabilitiesQuery.isFetching}
+              disabled={!selectedPaymentApp || (canReadCapabilities && capabilitiesQuery.isFetching) || paymentMethodOptions.length === 0}
+              rules={[{ required: true, message: '请选择支付方式' }]}
             />
-          )}
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Input field="subject" label="商品标题" placeholder="如 会员充值" rules={[{ required: true, message: '请输入标题' }]} />
-            </Col>
-            <Col span={12}>
-              <Form.InputNumber field="amount" label="金额(元)" min={0.01} precision={2} style={{ width: '100%' }} rules={[{ required: true, message: '请输入金额' }]} />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Input field="bizType" label="业务类型" placeholder="如 membership" rules={[{ required: true, message: '请输入业务类型' }]} />
-            </Col>
-            <Col span={12}>
-              <Form.Input field="bizId" label="业务ID" placeholder="业务方订单ID" rules={[{ required: true, message: '请输入业务ID' }]} />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Input field="openId" label="OpenID" placeholder="仅微信 JSAPI 需要" />
-            </Col>
-          </Row>
-        </Form>
-      </AppModal>
+          </Col>
+        </Row>
+        {selectedPaymentApp && (!canReadCapabilities || capabilitiesQuery.isError) && (
+          <Banner
+            type="warning"
+            closeIcon={null}
+            description="暂时无法读取渠道实时能力，支付方式按应用已绑定渠道展示，提交时仍由服务端校验。"
+          />
+        )}
+        {selectedPaymentApp && capabilitiesQuery.data && paymentMethodOptions.length === 0 && (
+          <Banner
+            type="warning"
+            closeIcon={null}
+            description="该应用当前没有可用的支付下单能力，请先检查支付应用与商户渠道配置。"
+          />
+        )}
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Input field="subject" label="商品标题" placeholder="如 会员充值" rules={[{ required: true, message: '请输入标题' }]} />
+          </Col>
+          <Col span={12}>
+            <Form.InputNumber field="amount" label="金额(元)" min={0.01} precision={2} style={{ width: '100%' }} rules={[{ required: true, message: '请输入金额' }]} />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Input field="bizType" label="业务类型" placeholder="如 membership" rules={[{ required: true, message: '请输入业务类型' }]} />
+          </Col>
+          <Col span={12}>
+            <Form.Input field="bizId" label="业务ID" placeholder="业务方订单ID" rules={[{ required: true, message: '请输入业务ID' }]} />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Input field="openId" label="OpenID" placeholder="仅微信 JSAPI 需要" />
+          </Col>
+        </Row>
+      </EditFormModal>
 
       <PaymentResultModal result={payResult} method={payResultMethod} onClose={() => { setPayResult(null); setPayResultMethod(null); }} />
     </div>

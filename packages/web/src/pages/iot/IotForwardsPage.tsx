@@ -1,12 +1,11 @@
 import { useMemo, useState } from 'react';
-import { Button, Form, SideSheet, Spin, TabPane, Tabs, Tag, Typography } from '@douyinfe/semi-ui';
+import { Button, Form, SideSheet, TabPane, Tabs, Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { CreateButton } from '@/components/toolbar-controls';
-import AppModal from '@/components/AppModal';
 import { EMPTY_PLACEHOLDER, createdAtColumn, dateTimeColumn, renderEllipsis, enabledStatusColumn } from '@/utils/table-columns';
 import { useEditModal } from '@/hooks/useEditModal';
 import { usePermission } from '@/hooks/usePermission';
@@ -29,6 +28,7 @@ import {
   useIotForwardRuleList, useSaveIotForwardRule,
 } from '@/hooks/queries/iot-forwards';
 import { useFilterQuery } from '@/hooks/useFilterQuery';
+import { EditFormModal } from '@/components/EditFormModal';
 
 const { Text } = Typography;
 
@@ -191,13 +191,9 @@ function ForwardRulesTab({ onShowLogs }: Readonly<{ onShowLogs: (rule: IotForwar
         {...listTableProps(listQuery, { pagination: buildPagination, empty: '暂无流转规则，点击「新增规则」创建第一条' })}
       />
 
-      <AppModal {...modal.modalProps} width={640}>
-        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
-          <Form key={modal.formKey} {...modal.formProps}>
-            <ForwardFormBody isEdit={modal.isEdit} />
-          </Form>
-        </Spin>
-      </AppModal>
+      <EditFormModal modal={modal} width={640}>
+        <ForwardFormBody isEdit={modal.isEdit} />
+      </EditFormModal>
     </>
   );
 }

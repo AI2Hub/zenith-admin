@@ -3,7 +3,6 @@ import { Form } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import AppModal from '@/components/AppModal';
 import { EMPTY_PLACEHOLDER, createdAtColumn } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -16,6 +15,7 @@ import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { slugifyName } from '@/utils/slug';
 import { abortSubmit } from '@/lib/abort-submit';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormModal } from '@/components/EditFormModal';
 
 interface SearchParams { keyword: string }
 const defaultSearch: SearchParams = { keyword: '' };
@@ -113,13 +113,11 @@ export default function TagsPage() {
         {...tableProps}
       />
 
-      <AppModal {...modal.modalProps} width={480}>
-        <Form key={modal.formKey} {...modal.formProps}>
-          <Form.Input field="name" label="标签名称" onChange={(v) => handleNameChange(String(v ?? ''))} rules={[{ required: true, message: '请输入标签名称' }]} />
-          <Form.Input field="slug" label="URL 标识" placeholder="输入名称自动生成，可修改" rules={[{ required: true, message: '请输入 URL 标识' }]} />
-          <Form.Input field="groupName" label="分组" placeholder="可选，如「产品」「行业」，便于归类管理" maxLength={50} />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={modal} width={480}>
+        <Form.Input field="name" label="标签名称" onChange={(v) => handleNameChange(String(v ?? ''))} rules={[{ required: true, message: '请输入标签名称' }]} />
+        <Form.Input field="slug" label="URL 标识" placeholder="输入名称自动生成，可修改" rules={[{ required: true, message: '请输入 URL 标识' }]} />
+        <Form.Input field="groupName" label="分组" placeholder="可选，如「产品」「行业」，便于归类管理" maxLength={50} />
+      </EditFormModal>
     </div>
   );
 }

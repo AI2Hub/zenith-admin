@@ -1,7 +1,5 @@
 import { useState } from 'react';
-import {
-  Button, Form, Input, Modal, Space, Tag, Toast, Banner, Typography, Empty, Select, Divider,
-} from '@douyinfe/semi-ui';
+import { Button, Form, Input, Modal, Space, Tag, Toast, Banner, Typography, Empty, Select, Divider } from '@douyinfe/semi-ui';
 import { Plus, Trash2, FlaskConical } from 'lucide-react';
 import type { MpConditionalMenu, MpMenuButton, MpMenuMatchRule } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
@@ -25,6 +23,7 @@ import {
 } from '@/hooks/queries/mp-menu';
 import { CreateButton, RefreshButton } from '@/components/toolbar-controls';
 import { abortSubmit } from '@/lib/abort-submit';
+import { EditFormModal } from '@/components/EditFormModal';
 
 const { Text } = Typography;
 
@@ -222,23 +221,21 @@ export default function MpConditionalMenusPage() {
         {...listTableProps(listQuery, { pagination: buildPagination })}
       />
 
-      <AppModal {...modal.modalProps} width={680}>
-        <Form key={modal.formKey} {...modal.formProps}>
-          <Form.Input field="name" label="名称" rules={[{ required: true, message: '请输入名称' }]} placeholder="便于识别，如：女性用户菜单" />
-          <Divider margin="8px" align="left"><Text type="tertiary" size="small">匹配规则（至少一项）</Text></Divider>
-          <Form.Input field="tagId" label="标签ID" placeholder="微信标签 id（可在标签管理查看）" />
-          <Form.Select field="sex" label="性别" optionList={SEX_OPTIONS} style={{ width: '100%' }} />
-          <Form.Select field="clientPlatformType" label="客户端" optionList={PLATFORM_OPTIONS} style={{ width: '100%' }} />
-          <Space>
-            <Form.Input field="country" label="国家" labelWidth={50} placeholder="中国" />
-            <Form.Input field="province" label="省" labelWidth={40} placeholder="广东" />
-            <Form.Input field="city" label="市" labelWidth={40} placeholder="深圳" />
-          </Space>
-          <Form.Input field="language" label="语言" placeholder="zh_CN" />
-          <Divider margin="8px" align="left"><Text type="tertiary" size="small">菜单按钮（最多 3 个一级，每个最多 5 个子菜单）</Text></Divider>
-          <ButtonEditor value={buttons} onChange={setButtons} />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={modal} width={680}>
+        <Form.Input field="name" label="名称" rules={[{ required: true, message: '请输入名称' }]} placeholder="便于识别，如：女性用户菜单" />
+        <Divider margin="8px" align="left"><Text type="tertiary" size="small">匹配规则（至少一项）</Text></Divider>
+        <Form.Input field="tagId" label="标签ID" placeholder="微信标签 id（可在标签管理查看）" />
+        <Form.Select field="sex" label="性别" optionList={SEX_OPTIONS} style={{ width: '100%' }} />
+        <Form.Select field="clientPlatformType" label="客户端" optionList={PLATFORM_OPTIONS} style={{ width: '100%' }} />
+        <Space>
+          <Form.Input field="country" label="国家" labelWidth={50} placeholder="中国" />
+          <Form.Input field="province" label="省" labelWidth={40} placeholder="广东" />
+          <Form.Input field="city" label="市" labelWidth={40} placeholder="深圳" />
+        </Space>
+        <Form.Input field="language" label="语言" placeholder="zh_CN" />
+        <Divider margin="8px" align="left"><Text type="tertiary" size="small">菜单按钮（最多 3 个一级，每个最多 5 个子菜单）</Text></Divider>
+        <ButtonEditor value={buttons} onChange={setButtons} />
+      </EditFormModal>
 
       <AppModal title="个性化菜单匹配测试" visible={matchVisible} onOk={() => void handleTryMatch()} okText="测试"
         confirmLoading={matching} onCancel={() => setMatchVisible(false)} width={480}>

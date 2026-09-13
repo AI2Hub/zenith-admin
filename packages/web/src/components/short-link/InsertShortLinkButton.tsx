@@ -1,10 +1,10 @@
 import { Button, Form } from '@douyinfe/semi-ui';
 import { Link2 } from 'lucide-react';
-import AppModal from '@/components/AppModal';
 import { useEditModal } from '@/hooks/useEditModal';
 import { usePermission } from '@/hooks/usePermission';
 import { useSaveShortLink } from '@/hooks/queries/short-links';
 import type { CreateShortLinkInput, ShortLink } from '@zenith/shared/short-link';
+import { EditFormModal } from '@/components/EditFormModal';
 
 interface InsertShortLinkButtonProps {
   /** 生成成功后回调，参数为完整短链地址（调用方负责插入内容） */
@@ -39,18 +39,16 @@ export default function InsertShortLinkButton({ onInsert }: InsertShortLinkButto
       <Button size="small" theme="borderless" type="tertiary" icon={<Link2 size={13} />} onClick={modal.openCreate}>
         插入短链
       </Button>
-      <AppModal {...modal.modalProps} title="插入短链" width={520}>
-        <Form key={modal.formKey} {...modal.formProps}>
-          <Form.Input
-            field="targetUrl" label="长链接" placeholder="https://example.com/very/long/url"
-            rules={[
-              { required: true, message: '长链接不能为空' },
-              { validator: (_r, v: string) => !v || /^https?:\/\//.test(v), message: '仅支持 http/https 地址' },
-            ]}
-          />
-          <Form.Input field="title" label="标题" placeholder="便于在短链管理中识别（选填）" />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={modal} title="插入短链" width={520}>
+        <Form.Input
+          field="targetUrl" label="长链接" placeholder="https://example.com/very/long/url"
+          rules={[
+            { required: true, message: '长链接不能为空' },
+            { validator: (_r, v: string) => !v || /^https?:\/\//.test(v), message: '仅支持 http/https 地址' },
+          ]}
+        />
+        <Form.Input field="title" label="标题" placeholder="便于在短链管理中识别（选填）" />
+      </EditFormModal>
     </>
   );
 }

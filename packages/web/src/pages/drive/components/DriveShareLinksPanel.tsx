@@ -30,6 +30,7 @@ import { confirmAndDelete } from '@/components/list-page';
 import { formatDateTimeForApi } from '@/utils/date';
 import { dateTimeColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '@/utils/table-columns';
 import { roleAtLeast, shareLinkAbsoluteUrl, shareLinkStateTag } from '../drive-utils';
+import { EditFormModal } from '@/components/EditFormModal';
 
 interface ShareLinkFormValues {
   kind: DriveShareKind;
@@ -272,11 +273,9 @@ export function DriveShareLinksPanel({ node, allowExternalShare }: DriveShareLin
           : <ul className="drive-link-list">{(query.data ?? []).map(renderLink)}</ul>}
       </Spin>
 
-      <AppModal {...modal.modalProps} title={modal.editing ? `编辑${DRIVE_SHARE_KIND_LABELS[modal.editing.kind]}链接` : '创建外链'} width={560}>
-        <Form key={modal.formKey} {...modal.formProps}>
-          <ShareLinkFormFields node={node} editing={modal.editing} />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={modal} title={modal.editing ? `编辑${DRIVE_SHARE_KIND_LABELS[modal.editing.kind]}链接` : '创建外链'} width={560}>
+        <ShareLinkFormFields node={node} editing={modal.editing} />
+      </EditFormModal>
       <CollectSubmissionsModal link={submissionsOf} onClose={() => setSubmissionsOf(null)} />
     </div>
   );

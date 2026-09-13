@@ -4,7 +4,6 @@ import { Form, Radio, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import AppModal from '@/components/AppModal';
 import { useExportJobRunner } from '@/hooks/useExportJobRunner';
 import ReportParamDialog from '@/components/ReportParamDialog';
 import { buildReportParamInitialValues } from '@/components/report-param-utils';
@@ -34,6 +33,7 @@ import { BatchStatusButtons, CreateButton } from '@/components/toolbar-controls'
 import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { batchStatusHandler, deleteAction, ListSearchToolbar, useStatusToggle, useRowSelection } from '@/components/list-page';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormModal } from '@/components/EditFormModal';
 
 interface SearchParams { keyword: string; status?: string; ownerId?: number; folderId?: number }
 const defaultSearchParams: SearchParams = { keyword: '', status: undefined, ownerId: undefined, folderId: undefined };
@@ -270,38 +270,33 @@ export default function PrintTemplatesPage() {
         {...tableProps}
       />
 
-      <AppModal
-        {...printModal.modalProps}
-        width={560}
-      >
-        <Form key={printModal.formKey} {...printModal.formProps} onValueChange={(values: Record<string, unknown>) => setDialogSourceType(values.sourceType === 'entity' ? 'entity' : 'dataset')}>
-          <Form.Input field="name" label="名称" rules={[{ required: true, message: '请输入名称' }]} maxLength={64} showClear placeholder="如：销售出库单" />
-          <ReportOwnerFolderFields userOptions={userOptions} folderOptions={folderOptions} />
-          <Form.RadioGroup
-            field="sourceType"
-            label="数据来源"
-            type="button"
-            disabled={printModal.isEdit}
-            extraText={printModal.isEdit ? '数据来源创建后不可更改' : '审批单模板在渲染时由流程实例注入数据，无需数据集'}
-          >
-            <Radio value="dataset">报表数据集</Radio>
-            <Radio value="entity">{REPORT_PRINT_ENTITY_KIND_LABELS.workflow_instance}</Radio>
-          </Form.RadioGroup>
-          <div style={{ display: dialogSourceType === 'entity' ? 'none' : undefined }}>
-            <Form.Select
-              field="datasetId"
-              label="数据集"
-              placeholder="可先不绑定，设计时再选择"
-              optionList={datasets.map((d) => ({ value: d.id, label: d.name }))}
-              style={{ width: '100%' }}
-              showClear
-            />
-          </div>
-          <Form.Select field="status" label="状态" style={{ width: '100%' }}
-            optionList={statusOptions} />
-          <Form.TextArea field="remark" label="备注" maxLength={256} autosize={{ minRows: 1, maxRows: 3 }} />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={printModal} width={560} formProps={{ onValueChange: (values: Record<string, unknown>) => setDialogSourceType(values.sourceType === 'entity' ? 'entity' : 'dataset') }}>
+        <Form.Input field="name" label="名称" rules={[{ required: true, message: '请输入名称' }]} maxLength={64} showClear placeholder="如：销售出库单" />
+        <ReportOwnerFolderFields userOptions={userOptions} folderOptions={folderOptions} />
+        <Form.RadioGroup
+          field="sourceType"
+          label="数据来源"
+          type="button"
+          disabled={printModal.isEdit}
+          extraText={printModal.isEdit ? '数据来源创建后不可更改' : '审批单模板在渲染时由流程实例注入数据，无需数据集'}
+        >
+          <Radio value="dataset">报表数据集</Radio>
+          <Radio value="entity">{REPORT_PRINT_ENTITY_KIND_LABELS.workflow_instance}</Radio>
+        </Form.RadioGroup>
+        <div style={{ display: dialogSourceType === 'entity' ? 'none' : undefined }}>
+          <Form.Select
+            field="datasetId"
+            label="数据集"
+            placeholder="可先不绑定，设计时再选择"
+            optionList={datasets.map((d) => ({ value: d.id, label: d.name }))}
+            style={{ width: '100%' }}
+            showClear
+          />
+        </div>
+        <Form.Select field="status" label="状态" style={{ width: '100%' }}
+          optionList={statusOptions} />
+        <Form.TextArea field="remark" label="备注" maxLength={256} autosize={{ minRows: 1, maxRows: 3 }} />
+      </EditFormModal>
 
       <ReportParamDialog
         visible={paramDialogVisible}

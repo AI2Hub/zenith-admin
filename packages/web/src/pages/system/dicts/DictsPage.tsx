@@ -1,25 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ComponentProps } from 'react';
-import {
-  Button,
-  Select,
-  Tag,
-  Form,
-  Pagination,
-  Spin,
-  Toast,
-  TreeSelect,
-  JsonViewer,
-  Row,
-  Col,
-  Space,
-  Switch,
-} from '@douyinfe/semi-ui';
+import { Button, Select, Tag, Form, Pagination, Toast, TreeSelect, JsonViewer, Row, Col, Space, Switch } from '@douyinfe/semi-ui';
 import { Plus, BookOpen, ChevronsDownUp, ChevronsUpDown, RefreshCw, Pencil, Trash2 } from 'lucide-react';
 import type { CreateDictInput, CreateDictItemInput, Dict, DictItem } from '@zenith/shared/platform';
 import { formatDateTime } from '@/utils/date';
 import ExportButton from '@/components/ExportButton';
-import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { useListSearch } from '@/hooks/useListSearch';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -51,6 +36,7 @@ import { deleteAction, ListSearchToolbar, useStatusToggle } from '@/components/l
 import { abortSubmit } from '@/lib/abort-submit';
 import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { useFilterQuery } from '@/hooks/useFilterQuery';
+import { EditFormModal } from '@/components/EditFormModal';
 
 interface ItemSearchParams {
   keyword: string;
@@ -528,145 +514,131 @@ export default function DictsPage() {
       />
 
       {/* 字典创建/编辑 Modal */}
-      <AppModal
-        {...dictModal.modalProps}
-        width={480}
-
-      >
-        <Spin spinning={dictModal.detailLoading} wrapperClassName="modal-spin-wrapper">
-        <Form
-          key={dictModal.formKey} {...dictModal.formProps}
-        >
-          <Form.Input field="name" label="字典名称" placeholder="请输入字典名称" style={{ width: '100%' }} rules={[{ required: true, message: '请输入字典名称' }]} />
-          <Form.Input field="code" label="字典编码" placeholder="请输入字典编码" style={{ width: '100%' }} rules={[{ required: true, message: '请输入字典编码' }]} />
-          <Form.Input field="description" label="描述" placeholder="请输入描述" style={{ width: '100%' }} />
-          <Form.Select field="status" label="状态" style={{ width: '100%' }}
-            optionList={statusOptions}
-            placeholder="请选择状态"
-          />
-        </Form>
-        </Spin>
-      </AppModal>
+      <EditFormModal modal={dictModal} width={480}>
+        <Form.Input field="name" label="字典名称" placeholder="请输入字典名称" style={{ width: '100%' }} rules={[{ required: true, message: '请输入字典名称' }]} />
+        <Form.Input field="code" label="字典编码" placeholder="请输入字典编码" style={{ width: '100%' }} rules={[{ required: true, message: '请输入字典编码' }]} />
+        <Form.Input field="description" label="描述" placeholder="请输入描述" style={{ width: '100%' }} />
+        <Form.Select field="status" label="状态" style={{ width: '100%' }}
+          optionList={statusOptions}
+          placeholder="请选择状态"
+        />
+      </EditFormModal>
 
       {/* 字典项创建/编辑 Modal */}
-      <AppModal {...itemModal.modalProps} width={600}>
-        <Spin spinning={itemModal.detailLoading}>
-          <Form key={itemModal.formKey} {...itemModal.formProps}>
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Input field="label" label="标签" placeholder="请输入标签" style={{ width: '100%' }} rules={[{ required: true, message: '请输入标签' }]} />
-              </Col>
-              <Col span={12}>
-                <Form.Input field="value" label="键值" placeholder="请输入键值" style={{ width: '100%' }} rules={[{ required: true, message: '请输入键值' }]} />
-              </Col>
-            </Row>
+      <EditFormModal modal={itemModal} width={600}>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Input field="label" label="标签" placeholder="请输入标签" style={{ width: '100%' }} rules={[{ required: true, message: '请输入标签' }]} />
+          </Col>
+          <Col span={12}>
+            <Form.Input field="value" label="键值" placeholder="请输入键值" style={{ width: '100%' }} rules={[{ required: true, message: '请输入键值' }]} />
+          </Col>
+        </Row>
 
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.InputNumber field="sort" label="排序" placeholder="请输入排序" min={0} style={{ width: '100%' }} />
-              </Col>
-              <Col span={12}>
-                <Form.Select
-                  field="status"
-                  label="状态"
-                  style={{ width: '100%' }}
-                  optionList={statusOptions}
-                  placeholder="请选择状态"
-                />
-              </Col>
-            </Row>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.InputNumber field="sort" label="排序" placeholder="请输入排序" min={0} style={{ width: '100%' }} />
+          </Col>
+          <Col span={12}>
+            <Form.Select
+              field="status"
+              label="状态"
+              style={{ width: '100%' }}
+              optionList={statusOptions}
+              placeholder="请选择状态"
+            />
+          </Col>
+        </Row>
 
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Slot label={{ text: '父级' }}>
-                  <TreeSelect
-                    treeData={parentSelectorTreeData}
-                    value={itemParentId ?? 0}
-                    onChange={(val) => setItemParentId(val === 0 ? null : (val as number))}
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Slot label={{ text: '父级' }}>
+              <TreeSelect
+                treeData={parentSelectorTreeData}
+                value={itemParentId ?? 0}
+                onChange={(val) => setItemParentId(val === 0 ? null : (val as number))}
+                style={{ width: '100%' }}
+                filterTreeNode
+                expandAll
+              />
+            </Form.Slot>
+          </Col>
+          <Col span={12}>
+            <Form.Slot label={{ text: '颜色' }}>
+              {(() => {
+                const TAG_COLORS = ['amber', 'blue', 'cyan', 'green', 'grey', 'indigo', 'light-blue', 'light-green', 'lime', 'orange', 'pink', 'purple', 'red', 'teal', 'violet', 'yellow', 'white'];
+                const COLOR_LABELS: Record<string, string> = {
+                  amber: '琥珀', blue: '蓝色', cyan: '青色', green: '绿色', grey: '灰色',
+                  indigo: '靛蓝', 'light-blue': '浅蓝', 'light-green': '浅绿', lime: '柠绿',
+                  orange: '橙色', pink: '粉色', purple: '紫色', red: '红色', teal: '蓝绿',
+                  violet: '紫罗兰', yellow: '黄色', white: '白色',
+                };
+                return (
+                  <Select
+                    value={itemColor ?? undefined}
+                    onChange={(val) => setItemColor((val as string) ?? null)}
+                    placeholder="无颜色"
+                    showClear
+                    onClear={() => setItemColor(null)}
                     style={{ width: '100%' }}
-                    filterTreeNode
-                    expandAll
-                  />
-                </Form.Slot>
-              </Col>
-              <Col span={12}>
-                <Form.Slot label={{ text: '颜色' }}>
-                  {(() => {
-                    const TAG_COLORS = ['amber', 'blue', 'cyan', 'green', 'grey', 'indigo', 'light-blue', 'light-green', 'lime', 'orange', 'pink', 'purple', 'red', 'teal', 'violet', 'yellow', 'white'];
-                    const COLOR_LABELS: Record<string, string> = {
-                      amber: '琥珀', blue: '蓝色', cyan: '青色', green: '绿色', grey: '灰色',
-                      indigo: '靛蓝', 'light-blue': '浅蓝', 'light-green': '浅绿', lime: '柠绿',
-                      orange: '橙色', pink: '粉色', purple: '紫色', red: '红色', teal: '蓝绿',
-                      violet: '紫罗兰', yellow: '黄色', white: '白色',
-                    };
-                    return (
-                      <Select
-                        value={itemColor ?? undefined}
-                        onChange={(val) => setItemColor((val as string) ?? null)}
-                        placeholder="无颜色"
-                        showClear
-                        onClear={() => setItemColor(null)}
-                        style={{ width: '100%' }}
-                        renderSelectedItem={(option: { value?: unknown; label?: unknown }) => (
-                          <Tag color={tagColor(option.value as string)} size="small" style={{ margin: '2px 0' }}>
-                            {option.label as string}
-                          </Tag>
-                        )}
-                        renderOptionItem={({ selected, style, onClick, value, label }) => (
-                          <button
-                            type="button"
-                            onClick={onClick}
-                            style={{
-                              ...style,
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 8,
-                              padding: '6px 12px',
-                              cursor: 'pointer',
-                              width: '100%',
-                              border: 'none',
-                              background: selected ? 'var(--semi-color-primary-light-default)' : 'transparent',
-                              textAlign: 'left',
-                            }}
-                          >
-                            <Tag color={tagColor(value as string)} size="small">{label as string}</Tag>
-                          </button>
-                        )}
+                    renderSelectedItem={(option: { value?: unknown; label?: unknown }) => (
+                      <Tag color={tagColor(option.value as string)} size="small" style={{ margin: '2px 0' }}>
+                        {option.label as string}
+                      </Tag>
+                    )}
+                    renderOptionItem={({ selected, style, onClick, value, label }) => (
+                      <button
+                        type="button"
+                        onClick={onClick}
+                        style={{
+                          ...style,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          padding: '6px 12px',
+                          cursor: 'pointer',
+                          width: '100%',
+                          border: 'none',
+                          background: selected ? 'var(--semi-color-primary-light-default)' : 'transparent',
+                          textAlign: 'left',
+                        }}
                       >
-                        {TAG_COLORS.map((c) => (
-                          <Select.Option key={c} value={c} label={COLOR_LABELS[c] ?? c}>
-                            <Tag color={tagColor(c)} size="small">{COLOR_LABELS[c] ?? c}</Tag>
-                          </Select.Option>
-                        ))}
-                      </Select>
-                    );
-                  })()}
-                </Form.Slot>
-              </Col>
-            </Row>
+                        <Tag color={tagColor(value as string)} size="small">{label as string}</Tag>
+                      </button>
+                    )}
+                  >
+                    {TAG_COLORS.map((c) => (
+                      <Select.Option key={c} value={c} label={COLOR_LABELS[c] ?? c}>
+                        <Tag color={tagColor(c)} size="small">{COLOR_LABELS[c] ?? c}</Tag>
+                      </Select.Option>
+                    ))}
+                  </Select>
+                );
+              })()}
+            </Form.Slot>
+          </Col>
+        </Row>
 
-            <Row gutter={16}>
-              <Col span={24}>
-                <Form.Input field="remark" label="备注" placeholder="请输入备注" style={{ width: '100%' }} />
-              </Col>
-            </Row>
+        <Row gutter={16}>
+          <Col span={24}>
+            <Form.Input field="remark" label="备注" placeholder="请输入备注" style={{ width: '100%' }} />
+          </Col>
+        </Row>
 
-            <Row gutter={16}>
-              <Col span={24}>
-                <Form.Slot label={{ text: '元数据' }}>
-                  <JsonViewer
-                    key={metadataStr}
-                    ref={jsonViewerRef}
-                    value={metadataStr}
-                    height={200}
-                    width="100%"
-                  />
-                </Form.Slot>
-              </Col>
-            </Row>
-          </Form>
-        </Spin>
-      </AppModal>
+        <Row gutter={16}>
+          <Col span={24}>
+            <Form.Slot label={{ text: '元数据' }}>
+              <JsonViewer
+                key={metadataStr}
+                ref={jsonViewerRef}
+                value={metadataStr}
+                height={200}
+                width="100%"
+              />
+            </Form.Slot>
+          </Col>
+        </Row>
+      </EditFormModal>
     </div>
   );
 }

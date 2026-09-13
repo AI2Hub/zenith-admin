@@ -5,7 +5,6 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { REPORT_RESOURCE_TYPES } from '@zenith/shared/report';
 import type { ReportAclSubjectType, ReportFolderTreeNode, ReportResourceAcl, ReportResourceType } from '@zenith/shared/report';
 import { Plus, Shield } from 'lucide-react';
-import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { confirmAndDelete, listTableProps } from '@/components/list-page';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -31,6 +30,7 @@ import { aclRevokeWarning, normalizeAclGrantValues } from '../report-platform-ut
 import { CreateButton } from '@/components/toolbar-controls';
 import { confirmDanger } from '@/utils/confirm';
 import { dateTimeColumn, EMPTY_PLACEHOLDER, renderEllipsis, renderEnabledStatusTag } from '@/utils/table-columns';
+import { EditFormModal } from '@/components/EditFormModal';
 
 export default function GovernanceResourceTab() {
   const { hasPermission } = usePermission();
@@ -163,17 +163,15 @@ export default function GovernanceResourceTab() {
         {...listTableProps({ ...foldersQuery, data: folders }, { empty: <Empty title="暂无资源目录" /> })}
       />
 
-      <AppModal {...folderModal.modalProps} width={560}>
-        <Form key={folderModal.formKey} {...folderModal.formProps}>
-          <Form.Input field="name" label="目录名称" rules={[{ required: true }]} />
-          <Form.Select field="parentId" label="上级目录" showClear filter style={{ width: '100%' }} optionList={folders.filter((item) => item.id !== folderModal.editing?.id).map((item) => ({ value: item.id, label: item.name }))} />
-          <Row gutter={16}>
-            <Col xs={24} md={12}><Form.Select field="ownerId" label="负责人" showClear filter style={{ width: '100%' }} optionList={toUserOptions(usersQuery.data ?? [])} /></Col>
-            <Col xs={24} md={12}><Form.InputNumber field="sort" label="排序" style={{ width: '100%' }} /></Col>
-          </Row>
-          <Form.Select field="status" label="状态" style={{ width: '100%' }} optionList={[{ value: 'enabled', label: '启用' }, { value: 'disabled', label: '停用' }]} />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={folderModal} width={560}>
+        <Form.Input field="name" label="目录名称" rules={[{ required: true }]} />
+        <Form.Select field="parentId" label="上级目录" showClear filter style={{ width: '100%' }} optionList={folders.filter((item) => item.id !== folderModal.editing?.id).map((item) => ({ value: item.id, label: item.name }))} />
+        <Row gutter={16}>
+          <Col xs={24} md={12}><Form.Select field="ownerId" label="负责人" showClear filter style={{ width: '100%' }} optionList={toUserOptions(usersQuery.data ?? [])} /></Col>
+          <Col xs={24} md={12}><Form.InputNumber field="sort" label="排序" style={{ width: '100%' }} /></Col>
+        </Row>
+        <Form.Select field="status" label="状态" style={{ width: '100%' }} optionList={[{ value: 'enabled', label: '启用' }, { value: 'disabled', label: '停用' }]} />
+      </EditFormModal>
 
       <SideSheet title="资源权限管理" visible={aclVisible} width={760} onCancel={() => setAclVisible(false)}>
         {hasPermission('report:resource:acl') ? <Button type="primary" icon={<Plus size={14} />} style={{ marginBottom: 12 }} onClick={openGrantAcl}>授予权限</Button> : null}
@@ -181,17 +179,15 @@ export default function GovernanceResourceTab() {
         <ConfigurableTable columns={aclColumns} {...listTableProps(aclsQuery, { empty: <Empty title="暂无 ACL" /> })} />
       </SideSheet>
 
-      <AppModal {...aclModal.modalProps} title="授予资源权限" width={560}>
-        <Form key={aclModal.formKey} {...aclModal.formProps} onValueChange={(values) => values.subjectType && setSubjectType(values.subjectType as ReportAclSubjectType)}>
-          <Form.Select field="subjectType" label="主体类型" style={{ width: '100%' }} optionList={[{ value: 'user', label: '用户' }, { value: 'role', label: '角色' }, { value: 'department', label: '部门' }, { value: 'user_group', label: '用户组' }]} rules={[{ required: true }]} />
-          {subjectType === 'user'
-            ? <Form.Select field="subjectId" label="主体" filter style={{ width: '100%' }} optionList={toUserOptions(usersQuery.data ?? [])} rules={[{ required: true }]} />
-            : <Form.InputNumber field="subjectId" label="主体 ID" min={1} style={{ width: '100%' }} rules={[{ required: true }]} />}
-          <Form.Select field="role" label="访问角色" style={{ width: '100%' }} optionList={[{ value: 'viewer', label: '查看者' }, { value: 'editor', label: '编辑者' }, { value: 'owner', label: '所有者' }]} rules={[{ required: true }]} />
-          <Form.DatePicker field="expiresAt" label="到期时间" type="dateTime" style={{ width: '100%' }} />
-          <Form.Switch field="inheritFromFolder" label="目录继承" />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={aclModal} title="授予资源权限" width={560} formProps={{ onValueChange: (values) => values.subjectType && setSubjectType(values.subjectType as ReportAclSubjectType) }}>
+        <Form.Select field="subjectType" label="主体类型" style={{ width: '100%' }} optionList={[{ value: 'user', label: '用户' }, { value: 'role', label: '角色' }, { value: 'department', label: '部门' }, { value: 'user_group', label: '用户组' }]} rules={[{ required: true }]} />
+        {subjectType === 'user'
+          ? <Form.Select field="subjectId" label="主体" filter style={{ width: '100%' }} optionList={toUserOptions(usersQuery.data ?? [])} rules={[{ required: true }]} />
+          : <Form.InputNumber field="subjectId" label="主体 ID" min={1} style={{ width: '100%' }} rules={[{ required: true }]} />}
+        <Form.Select field="role" label="访问角色" style={{ width: '100%' }} optionList={[{ value: 'viewer', label: '查看者' }, { value: 'editor', label: '编辑者' }, { value: 'owner', label: '所有者' }]} rules={[{ required: true }]} />
+        <Form.DatePicker field="expiresAt" label="到期时间" type="dateTime" style={{ width: '100%' }} />
+        <Form.Switch field="inheritFromFolder" label="目录继承" />
+      </EditFormModal>
     </>
   );
 }

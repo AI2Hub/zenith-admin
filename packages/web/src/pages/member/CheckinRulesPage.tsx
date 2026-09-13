@@ -24,6 +24,7 @@ import {
 import { CreateButton, RefreshButton } from '@/components/toolbar-controls';
 import { useEditModal } from '@/hooks/useEditModal';
 import { abortSubmit } from '@/lib/abort-submit';
+import { EditFormModal } from '@/components/EditFormModal';
 
 export default function CheckinRulesPage() {
   const { hasPermission } = usePermission();
@@ -120,19 +121,12 @@ export default function CheckinRulesPage() {
         {...listTableProps(listQuery, { empty: '暂无签到规则' })}
       />
 
-      <AppModal
-        {...ruleModal.modalProps}
-        width={520}
-      >
-        <Form
-          key={ruleModal.formKey} {...ruleModal.formProps}
-        >
-          <Form.InputNumber field="dayNumber" label="天数" min={1} style={{ width: '100%' }} rules={[{ required: true, message: '请输入天数' }]} />
-          <Form.InputNumber field="points" label="积分奖励" min={0} style={{ width: '100%' }} rules={[{ required: true, message: '请输入积分奖励' }]} />
-          <Form.InputNumber field="experience" label="经验奖励" min={0} style={{ width: '100%' }} rules={[{ required: true, message: '请输入经验奖励' }]} />
-          <Form.TextArea field="remark" label="备注" maxCount={256} placeholder="请输入备注" />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={ruleModal} width={520}>
+        <Form.InputNumber field="dayNumber" label="天数" min={1} style={{ width: '100%' }} rules={[{ required: true, message: '请输入天数' }]} />
+        <Form.InputNumber field="points" label="积分奖励" min={0} style={{ width: '100%' }} rules={[{ required: true, message: '请输入积分奖励' }]} />
+        <Form.InputNumber field="experience" label="经验奖励" min={0} style={{ width: '100%' }} rules={[{ required: true, message: '请输入经验奖励' }]} />
+        <Form.TextArea field="remark" label="备注" maxCount={256} placeholder="请输入备注" />
+      </EditFormModal>
 
       <AppModal
         title="签到设置"

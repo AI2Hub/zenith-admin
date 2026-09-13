@@ -5,7 +5,7 @@
  * 厂商通道(华为/小米/OV/荣耀/APNs)在供应商后台配置,本页只管聚合商凭证。
  */
 import { useRef, useState } from 'react';
-import { Banner, Col, Form, Modal, Row, Spin, Tag, Toast } from '@douyinfe/semi-ui';
+import { Banner, Col, Form, Modal, Row, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { enumValueOf, USER_STATUSES } from '@zenith/shared/core';
@@ -18,7 +18,6 @@ import {
   type TestPushSendInput,
 } from '@zenith/shared/messaging';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import AppModal from '@/components/AppModal';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { deleteAction, ListSearchToolbar, useStatusToggle } from '@/components/list-page';
 import { KeywordInput, StatusSelect } from '@/components/search-filters';
@@ -37,6 +36,7 @@ import {
   useTestPushSend,
 } from '@/hooks/queries/push';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormModal } from '@/components/EditFormModal';
 
 interface SearchParams {
   keyword: string;
@@ -206,49 +206,45 @@ export default function PushConfigsPage() {
         {...tableProps}
       />
 
-      <AppModal {...modal.modalProps} width={720}>
-        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
-          <Form key={modal.formKey} {...modal.formProps}>
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Select field="appId" label="所属应用" style={{ width: '100%' }}
-                  optionList={appOptions} disabled={modal.isEdit}
-                  rules={[{ required: true, message: '请选择所属应用' }]} />
-              </Col>
-              <Col span={12}>
-                <Form.Input field="name" label="配置名称" placeholder="如:极光-生产"
-                  rules={[{ required: true, message: '名称不能为空' }]} />
-              </Col>
-            </Row>
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Select field="provider" label="供应商" style={{ width: '100%' }}
-                  optionList={PUSH_PROVIDER_OPTIONS} />
-              </Col>
-              <Col span={12}>
-                <Form.Switch field="apnsProduction" label="APNs 生产环境"
-                  extraText="iOS 推送环境:开发阶段关闭(走 APNs 沙箱),上架后开启" />
-              </Col>
-            </Row>
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Input field="appKey" label="AppKey" placeholder="供应商后台的应用 AppKey"
-                  rules={[{ required: true, message: 'AppKey 不能为空' }]} />
-              </Col>
-              <Col span={12}>
-                <Form.Input
-                  field="masterSecret"
-                  label="MasterSecret"
-                  mode="password"
-                  placeholder={modal.isEdit ? '留空表示不修改' : '供应商后台的 Master Secret'}
-                  rules={modal.isEdit ? [] : [{ required: true, message: 'MasterSecret 不能为空' }]}
-                />
-              </Col>
-            </Row>
-            <Form.TextArea field="remark" label="备注" rows={2} maxCount={500} placeholder="选填" />
-          </Form>
-        </Spin>
-      </AppModal>
+      <EditFormModal modal={modal} width={720}>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Select field="appId" label="所属应用" style={{ width: '100%' }}
+              optionList={appOptions} disabled={modal.isEdit}
+              rules={[{ required: true, message: '请选择所属应用' }]} />
+          </Col>
+          <Col span={12}>
+            <Form.Input field="name" label="配置名称" placeholder="如:极光-生产"
+              rules={[{ required: true, message: '名称不能为空' }]} />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Select field="provider" label="供应商" style={{ width: '100%' }}
+              optionList={PUSH_PROVIDER_OPTIONS} />
+          </Col>
+          <Col span={12}>
+            <Form.Switch field="apnsProduction" label="APNs 生产环境"
+              extraText="iOS 推送环境:开发阶段关闭(走 APNs 沙箱),上架后开启" />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Input field="appKey" label="AppKey" placeholder="供应商后台的应用 AppKey"
+              rules={[{ required: true, message: 'AppKey 不能为空' }]} />
+          </Col>
+          <Col span={12}>
+            <Form.Input
+              field="masterSecret"
+              label="MasterSecret"
+              mode="password"
+              placeholder={modal.isEdit ? '留空表示不修改' : '供应商后台的 Master Secret'}
+              rules={modal.isEdit ? [] : [{ required: true, message: 'MasterSecret 不能为空' }]}
+            />
+          </Col>
+        </Row>
+        <Form.TextArea field="remark" label="备注" rows={2} maxCount={500} placeholder="选填" />
+      </EditFormModal>
 
       <TestSendModal config={testConfig} onClose={() => setTestConfig(null)} />
     </div>

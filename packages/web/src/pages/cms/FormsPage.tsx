@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import ModalFooter from '@/components/ModalFooter';
 import { ArrayField, Button, Col, Form, Row, SideSheet, Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus, Trash2 } from 'lucide-react';
@@ -23,6 +22,7 @@ import { EMPTY_PLACEHOLDER, dateTimeColumn, renderEllipsis, enabledStatusColumn 
 import { abortSubmit } from '@/lib/abort-submit';
 import { deleteAction, listTableProps } from '@/components/list-page';
 import { FormStatusRadioGroup } from '@/components/FormStatusRadioGroup';
+import { EditFormSheet } from '@/components/EditFormModal';
 
 const FIELD_TYPE_OPTIONS = CMS_FORM_FIELD_TYPES.map((t) => ({ value: t, label: CMS_FORM_FIELD_TYPE_LABELS[t] }));
 
@@ -158,85 +158,76 @@ export default function FormsPage() {
         {...listTableProps(listQuery, { pagination: buildPagination, empty: '暂无表单；将表单标识填入单页栏目 settings.formCode 即可在前台展示' })}
       />
 
-      <SideSheet
-        title={modal.modalProps.title}
-        visible={modal.visible}
-        onCancel={modal.close}
-        closeOnEsc
-        width={860}
-        footer={<ModalFooter {...modal.footerProps} okText="保存" />}
-      >
-        <Form key={modal.formKey} {...modal.formProps}>
-          <Form.Section text="基础信息">
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Input field="name" label="表单名称" rules={[{ required: true, message: '请输入表单名称' }]} />
-              </Col>
-              <Col span={12}>
-                <Form.Input field="code" label="表单标识" disabled={modal.isEdit} placeholder="如 contact（前台提交与栏目绑定用）" rules={[{ required: true, message: '请输入表单标识' }]} />
-              </Col>
-            </Row>
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Input field="successMessage" label="成功提示" placeholder="提交成功后展示的文案" />
-              </Col>
-              <Col span={12}>
-                <FormStatusRadioGroup />
-              </Col>
-            </Row>
-            <Form.Input field="notifyEmail" label="通知邮箱" placeholder="收到新提交时通知，多个邮箱用逗号分隔（留空不通知）" />
-          </Form.Section>
+      <EditFormSheet modal={modal} width={860}>
+        <Form.Section text="基础信息">
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Input field="name" label="表单名称" rules={[{ required: true, message: '请输入表单名称' }]} />
+            </Col>
+            <Col span={12}>
+              <Form.Input field="code" label="表单标识" disabled={modal.isEdit} placeholder="如 contact（前台提交与栏目绑定用）" rules={[{ required: true, message: '请输入表单标识' }]} />
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Input field="successMessage" label="成功提示" placeholder="提交成功后展示的文案" />
+            </Col>
+            <Col span={12}>
+              <FormStatusRadioGroup />
+            </Col>
+          </Row>
+          <Form.Input field="notifyEmail" label="通知邮箱" placeholder="收到新提交时通知，多个邮箱用逗号分隔（留空不通知）" />
+        </Form.Section>
 
-          <Form.Section text="验证码防护">
-            <Form.Select field="captchaProvider" label="验证码策略" style={{ width: '100%' }}
-              optionList={CMS_FORM_CAPTCHA_PROVIDERS.map((value) => ({ value, label: CMS_FORM_CAPTCHA_PROVIDER_LABELS[value] }))} />
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Input field="turnstileSiteKey" label="Turnstile Site Key" maxLength={200} />
-              </Col>
-              <Col span={12}>
-                <Form.Input field="turnstileSecret" type="password" label="Turnstile Secret" maxLength={500} placeholder="留空或保留掩码表示不修改" />
-              </Col>
-            </Row>
-            {modal.isEdit ? <Form.Checkbox field="clearTurnstileSecret" noLabel>清除已配置的 Turnstile Secret</Form.Checkbox> : null}
-          </Form.Section>
+        <Form.Section text="验证码防护">
+          <Form.Select field="captchaProvider" label="验证码策略" style={{ width: '100%' }}
+            optionList={CMS_FORM_CAPTCHA_PROVIDERS.map((value) => ({ value, label: CMS_FORM_CAPTCHA_PROVIDER_LABELS[value] }))} />
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Input field="turnstileSiteKey" label="Turnstile Site Key" maxLength={200} />
+            </Col>
+            <Col span={12}>
+              <Form.Input field="turnstileSecret" type="password" label="Turnstile Secret" maxLength={500} placeholder="留空或保留掩码表示不修改" />
+            </Col>
+          </Row>
+          {modal.isEdit ? <Form.Checkbox field="clearTurnstileSecret" noLabel>清除已配置的 Turnstile Secret</Form.Checkbox> : null}
+        </Form.Section>
 
-          <Form.Section text="表单字段">
-            <ArrayField field="fields">
-              {({ add, arrayFields }) => (
-                <>
-                  {arrayFields.map(({ field, key, remove }) => (
-                    <div key={key} style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: 10, marginBottom: 8 }}>
-                      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                        <Form.Input field={`${field}[name]`} noLabel placeholder="字段标识（英文）" style={{ width: 140 }}
-                        rules={[{ required: true, message: '必填' }, { pattern: /^[a-z][a-z0-9_]*$/, message: '小写字母开头' }]} />
-                        <Form.Input field={`${field}[label]`} noLabel placeholder="字段名称" style={{ width: 130 }}
-                        rules={[{ required: true, message: '必填' }]} />
-                        <Form.Select field={`${field}[fieldType]`} noLabel initValue="text" style={{ width: 110 }} optionList={FIELD_TYPE_OPTIONS} />
-                        <Form.Checkbox field={`${field}[required]`} noLabel>必填</Form.Checkbox>
-                        <Button type="danger" theme="borderless" icon={<Trash2 size={14} />} onClick={() => remove()} style={{ marginTop: 4 }} />
-                      </div>
-                      <div className="auto-grid" style={{ ['--auto-grid-min' as string]: '150px', ['--auto-grid-cols' as string]: 3, ['--auto-grid-gap' as string]: '8px' }}>
-                        <Form.InputNumber field={`${field}[minLength]`} noLabel placeholder="最小长度" min={0} max={2000} />
-                        <Form.InputNumber field={`${field}[maxLength]`} noLabel placeholder="最大长度" min={1} max={2000} />
-                        <Form.Input field={`${field}[pattern]`} noLabel placeholder="RE2 规则，如 ^[A-Z]{2}-\\d{4}$" />
-                        <Form.InputNumber field={`${field}[min]`} noLabel placeholder="数字最小值" />
-                        <Form.InputNumber field={`${field}[max]`} noLabel placeholder="数字最大值" />
-                        <Form.Input field={`${field}[errorMessage]`} noLabel placeholder="自定义错误提示" />
-                        <Form.TextArea field={`${field}[optionsText]`} noLabel rows={2} placeholder={'选项（select/radio），每行：显示名=值'} />
-                      </div>
+        <Form.Section text="表单字段">
+          <ArrayField field="fields">
+            {({ add, arrayFields }) => (
+              <>
+                {arrayFields.map(({ field, key, remove }) => (
+                  <div key={key} style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: 10, marginBottom: 8 }}>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                      <Form.Input field={`${field}[name]`} noLabel placeholder="字段标识（英文）" style={{ width: 140 }}
+                      rules={[{ required: true, message: '必填' }, { pattern: /^[a-z][a-z0-9_]*$/, message: '小写字母开头' }]} />
+                      <Form.Input field={`${field}[label]`} noLabel placeholder="字段名称" style={{ width: 130 }}
+                      rules={[{ required: true, message: '必填' }]} />
+                      <Form.Select field={`${field}[fieldType]`} noLabel initValue="text" style={{ width: 110 }} optionList={FIELD_TYPE_OPTIONS} />
+                      <Form.Checkbox field={`${field}[required]`} noLabel>必填</Form.Checkbox>
+                      <Button type="danger" theme="borderless" icon={<Trash2 size={14} />} onClick={() => remove()} style={{ marginTop: 4 }} />
                     </div>
-                  ))}
-                  <Button icon={<Plus size={14} />} onClick={() => add()}>添加字段</Button>
-                  <Typography.Text type="secondary" size="small" style={{ display: 'block', marginTop: 8 }}>
-                    自定义规则由服务端 RE2JS 线性时间引擎编译执行（最长 200 字符）；不支持反向引用等非 RE2 语法。
-                  </Typography.Text>
-                </>
-              )}
-            </ArrayField>
-          </Form.Section>
-        </Form>
-      </SideSheet>
+                    <div className="auto-grid" style={{ ['--auto-grid-min' as string]: '150px', ['--auto-grid-cols' as string]: 3, ['--auto-grid-gap' as string]: '8px' }}>
+                      <Form.InputNumber field={`${field}[minLength]`} noLabel placeholder="最小长度" min={0} max={2000} />
+                      <Form.InputNumber field={`${field}[maxLength]`} noLabel placeholder="最大长度" min={1} max={2000} />
+                      <Form.Input field={`${field}[pattern]`} noLabel placeholder="RE2 规则，如 ^[A-Z]{2}-\\d{4}$" />
+                      <Form.InputNumber field={`${field}[min]`} noLabel placeholder="数字最小值" />
+                      <Form.InputNumber field={`${field}[max]`} noLabel placeholder="数字最大值" />
+                      <Form.Input field={`${field}[errorMessage]`} noLabel placeholder="自定义错误提示" />
+                      <Form.TextArea field={`${field}[optionsText]`} noLabel rows={2} placeholder={'选项（select/radio），每行：显示名=值'} />
+                    </div>
+                  </div>
+                ))}
+                <Button icon={<Plus size={14} />} onClick={() => add()}>添加字段</Button>
+                <Typography.Text type="secondary" size="small" style={{ display: 'block', marginTop: 8 }}>
+                  自定义规则由服务端 RE2JS 线性时间引擎编译执行（最长 200 字符）；不支持反向引用等非 RE2 语法。
+                </Typography.Text>
+              </>
+            )}
+          </ArrayField>
+        </Form.Section>
+      </EditFormSheet>
 
       <SubmissionsSheet form={viewingForm} onClose={() => setViewingForm(null)} />
       <AppModal

@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Banner, Col, Empty, Form, Row, SideSheet, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { ReportQueryCostLog, ReportQueryCostTrendPoint, ReportQueryQuota, ReportQuotaScope } from '@zenith/shared/report';
-import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { confirmAndDelete, ListSearchToolbar, listTableProps } from '@/components/list-page';
 import ExportButton from '@/components/ExportButton';
@@ -33,6 +32,7 @@ import { confirmDanger } from '@/utils/confirm';
 import { dateTimeColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '@/utils/table-columns';
 import { DEFAULT_TIMEZONE } from '@/utils/timezones';
 import { useFilterQuery } from '@/hooks/useFilterQuery';
+import { EditFormModal } from '@/components/EditFormModal';
 
 interface CostSearchParams {
   datasetId?: number;
@@ -184,21 +184,19 @@ export default function GovernanceCapacityTab() {
         {...listTableProps(costsQuery, { pagination: costs.buildPagination })}
       />
 
-      <AppModal {...quotaModal.modalProps} width={700}>
-        <Form key={quotaModal.formKey} {...quotaModal.formProps} onValueChange={(values) => values.scope && setQuotaScope(values.scope as ReportQuotaScope)}>
-          <Row gutter={16}>
-            <Col xs={24} md={12}><Form.Select field="scope" label="配额范围" style={{ width: '100%' }} optionList={[{ value: 'tenant', label: '租户' }, { value: 'user', label: '用户' }]} rules={[{ required: true }]} /></Col>
-            {quotaScope === 'user' && <Col xs={24} md={12}><Form.Select field="userId" label="用户" filter style={{ width: '100%' }} optionList={toUserOptions(usersQuery.data ?? [])} rules={[{ required: true }]} /></Col>}
-            <Col xs={24} md={12}><Form.InputNumber field="maxConcurrent" label="最大并发" min={0} style={{ width: '100%' }} rules={[{ required: true }]} /></Col>
-            <Col xs={24} md={12}><Form.InputNumber field="dailyQueryLimit" label="日查询上限" min={0} style={{ width: '100%' }} rules={[{ required: true }]} /></Col>
-            <Col xs={24} md={12}><Form.InputNumber field="dailyRowLimit" label="日行数上限" min={0} style={{ width: '100%' }} rules={[{ required: true }]} /></Col>
-            <Col xs={24} md={12}><Form.InputNumber field="dailyByteLimit" label="日字节上限" min={0} style={{ width: '100%' }} rules={[{ required: true }]} /></Col>
-            <Col xs={24} md={12}><Form.InputNumber field="dailyCostLimit" label="日成本上限" min={0} style={{ width: '100%' }} rules={[{ required: true }]} /></Col>
-            <Col xs={24} md={12}><FormTimezoneSelect field="resetTimezone" label="重置时区" /></Col>
-            <Col xs={24} md={12}><Form.Switch field="enabled" label="启用配额" /></Col>
-          </Row>
-        </Form>
-      </AppModal>
+      <EditFormModal modal={quotaModal} width={700} formProps={{ onValueChange: (values) => values.scope && setQuotaScope(values.scope as ReportQuotaScope) }}>
+        <Row gutter={16}>
+          <Col xs={24} md={12}><Form.Select field="scope" label="配额范围" style={{ width: '100%' }} optionList={[{ value: 'tenant', label: '租户' }, { value: 'user', label: '用户' }]} rules={[{ required: true }]} /></Col>
+          {quotaScope === 'user' && <Col xs={24} md={12}><Form.Select field="userId" label="用户" filter style={{ width: '100%' }} optionList={toUserOptions(usersQuery.data ?? [])} rules={[{ required: true }]} /></Col>}
+          <Col xs={24} md={12}><Form.InputNumber field="maxConcurrent" label="最大并发" min={0} style={{ width: '100%' }} rules={[{ required: true }]} /></Col>
+          <Col xs={24} md={12}><Form.InputNumber field="dailyQueryLimit" label="日查询上限" min={0} style={{ width: '100%' }} rules={[{ required: true }]} /></Col>
+          <Col xs={24} md={12}><Form.InputNumber field="dailyRowLimit" label="日行数上限" min={0} style={{ width: '100%' }} rules={[{ required: true }]} /></Col>
+          <Col xs={24} md={12}><Form.InputNumber field="dailyByteLimit" label="日字节上限" min={0} style={{ width: '100%' }} rules={[{ required: true }]} /></Col>
+          <Col xs={24} md={12}><Form.InputNumber field="dailyCostLimit" label="日成本上限" min={0} style={{ width: '100%' }} rules={[{ required: true }]} /></Col>
+          <Col xs={24} md={12}><FormTimezoneSelect field="resetTimezone" label="重置时区" /></Col>
+          <Col xs={24} md={12}><Form.Switch field="enabled" label="启用配额" /></Col>
+        </Row>
+      </EditFormModal>
 
       <SideSheet title="当前查询配额用量" visible={!!usageQuota} width={520} onCancel={() => setUsageQuota(null)}>
         {usageQuery.isError && <Banner type="danger" description="配额用量加载失败" />}
