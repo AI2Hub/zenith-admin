@@ -90,7 +90,7 @@ export function parseRecipientEmails(recipients: string | null | undefined, requ
     throw new HTTPException(400, { message: '选择邮件通道时必须填写收件人邮箱' });
   }
   for (const email of list) {
-    if (!emailSchema.safeParse(email).success) {
+    if (!emailSchema.validate(email)) {
       throw new HTTPException(400, { message: `邮箱格式不正确：${email}` });
     }
   }

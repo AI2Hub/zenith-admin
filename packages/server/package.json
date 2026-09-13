@@ -104,7 +104,7 @@
 		"ua-parser-js": "^2.0.10",
 		"uuid": "^14.0.2",
 		"ws": "^8.21.3",
-		"zod": "^4.5.4"
+		"zod": "^4.6.4"
 	},
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",

@@ -52,8 +52,8 @@ function planOf(schema: z.ZodObject): readonly FieldPlan[] {
   if (!plan) {
     plan = Object.entries(schema.shape).map(([key, field]) => ({
       key,
-      acceptsNull: (field as z.ZodType).safeParse(null).success,
-      acceptsUndefined: (field as z.ZodType).safeParse(undefined).success,
+      acceptsNull: (field as z.ZodType).validate(null),
+      acceptsUndefined: (field as z.ZodType).validate(undefined),
     }));
     plans.set(schema, plan);
   }

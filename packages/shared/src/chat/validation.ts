@@ -18,7 +18,7 @@ import { chatMessageExtraSchema } from './contracts/chat-messages';
 /** 媒体类消息的 content 是被渲染为 src / href 的资源地址：仅接受托管文件路径或 http(s) URL */
 export function isChatMediaContentSafe(type: string, content: string): boolean {
   if (!(CHAT_MEDIA_MESSAGE_TYPES as readonly string[]).includes(type)) return true;
-  return linkUrl().safeParse(content).success;
+  return linkUrl().validate(content);
 }
 
 export const sendChatMessageSchema = z.object({
@@ -57,7 +57,8 @@ export const toggleChatMessageFavoriteSchema = z.object({ favorite: z.boolean() 
 
 export const toggleChatMessagePinSchema = z.object({ pin: z.boolean() });
 
-export const toggleChatReactionSchema = z.object({ emoji: z.string().min(1).max(10) });
+/** 回应取值来自 emoji 选择器的原生字符；zod 4.6 起 `z.emoji()` 拒绝纯组件串（`123` / `#`），可直接作格式约束 */
+export const toggleChatReactionSchema = z.object({ emoji: z.emoji('表情回应必须是 emoji').max(10) });
 
 export const submitChatVoteSchema = z.object({
   optionIds: z.array(z.string().min(1).max(36)).min(1).max(10),
