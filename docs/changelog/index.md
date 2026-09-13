@@ -4,6 +4,75 @@
 
 ---
 
+## v2.33.0 - 2026-09-13
+
+**列表页查询区域与服务端列表查询的第三轮去重：从「遵守规范」到「再抽一层壳」**。对照 zenith skill 逐条核实规范与实现的偏移后，把规范此前允许每页手写一遍的机制性接线收口为新一层积木：前端 `useListPage`（搜索状态 → 筛选映射 → 列表查询 → 表格 props 一次接好，109 页迁入）、`useFilterQuery`（按内容稳定引用，取代 187 处手写依赖数组的 memo）、`EditFormModal` / `EditFormSheet`（159 个新增 / 编辑壳），契约 `keywordQuery`、服务端 `listRows` / `emptyListResult`；随之补齐 6 条 ESLint 守卫与规范 / 文档同步。前置的 Phase 1–6（即时筛选工具栏、移动端更多菜单复用 actions、新增按钮权限门、批量启停、共享列与菜单片段）与三处修复一并发布。jscpd（min-tokens 50 / min-lines 5，排除测试与 mock）：总重复行 8,022（1.36%）→ 7,336（1.18%），前端查询区域子集 1,691 → 1,420 行；规范偏移的手写模式计数全部归零。
+
+### 升级注意
+
+- 本次**没有**数据库迁移。
+- 编辑弹窗行为：原本没有 Spin 的 77 个新增 / 编辑弹窗统一获得详情加载遮罩（编辑打开 → 详情到达前显示遮罩，不再先展示列表行占位值再闪一次重挂载）。
+- 契约：8 处列表 query 的枚举筛选（CMS 素材类型、报表看板 / 环境 / 填报状态与资源类型）由 `xxxSchema.optional()` 改为 `queryEnum` / `entityStatusQuery`，筛选控件清空后发出的 `?x=` 不再返回 400；75 处此前裸写的 `keyword` 参数在 OpenAPI 文档中获得描述，解析行为不变。
+- 修复可见的行为变化：登录 / 操作日志桌面端「清除日志」档位此前仍按「月」传参（实际只清 12 天前、清除全部触发 400），统一为 365 / 180 / 90 / 30 天；短信发送日志按 ID 读取 / 删除补齐租户隔离；无权限用户在窄屏不再看到点开为空的「更多操作」菜单。
+- Demo 模式（MSW）：时间范围筛选的纯日期终点统一补到当天 23:59:59（与服务端 `dateRangeConditions` 同义）。
+- 前端公共 API（仅影响自定义代码）：新增 `useListPage` / `useFilterQuery` / `EditFormModal` / `EditFormSheet`、`CreateButton permission`、`InstantFilterToolbar`、`usePagination({ pageSizeOpts })`；`SearchToolbar` 的 `mobileActions` 缺省复用 `actions`；删除 `KeywordSearchToolbar`、report 域私有的 `useReportBatchStatus` / `ReportBatchStatusButtons`、IoT 的 `IotEnabledTag`。新增 ESLint 守卫（见 Added），命中的旧写法需迁移或加 `eslint-disable-next-line no-restricted-syntax -- 理由`。
+
+### Added
+
+#### 契约积木（shared）
+
+- `keywordQuery(description?)`：列表查询关键字参数积木，153 处精确形态 `keyword: z.string().optional()[.meta()]` 改用（带 `.max()` / `.trim()` 约束的关键字保留逐个书写）。
+- `OPEN_APP_ENVIRONMENT_OPTIONS` / `OPEN_APP_REVIEW_STATUS_OPTIONS`。
+
+#### 服务端积木（server）
+
+- `lib/list-query`：`listRows({ page, pageSize, table, where, orderBy, map })`（单表 / 全行 / 无 join 的标准列表，count 与 rows 结构上共用同一 where，105 处）与 `emptyListResult(page, pageSize)`（可见范围为空的短路，18 处）。
+- `lib/subject-liveness`：`loadSubjectRow` + `checkSubjectLiveness`，JWT 中间件、续签与 OAuth 的「用户存在 → 账号启用 → 租户声明一致 → 租户未禁用 / 到期」判定同口径。
+- `services/member/member-checkin.service` 的 `selectCheckinRows(where)`：签到明细列集与排序，列表与导出中心同源；`member-query-helpers` 的 `mapLedgerTransaction`：积分 / 钱包流水映射共用。
+- `lib/task-center/runner` 的 `cleanableTaskWheres()`（清理与预览计数同口径）、`announcements.service` 的 `visibleAnnouncementsWhere()`。
+
+#### 前端积木（web）
+
+- `hooks/useListPage`：标准分页列表页一站式接线（`useListSearch` + `useFilterQuery` + 契约派生的 `useList` + `listTableProps`），返回 `bind` / `bindKeyword` / `handleSearch` / `handleReset` / `applySearch` / `filterQuery` / `listQuery` / `tableProps`；`params` 传契约必填的作用域参数（不经 compact），`enabled` / `table` 分别对应启用开关与 `rowSelection` / `empty`。结构上杜绝漏 `...filterQuery`、误传草稿、漏分页三类接线错误。
+- `hooks/useFilterQuery`：已提交筛选 → 契约查询参数，`compactParams` 后按**内容**稳定引用，无需依赖数组、映射里引用的外部值变化自然反映。
+- `components/EditFormModal` / `EditFormSheet`：新增 / 编辑表单壳（`AppModal({...modalProps}) > Spin(detailLoading) > Form(key=formKey, formProps)`，抽屉形态为 `SideSheet` + `ModalFooter(footerProps)`）；`title` / `okText` / `width` / `okButtonProps` / `onCancel` 直接作属性覆盖，Form 之前的说明传 `header`，Form 额外属性传 `formProps`。
+- `components/list-page/InstantFilterToolbar`：「边输边筛 + 刷新」型工具栏；`components/list-page/batchStatus` 的 `batchStatusHandler` + `toolbar-controls` 的 `BatchEnableButton` / `BatchDisableButton` / `BatchStatusButtons`；`CreateButton permission` 权限门；`components/NavListPanel` 的 `NavListItemActions`；`utils/table-columns` 的 `enabledStatusColumn()`；`pages/open-platform/open-app-columns`、`pages/payment/payment-expanded-detail`；`components/charts/ChartCard`（看板图表卡片：标题栏 + `extra` + `loading` 骨架 + `empty` 空态）；`components/rendered-slot` 的 `useRenderedSlot` / `SlotProbe`；`components/toolbar-slot-context`。
+- `usePagination` / `useListSearch` / `useListPage` 的 `pageSizeOpts`；`mocks/utils/filter` 的 `withinDateRange(value, start, end)`。
+
+#### ESLint 守卫
+
+- shared（`src/*/contracts/**`）：封禁 `keyword` 键下直写的 `z.string().optional()[.meta()]`。
+- server（`src/services/**`）：封禁实参含 `flag ? cond : undefined` / `...(x ? [x] : [])` 的 `and(...)`、select-builder 链上的 `.offset(pageOffset(...))`、手写的 `{ list: [], total: 0, page, pageSize }` 空包络。
+- web：封禁页面内 `useMemo(() => compactParams(…))`、`AppModal` / `SideSheet` 直接（或经 `Spin`）包裹 `Form(key={x.formKey})` 的三层壳、无 CSS 定义的 `wrapperClassName="modal-spin-wrapper"`、`hasPermission(…) ? <CreateButton/> : null`、`useEffect(() => { resetPage(); })`、整段 `x === 'enabled' ? <Tag/> : <Tag/>` 三元，以及任意列表 hook 实参 / `ExportButton query` 内的 `x || undefined`。
+
+### Changed
+
+#### 契约（shared）
+
+- 8 处列表 query 的 `xxxEnumSchema.optional()` → `queryEnum` / `entityStatusQuery`（见「升级注意」）。
+
+#### 服务端
+
+- 105 处单表全行 `buildListResult` 长形态 → `listRows`；18 处空结果短路 → `emptyListResult`；86 处 `.limit(pageSize).offset(pageOffset(…))` → `withPagination(qb.$dynamic(), page, pageSize)`；32 处含可选条件的 `and(...)` → `buildWhere(...)`。
+- drive 四个视图（收藏 / 最近 / 与我共享 / 搜索）共用 `viewNodeWhere` / `selectViewNodes`；chat 四个成员标记切换共用 `setMyMemberFlag`；departments / tags / announcements / task-center 残余样板收口到既有积木。
+
+#### 前端
+
+- 109 个标准分页列表页迁移 `useListPage`（机制接线由每页 12–16 行降到 6–8 行），187 处 `useMemo(() => compactParams(…), [deps])` → `useFilterQuery`；159 个编辑弹窗 / 抽屉壳 → `EditFormModal` / `EditFormSheet`（7 个表单之外另有独立编辑区的复合弹窗保留裸壳并登记理由）；57 处死属性 `wrapperClassName="modal-spin-wrapper"` 删除。
+- 63 处与桌面等价的 `mobileActions` 删除（更多菜单缺省复用 `actions`，菜单内按钮由容器样式平铺）；87 处 `hasPermission ? <CreateButton/> : null` → `CreateButton permission`；Docker / Services / Ports / Firewall / RateLimit / Processes 等即时过滤页 → `InstantFilterToolbar`；ShortLinks / AlertRules / Users / WorkflowDefinitions 与 report 域的批量启停 → `batchStatusHandler` + `BatchStatusButtons`；IoT 等 11 页只读状态列 → `enabledStatusColumn()`；MyApps / OAuth2Apps / OpenApiStats 的环境 / 审核 Tag 与列 → `open-app-columns`；CategorySidebar / Dicts / LogFiles / AI 会话侧栏的「更多」菜单 → `NavListItemActions`；ChannelDashboard / AppReleases 的 11 个图表卡片 → `ChartCard`。
+- 报表资产 / 事件查询 / 容量成本 / AI 供应商 / Nginx / 缓存 / 工作流启动台 / 检索测试 / 字典项 / 路径分析 / Webhook 投递 / 互动问卷文本答案等手写 draft / submitted 双状态 → `useListSearch`；CommentsPage 的三处 `setPage(1)` → `resetKey`；`pageSizeOpts` 覆盖改走选项。
+- Demo 模式（MSW）：13 组时间范围筛选 → `withinDateRange`，5 处关键字 includes → `includesKeyword`。
+- 规范与文档：`crud-frontend.md` Step 8b 模板改用 `useListPage` / `EditFormModal`，`useListSearch` + `useFilterQuery` 降为非标准页的下层写法；`crud-backend.md` 模板改用 `keywordQuery` / `listRows` / `emptyListResult`，`buildXxxWhere` 共用规则收窄为「带隔离条件的资源强制共用」；`constraints.md` / `constraints-frontend.md` / `query-cache.md` / `ui-patterns.md` 与 `docs/frontend` 三篇同步。
+
+### Fixed
+
+- 短信发送日志按 ID 读取 / 删除漏加 `tenantScope`，租户管理员可读到并删除其他租户的日志；补 `send-logs-tenant-scope.test.ts` 锁定短信 / 邮件两条链路。
+- 登录 / 操作日志桌面端「清除日志」仍按「月」传参：实际只清 12 天前、下拉文案渲染为 `undefined`、「清除全部」触发 400；统一为 `CLEAR_LOGS_DAYS` 天数档位并补回归测试。
+- 无权限用户在窄屏会看到点开为空的「更多操作」菜单（`ExportButton` / `CreateButton` 运行时返回 `null` 时工具栏仍按「传了节点」判断）。
+- HostsPage 带 `useDetail` 的编辑弹窗缺 `key={modal.formKey}`，详情到达后不重挂载。
+
+---
+
 ## v2.32.0 - 2026-09-12
 
 **查询链路与列表页样板的第二轮去重收敛 + 防复发守卫**：对照 zenith skill 逐层核对实现与规范的偏移，shared 契约的时间范围 / 关联 ID 积木、server 的审计时间戳 / 取首行 404 / 导出 where、web 列表页的筛选映射 / 多选 / 删除流 / 状态标签 / 表格接线 / 枚举文案、MSW 的精确筛选共约 1,600 处重复实现收敛到公共模块，并在 shared / web 各加一组 ESLint 选择器守卫；顺带修正 9 个导出定义忽略页面筛选、CMS 导出绕过栏目可见性等实际缺陷。
