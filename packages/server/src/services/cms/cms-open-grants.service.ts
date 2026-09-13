@@ -12,23 +12,17 @@ import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { cmsChannels, cmsOpenAppGrants, cmsSites, oauth2Clients } from '../../db/schema';
 import type { CmsOpenAppGrantRow } from '../../db/schema';
-import { formatTimestamps } from '../../lib/datetime';
 import { resolveCmsSiteOpsSettings } from './cms-site-settings';
 import { assertSiteAccess } from './cms-sites.service';
+import { cmsOpenAppGrantSchema } from '@zenith/shared/cms';
+import { pickEntity } from '../../lib/entity-map';
 
 export function mapCmsOpenAppGrant(row: CmsOpenAppGrantRow, extra?: { siteName?: string | null; appName?: string | null }) {
-  return {
-    id: row.id,
-    clientId: row.clientId,
+  return pickEntity(cmsOpenAppGrantSchema, row, {
     appName: extra?.appName ?? null,
-    siteId: row.siteId,
     siteName: extra?.siteName ?? null,
     channelIds: row.channelIds ?? [],
-    canPublish: row.canPublish,
-    status: row.status,
-    remark: row.remark ?? null,
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 export async function listCmsOpenAppGrants(siteId?: number) {

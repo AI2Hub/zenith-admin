@@ -6,36 +6,17 @@ import { db } from '../../db';
 import { mpFans, mpTags } from '../../db/schema';
 import type { MpFanRow } from '../../db/schema';
 import { buildWhere, keywordCondition } from '../../lib/where-helpers';
-import { formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { ensureMpAccountExists } from './mp-account.service';
 import { getFollowerOpenids, batchGetFanInfo, getWechatBlacklist, batchBlacklistFans, batchUnblacklistFans, WechatApiError } from '../../lib/wechat';
-import type { UpdateMpFanInput, MpFanSubscribe, mpFanContract } from '@zenith/shared/mp';
+import { mpFanSchema, type UpdateMpFanInput, type MpFanSubscribe, type mpFanContract } from '@zenith/shared/mp';
 import type { QueryOutputOf } from '@zenith/shared/core';
+import { pickEntity } from '../../lib/entity-map';
 
 export function mapMpFan(row: MpFanRow) {
-  return {
-    id: row.id,
-    accountId: row.accountId,
-    openid: row.openid,
-    nickname: row.nickname ?? null,
-    avatar: row.avatar ?? null,
-    sex: row.sex,
-    country: row.country ?? null,
-    province: row.province ?? null,
-    city: row.city ?? null,
-    language: row.language ?? null,
-    subscribe: row.subscribe,
-    subscribeTime: formatNullableDateTime(row.subscribeTime),
-    remark: row.remark ?? null,
+  return pickEntity(mpFanSchema, row, {
     tagIds: row.tagIds ?? [],
-    unionid: row.unionid ?? null,
-    memberId: row.memberId ?? null,
-    blacklisted: row.blacklisted,
-    createdBy: row.createdBy ?? null,
-    updatedBy: row.updatedBy ?? null,
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 export async function ensureMpFanExists(id: number): Promise<MpFanRow> {

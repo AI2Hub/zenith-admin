@@ -1,4 +1,4 @@
-import { marketingCampaignContract } from '@zenith/shared/marketing';
+import { marketingCampaignContract, marketingCampaignSchema, marketingPrizeSchema } from '@zenith/shared/marketing';
 import type { QueryOutputOf } from '@zenith/shared/core';
 /**
  * 营销活动（抽奖）服务。
@@ -14,7 +14,7 @@ import { HTTPException } from 'hono/http-exception';
 import type { CreateMarketingCampaignInput, SaveMarketingPrizeInput, UpdateMarketingCampaignInput, MarketingDrawResult } from '@zenith/shared/marketing';
 import { db } from '../../db';
 import { marketingCampaigns, marketingParticipations, marketingPrizes, coupons, members, shortLinks, type MarketingCampaignRow, type MarketingPrizeRow, type MarketingParticipationRow } from '../../db/schema';
-import { formatDateTime, formatTimestamps, parseDateTimeInput, startOfToday } from '../../lib/datetime';
+import { formatDateTime, parseDateTimeInput, startOfToday } from '../../lib/datetime';
 import logger from '../../lib/logger';
 import { buildWhere, dateRangeConditions, keywordCondition, withPagination } from '../../lib/where-helpers';
 import { currentUser } from '../../lib/context';
@@ -25,44 +25,21 @@ import { buildShortUrl, ensureShortLink } from '../short-link/short-link.service
 import { changePoints } from '../member/member-points.service';
 import { issueCoupon } from '../member/coupons.service';
 import { notify } from '../messaging/notification-outbox.service';
+import { pickEntity } from '../../lib/entity-map';
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
 export function mapMarketingCampaign(row: MarketingCampaignRow, extra?: { participationCount?: number; awardCount?: number; shortUrl?: string | null }) {
-  return {
-    id: row.id,
-    name: row.name,
-    type: row.type,
-    status: row.status,
-    startAt: formatDateTime(row.startAt),
-    endAt: formatDateTime(row.endAt),
-    perMemberLimit: row.perMemberLimit,
-    dailyPerMemberLimit: row.dailyPerMemberLimit ?? null,
-    landingUrl: row.landingUrl ?? null,
+  return pickEntity(marketingCampaignSchema, row, {
     shortUrl: extra?.shortUrl ?? null,
-    description: row.description ?? null,
     participationCount: extra?.participationCount ?? 0,
     awardCount: extra?.awardCount ?? 0,
-    createdBy: row.createdBy ?? null,
-    updatedBy: row.updatedBy ?? null,
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 export function mapMarketingPrize(row: MarketingPrizeRow, couponName: string | null = null) {
-  return {
-    id: row.id,
-    campaignId: row.campaignId,
-    name: row.name,
-    prizeType: row.prizeType,
-    points: row.points ?? null,
-    couponId: row.couponId ?? null,
+  return pickEntity(marketingPrizeSchema, row, {
     couponName,
-    stock: row.stock,
-    totalStock: row.totalStock,
-    weight: row.weight,
-    sort: row.sort,
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 function mapParticipation(row: MarketingParticipationRow, memberNickname: string | null = null) {

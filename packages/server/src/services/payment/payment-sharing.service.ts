@@ -1,4 +1,4 @@
-import { paymentSharingContract } from '@zenith/shared/payment';
+import { paymentSharingContract, paymentSharingReceiverSchema, paymentSharingOrderSchema } from '@zenith/shared/payment';
 import type { QueryOutputOf } from '@zenith/shared/core';
 /**
  * 支付分账/分润 Service。
@@ -19,7 +19,6 @@ import { currentUser } from '../../lib/context';
 import { requireTenantScopeId, tenantCondition, exactTenantCondition } from '../../lib/tenant';
 import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
-import { formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
 import { buildAdapterContext, createOrderConfigResolver, loadOrderConfig } from './payment.service';
 import { postSystemJournal } from './payment-journal.service';
 import { getAdapter } from '../../lib/payment/registry';
@@ -29,6 +28,7 @@ import { isIndeterminateProviderError } from '../../lib/payment/provider-http';
 import type { CreatePaymentSharingReceiverInput, UpdatePaymentSharingReceiverInput, PaymentSharingOrder, PaymentSharingOrderStatus, PaymentSharingReceiver } from '@zenith/shared/payment';
 import { assertEffectivePaymentOperation } from './payment-capability-evaluator';
 import { assertPaymentEngineConfig } from './payment-channel-config-resolver';
+import { pickEntity } from '../../lib/entity-map';
 
 /** 单笔分账渠道调用次数上限（首次 + 重试） */
 const MAX_SHARING_ATTEMPTS = 3;
@@ -59,34 +59,11 @@ async function recordSharingJournal(
 
 // ─── 接收方映射 + CRUD ────────────────────────────────────────────────────────
 export function mapReceiver(row: PaymentSharingReceiverRow): PaymentSharingReceiver {
-  return {
-    id: row.id,
-    name: row.name,
-    receiverType: row.receiverType,
-    account: row.account,
-    ratioBps: row.ratioBps ?? null,
-    autoShare: row.autoShare,
-    status: row.status,
-    remark: row.remark ?? null,
-    ...formatTimestamps(row),
-  };
+  return pickEntity(paymentSharingReceiverSchema, row);
 }
 
 export function mapSharingOrder(row: PaymentSharingOrderRow & { receiverName?: string | null }): PaymentSharingOrder {
-  return {
-    id: row.id,
-    sharingNo: row.sharingNo,
-    orderNo: row.orderNo,
-    receiverId: row.receiverId,
-    receiverName: row.receiverName ?? null,
-    amount: row.amount,
-    status: row.status,
-    channelSharingNo: row.channelSharingNo ?? null,
-    version: row.version,
-    finishedAt: formatNullableDateTime(row.finishedAt),
-    remark: row.remark ?? null,
-    ...formatTimestamps(row),
-  };
+  return pickEntity(paymentSharingOrderSchema, row);
 }
 
 export async function listReceivers(q: QueryOutputOf<typeof paymentSharingContract.receivers>) {

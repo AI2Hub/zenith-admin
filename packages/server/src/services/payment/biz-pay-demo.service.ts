@@ -1,4 +1,4 @@
-import { bizPayDemoContract } from '@zenith/shared/biz';
+import { bizPayDemoContract, bizPayDemoSchema } from '@zenith/shared/biz';
 import type { QueryOutputOf } from '@zenith/shared/core';
 /**
  * 业务接入示例：支付接入 Service
@@ -26,11 +26,11 @@ import { listRows } from '../../lib/list-query';
 import { bizPayDemos, paymentOrders, type BizPayDemoRow } from '../../db/schema';
 import { requireRow } from '../../lib/db-assert';
 import { currentUser } from '../../lib/context';
-import { formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
 import { requireTenantScopeId, tenantCondition, exactTenantCondition } from '../../lib/tenant';
 import { keywordCondition, buildWhere } from '../../lib/where-helpers';
 import logger from '../../lib/logger';
 import { createPayment } from './payment.service';
+import { pickEntity } from '../../lib/entity-map';
 
 /** 业务类型标识（与订阅器、支付门面 bizType 保持一致） */
 export const BIZ_PAY_DEMO_TYPE = 'biz_pay_demo';
@@ -38,18 +38,9 @@ export const BIZ_PAY_DEMO_TYPE = 'biz_pay_demo';
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
 
 export function mapBizPayDemo(row: BizPayDemoRow): BizPayDemo {
-  return {
-    id: row.id,
-    subject: row.subject,
-    amount: row.amount,
+  return pickEntity(bizPayDemoSchema, row, {
     payMethod: (row.payMethod ?? null) as PaymentMethod | null,
-    status: row.status,
-    paymentOrderNo: row.paymentOrderNo ?? null,
-    paidAt: formatNullableDateTime(row.paidAt),
-    fulfillRemark: row.fulfillRemark ?? null,
-    tenantId: row.tenantId,
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 // ─── 前置校验 ─────────────────────────────────────────────────────────────────

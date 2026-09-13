@@ -2,11 +2,10 @@ import { listRows } from '../../lib/list-query';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { eq, desc } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import { cmsSeoContract } from '@zenith/shared/cms';
+import { cmsSeoContract, cmsPushLogSchema } from '@zenith/shared/cms';
 import { db } from '../../db';
 import { cmsPushLogs } from '../../db/schema';
 import type { CmsSiteRow, CmsPushLogRow } from '../../db/schema';
-import { formatDateTime } from '../../lib/datetime';
 import { buildWhere } from '../../lib/where-helpers';
 import { httpPost } from '../../lib/http-client';
 import logger from '../../lib/logger';
@@ -15,6 +14,7 @@ import { siteOrigin } from './cms-render.service';
 import { ensureCmsSiteExists } from './cms-sites.service';
 import { assertAllCmsSiteChannelsAccess } from './cms-channels.service';
 import { loadPublishedContentTarget } from './cms-published-content-target';
+import { pickEntity } from '../../lib/entity-map';
 
 export type CmsPushEngine = 'baidu' | 'indexnow';
 
@@ -33,16 +33,9 @@ export function getSitePushConfig(site: CmsSiteRow): SitePushConfig {
 }
 
 export function mapCmsPushLog(row: CmsPushLogRow) {
-  return {
-    id: row.id,
-    siteId: row.siteId,
-    engine: row.engine,
+  return pickEntity(cmsPushLogSchema, row, {
     urls: row.urls ?? [],
-    success: row.success,
-    statusCode: row.statusCode ?? null,
-    response: row.response ?? null,
-    createdAt: formatDateTime(row.createdAt),
-  };
+  });
 }
 
 async function writePushLog(siteId: number, engine: CmsPushEngine, urls: string[], success: boolean, statusCode: number | null, response: string) {

@@ -21,7 +21,6 @@ import {
 } from '../../db/schema';
 import { pageOffset } from '../../lib/pagination';
 import { buildWhere, keywordCondition } from '../../lib/where-helpers';
-import { formatTimestamps } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { currentUserOrNull } from '../../lib/context';
 import { buildReportCopyName } from './report-copy-name';
@@ -41,9 +40,10 @@ import {
 } from './report-resource.service';
 import { assertMaterializable, normalizeDatasetContent, normalizeIdentifier } from './report-dataset-shared';
 import { clearDatasetCache } from './report-dataset-execution.service';
-import { isSqlLikeType, reportDatasetContract } from '@zenith/shared/report';
+import { isSqlLikeType, reportDatasetContract, reportDatasetSchema } from '@zenith/shared/report';
 import type { ReportDatasetRow } from '../../db/schema';
 import type { ReportDataset, ReportField, ReportDatasetContent, ReportDatasetParam, ReportDatasourceType, ReportComputedField, ReportDatasetMaterialize, ReportRowRule, ReportDatasetRefs, ReportWidget, ReportFilter, ReportSqlDatasetContent, ReportDashboardSnapshot, ReportPrintContent, ReportLookupOption, CreateReportDatasetInput, UpdateReportDatasetInput } from '@zenith/shared/report';
+import { pickEntity } from '../../lib/entity-map';
 
 type DatasetRowWithDs = ReportDatasetRow & {
   datasource?: { name: string } | null;
@@ -52,16 +52,10 @@ type DatasetRowWithDs = ReportDatasetRow & {
 };
 
 export function mapDataset(row: DatasetRowWithDs): ReportDataset {
-  return {
-    id: row.id,
-    ownerId: row.ownerId ?? null,
+  return pickEntity(reportDatasetSchema, row, {
     ownerName: row.owner?.nickname || row.owner?.username || null,
-    folderId: row.folderId ?? null,
     folderName: row.folder?.name ?? null,
-    name: row.name,
-    datasourceId: row.datasourceId,
     datasourceName: row.datasource?.name ?? null,
-    type: row.type,
     content: (row.content ?? {}) as ReportDatasetContent,
     fields: (row.fields ?? []) as ReportField[],
     params: (row.params ?? []) as ReportDatasetParam[],
@@ -69,12 +63,7 @@ export function mapDataset(row: DatasetRowWithDs): ReportDataset {
     cacheTtl: row.cacheTtl ?? 0,
     materialize: (row.materialize ?? {}) as ReportDatasetMaterialize,
     rowRules: (row.rowRules ?? []) as ReportRowRule[],
-    status: row.status,
-    remark: row.remark ?? null,
-    createdBy: row.createdBy ?? null,
-    updatedBy: row.updatedBy ?? null,
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 function validateDatasetDefinitions(

@@ -1,4 +1,4 @@
-import { paymentChannelContract } from '@zenith/shared/payment';
+import { paymentChannelContract, paymentChannelConfigSchema } from '@zenith/shared/payment';
 import type { QueryOutputOf } from '@zenith/shared/core';
 /**
  * 支付渠道配置 Service。
@@ -16,9 +16,9 @@ import { currentUser } from '../../lib/context';
 import { tenantCondition, requireTenantScopeId } from '../../lib/tenant';
 import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { encryptField } from '../../lib/encryption';
-import { formatTimestamps } from '../../lib/datetime';
 import { clearDefaultFlag } from '../../lib/default-flag';
 import type { CreatePaymentChannelConfigInput, PaymentChannel, PaymentChannelConfig, PaymentChannelConfigLookup, UpdatePaymentChannelConfigInput } from '@zenith/shared/payment';
+import { pickEntity } from '../../lib/entity-map';
 
 /** 默认标记的归属范围：同租户同渠道内互斥（不筛 is_default，范围内所有配置都会被刷新） */
 function channelDefaultScope(channel: PaymentChannel, user: ReturnType<typeof currentUser>) {
@@ -26,34 +26,12 @@ function channelDefaultScope(channel: PaymentChannel, user: ReturnType<typeof cu
 }
 
 export function mapChannelConfig(row: PaymentChannelConfigRow): PaymentChannelConfig {
-  return {
-    id: row.id,
-    name: row.name,
-    channel: row.channel,
-    status: row.status,
-    isDefault: row.isDefault,
-    sandbox: row.sandbox,
-    notifyUrl: row.notifyUrl ?? null,
-    wechatAppId: row.wechatAppId ?? null,
-    wechatMchId: row.wechatMchId ?? null,
-    wechatSerialNo: row.wechatSerialNo ?? null,
-    wechatPlatformCert: row.wechatPlatformCert ?? null,
+  return pickEntity(paymentChannelConfigSchema, row, {
     hasWechatApiV3Key: Boolean(row.wechatApiV3KeyEncrypted),
     hasWechatPrivateKey: Boolean(row.wechatPrivateKeyEncrypted),
-    alipayAppId: row.alipayAppId ?? null,
-    alipaySellerId: row.alipaySellerId ?? null,
-    alipayPublicKey: row.alipayPublicKey ?? null,
-    alipaySignType: row.alipaySignType ?? null,
-    alipayGateway: row.alipayGateway ?? null,
     hasAlipayPrivateKey: Boolean(row.alipayPrivateKeyEncrypted),
-    unionpayMerId: row.unionpayMerId ?? null,
-    unionpayCertId: row.unionpayCertId ?? null,
-    unionpayPublicKey: row.unionpayPublicKey ?? null,
-    unionpayGateway: row.unionpayGateway ?? null,
     hasUnionpayPrivateKey: Boolean(row.unionpayPrivateKeyEncrypted),
-    remark: row.remark ?? null,
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 export async function listAllChannelConfigs() {

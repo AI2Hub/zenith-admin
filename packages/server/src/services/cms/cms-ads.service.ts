@@ -3,11 +3,11 @@ import { buildListResult } from '../../lib/list-query';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { eq, asc, and, or, isNull, lte, gte, inArray, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import { cmsAdContract } from '@zenith/shared/cms';
+import { cmsAdContract, cmsAdSlotSchema, cmsAdSchema } from '@zenith/shared/cms';
 import { db } from '../../db';
 import { cmsAdSlots, cmsAds } from '../../db/schema';
 import type { CmsAdSlotRow, CmsAdRow } from '../../db/schema';
-import { formatNullableDateTime, formatTimestamps, parseDateTimeInput } from '../../lib/datetime';
+import { parseDateTimeInput } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { assertSiteAccess } from './cms-sites.service';
 import { canonicalizeCmsResourceFields, deleteCmsResourceRefsForOwner, isSafeCmsResourceUrl, syncCmsResourceRefs, resolveCmsResourcePayload } from './cms-resource-refs.service';
@@ -17,36 +17,19 @@ import { buildWhere, withPagination } from '../../lib/where-helpers';
 import { normalizeCmsAdClickUrl } from './cms-ad-events.service';
 import { buildCmsLinkResolver } from './cms-link.service';
 import { refreshCmsPublicConfiguration } from './cms-public-config-refresh.service';
+import { pickEntity } from '../../lib/entity-map';
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
 export function mapCmsAdSlot(row: CmsAdSlotRow, adCount?: number) {
-  return {
-    id: row.id,
-    siteId: row.siteId,
-    code: row.code,
-    name: row.name,
-    remark: row.remark ?? null,
+  return pickEntity(cmsAdSlotSchema, row, {
     ...(adCount !== undefined ? { adCount } : {}),
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 export function mapCmsAd(row: CmsAdRow, slotName?: string | null) {
-  return {
-    id: row.id,
-    slotId: row.slotId,
+  return pickEntity(cmsAdSchema, row, {
     slotName: slotName ?? null,
-    name: row.name,
-    image: row.image ?? null,
-    linkUrl: row.linkUrl ?? null,
-    startAt: formatNullableDateTime(row.startAt),
-    endAt: formatNullableDateTime(row.endAt),
-    clickCount: row.clickCount,
-    viewCount: row.viewCount,
-    sort: row.sort,
-    status: row.status,
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 export async function ensureCmsAdSlotExists(id: number): Promise<CmsAdSlotRow> {

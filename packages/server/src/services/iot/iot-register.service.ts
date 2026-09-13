@@ -1,4 +1,4 @@
-import { iotWhitelistContract } from '@zenith/shared/iot';
+import { iotWhitelistContract, iotWhitelistEntrySchema } from '@zenith/shared/iot';
 import type { QueryOutputOf } from '@zenith/shared/core';
 /**
  * IoT 一型一密动态注册。
@@ -19,7 +19,6 @@ import {
   iotDevices, iotDeviceState, iotDeviceWhitelist, iotProducts,
   type IotDeviceWhitelistRow,
 } from '../../db/schema';
-import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { requireRow } from '../../lib/db-assert';
 import { buildListResult } from '../../lib/list-query';
 import { buildWhere, keywordCondition, withPagination } from '../../lib/where-helpers';
@@ -28,6 +27,7 @@ import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import logger from '../../lib/logger';
 import { generateDeviceSecret } from './iot-access.service';
 import { recordIotLifecycleEvent } from './iot-events.service';
+import { pickEntity } from '../../lib/entity-map';
 
 // ─── 产品注册密钥 ─────────────────────────────────────────────────────────────
 /** 开启/重置动态注册密钥（明文仅本次返回，列表仅展示是否开启） */
@@ -55,18 +55,10 @@ export function mapIotWhitelistEntry(
   row: IotDeviceWhitelistRow,
   extra?: { productName?: string | null; deviceName?: string | null },
 ) {
-  return {
-    id: row.id,
-    productId: row.productId,
+  return pickEntity(iotWhitelistEntrySchema, row, {
     productName: extra?.productName ?? null,
-    sn: row.sn,
-    used: row.used,
-    usedAt: formatNullableDateTime(row.usedAt),
-    deviceId: row.deviceId ?? null,
     deviceName: extra?.deviceName ?? null,
-    remark: row.remark ?? null,
-    createdAt: formatDateTime(row.createdAt),
-  };
+  });
 }
 
 export type ListWhitelistFilter = Omit<QueryOutputOf<typeof iotWhitelistContract.list>, 'page' | 'pageSize'>;

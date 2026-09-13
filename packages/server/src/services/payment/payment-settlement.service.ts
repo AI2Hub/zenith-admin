@@ -1,4 +1,4 @@
-import { paymentSettlementContract } from '@zenith/shared/payment';
+import { paymentSettlementContract, paymentSettlementBatchSchema } from '@zenith/shared/payment';
 import type { QueryOutputOf } from '@zenith/shared/core';
 /**
  * 支付结算批次 Service。
@@ -15,11 +15,12 @@ import { requireRow } from '../../lib/db-assert';
 import { currentUser } from '../../lib/context';
 import { requireTenantScopeId, tenantCondition, exactTenantCondition } from '../../lib/tenant';
 import { buildWhere } from '../../lib/where-helpers';
-import { formatDate, formatDateTime, formatNullableDateTime, formatTimestamps, parseDateRangeEnd, parseDateRangeStart } from '../../lib/datetime';
+import { formatDate, formatDateTime, parseDateRangeEnd, parseDateRangeStart } from '../../lib/datetime';
 import { isPgUniqueViolation, rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { postSystemJournalWithin } from './payment-journal.service';
 import logger from '../../lib/logger';
 import type { PaymentSettlementBatch, PaymentSettlementItem, PaymentSettlementStatus } from '@zenith/shared/payment';
+import { pickEntity } from '../../lib/entity-map';
 
 // Only provider-derived and explicitly approved reconciliation movements are
 // eligible for payout. Manual adjustments, reservations and transfer journals
@@ -45,29 +46,7 @@ function unsettledEligibleLineConditions(): SQL[] {
 }
 
 export function mapSettlementBatch(row: PaymentSettlementBatchRow): PaymentSettlementBatch {
-  return {
-    id: row.id,
-    batchNo: row.batchNo,
-    channel: row.channel,
-    appId: row.appId,
-    channelConfigId: row.channelConfigId,
-    currency: row.currency,
-    periodStart: row.periodStart,
-    periodEnd: row.periodEnd,
-    status: row.status,
-    orderCount: row.orderCount,
-    grossAmount: row.grossAmount,
-    feeAmount: row.feeAmount,
-    refundAmount: row.refundAmount,
-    sharingAmount: row.sharingAmount,
-    netAmount: row.netAmount,
-    settledAt: formatNullableDateTime(row.settledAt),
-    failureReason: row.failureReason ?? null,
-    payoutReference: row.payoutReference ?? null,
-    version: row.version,
-    remark: row.remark ?? null,
-    ...formatTimestamps(row),
-  };
+  return pickEntity(paymentSettlementBatchSchema, row);
 }
 
 export async function listSettlements(q: QueryOutputOf<typeof paymentSettlementContract.list>) {

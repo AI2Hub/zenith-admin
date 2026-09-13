@@ -16,16 +16,17 @@ import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { replaySessions, replaySegments, replayClickPoints, replayAccessLogs, errorEvents, analyticsSettings, userEvents } from '../../db/schema';
 import type { ReplaySessionRow, ReplaySegmentRow } from '../../db/schema';
-import type { ReplaySegmentUploadMetaInput } from '@zenith/shared/analytics';
+import { replaySessionSchema, type ReplaySegmentUploadMetaInput } from '@zenith/shared/analytics';
 import { sessionReplayContract } from '@zenith/shared/analytics';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { currentUserOrNull } from '../../lib/context';
 import { currentMemberOrNull } from '../../lib/member-context';
 import { tenantScope, getCreateTenantId, exactTenantCondition } from '../../lib/tenant';
 import { buildWhere, keywordCondition } from '../../lib/where-helpers';
-import { formatDateTime, formatNullableDateTime, startOfToday } from '../../lib/datetime';
+import { formatDateTime, startOfToday } from '../../lib/datetime';
 import { parseClientEnv, resolveIngestPlatformFields } from '../../lib/analytics-helpers';
 import { isSiteOriginAllowed, resolveSiteByKey } from './analytics-sites.service';
+import { pickEntity } from '../../lib/entity-map';
 
 /** 单分片 gz 上限（防滥用；rrweb 10s 分片 gz 后通常 <200KB） */
 export const REPLAY_SEGMENT_MAX_BYTES = 2 * 1024 * 1024;
@@ -43,36 +44,11 @@ const QUOTA_HARD_LIMIT = 1.2;
 export interface ReplayReqCtx { ua: string; siteKey?: string | null; origin?: string | null }
 
 export function mapReplaySession(row: ReplaySessionRow) {
-  return {
-    id: row.id,
-    sessionId: row.sessionId,
-    mode: row.mode,
-    status: row.status,
+  return pickEntity(replaySessionSchema, row, {
     triggers: row.triggers ?? [],
-    startedAt: formatDateTime(row.startedAt),
-    lastActivityAt: formatDateTime(row.lastActivityAt),
-    endedAt: formatNullableDateTime(row.endedAt),
-    durationMs: row.durationMs,
-    segmentCount: row.segmentCount,
-    totalBytes: row.totalBytes,
-    errorCount: row.errorCount,
-    pageCount: row.pageCount,
-    clickCount: row.clickCount,
     pagePaths: row.pagePaths ?? [],
     clickLabels: row.clickLabels ?? [],
-    entryPageUrl: row.entryPageUrl,
-    source: row.source,
-    appId: row.appId,
-    environment: row.environment,
-    userId: row.userId,
-    username: row.username,
-    memberId: row.memberId,
-    browser: row.browser,
-    os: row.os,
-    deviceType: row.deviceType,
-    sdkVersion: row.sdkVersion,
-    createdAt: formatDateTime(row.createdAt),
-  };
+  });
 }
 
 function mapSegmentMeta(row: Omit<ReplaySegmentRow, 'data'>) {

@@ -1,13 +1,13 @@
 import { requireRow } from '../../lib/db-assert';
 import { buildListResult } from '../../lib/list-query';
 import { HTTPException } from 'hono/http-exception';
-import { aggregateReportRows, compare as compareReportValue, reportAlertContract } from '@zenith/shared/report';
+import { aggregateReportRows, compare as compareReportValue, reportAlertContract, reportAlertRuleSchema } from '@zenith/shared/report';
 import { and, desc, eq, inArray, isNotNull, lte } from 'drizzle-orm';
 import { db } from '../../db';
 import { reportAlertRules, reportDeliveryRuns } from '../../db/schema';
 import { pageOffset } from '../../lib/pagination';
 import { buildWhere, keywordCondition } from '../../lib/where-helpers';
-import { formatDateTime, formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
+import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { currentUserOrNull } from '../../lib/context';
 import { escapeHtml } from '@zenith/shared/core';
@@ -42,6 +42,7 @@ import {
   isNumericReportField,
 } from './report-field-metadata';
 import { runtimeHasNumericValue } from './report-dataset-shared';
+import { pickEntity } from '../../lib/entity-map';
 
 type AlertRowExt = ReportAlertRuleRow & {
   dataset?: { name: string } | null;
@@ -86,39 +87,21 @@ async function validateAlertDefinition(
 }
 
 export function mapAlert(row: AlertRowExt): ReportAlertRule {
-  return {
-    id: row.id,
-    name: row.name,
-    datasetId: row.datasetId,
+  return pickEntity(reportAlertRuleSchema, row, {
     datasetName: row.dataset?.name ?? null,
-    metricId: row.metricId ?? null,
     metricName: row.metric?.name ?? null,
-    field: row.field ?? null,
-    groupByField: row.groupByField ?? null,
     aggregate: row.aggregate as ReportAlertAggregate,
     op: row.op as ReportAlertOp,
     threshold: row.threshold ?? 0,
-    cron: row.cron ?? null,
     timezone: row.timezone ?? REPORT_DEFAULT_TIMEZONE,
-    misfirePolicy: row.misfirePolicy,
-    nextRunAt: formatNullableDateTime(row.nextRunAt),
     channels: (row.channels ?? []) as ReportNotifyChannel[],
-    recipients: row.recipients ?? null,
     webhookUrl: maskReportSecret(row.webhookUrl),
     silenceMins: row.silenceMins ?? 60,
     notifyOnRecover: row.notifyOnRecover ?? false,
-    enabled: row.enabled,
-    lastCheckedAt: formatNullableDateTime(row.lastCheckedAt),
-    lastTriggered: row.lastTriggered ?? null,
-    lastValue: row.lastValue ?? null,
-    lastNotifiedAt: formatNullableDateTime(row.lastNotifiedAt),
     lastDeliveryAt: row.latestDelivery?.lastDeliveryAt ?? formatNullableDateTime(row.lastDeliveryAt),
     lastDeliveryStatus: row.latestDelivery?.lastDeliveryStatus ?? row.lastDeliveryStatus ?? null,
     lastDeliveryError: row.latestDelivery?.lastDeliveryError ?? row.lastDeliveryError ?? null,
-    remark: row.remark ?? null,
-    createdBy: row.createdBy ?? null,
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 export async function ensureAlertExists(id: number): Promise<ReportAlertRuleRow> {

@@ -1,4 +1,4 @@
-import { iotAutomationContract } from '@zenith/shared/iot';
+import { iotAutomationContract, iotAutomationSchema, iotAutomationRunSchema } from '@zenith/shared/iot';
 import type { QueryOutputOf } from '@zenith/shared/core';
 /**
  * IoT 场景联动：触发评估 + 动作执行 + 冷却抑制 + 执行留痕。
@@ -22,7 +22,6 @@ import {
   iotAutomationRuns, iotAutomations, iotDeviceGroupMembers, iotDevices, iotProducts,
   type IotAutomationActionDef, type IotAutomationRow, type IotAutomationRunRow, type IotDeviceRow,
 } from '../../db/schema';
-import { formatDateTime, formatTimestamps } from '../../lib/datetime';
 import { requireFirstRow, requireRow } from '../../lib/db-assert';
 import { buildListResult } from '../../lib/list-query';
 import { buildWhere, keywordCondition, withPagination } from '../../lib/where-helpers';
@@ -32,51 +31,31 @@ import redis from '../../lib/redis';
 import logger from '../../lib/logger';
 import { TtlCache } from '../../lib/ttl-cache';
 import { ensureIotRuleReferencesValid } from './iot-rule-refs';
+import { pickEntity } from '../../lib/entity-map';
 
 // ─── 映射与 CRUD ──────────────────────────────────────────────────────────────
 export function mapIotAutomation(
   row: IotAutomationRow,
   extra?: { productName?: string | null; deviceName?: string | null; recentRunCount?: number },
 ) {
-  return {
-    id: row.id,
-    name: row.name,
-    productId: row.productId,
+  return pickEntity(iotAutomationSchema, row, {
     productName: extra?.productName ?? null,
-    deviceId: row.deviceId ?? null,
     deviceName: extra?.deviceName ?? null,
-    triggerType: row.triggerType,
-    propertyIdentifier: row.propertyIdentifier ?? null,
-    operator: row.operator ?? null,
-    threshold: row.threshold ?? null,
-    eventIdentifier: row.eventIdentifier ?? null,
-    decisionRuleKey: row.decisionRuleKey ?? null,
-    cooldownSeconds: row.cooldownSeconds,
     actions: row.actions ?? [],
-    status: row.status,
     recentRunCount: extra?.recentRunCount ?? 0,
-    createdBy: row.createdBy ?? null,
-    updatedBy: row.updatedBy ?? null,
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 export function mapIotAutomationRun(
   row: IotAutomationRunRow,
   extra?: { deviceName?: string | null; deviceSn?: string | null },
 ) {
-  return {
-    id: row.id,
-    automationId: row.automationId,
-    automationName: row.automationName,
-    deviceId: row.deviceId,
+  return pickEntity(iotAutomationRunSchema, row, {
     deviceName: extra?.deviceName ?? null,
     deviceSn: extra?.deviceSn ?? null,
     triggerContext: row.triggerContext ?? {},
     results: row.results ?? [],
-    success: row.success,
-    createdAt: formatDateTime(row.createdAt),
-  };
+  });
 }
 
 export type ListIotAutomationsFilter = Omit<QueryOutputOf<typeof iotAutomationContract.list>, 'page' | 'pageSize'>;

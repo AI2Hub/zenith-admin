@@ -1,7 +1,7 @@
 import { and, desc, eq, inArray, gte, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import type { QueryOutputOf } from '@zenith/shared/core';
-import type { RuleDecisionInput, RuleDecisionOutput, RuleDecisionRow, RuleHitPolicy, RuleEvaluateResult, RuleTestRunResult, RuleCaseResult, RuleDecisionTableSettings, RuleUsageItem, RuleTableStats, RuleShadowRunResult, RuleShadowDiffSample, RuleSimulateResult, RuleSimulateRowResult } from '@zenith/shared/rules';
+import { ruleDecisionTableVersionSchema, type RuleDecisionInput, type RuleDecisionOutput, type RuleDecisionRow, type RuleHitPolicy, type RuleEvaluateResult, type RuleTestRunResult, type RuleCaseResult, type RuleDecisionTableSettings, type RuleUsageItem, type RuleTableStats, type RuleShadowRunResult, type RuleShadowDiffSample, type RuleSimulateResult, type RuleSimulateRowResult } from '@zenith/shared/rules';
 import { decisionTableContract } from '@zenith/shared/rules';
 import { db } from '../../db';
 import { ruleDecisionTables, ruleDecisionTableVersions, ruleTestCases, ruleExecutions, workflowDefinitions } from '../../db/schema';
@@ -19,6 +19,7 @@ import { validateRuleCell } from '@zenith/shared/rules';
 import { diffDecisionSnapshots } from '../../lib/rules-version-diff';
 import { cachedRuleRuntime, invalidateRuleRuntimeCache } from './rules-runtime-cache';
 import { recordRuleExecution, flushRuleExecutionQueue, snapshotRuleScope } from './rules-executions.service';
+import { pickEntity } from '../../lib/entity-map';
 
 type TableRow = typeof ruleDecisionTables.$inferSelect;
 type VersionRow = typeof ruleDecisionTableVersions.$inferSelect;
@@ -71,15 +72,9 @@ export function mapDecisionTable(row: TableRow, latestVersion?: VersionRow | nul
 }
 
 export function mapDecisionTableVersion(row: VersionRow) {
-  return {
-    id: row.id,
-    tableId: row.tableId,
-    version: row.version,
-    name: row.name,
+  return pickEntity(ruleDecisionTableVersionSchema, row, {
     ...toDecisionTableDefinition(row),
-    publishedAt: formatDateTime(row.publishedAt),
-    publishedBy: row.publishedBy ?? null,
-  };
+  });
 }
 
 export async function ensureDecisionTable(id: number): Promise<TableRow> {

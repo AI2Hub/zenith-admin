@@ -3,7 +3,7 @@ import type { QueryOutputOf } from '@zenith/shared/core';
 import { buildListResult } from '../../lib/list-query';
 import { and, desc, eq, gte, inArray, isNull, lt, lte, or, sql, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import { cmsAdContract } from '@zenith/shared/cms';
+import { cmsAdContract, cmsAdEventSchema } from '@zenith/shared/cms';
 import type { CmsAdEventType } from '@zenith/shared/cms';
 import { db } from '../../db';
 import {
@@ -15,12 +15,13 @@ import {
 } from '../../db/schema';
 import type { CmsAdEventRow } from '../../db/schema';
 import type { DbTransaction } from '../../db/types';
-import { formatDate, formatDateTime } from '../../lib/datetime';
+import { formatDate } from '../../lib/datetime';
 import { buildWhere, dateRangeConditions, withPagination } from '../../lib/where-helpers';
 import { streamByDescendingId } from '../../lib/export-center/cursor-stream';
 import { detectDeviceType } from './cms-stats.service';
 import { assertSiteAccess, ensureCmsSiteExists } from './cms-sites.service';
 import { hashCmsRequestKey, hashCmsVisitor, hashCmsIp } from './cms-visitor';
+import { pickEntity } from '../../lib/entity-map';
 
 const EVENT_DEDUPE_SECONDS: Record<CmsAdEventType, number> = {
   impression: 60,
@@ -204,24 +205,11 @@ export function mapCmsAdEvent(row: CmsAdEventRow, extra?: {
   slotName?: string | null;
   publishChannelName?: string | null;
 }) {
-  return {
-    id: row.id,
-    siteId: row.siteId,
+  return pickEntity(cmsAdEventSchema, row, {
     siteName: extra?.siteName ?? null,
-    adId: row.adId,
     adName: extra?.adName ?? null,
-    slotId: row.slotId,
     slotName: extra?.slotName ?? null,
-    eventType: row.eventType,
-    occurredAt: formatDateTime(row.occurredAt),
-    visitorHash: row.visitorHash,
-    ipHash: row.ipHash,
-    userAgent: row.userAgent ?? null,
-    device: row.device,
-    referrer: row.referrer ?? null,
-    path: row.path ?? null,
-    memberId: row.memberId ?? null,
-  };
+  });
 }
 
 export async function listCmsAdEvents(q: QueryOutputOf<typeof cmsAdContract.events>) {

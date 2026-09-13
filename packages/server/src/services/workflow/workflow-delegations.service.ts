@@ -1,4 +1,4 @@
-import { workflowDelegationContract } from '@zenith/shared/workflow';
+import { workflowDelegationContract, workflowDelegationSchema } from '@zenith/shared/workflow';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { and, desc, eq, isNull, or } from 'drizzle-orm';
 import { db } from '../../db';
@@ -8,12 +8,13 @@ import { currentUser } from '../../lib/context';
 import { isSuperAdmin } from '../../lib/permissions';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import { pageOffset } from '../../lib/pagination';
-import { formatNullableDateTime, formatTimestamps, parseDateTimeInput } from '../../lib/datetime';
+import { parseDateTimeInput } from '../../lib/datetime';
 import { buildListResult } from '../../lib/list-query';
 import { requireRow } from '../../lib/db-assert';
 import type { DbExecutor } from '../../db/types';
 import type { WorkflowDelegation, CreateWorkflowDelegationInput, UpdateWorkflowDelegationInput } from '@zenith/shared/workflow';
 import { buildWhere } from '../../lib/where-helpers';
+import { pickEntity } from '../../lib/entity-map';
 
 type DelegationRow = typeof workflowDelegations.$inferSelect;
 
@@ -28,22 +29,13 @@ export function mapDelegation(
   row: DelegationRow,
   extras: { principalName?: string | null; delegateName?: string | null; definitionName?: string | null } = {},
 ): WorkflowDelegation {
-  return {
-    id: row.id,
-    principalId: row.principalId,
+  return pickEntity(workflowDelegationSchema, row, {
     principalName: extras.principalName ?? null,
-    delegateId: row.delegateId,
     delegateName: extras.delegateName ?? null,
-    definitionId: row.definitionId ?? null,
     definitionName: extras.definitionName ?? null,
     mode: (row.mode ?? 'full') as 'full' | 'suggest',
-    reason: row.reason ?? null,
-    startAt: formatNullableDateTime(row.startAt),
-    endAt: formatNullableDateTime(row.endAt),
-    enabled: row.enabled,
     active: isActive(row),
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 /**

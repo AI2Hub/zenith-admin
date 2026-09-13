@@ -5,28 +5,20 @@
  * - 前台自助：列表 / 未读数 / 标记已读
  */
 import type { QueryOutputOf } from '@zenith/shared/core';
-import { memberSelfContract } from '@zenith/shared/member';
+import { memberSelfContract, memberNotificationSchema } from '@zenith/shared/member';
 import { and, desc, eq, isNull } from 'drizzle-orm';
 import { db } from '../../db';
 import { memberNotifications } from '../../db/schema';
 import type { MemberNotificationRow } from '../../db/schema';
 import type { DbExecutor } from '../../db/types';
-import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { currentMemberId } from '../../lib/member-context';
 import { listRows } from '../../lib/list-query';
 import { requireRow } from '../../lib/db-assert';
 import { buildWhere } from '../../lib/where-helpers';
+import { pickEntity } from '../../lib/entity-map';
 
 export function mapMemberNotification(row: MemberNotificationRow) {
-  return {
-    id: row.id,
-    memberId: row.memberId,
-    type: row.type,
-    title: row.title,
-    content: row.content ?? null,
-    readAt: formatNullableDateTime(row.readAt),
-    createdAt: formatDateTime(row.createdAt),
-  };
+  return pickEntity(memberNotificationSchema, row);
 }
 
 export interface CreateNotificationInput {

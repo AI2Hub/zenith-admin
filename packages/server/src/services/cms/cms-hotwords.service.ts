@@ -7,24 +7,17 @@ import { cmsHotwordGroups, cmsHotwords, cmsSearchLogs } from '../../db/schema';
 import type { CmsHotwordGroupRow } from '../../db/schema';
 import { config } from '../../config';
 import redis from '../../lib/redis';
-import { formatTimestamps } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { buildWhere, dateRangeConditions, keywordCondition } from '../../lib/where-helpers';
-import { cmsSearchContract } from '@zenith/shared/cms';
+import { cmsSearchContract, cmsHotwordGroupSchema } from '@zenith/shared/cms';
 import type { CmsHotKeyword, CreateCmsHotwordGroupInput, CreateCmsHotwordInput, UpdateCmsHotwordGroupInput, UpdateCmsHotwordInput } from '@zenith/shared/cms';
 import { assertSiteAccess, ensureCmsSiteExists } from './cms-sites.service';
+import { pickEntity } from '../../lib/entity-map';
 
 const HOTWORD_PREFIX = `${config.redis.keyPrefix}cms:hotwords:`;
 
 export function mapCmsHotwordGroup(row: CmsHotwordGroupRow) {
-  return {
-    id: row.id,
-    siteId: row.siteId,
-    name: row.name,
-    sort: row.sort,
-    status: row.status,
-    ...formatTimestamps(row),
-  };
+  return pickEntity(cmsHotwordGroupSchema, row);
 }
 
 export async function ensureCmsHotwordGroupExists(id: number): Promise<CmsHotwordGroupRow> {

@@ -1,4 +1,4 @@
-import { iotAlarmRuleContract, iotAlarmContract } from '@zenith/shared/iot';
+import { iotAlarmRuleContract, iotAlarmContract, iotAlarmRuleSchema, iotAlarmSchema } from '@zenith/shared/iot';
 import type { QueryOutputOf } from '@zenith/shared/core';
 /**
  * IoT 告警：规则 CRUD、告警记录与运行时判定。
@@ -23,7 +23,7 @@ import {
   type IotAlarmRow, type IotAlarmRuleRow, type IotDeviceRow,
 } from '../../db/schema';
 import { users } from '../../db/schema/core';
-import { formatDateTime, formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
+import { formatNullableDateTime } from '../../lib/datetime';
 import { requireFirstRow, requireRow } from '../../lib/db-assert';
 import { buildListResult } from '../../lib/list-query';
 import { buildWhere, dateRangeConditions, keywordCondition, withPagination } from '../../lib/where-helpers';
@@ -37,35 +37,19 @@ import { notify } from '../messaging/notification-outbox.service';
 import { dispatchIotForward } from './iot-forward.service';
 import { ensureIotRuleReferencesValid } from './iot-rule-refs';
 import { isDeviceInMaintenance } from './iot-maintenance.service';
+import { pickEntity } from '../../lib/entity-map';
 
 // ─── 规则映射与 CRUD ─────────────────────────────────────────────────────────
 export function mapIotAlarmRule(
   row: IotAlarmRuleRow,
   extra?: { productName?: string | null; deviceName?: string | null },
 ) {
-  return {
-    id: row.id,
-    name: row.name,
-    productId: row.productId,
+  return pickEntity(iotAlarmRuleSchema, row, {
     productName: extra?.productName ?? null,
-    deviceId: row.deviceId ?? null,
     deviceName: extra?.deviceName ?? null,
-    ruleType: row.ruleType,
-    propertyIdentifier: row.propertyIdentifier ?? null,
-    operator: row.operator ?? null,
-    threshold: row.threshold ?? null,
-    consecutiveCount: row.consecutiveCount,
-    offlineMinutes: row.offlineMinutes ?? null,
-    eventIdentifier: row.eventIdentifier ?? null,
-    level: row.level,
     notifyUserIds: row.notifyUserIds ?? [],
-    escalateAfterMinutes: row.escalateAfterMinutes ?? null,
     escalateUserIds: row.escalateUserIds ?? [],
-    status: row.status,
-    createdBy: row.createdBy ?? null,
-    updatedBy: row.updatedBy ?? null,
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 export type ListIotAlarmRulesFilter = Omit<QueryOutputOf<typeof iotAlarmRuleContract.list>, 'page' | 'pageSize'>;
@@ -183,29 +167,12 @@ export function mapIotAlarm(
   row: IotAlarmRow,
   extra?: { deviceName?: string | null; deviceSn?: string | null; acknowledgedByName?: string | null; resolvedByName?: string | null },
 ) {
-  return {
-    id: row.id,
-    ruleId: row.ruleId ?? null,
-    ruleName: row.ruleName,
-    deviceId: row.deviceId,
+  return pickEntity(iotAlarmSchema, row, {
     deviceName: extra?.deviceName ?? null,
     deviceSn: extra?.deviceSn ?? null,
-    ruleType: row.ruleType,
-    level: row.level,
-    status: row.status,
-    message: row.message,
-    context: row.context ?? null,
-    firedAt: formatDateTime(row.firedAt),
-    acknowledgedAt: formatNullableDateTime(row.acknowledgedAt),
-    acknowledgedBy: row.acknowledgedBy ?? null,
     acknowledgedByName: extra?.acknowledgedByName ?? null,
-    escalatedAt: formatNullableDateTime(row.escalatedAt),
-    resolvedAt: formatNullableDateTime(row.resolvedAt),
-    resolvedBy: row.resolvedBy ?? null,
     resolvedByName: extra?.resolvedByName ?? null,
-    resolveNote: row.resolveNote ?? null,
-    createdAt: formatDateTime(row.createdAt),
-  };
+  });
 }
 
 export async function listIotAlarms(q: QueryOutputOf<typeof iotAlarmContract.list>) {

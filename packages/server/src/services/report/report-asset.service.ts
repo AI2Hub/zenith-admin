@@ -7,7 +7,7 @@ import { HTTPException } from 'hono/http-exception';
 import { and, desc, eq, gte, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
-import { createReportDashboardSchema, createReportDatasetSchema, createReportPrintTemplateSchema, reportAssetContract, reportGridItemSchema, reportWidgetSchema } from '@zenith/shared/report';
+import { createReportDashboardSchema, createReportDatasetSchema, createReportPrintTemplateSchema, reportAssetContract, reportGridItemSchema, reportWidgetSchema, reportAssetTemplateSchema, reportDeprecationNoticeSchema, reportAssetUsageLogSchema } from '@zenith/shared/report';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import type { ApplyReportAssetTemplateInput, CreateReportAssetTemplateInput, CreateReportDeprecationNoticeInput, ReportAssetCatalogItem, ReportAssetTemplate, ReportAssetTemplateType, ReportAssetUsageLog, ReportAssetUsageSummary, ReportDeprecationNotice, ReportResourceType, UpdateReportAssetTemplateInput, UpdateReportDeprecationNoticeInput } from '@zenith/shared/report';
 import { db } from '../../db';
@@ -27,7 +27,7 @@ import {
 } from '../../db/schema';
 import { currentUserId } from '../../lib/context';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
-import { formatDateTime, formatNullableDateTime, formatTimestamps, parseDateRangeEnd, parseDateRangeStart, parseDateTimeInput } from '../../lib/datetime';
+import { formatDateTime, formatNullableDateTime, parseDateRangeEnd, parseDateRangeStart, parseDateTimeInput } from '../../lib/datetime';
 import { pageOffset } from '../../lib/pagination';
 import { buildWhere, keywordCondition, withPagination } from '../../lib/where-helpers';
 import { createDashboard, getDashboard, updateDashboardDraft } from './report-dashboard.service';
@@ -44,6 +44,7 @@ import {
   validateReportResourcePlacement,
 } from './report-resource.service';
 import { recordReportAssetUsage } from './report-asset-usage.service';
+import { pickEntity } from '../../lib/entity-map';
 
 type AssetTemplateRow = typeof reportAssetTemplates.$inferSelect;
 type DeprecationRow = typeof reportDeprecationNotices.$inferSelect;
@@ -98,64 +99,18 @@ export function mapReportAssetTemplate(
   ownerName?: string | null,
   folderName?: string | null,
 ): ReportAssetTemplate {
-  return {
-    id: row.id,
-    tenantId: row.tenantId ?? null,
-    folderId: row.folderId ?? null,
+  return pickEntity(reportAssetTemplateSchema, row, {
     folderName: folderName ?? null,
-    ownerId: row.ownerId ?? null,
     ownerName: ownerName ?? null,
-    code: row.code,
-    name: row.name,
-    type: row.type,
-    description: row.description ?? null,
-    content: row.content,
-    previewFileId: row.previewFileId ?? null,
-    version: row.version,
-    usageCount: row.usageCount,
-    status: row.status,
-    createdBy: row.createdBy ?? null,
-    updatedBy: row.updatedBy ?? null,
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 export function mapReportDeprecationNotice(row: DeprecationRow): ReportDeprecationNotice {
-  return {
-    id: row.id,
-    tenantId: row.tenantId ?? null,
-    resourceType: row.resourceType,
-    resourceId: row.resourceId,
-    title: row.title,
-    message: row.message,
-    replacementResourceType: row.replacementResourceType ?? null,
-    replacementResourceId: row.replacementResourceId ?? null,
-    effectiveAt: formatDateTime(row.effectiveAt),
-    expiresAt: formatNullableDateTime(row.expiresAt),
-    publishedAt: formatNullableDateTime(row.publishedAt),
-    publishedBy: row.publishedBy ?? null,
-    processedAt: formatNullableDateTime(row.processedAt),
-    createdBy: row.createdBy ?? null,
-    updatedBy: row.updatedBy ?? null,
-    ...formatTimestamps(row),
-  };
+  return pickEntity(reportDeprecationNoticeSchema, row);
 }
 
 export function mapReportAssetUsageLog(row: UsageRow): ReportAssetUsageLog {
-  return {
-    id: row.id,
-    tenantId: row.tenantId ?? null,
-    resourceType: row.resourceType,
-    resourceId: row.resourceId,
-    userId: row.userId ?? null,
-    action: row.action,
-    scene: row.scene ?? null,
-    durationMs: row.durationMs ?? null,
-    rowCount: row.rowCount,
-    byteSize: row.byteSize,
-    success: row.success,
-    occurredAt: formatDateTime(row.occurredAt),
-  };
+  return pickEntity(reportAssetUsageLogSchema, row);
 }
 
 async function catalogRowsForType(

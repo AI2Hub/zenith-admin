@@ -1,4 +1,4 @@
-import { iotForwardRuleContract } from '@zenith/shared/iot';
+import { iotForwardRuleContract, iotForwardRuleSchema, iotForwardLogSchema } from '@zenith/shared/iot';
 import type { QueryOutputOf } from '@zenith/shared/core';
 /**
  * IoT 数据流转：遥测/事件/告警/生命周期 → HTTP 推送目的地。
@@ -18,7 +18,6 @@ import {
   iotDeviceGroupMembers, iotDeviceGroups, iotForwardLogs, iotForwardRules, iotProducts,
   type IotForwardLogRow, type IotForwardRuleRow,
 } from '../../db/schema';
-import { formatDateTime, formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
 import { requireFirstRow, requireRow } from '../../lib/db-assert';
 import { buildListResult, listRows } from '../../lib/list-query';
 import { buildWhere, keywordCondition, withPagination } from '../../lib/where-helpers';
@@ -28,6 +27,7 @@ import { httpPost } from '../../lib/http-client';
 import { assertSafeOutboundUrl } from '../../lib/outbound-url';
 import logger from '../../lib/logger';
 import { TtlCache } from '../../lib/ttl-cache';
+import { pickEntity } from '../../lib/entity-map';
 
 const FORWARD_TIMEOUT_MS = 10_000;
 
@@ -36,41 +36,18 @@ export function mapIotForwardRule(
   row: IotForwardRuleRow,
   extra?: { productName?: string | null; groupName?: string | null; recentDeliveryCount?: number },
 ) {
-  return {
-    id: row.id,
-    name: row.name,
-    source: row.source,
-    productId: row.productId ?? null,
+  return pickEntity(iotForwardRuleSchema, row, {
     productName: extra?.productName ?? null,
-    groupId: row.groupId ?? null,
     groupName: extra?.groupName ?? null,
-    url: row.url,
     hasSecret: !!row.secret,
-    headers: row.headers ?? null,
-    status: row.status,
-    consecutiveFailures: row.consecutiveFailures,
-    autoDisabledAt: formatNullableDateTime(row.autoDisabledAt),
     recentDeliveryCount: extra?.recentDeliveryCount ?? 0,
-    createdBy: row.createdBy ?? null,
-    updatedBy: row.updatedBy ?? null,
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 export function mapIotForwardLog(row: IotForwardLogRow) {
-  return {
-    id: row.id,
-    ruleId: row.ruleId,
-    ruleName: row.ruleName,
-    source: row.source,
-    deviceId: row.deviceId ?? null,
+  return pickEntity(iotForwardLogSchema, row, {
     payload: row.payload ?? {},
-    status: row.status,
-    responseStatus: row.responseStatus ?? null,
-    errorMessage: row.errorMessage ?? null,
-    durationMs: row.durationMs ?? null,
-    createdAt: formatDateTime(row.createdAt),
-  };
+  });
 }
 
 export type ListIotForwardRulesFilter = Omit<QueryOutputOf<typeof iotForwardRuleContract.list>, 'page' | 'pageSize'>;

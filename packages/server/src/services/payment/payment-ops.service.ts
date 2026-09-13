@@ -1,4 +1,4 @@
-import { paymentOpsContract } from '@zenith/shared/payment';
+import { paymentOpsContract, paymentOutboxEventSchema } from '@zenith/shared/payment';
 import type { QueryOutputOf } from '@zenith/shared/core';
 /**
  * 支付运营排障 Service。
@@ -14,24 +14,15 @@ import { requireRow } from '../../lib/db-assert';
 import { currentUser } from '../../lib/context';
 import { tenantCondition } from '../../lib/tenant';
 import { buildWhere, keywordCondition } from '../../lib/where-helpers';
-import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
+import { formatDateTime } from '../../lib/datetime';
 import { buildSandboxNotifyRequest } from '../../lib/payment/sandbox-notify';
 import { processEvent } from './payment-outbox.service';
 import { buildAdapterContext, handleNotify, mapOrder, loadOrderConfig } from './payment.service';
 import type { PaymentOrder, PaymentOutboxEvent } from '@zenith/shared/payment';
+import { pickEntity } from '../../lib/entity-map';
 
 export function mapOutboxEvent(row: PaymentEventRow): PaymentOutboxEvent {
-  return {
-    id: row.id,
-    type: row.type,
-    orderNo: row.orderNo,
-    status: row.status,
-    attempts: row.attempts,
-    payload: row.payload ?? null,
-    lastError: row.lastError ?? null,
-    createdAt: formatDateTime(row.createdAt),
-    processedAt: formatNullableDateTime(row.processedAt),
-  };
+  return pickEntity(paymentOutboxEventSchema, row);
 }
 
 export interface PaymentHealth {

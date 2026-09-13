@@ -22,12 +22,13 @@ import { requireRow } from '../../lib/db-assert';
 import { currentUser, currentUserOrNull } from '../../lib/context';
 import { tenantCondition, exactTenantCondition } from '../../lib/tenant';
 import { buildWhere, dateRangeConditions, keywordCondition } from '../../lib/where-helpers';
-import { formatDateTime, formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
+import { formatNullableDateTime } from '../../lib/datetime';
 import { refund } from './payment.service';
 import { decide } from '../platform/rules-runtime.service';
 import logger from '../../lib/logger';
-import type { PaymentChannel, PaymentDispute, PaymentDisputeDetail, PaymentDisputeReply, PaymentDisputeStats, PaymentDisputeStatus, PaymentDisputeType, RefundPaymentDisputeInput } from '@zenith/shared/payment';
+import { paymentDisputeSchema, paymentDisputeReplySchema, type PaymentChannel, type PaymentDispute, type PaymentDisputeDetail, type PaymentDisputeReply, type PaymentDisputeStats, type PaymentDisputeStatus, type PaymentDisputeType, type RefundPaymentDisputeInput } from '@zenith/shared/payment';
 import { PAYMENT_DISPUTE_ROUTE_LABELS, paymentDisputeContract } from '@zenith/shared/payment';
+import { pickEntity } from '../../lib/entity-map';
 
 const OPEN_STATUSES: PaymentDisputeStatus[] = ['pending', 'processing'];
 /** 模拟拉单：保持未完结工单不超过该数量，避免演示环境刷屏 */
@@ -40,37 +41,15 @@ function isOverdue(row: PaymentDisputeRow): boolean {
 }
 
 export function mapDispute(row: PaymentDisputeRow): PaymentDispute {
-  return {
-    id: row.id,
-    disputeNo: row.disputeNo,
-    channelDisputeNo: row.channelDisputeNo ?? null,
-    channel: row.channel,
-    orderNo: row.orderNo,
-    complainant: row.complainant ?? null,
-    complainantPhone: row.complainantPhone ?? null,
-    type: row.type,
-    content: row.content,
-    amount: row.amount,
-    status: row.status,
-    route: row.route ?? null,
-    priority: row.priority ?? null,
-    slaHours: row.slaHours ?? null,
-    deadline: formatNullableDateTime(row.deadline),
+  return pickEntity(paymentDisputeSchema, row, {
     overdue: isOverdue(row),
-    refundNo: row.refundNo ?? null,
-    resolvedAt: formatNullableDateTime(row.resolvedAt),
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 export function mapReply(row: PaymentDisputeReplyRow & { operator?: { nickname: string | null } | null }): PaymentDisputeReply {
-  return {
-    id: row.id,
-    author: row.author,
-    content: row.content,
+  return pickEntity(paymentDisputeReplySchema, row, {
     operatorName: row.operator?.nickname ?? null,
-    createdAt: formatDateTime(row.createdAt),
-  };
+  });
 }
 
 // ─── 查询 ─────────────────────────────────────────────────────────────────────

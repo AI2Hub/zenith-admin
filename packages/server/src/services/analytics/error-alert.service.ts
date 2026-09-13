@@ -4,7 +4,7 @@ import { requireFirstRow } from '../../lib/db-assert';
 import { db } from '../../db';
 import { errorAlertRules, errorAlertLogs, errorEvents, errorGroups } from '../../db/schema';
 import type { ErrorAlertRuleRow, ErrorAlertLogRow } from '../../db/schema';
-import { frontendErrorContract } from '@zenith/shared/analytics';
+import { frontendErrorContract, errorAlertLogSchema } from '@zenith/shared/analytics';
 import type { CreateErrorAlertRuleInput, UpdateErrorAlertRuleInput, FrontendErrorType, ErrorLevel } from '@zenith/shared/analytics';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { buildWhere, nullableEq } from '../../lib/where-helpers';
@@ -12,6 +12,7 @@ import { formatDateTime, formatNullableDateTime, formatTimestamps } from '../../
 import { validateAlertDelivery } from '../../lib/alert-validation';
 import { dispatchAlertChannels } from '../../lib/alert-dispatch';
 import type { PaginationQuery, QueryOutputOf } from '@zenith/shared/core';
+import { pickEntity } from '../../lib/entity-map';
 
 export function mapRule(row: ErrorAlertRuleRow) {
   return {
@@ -264,16 +265,9 @@ export async function testAlertRule(id: number): Promise<void> {
 
 // ─── 告警触发历史 ─────────────────────────────────────────────────────────────
 export function mapAlertLog(row: ErrorAlertLogRow) {
-  return {
-    id: row.id,
-    ruleId: row.ruleId,
-    ruleName: row.ruleName,
-    condition: row.condition,
-    detail: row.detail,
+  return pickEntity(errorAlertLogSchema, row, {
     channels: row.channels ?? [],
-    source: row.source,
-    createdAt: formatDateTime(row.createdAt),
-  };
+  });
 }
 
 export async function listAlertLogs(q: QueryOutputOf<typeof frontendErrorContract.alertLogs>) {

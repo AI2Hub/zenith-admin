@@ -5,15 +5,15 @@ import { eq, asc } from 'drizzle-orm';
 import { db } from '../../db';
 import { cmsLinkWords } from '../../db/schema';
 import type { CmsLinkWordRow } from '../../db/schema';
-import { formatTimestamps } from '../../lib/datetime';
 import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { assertSiteAccess } from './cms-sites.service';
-import type { CreateCmsLinkWordInput, UpdateCmsLinkWordInput } from '@zenith/shared/cms';
+import { cmsLinkWordSchema, type CreateCmsLinkWordInput, type UpdateCmsLinkWordInput } from '@zenith/shared/cms';
 import { isValidCmsLink, cmsSeoContract } from '@zenith/shared/cms';
 import { escapeRegExp } from '@zenith/shared/core';
 import type { CmsLinkResolver } from './cms-link.service';
 import { refreshCmsPublicConfiguration } from './cms-public-config-refresh.service';
+import { pickEntity } from '../../lib/entity-map';
 
 // ─── 渲染缓存 ─────────────────────────────────────────────────────────────────
 let wordCache: { bySite: Map<number, CmsLinkWordRow[]>; loadedAt: number } | null = null;
@@ -86,15 +86,7 @@ export function applyLinkWords(html: string, words: Pick<CmsLinkWordRow, 'keywor
 
 // ─── 数据映射 / CRUD ──────────────────────────────────────────────────────────
 export function mapCmsLinkWord(row: CmsLinkWordRow) {
-  return {
-    id: row.id,
-    siteId: row.siteId,
-    keyword: row.keyword,
-    url: row.url,
-    maxReplaces: row.maxReplaces,
-    status: row.status,
-    ...formatTimestamps(row),
-  };
+  return pickEntity(cmsLinkWordSchema, row);
 }
 
 export async function ensureCmsLinkWordExists(id: number): Promise<CmsLinkWordRow> {

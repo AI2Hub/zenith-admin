@@ -10,7 +10,7 @@ import {
   sql,
   } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import { createCmsInteractionSchema, CMS_INTERACTION_CHOICE_QUESTION_TYPES, CMS_INTERACTION_MATRIX_SEPARATOR, CMS_INTERACTION_NPS_MAX, CMS_INTERACTION_OTHER_PREFIX, CMS_INTERACTION_OTHER_VALUE, cmsInteractionContract } from '@zenith/shared/cms';
+import { createCmsInteractionSchema, CMS_INTERACTION_CHOICE_QUESTION_TYPES, CMS_INTERACTION_MATRIX_SEPARATOR, CMS_INTERACTION_NPS_MAX, CMS_INTERACTION_OTHER_PREFIX, CMS_INTERACTION_OTHER_VALUE, cmsInteractionContract, cmsInteractionSchema } from '@zenith/shared/cms';
 import type { CmsInteractionPublicStats, CreateCmsInteractionInput, SubmitCmsInteractionInput, UpdateCmsInteractionInput } from '@zenith/shared/cms';
 import { db } from '../../db';
 import {
@@ -25,7 +25,7 @@ import type {
   CmsInteractionRow,
 } from '../../db/schema';
 import type { DbExecutor } from '../../db/types';
-import { formatNullableDateTime, formatTimestamps, parseDateTimeInput } from '../../lib/datetime';
+import { formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { assertSiteAccess, ensureCmsSiteExists } from './cms-sites.service';
@@ -40,6 +40,7 @@ import { hashCmsRequestKey, hashCmsVisitor, hashCmsIp } from './cms-visitor';
 import { ensureCmsInteractionExists, isOtherAnswer, repeatKeyFor } from './cms-interactions-shared';
 import { getCmsInteractionStatsInternal, toCmsInteractionPublicStats } from './cms-interactions-stats.service';
 import { canExposeCmsInteractionResults } from './cms-interactions-responses.service';
+import { pickEntity } from '../../lib/entity-map';
 
 /** 与 schema 中 `cms_interactions.code` / `.title` 的列长度保持一致 */
 const CMS_INTERACTION_CODE_MAX = 50;
@@ -67,29 +68,10 @@ export function mapCmsInteractionQuestion(row: CmsInteractionQuestionRow) {
 }
 
 export function mapCmsInteraction(row: CmsInteractionRow, questions?: CmsInteractionQuestionRow[]) {
-  return {
-    id: row.id,
-    siteId: row.siteId,
-    code: row.code,
-    kind: row.kind,
-    title: row.title,
-    description: row.description ?? null,
-    status: row.status,
-    participantScope: row.participantScope,
-    repeatPolicy: row.repeatPolicy,
-    resultVisibility: row.resultVisibility,
-    captchaPolicy: row.captchaPolicy,
-    turnstileSiteKey: row.turnstileSiteKey ?? null,
+  return pickEntity(cmsInteractionSchema, row, {
     turnstileSecretConfigured: !!row.turnstileSecret,
-    thankYouMessage: row.thankYouMessage,
-    startAt: formatNullableDateTime(row.startAt),
-    endAt: formatNullableDateTime(row.endAt),
-    responseCount: row.responseCount,
-    ...(questions
-      ? { questions: [...questions].sort((a, b) => a.sort - b.sort || a.id - b.id).map(mapCmsInteractionQuestion) }
-      : {}),
-    ...formatTimestamps(row),
-  };
+    ...(questions ? { questions: [...questions].sort((a, b) => a.sort - b.sort || a.id - b.id).map(mapCmsInteractionQuestion) } : {}),
+  });
 }
 
 export async function listCmsInteractions(q: QueryOutputOf<typeof cmsInteractionContract.list>) {

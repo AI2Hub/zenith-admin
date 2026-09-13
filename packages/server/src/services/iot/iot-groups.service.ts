@@ -1,4 +1,4 @@
-import { iotDeviceGroupContract } from '@zenith/shared/iot';
+import { iotDeviceGroupContract, iotDeviceGroupSchema } from '@zenith/shared/iot';
 import type { QueryOutputOf } from '@zenith/shared/core';
 /**
  * IoT 设备分组：静态分组 CRUD 与成员维护（批量操作的圈选目标）。
@@ -9,24 +9,18 @@ import type { CreateIotDeviceGroupInput, UpdateIotDeviceGroupInput } from '@zeni
 import { db } from '../../db';
 import type { DbExecutor } from '../../db/types';
 import { iotDeviceGroupMembers, iotDeviceGroups, iotDevices, type IotDeviceGroupRow } from '../../db/schema';
-import { formatTimestamps } from '../../lib/datetime';
 import { requireFirstRow, requireRow } from '../../lib/db-assert';
 import { buildListResult } from '../../lib/list-query';
 import { buildWhere, keywordCondition, withPagination } from '../../lib/where-helpers';
 import { currentUser } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
+import { pickEntity } from '../../lib/entity-map';
 
 export function mapIotDeviceGroup(row: IotDeviceGroupRow, extra?: { deviceCount?: number; deviceIds?: number[] }) {
-  return {
-    id: row.id,
-    name: row.name,
-    description: row.description ?? null,
+  return pickEntity(iotDeviceGroupSchema, row, {
     deviceCount: extra?.deviceCount ?? 0,
     deviceIds: extra?.deviceIds ?? [],
-    createdBy: row.createdBy ?? null,
-    updatedBy: row.updatedBy ?? null,
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 export type ListIotDeviceGroupsFilter = Omit<QueryOutputOf<typeof iotDeviceGroupContract.list>, 'page' | 'pageSize'>;

@@ -1,4 +1,4 @@
-import { iotProductContract, iotDeviceContract } from '@zenith/shared/iot';
+import { iotProductContract, iotDeviceContract, iotProductSchema, iotDeviceSchema } from '@zenith/shared/iot';
 import type { QueryOutputOf } from '@zenith/shared/core';
 /**
  * IoT 产品 / 设备管理 CRUD。
@@ -16,7 +16,6 @@ import {
   iotProductProperties, iotProducts, iotProductServices,
   type IotDeviceRow, type IotDeviceStateRow, type IotProductRow,
 } from '../../db/schema';
-import { formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
 import { requireFirstRow, requireRow } from '../../lib/db-assert';
 import { buildListResult } from '../../lib/list-query';
 import { buildWhere, dateRangeConditions, keywordCondition, withPagination } from '../../lib/where-helpers';
@@ -27,6 +26,7 @@ import { clearOnlineKeys, generateDeviceSecret, generateDeviceSn, getOnlineMap, 
 import { recordIotLifecycleEvent } from './iot-events.service';
 import { invalidateThingModelCache } from './iot-model.service';
 import { ensureIotTopologyValid } from './iot-topology.service';
+import { pickEntity } from '../../lib/entity-map';
 
 /** 批量读取影子（设备列表快照列） */
 async function loadIotStates(deviceIds: number[]): Promise<Map<number, IotDeviceStateRow>> {
@@ -41,21 +41,13 @@ export function mapIotProduct(
   row: IotProductRow,
   extra?: { deviceCount?: number; propertyCount?: number; serviceCount?: number; eventCount?: number },
 ) {
-  return {
-    id: row.id,
-    name: row.name,
-    description: row.description ?? null,
-    validationMode: row.validationMode,
-    status: row.status,
+  return pickEntity(iotProductSchema, row, {
     registrationEnabled: Boolean(row.registrationSecret),
     deviceCount: extra?.deviceCount ?? 0,
     propertyCount: extra?.propertyCount ?? 0,
     serviceCount: extra?.serviceCount ?? 0,
     eventCount: extra?.eventCount ?? 0,
-    createdBy: row.createdBy ?? null,
-    updatedBy: row.updatedBy ?? null,
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 export type ListIotProductsFilter = Omit<QueryOutputOf<typeof iotProductContract.list>, 'page' | 'pageSize'>;
@@ -181,34 +173,16 @@ export function mapIotDevice(
     groupNames?: string[];
   },
 ) {
-  return {
-    id: row.id,
-    sn: row.sn,
-    secret: row.secret,
-    productId: row.productId,
+  return pickEntity(iotDeviceSchema, row, {
     productName: extra?.productName ?? null,
-    name: row.name,
-    status: row.status,
-    nodeType: row.nodeType,
-    gatewayId: row.gatewayId ?? null,
     gatewayName: extra?.gatewayName ?? null,
     subDeviceCount: extra?.subDeviceCount ?? 0,
-    latitude: row.latitude ?? null,
-    longitude: row.longitude ?? null,
-    address: row.address ?? null,
     online: extra?.online ?? false,
-    firmwareVersion: row.firmwareVersion ?? null,
-    activatedAt: formatNullableDateTime(row.activatedAt),
-    lastSeenAt: formatNullableDateTime(row.lastSeenAt),
     reported: extra?.state?.reported ?? null,
     desired: extra?.state?.desired ?? null,
     groupIds: extra?.groupIds ?? [],
     groupNames: extra?.groupNames ?? [],
-    remark: row.remark ?? null,
-    createdBy: row.createdBy ?? null,
-    updatedBy: row.updatedBy ?? null,
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 export type ListIotDevicesFilter = Omit<QueryOutputOf<typeof iotDeviceContract.list>, 'page' | 'pageSize'>;

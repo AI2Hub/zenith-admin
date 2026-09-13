@@ -4,7 +4,7 @@ import {
   and, desc, eq, gt, inArray, isNull, or, sql,
 } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import { CMS_WIDGET_HIGH_FANOUT_THRESHOLD, CMS_WIDGET_RENDERER_KEYS, cmsWidgetDataSchema } from '@zenith/shared/cms';
+import { CMS_WIDGET_HIGH_FANOUT_THRESHOLD, CMS_WIDGET_RENDERER_KEYS, cmsWidgetDataSchema, cmsWidgetSchema } from '@zenith/shared/cms';
 import type { CmsPageBlock, CmsResolvedWidget, CmsResolvedWidgetItem, CmsWidgetData, CmsWidgetRefOwnerType, CmsWidgetRendererKey, CmsWidgetSlot, CmsWidgetSourceType, CreateCmsWidgetInput, UpdateCmsWidgetInput } from '@zenith/shared/cms';
 import type { SaveCmsWidgetSlotInput } from '@zenith/shared/report';
 import { db } from '../../db';
@@ -41,6 +41,7 @@ import { channelUrl, contentUrl } from './cms-urls';
 import { cmsContentListColumns, listSummaryOf } from './cms-content-columns';
 import { refreshCmsPublicConfiguration } from './cms-public-config-refresh.service';
 import { getEffectivelyEnabledCmsChannelIds, resolveEffectivelyEnabledChannelIds } from './cms-channel-visibility.service';
+import { pickEntity } from '../../lib/entity-map';
 
 const WIDGET_SCHEMA_VERSION = 1;
 const rendererKeys = new Set<string>(CMS_WIDGET_RENDERER_KEYS);
@@ -70,29 +71,13 @@ export function mapCmsWidget(
   row: CmsWidgetRow,
   stats: CmsWidgetReferenceStats = { referenceCount: 0, impactCount: 0 },
 ) {
-  return {
-    id: row.id,
-    siteId: row.siteId,
-    name: row.name,
-    code: row.code,
-    type: row.type,
-    schemaVersion: row.schemaVersion,
-    draftData: row.draftData,
-    publishedData: row.publishedData ?? null,
-    publishedName: row.publishedName ?? null,
-    draftRevision: row.draftRevision,
-    publishedRevision: row.publishedRevision,
-    status: row.status,
+  return pickEntity(cmsWidgetSchema, row, {
     defaultRendererKey: rendererKey(row.defaultRendererKey),
-    remark: row.remark ?? null,
     referenceCount: stats.referenceCount,
     impactCount: stats.impactCount,
     highFanout: stats.impactCount >= CMS_WIDGET_HIGH_FANOUT_THRESHOLD,
     hasUnpublishedChanges: row.draftRevision !== row.publishedRevision,
-    createdBy: row.createdBy ?? null,
-    updatedBy: row.updatedBy ?? null,
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 async function referenceStats(widgetIds: number[]): Promise<Map<number, CmsWidgetReferenceStats>> {

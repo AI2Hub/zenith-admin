@@ -4,14 +4,14 @@ import { createHash } from 'node:crypto';
 import dayjs from 'dayjs';
 import { HTTPException } from 'hono/http-exception';
 import { and, asc, desc, eq, gt, inArray, isNull, lt, max, or } from 'drizzle-orm';
-import { reportMaterializationContract } from '@zenith/shared/report';
+import { reportMaterializationContract, reportMaterializationSnapshotSchema } from '@zenith/shared/report';
 import type { ReportDataResult, ReportMaterializationSnapshot, ReportMaterializationStrategy, ReportResultField } from '@zenith/shared/report';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { config } from '../../config';
 import { db } from '../../db';
 import { reportDatasets, reportMaterializationSnapshots } from '../../db/schema';
 import { currentUserId } from '../../lib/context';
-import { formatFileTimestamp, formatNullableDateTime, formatTimestamps, parseDateTimeInput } from '../../lib/datetime';
+import { formatFileTimestamp, parseDateTimeInput } from '../../lib/datetime';
 import logger from '../../lib/logger';
 import redis from '../../lib/redis';
 import {
@@ -21,6 +21,7 @@ import {
 } from '../files/files.service';
 import { reportScopedWhere } from './report-access';
 import { ensureReportResourceAccess } from './report-resource-acl.service';
+import { pickEntity } from '../../lib/entity-map';
 
 const INLINE_SNAPSHOT_MAX_BYTES = 256 * 1024;
 const SNAPSHOT_MAX_BYTES = 32 * 1024 * 1024;
@@ -83,27 +84,7 @@ function parseSnapshotData(value: unknown): ReportDataResult {
 }
 
 export function mapReportMaterializationSnapshot(row: SnapshotRow): ReportMaterializationSnapshot {
-  return {
-    id: row.id,
-    tenantId: row.tenantId ?? null,
-    datasetId: row.datasetId,
-    strategy: row.strategy,
-    status: row.status,
-    revision: row.revision,
-    keyField: row.keyField ?? null,
-    watermark: row.watermark ?? null,
-    deltaWindowMinutes: row.deltaWindowMinutes ?? null,
-    fileId: row.fileId ?? null,
-    rowCount: row.rowCount,
-    byteSize: row.byteSize,
-    checksum: row.checksum ?? null,
-    startedAt: formatNullableDateTime(row.startedAt),
-    completedAt: formatNullableDateTime(row.completedAt),
-    expiresAt: formatNullableDateTime(row.expiresAt),
-    errorMessage: row.errorMessage ?? null,
-    createdBy: row.createdBy ?? null,
-    ...formatTimestamps(row),
-  };
+  return pickEntity(reportMaterializationSnapshotSchema, row);
 }
 
 function keyToken(value: unknown): string {

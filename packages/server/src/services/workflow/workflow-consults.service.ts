@@ -1,4 +1,4 @@
-import { workflowTaskContract } from '@zenith/shared/workflow';
+import { workflowTaskContract, workflowTaskConsultSchema } from '@zenith/shared/workflow';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { and, asc, desc, eq } from 'drizzle-orm';
 import { db } from '../../db';
@@ -6,7 +6,6 @@ import { workflowTaskConsults, workflowTasks, workflowInstances } from '../../db
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../lib/context';
 import { tenantCondition } from '../../lib/tenant';
-import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { buildListResult } from '../../lib/list-query';
 import { requireRow } from '../../lib/db-assert';
 import logger from '../../lib/logger';
@@ -14,6 +13,7 @@ import type { WorkflowTaskConsult, CreateWorkflowConsultInput, ReplyWorkflowCons
 import { notify } from '../messaging/notification-outbox.service';
 import { loadWorkflowUserDisplays } from './workflow-user-helpers';
 import { buildWhere, withPagination } from '../../lib/where-helpers';
+import { pickEntity } from '../../lib/entity-map';
 
 type ConsultRow = typeof workflowTaskConsults.$inferSelect;
 
@@ -21,22 +21,12 @@ export function mapConsult(
   row: ConsultRow,
   extras: { nodeName?: string | null; inviterName?: string | null; consulteeName?: string | null; consulteeAvatar?: string | null } = {},
 ): WorkflowTaskConsult {
-  return {
-    id: row.id,
-    taskId: row.taskId,
-    instanceId: row.instanceId,
+  return pickEntity(workflowTaskConsultSchema, row, {
     nodeName: extras.nodeName ?? null,
-    inviterId: row.inviterId,
     inviterName: extras.inviterName ?? null,
-    consulteeId: row.consulteeId,
     consulteeName: extras.consulteeName ?? null,
     consulteeAvatar: extras.consulteeAvatar ?? null,
-    question: row.question ?? null,
-    opinion: row.opinion ?? null,
-    status: row.status,
-    repliedAt: formatNullableDateTime(row.repliedAt),
-    createdAt: formatDateTime(row.createdAt),
-  };
+  });
 }
 
 /** 详情场景：加载实例的协办记录（调用方已完成访问控制） */

@@ -5,7 +5,8 @@ import { eq, asc, desc, and, or, inArray, notInArray, isNull, isNotNull, ne, lt,
 import { db } from '../../db';
 import { cmsContents, cmsContentTags, cmsContentChannels, cmsContentRelations } from '../../db/schema';
 import type { CmsContentRow, CmsTagRow } from '../../db/schema';
-import { formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
+import { formatTimestamps } from '../../lib/datetime';
+import { pickEntity } from '../../lib/entity-map';
 import { buildWhere, dateRangeConditions, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { config } from '../../config';
 import redis from '../../lib/redis';
@@ -13,7 +14,7 @@ import { getAccessibleChannelIds, assertChannelAccess } from './cms-channels.ser
 import { assertSiteAccess, ensureCmsSiteExists } from './cms-sites.service';
 import { getDataScopeCondition } from '../../lib/data-scope';
 import { currentUserOrNull } from '../../lib/context';
-import { CMS_PREVIEW_PREFIX, cmsContentContract } from '@zenith/shared/cms';
+import { CMS_PREVIEW_PREFIX, cmsContentContract, cmsContentSchema } from '@zenith/shared/cms';
 import { pageOffset } from '../../lib/pagination';
 import { resolveCmsContentRow, resolveCmsContentRows } from './cms-resource-refs.service';
 import { buildCmsContentUrls } from './cms-urls';
@@ -58,80 +59,25 @@ export function mapCmsContent(row: CmsContentMapRow, extra?: {
   canonicalUrl?: string | null;
   previewUrl?: string | null;
 }) {
-  return {
-    id: row.id,
-    siteId: row.siteId,
-    channelId: row.channelId,
+  return pickEntity(cmsContentSchema, row, {
     channelName: extra?.channelName ?? null,
-    modelId: row.modelId ?? null,
-    contentType: row.contentType,
     mediaData: row.mediaData ?? {},
-    title: row.title,
     titleStyle: row.titleStyle ?? {},
-    subTitle: row.subTitle ?? null,
-    shortTitle: row.shortTitle ?? null,
-    slug: row.slug ?? null,
-    summary: row.summary ?? null,
-    coverImage: row.coverImage ?? null,
-    coverThumb: row.coverThumb ?? null,
-    author: row.author ?? null,
-    editor: row.editor ?? null,
-    source: row.source ?? null,
-    sourceUrl: row.sourceUrl ?? null,
-    isOriginal: row.isOriginal,
-    body: row.body ?? null,
     attachments: row.attachments ?? [],
     extend: row.extend ?? {},
-    externalLink: row.externalLink ?? null,
-    detailTemplate: row.detailTemplate ?? null,
-    staticPath: row.staticPath ?? null,
     canonicalUrl: extra?.canonicalUrl ?? null,
     previewUrl: extra?.previewUrl ?? null,
-    isTop: row.isTop,
-    topWeight: row.topWeight,
-    topExpireAt: formatNullableDateTime(row.topExpireAt),
-    isRecommend: row.isRecommend,
-    isHot: row.isHot,
-    hasImage: row.hasImage,
-    hasVideo: row.hasVideo,
-    hasAttachment: row.hasAttachment,
-    status: row.status,
-    rejectReason: row.rejectReason ?? null,
-    publishedAt: formatNullableDateTime(row.publishedAt),
-    scheduledAt: formatNullableDateTime(row.scheduledAt),
-    expireAt: formatNullableDateTime(row.expireAt),
-    viewCount: row.viewCount,
-    likeCount: row.likeCount,
-    favoriteCount: row.favoriteCount,
-    version: row.version,
-    sort: row.sort,
-    seoTitle: row.seoTitle ?? null,
-    seoKeywords: row.seoKeywords ?? null,
-    seoDescription: row.seoDescription ?? null,
-    socialImageAlt: row.socialImageAlt ?? null,
-    twitterCreator: row.twitterCreator ?? null,
-    memberId: row.memberId ?? null,
-    archivedAt: formatNullableDateTime(row.archivedAt),
-    mappingSourceId: row.mappingSourceId ?? null,
     mappingSourceTitle: extra?.mappingSourceTitle ?? null,
-    distributionRuleId: row.distributionRuleId ?? null,
-    distributionSourceId: row.distributionSourceId ?? null,
-    distributionSourceVersion: row.distributionSourceVersion ?? null,
-    lockedAt: formatNullableDateTime(row.lockedAt),
-    lockedBy: row.lockedBy ?? null,
     lockedByName: extra?.lockedByName ?? null,
-    lockReason: row.lockReason ?? null,
-    ...(extra?.tags ? {
-      tags: extra.tags.map((t) => ({
-        id: t.id, siteId: t.siteId, name: t.name, slug: t.slug, groupName: t.groupName ?? null, contentCount: t.contentCount,
-        ...formatTimestamps(t),
-      })),
-      tagIds: extra.tags.map((t) => t.id),
-    } : {}),
+    coverThumb: row.coverThumb ?? null,
+    ...(extra?.tags ? { tags: extra.tags.map(mapCmsTagBrief), tagIds: extra.tags.map((t) => t.id) } : {}),
     ...(extra?.extraChannelIds ? { extraChannelIds: extra.extraChannelIds } : {}),
     ...(extra?.relatedIds ? { relatedIds: extra.relatedIds } : {}),
-    ...formatTimestamps(row),
-  };
+  });
+}
+
+function mapCmsTagBrief(t: CmsTagRow) {
+  return { id: t.id, siteId: t.siteId, name: t.name, slug: t.slug, groupName: t.groupName ?? null, contentCount: t.contentCount, ...formatTimestamps(t) };
 }
 
 // ─── 前置校验 ─────────────────────────────────────────────────────────────────

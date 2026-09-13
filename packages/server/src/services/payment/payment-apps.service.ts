@@ -1,4 +1,4 @@
-import { paymentAppContract } from '@zenith/shared/payment';
+import { paymentAppContract, paymentAppSchema } from '@zenith/shared/payment';
 import type { QueryOutputOf } from '@zenith/shared/core';
 /** 支付应用：开放平台客户端的一对一支付路由画像。 */
 import { and, desc, eq } from 'drizzle-orm';
@@ -11,9 +11,9 @@ import { currentUser } from '../../lib/context';
 import { requireTenantScopeId, tenantCondition, exactTenantCondition } from '../../lib/tenant';
 import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
-import { formatTimestamps } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import type { CreatePaymentAppInput, UpdatePaymentAppInput, PaymentApp, PaymentChannel } from '@zenith/shared/payment';
+import { pickEntity } from '../../lib/entity-map';
 
 type AppWithConfigs = PaymentAppRow & {
   openClient?: { clientId: string; name: string; environment: 'production' | 'sandbox' } | null;
@@ -30,23 +30,14 @@ const APP_RELATIONS = {
 } as const;
 
 export function mapApp(row: AppWithConfigs): PaymentApp {
-  return {
-    id: row.id,
-    name: row.name,
-    openClientId: row.openClientId,
+  return pickEntity(paymentAppSchema, row, {
     openClientKey: row.openClient?.clientId ?? '',
     openClientName: row.openClient?.name ?? '',
     environment: row.openClient?.environment ?? 'sandbox',
-    status: row.status,
-    wechatConfigId: row.wechatConfigId ?? null,
     wechatConfigName: row.wechatConfig?.name ?? null,
-    alipayConfigId: row.alipayConfigId ?? null,
     alipayConfigName: row.alipayConfig?.name ?? null,
-    unionpayConfigId: row.unionpayConfigId ?? null,
     unionpayConfigName: row.unionpayConfig?.name ?? null,
-    remark: row.remark ?? null,
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 export async function listApps(q: QueryOutputOf<typeof paymentAppContract.list>) {

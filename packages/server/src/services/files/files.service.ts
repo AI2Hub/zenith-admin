@@ -1,4 +1,4 @@
-import { fileContract } from '@zenith/shared/platform';
+import { fileContract, managedFileSchema } from '@zenith/shared/platform';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { buildListResult } from '../../lib/list-query';
 import { requireRow } from '../../lib/db-assert';
@@ -6,28 +6,15 @@ import { managedFiles, fileStorageConfigs } from '../../db/schema';
 import type { FileStorageConfigRow } from '../../db/schema';
 import type { FileVisibility } from '@zenith/shared/platform';
 import { buildManagedFileProxyUrl, buildPublicFileUrl, deleteStoredFile, readStoredFile, resolveFileAccessUrl, resolveObjectAcl, uploadFileByConfig } from '../../lib/file-storage';
-import { formatDateTime, formatTimestamps } from '../../lib/datetime';
+import { formatDateTime } from '../../lib/datetime';
 import { getSettings } from '../../lib/settings';
 import type { FilesSettings } from '@zenith/shared/settings';
 
 export function mapManagedFile(row: typeof managedFiles.$inferSelect, config?: FileStorageConfigRow) {
-  return {
-    id: row.id,
-    storageConfigId: row.storageConfigId,
-    storageName: row.storageName,
-    provider: row.provider,
-    originalName: row.originalName,
-    objectKey: row.objectKey,
-    size: row.size,
-    mimeType: row.mimeType ?? null,
-    extension: row.extension ?? null,
-    visibility: row.visibility,
-    contentHash: row.contentHash ?? null,
-    // url 为稳定代理路径（合同：可持久化、永不失效）；directUrl 为 public 策略的永久直链（仅渲染用，禁止持久化）
+  return pickEntity(managedFileSchema, row, {
     url: buildManagedFileProxyUrl(row.id),
     directUrl: buildPublicFileUrl(row, config),
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 /** 归属模块上传时的附加属性：受控可见性与内容哈希 */
@@ -53,6 +40,7 @@ import { currentUser } from '../../lib/context';
 import { runAsUser } from '../../lib/audit-context';
 import { attachmentDisposition } from '../../lib/content-disposition';
 import { resolveUserNames } from '../../lib/user-nicknames';
+import { pickEntity } from '../../lib/entity-map';
 
 /** 全量存储配置 id→row 映射（配置表行数极少），供列表映射直链使用 */
 export async function getStorageConfigMap(): Promise<Map<number, FileStorageConfigRow>> {

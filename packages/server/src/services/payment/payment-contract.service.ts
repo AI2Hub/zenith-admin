@@ -24,7 +24,6 @@ import { requireRow } from '../../lib/db-assert';
 import { currentUser, currentUserOrNull } from '../../lib/context';
 import { requireTenantScopeId, tenantCondition, exactTenantCondition } from '../../lib/tenant';
 import { buildWhere, dateRangeConditions, keywordCondition, withPagination } from '../../lib/where-helpers';
-import { formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
 import { isPgUniqueViolation } from '../../lib/db-errors';
 import { getAdapter } from '../../lib/payment';
 import { paymentEventBus } from '../../lib/payment-event-bus';
@@ -35,8 +34,9 @@ import { resolveApplicationChannelConfig } from './payment-apps.service';
 import { assertEffectivePaymentOperation } from './payment-capability-evaluator';
 import { pageOffset } from '../../lib/pagination';
 import logger from '../../lib/logger';
-import type { CreatePaymentContractInput, CreatePaymentDeductPlanInput, PaymentContract, PaymentContractStatus, PaymentDeductMethod, PaymentDeductPlan, UpdatePaymentDeductPlanInput } from '@zenith/shared/payment';
+import { paymentDeductPlanSchema, paymentContractSchema, type CreatePaymentContractInput, type CreatePaymentDeductPlanInput, type PaymentContract, type PaymentContractStatus, type PaymentDeductMethod, type PaymentDeductPlan, type UpdatePaymentDeductPlanInput } from '@zenith/shared/payment';
 import { PAYMENT_METHOD_CHANNEL, paymentDeductPlanContract, paymentSigningContract } from '@zenith/shared/payment';
+import { pickEntity } from '../../lib/entity-map';
 
 const ACTIVE_CONTRACT_STATUSES: PaymentContractStatus[] = ['pending', 'unknown', 'signed', 'paused'];
 
@@ -72,51 +72,15 @@ export function advanceVipExpiry(base: Date, plan: Pick<PaymentDeductPlanRow, 'p
 // ─── 映射 ─────────────────────────────────────────────────────────────────────
 
 export function mapDeductPlan(row: PaymentDeductPlanRow & { contractCount?: number }): PaymentDeductPlan {
-  return {
-    id: row.id,
-    name: row.name,
-    period: row.period,
-    customDays: row.customDays ?? null,
-    amount: row.amount,
-    maxRetries: row.maxRetries,
-    status: row.status,
-    remark: row.remark ?? null,
-    contractCount: row.contractCount,
-    ...formatTimestamps(row),
-  };
+  return pickEntity(paymentDeductPlanSchema, row);
 }
 
 export function mapContract(row: PaymentContractRow & { plan?: Pick<PaymentDeductPlanRow, 'name' | 'period' | 'amount'> | null }): PaymentContract {
-  return {
-    id: row.id,
-    contractNo: row.contractNo,
-    channel: row.channel,
-    channelConfigId: row.channelConfigId,
-    appId: row.appId,
-    currency: row.currency,
-    planId: row.planId,
+  return pickEntity(paymentContractSchema, row, {
     planName: row.plan?.name ?? null,
     planPeriod: row.plan?.period ?? null,
     planAmount: row.plan?.amount ?? null,
-    signerAccount: row.signerAccount,
-    signerName: row.signerName ?? null,
-    status: row.status,
-    unknownOperation: row.unknownOperation ?? null,
-    version: row.version,
-    errorMessage: row.errorMessage ?? null,
-    channelContractNo: row.channelContractNo ?? null,
-    bizType: row.bizType,
-    bizId: row.bizId,
-    nextDeductAt: formatNullableDateTime(row.nextDeductAt),
-    lastDeductAt: formatNullableDateTime(row.lastDeductAt),
-    failCount: row.failCount,
-    totalDeductCount: row.totalDeductCount,
-    lastOrderNo: row.lastOrderNo ?? null,
-    signedAt: formatNullableDateTime(row.signedAt),
-    terminatedAt: formatNullableDateTime(row.terminatedAt),
-    remark: row.remark ?? null,
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 // ─── 扣款计划 CRUD ────────────────────────────────────────────────────────────

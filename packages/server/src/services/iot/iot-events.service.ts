@@ -1,4 +1,4 @@
-import { iotDeviceContract } from '@zenith/shared/iot';
+import { iotDeviceContract, iotDeviceEventSchema } from '@zenith/shared/iot';
 import type { QueryOutputOf } from '@zenith/shared/core';
 /**
  * IoT 设备事件流：生命周期事件（系统打点）+ 物模型事件（设备上报）。
@@ -21,18 +21,10 @@ import { evaluateIotEventRules } from './iot-alarms.service';
 import { evaluateIotAutomationsOnEvent, evaluateIotAutomationsOnLifecycle } from './iot-automations.service';
 import { dispatchIotForward } from './iot-forward.service';
 import { pushIotRealtime } from './iot-realtime';
+import { pickEntity } from '../../lib/entity-map';
 
 export function mapIotDeviceEvent(row: IotDeviceEventRow) {
-  return {
-    id: row.id,
-    deviceId: row.deviceId,
-    kind: row.kind,
-    identifier: row.identifier,
-    name: row.name,
-    level: row.level,
-    payload: row.payload ?? null,
-    reportedAt: formatDateTime(row.reportedAt),
-  };
+  return pickEntity(iotDeviceEventSchema, row);
 }
 
 /** 系统生命周期打点（上线/离线/激活/密钥重置）；失败仅记日志，不阻断主流程 */

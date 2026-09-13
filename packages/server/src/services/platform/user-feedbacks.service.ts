@@ -3,16 +3,16 @@ import type { QueryOutputOf } from '@zenith/shared/core';
 import { db } from '../../db';
 import { userFeedbacks } from '../../db/schema';
 import type { UserFeedbackRow } from '../../db/schema';
-import { userFeedbackContract, USER_FEEDBACK_STATUS_LABELS } from '@zenith/shared/platform';
+import { userFeedbackContract, USER_FEEDBACK_STATUS_LABELS, userFeedbackSchema } from '@zenith/shared/platform';
 import type { UserFeedbackCategory, UserFeedbackStatus } from '@zenith/shared/platform';
 import { currentUser } from '../../lib/context';
-import { formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
 import logger from '../../lib/logger';
 import { buildWhere, dateRangeConditions, keywordCondition } from '../../lib/where-helpers';
 import { requireFirstRow, requireRow } from '../../lib/db-assert';
 import { buildListResult } from '../../lib/list-query';
 import { pageOffset } from '../../lib/pagination';
 import { notify } from '../messaging/notification-outbox.service';
+import { pickEntity } from '../../lib/entity-map';
 
 type UserFeedbackWithUsers = UserFeedbackRow & {
   user?: { nickname: string | null } | null;
@@ -20,22 +20,10 @@ type UserFeedbackWithUsers = UserFeedbackRow & {
 };
 
 export function mapUserFeedback(row: UserFeedbackWithUsers) {
-  return {
-    id: row.id,
-    userId: row.userId,
+  return pickEntity(userFeedbackSchema, row, {
     userNickname: row.user?.nickname ?? null,
-    score: row.score ?? null,
-    category: row.category,
-    content: row.content ?? null,
-    pagePath: row.pagePath ?? null,
-    replayId: row.replayId ?? null,
-    status: row.status,
-    handleRemark: row.handleRemark ?? null,
-    handledBy: row.handledBy ?? null,
     handlerNickname: row.handler?.nickname ?? null,
-    handledAt: formatNullableDateTime(row.handledAt),
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 export async function ensureUserFeedbackExists(id: number) {

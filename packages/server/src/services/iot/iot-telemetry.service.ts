@@ -1,4 +1,4 @@
-import { iotDeviceContract } from '@zenith/shared/iot';
+import { iotDeviceContract, iotCommandSchema } from '@zenith/shared/iot';
 import type { QueryOutputOf } from '@zenith/shared/core';
 /**
  * IoT 遥测与指令。
@@ -21,7 +21,7 @@ import {
   iotCommands, iotTelemetry,
   type IotCommandRow, type IotDeviceRow, type IotParamDef, type IotProductPropertyRow,
 } from '../../db/schema';
-import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
+import { formatDateTime, parseDateTimeInput } from '../../lib/datetime';
 import { clampDays, clampLimit } from '../../lib/analytics-helpers';
 import { requireRow } from '../../lib/db-assert';
 import { listRows } from '../../lib/list-query';
@@ -38,6 +38,7 @@ import { enqueueIotDeviceWork } from './iot-ingest-queue';
 import { enqueueIotTelemetry } from './iot-ingest-buffer';
 import { minAcceptableIotReportedAt } from './iot-partitions.service';
 import { pushIotRealtime } from './iot-realtime';
+import { pickEntity } from '../../lib/entity-map';
 
 /** 设备侧时间戳允许的最大超前量：超过按服务器时间落库，避免时钟漂移的设备把影子时刻推到未来后再也无法更新 */
 const REPORTED_AT_MAX_AHEAD_MS = 5 * 60_000;
@@ -163,20 +164,7 @@ export async function listIotTelemetry(deviceId: number, q: QueryOutputOf<typeof
 
 // ─── 指令 ─────────────────────────────────────────────────────────────────────
 export function mapIotCommand(row: IotCommandRow) {
-  return {
-    id: row.id,
-    deviceId: row.deviceId,
-    service: row.service,
-    params: row.params ?? null,
-    status: row.status,
-    expireAt: formatDateTime(row.expireAt),
-    sentAt: formatNullableDateTime(row.sentAt),
-    ackedAt: formatNullableDateTime(row.ackedAt),
-    response: row.response ?? null,
-    errorMsg: row.errorMsg ?? null,
-    createdBy: row.createdBy ?? null,
-    createdAt: formatDateTime(row.createdAt),
-  };
+  return pickEntity(iotCommandSchema, row);
 }
 
 /** 惰性超时收敛：把越过期限仍未回执的指令刷成 expired */

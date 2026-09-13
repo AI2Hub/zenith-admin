@@ -9,41 +9,27 @@
  */
 import { and, desc, eq, gte, inArray, isNotNull, sql } from 'drizzle-orm';
 import type { QueryOutputOf } from '@zenith/shared/core';
-import type { AppArch, AppPlatform, BindPushDeviceInput, DeviceSubjectType } from '@zenith/shared/ops';
+import { clientDeviceSchema, type AppArch, type AppPlatform, type BindPushDeviceInput, type DeviceSubjectType } from '@zenith/shared/ops';
 import { clientDeviceContract } from '@zenith/shared/ops';
 import { db } from '../../db';
 import { clientApps, clientDevices, members, type ClientDeviceRow } from '../../db/schema';
-import { formatDateTime } from '../../lib/datetime';
 import { requireFirstRow } from '../../lib/db-assert';
 import { buildListResult } from '../../lib/list-query';
 import { pageOffset } from '../../lib/pagination';
 import logger from '../../lib/logger';
 import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { resolveUserNames } from '../../lib/user-nicknames';
+import { pickEntity } from '../../lib/entity-map';
 
 /** 判定「在活设备」的窗口（管理端列表徽标与推送寻址共用） */
 export const DEVICE_ACTIVE_WINDOW_DAYS = 30;
 
 export function mapClientDevice(row: ClientDeviceRow, appName?: string, subjectName?: string | null) {
-  return {
-    id: row.id,
-    deviceId: row.deviceId,
-    appId: row.appId,
+  return pickEntity(clientDeviceSchema, row, {
     appName,
-    platform: row.platform,
-    arch: row.arch ?? null,
-    deviceModel: row.deviceModel ?? null,
-    osVersion: row.osVersion ?? null,
-    appVersion: row.appVersion ?? null,
     subjectType: (row.subjectType as DeviceSubjectType | null) ?? null,
-    subjectId: row.subjectId ?? null,
     subjectName: subjectName ?? null,
-    pushProvider: row.pushProvider ?? null,
-    pushRegistrationId: row.pushRegistrationId ?? null,
-    pushEnabled: row.pushEnabled,
-    createdAt: formatDateTime(row.createdAt),
-    lastActiveAt: formatDateTime(row.lastActiveAt),
-  };
+  });
 }
 
 // ─── 心跳（升级检查顺手 upsert,公开链路,失败不影响主流程）─────────────────────

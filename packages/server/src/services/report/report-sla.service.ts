@@ -1,4 +1,4 @@
-import { reportSlaContract } from '@zenith/shared/report';
+import { reportSlaContract, reportSlaRuleSchema, reportSlaViolationSchema } from '@zenith/shared/report';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { requireRow } from '../../lib/db-assert';
 import { emptyListResult, listRows } from '../../lib/list-query';
@@ -15,7 +15,7 @@ import {
 } from '../../db/schema';
 import { currentUserId, runWithCurrentUser } from '../../lib/context';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
-import { formatDateTime, formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
+import { formatDateTime } from '../../lib/datetime';
 import { mapAsyncTask, submitAsyncTask } from '../../lib/task-center';
 import { ensureDatasetExists } from './report-dataset.service';
 import { dueCronFireTime, loadScheduleActor } from './report-schedule-shared';
@@ -32,6 +32,7 @@ import { reportScopedWhere, reportTenantScope } from './report-access';
 import { ensureReportResourceAccess, listAccessibleReportResourceIds } from './report-resource-acl.service';
 import { maskReportSecret, prepareReportSecret } from './report-secrets';
 import { buildWhere } from '../../lib/where-helpers';
+import { pickEntity } from '../../lib/entity-map';
 
 type SlaRuleRow = typeof reportSlaRules.$inferSelect;
 type SlaViolationRow = typeof reportSlaViolations.$inferSelect;
@@ -51,50 +52,13 @@ export function shouldNotifySlaViolation(
 }
 
 export function mapReportSlaRule(row: SlaRuleRow): ReportSlaRule {
-  return {
-    id: row.id,
-    tenantId: row.tenantId ?? null,
-    datasetId: row.datasetId,
-    name: row.name,
-    type: row.type,
-    targetValue: row.targetValue,
-    warningValue: row.warningValue ?? null,
-    windowMinutes: row.windowMinutes,
-    cron: row.cron ?? null,
-    timezone: row.timezone,
-    severity: row.severity,
-    channels: row.channels,
-    recipients: row.recipients ?? null,
+  return pickEntity(reportSlaRuleSchema, row, {
     webhookUrl: maskReportSecret(row.webhookUrl),
-    silenceMins: row.silenceMins,
-    enabled: row.enabled,
-    lastEvaluatedAt: formatNullableDateTime(row.lastEvaluatedAt),
-    lastNotifiedAt: formatNullableDateTime(row.lastNotifiedAt),
-    createdBy: row.createdBy ?? null,
-    updatedBy: row.updatedBy ?? null,
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 export function mapReportSlaViolation(row: SlaViolationRow): ReportSlaViolation {
-  return {
-    id: row.id,
-    tenantId: row.tenantId ?? null,
-    ruleId: row.ruleId,
-    datasetId: row.datasetId,
-    status: row.status,
-    observedValue: row.observedValue,
-    targetValue: row.targetValue,
-    windowStartedAt: formatDateTime(row.windowStartedAt),
-    windowEndedAt: formatDateTime(row.windowEndedAt),
-    detail: row.detail ?? null,
-    acknowledgedAt: formatNullableDateTime(row.acknowledgedAt),
-    acknowledgedBy: row.acknowledgedBy ?? null,
-    resolvedAt: formatNullableDateTime(row.resolvedAt),
-    resolvedBy: row.resolvedBy ?? null,
-    resolutionNote: row.resolutionNote ?? null,
-    ...formatTimestamps(row),
-  };
+  return pickEntity(reportSlaViolationSchema, row);
 }
 
 async function ensureSlaRule(id: number, role: 'viewer' | 'editor' = 'viewer'): Promise<SlaRuleRow> {

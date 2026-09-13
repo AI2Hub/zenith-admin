@@ -6,14 +6,15 @@ import { db } from '../../db';
 import { mpMessageTemplates, mpTemplateSendLogs } from '../../db/schema';
 import type { MpMessageTemplateRow, MpTemplateSendLogRow } from '../../db/schema';
 import { buildWhere, keywordCondition } from '../../lib/where-helpers';
-import { formatDateTime, formatTimestamps } from '../../lib/datetime';
+import { formatTimestamps } from '../../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { ensureMpAccountExists } from './mp-account.service';
 import { getAllPrivateTemplates, sendTemplateMessage, setTemplateIndustry, getTemplateIndustry, WechatApiError } from '../../lib/wechat';
 import { mapWechatError } from '../../lib/wechat-error';
 import type { SendMpTemplateInput } from '@zenith/shared/messaging';
-import type { MpTemplateSendStatus, mpTemplateContract } from '@zenith/shared/mp';
+import { mpTemplateSendLogSchema, type MpTemplateSendStatus, type mpTemplateContract } from '@zenith/shared/mp';
 import type { QueryOutputOf } from '@zenith/shared/core';
+import { pickEntity } from '../../lib/entity-map';
 
 export function mapMpTemplate(row: MpMessageTemplateRow) {
   return {
@@ -28,18 +29,9 @@ export function mapMpTemplate(row: MpMessageTemplateRow) {
 }
 
 export function mapMpTemplateSendLog(row: MpTemplateSendLogRow) {
-  return {
-    id: row.id,
-    accountId: row.accountId,
-    templateId: row.templateId,
-    openid: row.openid,
+  return pickEntity(mpTemplateSendLogSchema, row, {
     data: (row.data ?? null) as Record<string, unknown> | null,
-    url: row.url ?? null,
-    status: row.status,
-    errorMsg: row.errorMsg ?? null,
-    msgId: row.msgId ?? null,
-    createdAt: formatDateTime(row.createdAt),
-  };
+  });
 }
 
 export async function ensureMpTemplateExists(id: number): Promise<MpMessageTemplateRow> {

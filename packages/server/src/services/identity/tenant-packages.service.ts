@@ -9,26 +9,18 @@ import { tenantPackages, tenantPackageFeatures, tenants, type TenantPackageRow }
 import { HTTPException } from 'hono/http-exception';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { clearUserPermissionCache } from '../../lib/permissions';
-import { formatTimestamps } from '../../lib/datetime';
 import { isLicenseFeatureKey, type TenantPackageQuotas } from '@zenith/shared/licensing';
 import type { QueryOutputOf } from '@zenith/shared/core';
-import type { tenantPackageContract } from '@zenith/shared/identity';
+import { tenantPackageSchema, type tenantPackageContract } from '@zenith/shared/identity';
+import { pickEntity } from '../../lib/entity-map';
 
 export function mapTenantPackage(
   row: TenantPackageRow,
   opts?: { features?: string[] },
 ) {
-  return {
-    id: row.id,
-    name: row.name,
-    status: row.status,
-    quotas: row.quotas ?? null,
-    remark: row.remark ?? null,
-    createdBy: row.createdBy ?? null,
-    updatedBy: row.updatedBy ?? null,
-    ...formatTimestamps(row),
+  return pickEntity(tenantPackageSchema, row, {
     ...(opts?.features === undefined ? {} : { features: opts.features, featureCount: opts.features.length }),
-  };
+  });
 }
 
 /** 先删后插，原子性更新套餐的功能分配（调用方需传入 tx 或 db） */

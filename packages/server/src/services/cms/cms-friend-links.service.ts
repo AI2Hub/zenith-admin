@@ -2,11 +2,10 @@ import { requireFirstRow, requireRow } from '../../lib/db-assert';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { buildListResult } from '../../lib/list-query';
 import { eq, asc, and, isNull } from 'drizzle-orm';
-import { cmsFriendLinkContract } from '@zenith/shared/cms';
+import { cmsFriendLinkContract, cmsFriendLinkSchema } from '@zenith/shared/cms';
 import { db } from '../../db';
 import { cmsFriendLinkGroups, cmsFriendLinks } from '../../db/schema';
 import type { CmsFriendLinkRow } from '../../db/schema';
-import { formatTimestamps } from '../../lib/datetime';
 import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
 import type { CreateCmsFriendLinkInput, UpdateCmsFriendLinkInput } from '@zenith/shared/cms';
 import { assertSiteAccess, ensureCmsSiteExists } from './cms-sites.service';
@@ -14,22 +13,13 @@ import { canonicalizeCmsResourceFields, deleteCmsResourceRefsForOwner, syncCmsRe
 import { ensureFriendLinkGroupInSite } from './cms-friend-link-groups.service';
 import { buildCmsLinkResolver } from './cms-link.service';
 import { refreshCmsPublicConfiguration } from './cms-public-config-refresh.service';
+import { pickEntity } from '../../lib/entity-map';
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
 export function mapCmsFriendLink(row: CmsFriendLinkRow, groupName?: string | null) {
-  return {
-    id: row.id,
-    siteId: row.siteId,
-    groupId: row.groupId ?? null,
+  return pickEntity(cmsFriendLinkSchema, row, {
     groupName: groupName ?? null,
-    name: row.name,
-    url: row.url,
-    logo: row.logo ?? null,
-    status: row.status,
-    sort: row.sort,
-    remark: row.remark ?? null,
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 // ─── 前置校验 ─────────────────────────────────────────────────────────────────

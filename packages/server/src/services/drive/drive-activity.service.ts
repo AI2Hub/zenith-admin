@@ -1,13 +1,12 @@
 import { and, desc, eq, gte, inArray, sql, type SQL } from 'drizzle-orm';
 import { tryGetContext } from 'hono/context-storage';
 import type { QueryOutputOf } from '@zenith/shared/core';
-import type { DriveActivity, DriveActivityAction, DriveNodeType } from '@zenith/shared/drive';
+import { driveActivitySchema, type DriveActivity, type DriveActivityAction, type DriveNodeType } from '@zenith/shared/drive';
 import { driveAdminContract } from '@zenith/shared/drive';
 import { db } from '../../db';
 import type { DbExecutor } from '../../db/types';
 import { driveActivities, driveRecentAccess, driveSpaces, type DriveActivityRow } from '../../db/schema';
 import { currentUserOrNull, isSuperAdmin, type AppEnv } from '../../lib/context';
-import { formatDateTime } from '../../lib/datetime';
 import { buildListResult } from '../../lib/list-query';
 import { getClientIp } from '../../lib/request-helpers';
 import { exactTenantCondition, getCreateTenantId, tenantCondition } from '../../lib/tenant';
@@ -16,6 +15,7 @@ import { getDataScopeCondition } from '../../lib/data-scope';
 import { resolveUserNames } from './drive-common';
 import { openEventForAction, scheduleDriveOpenEvent } from './drive-open-events.service';
 import { ensureDriveLogPartitions } from './drive-partitions.service';
+import { pickEntity } from '../../lib/entity-map';
 
 export interface LogDriveActivityInput {
   spaceId: number;
@@ -84,21 +84,10 @@ export async function touchDriveRecent(nodeId: number, action: DriveActivityActi
 }
 
 export function mapDriveActivity(row: DriveActivityRow, names: Map<number, string>, spaceNames?: Map<number, string>): DriveActivity {
-  return {
-    id: row.id,
-    spaceId: row.spaceId,
+  return pickEntity(driveActivitySchema, row, {
     spaceName: spaceNames?.get(row.spaceId) ?? null,
-    nodeId: row.nodeId ?? null,
-    nodeName: row.nodeName,
-    nodeType: row.nodeType,
-    action: row.action,
-    actorId: row.actorId ?? null,
     actorName: row.actorId ? names.get(row.actorId) ?? null : null,
-    shareId: row.shareId ?? null,
-    detail: row.detail ?? null,
-    clientIp: row.clientIp ?? null,
-    createdAt: formatDateTime(row.createdAt),
-  };
+  });
 }
 
 type DriveActivityListQuery = QueryOutputOf<typeof driveAdminContract.activities> & { nodeId?: number };

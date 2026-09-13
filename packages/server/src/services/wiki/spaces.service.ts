@@ -1,37 +1,25 @@
 import { HTTPException } from 'hono/http-exception';
 import { asc, eq, inArray, sql } from 'drizzle-orm';
 import type { QueryOutputOf } from '@zenith/shared/core';
-import type { CreateWikiSpaceInput, SaveWikiSpaceMembersInput, UpdateWikiSpaceInput, WikiSpaceMemberRole } from '@zenith/shared/wiki';
+import { wikiSpaceSchema, type CreateWikiSpaceInput, type SaveWikiSpaceMembersInput, type UpdateWikiSpaceInput, type WikiSpaceMemberRole } from '@zenith/shared/wiki';
 import { wikiSpaceContract } from '@zenith/shared/wiki';
 import { db } from '../../db';
 import type { DbExecutor } from '../../db/types';
 import { users, wikiDocs, wikiSpaceMembers, wikiSpaces, type WikiSpaceRow } from '../../db/schema';
 import { currentUser, isSuperAdmin } from '../../lib/context';
-import { formatDateTime, formatTimestamps } from '../../lib/datetime';
+import { formatDateTime } from '../../lib/datetime';
 import { requireFirstRow, requireRow } from '../../lib/db-assert';
 import { listRows } from '../../lib/list-query';
 import { getCreateTenantId, tenantCondition } from '../../lib/tenant';
 import { buildWhere, keywordCondition } from '../../lib/where-helpers';
+import { pickEntity } from '../../lib/entity-map';
 
 // ─── 角色等级 ─────────────────────────────────────────────────────────────────
 
 const ROLE_RANK: Record<WikiSpaceMemberRole, number> = { viewer: 1, editor: 2, admin: 3, owner: 4 };
 
 export function mapWikiSpace(row: WikiSpaceRow) {
-  return {
-    id: row.id,
-    name: row.name,
-    description: row.description ?? null,
-    icon: row.icon ?? null,
-    visibility: row.visibility,
-    status: row.status,
-    sort: row.sort,
-    aiSyncEnabled: row.aiSyncEnabled,
-    tenantId: row.tenantId ?? null,
-    createdBy: row.createdBy ?? null,
-    updatedBy: row.updatedBy ?? null,
-    ...formatTimestamps(row),
-  };
+  return pickEntity(wikiSpaceSchema, row);
 }
 
 type WikiSpaceListFilter = Omit<QueryOutputOf<typeof wikiSpaceContract.list>, 'page' | 'pageSize'>;

@@ -1,4 +1,4 @@
-import { paymentTransferContract } from '@zenith/shared/payment';
+import { paymentTransferContract, paymentTransferSchema } from '@zenith/shared/payment';
 import type { QueryOutputOf } from '@zenith/shared/core';
 /**
  * 转账/代付 Service。
@@ -22,7 +22,6 @@ import { currentUser } from '../../lib/context';
 import { requireTenantScopeId, tenantCondition, exactTenantCondition } from '../../lib/tenant';
 import { buildWhere, dateRangeConditions, keywordCondition } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
-import { formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
 import { buildAdapterContext } from './payment.service';
 import { computeAccountAvailable, ensureSystemLedgerAccount, postSystemJournal } from './payment-journal.service';
 import { getAdapter } from '../../lib/payment/registry';
@@ -38,41 +37,14 @@ import { resolveApplicationChannelConfig } from './payment-apps.service';
 import { isPgUniqueViolation } from '../../lib/db-errors';
 import { assertEffectivePaymentOperation } from './payment-capability-evaluator';
 import { getSettings } from '../../lib/settings';
+import { pickEntity } from '../../lib/entity-map';
 
 async function transferApprovalThreshold(tenantId: number | null): Promise<number> {
   return Math.max(0, Math.trunc((await getSettings('payment', { tenantId })).transferApprovalThreshold));
 }
 
 export function mapTransfer(row: PaymentTransferRow & { operatorName?: string | null }): PaymentTransfer {
-  return {
-    id: row.id,
-    transferNo: row.transferNo,
-    outTransferNo: row.outTransferNo,
-    channel: row.channel,
-    appId: row.appId,
-    channelConfigId: row.channelConfigId,
-    currency: row.currency,
-    receiverAccount: row.receiverAccount,
-    receiverName: row.receiverName ?? null,
-    amount: row.amount,
-    remark: row.remark ?? null,
-    status: row.status,
-    approvalStatus: row.approvalStatus,
-    appliedById: row.appliedById ?? null,
-    approverId: row.approverId ?? null,
-    approvedAt: formatNullableDateTime(row.approvedAt),
-    approvalRemark: row.approvalRemark ?? null,
-    channelTransferNo: row.channelTransferNo ?? null,
-    failReason: row.failReason ?? null,
-    attempts: row.attempts,
-    fundReservationId: row.fundReservationId,
-    version: row.version,
-    bizType: row.bizType ?? null,
-    bizId: row.bizId ?? null,
-    finishedAt: formatNullableDateTime(row.finishedAt),
-    operatorName: row.operatorName ?? null,
-    ...formatTimestamps(row),
-  };
+  return pickEntity(paymentTransferSchema, row);
 }
 
 async function ensureTransfer(id: number): Promise<PaymentTransferRow> {

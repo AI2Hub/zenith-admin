@@ -4,7 +4,7 @@ import { requireRow } from '../../lib/db-assert';
 import { buildListResult, emptyListResult } from '../../lib/list-query';
 import { HTTPException } from 'hono/http-exception';
 import { and, desc, eq, inArray } from 'drizzle-orm';
-import { reportMetricContract, formatReportValue } from '@zenith/shared/report';
+import { reportMetricContract, formatReportValue, reportMetricSchema } from '@zenith/shared/report';
 import type { CreateReportMetricInput, ReportFieldFormat, ReportMetric, ReportMetricEvaluation, ReportMetricLifecycleActionInput, ReportMetricRefs, ReportMetricType, ReportWidget, ReportDashboardSnapshot, UpdateReportMetricInput } from '@zenith/shared/report';
 import { db } from '../../db';
 import {
@@ -14,7 +14,6 @@ import {
 } from '../../db/schema';
 import { currentUserId, currentUserOrNull } from '../../lib/context';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
-import { formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
 import { pageOffset } from '../../lib/pagination';
 import { buildWhere, keywordCondition, nullableEq } from '../../lib/where-helpers';
 import {
@@ -37,6 +36,7 @@ import {
   analyzeMetricFormula,
   evaluateMetricFormula,
 } from './report-metric-formula';
+import { pickEntity } from '../../lib/entity-map';
 
 type MetricRowExt = typeof reportMetrics.$inferSelect & {
   folder?: { name: string } | null;
@@ -66,39 +66,13 @@ export function assertReportMetricReferenceStack(metricId: number, stack: number
 }
 
 export function mapReportMetric(row: MetricRowExt): ReportMetric {
-  return {
-    id: row.id,
-    tenantId: row.tenantId ?? null,
-    folderId: row.folderId ?? null,
+  return pickEntity(reportMetricSchema, row, {
     folderName: row.folder?.name ?? null,
-    ownerId: row.ownerId ?? null,
     ownerName: row.owner?.nickname || row.owner?.username || null,
-    code: row.code,
-    name: row.name,
-    description: row.description ?? null,
-    type: row.type,
-    datasetId: row.datasetId,
     datasetName: row.dataset?.name ?? null,
-    sourceField: row.sourceField ?? null,
-    formula: row.formula ?? null,
     aggregate: row.aggregate as ReportMetric['aggregate'],
     dimensions: row.dimensions ?? [],
-    timeField: row.timeField ?? null,
-    unit: row.unit ?? null,
-    format: row.format ?? null,
-    caliber: row.caliber ?? null,
-    lifecycleStatus: row.lifecycleStatus,
-    revision: row.revision,
-    publishedSnapshot: row.publishedSnapshot ?? null,
-    publishedAt: formatNullableDateTime(row.publishedAt),
-    publishedBy: row.publishedBy ?? null,
-    deprecatedAt: formatNullableDateTime(row.deprecatedAt),
-    deprecatedBy: row.deprecatedBy ?? null,
-    deprecationReason: row.deprecationReason ?? null,
-    createdBy: row.createdBy ?? null,
-    updatedBy: row.updatedBy ?? null,
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 async function ensureMetricAccess(id: number, role: 'viewer' | 'editor' | 'owner' = 'viewer') {

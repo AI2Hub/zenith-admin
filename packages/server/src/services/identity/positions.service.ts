@@ -2,7 +2,7 @@ import { buildListResult } from '../../lib/list-query';
 import { requireRow } from '../../lib/db-assert';
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import type { QueryOutputOf } from '@zenith/shared/core';
-import { positionContract } from '@zenith/shared/identity';
+import { positionContract, positionSchema } from '@zenith/shared/identity';
 import { buildWhere, dateRangeConditions, keywordCondition, withPagination } from '../../lib/where-helpers';
 import { db } from '../../db';
 import { positions, userPositions, users } from '../../db/schema';
@@ -10,19 +10,12 @@ import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
-import { formatDateTime, formatTimestamps } from '../../lib/datetime';
+import { formatDateTime } from '../../lib/datetime';
 import { getScopeMemberSummaries, validateScopeUserIds } from './user-scope.service';
+import { pickEntity } from '../../lib/entity-map';
 
 export function mapPosition(row: typeof positions.$inferSelect) {
-  return {
-    id: row.id,
-    name: row.name,
-    code: row.code,
-    sort: row.sort,
-    status: row.status,
-    remark: row.remark ?? null,
-    ...formatTimestamps(row),
-  };
+  return pickEntity(positionSchema, row);
 }
 
 export interface CreatePositionInput {

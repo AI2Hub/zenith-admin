@@ -2,14 +2,14 @@ import { requireRow } from '../../lib/db-assert';
 import { buildListResult } from '../../lib/list-query';
 import { HTTPException } from 'hono/http-exception';
 import { and, desc, eq, inArray, lte, isNotNull, sql } from 'drizzle-orm';
-import { aggregateReportRows, reportSubscriptionContract } from '@zenith/shared/report';
+import { aggregateReportRows, reportSubscriptionContract, reportDashboardSubscriptionSchema } from '@zenith/shared/report';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { config } from '../../config';
 import { db } from '../../db';
 import { reportDashboardSubscriptions, reportDeliveryRuns } from '../../db/schema';
 import { pageOffset } from '../../lib/pagination';
 import { buildWhere, keywordCondition } from '../../lib/where-helpers';
-import { formatDateTime, formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
+import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { currentUserOrNull } from '../../lib/context';
 import { escapeHtml } from '@zenith/shared/core';
 import { trimNullableText } from '../../lib/text-utils';
@@ -45,6 +45,7 @@ import {
   isNumericReportField,
 } from './report-field-metadata';
 import { runtimeHasNumericValue } from './report-dataset-shared';
+import { pickEntity } from '../../lib/entity-map';
 
 type SubRowExt = ReportDashboardSubscriptionRow & {
   dashboard?: { name: string } | null;
@@ -94,26 +95,15 @@ async function validateSubscriptionRuntimeConfig(dashboardId: number): Promise<v
 }
 
 export function mapSubscription(row: SubRowExt): ReportDashboardSubscription {
-  return {
-    id: row.id,
-    dashboardId: row.dashboardId,
+  return pickEntity(reportDashboardSubscriptionSchema, row, {
     dashboardName: row.dashboard?.name ?? null,
-    cron: row.cron,
     timezone: row.timezone ?? REPORT_DEFAULT_TIMEZONE,
-    misfirePolicy: row.misfirePolicy,
     channels: (row.channels ?? []) as ReportNotifyChannel[],
-    recipients: row.recipients ?? null,
     webhookUrl: maskReportSecret(row.webhookUrl),
-    enabled: row.enabled,
-    remark: row.remark ?? null,
-    lastRunAt: formatNullableDateTime(row.lastRunAt),
-    nextRunAt: formatNullableDateTime(row.nextRunAt),
     lastDeliveryAt: row.latestDelivery?.lastDeliveryAt ?? formatNullableDateTime(row.lastDeliveryAt),
     lastDeliveryStatus: row.latestDelivery?.lastDeliveryStatus ?? row.lastDeliveryStatus ?? null,
     lastDeliveryError: row.latestDelivery?.lastDeliveryError ?? row.lastDeliveryError ?? null,
-    createdBy: row.createdBy ?? null,
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 export async function ensureSubscriptionExists(id: number): Promise<ReportDashboardSubscriptionRow> {

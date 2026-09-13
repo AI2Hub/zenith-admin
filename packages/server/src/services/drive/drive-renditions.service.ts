@@ -1,4 +1,3 @@
-import { createRequire } from 'node:module';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { db } from '../../db';
 import { driveNodes, driveNodeRenditions, driveNodeTexts, type DriveNodeRow } from '../../db/schema';
@@ -7,8 +6,8 @@ import { registerSystemQueueWorker, registerSystemRecurringJob, sendSystemJob } 
 import { getRestrictedFileForRead, saveGeneratedManagedFile } from '../files/files.service';
 import { releaseManagedFiles, retainManagedFiles } from '../files/file-gc.service';
 import { getDriveSettings } from './drive-settings.service';
+import { sharp } from '../../lib/sharp-loader';
 
-const require = createRequire(import.meta.url);
 const QUEUE = 'drive-renditions';
 const THUMBNAIL_MAX_BYTES = 40 * 1024 * 1024;
 const TEXT_MAX_BYTES = 2 * 1024 * 1024;
@@ -97,7 +96,6 @@ export async function processDriveRendition(job: RenditionJob): Promise<void> {
     if (job.kind === 'thumbnail') {
       const actorId = node.updatedBy ?? node.createdBy;
       if (!actorId) throw new Error('Rendition owner is missing');
-      const sharp = require('sharp') as typeof import('sharp')['default'];
       const buffer = await sharp(source).rotate().resize({ width: 320, withoutEnlargement: true }).webp({ quality: 80 }).toBuffer();
       const file = await saveGeneratedManagedFile({
         buffer, filename: `thumb-${node.id}-v${job.version}.webp`, mimeType: 'image/webp',

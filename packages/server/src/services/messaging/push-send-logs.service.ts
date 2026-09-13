@@ -2,42 +2,23 @@
  * App 推送发送记录（追加型日志,回执回调更新送达状态）。
  */
 import { and, desc, eq, gte, isNull, or, sql } from 'drizzle-orm';
-import type { PushDeliveryStatus, PushProvider, PushSendLogStats, pushSendLogContract } from '@zenith/shared/messaging';
+import { pushSendLogSchema, type PushDeliveryStatus, type PushProvider, type PushSendLogStats, type pushSendLogContract } from '@zenith/shared/messaging';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { db } from '../../db';
 import { pushSendLogs, type PushSendLogRow } from '../../db/schema';
-import { formatDateTime, formatNullableDateTime, startOfRecentDays } from '../../lib/datetime';
+import { startOfRecentDays } from '../../lib/datetime';
 import { buildWhere, dateRangeConditions, keywordCondition } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
 import { buildListResult } from '../../lib/list-query';
 import { resolveUserNames } from '../../lib/user-nicknames';
+import { pickEntity } from '../../lib/entity-map';
 
 export function mapPushSendLog(row: PushSendLogRow & { app?: { name: string } | null }, subjectName?: string | null) {
-  return {
-    id: row.id,
-    configId: row.configId ?? null,
-    appId: row.appId ?? null,
+  return pickEntity(pushSendLogSchema, row, {
     appName: row.app?.name ?? null,
-    provider: row.provider,
-    subjectType: row.subjectType ?? null,
-    subjectId: row.subjectId ?? null,
     subjectName: subjectName ?? null,
-    deviceCount: row.deviceCount,
-    title: row.title,
-    content: row.content,
-    link: row.link ?? null,
-    eventKey: row.eventKey ?? null,
-    status: row.status,
-    providerMsgId: row.providerMsgId ?? null,
     deliveryStatus: (row.deliveryStatus as PushDeliveryStatus | null) ?? null,
-    deliveredAt: formatNullableDateTime(row.deliveredAt),
-    clickedAt: formatNullableDateTime(row.clickedAt),
-    errorMsg: row.errorMsg ?? null,
-    source: row.source,
-    tenantId: row.tenantId ?? null,
-    sentAt: formatNullableDateTime(row.sentAt),
-    createdAt: formatDateTime(row.createdAt),
-  };
+  });
 }
 
 export async function listPushSendLogs(q: QueryOutputOf<typeof pushSendLogContract.list>) {

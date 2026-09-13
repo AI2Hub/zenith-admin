@@ -1,4 +1,4 @@
-import { iotScheduleContract } from '@zenith/shared/iot';
+import { iotScheduleContract, iotScheduleSchema, iotScheduleRunSchema } from '@zenith/shared/iot';
 import type { QueryOutputOf } from '@zenith/shared/core';
 /**
  * IoT 设备计划任务：时间驱动的自动化（与场景联动的事件驱动互补）。
@@ -19,56 +19,32 @@ import {
   iotDeviceGroupMembers, iotDeviceGroups, iotDevices, iotProducts, iotScheduleRuns, iotSchedules,
   type IotDeviceRow, type IotScheduleRow, type IotScheduleRunRow,
 } from '../../db/schema';
-import { formatDateTime, formatNullableDateTime, formatTimestamps, parseDateTimeInput } from '../../lib/datetime';
+import { parseDateTimeInput } from '../../lib/datetime';
 import { requireFirstRow, requireRow } from '../../lib/db-assert';
 import { buildListResult, listRows } from '../../lib/list-query';
 import { buildWhere, keywordCondition, withPagination } from '../../lib/where-helpers';
 import { currentUser } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import logger from '../../lib/logger';
+import { pickEntity } from '../../lib/entity-map';
 
 // ─── 映射与 CRUD ──────────────────────────────────────────────────────────────
 export function mapIotSchedule(
   row: IotScheduleRow,
   extra?: { productName?: string | null; groupName?: string | null; deviceName?: string | null; recentRunCount?: number },
 ) {
-  return {
-    id: row.id,
-    name: row.name,
-    scheduleType: row.scheduleType,
-    cronExpression: row.cronExpression ?? null,
-    runAt: formatNullableDateTime(row.runAt),
-    productId: row.productId,
+  return pickEntity(iotScheduleSchema, row, {
     productName: extra?.productName ?? null,
-    groupId: row.groupId ?? null,
     groupName: extra?.groupName ?? null,
-    deviceId: row.deviceId ?? null,
     deviceName: extra?.deviceName ?? null,
-    actionType: row.actionType,
-    service: row.service ?? null,
-    params: row.params ?? null,
-    desired: row.desired ?? null,
-    status: row.status,
-    nextRunAt: formatNullableDateTime(row.nextRunAt),
-    lastRunAt: formatNullableDateTime(row.lastRunAt),
     recentRunCount: extra?.recentRunCount ?? 0,
-    createdBy: row.createdBy ?? null,
-    updatedBy: row.updatedBy ?? null,
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 export function mapIotScheduleRun(row: IotScheduleRunRow) {
-  return {
-    id: row.id,
-    scheduleId: row.scheduleId,
-    scheduleName: row.scheduleName,
-    deviceCount: row.deviceCount,
-    successCount: row.successCount,
-    failedCount: row.failedCount,
+  return pickEntity(iotScheduleRunSchema, row, {
     errors: row.errors ?? [],
-    createdAt: formatDateTime(row.createdAt),
-  };
+  });
 }
 
 /** 计算下一次执行时刻（cron 精确解析；once 取 runAt 且仅未来时刻有效） */

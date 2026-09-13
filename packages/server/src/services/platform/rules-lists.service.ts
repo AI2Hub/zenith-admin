@@ -4,7 +4,7 @@
 import { and, desc, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import type { QueryOutputOf } from '@zenith/shared/core';
-import type { RuleListType, RuleListCheckResult, RuleUsageItem } from '@zenith/shared/rules';
+import { ruleListSchema, type RuleListType, type RuleListCheckResult, type RuleUsageItem } from '@zenith/shared/rules';
 import { ruleListContract } from '@zenith/shared/rules';
 import { db } from '../../db';
 import { ruleLists, ruleListItems, paymentRiskRules } from '../../db/schema';
@@ -14,22 +14,17 @@ import { buildWhere, keywordCondition, withPagination } from '../../lib/where-he
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { requireFirstRow } from '../../lib/db-assert';
 import { buildListResult, listRows } from '../../lib/list-query';
-import { formatDateTime, formatNullableDateTime, formatTimestamps, parseDateTimeInput } from '../../lib/datetime';
+import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
+import { pickEntity } from '../../lib/entity-map';
 
 type ListRow = typeof ruleLists.$inferSelect;
 type ItemRow = typeof ruleListItems.$inferSelect;
 
 export function mapRuleList(row: ListRow, itemCount?: number) {
-  return {
-    id: row.id,
-    key: row.key,
-    name: row.name,
+  return pickEntity(ruleListSchema, row, {
     type: row.type as RuleListType,
-    description: row.description ?? null,
-    status: row.status,
     itemCount,
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 const mapItem = (r: ItemRow) => ({

@@ -8,14 +8,13 @@ import { paymentChannelConfigs, paymentOrders, paymentPreauths, type PaymentChan
 import type { DbExecutor } from '../../db/types';
 import { requireRow } from '../../lib/db-assert';
 import { currentUser, currentUserOrNull } from '../../lib/context';
-import { formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
 import type { PaymentEvent } from '../../lib/payment-event-bus';
 import { getAdapter } from '../../lib/payment';
 import logger from '../../lib/logger';
 import { pageOffset } from '../../lib/pagination';
 import { requireTenantScopeId, tenantCondition, exactTenantCondition } from '../../lib/tenant';
 import { buildWhere, dateRangeConditions, keywordCondition } from '../../lib/where-helpers';
-import { PAYMENT_METHOD_CHANNEL, paymentPreauthContract } from '@zenith/shared/payment';
+import { PAYMENT_METHOD_CHANNEL, paymentPreauthContract, paymentPreauthSchema } from '@zenith/shared/payment';
 import type {
   CapturePaymentPreauthInput,
   CreatePaymentPreauthInput,
@@ -28,33 +27,10 @@ import { postSystemJournalWithin } from './payment-journal.service';
 import { recordEvent, processEvent } from './payment-outbox.service';
 import { buildAdapterContext, markOrderPaid } from './payment.service';
 import { genPaymentNo } from './payment-no';
+import { pickEntity } from '../../lib/entity-map';
 
 export function mapPreauth(row: PaymentPreauthRow & { operatorName?: string | null }): PaymentPreauth {
-  return {
-    id: row.id,
-    preauthNo: row.preauthNo,
-    channel: row.channel,
-    channelConfigId: row.channelConfigId,
-    appId: row.appId,
-    currency: row.currency,
-    channelPreauthNo: row.channelPreauthNo ?? null,
-    bizType: row.bizType,
-    bizId: row.bizId,
-    subject: row.subject,
-    payerAccount: row.payerAccount,
-    frozenAmount: row.frozenAmount,
-    capturedAmount: row.capturedAmount ?? null,
-    captureOrderNo: row.captureOrderNo ?? null,
-    status: row.status,
-    unknownOperation: row.unknownOperation ?? null,
-    version: row.version,
-    errorMessage: row.errorMessage ?? null,
-    frozenAt: formatNullableDateTime(row.frozenAt),
-    finishedAt: formatNullableDateTime(row.finishedAt),
-    remark: row.remark ?? null,
-    operatorName: row.operatorName ?? null,
-    ...formatTimestamps(row),
-  };
+  return pickEntity(paymentPreauthSchema, row);
 }
 
 function postPreauthJournal(

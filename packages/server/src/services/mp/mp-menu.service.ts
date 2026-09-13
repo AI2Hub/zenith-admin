@@ -3,11 +3,11 @@ import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { mpMenus } from '../../db/schema';
 import type { MpMenuRow } from '../../db/schema';
-import { formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { ensureMpAccountExists } from './mp-account.service';
 import { createWechatMenu, getWechatMenu, deleteWechatMenu, WechatApiError } from '../../lib/wechat';
-import type { MpMenuButton, MpMenu } from '@zenith/shared/mp';
+import { mpMenuSchema, type MpMenuButton, type MpMenu } from '@zenith/shared/mp';
+import { pickEntity } from '../../lib/entity-map';
 
 function mapWechatError(err: unknown): never {
   if (err instanceof WechatApiError) throw new HTTPException(400, { message: err.message });
@@ -15,14 +15,9 @@ function mapWechatError(err: unknown): never {
 }
 
 export function mapMpMenu(row: MpMenuRow): MpMenu {
-  return {
-    id: row.id,
-    accountId: row.accountId,
+  return pickEntity(mpMenuSchema, row, {
     buttons: (row.buttons ?? []) as MpMenuButton[],
-    status: row.status,
-    publishedAt: formatNullableDateTime(row.publishedAt),
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 function emptyMenu(accountId: number): MpMenu {

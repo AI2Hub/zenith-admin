@@ -21,7 +21,7 @@ import {
   type SQL,
 } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import { CMS_INTERACTION_DAILY_LIMITS, CMS_INTERACTION_POINTS } from '@zenith/shared/cms';
+import { CMS_INTERACTION_DAILY_LIMITS, CMS_INTERACTION_POINTS, cmsMemberSubscriptionSchema } from '@zenith/shared/cms';
 import type { CmsSubscriptionSubjectInput, CmsSubscriptionSubjectType } from '@zenith/shared/cms';
 import { cmsSubscriptionContract } from '@zenith/shared/cms';
 import { db } from '../../db';
@@ -38,12 +38,12 @@ import type { CmsContentRow, CmsMemberSubscriptionRow } from '../../db/schema';
 import { currentMemberId } from '../../lib/member-context';
 import { getEffectivelyEnabledCmsChannelIds } from './cms-channel-visibility.service';
 import { resolveEffectiveCmsSite } from './cms-site-inheritance.service';
-import { formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
 import { maskedMemberDisplay } from './cms-member-display';
 import { buildWhere, dateRangeConditions, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { streamByDescendingId } from '../../lib/export-center/cursor-stream';
 import { changePointsInTransaction } from '../member/member-points.service';
 import { assertSiteAccess, ensureCmsSiteExists } from './cms-sites.service';
+import { pickEntity } from '../../lib/entity-map';
 
 export function normalizeCmsAuthorKey(value: string): string {
   return value.normalize('NFKC').trim().replace(/\s+/gu, ' ').toLocaleLowerCase('en-US');
@@ -175,21 +175,10 @@ export function mapCmsMemberSubscription(row: CmsMemberSubscriptionRow, extra?: 
   memberDisplay?: string | null;
   siteName?: string | null;
 }) {
-  return {
-    id: row.id,
-    memberId: row.memberId,
+  return pickEntity(cmsMemberSubscriptionSchema, row, {
     memberDisplay: extra?.memberDisplay ?? null,
-    siteId: row.siteId,
     siteName: extra?.siteName ?? null,
-    subjectType: row.subjectType,
-    subjectKey: row.subjectKey,
-    subjectId: row.subjectId ?? null,
-    subjectLabel: row.subjectLabel,
-    notificationEnabled: row.notificationEnabled,
-    active: row.active,
-    pointsAwardedAt: formatNullableDateTime(row.pointsAwardedAt),
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 export async function subscribeCmsSubject(input: CmsSubscriptionSubjectInput) {

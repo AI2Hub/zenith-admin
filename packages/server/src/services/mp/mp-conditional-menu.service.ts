@@ -3,7 +3,6 @@ import { requireFirstRow, requireRow } from '../../lib/db-assert';
 import { db } from '../../db';
 import { mpConditionalMenus } from '../../db/schema';
 import type { MpConditionalMenuRow } from '../../db/schema';
-import { formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { ensureMpAccountExists } from './mp-account.service';
 import {
@@ -11,20 +10,14 @@ import {
   type WechatMenuMatchRule,
 } from '../../lib/wechat';
 import { mapWechatError } from '../../lib/wechat-error';
-import type { MpConditionalMenu, MpMenuButton, MpMenuMatchRule, CreateMpConditionalMenuInput, UpdateMpConditionalMenuInput } from '@zenith/shared/mp';
+import { mpConditionalMenuSchema, type MpConditionalMenu, type MpMenuButton, type MpMenuMatchRule, type CreateMpConditionalMenuInput, type UpdateMpConditionalMenuInput } from '@zenith/shared/mp';
+import { pickEntity } from '../../lib/entity-map';
 
 export function mapMpConditionalMenu(row: MpConditionalMenuRow): MpConditionalMenu {
-  return {
-    id: row.id,
-    accountId: row.accountId,
-    name: row.name,
+  return pickEntity(mpConditionalMenuSchema, row, {
     buttons: (row.buttons ?? []) as MpMenuButton[],
     matchRule: (row.matchRule ?? {}) as MpMenuMatchRule,
-    menuId: row.menuId ?? null,
-    status: row.status,
-    publishedAt: formatNullableDateTime(row.publishedAt),
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 /** 本地 camelCase 匹配规则 → 微信 snake_case，过滤空值 */

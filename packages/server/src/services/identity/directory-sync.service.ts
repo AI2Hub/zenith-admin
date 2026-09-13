@@ -10,14 +10,8 @@ import {
   directorySyncUserLinks, tenantIdentityProviders, users,
   type DirectorySyncSourceRow, type DirectorySyncRunRow, type DirectorySyncRunItemRow, type DirectorySyncConflictRow,
 } from '../../db/schema';
-import type {
-  CreateDirectorySyncSourceInput, UpdateDirectorySyncSourceInput, ResolveDirectorySyncConflictInput,
-  DirectorySyncEntityType, DirectorySyncTriggerType, DirectorySyncItemAction,
-  DirectorySyncMatchKey, DirectorySyncConflictPolicy, DirectorySyncConflictType, DirectorySyncResolution,
-  directorySyncSourceContract, directorySyncContract,
-} from '@zenith/shared/identity';
+import { directorySyncSourceSchema, directorySyncRunSchema, directorySyncRunItemSchema, directorySyncConflictSchema, type CreateDirectorySyncSourceInput, type UpdateDirectorySyncSourceInput, type ResolveDirectorySyncConflictInput, type DirectorySyncEntityType, type DirectorySyncTriggerType, type DirectorySyncItemAction, type DirectorySyncMatchKey, type DirectorySyncConflictPolicy, type DirectorySyncConflictType, type DirectorySyncResolution, type directorySyncSourceContract, type directorySyncContract } from '@zenith/shared/identity';
 import type { QueryOutputOf } from '@zenith/shared/core';
-import { formatDateTime, formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
 import { buildWhere, dateRangeConditions, keywordCondition } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
@@ -26,6 +20,7 @@ import { submitAsyncTask, mapAsyncTask } from '../../lib/task-center';
 import { buildDirectoryConnector, type DirectoryConnectorTestResult } from './directory-sync-connectors';
 import { computeNextRunAt, DIRECTORY_SYNC_TASK_TYPE } from './directory-sync-engine';
 import { assertDefaultRolesGrantable } from './role-grant';
+import { pickEntity } from '../../lib/entity-map';
 
 const SOURCE_TENANT_SCOPE_MESSAGE = '无权为其他租户或平台配置同步源';
 
@@ -41,101 +36,41 @@ function manageableSourceScope(sourceIdColumn: AnyPgColumn) {
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
 export function mapDirectorySyncSource(row: DirectorySyncSourceRow & { identityProvider?: { name: string } | null }) {
-  return {
-    id: row.id,
-    name: row.name,
-    type: row.type,
-    status: row.status,
-    tenantId: row.tenantId ?? null,
-    identityProviderId: row.identityProviderId ?? null,
+  return pickEntity(directorySyncSourceSchema, row, {
     identityProviderName: row.identityProvider?.name ?? null,
-    oauthProvider: row.oauthProvider ?? null,
     matchKey: row.matchKey as DirectorySyncMatchKey,
     fieldMapping: row.fieldMapping ?? {},
     scopeConfig: row.scopeConfig ?? {},
     conflictPolicy: row.conflictPolicy as DirectorySyncConflictPolicy,
-    lifecycle: row.lifecycle,
-    syncDepartments: row.syncDepartments,
-    cronExpression: row.cronExpression ?? null,
-    circuitBreakerPercent: row.circuitBreakerPercent,
-    // 密钥不回显，仅暴露是否已配置
     contactSecretSet: Boolean(row.contactSecret),
     callbackTokenSet: Boolean(row.callbackToken),
     callbackAesKeySet: Boolean(row.callbackAesKey),
-    callbackUrlKey: row.callbackUrlKey ?? null,
-    callbackLastEventAt: formatNullableDateTime(row.callbackLastEventAt),
-    nextRunAt: formatNullableDateTime(row.nextRunAt),
-    lastRunAt: formatNullableDateTime(row.lastRunAt),
-    lastRunStatus: row.lastRunStatus ?? null,
-    remark: row.remark ?? null,
-    createdBy: row.createdBy ?? null,
-    updatedBy: row.updatedBy ?? null,
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 export function mapDirectorySyncRun(row: DirectorySyncRunRow & { source?: { name: string } | null }) {
-  return {
-    id: row.id,
-    sourceId: row.sourceId,
+  return pickEntity(directorySyncRunSchema, row, {
     sourceName: row.source?.name ?? null,
     triggerType: row.triggerType as DirectorySyncTriggerType,
-    dryRun: row.dryRun,
-    status: row.status,
-    totalFetched: row.totalFetched,
-    deptCreated: row.deptCreated,
-    deptUpdated: row.deptUpdated,
-    userCreated: row.userCreated,
-    userLinked: row.userLinked,
-    userUpdated: row.userUpdated,
-    userDisabled: row.userDisabled,
-    skipped: row.skipped,
-    conflictCount: row.conflictCount,
-    failedCount: row.failedCount,
-    message: row.message ?? null,
-    errorMessage: row.errorMessage ?? null,
-    triggeredBy: row.triggeredBy ?? null,
-    startedAt: formatDateTime(row.startedAt),
-    finishedAt: formatNullableDateTime(row.finishedAt),
-    createdAt: formatDateTime(row.createdAt),
-  };
+  });
 }
 
 export function mapDirectorySyncRunItem(row: DirectorySyncRunItemRow) {
-  return {
-    id: row.id,
-    runId: row.runId,
+  return pickEntity(directorySyncRunItemSchema, row, {
     entityType: row.entityType as DirectorySyncEntityType,
-    externalId: row.externalId,
-    name: row.name ?? null,
     action: row.action as DirectorySyncItemAction,
-    applied: row.applied,
-    diff: row.diff ?? null,
-    message: row.message ?? null,
-    createdAt: formatDateTime(row.createdAt),
-  };
+  });
 }
 
 export function mapDirectorySyncConflict(row: DirectorySyncConflictRow & { source?: { name: string } | null; resolvedByUser?: { nickname: string } | null }) {
-  return {
-    id: row.id,
-    sourceId: row.sourceId,
+  return pickEntity(directorySyncConflictSchema, row, {
     sourceName: row.source?.name ?? null,
-    runId: row.runId ?? null,
     entityType: row.entityType as DirectorySyncEntityType,
-    externalId: row.externalId,
-    name: row.name ?? null,
     conflictType: row.conflictType as DirectorySyncConflictType,
-    sourceData: row.sourceData ?? null,
-    localData: row.localData ?? null,
     candidateUserIds: row.candidateUserIds ?? [],
-    status: row.status,
     resolution: (row.resolution ?? null) as DirectorySyncResolution | null,
-    resolvedBy: row.resolvedBy ?? null,
     resolvedByNickname: row.resolvedByUser?.nickname ?? null,
-    resolvedAt: formatNullableDateTime(row.resolvedAt),
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 // ─── 同步源 CRUD ──────────────────────────────────────────────────────────────

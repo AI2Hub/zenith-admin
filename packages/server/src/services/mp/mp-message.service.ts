@@ -11,25 +11,12 @@ import { ensureMpAccountExists } from './mp-account.service';
 import { assertContentSafe } from './mp-security.service';
 import { sendCustomServiceMessage, WechatApiError } from '../../lib/wechat';
 import type { SendMpMessageInput } from '@zenith/shared/messaging';
-import type { MpMessageType, mpMessageContract } from '@zenith/shared/mp';
+import { mpMessageSchema, type MpMessageType, type mpMessageContract } from '@zenith/shared/mp';
 import type { QueryOutputOf } from '@zenith/shared/core';
+import { pickEntity } from '../../lib/entity-map';
 
 export function mapMpMessage(row: MpMessageRow) {
-  return {
-    id: row.id,
-    accountId: row.accountId,
-    openid: row.openid,
-    direction: row.direction,
-    msgType: row.msgType,
-    content: row.content ?? null,
-    mediaId: row.mediaId ?? null,
-    mediaUrl: row.mediaUrl ?? null,
-    event: row.event ?? null,
-    msgId: row.msgId ?? null,
-    status: row.status,
-    errorMsg: row.errorMsg ?? null,
-    createdAt: formatDateTime(row.createdAt),
-  };
+  return pickEntity(mpMessageSchema, row);
 }
 
 export async function listMessages(q: QueryOutputOf<typeof mpMessageContract.list>) {

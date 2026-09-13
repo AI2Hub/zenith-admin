@@ -1,7 +1,7 @@
 import { requireRow } from '../../lib/db-assert';
 import { HTTPException } from 'hono/http-exception';
 import { and, asc, count, eq, inArray } from 'drizzle-orm';
-import type { CreateReportFolderInput, MoveReportFolderInput, ReportFolder, ReportFolderTreeNode, ReportResourceType, UpdateReportFolderInput } from '@zenith/shared/report';
+import { reportFolderSchema, type CreateReportFolderInput, type MoveReportFolderInput, type ReportFolder, type ReportFolderTreeNode, type ReportResourceType, type UpdateReportFolderInput } from '@zenith/shared/report';
 import { db } from '../../db';
 import {
   reportAssetTemplates,
@@ -16,30 +16,19 @@ import {
 } from '../../db/schema';
 import { currentUserOrNull, isSuperAdmin } from '../../lib/context';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
-import { formatTimestamps } from '../../lib/datetime';
 import { reportCreateTenantId, reportScopedWhere, reportTenantScope } from './report-access';
 import { defaultReportOwnerId, ensureReportOwner } from './report-resource.service';
 import { buildTree } from '@zenith/shared/core';
+import { pickEntity } from '../../lib/entity-map';
 
 type FolderRow = typeof reportFolders.$inferSelect & {
   owner?: { nickname: string | null; username: string } | null;
 };
 
 export function mapReportFolder(row: FolderRow): ReportFolder {
-  return {
-    id: row.id,
-    tenantId: row.tenantId ?? null,
-    parentId: row.parentId ?? null,
-    name: row.name,
-    resourceType: row.resourceType,
-    ownerId: row.ownerId ?? null,
+  return pickEntity(reportFolderSchema, row, {
     ownerName: row.owner?.nickname || row.owner?.username || null,
-    sort: row.sort,
-    status: row.status,
-    createdBy: row.createdBy ?? null,
-    updatedBy: row.updatedBy ?? null,
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 async function ensureFolderManager(row: typeof reportFolders.$inferSelect): Promise<void> {

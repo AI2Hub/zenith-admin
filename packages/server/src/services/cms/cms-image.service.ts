@@ -1,13 +1,8 @@
-import { createRequire } from 'node:module';
 import { HTTPException } from 'hono/http-exception';
 import { assertUploadSizeAllowed, uploadManagedFile } from '../files/files.service';
 import { ensureCmsSiteExists, assertSiteAccess } from './cms-sites.service';
+import { sharp } from '../../lib/sharp-loader';
 
-// 惰性加载：sharp 含原生二进制、模块图大，仅在首次处理图片时加载
-// （require 加载 CJS 构建，其导出即可调用函数，类型对应 d.mts 的 default）
-const require = createRequire(import.meta.url);
-const sharp = (...args: Parameters<typeof import('sharp')['default']>) =>
-  (require('sharp') as unknown as typeof import('sharp')['default'])(...args);
 
 /**
  * 单张图片解码后的像素上限（宽 × 高）。sharp 默认放行 0x3FFF² ≈ 2.68 亿像素（RGBA 栅格约 1 GB），

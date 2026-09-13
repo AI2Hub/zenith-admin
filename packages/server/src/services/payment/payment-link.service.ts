@@ -1,4 +1,4 @@
-import { paymentLinkContract } from '@zenith/shared/payment';
+import { paymentLinkContract, paymentLinkSchema, paymentLinkPublicSchema } from '@zenith/shared/payment';
 import type { QueryOutputOf } from '@zenith/shared/core';
 /**
  * 支付链接/收款码 Service。
@@ -16,13 +16,14 @@ import { requireRow } from '../../lib/db-assert';
 import { currentUser } from '../../lib/context';
 import { requireTenantScopeId, tenantCondition, exactTenantCondition } from '../../lib/tenant';
 import { buildWhere, keywordCondition } from '../../lib/where-helpers';
-import { formatNullableDateTime, formatTimestamps, parseDateTimeInput } from '../../lib/datetime';
+import { parseDateTimeInput } from '../../lib/datetime';
 import { createPayment } from './payment.service';
 import { bindCashierSession, bindCashierSessionAfterCreateFailure, buildCashierSessionExpiry, createCashierSession, failCashierSession, getPublicCashierSession, releaseExpiredCashierUseSlots } from './payment-cashier-session.service';
 import type { CreatePaymentLinkInput, UpdatePaymentLinkInput } from '@zenith/shared/payment';
 import type { PaymentCashierSession, PaymentLink, PaymentLinkPublic, PaymentLinkStatus, PaymentMethod, PaymentCashierMethod } from '@zenith/shared/payment';
 import { assertEffectiveCashierMethod, listEffectiveCashierMethods } from './payment-cashier-capability.service';
 import logger from '../../lib/logger';
+import { pickEntity } from '../../lib/entity-map';
 
 const PUBLIC_LINK_PAY_METHOD_LIST = ['wechat_native', 'wechat_h5', 'alipay_page', 'alipay_wap', 'unionpay_qr'] as const satisfies readonly PaymentCashierMethod[];
 const PUBLIC_LINK_PAY_METHODS = new Set<PaymentCashierMethod>(PUBLIC_LINK_PAY_METHOD_LIST);
@@ -51,38 +52,18 @@ function computeLinkUnavailableReason(row: PaymentLinkRow): PaymentLinkPublic['u
 }
 
 export function mapLink(row: PaymentLinkRow): PaymentLink {
-  return {
-    id: row.id,
-    linkNo: row.linkNo,
-    token: row.token,
-    appId: row.appId,
-    subject: row.subject,
-    amount: row.amount ?? null,
-    payMethod: row.payMethod ?? null,
-    bizType: row.bizType,
-    maxUses: row.maxUses ?? null,
-    usedCount: row.usedCount,
-    reservedCount: row.reservedCount,
-    expiredAt: formatNullableDateTime(row.expiredAt),
+  return pickEntity(paymentLinkSchema, row, {
     status: computeLinkStatus(row),
-    remark: row.remark ?? null,
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 export function mapLinkPublic(row: PaymentLinkRow, availableMethods: PaymentLinkPublic['availableMethods']): PaymentLinkPublic {
-  return {
-    token: row.token,
-    subject: row.subject,
-    amount: row.amount ?? null,
-    payMethod: row.payMethod ?? null,
-    bizType: row.bizType,
+  return pickEntity(paymentLinkPublicSchema, row, {
     status: computeLinkStatus(row),
     unavailableReason: computeLinkUnavailableReason(row),
-    expiredAt: formatNullableDateTime(row.expiredAt),
     remainingUses: row.maxUses != null ? Math.max(0, row.maxUses - row.usedCount - row.reservedCount) : null,
     availableMethods,
-  };
+  });
 }
 
 export type ListLinksQuery = QueryOutputOf<typeof paymentLinkContract.list>;

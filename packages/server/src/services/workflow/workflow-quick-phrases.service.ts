@@ -4,21 +4,15 @@ import { workflowQuickPhrases } from '../../db/schema';
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
-import { formatTimestamps } from '../../lib/datetime';
-import type { WorkflowQuickPhrase, CreateWorkflowQuickPhraseInput, UpdateWorkflowQuickPhraseInput } from '@zenith/shared/workflow';
+import { workflowQuickPhraseSchema, type WorkflowQuickPhrase, type CreateWorkflowQuickPhraseInput, type UpdateWorkflowQuickPhraseInput } from '@zenith/shared/workflow';
 import { requireRow } from '../../lib/db-assert';
 import { buildWhere } from '../../lib/where-helpers';
+import { pickEntity } from '../../lib/entity-map';
 
 type PhraseRow = typeof workflowQuickPhrases.$inferSelect;
 
 export function mapQuickPhrase(row: PhraseRow): WorkflowQuickPhrase {
-  return {
-    id: row.id,
-    userId: row.userId ?? null,
-    content: row.content,
-    sort: row.sort,
-    ...formatTimestamps(row),
-  };
+  return pickEntity(workflowQuickPhraseSchema, row);
 }
 
 /** 列出当前用户可用的常用语：系统预置（userId=null）+ 个人 */

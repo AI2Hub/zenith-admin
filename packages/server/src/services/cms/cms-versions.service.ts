@@ -4,10 +4,11 @@ import { db } from '../../db';
 import { cmsContentVersions, cmsContents } from '../../db/schema';
 import type { CmsContentRow, CmsContentVersionRow } from '../../db/schema';
 import type { DbExecutor } from '../../db/types';
-import { formatDateTime } from '../../lib/datetime';
 import { assertSiteAccess } from './cms-sites.service';
 import { assertChannelAccess } from './cms-channels.service';
 import { deleteCmsResourceRefsForOwner, resolveCmsResourcePayload, syncCmsResourceRefs } from './cms-resource-refs.service';
+import { cmsContentVersionSchema } from '@zenith/shared/cms';
+import { pickEntity } from '../../lib/entity-map';
 
 /** 每条内容保留的最大版本数（超出自动裁剪最旧版本） */
 const MAX_VERSIONS = 20;
@@ -78,16 +79,9 @@ export async function snapshotContentVersion(executor: DbExecutor, row: CmsConte
 }
 
 export function mapCmsContentVersion(row: CmsContentVersionRow, createdByName?: string | null) {
-  return {
-    id: row.id,
-    contentId: row.contentId,
-    version: row.version,
-    title: row.title,
-    snapshot: row.snapshot,
-    remark: row.remark ?? null,
+  return pickEntity(cmsContentVersionSchema, row, {
     createdByName: createdByName ?? null,
-    createdAt: formatDateTime(row.createdAt),
-  };
+  });
 }
 
 /** 内容的版本列表（新→旧） */

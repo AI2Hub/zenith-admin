@@ -48,13 +48,14 @@ import type {
   ReportDashboardVersionRow,
   ReportDashboardRow,
 } from '../../db/schema';
-import type { CreateReportCategoryInput, CreateReportEmbedTokenInput, CreateReportShareInput, CreateReportVersionInput, ReportDashboard, ReportDashboardCategory, ReportDashboardConfig, ReportDashboardEmbedToken, ReportDashboardLifecycleActionInput, ReportDashboardShare, ReportDashboardSnapshot, ReportDashboardVersion, ReportDashboardVersionDiff, ReportDashboardVersionSource, ReportFilter, ReportGridItem, ReportPublicAccessSession, ReportPublicDashboard, ReportWidget, ReportWidgetDataResult, ReportDatasetQueryOptions, UpdateReportCategoryInput, ReportLookupOption, UpdateReportShareInput } from '@zenith/shared/report';
+import { reportDashboardCategorySchema, reportDashboardVersionSchema, type CreateReportCategoryInput, type CreateReportEmbedTokenInput, type CreateReportShareInput, type CreateReportVersionInput, type ReportDashboard, type ReportDashboardCategory, type ReportDashboardConfig, type ReportDashboardEmbedToken, type ReportDashboardLifecycleActionInput, type ReportDashboardShare, type ReportDashboardSnapshot, type ReportDashboardVersion, type ReportDashboardVersionDiff, type ReportDashboardVersionSource, type ReportFilter, type ReportGridItem, type ReportPublicAccessSession, type ReportPublicDashboard, type ReportWidget, type ReportWidgetDataResult, type ReportDatasetQueryOptions, type UpdateReportCategoryInput, type ReportLookupOption, type UpdateReportShareInput } from '@zenith/shared/report';
 import type { ReportWidgetOptions } from '@zenith/shared/report';
 import { resolveReportSecret } from './report-secrets';
 import { ensureReportResourceAccess } from './report-resource-acl.service';
 import { recordReportAssetUsage } from './report-asset-usage.service';
 import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { draftSnapshotFromDashboardRow } from './report-dashboard-snapshot';
+import { pickEntity } from '../../lib/entity-map';
 
 const DEFAULT_SHARE_TTL_DAYS = 30;
 const SHARE_SESSION_TTL_SECONDS = 15 * 60;
@@ -71,13 +72,7 @@ type ShareSessionPayload = {
 
 // ─── 分类 ──────────────────────────────────────────────────────────────────────
 export function mapCategory(row: ReportDashboardCategoryRow): ReportDashboardCategory {
-  return {
-    id: row.id,
-    name: row.name,
-    sort: row.sort,
-    remark: row.remark ?? null,
-    ...formatTimestamps(row),
-  };
+  return pickEntity(reportDashboardCategorySchema, row);
 }
 
 export async function listCategories(): Promise<ReportDashboardCategory[]> {
@@ -180,16 +175,9 @@ export async function deleteCategory(id: number): Promise<void> {
 // ─── 版本 / 生命周期 ───────────────────────────────────────────────────────────
 
 export function mapVersion(row: ReportDashboardVersionRow): ReportDashboardVersion {
-  return {
-    id: row.id,
-    dashboardId: row.dashboardId,
-    version: row.version,
+  return pickEntity(reportDashboardVersionSchema, row, {
     snapshot: (row.snapshot ?? {}) as ReportDashboardSnapshot,
-    source: row.source,
-    remark: row.remark ?? null,
-    createdBy: row.createdBy ?? null,
-    createdAt: formatDateTime(row.createdAt),
-  };
+  });
 }
 
 async function getNextVersion(executor: DbExecutor, dashboardId: number): Promise<number> {

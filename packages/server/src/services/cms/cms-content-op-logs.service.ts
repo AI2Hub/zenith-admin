@@ -3,27 +3,20 @@ import { db } from '../../db';
 import { cmsContentOpLogs, cmsContents } from '../../db/schema';
 import type { CmsContentOpLogRow } from '../../db/schema';
 import type { DbExecutor } from '../../db/types';
-import { formatDateTime } from '../../lib/datetime';
 import { currentUserOrNull } from '../../lib/context';
 import logger from '../../lib/logger';
-import { CMS_CONTENT_OP_ACTION_LABELS } from '@zenith/shared/cms';
+import { CMS_CONTENT_OP_ACTION_LABELS, cmsContentOpLogSchema } from '@zenith/shared/cms';
 import { assertSiteAccess } from './cms-sites.service';
 import { assertChannelAccess } from './cms-channels.service';
+import { pickEntity } from '../../lib/entity-map';
 
 export type CmsContentOpAction = keyof typeof CMS_CONTENT_OP_ACTION_LABELS;
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
 export function mapCmsContentOpLog(row: CmsContentOpLogRow) {
-  return {
-    id: row.id,
-    contentId: row.contentId,
-    action: row.action,
+  return pickEntity(cmsContentOpLogSchema, row, {
     actionLabel: CMS_CONTENT_OP_ACTION_LABELS[row.action as CmsContentOpAction] ?? row.action,
-    detail: row.detail ?? null,
-    operatorId: row.operatorId ?? null,
-    operatorName: row.operatorName,
-    createdAt: formatDateTime(row.createdAt),
-  };
+  });
 }
 
 function operatorSnapshot() {

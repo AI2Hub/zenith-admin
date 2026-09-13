@@ -1,4 +1,4 @@
-import { reportQueryCapacityContract } from '@zenith/shared/report';
+import { reportQueryCapacityContract, reportQueryQuotaSchema, reportQueryCostLogSchema } from '@zenith/shared/report';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { exactTenantCondition } from '../../lib/tenant';
 import { requireRow } from '../../lib/db-assert';
@@ -13,11 +13,12 @@ import { db } from '../../db';
 import { reportQueryCostLogs, reportQueryQuotas, users } from '../../db/schema';
 import { currentUserId, currentUserOrNull } from '../../lib/context';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
-import { DATE_FORMAT, formatDateTime, formatTimestamps, parseDateRangeEnd, parseDateRangeStart } from '../../lib/datetime';
+import { DATE_FORMAT, formatDateTime, parseDateRangeEnd, parseDateRangeStart } from '../../lib/datetime';
 import redis from '../../lib/redis';
 import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { reportCreateTenantId, reportScopedWhere, reportTenantScope } from './report-access';
 import { reportTimeBucketExpression } from './report-time-bucket';
+import { pickEntity } from '../../lib/entity-map';
 
 const RESERVE_QUOTA_LUA = `
 for i, key in ipairs(KEYS) do
@@ -326,43 +327,11 @@ export async function persistReportQueryCost(input: {
 }
 
 export function mapReportQueryQuota(row: QuotaRow): ReportQueryQuota {
-  return {
-    id: row.id,
-    tenantId: row.tenantId ?? null,
-    scope: row.scope,
-    userId: row.userId ?? null,
-    maxConcurrent: row.maxConcurrent,
-    dailyQueryLimit: row.dailyQueryLimit,
-    dailyRowLimit: row.dailyRowLimit,
-    dailyByteLimit: row.dailyByteLimit,
-    dailyCostLimit: row.dailyCostLimit,
-    resetTimezone: row.resetTimezone,
-    enabled: row.enabled,
-    createdBy: row.createdBy ?? null,
-    updatedBy: row.updatedBy ?? null,
-    ...formatTimestamps(row),
-  };
+  return pickEntity(reportQueryQuotaSchema, row);
 }
 
 export function mapReportQueryCost(row: CostRow): ReportQueryCostLog {
-  return {
-    id: row.id,
-    tenantId: row.tenantId ?? null,
-    userId: row.userId ?? null,
-    datasetId: row.datasetId ?? null,
-    datasourceId: row.datasourceId ?? null,
-    scene: row.scene,
-    requestId: row.requestId,
-    queuedMs: row.queuedMs,
-    durationMs: row.durationMs,
-    rowCount: row.rowCount,
-    byteSize: row.byteSize,
-    costUnits: row.costUnits,
-    cacheHit: row.cacheHit,
-    success: row.success,
-    errorCode: row.errorCode ?? null,
-    occurredAt: formatDateTime(row.occurredAt),
-  };
+  return pickEntity(reportQueryCostLogSchema, row);
 }
 
 async function ensureQuota(id: number): Promise<QuotaRow> {

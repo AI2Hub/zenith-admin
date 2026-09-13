@@ -4,13 +4,13 @@ import { workflowComments, workflowInstances, workflowTasks } from '../../db/sch
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../lib/context';
 import { isSuperAdmin } from '../../lib/permissions';
-import { formatDateTime } from '../../lib/datetime';
 import logger from '../../lib/logger';
-import type { WorkflowComment, CreateWorkflowCommentInput } from '@zenith/shared/workflow';
+import { workflowCommentSchema, type WorkflowComment, type CreateWorkflowCommentInput } from '@zenith/shared/workflow';
 import { notify } from '../messaging/notification-outbox.service';
 import { loadWorkflowUserDisplays } from './workflow-user-helpers';
 import { requireRow } from '../../lib/db-assert';
 import { requireVisibleInstance } from './instances/shared';
+import { pickEntity } from '../../lib/entity-map';
 
 type CommentRow = typeof workflowComments.$inferSelect;
 
@@ -18,21 +18,14 @@ export function mapComment(
   row: CommentRow,
   extras: { userName?: string | null; userAvatar?: string | null; mentionNames?: string[] | null; parentSummary?: { userName: string | null; content: string } | null } = {},
 ): WorkflowComment {
-  return {
-    id: row.id,
-    instanceId: row.instanceId,
-    taskId: row.taskId ?? null,
-    parentId: row.parentId ?? null,
+  return pickEntity(workflowCommentSchema, row, {
     parentSummary: extras.parentSummary ?? null,
-    userId: row.userId,
     userName: extras.userName ?? null,
     userAvatar: extras.userAvatar ?? null,
-    content: row.content,
     mentions: Array.isArray(row.mentions) ? row.mentions : [],
     mentionNames: extras.mentionNames ?? null,
     attachments: Array.isArray(row.attachments) ? row.attachments : [],
-    createdAt: formatDateTime(row.createdAt),
-  };
+  });
 }
 
 /** 校验当前用户是否为实例参与者（发起人 / 任一任务处理人 / 超管），返回实例行 */

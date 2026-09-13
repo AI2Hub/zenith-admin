@@ -5,31 +5,17 @@ import { db } from '../../db';
 import { mpQrcodes, mpFans } from '../../db/schema';
 import type { MpQrcodeRow } from '../../db/schema';
 import { buildWhere, keywordCondition } from '../../lib/where-helpers';
-import { formatTimestamps } from '../../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { ensureMpAccountExists } from './mp-account.service';
 import { createWechatQrcode } from '../../lib/wechat';
 import { mapWechatError } from '../../lib/wechat-error';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
-import type { CreateMpQrcodeInput, mpQrcodeContract } from '@zenith/shared/mp';
+import { mpQrcodeSchema, type CreateMpQrcodeInput, type mpQrcodeContract } from '@zenith/shared/mp';
 import type { QueryOutputOf } from '@zenith/shared/core';
+import { pickEntity } from '../../lib/entity-map';
 
 export function mapMpQrcode(row: MpQrcodeRow) {
-  return {
-    id: row.id,
-    accountId: row.accountId,
-    type: row.type,
-    sceneStr: row.sceneStr,
-    name: row.name,
-    ticket: row.ticket ?? null,
-    url: row.url ?? null,
-    expireSeconds: row.expireSeconds ?? null,
-    scanCount: row.scanCount,
-    rewardPoints: row.rewardPoints,
-    createdBy: row.createdBy ?? null,
-    updatedBy: row.updatedBy ?? null,
-    ...formatTimestamps(row),
-  };
+  return pickEntity(mpQrcodeSchema, row);
 }
 
 export async function ensureMpQrcodeExists(id: number): Promise<MpQrcodeRow> {

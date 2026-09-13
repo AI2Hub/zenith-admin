@@ -28,9 +28,12 @@ type RowValue<T> = [Extract<T, null | undefined>] extends [never]
   ? Loosen<T>
   : Loosen<Exclude<T, null | undefined>> | null | undefined;
 
-/** 实体 schema 对行的结构要求（`overrides` 已覆盖的键除外） */
+/** 实体 schema 对行的结构要求（`overrides` 已覆盖的键除外）：可缺省的实体键（`.optional()`）行上也可以没有 */
+type OptionalEntityKeys<S extends z.ZodObject> = { [K in keyof z.output<S>]-?: undefined extends z.output<S>[K] ? K : never }[keyof z.output<S>];
 export type EntityRow<S extends z.ZodObject, O = Record<never, never>> = {
-  readonly [K in Exclude<keyof z.output<S>, keyof O>]: RowValue<z.output<S>[K]>;
+  readonly [K in Exclude<keyof z.output<S>, keyof O | OptionalEntityKeys<S>>]: RowValue<z.output<S>[K]>;
+} & {
+  readonly [K in Exclude<Extract<keyof z.output<S>, OptionalEntityKeys<S>>, keyof O>]?: RowValue<z.output<S>[K]>;
 };
 
 /** 覆盖值：实体字段的子集，类型即实体字段类型 */

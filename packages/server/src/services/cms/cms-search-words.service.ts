@@ -2,11 +2,10 @@ import { requireFirstRow, requireRow } from '../../lib/db-assert';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { listRows } from '../../lib/list-query';
 import { eq, asc, inArray } from 'drizzle-orm';
-import { cmsSearchContract } from '@zenith/shared/cms';
+import { cmsSearchContract, cmsSearchWordSchema } from '@zenith/shared/cms';
 import { db } from '../../db';
 import { cmsSearchWords } from '../../db/schema';
 import type { CmsSearchWordRow } from '../../db/schema';
-import { formatTimestamps } from '../../lib/datetime';
 import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { reloadCmsSearchDict } from './cms-search.service';
@@ -15,20 +14,11 @@ import type { BatchUpdateCmsSearchWordsInput } from '@zenith/shared/cms';
 import { assertSiteAccess, ensureCmsSiteExists } from './cms-sites.service';
 import { assertCompleteCmsBatch } from './cms-access';
 import { assertCmsSearchDictionaryWord } from './cms-search-dictionary';
+import { pickEntity } from '../../lib/entity-map';
 
 // ─── 数据映射 / CRUD ──────────────────────────────────────────────────────────
 export function mapCmsSearchWord(row: CmsSearchWordRow) {
-  return {
-    id: row.id,
-    siteId: row.siteId,
-    word: row.word,
-    type: row.type,
-    groupName: row.groupName,
-    weight: row.weight,
-    status: row.status,
-    remark: row.remark ?? null,
-    ...formatTimestamps(row),
-  };
+  return pickEntity(cmsSearchWordSchema, row);
 }
 
 export async function ensureCmsSearchWordExists(id: number): Promise<CmsSearchWordRow> {

@@ -6,8 +6,7 @@ import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { cmsPageBlockAcls, cmsPages, cmsChannels, cmsContents } from '../../db/schema';
 import type { CmsPageRow } from '../../db/schema';
-import type { CmsPageBlock } from '@zenith/shared/cms';
-import { formatTimestamps } from '../../lib/datetime';
+import { cmsPageSchema, type CmsPageBlock } from '@zenith/shared/cms';
 import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { assertSiteAccess } from './cms-sites.service';
@@ -24,24 +23,12 @@ import {
 } from './cms-page-acl.service';
 import { hasPermission } from '../../lib/context';
 import { deleteCmsPageWidgetRefs, syncCmsPageWidgetRefs } from './cms-widgets.service';
+import { pickEntity } from '../../lib/entity-map';
 
 export function mapCmsPage(row: CmsPageRow, blocks?: CmsPageBlock[]) {
-  return {
-    id: row.id,
-    siteId: row.siteId,
-    name: row.name,
-    slug: row.slug,
-    path: row.path ?? null,
-    isHome: row.isHome,
+  return pickEntity(cmsPageSchema, row, {
     blocks: blocks ?? (row.blocks ?? []) as CmsPageBlock[],
-    requiresDynamic: row.requiresDynamic,
-    seoTitle: row.seoTitle ?? null,
-    seoKeywords: row.seoKeywords ?? null,
-    seoDescription: row.seoDescription ?? null,
-    status: row.status,
-    remark: row.remark ?? null,
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 export async function listCmsPages(params: { page: number; pageSize: number; siteId: number; keyword?: string }) {

@@ -3,15 +3,15 @@ import type { QueryOutputOf } from '@zenith/shared/core';
 import { listRows } from '../../lib/list-query';
 import { eq, asc } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import { cmsSeoContract } from '@zenith/shared/cms';
+import { cmsSeoContract, cmsRedirectSchema } from '@zenith/shared/cms';
 import { db } from '../../db';
 import { cmsRedirects, cmsSites } from '../../db/schema';
 import type { CmsRedirectRow } from '../../db/schema';
-import { formatTimestamps } from '../../lib/datetime';
 import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { assertSiteAccess } from './cms-sites.service';
 import type { CreateCmsRedirectInput, UpdateCmsRedirectInput } from '@zenith/shared/cms';
+import { pickEntity } from '../../lib/entity-map';
 
 // ─── 开放重定向防护 ────────────────────────────────────────────────────────────
 /** 目标地址是否可信：站内相对路径，或域名属于本系统任一站点（站群互跳） */
@@ -73,16 +73,7 @@ export async function resolveRedirect(siteId: number, path: string): Promise<{ t
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
 export function mapCmsRedirect(row: CmsRedirectRow) {
-  return {
-    id: row.id,
-    siteId: row.siteId,
-    fromPath: row.fromPath,
-    toUrl: row.toUrl,
-    redirectType: row.redirectType,
-    status: row.status,
-    remark: row.remark ?? null,
-    ...formatTimestamps(row),
-  };
+  return pickEntity(cmsRedirectSchema, row);
 }
 
 export async function ensureCmsRedirectExists(id: number): Promise<CmsRedirectRow> {

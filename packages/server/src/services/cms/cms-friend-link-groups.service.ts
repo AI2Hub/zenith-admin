@@ -3,30 +3,22 @@ import type { QueryOutputOf } from '@zenith/shared/core';
 import { buildListResult } from '../../lib/list-query';
 import { eq, asc, and } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import { cmsFriendLinkContract } from '@zenith/shared/cms';
+import { cmsFriendLinkContract, cmsFriendLinkGroupSchema } from '@zenith/shared/cms';
 import { db } from '../../db';
 import { cmsFriendLinkGroups, cmsFriendLinks } from '../../db/schema';
 import type { CmsFriendLinkGroupRow } from '../../db/schema';
-import { formatTimestamps } from '../../lib/datetime';
 import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import type { CreateCmsFriendLinkGroupInput, UpdateCmsFriendLinkGroupInput } from '@zenith/shared/cms';
 import { assertSiteAccess, ensureCmsSiteExists } from './cms-sites.service';
 import { refreshCmsPublicConfiguration } from './cms-public-config-refresh.service';
+import { pickEntity } from '../../lib/entity-map';
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
 export function mapCmsFriendLinkGroup(row: CmsFriendLinkGroupRow, linkCount?: number) {
-  return {
-    id: row.id,
-    siteId: row.siteId,
-    name: row.name,
-    code: row.code,
-    status: row.status,
-    sort: row.sort,
-    remark: row.remark ?? null,
+  return pickEntity(cmsFriendLinkGroupSchema, row, {
     ...(linkCount === undefined ? {} : { linkCount }),
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 // ─── 前置校验 ─────────────────────────────────────────────────────────────────

@@ -1,4 +1,4 @@
-import { iotFirmwareContract } from '@zenith/shared/iot';
+import { iotFirmwareContract, iotFirmwareSchema } from '@zenith/shared/iot';
 import type { QueryOutputOf } from '@zenith/shared/core';
 /**
  * IoT 固件包管理：产品维度版本 + 托管文件（生成文件通道，服务端计算 sha256）。
@@ -14,7 +14,6 @@ import type { InitIotFirmwareUploadInput, UpdateIotFirmwareInput } from '@zenith
 import { IOT_FIRMWARE_VERSION_PATTERN } from '@zenith/shared/iot';
 import { db } from '../../db';
 import { iotFirmwares, iotOtaTasks, iotProducts, type IotFirmwareRow } from '../../db/schema';
-import { formatTimestamps } from '../../lib/datetime';
 import { requireFirstRow } from '../../lib/db-assert';
 import { buildListResult } from '../../lib/list-query';
 import { buildWhere, keywordCondition, withPagination } from '../../lib/where-helpers';
@@ -26,24 +25,13 @@ import { deleteManagedFile, saveGeneratedManagedFile } from '../files/files.serv
 import { bindUploadSession, requireUploadBinding } from '../files/upload-bindings.service';
 import { abortChunkUpload, completeChunkUpload, getUploadStatus, initChunkUpload, uploadChunk } from '../files/upload-sessions.service';
 import { ensureIotProductExists } from './iot-devices.service';
+import { pickEntity } from '../../lib/entity-map';
 
 export function mapIotFirmware(row: IotFirmwareRow, extra?: { productName?: string | null; taskCount?: number }) {
-  return {
-    id: row.id,
-    productId: row.productId,
+  return pickEntity(iotFirmwareSchema, row, {
     productName: extra?.productName ?? null,
-    version: row.version,
-    fileId: row.fileId ?? null,
-    fileName: row.fileName,
-    size: row.size,
-    sha256: row.sha256,
-    releaseNotes: row.releaseNotes ?? null,
-    status: row.status,
     taskCount: extra?.taskCount ?? 0,
-    createdBy: row.createdBy ?? null,
-    updatedBy: row.updatedBy ?? null,
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 export type ListIotFirmwaresFilter = Omit<QueryOutputOf<typeof iotFirmwareContract.list>, 'page' | 'pageSize'>;

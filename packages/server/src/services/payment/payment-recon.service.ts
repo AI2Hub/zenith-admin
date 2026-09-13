@@ -1,4 +1,4 @@
-import { paymentReconContract } from '@zenith/shared/payment';
+import { paymentReconContract, paymentReconBatchSchema, paymentReconItemSchema } from '@zenith/shared/payment';
 import type { QueryOutputOf } from '@zenith/shared/core';
 /**
  * 支付对账中心 Service。
@@ -17,7 +17,7 @@ import { requireRow } from '../../lib/db-assert';
 import { currentUser } from '../../lib/context';
 import { requireTenantScopeId, tenantCondition, exactTenantCondition } from '../../lib/tenant';
 import { buildWhere } from '../../lib/where-helpers';
-import { formatDate, formatDateTime, formatNullableDateTime, formatTimestamps, parseDateTimeInput } from '../../lib/datetime';
+import { formatDate, parseDateTimeInput } from '../../lib/datetime';
 import { postSystemJournalWithin } from './payment-journal.service';
 import { buildAdapterContext } from './payment.service';
 import { getAdapter } from '../../lib/payment/registry';
@@ -26,46 +26,14 @@ import { assertEffectivePaymentOperation } from './payment-capability-evaluator'
 import logger from '../../lib/logger';
 import type { SQL } from 'drizzle-orm';
 import type { HandlePaymentReconItemInput, PaymentChannel, PaymentReconBatch, PaymentReconItem, PaymentReconResult, PaymentReconSource } from '@zenith/shared/payment';
+import { pickEntity } from '../../lib/entity-map';
 
 export function mapReconBatch(row: PaymentReconBatchRow): PaymentReconBatch {
-  return {
-    id: row.id,
-    batchNo: row.batchNo,
-    channel: row.channel,
-    appId: row.appId,
-    channelConfigId: row.channelConfigId,
-    currency: row.currency,
-    billDate: row.billDate,
-    source: row.source,
-    status: row.status,
-    localCount: row.localCount,
-    localAmount: row.localAmount,
-    channelCount: row.channelCount,
-    channelAmount: row.channelAmount,
-    matchedCount: row.matchedCount,
-    diffCount: row.diffCount,
-    remark: row.remark ?? null,
-    ...formatTimestamps(row),
-  };
+  return pickEntity(paymentReconBatchSchema, row);
 }
 
 export function mapReconItem(row: PaymentReconItemRow): PaymentReconItem {
-  return {
-    id: row.id,
-    batchId: row.batchId,
-    orderNo: row.orderNo ?? null,
-    channelTradeNo: row.channelTradeNo ?? null,
-    localAmount: row.localAmount ?? null,
-    channelAmount: row.channelAmount ?? null,
-    localStatus: row.localStatus ?? null,
-    channelStatus: row.channelStatus ?? null,
-    result: row.result,
-    handleStatus: row.handleStatus ?? null,
-    handleRemark: row.handleRemark ?? null,
-    handledAt: formatNullableDateTime(row.handledAt),
-    remark: row.remark ?? null,
-    createdAt: formatDateTime(row.createdAt),
-  };
+  return pickEntity(paymentReconItemSchema, row);
 }
 
 interface ChannelRecord {

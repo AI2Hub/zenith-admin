@@ -1,7 +1,7 @@
 import { requireRow } from '../../lib/db-assert';
 import { HTTPException } from 'hono/http-exception';
 import { and, eq, inArray } from 'drizzle-orm';
-import type { GrantReportResourceAclInput, ReportAclRole, ReportAclSubjectType, ReportResourceAcl, ReportResourceType, UpdateReportResourceAclInput } from '@zenith/shared/report';
+import { reportResourceAclSchema, type GrantReportResourceAclInput, type ReportAclRole, type ReportAclSubjectType, type ReportResourceAcl, type ReportResourceType, type UpdateReportResourceAclInput } from '@zenith/shared/report';
 import { db } from '../../db';
 import {
   departments,
@@ -22,10 +22,11 @@ import {
 import { getUserEnabledGroupIds } from '../../lib/user-group-access';
 import { currentUserOrNull } from '../../lib/context';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
-import { formatNullableDateTime, formatTimestamps, parseDateTimeInput } from '../../lib/datetime';
+import { parseDateTimeInput } from '../../lib/datetime';
 import { isSuperAdmin } from '../../lib/context';
 import { reportScopedWhere, reportTenantScope } from './report-access';
 import { resolveReportResource } from './report-resource.service';
+import { pickEntity } from '../../lib/entity-map';
 
 const ACL_RANK: Record<ReportAclRole, number> = { viewer: 1, editor: 2, owner: 3 };
 
@@ -304,21 +305,7 @@ async function ensureFolderAclManager(folderId: number, resourceType: ReportReso
 }
 
 export function mapReportResourceAcl(row: typeof reportResourceAcls.$inferSelect): ReportResourceAcl {
-  return {
-    id: row.id,
-    tenantId: row.tenantId ?? null,
-    resourceType: row.resourceType,
-    resourceId: row.resourceId,
-    subjectType: row.subjectType,
-    subjectId: row.subjectId,
-    role: row.role,
-    inheritFromFolder: row.inheritFromFolder,
-    expiresAt: formatNullableDateTime(row.expiresAt),
-    grantedBy: row.grantedBy ?? null,
-    createdBy: row.createdBy ?? null,
-    updatedBy: row.updatedBy ?? null,
-    ...formatTimestamps(row),
-  };
+  return pickEntity(reportResourceAclSchema, row);
 }
 
 export async function listReportResourceAcls(

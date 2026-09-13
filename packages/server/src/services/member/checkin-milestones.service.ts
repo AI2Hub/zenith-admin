@@ -7,24 +7,15 @@ import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { checkinMilestones, coupons } from '../../db/schema';
 import type { CheckinMilestoneRow } from '../../db/schema';
-import type { CheckinMilestoneRewardType } from '@zenith/shared/member';
-import { formatTimestamps } from '../../lib/datetime';
+import { checkinMilestoneSchema, type CheckinMilestoneRewardType } from '@zenith/shared/member';
 import { requireFirstRow, requireRow } from '../../lib/db-assert';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
+import { pickEntity } from '../../lib/entity-map';
 
 export function mapCheckinMilestone(row: CheckinMilestoneRow, couponName?: string | null) {
-  return {
-    id: row.id,
-    title: row.title,
-    cumulativeDays: row.cumulativeDays,
-    rewardType: row.rewardType,
-    rewardPoints: row.rewardPoints,
-    couponId: row.couponId ?? null,
+  return pickEntity(checkinMilestoneSchema, row, {
     couponName: couponName ?? null,
-    enabled: row.enabled,
-    remark: row.remark ?? null,
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 export async function ensureMilestoneExists(id: number): Promise<CheckinMilestoneRow> {

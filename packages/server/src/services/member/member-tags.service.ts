@@ -7,9 +7,10 @@ import { db } from '../../db';
 import { members, memberTagBindings, memberTags } from '../../db/schema';
 import type { MemberTagRow } from '../../db/schema';
 import type { DbExecutor } from '../../db/types';
-import { formatTimestamps } from '../../lib/datetime';
 import { requireFirstRow } from '../../lib/db-assert';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
+import { memberTagSchema } from '@zenith/shared/member';
+import { pickEntity } from '../../lib/entity-map';
 
 export interface SaveMemberTagInput {
   name: string;
@@ -20,16 +21,9 @@ export interface SaveMemberTagInput {
 }
 
 export function mapMemberTag(row: MemberTagRow, memberCount?: number) {
-  return {
-    id: row.id,
-    name: row.name,
-    color: row.color ?? null,
-    description: row.description ?? null,
-    sort: row.sort,
-    status: row.status,
+  return pickEntity(memberTagSchema, row, {
     memberCount,
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 export async function ensureMemberTagExists(id: number): Promise<MemberTagRow> {

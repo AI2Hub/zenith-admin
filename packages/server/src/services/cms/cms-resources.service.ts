@@ -3,12 +3,10 @@ import type { QueryOutputOf } from '@zenith/shared/core';
 import { buildListResult } from '../../lib/list-query';
 import { eq, and, desc, gt, inArray, isNull, notInArray } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import { createRequire } from 'node:module';
-import { cmsResourceContract } from '@zenith/shared/cms';
+import { cmsResourceContract, cmsResourceSchema } from '@zenith/shared/cms';
 import { db } from '../../db';
 import { cmsResources, cmsResourceFolders, cmsResourceRefs } from '../../db/schema';
 import type { CmsResourceRow } from '../../db/schema';
-import { formatTimestamps } from '../../lib/datetime';
 import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { uploadManagedFile, deleteManagedFile, readFileContent } from '../files/files.service';
 import { processCmsImageUpload } from './cms-image.service';
@@ -22,34 +20,16 @@ import {
   countCmsResourceRefs, invalidateCmsResourceCache, listCmsOrphanResourceIds, listCmsResourceRefDetails,
 } from './cms-resource-refs.service';
 import { refreshCmsPublicConfiguration } from './cms-public-config-refresh.service';
+import { sharp } from '../../lib/sharp-loader';
+import { pickEntity } from '../../lib/entity-map';
 
-// 惰性加载：sharp 含原生二进制、模块图大，仅在首次处理图片时加载
-// （require 加载 CJS 构建，其导出即可调用函数，类型对应 d.mts 的 default）
-const require = createRequire(import.meta.url);
-const sharp = (...args: Parameters<typeof import('sharp')['default']>) =>
-  (require('sharp') as unknown as typeof import('sharp')['default'])(...args);
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
 export function mapCmsResource(row: CmsResourceRow, folderName?: string | null, refCount?: number) {
-  return {
-    id: row.id,
-    siteId: row.siteId,
-    folderId: row.folderId ?? null,
+  return pickEntity(cmsResourceSchema, row, {
     folderName: folderName ?? null,
-    type: row.type,
-    name: row.name,
-    url: row.url,
-    thumbUrl: row.thumbUrl ?? null,
-    fileId: row.fileId ?? null,
-    size: row.size,
-    width: row.width ?? null,
-    height: row.height ?? null,
-    mimeType: row.mimeType ?? null,
-    remark: row.remark ?? null,
-    ownsFile: row.ownsFile,
     ...(refCount !== undefined ? { refCount } : {}),
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 function detectResourceType(mime: string): CmsResourceType {

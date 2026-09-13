@@ -1,4 +1,4 @@
-import { iotOtaTaskContract } from '@zenith/shared/iot';
+import { iotOtaTaskContract, iotOtaTaskDeviceSchema } from '@zenith/shared/iot';
 import type { QueryOutputOf } from '@zenith/shared/core';
 /**
  * IoT OTA 升级：任务创建 / 设备状态机 / 协议下发 / 版本确认 / 超时收敛。
@@ -18,7 +18,7 @@ import {
   iotDevices, iotFirmwares, iotOtaTaskDevices, iotOtaTasks, iotProducts,
   type IotDeviceRow, type IotFirmwareRow, type IotOtaTaskDeviceRow, type IotOtaTaskRow,
 } from '../../db/schema';
-import { formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
+import { formatTimestamps } from '../../lib/datetime';
 import { requireFirstRow, requireRow } from '../../lib/db-assert';
 import { buildListResult } from '../../lib/list-query';
 import { buildWhere, keywordCondition, withPagination } from '../../lib/where-helpers';
@@ -29,6 +29,7 @@ import { openEventBus } from '../../lib/open-event-bus';
 import { pushOtaToDevice } from './iot-gateway.service';
 import { ensureIotFirmwareExists } from './iot-firmware.service';
 import { resolveIotBatchTargets } from './iot-groups.service';
+import { pickEntity } from '../../lib/entity-map';
 
 // ─── 映射 ─────────────────────────────────────────────────────────────────────
 export function mapIotOtaTask(row: IotOtaTaskRow, extra?: { productName?: string | null }) {
@@ -58,21 +59,11 @@ export function mapIotOtaTaskDevice(
   row: IotOtaTaskDeviceRow,
   extra?: { deviceName?: string | null; deviceSn?: string | null; online?: boolean },
 ) {
-  return {
-    id: row.id,
-    taskId: row.taskId,
-    deviceId: row.deviceId,
+  return pickEntity(iotOtaTaskDeviceSchema, row, {
     deviceName: extra?.deviceName ?? null,
     deviceSn: extra?.deviceSn ?? null,
     online: extra?.online ?? false,
-    status: row.status,
-    progress: row.progress,
-    fromVersion: row.fromVersion ?? null,
-    batchIndex: row.batchIndex,
-    errorMsg: row.errorMsg ?? null,
-    notifiedAt: formatNullableDateTime(row.notifiedAt),
-    finishedAt: formatNullableDateTime(row.finishedAt),
-  };
+  });
 }
 
 // ─── 任务查询 ─────────────────────────────────────────────────────────────────

@@ -29,7 +29,7 @@ import {
 } from '../../lib/member-session-manager';
 import type { MemberJwtPayload } from '../../middleware/member-auth';
 import { currentMember } from '../../lib/member-context';
-import { formatDateTime, formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
+import { formatDateTime } from '../../lib/datetime';
 import { parseUserAgent } from '../../lib/request-helpers';
 import { lookupIpLocation } from '../../lib/ip-location';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
@@ -38,10 +38,11 @@ import logger from '../../lib/logger';
 import { verifyMemberSmsCode } from './member-sms.service';
 import { trackServerEvent } from '../analytics/analytics-server-events.service';
 import { decide } from '../platform/rules-runtime.service';
-import type { MemberRegisterInput, MemberLoginInput, MemberUpdateProfileInput, MemberChangePasswordInput, MemberResetPasswordInput, MemberLoginResult } from '@zenith/shared/member';
+import { memberSchema, type MemberRegisterInput, type MemberLoginInput, type MemberUpdateProfileInput, type MemberChangePasswordInput, type MemberResetPasswordInput, type MemberLoginResult } from '@zenith/shared/member';
 import { ANALYTICS_EVENT_NAMES } from '@zenith/shared/analytics';
 import { isTenantActive } from '../../lib/tenant';
 import { withPagination } from '../../lib/where-helpers';
+import { pickEntity } from '../../lib/entity-map';
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
 export function mapMember(
@@ -53,32 +54,13 @@ export function mapMember(
     tags?: { id: number; name: string; color: string | null }[];
   },
 ) {
-  return {
-    id: row.id,
-    username: row.username ?? null,
-    phone: row.phone ?? null,
-    email: row.email ?? null,
-    nickname: row.nickname,
-    avatar: row.avatar ?? null,
-    gender: row.gender ?? null,
-    birthday: row.birthday ?? null,
-    status: row.status,
-    levelId: row.levelId ?? null,
+  return pickEntity(memberSchema, row, {
     levelName: extra?.levelName ?? null,
-    vipExpireAt: formatNullableDateTime(row.vipExpireAt),
-    growthValue: row.growthValue,
-    experience: row.experience,
-    registerSource: row.registerSource,
-    registerIp: row.registerIp ?? null,
-    lastLoginAt: formatNullableDateTime(row.lastLoginAt),
-    lastLoginIp: row.lastLoginIp ?? null,
-    remark: row.remark ?? null,
     hasPassword: !!row.password,
     pointBalance: extra?.pointBalance,
     walletBalance: extra?.walletBalance,
     tags: extra?.tags,
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 // ─── Token 签发 ───────────────────────────────────────────────────────────────

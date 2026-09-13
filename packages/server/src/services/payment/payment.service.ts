@@ -19,12 +19,11 @@ import { currentUser, currentUserOrNull } from '../../lib/context';
 import { requireTenantScopeId, tenantCondition, exactTenantCondition } from '../../lib/tenant';
 import { getDataScopeCondition } from '../../lib/data-scope';
 import { buildWhere, dateRangeConditions, keywordCondition, nullableEq } from '../../lib/where-helpers';
-import { formatDateTime, formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
 import { decryptField } from '../../lib/encryption';
 import { isPgUniqueViolation } from '../../lib/db-errors';
 import { getSettings } from '../../lib/settings';
 import logger from '../../lib/logger';
-import { PAYMENT_METHOD_CHANNEL, paymentOrderContract, paymentRefundContract, paymentNotifyLogContract } from '@zenith/shared/payment';
+import { PAYMENT_METHOD_CHANNEL, paymentOrderContract, paymentRefundContract, paymentNotifyLogContract, paymentOrderSchema, paymentRefundSchema, paymentNotifyLogSchema } from '@zenith/shared/payment';
 import type { CreatePaymentInput, CreatePaymentResult, CreateRefundInput, PaymentChannel, PaymentNotifyLog, PaymentOrder, PaymentOrderStatus, PaymentRefund } from '@zenith/shared/payment';
 import { getAdapter } from '../../lib/payment';
 import type { AdapterContext, DecryptedSecrets, NotifyResult } from '../../lib/payment';
@@ -37,6 +36,7 @@ import { resolveApplicationChannelConfig } from './payment-apps.service';
 import { assertPaymentEngineConfig, resolvePaymentChannelConfig } from './payment-channel-config-resolver';
 import type { DbExecutor } from '../../db/types';
 import { assertEffectivePaymentOperation } from './payment-capability-evaluator';
+import { pickEntity } from '../../lib/entity-map';
 
 // ─── 工具 ─────────────────────────────────────────────────────────────────────
 
@@ -237,88 +237,15 @@ async function markRefundFailed(order: PaymentOrderRow, refund: Pick<PaymentRefu
 // ─── 映射 ─────────────────────────────────────────────────────────────────────
 
 export function mapOrder(row: PaymentOrderRow): PaymentOrder {
-  return {
-    id: row.id,
-    orderNo: row.orderNo,
-    outTradeNo: row.outTradeNo,
-    channelTradeNo: row.channelTradeNo ?? null,
-    bizType: row.bizType,
-    bizId: row.bizId,
-    subject: row.subject,
-    body: row.body ?? null,
-    amount: row.amount,
-    currency: row.currency,
-    channel: row.channel,
-    channelConfigId: row.channelConfigId,
-    appId: row.appId,
-    payMethod: row.payMethod,
-    status: row.status,
-    userId: row.userId ?? null,
-    openId: row.openId ?? null,
-    clientIp: row.clientIp ?? null,
-    departmentId: row.departmentId ?? null,
-    paidAmount: row.paidAmount ?? null,
-    feeAmount: row.feeAmount ?? null,
-    netAmount: row.netAmount ?? null,
-    originalAmount: row.originalAmount ?? null,
-    discountAmount: row.discountAmount ?? null,
-    memberCouponId: row.memberCouponId ?? null,
-    paidAt: formatNullableDateTime(row.paidAt),
-    expiredAt: formatNullableDateTime(row.expiredAt),
-    returnUrl: row.returnUrl ?? null,
-    errorMessage: row.errorMessage ?? null,
-    version: row.version,
-    ...formatTimestamps(row),
-  };
+  return pickEntity(paymentOrderSchema, row);
 }
 
 export function mapRefund(row: PaymentRefundRow): PaymentRefund {
-  return {
-    id: row.id,
-    refundNo: row.refundNo,
-    outRefundNo: row.outRefundNo,
-    orderNo: row.orderNo,
-    orderId: row.orderId,
-    channelRefundNo: row.channelRefundNo ?? null,
-    channel: row.channel,
-    refundAmount: row.refundAmount,
-    totalAmount: row.totalAmount,
-    reason: row.reason ?? null,
-    status: row.status,
-    approvalStatus: row.approvalStatus,
-    appliedById: row.appliedById ?? null,
-    approverId: row.approverId ?? null,
-    approvedAt: formatNullableDateTime(row.approvedAt),
-    approvalRemark: row.approvalRemark ?? null,
-    operatorId: row.operatorId ?? null,
-    refundedAt: formatNullableDateTime(row.refundedAt),
-    errorMessage: row.errorMessage ?? null,
-    version: row.version,
-    ...formatTimestamps(row),
-  };
+  return pickEntity(paymentRefundSchema, row);
 }
 
 export function mapNotifyLog(row: PaymentNotifyLogRow): PaymentNotifyLog {
-  return {
-    id: row.id,
-    channel: row.channel,
-    channelConfigId: row.channelConfigId,
-    appId: row.appId ?? null,
-    providerEventId: row.providerEventId ?? null,
-    scene: row.scene,
-    orderNo: row.orderNo ?? null,
-    signatureValid: row.signatureValid,
-    merchantId: row.merchantId ?? null,
-    providerAppId: row.providerAppId ?? null,
-    paidAmount: row.paidAmount ?? null,
-    currency: row.currency ?? null,
-    result: row.result ?? null,
-    message: row.message ?? null,
-    ip: row.ip ?? null,
-    rawBody: row.rawBody ?? null,
-    headers: row.headers ?? null,
-    createdAt: formatDateTime(row.createdAt),
-  };
+  return pickEntity(paymentNotifyLogSchema, row);
 }
 
 // ─── 下单 ─────────────────────────────────────────────────────────────────────

@@ -11,23 +11,7 @@ import { createHash } from 'node:crypto';
 import { HTTPException } from 'hono/http-exception';
 import { and, asc, desc, eq, gte, inArray, sql } from 'drizzle-orm';
 import type { QueryOutputOf } from '@zenith/shared/core';
-import type {
-  AppArch,
-  AppArtifactKind,
-  AppPlatform,
-  AppPublicReleaseInfo,
-  AppReleaseChannel,
-  AppReleaseStats,
-  AppUpdateCheckResult,
-  CheckAppUpdateQuery,
-  CreateAppReleaseInput,
-  CreateClientAppInput,
-  CreateExternalArtifactInput,
-  InitAppArtifactUploadInput,
-  ReportAppReleaseEventInput,
-  UpdateAppReleaseInput,
-  UpdateClientAppInput,
-} from '@zenith/shared/ops';
+import { clientAppSchema, appArtifactSchema, appReleaseSchema, type AppArch, type AppArtifactKind, type AppPlatform, type AppPublicReleaseInfo, type AppReleaseChannel, type AppReleaseStats, type AppUpdateCheckResult, type CheckAppUpdateQuery, type CreateAppReleaseInput, type CreateClientAppInput, type CreateExternalArtifactInput, type InitAppArtifactUploadInput, type ReportAppReleaseEventInput, type UpdateAppReleaseInput, type UpdateClientAppInput } from '@zenith/shared/ops';
 import { appReleaseContract, clientAppContract, APP_ARCHES, APP_FILE_ARTIFACT_KINDS, APP_PLATFORMS } from '@zenith/shared/ops';
 import * as z from 'zod';
 import { db } from '../../db';
@@ -43,7 +27,7 @@ import {
 } from '../../db/schema';
 import logger from '../../lib/logger';
 import { currentUser } from '../../lib/context';
-import { formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
+import { formatNullableDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { requireFirstRow, requireRow } from '../../lib/db-assert';
 import { buildListResult } from '../../lib/list-query';
@@ -53,6 +37,7 @@ import { deleteManagedFile, saveGeneratedManagedFile } from '../files/files.serv
 import { bindUploadSession, requireUploadBinding } from '../files/upload-bindings.service';
 import { abortChunkUpload, completeChunkUpload, getUploadStatus, initChunkUpload, uploadChunk } from '../files/upload-sessions.service';
 import { countActiveDevices, getDeviceVersionDistribution, upsertDeviceHeartbeat } from './client-devices.service';
+import { pickEntity } from '../../lib/entity-map';
 
 // ─── semver 比较（无依赖实现；仅服务本模块的版本新旧判断）────────────────────
 
@@ -87,57 +72,22 @@ export function rolloutHit(deviceId: string, releaseId: number, percent: number)
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
 
 export function mapClientApp(row: ClientAppRow) {
-  return {
-    id: row.id,
-    appKey: row.appKey,
-    name: row.name,
-    description: row.description ?? null,
-    status: row.status,
-    createdBy: row.createdBy ?? null,
-    updatedBy: row.updatedBy ?? null,
-    ...formatTimestamps(row),
-  };
+  return pickEntity(clientAppSchema, row);
 }
 
 export function mapAppArtifact(row: AppArtifactRow) {
-  return {
-    id: row.id,
-    releaseId: row.releaseId,
-    platform: row.platform,
-    arch: row.arch,
-    kind: row.kind,
-    fileId: row.fileId ?? null,
-    externalUrl: row.externalUrl ?? null,
-    fileName: row.fileName,
-    size: row.size,
-    sha256: row.sha256 ?? null,
-    downloadCount: row.downloadCount,
-    ...formatTimestamps(row),
-  };
+  return pickEntity(appArtifactSchema, row);
 }
 
 export function mapAppRelease(
   row: AppReleaseRow & { app?: { appKey: string; name: string } | null; artifacts?: AppArtifactRow[] },
 ) {
-  return {
-    id: row.id,
-    appId: row.appId,
+  return pickEntity(appReleaseSchema, row, {
     appKey: row.app?.appKey,
     appName: row.app?.name,
-    channel: row.channel,
-    version: row.version,
-    notes: row.notes ?? null,
-    status: row.status,
-    mandatory: row.mandatory,
-    minVersion: row.minVersion ?? null,
-    rolloutPercent: row.rolloutPercent,
-    publishedAt: formatNullableDateTime(row.publishedAt),
     artifactCount: row.artifacts?.length,
     artifacts: row.artifacts?.map(mapAppArtifact),
-    createdBy: row.createdBy ?? null,
-    updatedBy: row.updatedBy ?? null,
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 // ─── 应用 CRUD ────────────────────────────────────────────────────────────────

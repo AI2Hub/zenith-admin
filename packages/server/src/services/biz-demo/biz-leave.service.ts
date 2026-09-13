@@ -1,4 +1,4 @@
-import { bizLeaveContract } from '@zenith/shared/biz';
+import { bizLeaveContract, bizLeaveSchema } from '@zenith/shared/biz';
 import type { QueryOutputOf } from '@zenith/shared/core';
 /**
  * 业务接入示例：请假 Service
@@ -16,7 +16,7 @@ import { WORKFLOW_ACTIVE_INSTANCE_STATUSES } from '@zenith/shared/workflow';
 import { db } from '../../db';
 import { bizLeaves, workflowInstances, workflowTasks, type BizLeaveRow } from '../../db/schema';
 import { currentUser } from '../../lib/context';
-import { formatDate, formatTimestamps, parseDateRangeStart } from '../../lib/datetime';
+import { formatDate, parseDateRangeStart } from '../../lib/datetime';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import { isSuperAdmin, getUserPermissions } from '../../lib/permissions';
 import { keywordCondition, buildWhere, withPagination } from '../../lib/where-helpers';
@@ -24,6 +24,7 @@ import { startWorkflowForBiz, resolveBizDefinitionId } from '../../lib/workflow-
 import { buildListResult } from '../../lib/list-query';
 import { requireRow } from '../../lib/db-assert';
 import { resolveUserNames } from '../../lib/user-nicknames';
+import { pickEntity } from '../../lib/entity-map';
 
 /** 业务类型标识（与订阅器、businessKey 保持一致） */
 export const BIZ_LEAVE_TYPE = 'biz_leave';
@@ -37,21 +38,13 @@ const LEAVE_TYPE_TEXT: Record<string, string> = {
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
 
 export function mapBizLeave(row: BizLeaveRow, applicantName?: string | null): BizLeave {
-  return {
-    id: row.id,
-    leaveType: row.leaveType,
+  return pickEntity(bizLeaveSchema, row, {
     startDate: formatDate(row.startDate),
     endDate: formatDate(row.endDate),
-    days: row.days,
-    reason: row.reason ?? null,
-    status: row.status,
-    workflowInstanceId: row.workflowInstanceId ?? null,
     workflowStatus: (row.workflowStatus ?? null) as WorkflowInstanceStatus | null,
     applicantId: row.createdBy ?? null,
     applicantName: applicantName ?? null,
-    tenantId: row.tenantId,
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 async function buildApplicantNameMap(ids: Array<number | null>): Promise<Map<number, string>> {

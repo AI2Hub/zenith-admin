@@ -6,7 +6,6 @@ import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { cmsForms, cmsFormSubmissions } from '../../db/schema';
 import type { CmsFormRow, CmsFormSubmissionRow, CmsSiteRow } from '../../db/schema';
-import { formatDateTime, formatTimestamps } from '../../lib/datetime';
 import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { sanitizeUserText } from './cms-sensitive-words.service';
@@ -16,7 +15,7 @@ import { ensureCmsSubmitAllowed } from './cms-submit-guard';
 import { sendMail } from '../../lib/email';
 import logger from '../../lib/logger';
 import { escapeHtml } from '@zenith/shared/core';
-import { CMS_SECRET_MASK, cmsFormContract } from '@zenith/shared/cms';
+import { CMS_SECRET_MASK, cmsFormContract, cmsFormSchema, cmsFormSubmissionSchema } from '@zenith/shared/cms';
 import type { CmsFormField, CreateCmsFormInput, UpdateCmsFormInput } from '@zenith/shared/cms';
 import { assertCompleteCmsBatch } from './cms-access';
 import { ensureCmsSiteExists } from './cms-sites.service';
@@ -25,35 +24,21 @@ import { validateCmsFormFields } from './cms-form-validation';
 import { verifyCmsFormCaptcha } from './cms-form-captcha.service';
 import { compileCmsFormPattern } from './cms-form-pattern';
 import { refreshCmsPublicConfiguration } from './cms-public-config-refresh.service';
+import { pickEntity } from '../../lib/entity-map';
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
 export function mapCmsForm(row: CmsFormRow, submissionCount?: number) {
-  return {
-    id: row.id,
-    siteId: row.siteId,
-    code: row.code,
-    name: row.name,
+  return pickEntity(cmsFormSchema, row, {
     fields: row.fields ?? [],
-    successMessage: row.successMessage ?? null,
-    notifyEmail: row.notifyEmail ?? null,
-    captchaProvider: row.captchaProvider,
-    turnstileSiteKey: row.turnstileSiteKey ?? null,
     turnstileSecret: row.turnstileSecret ? CMS_SECRET_MASK : null,
-    status: row.status,
     ...(submissionCount !== undefined ? { submissionCount } : {}),
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 export function mapCmsFormSubmission(row: CmsFormSubmissionRow) {
-  return {
-    id: row.id,
-    formId: row.formId,
+  return pickEntity(cmsFormSubmissionSchema, row, {
     data: row.data ?? {},
-    ip: row.ip ?? null,
-    userAgent: row.userAgent ?? null,
-    createdAt: formatDateTime(row.createdAt),
-  };
+  });
 }
 
 export async function ensureCmsFormExists(id: number): Promise<CmsFormRow> {

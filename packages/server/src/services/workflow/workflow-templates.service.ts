@@ -5,30 +5,20 @@ import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
-import { formatTimestamps } from '../../lib/datetime';
-import type { WorkflowTemplate, WorkflowFlowData, WorkflowFormSchema, CreateWorkflowTemplateInput, UpdateWorkflowTemplateInput, SaveAsTemplateInput } from '@zenith/shared/workflow';
+import { workflowTemplateSchema, type WorkflowTemplate, type WorkflowFlowData, type WorkflowFormSchema, type CreateWorkflowTemplateInput, type UpdateWorkflowTemplateInput, type SaveAsTemplateInput } from '@zenith/shared/workflow';
 import { createDefinition } from './workflow-definitions.service';
 import { createWorkflowForm } from './workflow-forms.service';
 import { requireFirstRow, requireRow } from '../../lib/db-assert';
 import { buildWhere } from '../../lib/where-helpers';
+import { pickEntity } from '../../lib/entity-map';
 
 type TemplateRow = typeof workflowTemplates.$inferSelect;
 
 export function mapTemplate(row: TemplateRow): WorkflowTemplate {
-  return {
-    id: row.id,
-    name: row.name,
-    code: row.code ?? null,
-    description: row.description ?? null,
-    categoryName: row.categoryName ?? null,
-    icon: row.icon ?? null,
-    color: row.color ?? null,
+  return pickEntity(workflowTemplateSchema, row, {
     flowData: (row.flowData ?? null) as WorkflowFlowData | null,
     formSchema: (row.formSchema ?? null) as WorkflowFormSchema | null,
-    sort: row.sort,
-    builtin: row.builtin,
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 async function ensureTemplate(id: number): Promise<TemplateRow> {

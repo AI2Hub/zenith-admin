@@ -1,4 +1,4 @@
-import { memberPointContract } from '@zenith/shared/member';
+import { memberPointContract, memberPointAccountSchema } from '@zenith/shared/member';
 import type { QueryOutputOf } from '@zenith/shared/core';
 /**
  * 会员积分服务。
@@ -24,16 +24,11 @@ import { memberSelfContract } from '@zenith/shared/member';
 import type { PointTxType } from '@zenith/shared/member';
 import { ANALYTICS_MEMBER_POINTS_EVENT_BY_TX_TYPE } from '@zenith/shared/analytics';
 import type { DbTransaction } from '../../db/types';
+import { pickEntity } from '../../lib/entity-map';
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
 export function mapPointAccount(row: MemberPointAccountRow) {
-  return {
-    memberId: row.memberId,
-    balance: row.balance,
-    frozen: row.frozen,
-    totalEarned: row.totalEarned,
-    totalSpent: row.totalSpent,
-  };
+  return pickEntity(memberPointAccountSchema, row);
 }
 
 export const mapPointTransaction = (row: MemberPointTransactionRow, memberName?: string | null) => mapLedgerTransaction(row, memberName);

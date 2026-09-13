@@ -7,12 +7,12 @@ import { requireRow } from '../../lib/db-assert';
 import { buildListResult, emptyListResult } from '../../lib/list-query';
 import { HTTPException } from 'hono/http-exception';
 import { desc, eq, inArray, isNull, or } from 'drizzle-orm';
-import { reportPrintContract, ReportPrintValidationError, renderPrintContent } from '@zenith/shared/report';
+import { reportPrintContract, ReportPrintValidationError, renderPrintContent, reportPrintTemplateSchema } from '@zenith/shared/report';
 import { db } from '../../db';
 import { reportDatasets, reportPrintTemplates } from '../../db/schema';
 import { pageOffset } from '../../lib/pagination';
 import { buildWhere, keywordCondition } from '../../lib/where-helpers';
-import { currentDateTime, formatTimestamps } from '../../lib/datetime';
+import { currentDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { currentUserOrNull } from '../../lib/context';
 import { buildReportCopyName } from './report-copy-name';
@@ -28,6 +28,7 @@ import {
 } from './report-resource.service';
 import type { ReportPrintTemplateRow } from '../../db/schema';
 import type { ReportPrintTemplate, ReportPrintContent, ReportPrintPageConfig, ReportDatasetParam, ReportPrintDatasetBinding, ReportPrintDatasetRows, ReportPrintRenderResult, ReportPrintResolvedSubreport, ReportPrintSubreportCell, CreateReportPrintTemplateInput, UpdateReportPrintTemplateInput, ReportPrintRenderInput, ReportLookupOption, ReportPrintEntityKind, ReportPrintSourceType } from '@zenith/shared/report';
+import { pickEntity } from '../../lib/entity-map';
 
 type PrintRowExt = ReportPrintTemplateRow & {
   dataset?: { name: string } | null;
@@ -36,27 +37,15 @@ type PrintRowExt = ReportPrintTemplateRow & {
 };
 
 export function mapPrintTemplate(row: PrintRowExt): ReportPrintTemplate {
-  return {
-    id: row.id,
-    ownerId: row.ownerId ?? null,
+  return pickEntity(reportPrintTemplateSchema, row, {
     ownerName: row.owner?.nickname || row.owner?.username || null,
-    folderId: row.folderId ?? null,
     folderName: row.folder?.name ?? null,
-    name: row.name,
-    datasetId: row.datasetId ?? null,
     datasetName: row.dataset?.name ?? null,
-    sourceType: row.sourceType,
     entityKind: (row.entityKind as ReportPrintTemplate['entityKind']) ?? null,
-    entityRefId: row.entityRefId ?? null,
     content: (row.content ?? {}) as ReportPrintContent,
     params: (row.params ?? []) as ReportDatasetParam[],
     pageConfig: (row.pageConfig ?? {}) as ReportPrintPageConfig,
-    status: row.status,
-    remark: row.remark ?? null,
-    createdBy: row.createdBy ?? null,
-    updatedBy: row.updatedBy ?? null,
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 export async function ensurePrintTemplateExists(id: number): Promise<ReportPrintTemplateRow> {

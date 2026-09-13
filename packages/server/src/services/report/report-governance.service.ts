@@ -1,4 +1,4 @@
-import { reportEnvironmentContract, reportGovernanceContract } from '@zenith/shared/report';
+import { reportEnvironmentContract, reportGovernanceContract, reportResourceTransferSchema, reportPublishApprovalSchema, reportEnvironmentSchema, reportEnvironmentPromotionSchema } from '@zenith/shared/report';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { requireRow } from '../../lib/db-assert';
 import { HTTPException } from 'hono/http-exception';
@@ -17,7 +17,6 @@ import { currentUserId, isSuperAdmin } from '../../lib/context';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { clearDefaultFlag } from '../../lib/default-flag';
 import { exactTenantCondition } from '../../lib/tenant';
-import { formatDateTime, formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
 import { pageOffset } from '../../lib/pagination';
 import { buildListResult } from '../../lib/list-query';
 import { reportCreateTenantId, reportScopedWhere, reportTenantScope } from './report-access';
@@ -29,6 +28,7 @@ import {
   setReportResourceOwner,
 } from './report-resource.service';
 import { buildWhere } from '../../lib/where-helpers';
+import { pickEntity } from '../../lib/entity-map';
 
 type TransferRow = typeof reportResourceTransfers.$inferSelect & {
   fromOwner?: { nickname: string | null; username: string } | null;
@@ -103,26 +103,11 @@ function dashboardSnapshotFromRecord(snapshot: Record<string, unknown>): ReportD
 }
 
 export function mapReportResourceTransfer(row: TransferRow, resourceName?: string | null): ReportResourceTransfer {
-  return {
-    id: row.id,
-    tenantId: row.tenantId ?? null,
-    resourceType: row.resourceType,
-    resourceId: row.resourceId,
+  return pickEntity(reportResourceTransferSchema, row, {
     resourceName: resourceName ?? null,
-    fromOwnerId: row.fromOwnerId ?? null,
     fromOwnerName: userName(row.fromOwner),
-    toOwnerId: row.toOwnerId,
     toOwnerName: userName(row.toOwner),
-    status: row.status,
-    reason: row.reason ?? null,
-    requestedBy: row.requestedBy ?? null,
-    decidedBy: row.decidedBy ?? null,
-    decidedAt: formatNullableDateTime(row.decidedAt),
-    decisionNote: row.decisionNote ?? null,
-    createdBy: row.createdBy ?? null,
-    updatedBy: row.updatedBy ?? null,
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 export async function createReportResourceTransfer(
@@ -243,27 +228,11 @@ export async function cancelReportResourceTransfer(id: number, reason?: string):
 }
 
 export function mapReportPublishApproval(row: ApprovalRow, resourceName?: string | null): ReportPublishApproval {
-  return {
-    id: row.id,
-    tenantId: row.tenantId ?? null,
-    resourceType: row.resourceType,
-    resourceId: row.resourceId,
+  return pickEntity(reportPublishApprovalSchema, row, {
     resourceName: resourceName ?? null,
-    action: row.action,
-    requestedRevision: row.requestedRevision,
-    snapshot: row.snapshot,
-    status: row.status,
-    requestedBy: row.requestedBy ?? null,
     requestedByName: userName(row.requestedByUser),
-    requestedAt: formatDateTime(row.requestedAt),
-    decidedBy: row.decidedBy ?? null,
     decidedByName: userName(row.decidedByUser),
-    decidedAt: formatNullableDateTime(row.decidedAt),
-    decisionNote: row.decisionNote ?? null,
-    createdBy: row.createdBy ?? null,
-    updatedBy: row.updatedBy ?? null,
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 export async function createReportPublishApproval(
@@ -420,21 +389,9 @@ export async function cancelReportPublishApproval(id: number, reason?: string): 
 }
 
 export function mapReportEnvironment(row: typeof reportEnvironments.$inferSelect): ReportEnvironment {
-  return {
-    id: row.id,
-    tenantId: row.tenantId ?? null,
-    code: row.code,
-    name: row.name,
-    kind: row.kind,
-    description: row.description ?? null,
-    baseUrl: row.baseUrl ?? null,
+  return pickEntity(reportEnvironmentSchema, row, {
     config: row.config ?? {},
-    isDefault: row.isDefault,
-    status: row.status,
-    createdBy: row.createdBy ?? null,
-    updatedBy: row.updatedBy ?? null,
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 export async function listReportEnvironments(): Promise<ReportEnvironment[]> {
@@ -520,31 +477,11 @@ export function mapReportEnvironmentPromotion(
   row: PromotionRow,
   resourceName?: string | null,
 ): ReportEnvironmentPromotion {
-  return {
-    id: row.id,
-    tenantId: row.tenantId ?? null,
-    resourceType: row.resourceType,
-    resourceId: row.resourceId,
+  return pickEntity(reportEnvironmentPromotionSchema, row, {
     resourceName: resourceName ?? null,
-    sourceEnvironmentId: row.sourceEnvironmentId,
     sourceEnvironmentName: row.sourceEnvironment?.name ?? null,
-    targetEnvironmentId: row.targetEnvironmentId,
     targetEnvironmentName: row.targetEnvironment?.name ?? null,
-    sourceRevision: row.sourceRevision,
-    sourceSnapshot: row.sourceSnapshot,
-    targetSnapshot: row.targetSnapshot ?? null,
-    rollbackSnapshot: row.rollbackSnapshot ?? null,
-    status: row.status,
-    requestedBy: row.requestedBy ?? null,
-    approvedBy: row.approvedBy ?? null,
-    deployedBy: row.deployedBy ?? null,
-    startedAt: formatNullableDateTime(row.startedAt),
-    completedAt: formatNullableDateTime(row.completedAt),
-    errorMessage: row.errorMessage ?? null,
-    createdBy: row.createdBy ?? null,
-    updatedBy: row.updatedBy ?? null,
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 export function isPromotionTransitionAllowed(

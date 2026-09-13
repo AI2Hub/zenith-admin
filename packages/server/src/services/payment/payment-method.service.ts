@@ -7,24 +7,15 @@ import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { paymentMethodConfigs, type PaymentMethodConfigRow } from '../../db/schema';
 import { config } from '../../config';
-import { formatTimestamps } from '../../lib/datetime';
 import { requireRow } from '../../lib/db-assert';
 import { currentUser } from '../../lib/context';
 import { getTenantScopeId, exactTenantCondition } from '../../lib/tenant';
-import type { UpdatePaymentMethodConfigInput } from '@zenith/shared/payment';
+import { paymentMethodConfigSchema, type UpdatePaymentMethodConfigInput } from '@zenith/shared/payment';
 import type { PaymentMethod, PaymentMethodConfig } from '@zenith/shared/payment';
+import { pickEntity } from '../../lib/entity-map';
 
 export function mapMethodConfig(row: PaymentMethodConfigRow): PaymentMethodConfig {
-  return {
-    id: row.id,
-    method: row.method,
-    channel: row.channel,
-    label: row.label,
-    icon: row.icon ?? null,
-    enabled: row.enabled,
-    sort: row.sort,
-    ...formatTimestamps(row),
-  };
+  return pickEntity(paymentMethodConfigSchema, row);
 }
 
 /**

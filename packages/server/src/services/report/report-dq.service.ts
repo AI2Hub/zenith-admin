@@ -1,4 +1,4 @@
-import { reportDqContract } from '@zenith/shared/report';
+import { reportDqContract, reportDqRuleSchema, reportDqRunSchema, reportDqScoreSchema, reportDqAnomalySchema } from '@zenith/shared/report';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { requireRow } from '../../lib/db-assert';
 import { buildListResult, emptyListResult, listRows } from '../../lib/list-query';
@@ -18,7 +18,6 @@ import {
 } from '../../db/schema';
 import { currentUserId, runWithCurrentUser } from '../../lib/context';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
-import { formatDateTime, formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
 import { applyReadonlyTransactionGuards } from '../../lib/db-readonly-role';
 import { normalizeReadonlyReportSql } from '../../lib/report-sql-safety';
 import { mapAsyncTask, submitAsyncTask } from '../../lib/task-center';
@@ -27,6 +26,7 @@ import { reportScopedWhere, reportTenantScope } from './report-access';
 import { ensureReportResourceAccess, listAccessibleReportResourceIds } from './report-resource-acl.service';
 import { dueCronFireTime, loadScheduleActor } from './report-schedule-shared';
 import { buildWhere, withPagination } from '../../lib/where-helpers';
+import { pickEntity } from '../../lib/entity-map';
 
 const DQ_QUERY_LIMIT = 10_000;
 const MAX_SAMPLE_ROWS = 100;
@@ -197,91 +197,27 @@ type DqScoreRow = typeof reportDqScores.$inferSelect;
 type DqAnomalyRow = typeof reportDqAnomalies.$inferSelect;
 
 export function mapReportDqRule(row: DqRuleRow, datasetName?: string | null): ReportDqRule {
-  return {
-    id: row.id,
-    tenantId: row.tenantId ?? null,
-    datasetId: row.datasetId,
+  return pickEntity(reportDqRuleSchema, row, {
     datasetName: datasetName ?? null,
-    name: row.name,
-    type: row.type,
-    field: row.field ?? null,
-    severity: row.severity,
-    config: row.config,
-    cron: row.cron ?? null,
-    timezone: row.timezone,
-    enabled: row.enabled,
-    lastRunAt: formatNullableDateTime(row.lastRunAt),
-    lastStatus: row.lastStatus ?? null,
-    createdBy: row.createdBy ?? null,
-    updatedBy: row.updatedBy ?? null,
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 export function mapReportDqRun(row: DqRunRow, names?: { ruleName?: string | null; datasetName?: string | null }): ReportDqRun {
-  return {
-    id: row.id,
-    tenantId: row.tenantId ?? null,
-    ruleId: row.ruleId,
+  return pickEntity(reportDqRunSchema, row, {
     ruleName: names?.ruleName ?? null,
-    datasetId: row.datasetId,
     datasetName: names?.datasetName ?? null,
-    status: row.status,
-    triggerType: row.triggerType,
-    checkedRows: row.checkedRows,
-    failedRows: row.failedRows,
-    passRate: row.passRate ?? null,
-    sampleRows: row.sampleRows,
-    sampleRowCount: row.sampleRowCount,
-    sampleBytes: row.sampleBytes,
-    startedAt: formatNullableDateTime(row.startedAt),
-    completedAt: formatNullableDateTime(row.completedAt),
-    durationMs: row.durationMs ?? null,
-    errorMessage: row.errorMessage ?? null,
-    schemaSignature: row.schemaSignature ?? null,
-    requestedBy: row.requestedBy ?? null,
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 export function mapReportDqScore(row: DqScoreRow): ReportDqScore {
-  return {
-    id: row.id,
-    tenantId: row.tenantId ?? null,
-    datasetId: row.datasetId,
-    score: row.score,
-    passedRules: row.passedRules,
-    failedRules: row.failedRules,
-    totalRules: row.totalRules,
-    measuredAt: formatDateTime(row.measuredAt),
-    dimensions: row.dimensions,
-    createdAt: formatDateTime(row.createdAt),
-  };
+  return pickEntity(reportDqScoreSchema, row);
 }
 
 export function mapReportDqAnomaly(row: DqAnomalyRow, names?: { ruleName?: string | null; datasetName?: string | null }): ReportDqAnomaly {
-  return {
-    id: row.id,
-    tenantId: row.tenantId ?? null,
-    datasetId: row.datasetId,
+  return pickEntity(reportDqAnomalySchema, row, {
     datasetName: names?.datasetName ?? null,
-    ruleId: row.ruleId ?? null,
     ruleName: names?.ruleName ?? null,
-    runId: row.runId ?? null,
-    severity: row.severity,
-    title: row.title,
-    detail: row.detail ?? null,
-    sample: row.sample,
-    sampleRowCount: row.sampleRowCount,
-    sampleBytes: row.sampleBytes,
-    status: row.status,
-    acknowledgedAt: formatNullableDateTime(row.acknowledgedAt),
-    acknowledgedBy: row.acknowledgedBy ?? null,
-    acknowledgementNote: row.acknowledgementNote ?? null,
-    resolvedAt: formatNullableDateTime(row.resolvedAt),
-    resolvedBy: row.resolvedBy ?? null,
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 async function validateRuleInput(input: CreateReportDqRuleInput | UpdateReportDqRuleInput, existing?: DqRuleRow) {

@@ -14,14 +14,14 @@
  */
 import { sql, desc, eq, and, type SQL } from 'drizzle-orm';
 import { isPlainObject, type QueryOutputOf } from '@zenith/shared/core';
-import { dbAdminContract } from '@zenith/shared/ops';
+import { dbAdminContract, dbQueryFavoriteSchema } from '@zenith/shared/ops';
 import { keywordCondition } from '../../lib/where-helpers';
 import { HTTPException } from 'hono/http-exception';
 import { db, pgClient } from '../../db';
 import type { DbExecutor } from '../../db/types';
 import { dbAdminQueryHistory, dbQueryFavorites } from '../../db/schema';
 import { currentUserId } from '../../lib/context';
-import { formatDateTime, formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
+import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { requireFirstRow, requireRow } from '../../lib/db-assert';
 import { buildListResult } from '../../lib/list-query';
 import { pageOffset } from '../../lib/pagination';
@@ -1705,16 +1705,12 @@ async function recordHistory(params: {
 // ─── SQL 收藏夹 ────────────────────────────────────────────────────────────────────
 
 import type { DbQueryFavoriteRow } from '../../db/schema';
+import { pickEntity } from '../../lib/entity-map';
 
 export function mapDbQueryFavorite(row: DbQueryFavoriteRow) {
-  return {
-    id: row.id,
-    name: row.name,
-    sql: row.sql,
-    description: row.description ?? null,
+  return pickEntity(dbQueryFavoriteSchema, row, {
     tags: row.tags ?? [],
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 export async function listQueryFavorites() {

@@ -2,12 +2,11 @@ import { buildListResult } from '../../lib/list-query';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { eq, asc, desc, and, inArray, isNull, isNotNull, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import { cmsCommentContract } from '@zenith/shared/cms';
+import { cmsCommentContract, cmsCommentSchema } from '@zenith/shared/cms';
 import { db } from '../../db';
 import { cmsComments, cmsContents, cmsSites, members } from '../../db/schema';
 import type { CmsSiteRow } from '../../db/schema';
 import type { CmsCommentRow } from '../../db/schema';
-import { formatTimestamps } from '../../lib/datetime';
 import { buildWhere, withPagination } from '../../lib/where-helpers';
 import { config } from '../../config';
 import redis from '../../lib/redis';
@@ -20,6 +19,7 @@ import { assertCompleteCmsBatch } from './cms-access';
 import { assertChannelsAccess, getAccessibleChannelIds } from './cms-channels.service';
 import { getEffectivelyEnabledCmsChannelIds } from './cms-channel-visibility.service';
 import { resolveEffectiveCmsSite } from './cms-site-inheritance.service';
+import { pickEntity } from '../../lib/entity-map';
 
 const SUBMIT_RL_PREFIX = `${config.redis.keyPrefix}cms:submit:`;
 const SUBMIT_RL_WINDOW_SECONDS = 60;
@@ -37,24 +37,11 @@ export async function throttleFrontSubmit(ip: string): Promise<void> {
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
 export function mapCmsComment(row: CmsCommentRow, extra?: { contentTitle?: string | null; parentNickname?: string | null; memberUsername?: string | null }) {
-  return {
-    id: row.id,
-    siteId: row.siteId,
-    contentId: row.contentId,
+  return pickEntity(cmsCommentSchema, row, {
     contentTitle: extra?.contentTitle ?? null,
-    parentId: row.parentId,
     parentNickname: extra?.parentNickname ?? null,
-    memberId: row.memberId ?? null,
     memberUsername: extra?.memberUsername ?? null,
-    nickname: row.nickname,
-    content: row.content,
-    likeCount: row.likeCount,
-    status: row.status,
-    riskFlag: row.riskFlag ?? null,
-    ip: row.ip ?? null,
-    userAgent: row.userAgent ?? null,
-    ...formatTimestamps(row),
-  };
+  });
 }
 
 // ─── 前台提交 ─────────────────────────────────────────────────────────────────
