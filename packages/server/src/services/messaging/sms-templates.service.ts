@@ -1,10 +1,10 @@
 import { eq, and } from 'drizzle-orm';
 import { requireFirstRow } from '../../lib/db-assert';
-import { buildListResult } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import { db } from '../../db';
 import { smsTemplates } from '../../db/schema';
 import type { SmsTemplateRow } from '../../db/schema';
-import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { formatTimestamps } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
@@ -41,11 +41,12 @@ export async function listSmsTemplates(q: QueryOutputOf<typeof smsTemplateContra
     q.provider ? eq(smsTemplates.provider, q.provider) : undefined,
     q.status ? eq(smsTemplates.status, q.status) : undefined,
   );
-  return buildListResult({
+  return listRows({
     page: q.page,
     pageSize: q.pageSize,
-    count: () => db.$count(smsTemplates, where),
-    rows: () => withPagination(db.select().from(smsTemplates).where(where).orderBy(smsTemplates.id).$dynamic(), q.page, q.pageSize),
+    table: smsTemplates,
+    where,
+    orderBy: [smsTemplates.id],
     map: mapSmsTemplate,
   });
 }

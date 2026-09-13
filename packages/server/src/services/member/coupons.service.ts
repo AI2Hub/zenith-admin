@@ -15,9 +15,9 @@ import type { DbTransaction } from '../../db/types';
 import { formatDateTime, formatNullableDateTime, formatTimestamps, parseDateTimeInput } from '../../lib/datetime';
 import { currentMemberId } from '../../lib/member-context';
 import { decide } from '../platform/rules-runtime.service';
-import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
-import { buildListResult } from '../../lib/list-query';
+import { buildListResult, listRows } from '../../lib/list-query';
 import { requireFirstRow, requireRow } from '../../lib/db-assert';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { trackServerEvent } from '../analytics/analytics-server-events.service';
@@ -97,11 +97,12 @@ export async function listCoupons(q: QueryOutputOf<typeof couponContract.list>) 
     q.type ? eq(coupons.type, q.type) : undefined,
   );
 
-  return buildListResult({
+  return listRows({
     page: q.page,
     pageSize: q.pageSize,
-    count: () => db.$count(coupons, where),
-    rows: () => withPagination(db.select().from(coupons).where(where).orderBy(desc(coupons.id)).$dynamic(), q.page, q.pageSize),
+    table: coupons,
+    where,
+    orderBy: [desc(coupons.id)],
     map: mapCoupon,
   });
 }

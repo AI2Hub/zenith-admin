@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { dateRangeQuery, idParam, idQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { dateRangeQuery, idParam, idQuery, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { asyncTaskSchema } from '../../tasks/contracts/async-tasks';
 import {
@@ -219,7 +219,7 @@ export type CmsInteractionResponse = z.infer<typeof cmsInteractionResponseSchema
 
 export const cmsInteractionListQuery = paginationQuery.extend({
   siteId: z.coerce.number().int().positive(),
-  keyword: z.string().optional(),
+  keyword: keywordQuery(),
   kind: queryEnum(CMS_INTERACTION_KINDS),
   status: queryEnum(CMS_INTERACTION_STATUSES),
 });
@@ -233,7 +233,7 @@ export const cmsInteractionResponseListQuery = paginationQuery.extend({
 
 export const cmsInteractionTextsQuery = paginationQuery.extend({
   questionId: z.coerce.number().int().positive(),
-  keyword: z.string().optional(),
+  keyword: keywordQuery(),
 });
 
 export const cmsInteractionCrossQuery = z.object({

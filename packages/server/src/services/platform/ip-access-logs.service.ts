@@ -3,9 +3,9 @@ import type { QueryOutputOf } from '@zenith/shared/core';
 import { ipAccessLogContract } from '@zenith/shared/platform';
 import { db } from '../../db';
 import { ipAccessLogs } from '../../db/schema';
-import { buildWhere, dateRangeConditions, withPagination, keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, dateRangeConditions, keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
-import { buildListResult } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import { truncateVarchar } from '../../lib/sanitize';
 import logger from '../../lib/logger';
 
@@ -16,15 +16,12 @@ export async function listIpAccessLogs(q: QueryOutputOf<typeof ipAccessLogContra
     q.blockType ? eq(ipAccessLogs.blockType, q.blockType) : undefined,
     ...dateRangeConditions(ipAccessLogs.createdAt, q.startTime, q.endTime),
   );
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(ipAccessLogs, finalWhere),
-    rows: () => withPagination(
-      db.select().from(ipAccessLogs).where(finalWhere).orderBy(desc(ipAccessLogs.createdAt)).$dynamic(),
-      page,
-      pageSize,
-    ),
+    table: ipAccessLogs,
+    where: finalWhere,
+    orderBy: [desc(ipAccessLogs.createdAt)],
     map: (r) => ({ ...r, createdAt: formatDateTime(r.createdAt), blockType: r.blockType as 'blacklist' | 'whitelist' }),
   });
 }

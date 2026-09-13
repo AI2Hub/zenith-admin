@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { entityStatusQuery, entityStatusSchema, idParam, idQuery, paginated, paginationQuery } from '../../core/api-schemas';
+import { entityStatusQuery, entityStatusSchema, idParam, idQuery, keywordQuery, paginated, paginationQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { CMS_FIELD_OPTION_SOURCES, CMS_FIELD_TYPES } from '../constants';
 import { createCmsModelSchema, updateCmsModelSchema } from '../validation';
@@ -73,7 +73,7 @@ export const cmsModelScopeQuery = z.object({
 });
 
 export const cmsModelListQuery = paginationQuery.extend({
-  keyword: z.string().optional(),
+  keyword: keywordQuery(),
   status: entityStatusQuery,
   siteId: idQuery('站群可见性过滤：返回平台共享 + 该站点专属的模型'),
 });

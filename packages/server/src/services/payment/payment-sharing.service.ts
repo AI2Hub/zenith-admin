@@ -12,12 +12,12 @@ import { and, desc, eq, inArray, isNull, lt, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { genPaymentNo } from './payment-no';
 import { db } from '../../db';
-import { buildListResult } from '../../lib/list-query';
+import { buildListResult, listRows } from '../../lib/list-query';
 import { paymentOrders, paymentRefunds, paymentSharingOrders, paymentSharingReceivers, type PaymentOrderRow, type PaymentSharingOrderRow, type PaymentSharingReceiverRow } from '../../db/schema';
 import { requireRow } from '../../lib/db-assert';
 import { currentUser } from '../../lib/context';
 import { requireTenantScopeId, tenantCondition, exactTenantCondition } from '../../lib/tenant';
-import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
 import { formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
 import { buildAdapterContext, createOrderConfigResolver, loadOrderConfig } from './payment.service';
@@ -96,11 +96,12 @@ export async function listReceivers(q: QueryOutputOf<typeof paymentSharingContra
     q.status ? eq(paymentSharingReceivers.status, q.status) : undefined,
     tenantCondition(paymentSharingReceivers, currentUser()),
   );
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(paymentSharingReceivers, where),
-    rows: () => withPagination(db.select().from(paymentSharingReceivers).where(where).orderBy(desc(paymentSharingReceivers.id)).$dynamic(), page, pageSize),
+    table: paymentSharingReceivers,
+    where,
+    orderBy: [desc(paymentSharingReceivers.id)],
     map: mapReceiver,
   });
 }

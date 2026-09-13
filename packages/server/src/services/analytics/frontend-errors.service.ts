@@ -1,7 +1,7 @@
 import { and, eq, gte, desc, inArray, sql, countDistinct } from 'drizzle-orm';
 import { db } from '../../db';
 import { requireFirstRow, requireRow } from '../../lib/db-assert';
-import { buildListResult } from '../../lib/list-query';
+import { buildListResult, listRows } from '../../lib/list-query';
 import { errorGroups, errorEvents, errorGroupIdentities, sourceMaps, users } from '../../db/schema';
 import type { ErrorGroupRow, ErrorEventRow } from '../../db/schema';
 import type { QueryOutputOf } from '@zenith/shared/core';
@@ -10,9 +10,8 @@ import type { FrontendErrorType, ErrorLevel, ErrorBreadcrumb, UpdateErrorGroupIn
 import { currentUserOrNull } from '../../lib/context';
 import { currentMemberOrNull } from '../../lib/member-context';
 import { tenantScope, getCreateTenantId } from '../../lib/tenant';
-import { buildWhere, keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition, withPagination } from '../../lib/where-helpers';
 import { APP_TIME_ZONE, formatDate, formatDateTime, formatNullableDateTime, formatTimestamps, parseDateRangeStart } from '../../lib/datetime';
-import { pageOffset } from '../../lib/pagination';
 import { parseClientEnv, computeErrorFingerprint, startOfDaysAgo, clampDays, resolveIngestPlatformFields } from '../../lib/analytics-helpers';
 import { clearSymbolicateCache, symbolicateStack } from '../../lib/source-map-symbolicate';
 import { evaluateAlertsForError } from './error-alert.service';
@@ -253,7 +252,7 @@ export async function listGroups(q: QueryOutputOf<typeof frontendErrorContract.g
     pageSize,
     count: () => db.$count(errorGroups, where),
     rows: async () => {
-      const list = await db.select().from(errorGroups).where(where).orderBy(desc(errorGroups.lastSeenAt)).limit(pageSize).offset(pageOffset(page, pageSize));
+      const list = await withPagination(db.select().from(errorGroups).where(where).orderBy(desc(errorGroups.lastSeenAt)).$dynamic(), page, pageSize);
       // 页内分组的近 7 日发生趋势（迷你曲线），一次查询批量取回
       const trendByGroup = new Map<number, Map<string, number>>();
       if (list.length > 0) {
@@ -449,11 +448,12 @@ export async function getErrorOverview(daysRaw: unknown) {
 export async function listErrorEvents(q: QueryOutputOf<typeof frontendErrorContract.events>) {
   const { page, pageSize } = q;
   const where = buildWhere(q.groupId ? eq(errorEvents.groupId, q.groupId) : undefined, tenantScope(errorEvents));
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(errorEvents, where),
-    rows: () => db.select().from(errorEvents).where(where).orderBy(desc(errorEvents.createdAt)).limit(pageSize).offset(pageOffset(page, pageSize)),
+    table: errorEvents,
+    where,
+    orderBy: [desc(errorEvents.createdAt)],
     map: mapEvent,
   });
 }
@@ -488,7 +488,7 @@ export async function listSourceMaps(q: QueryOutputOf<typeof frontendErrorContra
     page,
     pageSize,
     count: () => db.$count(sourceMaps, where),
-    rows: () => db.select({ id: sourceMaps.id, release: sourceMaps.release, fileName: sourceMaps.fileName, size: sourceMaps.size, createdAt: sourceMaps.createdAt, updatedAt: sourceMaps.updatedAt }).from(sourceMaps).where(where).orderBy(desc(sourceMaps.id)).limit(pageSize).offset(pageOffset(page, pageSize)),
+    rows: () => withPagination(db.select({ id: sourceMaps.id, release: sourceMaps.release, fileName: sourceMaps.fileName, size: sourceMaps.size, createdAt: sourceMaps.createdAt, updatedAt: sourceMaps.updatedAt }).from(sourceMaps).where(where).orderBy(desc(sourceMaps.id)).$dynamic(), page, pageSize),
     map: (r) => ({ id: r.id, release: r.release, fileName: r.fileName, size: r.size, ...formatTimestamps(r) }),
   });
 }

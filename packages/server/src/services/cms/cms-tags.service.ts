@@ -1,5 +1,5 @@
 import { requireFirstRow, requireRow } from '../../lib/db-assert';
-import { buildListResult } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { eq, asc, and } from 'drizzle-orm';
 import { cmsTagContract } from '@zenith/shared/cms';
@@ -7,7 +7,7 @@ import { db } from '../../db';
 import { cmsTags } from '../../db/schema';
 import type { CmsTagRow } from '../../db/schema';
 import { formatTimestamps } from '../../lib/datetime';
-import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import type { CreateCmsTagInput, UpdateCmsTagInput } from '@zenith/shared/cms';
 import { assertSiteAccess, ensureCmsSiteExists } from './cms-sites.service';
@@ -45,15 +45,12 @@ export async function listCmsTags(q: QueryOutputOf<typeof cmsTagContract.list>) 
     eq(cmsTags.siteId, q.siteId),
     keywordCondition(q.keyword, [cmsTags.name, cmsTags.slug]),
   );
-  return buildListResult({
+  return listRows({
     page: q.page,
     pageSize: q.pageSize,
-    count: () => db.$count(cmsTags, where),
-    rows: () => withPagination(
-      db.select().from(cmsTags).where(where).orderBy(asc(cmsTags.id)).$dynamic(),
-      q.page,
-      q.pageSize,
-    ),
+    table: cmsTags,
+    where,
+    orderBy: [asc(cmsTags.id)],
     map: mapCmsTag,
   });
 }

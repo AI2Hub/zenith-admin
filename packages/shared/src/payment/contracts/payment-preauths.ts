@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { dateRangeQuery, idParam, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { dateRangeQuery, idParam, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { PAYMENT_CHANNELS, PAYMENT_PREAUTH_STATUSES, PAYMENT_PREAUTH_UNKNOWN_OPERATIONS } from '../constants';
 import { capturePaymentPreauthSchema, createPaymentPreauthSchema } from '../validation';
@@ -41,7 +41,7 @@ export type PaymentPreauth = z.infer<typeof paymentPreauthSchema>;
 
 export const paymentPreauthListQuery = paginationQuery.extend({
   applicationId: z.coerce.number().int().positive(),
-  keyword: z.string().optional(),
+  keyword: keywordQuery(),
   status: queryEnum(PAYMENT_PREAUTH_STATUSES),
   channel: queryEnum(PAYMENT_CHANNELS),
   ...dateRangeQuery(),

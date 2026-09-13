@@ -541,7 +541,7 @@ export async function sweepIotOfflineAlarms(): Promise<string> {
     const candidates = await db.select({ device: iotDevices })
       .from(iotDevices)
       .leftJoin(iotDeviceState, eq(iotDevices.id, iotDeviceState.deviceId))
-      .where(and(
+      .where(buildWhere(
         eq(iotDevices.productId, rule.productId),
         rule.deviceId != null ? eq(iotDevices.id, rule.deviceId) : undefined,
         eq(iotDevices.status, 'enabled'),

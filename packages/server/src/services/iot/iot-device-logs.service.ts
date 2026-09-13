@@ -8,8 +8,8 @@ import type { IotLogIngestInput } from '@zenith/shared/iot';
 import { db } from '../../db';
 import { iotDeviceLogs, type IotDeviceLogRow, type IotDeviceRow } from '../../db/schema';
 import { formatDateTime, parseDateTimeInput } from '../../lib/datetime';
-import { buildListResult } from '../../lib/list-query';
-import { buildWhere, dateRangeConditions, withPagination, keywordCondition } from '../../lib/where-helpers';
+import { listRows } from '../../lib/list-query';
+import { buildWhere, dateRangeConditions, keywordCondition } from '../../lib/where-helpers';
 
 export function mapIotDeviceLog(row: IotDeviceLogRow) {
   return {
@@ -43,15 +43,12 @@ export async function listIotDeviceLogs(deviceId: number, q: QueryOutputOf<typeo
     keywordCondition(q.keyword, [iotDeviceLogs.content], 'ilike'),
     ...dateRangeConditions(iotDeviceLogs.reportedAt, q.startTime, q.endTime),
   );
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(iotDeviceLogs, where),
-    rows: () => withPagination(
-      db.select().from(iotDeviceLogs).where(where).orderBy(desc(iotDeviceLogs.id)).$dynamic(),
-      page,
-      pageSize,
-    ),
+    table: iotDeviceLogs,
+    where,
+    orderBy: [desc(iotDeviceLogs.id)],
     map: mapIotDeviceLog,
   });
 }

@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { auditFieldsSchema, entityStatusSchema, idParam, paginated, paginationQuery, entityStatusQuery, queryEnum } from '../../core/api-schemas';
+import { auditFieldsSchema, entityStatusQuery, entityStatusSchema, idParam, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { WORKFLOW_CONNECTOR_BREAKER_STATES, WORKFLOW_CONNECTOR_INVOCATION_SOURCES, WORKFLOW_CONNECTOR_TYPES } from '../constants';
 import { createWorkflowConnectorSchema, testWorkflowConnectorSchema, updateWorkflowConnectorSchema } from '../validation';
@@ -76,7 +76,7 @@ export type WorkflowConnectorInvocation = z.infer<typeof workflowConnectorInvoca
 export const workflowConnectorListQuery = paginationQuery.extend({
   type: queryEnum(WORKFLOW_CONNECTOR_TYPES),
   status: entityStatusQuery,
-  keyword: z.string().optional(),
+  keyword: keywordQuery(),
 });
 
 export const workflowConnectorStatsQuery = z.object({

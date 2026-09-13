@@ -13,7 +13,6 @@ import { currentMemberOrNull } from '../../lib/member-context';
 import { tenantScope, getCreateTenantId } from '../../lib/tenant';
 import { buildWhere, dateRangeConditions, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { formatNullableDateTime, formatDateTime, formatDate, APP_TIME_ZONE, parseDateRangeStart, parseDateRangeEnd } from '../../lib/datetime';
-import { pageOffset } from '../../lib/pagination';
 import { parseClientEnv, lookupIpGeo, clampDays, clampLimit, startOfDaysAgo, anonymizeIpAddr, resolveIngestPlatformFields } from '../../lib/analytics-helpers';
 import { touchEventMeta } from './analytics-event-meta.service';
 import { upsertUserProfilesBatch, type ProfileUpsertInput } from './analytics-profile.service';
@@ -711,8 +710,7 @@ export async function getPageStats(q: QueryOutputOf<typeof analyticsContract.pag
         .from(userEvents)
         .where(where)
         .groupBy(userEvents.pagePath)
-        .orderBy(sql`COUNT(*) DESC`, userEvents.pagePath)
-        .$dynamic(),
+        .orderBy(sql`COUNT(*) DESC`, userEvents.pagePath).$dynamic(),
       page,
       pageSize,
     ),
@@ -769,8 +767,7 @@ export async function getFeatureStats(q: QueryOutputOf<typeof analyticsContract.
         .from(userEvents)
         .where(where)
         .groupBy(userEvents.pagePath, userEvents.elementKey)
-        .orderBy(sql`COUNT(*) DESC`, userEvents.pagePath)
-        .$dynamic(),
+        .orderBy(sql`COUNT(*) DESC`, userEvents.pagePath).$dynamic(),
       page,
       pageSize,
     ),
@@ -1002,8 +999,7 @@ export async function getUserStats(q: QueryOutputOf<typeof analyticsContract.use
         .from(userEvents)
         .where(where)
         .groupBy(userEvents.userId, userEvents.username)
-        .orderBy(sql`COUNT(*) DESC`, userEvents.userId)
-        .$dynamic(),
+        .orderBy(sql`COUNT(*) DESC`, userEvents.userId).$dynamic(),
       page,
       pageSize,
     ),
@@ -1036,13 +1032,11 @@ export async function listSessions(q: QueryOutputOf<typeof analyticsContract.ses
     page,
     pageSize,
     count: () => db.$count(analyticsSessions, where),
-    rows: () => db
+    rows: () => withPagination(db
       .select()
       .from(analyticsSessions)
       .where(where)
-      .orderBy(desc(analyticsSessions.startedAt))
-      .limit(pageSize)
-      .offset(pageOffset(page, pageSize)),
+      .orderBy(desc(analyticsSessions.startedAt)).$dynamic(), page, pageSize),
     map: (r) => ({
       id: r.id,
       sessionId: r.sessionId,
@@ -1496,7 +1490,7 @@ export async function listAnalyticsEvents(q: EventListQuery) {
     page,
     pageSize,
     count: () => db.$count(userEvents, where),
-    rows: () => db
+    rows: () => withPagination(db
       .select({
         id: userEvents.id,
         userId: userEvents.userId,
@@ -1523,9 +1517,7 @@ export async function listAnalyticsEvents(q: EventListQuery) {
       })
       .from(userEvents)
       .where(where)
-      .orderBy(desc(userEvents.createdAt))
-      .limit(pageSize)
-      .offset(pageOffset(page, pageSize)),
+      .orderBy(desc(userEvents.createdAt)).$dynamic(), page, pageSize),
     map: ({ properties, ...r }) => {
       // $api 事件行内摘要：免去逐条点开详情排查接口问题
       const props = (properties ?? null) as { url?: unknown; status?: unknown } | null;

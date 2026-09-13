@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { idParam, idQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { idParam, idQuery, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { assignConversationSchema, setConversationTagsSchema } from '../../mp/validation';
 import { CHANNEL_CONVERSATION_ASSIGNEE_FILTERS, CHANNEL_CONVERSATION_STATUSES, CHANNEL_MESSAGE_DIRECTIONS } from '../constants';
@@ -80,7 +80,7 @@ export type ChannelQuickReply = z.infer<typeof channelQuickReplySchema>;
 export const channelConversationListQuery = z.object({
   status: queryEnum(CHANNEL_CONVERSATION_STATUSES),
   assignee: queryEnum(CHANNEL_CONVERSATION_ASSIGNEE_FILTERS),
-  keyword: z.string().optional(),
+  keyword: keywordQuery(),
   tag: z.string().optional(),
 });
 

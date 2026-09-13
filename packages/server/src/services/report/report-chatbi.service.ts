@@ -1,6 +1,6 @@
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { requireRow } from '../../lib/db-assert';
-import { buildListResult } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import { randomUUID } from 'node:crypto';
 import dayjs from 'dayjs';
 import * as z from 'zod';
@@ -18,7 +18,6 @@ import { config } from '../../config';
 import redis from '../../lib/redis';
 import { currentUser } from '../../lib/context';
 import { formatDateTime, formatTimestamps } from '../../lib/datetime';
-import { pageOffset } from '../../lib/pagination';
 import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { getUserPermissions, isSuperAdmin } from '../../lib/permissions';
 import { estimateTokens, truncateHistoryByBudget } from '../../lib/ai/tokens';
@@ -204,13 +203,12 @@ export async function listChatbiSessions(query: QueryOutputOf<typeof reportChatb
     query.status ? eq(reportChatbiSessions.status, query.status) : undefined,
     keywordCondition(query.keyword, [reportChatbiSessions.title], 'ilike'),
   );
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(reportChatbiSessions, where),
-    rows: () => db.select().from(reportChatbiSessions).where(where)
-            .orderBy(desc(reportChatbiSessions.updatedAt))
-            .limit(pageSize).offset(pageOffset(page, pageSize)),
+    table: reportChatbiSessions,
+    where,
+    orderBy: [desc(reportChatbiSessions.updatedAt)],
     map: mapChatbiSession,
   });
 }
@@ -749,18 +747,17 @@ export async function getChatbiQuotaStats() {
 
 export async function listChatbiAudit(query: QueryOutputOf<typeof reportChatbiContract.audit>) {
   const { page, pageSize } = query;
-  const where = and(
+  const where = buildWhere(
     reportTenantScope(reportChatbiMessages),
     query.userId ? eq(reportChatbiMessages.userId, query.userId) : undefined,
     query.failedOnly ? sql`${reportChatbiMessages.errorMessage} is not null` : undefined,
   );
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(reportChatbiMessages, where),
-    rows: () => db.select().from(reportChatbiMessages).where(where)
-            .orderBy(desc(reportChatbiMessages.createdAt))
-            .limit(pageSize).offset(pageOffset(page, pageSize)),
+    table: reportChatbiMessages,
+    where,
+    orderBy: [desc(reportChatbiMessages.createdAt)],
     map: mapChatbiMessage,
   });
 }

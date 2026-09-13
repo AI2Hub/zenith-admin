@@ -13,12 +13,12 @@ import { and, desc, eq, gte, inArray, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { genPaymentNo } from './payment-no';
 import { db } from '../../db';
-import { buildListResult } from '../../lib/list-query';
+import { buildListResult, listRows } from '../../lib/list-query';
 import { paymentOrders, paymentRiskHits, paymentRiskReviews, paymentRiskRules, type PaymentOrderRow, type PaymentRiskHitRow, type PaymentRiskReviewRow, type PaymentRiskRuleRow } from '../../db/schema';
 import { requireRow } from '../../lib/db-assert';
 import { currentUser } from '../../lib/context';
 import { requireTenantScopeId, tenantCondition, exactTenantCondition, inheritedTenantCondition } from '../../lib/tenant';
-import { buildWhere, dateRangeConditions, keywordCondition, nullableEq, withPagination } from '../../lib/where-helpers';
+import { buildWhere, dateRangeConditions, keywordCondition, nullableEq } from '../../lib/where-helpers';
 import logger from '../../lib/logger';
 import { pageOffset } from '../../lib/pagination';
 import { formatDateTime, formatNullableDateTime, formatTimestamps, startOfToday } from '../../lib/datetime';
@@ -56,11 +56,12 @@ export async function listRiskRules(q: QueryOutputOf<typeof paymentRiskRuleContr
     q.status ? eq(paymentRiskRules.status, q.status) : undefined,
     tenantCondition(paymentRiskRules, currentUser()),
   );
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(paymentRiskRules, where),
-    rows: () => withPagination(db.select().from(paymentRiskRules).where(where).orderBy(desc(paymentRiskRules.id)).$dynamic(), page, pageSize),
+    table: paymentRiskRules,
+    where,
+    orderBy: [desc(paymentRiskRules.id)],
     map: mapRiskRule,
   });
 }
@@ -373,11 +374,12 @@ export async function listRiskHits(q: QueryOutputOf<typeof paymentRiskOpsContrac
     ...dateRangeConditions(paymentRiskHits.createdAt, q.startTime, q.endTime),
     tenantCondition(paymentRiskHits, currentUser()),
   );
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(paymentRiskHits, where),
-    rows: () => withPagination(db.select().from(paymentRiskHits).where(where).orderBy(desc(paymentRiskHits.id)).$dynamic(), page, pageSize),
+    table: paymentRiskHits,
+    where,
+    orderBy: [desc(paymentRiskHits.id)],
     map: mapRiskHit,
   });
 }

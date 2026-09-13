@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { dateRangeQuery, entityStatusQuery, entityStatusSchema, idParam, idQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { dateRangeQuery, entityStatusQuery, entityStatusSchema, idParam, idQuery, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { PAYMENT_SHARING_ORDER_STATUSES, PAYMENT_SHARING_RECEIVER_TYPES, PAYMENT_SHARING_REVERSAL_STATUSES } from '../constants';
 import {
@@ -69,12 +69,12 @@ export type PaymentSharingReversal = z.infer<typeof paymentSharingReversalSchema
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const paymentSharingReceiverListQuery = paginationQuery.extend({
-  keyword: z.string().optional(),
+  keyword: keywordQuery(),
   status: entityStatusQuery,
 });
 
 export const paymentSharingOrderListQuery = paginationQuery.extend({
-  keyword: z.string().optional(),
+  keyword: keywordQuery(),
   status: queryEnum(PAYMENT_SHARING_ORDER_STATUSES),
   receiverId: z.coerce.number().int().optional(),
 });

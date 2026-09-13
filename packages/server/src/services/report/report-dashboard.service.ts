@@ -17,7 +17,7 @@ import {
   reportMetrics,
 } from '../../db/schema';
 import { pageOffset } from '../../lib/pagination';
-import { buildListResult } from '../../lib/list-query';
+import { buildListResult, emptyListResult } from '../../lib/list-query';
 import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
@@ -201,7 +201,7 @@ export async function listDashboards(query: QueryOutputOf<typeof reportDashboard
   } = query;
   const uid = currentUserOrNull()?.userId;
   const accessibleIds = await listAccessibleReportResourceIds('dashboard');
-  if (accessibleIds && accessibleIds.length === 0) return { list: [], total: 0, page, pageSize };
+  if (accessibleIds && accessibleIds.length === 0) return emptyListResult(page, pageSize);
   // 「我的收藏」：先取收藏的仪表盘 id 集合，为空直接返回空页
   let favoriteIds: number[] | undefined;
   if (favorited && uid) {
@@ -209,7 +209,7 @@ export async function listDashboards(query: QueryOutputOf<typeof reportDashboard
       .from(reportDashboardFavorites)
       .where(eq(reportDashboardFavorites.userId, uid));
     favoriteIds = favRows.map((row) => row.id);
-    if (favoriteIds.length === 0) return { list: [], total: 0, page, pageSize };
+    if (favoriteIds.length === 0) return emptyListResult(page, pageSize);
   }
   const where = buildWhere(
     reportTenantScope(reportDashboards),

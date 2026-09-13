@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { idParam, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { idParam, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { PAYMENT_METHODS } from '../../payment/constants';
 import { createPaymentResultSchema } from '../../payment/contracts/payment-orders';
@@ -36,7 +36,7 @@ export type BizPayDemoPayResult = z.infer<typeof bizPayDemoPayResultSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const bizPayDemoListQuery = paginationQuery.extend({
-  keyword: z.string().optional().meta({ description: '按事项名称模糊匹配' }),
+  keyword: keywordQuery('按事项名称模糊匹配'),
   status: queryEnum(BIZ_PAY_DEMO_STATUSES).meta({ description: '按业务状态过滤' }),
 });
 

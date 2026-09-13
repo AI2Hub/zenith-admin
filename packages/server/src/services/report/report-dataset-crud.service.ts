@@ -4,7 +4,7 @@ import type { QueryOutputOf } from '@zenith/shared/core';
  * 对外统一经 report-dataset.service.ts facade 暴露。
  */
 import { requireRow } from '../../lib/db-assert';
-import { buildListResult } from '../../lib/list-query';
+import { buildListResult, emptyListResult } from '../../lib/list-query';
 import { HTTPException } from 'hono/http-exception';
 import { desc, eq, inArray } from 'drizzle-orm';
 import { db } from '../../db';
@@ -174,7 +174,7 @@ export async function listDatasets(query: QueryOutputOf<typeof reportDatasetCont
   const { page, pageSize, keyword, folderId, ownerId, datasourceId, type, status } = query;
   const tenantScope = reportTenantScope(reportDatasets);
   const accessibleIds = await listAccessibleReportResourceIds('dataset');
-  if (accessibleIds && accessibleIds.length === 0) return { list: [], total: 0, page, pageSize };
+  if (accessibleIds && accessibleIds.length === 0) return emptyListResult(page, pageSize);
   const where = buildWhere(
     tenantScope,
     accessibleIds ? inArray(reportDatasets.id, accessibleIds) : undefined,

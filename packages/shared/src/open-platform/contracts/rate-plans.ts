@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { auditFieldsSchema, entityStatusQuery, entityStatusSchema, idParam, paginated, paginationQuery } from '../../core/api-schemas';
+import { auditFieldsSchema, entityStatusQuery, entityStatusSchema, idParam, keywordQuery, paginated, paginationQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { createRatePlanSchema, updateRatePlanSchema } from '../validation';
 
@@ -26,7 +26,7 @@ export type RatePlan = z.infer<typeof ratePlanSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const ratePlanListQuery = paginationQuery.extend({
-  keyword: z.string().optional().meta({ description: '按编码 / 名称模糊匹配' }),
+  keyword: keywordQuery('按编码 / 名称模糊匹配'),
   status: entityStatusQuery,
 });
 

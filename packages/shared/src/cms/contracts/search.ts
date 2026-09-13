@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { dateRangeQuery, entityStatusQuery, entityStatusSchema, idParam, idQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { dateRangeQuery, entityStatusQuery, entityStatusSchema, idParam, idQuery, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { asyncTaskSchema } from '../../tasks/contracts/async-tasks';
 import { CMS_SEARCH_WORD_TYPES } from '../constants';
@@ -97,7 +97,7 @@ export const cmsSegmentQuery = z.object({
 
 export const cmsSearchWordListQuery = paginationQuery.extend({
   siteId: z.coerce.number().int().positive(),
-  keyword: z.string().optional(),
+  keyword: keywordQuery(),
   type: queryEnum(CMS_SEARCH_WORD_TYPES),
   groupName: z.string().optional(),
   status: entityStatusQuery,
@@ -106,7 +106,7 @@ export const cmsSearchWordListQuery = paginationQuery.extend({
 export const cmsHotKeywordQuery = z.object({
   siteId: z.coerce.number().int().positive(),
   groupId: idQuery(),
-  keyword: z.string().optional(),
+  keyword: keywordQuery(),
   status: entityStatusQuery,
   ...dateRangeQuery(),
   limit: z.coerce.number().int().min(1).max(500).default(100),

@@ -12,6 +12,7 @@ import { assertCompleteCmsBatch, isCmsPlatformAdmin } from './cms-access';
 import { assertSiteAccess } from './cms-sites.service';
 import { assertCmsPageBlockMutationAllowed } from './cms-page-blocks';
 import { lockCmsSiteForMutation } from './cms-site-publish-lock.service';
+import { buildWhere } from '../../lib/where-helpers';
 
 async function ensureCmsPageRow(id: number): Promise<CmsPageRow> {
   const [row] = await db.select().from(cmsPages).where(eq(cmsPages.id, id)).limit(1);
@@ -153,7 +154,7 @@ export async function listCmsPageBlockAcls(pageId: number, blockId?: string) {
   const page = await ensureCmsPageRow(pageId);
   const blockIds = new Set(((page.blocks ?? []) as CmsPageBlock[]).map((block) => block.id));
   if (blockId && !blockIds.has(blockId)) throw new HTTPException(404, { message: '页面区块不存在' });
-  const rows = await db.select().from(cmsPageBlockAcls).where(and(
+  const rows = await db.select().from(cmsPageBlockAcls).where(buildWhere(
     eq(cmsPageBlockAcls.pageId, pageId),
     blockId ? eq(cmsPageBlockAcls.blockId, blockId) : undefined,
   ));

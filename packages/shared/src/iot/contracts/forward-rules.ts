@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { auditFieldsSchema, entityStatusQuery, entityStatusSchema, idParam, idQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { auditFieldsSchema, entityStatusQuery, entityStatusSchema, idParam, idQuery, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { IOT_FORWARD_SOURCES, IOT_FORWARD_STATUSES } from '../constants';
 import { createIotForwardRuleSchema, updateIotForwardRuleSchema } from '../validation';
@@ -47,7 +47,7 @@ export type IotForwardLog = z.infer<typeof iotForwardLogSchema>;
 // ─── 入参 ────────────────────────────────────────────────────────────────────
 
 export const iotForwardRuleListQuery = paginationQuery.extend({
-  keyword: z.string().optional(),
+  keyword: keywordQuery(),
   source: queryEnum(IOT_FORWARD_SOURCES),
   status: entityStatusQuery,
 });

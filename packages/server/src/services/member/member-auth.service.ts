@@ -12,7 +12,6 @@ import { db } from '../../db';
 import { members, memberLevels, memberPointAccounts, memberWallets, memberLoginLogs, tenants } from '../../db/schema';
 import type { MemberRow } from '../../db/schema';
 import { signToken, verifyToken } from '../../lib/jwt';
-import { pageOffset } from '../../lib/pagination';
 import { buildListResult } from '../../lib/list-query';
 import { requireFirstRow, requireRow } from '../../lib/db-assert';
 import {
@@ -42,6 +41,7 @@ import { decide } from '../platform/rules-runtime.service';
 import type { MemberRegisterInput, MemberLoginInput, MemberUpdateProfileInput, MemberChangePasswordInput, MemberResetPasswordInput, MemberLoginResult } from '@zenith/shared/member';
 import { ANALYTICS_EVENT_NAMES } from '@zenith/shared/analytics';
 import { isTenantActive } from '../../lib/tenant';
+import { withPagination } from '../../lib/where-helpers';
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
 export function mapMember(
@@ -182,11 +182,9 @@ export async function listMyLoginLogs(q: { page: number; pageSize: number }) {
   return buildListResult({
     page: q.page,
     pageSize: q.pageSize,
-    rows: () => db.select().from(memberLoginLogs)
+    rows: () => withPagination(db.select().from(memberLoginLogs)
       .where(eq(memberLoginLogs.memberId, memberId))
-      .orderBy(desc(memberLoginLogs.createdAt))
-      .limit(q.pageSize)
-      .offset(pageOffset(q.page, q.pageSize)),
+      .orderBy(desc(memberLoginLogs.createdAt)).$dynamic(), q.page, q.pageSize),
     count: () => db.$count(memberLoginLogs, eq(memberLoginLogs.memberId, memberId)),
     map: (r) => ({
       id: r.id,

@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { auditFieldsSchema, batchIdsBody, dateRangeQuery, entityStatusQuery, entityStatusSchema, idParam, paginated, paginationQuery } from '../../core/api-schemas';
+import { auditFieldsSchema, batchIdsBody, dateRangeQuery, entityStatusQuery, entityStatusSchema, idParam, keywordQuery, paginated, paginationQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { sensitive } from '../../core/sensitive';
 import { DATA_SCOPES } from '../constants';
@@ -102,7 +102,7 @@ export type UserEffectivePermissions = z.infer<typeof userEffectivePermissionsSc
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const userListQuery = paginationQuery.extend({
-  keyword: z.string().optional().meta({ description: '按用户名 / 昵称 / 邮箱模糊匹配' }),
+  keyword: keywordQuery('按用户名 / 昵称 / 邮箱模糊匹配'),
   phone: z.string().optional(),
   departmentId: z.coerce.number().optional(),
   status: entityStatusQuery,

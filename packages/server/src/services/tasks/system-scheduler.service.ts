@@ -1,7 +1,7 @@
 import { uniquePositiveInts } from '@zenith/shared/core';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { systemSchedulerContract } from '@zenith/shared/platform';
-import { buildListResult } from '../../lib/list-query';
+import { buildListResult, listRows } from '../../lib/list-query';
 import { requireRow } from '../../lib/db-assert';
 import { and, desc, eq, isNotNull, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
@@ -224,15 +224,12 @@ export async function listSystemSchedulerRuns(query: QueryOutputOf<typeof system
     query.alertStatus === 'unacked' ? and(isNotNull(systemSchedulerRuns.alertMessage), sql`${systemSchedulerRuns.alertAckAt} is null`) : undefined,
     ...dateRangeConditions(systemSchedulerRuns.startedAt, query.startTime, query.endTime),
   );
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(systemSchedulerRuns, where),
-    rows: () => withPagination(
-      db.select().from(systemSchedulerRuns).where(where).orderBy(desc(systemSchedulerRuns.startedAt), desc(systemSchedulerRuns.id)).$dynamic(),
-      page,
-      pageSize,
-    ),
+    table: systemSchedulerRuns,
+    where,
+    orderBy: [desc(systemSchedulerRuns.startedAt), desc(systemSchedulerRuns.id)],
     map: mapRun,
   });
 }
@@ -267,8 +264,7 @@ export async function listSystemSchedulerNodes(query: QueryOutputOf<typeof syste
     count: () => db.$count(systemSchedulerNodes),
     rows: () => withPagination(
       db.select().from(systemSchedulerNodes)
-        .orderBy(desc(systemSchedulerNodes.active), desc(systemSchedulerNodes.lastHeartbeatAt))
-        .$dynamic(),
+        .orderBy(desc(systemSchedulerNodes.active), desc(systemSchedulerNodes.lastHeartbeatAt)).$dynamic(),
       page, pageSize,
     ),
     map: mapNode,

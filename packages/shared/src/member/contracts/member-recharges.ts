@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { dateRangeBound, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { dateRangeBound, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { sensitive } from '../../core/sensitive';
 import { PAYMENT_CHANNELS, PAYMENT_ORDER_STATUSES } from '../../payment/constants';
@@ -33,7 +33,7 @@ export type MemberRecharge = z.infer<typeof memberRechargeSchema>;
 // ─── 契约（后台） ────────────────────────────────────────────────────────────
 
 export const memberRechargeListQuery = paginationQuery.extend({
-  keyword: z.string().optional().meta({ description: '订单号 / 商户单号 / 会员昵称 / 手机号' }),
+  keyword: keywordQuery('订单号 / 商户单号 / 会员昵称 / 手机号'),
   status: queryEnum(MEMBER_RECHARGE_STATUSES),
   channel: queryEnum(PAYMENT_CHANNELS),
   dateStart: dateRangeBound('起始日期'),

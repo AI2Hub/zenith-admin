@@ -1,7 +1,7 @@
 import { eq, and, ne, desc } from 'drizzle-orm';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { ratePlanContract } from '@zenith/shared/open-platform';
-import { buildListResult } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import { requireRow } from '../../lib/db-assert';
 import { clearDefaultFlag } from '../../lib/default-flag';
 import { db } from '../../db';
@@ -11,7 +11,6 @@ import type { DbExecutor } from '../../db/types';
 import { HTTPException } from 'hono/http-exception';
 import { formatTimestamps } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
-import { pageOffset } from '../../lib/pagination';
 import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import type { CreateRatePlanInput, UpdateRatePlanInput } from '@zenith/shared/open-platform';
 
@@ -39,15 +38,12 @@ export async function listRatePlans(opts: QueryOutputOf<typeof ratePlanContract.
     status ? eq(ratePlans.status, status) : undefined,
   );
 
-  return buildListResult({
+  return listRows({
     page: page,
     pageSize: pageSize,
-    count: () => db.$count(ratePlans, where),
-    rows: () => db.select().from(ratePlans)
-  .where(where)
-  .orderBy(desc(ratePlans.isDefault), desc(ratePlans.createdAt))
-  .limit(pageSize)
-  .offset(pageOffset(page, pageSize)),
+    table: ratePlans,
+    where,
+    orderBy: [desc(ratePlans.isDefault), desc(ratePlans.createdAt)],
     map: mapRatePlan,
   });
 }

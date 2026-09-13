@@ -8,7 +8,7 @@
  *  - 所有读写强制 tenantScope / currentCreateTenantId，物化任务通过 ensureSegmentExists 在任务执行上下文重新校验归属
  */
 import { desc, eq, gte, isNotNull, sql, type SQL } from 'drizzle-orm';
-import { buildListResult } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import { requireFirstRow } from '../../lib/db-assert';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
@@ -18,7 +18,6 @@ import type { DbExecutor } from '../../db/types';
 import { analyticsContract } from '@zenith/shared/analytics';
 import type { AnalyticsSegmentRule, AnalyticsSegmentEventCondition, AnalyticsSegmentAttributeCondition, CreateAnalyticsUserSegmentInput, UpdateAnalyticsUserSegmentInput } from '@zenith/shared/analytics';
 import { formatDateTime, formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
-import { pageOffset } from '../../lib/pagination';
 import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { currentCreateTenantId, tenantScope, exactTenantCondition } from '../../lib/tenant';
@@ -75,11 +74,12 @@ export async function listSegments(q: QueryOutputOf<typeof analyticsContract.seg
     tenantScope(analyticsUserSegments),
   );
 
-  return buildListResult({
+  return listRows({
     page: page,
     pageSize: pageSize,
-    count: () => db.$count(analyticsUserSegments, where),
-    rows: () => db.select().from(analyticsUserSegments).where(where).orderBy(desc(analyticsUserSegments.id)).limit(pageSize).offset(pageOffset(page, pageSize)),
+    table: analyticsUserSegments,
+    where,
+    orderBy: [desc(analyticsUserSegments.id)],
     map: mapSegment,
   });
 }
@@ -150,11 +150,12 @@ export async function listSegmentMembers(id: number, q: SegmentMembersQuery) {
   await ensureSegmentExists(id);
   const { page, pageSize } = q;
   const where = eq(analyticsSegmentMembers.segmentId, id);
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(analyticsSegmentMembers, where),
-    rows: () => db.select().from(analyticsSegmentMembers).where(where).orderBy(desc(analyticsSegmentMembers.id)).limit(pageSize).offset(pageOffset(page, pageSize)),
+    table: analyticsSegmentMembers,
+    where,
+    orderBy: [desc(analyticsSegmentMembers.id)],
     map: (r) => ({
       id: r.id,
       segmentId: r.segmentId,

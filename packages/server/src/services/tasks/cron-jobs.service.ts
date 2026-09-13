@@ -1,4 +1,4 @@
-import { buildListResult } from '../../lib/list-query';
+import { buildListResult, listRows } from '../../lib/list-query';
 import { requireRow } from '../../lib/db-assert';
 import { eq, and, desc, gte, inArray, lt, sql, type SQL } from 'drizzle-orm';
 import { CronExpressionParser } from 'cron-parser';
@@ -88,11 +88,12 @@ export function buildCronJobsWhere(q: CronJobListFilter) {
 export async function listCronJobs(q: QueryOutputOf<typeof cronJobContract.list>) {
   const { page, pageSize } = q;
   const where = buildCronJobsWhere(q);
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(cronJobs, where),
-    rows: () => withPagination(db.select().from(cronJobs).where(where).orderBy(desc(cronJobs.id)).$dynamic(), page, pageSize),
+    table: cronJobs,
+    where,
+    orderBy: [desc(cronJobs.id)],
     map: mapCronJob,
   });
 }
@@ -157,11 +158,12 @@ export async function listAllCronJobLogs(q: QueryOutputOf<typeof cronJobContract
     keywordCondition(keyword, [cronJobLogs.jobName, cronJobLogs.output, cronJobLogs.errorMessage], 'ilike'),
     ...dateRangeConditions(cronJobLogs.startedAt, startTime, endTime),
   );
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(cronJobLogs, where),
-    rows: () => withPagination(db.select().from(cronJobLogs).where(where).orderBy(desc(cronJobLogs.startedAt)).$dynamic(), page, pageSize),
+    table: cronJobLogs,
+    where,
+    orderBy: [desc(cronJobLogs.startedAt)],
     map: mapLog,
   });
 }

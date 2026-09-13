@@ -88,15 +88,16 @@
 - **契约操作命名**：标准 CRUD 固定为 `list` / `detail` / `create` / `update` / `remove`，可选 `all`（下拉源）/
   `removeBatch`（`DELETE /batch`）——web 的 `createResourceQueries` 按此约定派生 hooks；其余操作按业务动词命名
 - **契约积木**：路径 `{id}` 用 `idParam`；查询串里的关联 ID 筛选（`channelId` / `taskId`…）用 `idQuery(description?)`；
+  关键字模糊匹配 `keyword: keywordQuery('按名称 / 编码模糊匹配')`（带 `.max()` / `.trim()` 约束的关键字才逐个书写）；
   列表查询 `paginationQuery.extend({...})`；分页响应 `paginated(xxxSchema)`；
   标准 `startTime` / `endTime` 范围 `...dateRangeQuery('创建时间')`（非标准键名如 `startAt` / `dateStart` 才逐个 `dateRangeBound()`）；
-  `packages/shared/eslint.config.js` 对 `src/*/contracts/**` 封禁 `startTime` / `endTime` 键下的 `dateRangeBound()`
-  与 `xxxId` 键下手写的 `z.coerce.number().int().positive().optional()`；
+  `packages/shared/eslint.config.js` 对 `src/*/contracts/**` 封禁 `startTime` / `endTime` 键下的 `dateRangeBound()`、
+  `xxxId` 键下手写的 `z.coerce.number().int().positive().optional()` 与 `keyword` 键下直写的 `z.string().optional()[.meta()]`；
   查询串布尔 `queryBool()`、查询串枚举筛选 `queryEnum(XXX_VALUES)`（空串 = 未筛选）、
   启用 / 禁用状态筛选 `entityStatusQuery`；
   批量 ID `batchIdsBody`；审计列 `...auditFieldsSchema`；业务请求头 `headers: z.object({...})`；
   上传 `multipart(z.object({ file: fileField() }))`；非 JSON 响应 `kind: 'excel' | 'csv' | 'file' | 'sse'`。
-  query 里**禁止**裸写 `z.enum([...]).optional()`、`z.coerce.boolean()`、`z.enum(['true', 'false'])`、
+  query 里**禁止**裸写 `z.enum([...]).optional()` / `xxxEnumSchema.optional()`、`z.coerce.boolean()`、`z.enum(['true', 'false'])`、
   时间端点 `z.string().optional()`——分别对应上述积木
 - **OpenAPI 元数据用 `.meta()`**：组件名 `.meta({ id })`、说明 `.meta({ description, example })`；shared **禁止**依赖
   `@hono/zod-openapi`、**禁止**调用 `.openapi()`
@@ -131,9 +132,12 @@
 - **运行时设置读取**：`getSettings('{module}', { tenantId? })`（`lib/settings`）返回类型化生效文档，进程内缓存 + LISTEN/NOTIFY 失效；
   **禁止**直接查 `system_settings`、**禁止**自建设置缓存或读取环境变量兜底；默认值只在模块 schema 出现，调用点**禁止**用 `??` 再抄一份默认值
 - **计数查询**：单表计数用 `db.$count(table, where)`，禁止 `db.select({ total: count() })`
-- **分页列表编排**：标准形态（count + rows + `{ list, total, page, pageSize }`）一律用 `lib/list-query.ts` 的
-  `buildListResult({ page, pageSize, count, rows, map })`，它保证 count 与 rows `Promise.all` 并行并套包络；
-  条件、排序、投影仍在 `count` / `rows` 闭包里显式书写。只有聚合 count、需要额外包络字段等特殊形态才手写 `Promise.all`，
+- **分页列表编排**：单表、全行、无 join 的标准列表一律用 `lib/list-query.ts` 的
+  `listRows({ page, pageSize, table, where, orderBy, map })`（count 与 rows 结构上共用同一 `where`）；
+  带 join / 投影 / 聚合 count / 行后处理的列表用同文件的 `buildListResult({ page, pageSize, count, rows, map })`，
+  它保证 count 与 rows `Promise.all` 并行并套 `{ list, total, page, pageSize }` 包络，条件、排序、投影仍在 `count` / `rows` 闭包里显式书写。
+  可见范围为空等无需查库的短路用 `emptyListResult(page, pageSize)`（额外信封字段用 `{ ...emptyListResult(page, pageSize), extra }`），
+  **禁止**手写 `{ list: [], total: 0, page, pageSize }`（ESLint 封禁）。只有聚合 count、需要额外包络字段等特殊形态才手写 `Promise.all`，
   且同样禁止串行 `await`
 - **存在性断言**：「取首行，不存在则抛 HTTPException」用 `lib/db-assert.ts` 的 `requireRow(row, message, status?)` /
   `requireFirstRow(queryPromise, message)`；查询本身（投影、租户 / 数据范围条件）留在调用方，**禁止**为此再抽 `ensureById(table, id)` 之类隐藏条件的通用查询
@@ -192,7 +196,7 @@
 | --- | --- | --- |
 | 用户输入参与 LIKE / ILIKE（单列或跨列、包含或前缀匹配） | `keywordCondition(keyword, [colA, colB], mode?, match?)` | 手写 `like(col, '%…%')` / `or(like(a, '%…%'), …)` / 裸 `sql\`… ILIKE …\`` |
 | 时间范围过滤 | `dateRangeConditions(column, start, end)` | 手写 `parseXxx` + `gte`/`lte` |
-| 合并可选条件 / 附加租户与数据权限条件 | 一个 `buildWhere(cond1, flag ? cond2 : undefined, ...dateRangeConditions(...), tenantCondition(...))` 调用 | `const conditions = []` + 一串 `conditions.push(...)` 再 `and(...conditions)` / `conditions.length ? and(...) : undefined` / `buildWhere(...conditions)` |
+| 合并可选条件 / 附加租户与数据权限条件 | 一个 `buildWhere(cond1, flag ? cond2 : undefined, ...dateRangeConditions(...), tenantCondition(...))` 调用 | `const conditions = []` + 一串 `conditions.push(...)` 再 `and(...conditions)` / `conditions.length ? and(...) : undefined` / `buildWhere(...conditions)`；实参含 `flag ? cond : undefined` / `...(x ? [x] : [])` 的 `and(...)`（ESLint 封禁，`.where(and(...))` 内联同样适用） |
 | 可空列与已知值的等值匹配（`parentId` / `appId` / `createdBy`…） | `nullableEq(col, value)`（`null → IS NULL`）；租户列用 `lib/tenant.ts` 的 `exactTenantCondition` | `x === null ? isNull(col) : eq(col, x)` 三目 |
 
 - 条件序列**静态可枚举**时（列表筛选、`ensureXxx` 附加租户条件——绝大多数场景）直接把每个条件写成 `buildWhere` 的实参，
@@ -383,9 +387,10 @@
 
 - 列表接口返回 `{ list, total, page, pageSize }`：契约用 `paginated(xxxSchema)` 声明，查询参数 `paginationQuery.extend({...})`
 - SQL-builder 分页用 `withPagination(query.$dynamic(), page, pageSize)`；RQB 分页用 `offset: pageOffset(page, pageSize)`；
-  服务层的 count + rows + 包络用 `buildListResult`（见 [Service 层](#service-层step-5)）；
+  服务层的 count + rows + 包络用 `listRows` / `buildListResult`，空短路用 `emptyListResult`（见 [Service 层](#service-层step-5)）；
   MSW Mock 用契约上下文的 `paginate(list)` / `pageResult(list, page, pageSize)`
-- 禁止手写 `(page - 1) * pageSize`
+- 禁止手写 `(page - 1) * pageSize`；禁止在 select-builder 链上手写 `.limit(pageSize).offset(pageOffset(page, pageSize))`
+  （ESLint 封禁 `.offset(pageOffset(...))` 链式调用；`pageOffset` 只出现在 RQB 的 `offset:` 属性）
 - `page` / `pageSize` 的取值范围与默认值只在契约 `paginationQuery`（默认 1 / 10，`pageSize` 1..200）声明并由路由校验；
   service 入参类型为 `QueryOutputOf<typeof xxxContract.list>` 后二者是必填 `number`，
   **禁止**再写 `const { page = 1, pageSize = 10 } = q`、`q.page ?? 1`、`Math.min(pageSize, 100)` / `Math.max(page, 1)` 之类默认值或二次夹紧

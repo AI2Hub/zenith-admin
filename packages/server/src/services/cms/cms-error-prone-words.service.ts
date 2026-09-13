@@ -1,13 +1,13 @@
 import { requireFirstRow, requireRow } from '../../lib/db-assert';
 import type { QueryOutputOf } from '@zenith/shared/core';
-import { buildListResult } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import { eq, asc } from 'drizzle-orm';
 import { cmsErrorProneWordContract } from '@zenith/shared/cms';
 import { db } from '../../db';
 import { cmsErrorProneWords } from '../../db/schema';
 import type { CmsErrorProneWordRow } from '../../db/schema';
 import { formatTimestamps } from '../../lib/datetime';
-import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { AhoCorasick, applyReplacements, createTtlCache, toCodePoints, type AcMatch } from '../../lib/aho-corasick';
 import { invalidateWordCheckCache } from './cms-word-check.service';
@@ -67,15 +67,12 @@ export async function listCmsErrorProneWords(q: QueryOutputOf<typeof cmsErrorPro
     keywordCondition(q.keyword, [cmsErrorProneWords.word, cmsErrorProneWords.correction]),
     q.status ? eq(cmsErrorProneWords.status, q.status) : undefined,
   );
-  return buildListResult({
+  return listRows({
     page: q.page,
     pageSize: q.pageSize,
-    count: () => db.$count(cmsErrorProneWords, where),
-    rows: () => withPagination(
-      db.select().from(cmsErrorProneWords).where(where).orderBy(asc(cmsErrorProneWords.id)).$dynamic(),
-      q.page,
-      q.pageSize,
-    ),
+    table: cmsErrorProneWords,
+    where,
+    orderBy: [asc(cmsErrorProneWords.id)],
     map: mapCmsErrorProneWord,
   });
 }

@@ -13,12 +13,11 @@ import { workflowSchedules, workflowDefinitions, users } from '../../db/schema';
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
-import { pageOffset } from '../../lib/pagination';
 import { formatDate, formatDateTime, formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
 import logger from '../../lib/logger';
 import { createInstance } from './workflow-instances.service';
 import type { WorkflowSchedule, CreateWorkflowScheduleInput, UpdateWorkflowScheduleInput } from '@zenith/shared/workflow';
-import { buildWhere } from '../../lib/where-helpers';
+import { buildWhere, withPagination } from '../../lib/where-helpers';
 import { buildListResult } from '../../lib/list-query';
 import { requireRow } from '../../lib/db-assert';
 
@@ -93,14 +92,12 @@ export async function listSchedules(query: QueryOutputOf<typeof workflowSchedule
     page,
     pageSize,
     count: () => db.$count(workflowSchedules, where),
-    rows: () => db.select({ row: workflowSchedules, definitionName: workflowDefinitions.name, initiatorName: users.nickname })
+    rows: () => withPagination(db.select({ row: workflowSchedules, definitionName: workflowDefinitions.name, initiatorName: users.nickname })
       .from(workflowSchedules)
       .leftJoin(workflowDefinitions, eq(workflowSchedules.definitionId, workflowDefinitions.id))
       .leftJoin(users, eq(workflowSchedules.initiatorId, users.id))
       .where(where)
-      .orderBy(desc(workflowSchedules.id))
-      .limit(pageSize)
-      .offset(pageOffset(page, pageSize)),
+      .orderBy(desc(workflowSchedules.id)).$dynamic(), page, pageSize),
     map: (r) => mapSchedule(r.row, { definitionName: r.definitionName, initiatorName: r.initiatorName }),
   });
 }

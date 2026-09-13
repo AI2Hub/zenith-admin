@@ -33,7 +33,7 @@ import logger from '../../lib/logger';
 import { notify } from '../messaging/notification-outbox.service';
 import type { WorkflowAutomationTrigger, WorkflowInstance } from '@zenith/shared/workflow';
 import { buildWhere } from '../../lib/where-helpers';
-import { buildListResult } from '../../lib/list-query';
+import { buildListResult, listRows } from '../../lib/list-query';
 import { requireFirstRow, requireRow } from '../../lib/db-assert';
 
 export function mapAutomation(row: WorkflowAutomationRow, definitionName?: string | null) {
@@ -136,14 +136,12 @@ export async function listWorkflowAutomationRuns(q: QueryOutputOf<typeof workflo
     q.instanceId ? eq(workflowAutomationRuns.instanceId, q.instanceId) : undefined,
     q.status ? eq(workflowAutomationRuns.status, q.status) : undefined,
   );
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(workflowAutomationRuns, where),
-    rows: () => db.select().from(workflowAutomationRuns).where(where)
-      .orderBy(desc(workflowAutomationRuns.id))
-      .limit(pageSize)
-      .offset(pageOffset(page, pageSize)),
+    table: workflowAutomationRuns,
+    where,
+    orderBy: [desc(workflowAutomationRuns.id)],
     map: (r) => ({
       id: r.id,
       ruleId: r.ruleId,

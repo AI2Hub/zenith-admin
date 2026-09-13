@@ -1,8 +1,8 @@
-import { eq, and, ne, asc } from 'drizzle-orm';
+import { eq, ne, asc } from 'drizzle-orm';
 import { db } from '../../db';
 import { departments, users } from '../../db/schema';
 import { currentUser } from '../../lib/context';
-import { keywordCondition } from '../../lib/where-helpers';
+import { keywordCondition, buildWhere } from '../../lib/where-helpers';
 
 // ─── 获取可聊天的用户列表 ──────────────────────────────────────────────────────
 
@@ -12,7 +12,7 @@ export async function listChatUsers(keyword?: string) {
   const rows = await db
     .select({ id: users.id, nickname: users.nickname, avatar: users.avatar, username: users.username })
     .from(users)
-    .where(and(
+    .where(buildWhere(
       ne(users.id, me.userId),
       eq(users.status, 'enabled'),
       me.tenantId ? eq(users.tenantId, me.tenantId) : undefined,
@@ -32,7 +32,7 @@ export async function getChatOrgData() {
     db
       .select({ id: departments.id, name: departments.name, parentId: departments.parentId })
       .from(departments)
-      .where(and(
+      .where(buildWhere(
         eq(departments.status, 'enabled'),
         me.tenantId ? eq(departments.tenantId, me.tenantId) : undefined,
       ))
@@ -43,7 +43,7 @@ export async function getChatOrgData() {
         avatar: users.avatar, departmentId: users.departmentId,
       })
       .from(users)
-      .where(and(
+      .where(buildWhere(
         ne(users.id, me.userId),
         eq(users.status, 'enabled'),
         me.tenantId ? eq(users.tenantId, me.tenantId) : undefined,

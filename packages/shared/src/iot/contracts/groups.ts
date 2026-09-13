@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { auditFieldsSchema, idParam, paginated, paginationQuery } from '../../core/api-schemas';
+import { auditFieldsSchema, idParam, keywordQuery, paginated, paginationQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { createIotDeviceGroupSchema, updateIotDeviceGroupSchema } from '../validation';
 
@@ -21,7 +21,7 @@ export type IotDeviceGroup = z.infer<typeof iotDeviceGroupSchema>;
 // ─── 入参 ────────────────────────────────────────────────────────────────────
 
 export const iotDeviceGroupListQuery = paginationQuery.extend({
-  keyword: z.string().optional().meta({ description: '按名称 / 描述模糊匹配' }),
+  keyword: keywordQuery('按名称 / 描述模糊匹配'),
 });
 
 // ─── 契约 ────────────────────────────────────────────────────────────────────

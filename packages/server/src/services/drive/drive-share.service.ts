@@ -42,7 +42,7 @@ import { hashPassword, verifyPassword } from '../../lib/password';
 import redis from '../../lib/redis';
 import { getClientIp } from '../../lib/request-helpers';
 import { getCreateTenantId, tenantCondition } from '../../lib/tenant';
-import { buildListResult } from '../../lib/list-query';
+import { buildListResult, listRows } from '../../lib/list-query';
 import { buildWhere, dateRangeConditions, keywordCondition, withPagination } from '../../lib/where-helpers';
 import { getRestrictedFileForRead } from '../files/files.service';
 import { buildShortUrl, ensureShortLink } from '../short-link/short-link.service';
@@ -756,11 +756,12 @@ export async function listShareAccessLogs(shareId: number, q: QueryOutputOf<type
   const { page, pageSize } = q;
   await ensureShareEditable(shareId);
   const where = eq(driveShareAccessLogs.shareId, shareId);
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(driveShareAccessLogs, where),
-    rows: () => withPagination(db.select().from(driveShareAccessLogs).where(where).orderBy(desc(driveShareAccessLogs.id)).$dynamic(), page, pageSize),
+    table: driveShareAccessLogs,
+    where,
+    orderBy: [desc(driveShareAccessLogs.id)],
     map: (r) => ({ id: r.id, shareId: r.shareId, nodeId: r.nodeId, action: r.action, clientIp: r.clientIp ?? null, ok: r.ok, createdAt: formatDateTime(r.createdAt) }),
   });
 }

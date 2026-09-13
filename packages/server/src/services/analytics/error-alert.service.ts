@@ -1,5 +1,5 @@
 import { and, eq, gte, lt, desc, isNull, or } from 'drizzle-orm';
-import { buildListResult } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import { requireFirstRow } from '../../lib/db-assert';
 import { db } from '../../db';
 import { errorAlertRules, errorAlertLogs, errorEvents, errorGroups } from '../../db/schema';
@@ -9,7 +9,6 @@ import type { CreateErrorAlertRuleInput, UpdateErrorAlertRuleInput, FrontendErro
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { buildWhere, nullableEq } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
-import { pageOffset } from '../../lib/pagination';
 import { validateAlertDelivery } from '../../lib/alert-validation';
 import { dispatchAlertChannels } from '../../lib/alert-dispatch';
 import type { PaginationQuery, QueryOutputOf } from '@zenith/shared/core';
@@ -36,11 +35,12 @@ export type AlertRuleListQuery = PaginationQuery;
 export async function listAlertRules(q: AlertRuleListQuery) {
   const { page, pageSize } = q;
   const where = tenantScope(errorAlertRules);
-  return buildListResult({
+  return listRows({
     page: page,
     pageSize: pageSize,
-    count: () => db.$count(errorAlertRules, where),
-    rows: () => db.select().from(errorAlertRules).where(where).orderBy(desc(errorAlertRules.id)).limit(pageSize).offset(pageOffset(page, pageSize)),
+    table: errorAlertRules,
+    where,
+    orderBy: [desc(errorAlertRules.id)],
     map: mapRule,
   });
 }
@@ -279,11 +279,12 @@ export function mapAlertLog(row: ErrorAlertLogRow) {
 export async function listAlertLogs(q: QueryOutputOf<typeof frontendErrorContract.alertLogs>) {
   const { page, pageSize } = q;
   const where = buildWhere(q.ruleId != null ? eq(errorAlertLogs.ruleId, q.ruleId) : undefined, tenantScope(errorAlertLogs));
-  return buildListResult({
+  return listRows({
     page: page,
     pageSize: pageSize,
-    count: () => db.$count(errorAlertLogs, where),
-    rows: () => db.select().from(errorAlertLogs).where(where).orderBy(desc(errorAlertLogs.id)).limit(pageSize).offset(pageOffset(page, pageSize)),
+    table: errorAlertLogs,
+    where,
+    orderBy: [desc(errorAlertLogs.id)],
     map: mapAlertLog,
   });
 }

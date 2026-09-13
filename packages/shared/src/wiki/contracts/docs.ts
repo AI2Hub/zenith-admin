@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { auditFieldsSchema, idParam, idQuery, paginated, paginationQuery, queryBool, queryEnum } from '../../core/api-schemas';
+import { auditFieldsSchema, idParam, idQuery, keywordQuery, paginated, paginationQuery, queryBool, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { lazyRecursive } from '../../core/validation';
 import { businessFileSchema } from '../../platform/contracts';
@@ -133,7 +133,7 @@ export type WikiDocReadReceipts = z.infer<typeof wikiDocReadReceiptsSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const wikiDocListQuery = paginationQuery.extend({
-  keyword: z.string().optional().meta({ description: '按标题 / 摘要 / 正文模糊匹配' }),
+  keyword: keywordQuery('按标题 / 摘要 / 正文模糊匹配'),
   spaceId: idQuery(),
   status: queryEnum(WIKI_DOC_STATUSES),
   tagId: idQuery(),
@@ -153,7 +153,7 @@ export const wikiDocTreeQuery = z.object({
 });
 
 export const wikiDocFavoriteListQuery = paginationQuery.extend({
-  keyword: z.string().optional().meta({ description: '按标题 / 摘要模糊匹配' }),
+  keyword: keywordQuery('按标题 / 摘要模糊匹配'),
 });
 
 export const wikiDocVersionParams = idParam.extend({

@@ -30,7 +30,7 @@ import {
 import { pageOffset } from '../../lib/pagination';
 import type { DbTransaction } from '../../db/types';
 import { formatDateTime, formatNullableDateTime, formatTimestamps, parseDateRangeEnd, parseDateRangeStart } from '../../lib/datetime';
-import { buildWhere, dateRangeConditions, keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, dateRangeConditions, keywordCondition, withPagination } from '../../lib/where-helpers';
 import {
   currentUser,
   currentUserOrNull,
@@ -418,7 +418,7 @@ export async function listCmsPublishArtifacts(query: QueryOutputOf<typeof cmsPub
         .innerJoin(asyncTasks, eq(cmsPublishArtifacts.taskId, asyncTasks.id)).where(where);
       return row?.total ?? 0;
     },
-    rows: () => joined().orderBy(desc(cmsPublishArtifacts.id)).limit(query.pageSize).offset(pageOffset(query.page, query.pageSize)),
+    rows: () => withPagination(joined().orderBy(desc(cmsPublishArtifacts.id)).$dynamic(), query.page, query.pageSize),
     map: (row) => mapArtifact(row.artifact),
   });
 }

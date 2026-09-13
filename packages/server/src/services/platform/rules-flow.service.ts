@@ -17,8 +17,7 @@ import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { requireFirstRow } from '../../lib/db-assert';
-import { buildListResult } from '../../lib/list-query';
-import { pageOffset } from '../../lib/pagination';
+import { listRows } from '../../lib/list-query';
 import { formatDateTime, formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
 import { validateExpression } from '../../lib/workflow-expression';
 import { evaluateDecisionFlowSteps } from '../../lib/rules-flow';
@@ -65,12 +64,13 @@ export async function listDecisionFlows(q: QueryOutputOf<typeof decisionFlowCont
     keywordCondition(q.keyword, [ruleDecisionFlows.name]),
     q.status ? eq(ruleDecisionFlows.status, q.status) : undefined,
   );
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(ruleDecisionFlows, where),
-    rows: () => db.select().from(ruleDecisionFlows).where(where).orderBy(desc(ruleDecisionFlows.id)).limit(pageSize).offset(pageOffset(page, pageSize)),
-    map: mapDecisionFlow,
+    table: ruleDecisionFlows,
+    where,
+    orderBy: [desc(ruleDecisionFlows.id)],
+        map: mapDecisionFlow,
   });
 }
 

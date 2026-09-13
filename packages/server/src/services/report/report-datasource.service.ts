@@ -7,7 +7,7 @@ import type { QueryOutputOf } from '@zenith/shared/core';
  * - mysql/postgresql：外部数据库，凭据 AES-GCM 加密存储，取数走 report-external-db。
  */
 import { requireRow } from '../../lib/db-assert';
-import { buildListResult } from '../../lib/list-query';
+import { buildListResult, emptyListResult } from '../../lib/list-query';
 import { HTTPException } from 'hono/http-exception';
 import { desc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '../../db';
@@ -228,7 +228,7 @@ export async function listDatasources(query: QueryOutputOf<typeof reportDatasour
   const { page, pageSize, keyword, folderId, ownerId, type, status } = query;
   const tenantScope = reportTenantScope(reportDatasources);
   const accessibleIds = await listAccessibleReportResourceIds('datasource');
-  if (accessibleIds && accessibleIds.length === 0) return { list: [], total: 0, page, pageSize };
+  if (accessibleIds && accessibleIds.length === 0) return emptyListResult(page, pageSize);
   const where = buildWhere(
     tenantScope,
     accessibleIds ? inArray(reportDatasources.id, accessibleIds) : undefined,

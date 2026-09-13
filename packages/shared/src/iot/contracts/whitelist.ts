@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { idParam, idQuery, paginated, paginationQuery, queryBool } from '../../core/api-schemas';
+import { idParam, idQuery, keywordQuery, paginated, paginationQuery, queryBool } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { createIotWhitelistSchema } from '../validation';
 
@@ -49,7 +49,7 @@ export const iotWhitelistStatsQuery = z.object({
 });
 
 export const iotWhitelistListQuery = paginationQuery.extend({
-  keyword: z.string().optional().meta({ description: '按 SN 模糊匹配' }),
+  keyword: keywordQuery('按 SN 模糊匹配'),
   productId: idQuery(),
   used: queryBool('是否已核销'),
 });

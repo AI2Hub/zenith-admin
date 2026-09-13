@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { auditFieldsSchema, batchIdsBody, entityStatusQuery, entityStatusSchema, idParam, paginated, paginationQuery } from '../../core/api-schemas';
+import { auditFieldsSchema, batchIdsBody, entityStatusQuery, entityStatusSchema, idParam, keywordQuery, paginated, paginationQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { createApiScopeSchema, updateApiScopeSchema } from '../validation';
 
@@ -24,7 +24,7 @@ export type ApiScope = z.infer<typeof apiScopeSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const apiScopeListQuery = paginationQuery.extend({
-  keyword: z.string().optional().meta({ description: '按编码 / 名称模糊匹配' }),
+  keyword: keywordQuery('按编码 / 名称模糊匹配'),
   scopeGroup: z.string().optional(),
   status: entityStatusQuery,
 });

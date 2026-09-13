@@ -364,7 +364,7 @@ export async function* streamCmsSubscriptions(
       .from(cmsMemberSubscriptions)
       .innerJoin(cmsSites, eq(cmsMemberSubscriptions.siteId, cmsSites.id))
       .innerJoin(members, eq(cmsMemberSubscriptions.memberId, members.id))
-      .where(and(baseWhere, beforeId === null ? undefined : lt(cmsMemberSubscriptions.id, beforeId)))
+      .where(buildWhere(baseWhere, beforeId === null ? undefined : lt(cmsMemberSubscriptions.id, beforeId)))
       .orderBy(desc(cmsMemberSubscriptions.id))
       .limit(limit);
     return rows.map((row) => mapCmsMemberSubscription(row.subscription, {

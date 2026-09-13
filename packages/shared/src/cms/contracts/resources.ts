@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { batchIdsBody, idParam, idQuery, paginated, paginationQuery } from '../../core/api-schemas';
+import { batchIdsBody, idParam, idQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, fileField, multipart, op } from '../../core/contract';
 import { asyncTaskSchema } from '../../tasks/contracts/async-tasks';
 import { CMS_RESOURCE_OWNER_TYPES, CMS_RESOURCE_TYPES } from '../constants';
@@ -80,7 +80,7 @@ export const cmsResourceFolderSchema: z.ZodType<CmsResourceFolder> = cmsResource
 
 export const cmsResourceListQuery = paginationQuery.extend({
   siteId: z.coerce.number().int().positive(),
-  type: cmsResourceTypeSchema.optional(),
+  type: queryEnum(CMS_RESOURCE_TYPES),
   keyword: z.string().max(100).optional(),
   folderId: z.coerce.number().int().min(0).optional().meta({ description: '0 = 仅根目录' }),
 });

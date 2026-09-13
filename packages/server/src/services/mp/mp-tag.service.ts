@@ -1,11 +1,11 @@
 import { eq, and, sql } from 'drizzle-orm';
 import { requireFirstRow } from '../../lib/db-assert';
-import { buildListResult } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { mpTags } from '../../db/schema';
 import type { MpTagRow } from '../../db/schema';
-import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { formatTimestamps } from '../../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
@@ -38,11 +38,12 @@ export async function listMpTags(q: QueryOutputOf<typeof mpTagContract.list>) {
     tenantScope(mpTags),
     keywordCondition(q.keyword, [mpTags.name], 'ilike'),
   );
-  return buildListResult({
+  return listRows({
     page: q.page,
     pageSize: q.pageSize,
-    count: () => db.$count(mpTags, where),
-    rows: () => withPagination(db.select().from(mpTags).where(where).orderBy(mpTags.id).$dynamic(), q.page, q.pageSize),
+    table: mpTags,
+    where,
+    orderBy: [mpTags.id],
     map: mapMpTag,
   });
 }

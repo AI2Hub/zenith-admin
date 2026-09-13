@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { entityStatusQuery, entityStatusSchema, idParam, paginated, paginationQuery } from '../../core/api-schemas';
+import { entityStatusQuery, entityStatusSchema, idParam, keywordQuery, paginated, paginationQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { PAYMENT_DEDUCT_PERIODS } from '../constants';
 import { createPaymentDeductPlanSchema, updatePaymentDeductPlanSchema } from '../validation';
@@ -25,7 +25,7 @@ export type PaymentDeductPlan = z.infer<typeof paymentDeductPlanSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const paymentDeductPlanListQuery = paginationQuery.extend({
-  keyword: z.string().optional(),
+  keyword: keywordQuery(),
   status: entityStatusQuery,
 });
 

@@ -28,6 +28,7 @@ import { buildWhere } from '../../lib/where-helpers';
 import { findSeriesByKey, resolveComparisonSeries } from './analytics-breakdown';
 import { buildFunnelCtes, retentionPeriodAxis, topBreakdownValues } from './analytics-conversion.service';
 import { ensureSegmentAccessible } from './analytics-segments.service';
+import { emptyListResult } from '../../lib/list-query';
 
 /** 路由解析后的请求体（page / pageSize 已补默认值），不再手写同形 interface */
 type DrillUsersBody = z.output<typeof analyticsDrillUsersSchema>;
@@ -163,7 +164,7 @@ export async function drillUsers(input: DrillUsersBody): Promise<AnalyticsDrillU
 
   const countRows = (await db.execute(sql`SELECT COUNT(*)::int AS n FROM (${idSql}) AS ids`)) as unknown as Array<{ n: number }>;
   const matchedUsers = Number(countRows[0]?.n ?? 0);
-  if (matchedUsers === 0) return { list: [], total: 0, page, pageSize, matchedUsers: 0 };
+  if (matchedUsers === 0) return { ...emptyListResult(page, pageSize), matchedUsers: 0 };
 
   // 画像用 LEFT JOIN LATERAL + LIMIT 1：
   //  1. 缺画像的用户仍要出现在列表里（下钻的意义就是找出这些人）

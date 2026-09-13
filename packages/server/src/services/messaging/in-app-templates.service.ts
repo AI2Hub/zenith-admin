@@ -1,10 +1,10 @@
 import { eq, and } from 'drizzle-orm';
 import { requireFirstRow } from '../../lib/db-assert';
-import { buildListResult } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import { db } from '../../db';
 import { inAppTemplates } from '../../db/schema';
 import type { InAppTemplateRow } from '../../db/schema';
-import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { formatTimestamps } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
@@ -40,11 +40,12 @@ export async function listInAppTemplates(q: QueryOutputOf<typeof inAppTemplateCo
     q.type ? eq(inAppTemplates.type, q.type) : undefined,
     q.status ? eq(inAppTemplates.status, q.status) : undefined,
   );
-  return buildListResult({
+  return listRows({
     page: q.page,
     pageSize: q.pageSize,
-    count: () => db.$count(inAppTemplates, where),
-    rows: () => withPagination(db.select().from(inAppTemplates).where(where).orderBy(inAppTemplates.id).$dynamic(), q.page, q.pageSize),
+    table: inAppTemplates,
+    where,
+    orderBy: [inAppTemplates.id],
     map: mapInAppTemplate,
   });
 }

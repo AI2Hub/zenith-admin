@@ -9,9 +9,8 @@ import type { MemberCheckinRow } from '../../db/schema';
 import type { DbTransaction } from '../../db/types';
 import { formatDateTime } from '../../lib/datetime';
 import { currentMemberId } from '../../lib/member-context';
-import { pageOffset } from '../../lib/pagination';
 import { buildWhere, withPagination } from '../../lib/where-helpers';
-import { buildListResult } from '../../lib/list-query';
+import { buildListResult, listRows } from '../../lib/list-query';
 import { requireRow } from '../../lib/db-assert';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { getCheckinSettingsRow } from './checkin-settings.service';
@@ -355,15 +354,12 @@ export async function getMyCheckinHistory(params: QueryOutputOf<typeof memberSel
     params.dateStart ? gte(memberCheckins.checkinDate, params.dateStart) : undefined,
     params.dateEnd ? lte(memberCheckins.checkinDate, params.dateEnd) : undefined,
   );
-  return buildListResult({
+  return listRows({
     page: params.page,
     pageSize: params.pageSize,
-    count: () => db.$count(memberCheckins, where),
-    rows: () => db.select().from(memberCheckins)
-      .where(where)
-      .orderBy(desc(memberCheckins.checkinDate))
-      .limit(params.pageSize)
-      .offset(pageOffset(params.page, params.pageSize)),
+    table: memberCheckins,
+    where,
+    orderBy: [desc(memberCheckins.checkinDate)],
     map: (row) => mapMemberCheckin(row),
   });
 }

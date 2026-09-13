@@ -13,9 +13,8 @@ import type { WorkflowConnectorRow } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import { buildWhere, keywordCondition } from '../../lib/where-helpers';
-import { pageOffset } from '../../lib/pagination';
 import { formatDateTime, formatTimestamps } from '../../lib/datetime';
-import { buildListResult } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import { requireFirstRow } from '../../lib/db-assert';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { encryptField, decryptField } from '../../lib/encryption';
@@ -95,11 +94,12 @@ export async function listWorkflowConnectors(query: QueryOutputOf<typeof workflo
     status ? eq(workflowConnectors.status, status) : undefined,
     keywordCondition(keyword, [workflowConnectors.name, workflowConnectors.code], 'ilike'),
   );
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(workflowConnectors, where),
-    rows: () => db.select().from(workflowConnectors).where(where).orderBy(desc(workflowConnectors.id)).limit(pageSize).offset(pageOffset(page, pageSize)),
+    table: workflowConnectors,
+    where,
+    orderBy: [desc(workflowConnectors.id)],
     map: mapConnector,
   });
 }

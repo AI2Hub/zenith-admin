@@ -21,8 +21,7 @@ import {
   cmsSites,
 } from '../../db/schema';
 import { formatDateTime } from '../../lib/datetime';
-import { pageOffset } from '../../lib/pagination';
-import { buildWhere, dateRangeConditions } from '../../lib/where-helpers';
+import { buildWhere, dateRangeConditions, withPagination } from '../../lib/where-helpers';
 import logger from '../../lib/logger';
 import { runWithCurrentUser } from '../../lib/context';
 import { mapAsyncTask } from '../../lib/task-center';
@@ -112,8 +111,7 @@ export async function listCmsDistributionRuns(query: QueryOutputOf<typeof cmsDis
     page: query.page,
     pageSize: query.pageSize,
     count: () => db.$count(asyncTasks, where),
-    rows: async () => mapRuns(await db.select().from(asyncTasks).where(where).orderBy(desc(asyncTasks.id))
-      .limit(query.pageSize).offset(pageOffset(query.page, query.pageSize))),
+    rows: async () => mapRuns(await withPagination(db.select().from(asyncTasks).where(where).orderBy(desc(asyncTasks.id)).$dynamic(), query.page, query.pageSize)),
   });
 }
 

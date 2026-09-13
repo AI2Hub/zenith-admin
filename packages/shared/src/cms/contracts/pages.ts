@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { entityStatusSchema, idParam, paginated, paginationQuery } from '../../core/api-schemas';
+import { entityStatusSchema, idParam, keywordQuery, paginated, paginationQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { CMS_PAGE_BLOCK_AUDIENCES, CMS_PAGE_BLOCK_TYPE_VALUES } from '../constants';
 import { createCmsPageSchema, setCmsPageBlockAclSchema, updateCmsPageSchema } from '../validation';
@@ -62,7 +62,7 @@ export type CmsPage = z.infer<typeof cmsPageSchema>;
 
 export const cmsPageListQuery = paginationQuery.extend({
   siteId: z.coerce.number().int().positive(),
-  keyword: z.string().optional(),
+  keyword: keywordQuery(),
 });
 
 export const cmsPageBlockAclQuery = z.object({

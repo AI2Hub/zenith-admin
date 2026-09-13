@@ -1,10 +1,10 @@
 import { eq, and } from 'drizzle-orm';
 import { requireFirstRow } from '../../lib/db-assert';
-import { buildListResult } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import { db } from '../../db';
 import { mpKfAccounts } from '../../db/schema';
 import type { MpKfAccountRow } from '../../db/schema';
-import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { formatTimestamps } from '../../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { ensureMpAccountExists } from './mp-account.service';
@@ -46,11 +46,12 @@ export async function listMpKfAccounts(q: QueryOutputOf<typeof mpKfAccountContra
     tenantScope(mpKfAccounts),
     keywordCondition(q.keyword, [mpKfAccounts.nickname], 'ilike'),
   );
-  return buildListResult({
+  return listRows({
     page: q.page,
     pageSize: q.pageSize,
-    count: () => db.$count(mpKfAccounts, where),
-    rows: () => withPagination(db.select().from(mpKfAccounts).where(where).orderBy(mpKfAccounts.id).$dynamic(), q.page, q.pageSize),
+    table: mpKfAccounts,
+    where,
+    orderBy: [mpKfAccounts.id],
     map: mapMpKfAccount,
   });
 }

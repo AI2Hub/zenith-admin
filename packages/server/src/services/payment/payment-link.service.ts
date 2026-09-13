@@ -10,12 +10,12 @@ import { HTTPException } from 'hono/http-exception';
 import { randomBytes } from 'node:crypto';
 import { genPaymentNo } from './payment-no';
 import { db } from '../../db';
-import { buildListResult } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import { paymentCashierSessions, paymentLinkRedemptions, paymentLinks, paymentOrders, type PaymentLinkRow } from '../../db/schema';
 import { requireRow } from '../../lib/db-assert';
 import { currentUser } from '../../lib/context';
 import { requireTenantScopeId, tenantCondition, exactTenantCondition } from '../../lib/tenant';
-import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { formatNullableDateTime, formatTimestamps, parseDateTimeInput } from '../../lib/datetime';
 import { createPayment } from './payment.service';
 import { bindCashierSession, bindCashierSessionAfterCreateFailure, buildCashierSessionExpiry, createCashierSession, failCashierSession, getPublicCashierSession, releaseExpiredCashierUseSlots } from './payment-cashier-session.service';
@@ -117,11 +117,12 @@ export async function listLinks(q: ListLinksQuery) {
     linkStatusCondition(q.status),
     tenantCondition(paymentLinks, currentUser()),
   );
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(paymentLinks, where),
-    rows: () => withPagination(db.select().from(paymentLinks).where(where).orderBy(desc(paymentLinks.id)).$dynamic(), page, pageSize),
+    table: paymentLinks,
+    where,
+    orderBy: [desc(paymentLinks.id)],
     map: mapLink,
   });
 }

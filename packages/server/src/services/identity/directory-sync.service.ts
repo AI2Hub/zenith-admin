@@ -1,4 +1,4 @@
-import { buildListResult } from '../../lib/list-query';
+import { buildListResult, listRows } from '../../lib/list-query';
 import { requireFirstRow, requireRow } from '../../lib/db-assert';
 import { HTTPException } from 'hono/http-exception';
 import { and, desc, eq, inArray } from 'drizzle-orm';
@@ -18,7 +18,7 @@ import type {
 } from '@zenith/shared/identity';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { formatDateTime, formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
-import { buildWhere, dateRangeConditions, keywordCondition, withPagination } from '../../lib/where-helpers';
+import { buildWhere, dateRangeConditions, keywordCondition } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { exactTenantCondition, resolveManagedTenantId, tenantScope } from '../../lib/tenant';
@@ -380,15 +380,12 @@ export async function listDirectorySyncRunItems(runId: number, q: QueryOutputOf<
     q.action ? eq(directorySyncRunItems.action, q.action) : undefined,
     q.entityType ? eq(directorySyncRunItems.entityType, q.entityType) : undefined,
   );
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(directorySyncRunItems, where),
-    rows: () => withPagination(
-      db.select().from(directorySyncRunItems).where(where).orderBy(directorySyncRunItems.id).$dynamic(),
-      page,
-      pageSize,
-    ),
+    table: directorySyncRunItems,
+    where,
+    orderBy: [directorySyncRunItems.id],
     map: mapDirectorySyncRunItem,
   });
 }

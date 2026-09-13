@@ -9,9 +9,9 @@ import { users, wikiDocs, wikiSpaceMembers, wikiSpaces, type WikiSpaceRow } from
 import { currentUser, isSuperAdmin } from '../../lib/context';
 import { formatDateTime, formatTimestamps } from '../../lib/datetime';
 import { requireFirstRow, requireRow } from '../../lib/db-assert';
-import { buildListResult } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import { getCreateTenantId, tenantCondition } from '../../lib/tenant';
-import { buildWhere, keywordCondition, withPagination } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 
 // ─── 角色等级 ─────────────────────────────────────────────────────────────────
 
@@ -56,15 +56,12 @@ export async function listWikiSpaces(q: QueryOutputOf<typeof wikiSpaceContract.l
   const { page, pageSize } = q;
   const where = buildWikiSpaceWhere(q);
 
-  const { list: rows, total } = await buildListResult({
+  const { list: rows, total } = await listRows({
     page,
     pageSize,
-    count: () => db.$count(wikiSpaces, where),
-    rows: () => withPagination(
-      db.select().from(wikiSpaces).where(where).orderBy(asc(wikiSpaces.sort), asc(wikiSpaces.id)).$dynamic(),
-      page,
-      pageSize,
-    ),
+    table: wikiSpaces,
+    where,
+    orderBy: [asc(wikiSpaces.sort), asc(wikiSpaces.id)],
   });
 
   const ids = rows.map((r) => r.id);

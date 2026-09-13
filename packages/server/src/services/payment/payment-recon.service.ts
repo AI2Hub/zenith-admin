@@ -11,12 +11,12 @@ import { and, desc, eq, gte, inArray, lte, or } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { genPaymentNo } from './payment-no';
 import { db } from '../../db';
-import { buildListResult } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import { paymentChannelConfigs, paymentApps, paymentOrders, paymentReconBatches, paymentReconItems, type PaymentReconBatchRow, type PaymentReconItemRow } from '../../db/schema';
 import { requireRow } from '../../lib/db-assert';
 import { currentUser } from '../../lib/context';
 import { requireTenantScopeId, tenantCondition, exactTenantCondition } from '../../lib/tenant';
-import { buildWhere, withPagination } from '../../lib/where-helpers';
+import { buildWhere } from '../../lib/where-helpers';
 import { formatDate, formatDateTime, formatNullableDateTime, formatTimestamps, parseDateTimeInput } from '../../lib/datetime';
 import { postSystemJournalWithin } from './payment-journal.service';
 import { buildAdapterContext } from './payment.service';
@@ -141,7 +141,7 @@ async function loadLocalPaidRowsScoped(channel: PaymentChannel, appId: number, c
     .from(paymentOrders)
     .where(
       buildWhere(
-        and(
+        buildWhere(
           eq(paymentOrders.channel, channel),
           eq(paymentOrders.appId, appId),
           eq(paymentOrders.channelConfigId, channelConfigId),
@@ -162,11 +162,12 @@ export async function listReconBatches(q: QueryOutputOf<typeof paymentReconContr
     q.status ? eq(paymentReconBatches.status, q.status) : undefined,
     tenantCondition(paymentReconBatches, currentUser()),
   );
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(paymentReconBatches, where),
-    rows: () => withPagination(db.select().from(paymentReconBatches).where(where).orderBy(desc(paymentReconBatches.id)).$dynamic(), page, pageSize),
+    table: paymentReconBatches,
+    where,
+    orderBy: [desc(paymentReconBatches.id)],
     map: mapReconBatch,
   });
 }
@@ -186,11 +187,12 @@ export async function listReconItems(batchId: number, q: QueryOutputOf<typeof pa
     q.result ? eq(paymentReconItems.result, q.result) : undefined,
     q.handleStatus ? eq(paymentReconItems.handleStatus, q.handleStatus) : undefined,
   );
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(paymentReconItems, where),
-    rows: () => withPagination(db.select().from(paymentReconItems).where(where).orderBy(desc(paymentReconItems.id)).$dynamic(), page, pageSize),
+    table: paymentReconItems,
+    where,
+    orderBy: [desc(paymentReconItems.id)],
     map: mapReconItem,
   });
 }
@@ -453,7 +455,7 @@ async function resolveReconApplication(
   const rows = await db
     .select({ id: paymentApps.id })
     .from(paymentApps)
-    .where(and(
+    .where(buildWhere(
       eq(paymentApps.status, 'enabled'),
       exactTenant,
       channelBinding,

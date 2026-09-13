@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { auditFieldsSchema, entityStatusQuery, idParam, idQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { auditFieldsSchema, entityStatusQuery, idParam, idQuery, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, fileField, multipart, op } from '../../core/contract';
 import { asyncTaskSchema } from '../../tasks/contracts/async-tasks';
 import { REPORT_DATASOURCE_TYPES, REPORT_MATERIALIZATION_STRATEGIES } from '../types';
@@ -174,7 +174,7 @@ export type ReportDatasetRefs = z.infer<typeof reportDatasetRefsSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const reportDatasetListQuery = paginationQuery.extend({
-  keyword: z.string().optional(),
+  keyword: keywordQuery(),
   folderId: idQuery(),
   ownerId: idQuery(),
   datasourceId: idQuery(),

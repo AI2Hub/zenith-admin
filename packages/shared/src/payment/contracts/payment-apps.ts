@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { entityStatusQuery, entityStatusSchema, idParam, paginated, paginationQuery } from '../../core/api-schemas';
+import { entityStatusQuery, entityStatusSchema, idParam, keywordQuery, paginated, paginationQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { PAYMENT_APP_ENVIRONMENTS } from '../constants';
 import { createPaymentAppSchema, updatePaymentAppSchema } from '../validation';
@@ -31,7 +31,7 @@ export type PaymentApp = z.infer<typeof paymentAppSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const paymentAppListQuery = paginationQuery.extend({
-  keyword: z.string().optional(),
+  keyword: keywordQuery(),
   status: entityStatusQuery,
 });
 

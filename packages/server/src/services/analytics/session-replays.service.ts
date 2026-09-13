@@ -10,7 +10,7 @@
  */
 import { and, eq, desc, or, sql, inArray, lt, gte } from 'drizzle-orm';
 import { requireRow } from '../../lib/db-assert';
-import { buildListResult } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import { gzipSync } from 'node:zlib';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
@@ -24,7 +24,6 @@ import { currentMemberOrNull } from '../../lib/member-context';
 import { tenantScope, getCreateTenantId, exactTenantCondition } from '../../lib/tenant';
 import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime, startOfToday } from '../../lib/datetime';
-import { pageOffset } from '../../lib/pagination';
 import { parseClientEnv, resolveIngestPlatformFields } from '../../lib/analytics-helpers';
 import { isSiteOriginAllowed, resolveSiteByKey } from './analytics-sites.service';
 
@@ -403,14 +402,13 @@ export async function listReplayAccessLogs(query: QueryOutputOf<typeof sessionRe
       ? or(keywordCondition(query.keyword, [replayAccessLogs.username, replayAccessLogs.replayOwner], 'ilike'), eq(replayAccessLogs.replayId, query.keyword))
       : undefined,
   );
-  return buildListResult({
+  return listRows({
     page: query.page,
     pageSize: query.pageSize,
-    count: () => db.$count(replayAccessLogs, where),
-    rows: () => db.select().from(replayAccessLogs).where(where)
-      .orderBy(desc(replayAccessLogs.createdAt))
-      .limit(query.pageSize).offset(pageOffset(query.page, query.pageSize)),
-    map: (r) => ({
+    table: replayAccessLogs,
+    where,
+    orderBy: [desc(replayAccessLogs.createdAt)],
+        map: (r) => ({
       id: r.id,
       replayId: r.replayId,
       replayOwner: r.replayOwner,
@@ -457,14 +455,13 @@ export async function listReplaySessions(query: QueryOutputOf<typeof sessionRepl
       : undefined,
   );
 
-  return buildListResult({
+  return listRows({
     page: query.page,
     pageSize: query.pageSize,
-    count: () => db.$count(replaySessions, where),
-    rows: () => db.select().from(replaySessions).where(where)
-      .orderBy(desc(replaySessions.startedAt))
-      .limit(query.pageSize).offset(pageOffset(query.page, query.pageSize)),
-    map: mapReplaySession,
+    table: replaySessions,
+    where,
+    orderBy: [desc(replaySessions.startedAt)],
+        map: mapReplaySession,
   });
 }
 

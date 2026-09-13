@@ -1,7 +1,7 @@
 import { reportDqContract } from '@zenith/shared/report';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { requireRow } from '../../lib/db-assert';
-import { buildListResult } from '../../lib/list-query';
+import { buildListResult, emptyListResult, listRows } from '../../lib/list-query';
 import { createHash } from 'node:crypto';
 import { CronExpressionParser } from 'cron-parser';
 import dayjs from 'dayjs';
@@ -22,12 +22,11 @@ import { formatDateTime, formatNullableDateTime, formatTimestamps } from '../../
 import { applyReadonlyTransactionGuards } from '../../lib/db-readonly-role';
 import { normalizeReadonlyReportSql } from '../../lib/report-sql-safety';
 import { mapAsyncTask, submitAsyncTask } from '../../lib/task-center';
-import { pageOffset } from '../../lib/pagination';
 import { ensureDatasetExists, getDatasetData } from './report-dataset.service';
 import { reportScopedWhere, reportTenantScope } from './report-access';
 import { ensureReportResourceAccess, listAccessibleReportResourceIds } from './report-resource-acl.service';
 import { dueCronFireTime, loadScheduleActor } from './report-schedule-shared';
-import { buildWhere } from '../../lib/where-helpers';
+import { buildWhere, withPagination } from '../../lib/where-helpers';
 
 const DQ_QUERY_LIMIT = 10_000;
 const MAX_SAMPLE_ROWS = 100;
@@ -340,7 +339,7 @@ export async function listReportDqRules(query: QueryOutputOf<typeof reportDqCont
     await ensureReportResourceAccess('dataset', query.datasetId, 'viewer');
   } else {
     accessibleIds = await listAccessibleReportResourceIds('dataset');
-    if (accessibleIds?.length === 0) return { list: [], total: 0, page, pageSize };
+    if (accessibleIds?.length === 0) return emptyListResult(page, pageSize);
   }
   const where = buildWhere(
     scope,
@@ -353,13 +352,11 @@ export async function listReportDqRules(query: QueryOutputOf<typeof reportDqCont
     page,
     pageSize,
     count: () => db.$count(reportDqRules, where),
-    rows: () => db.select({ rule: reportDqRules, datasetName: reportDatasets.name })
+    rows: () => withPagination(db.select({ rule: reportDqRules, datasetName: reportDatasets.name })
             .from(reportDqRules)
             .innerJoin(reportDatasets, eq(reportDatasets.id, reportDqRules.datasetId))
             .where(where)
-            .orderBy(desc(reportDqRules.id))
-            .limit(pageSize)
-            .offset(pageOffset(page, pageSize)),
+            .orderBy(desc(reportDqRules.id)).$dynamic(), page, pageSize),
     map: (row) => mapReportDqRule(row.rule, row.datasetName),
   });
 }
@@ -624,7 +621,7 @@ export async function listReportDqRuns(query: QueryOutputOf<typeof reportDqContr
     await ensureReportResourceAccess('dataset', query.datasetId, 'viewer');
   } else {
     accessibleIds = await listAccessibleReportResourceIds('dataset');
-    if (accessibleIds?.length === 0) return { list: [], total: 0, page, pageSize };
+    if (accessibleIds?.length === 0) return emptyListResult(page, pageSize);
   }
   let ruleId: number | undefined;
   if (query.ruleId) {
@@ -638,12 +635,12 @@ export async function listReportDqRuns(query: QueryOutputOf<typeof reportDqContr
     ruleId ? eq(reportDqRuns.ruleId, ruleId) : undefined,
     query.status ? eq(reportDqRuns.status, query.status) : undefined,
   );
-  const { list: rows, total } = await buildListResult({
+  const { list: rows, total } = await listRows({
     page,
     pageSize,
-    count: () => db.$count(reportDqRuns, where),
-    rows: () => db.select().from(reportDqRuns).where(where).orderBy(desc(reportDqRuns.id))
-      .limit(pageSize).offset(pageOffset(page, pageSize)),
+    table: reportDqRuns,
+    where,
+    orderBy: [desc(reportDqRuns.id)],
   });
   const { ruleNames, datasetNames } = await resolveDqNames(rows);
   return {
@@ -659,12 +656,12 @@ export async function listReportDqScores(datasetId: number, query: QueryOutputOf
   const { page, pageSize } = query;
   await ensureReportResourceAccess('dataset', datasetId, 'viewer');
   const where = reportScopedWhere(reportDqScores, eq(reportDqScores.datasetId, datasetId));
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(reportDqScores, where),
-    rows: () => db.select().from(reportDqScores).where(where).orderBy(desc(reportDqScores.measuredAt))
-            .limit(pageSize).offset(pageOffset(page, pageSize)),
+    table: reportDqScores,
+    where,
+    orderBy: [desc(reportDqScores.measuredAt)],
     map: mapReportDqScore,
   });
 }
@@ -686,7 +683,7 @@ export async function listReportDqAnomalies(query: QueryOutputOf<typeof reportDq
     await ensureReportResourceAccess('dataset', query.datasetId, 'viewer');
   } else {
     accessibleIds = await listAccessibleReportResourceIds('dataset');
-    if (accessibleIds?.length === 0) return { list: [], total: 0, page, pageSize };
+    if (accessibleIds?.length === 0) return emptyListResult(page, pageSize);
   }
   const where = buildWhere(
     scope,
@@ -694,12 +691,12 @@ export async function listReportDqAnomalies(query: QueryOutputOf<typeof reportDq
     accessibleIds ? inArray(reportDqAnomalies.datasetId, accessibleIds) : undefined,
     query.status ? eq(reportDqAnomalies.status, query.status) : undefined,
   );
-  const { list: rows, total } = await buildListResult({
+  const { list: rows, total } = await listRows({
     page,
     pageSize,
-    count: () => db.$count(reportDqAnomalies, where),
-    rows: () => db.select().from(reportDqAnomalies).where(where).orderBy(desc(reportDqAnomalies.id))
-      .limit(pageSize).offset(pageOffset(page, pageSize)),
+    table: reportDqAnomalies,
+    where,
+    orderBy: [desc(reportDqAnomalies.id)],
   });
   const { ruleNames, datasetNames } = await resolveDqNames(rows);
   return {

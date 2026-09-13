@@ -76,7 +76,7 @@ function mapInAppMessageRow(r: JoinedMessageRow, username: string | null = null)
 async function ensureInAppMessageExists(id: number, ownedBy?: number) {
   return requireFirstRow(
     db.select().from(inAppMessages)
-      .where(and(
+      .where(buildWhere(
         eq(inAppMessages.id, id),
         ownedBy === undefined ? undefined : eq(inAppMessages.userId, ownedBy),
         tenantScope(inAppMessages),

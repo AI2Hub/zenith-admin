@@ -1,6 +1,6 @@
 import { requireFirstRow } from '../../lib/db-assert';
 import type { QueryOutputOf } from '@zenith/shared/core';
-import { buildListResult } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import { eq, asc } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { cmsSeoContract } from '@zenith/shared/cms';
@@ -8,7 +8,7 @@ import { db } from '../../db';
 import { cmsRedirects, cmsSites } from '../../db/schema';
 import type { CmsRedirectRow } from '../../db/schema';
 import { formatTimestamps } from '../../lib/datetime';
-import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { assertSiteAccess } from './cms-sites.service';
 import type { CreateCmsRedirectInput, UpdateCmsRedirectInput } from '@zenith/shared/cms';
@@ -96,15 +96,12 @@ export async function listCmsRedirects(q: QueryOutputOf<typeof cmsSeoContract.re
     eq(cmsRedirects.siteId, q.siteId),
     keywordCondition(q.keyword, [cmsRedirects.fromPath]),
   );
-  return buildListResult({
+  return listRows({
     page: q.page,
     pageSize: q.pageSize,
-    count: () => db.$count(cmsRedirects, where),
-    rows: () => withPagination(
-      db.select().from(cmsRedirects).where(where).orderBy(asc(cmsRedirects.id)).$dynamic(),
-      q.page,
-      q.pageSize,
-    ),
+    table: cmsRedirects,
+    where,
+    orderBy: [asc(cmsRedirects.id)],
     map: mapCmsRedirect,
   });
 }

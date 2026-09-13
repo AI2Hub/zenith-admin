@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { auditFieldsSchema, batchIdsBody, idParam, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { auditFieldsSchema, batchIdsBody, idParam, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { WORKFLOW_DEFINITION_STATUSES, WORKFLOW_FORM_TYPES, WORKFLOW_SIMULATION_HEALTH_LEVELS, WORKFLOW_SIMULATION_NODE_STATE_STATUSES, WORKFLOW_SIMULATION_RESULT_STATUSES, WORKFLOW_SIMULATION_TIMELINE_STATUSES } from '../constants';
 import {
@@ -293,7 +293,7 @@ export type WorkflowDefinitionHealthReport = z.infer<typeof workflowDefinitionHe
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const workflowDefinitionListQuery = paginationQuery.extend({
-  keyword: z.string().optional().meta({ description: '按名称模糊匹配' }),
+  keyword: keywordQuery('按名称模糊匹配'),
   status: queryEnum(WORKFLOW_DEFINITION_STATUSES),
   categoryId: z.coerce.number().int().optional(),
 });

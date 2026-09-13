@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { idParam, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { idParam, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { batchSendMpTemplateSchema, sendMpTemplateSchema } from '../../messaging/validation';
 import { MP_TEMPLATE_SEND_STATUSES } from '../constants';
@@ -57,7 +57,7 @@ export type MpBatchSendResult = z.infer<typeof mpBatchSendResultSchema>;
 
 export const mpTemplateListQuery = paginationQuery.extend({
   ...mpAccountIdQuery.shape,
-  keyword: z.string().optional().meta({ description: '按模板标题模糊匹配' }),
+  keyword: keywordQuery('按模板标题模糊匹配'),
 });
 
 export const mpTemplateSendLogListQuery = paginationQuery.extend({

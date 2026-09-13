@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { auditFieldsSchema, idParam, idQuery, paginated, paginationQuery, queryBool, queryEnum } from '../../core/api-schemas';
+import { auditFieldsSchema, idParam, idQuery, keywordQuery, paginated, paginationQuery, queryBool, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { MP_FAN_SUBSCRIBES } from '../constants';
 import { bindMpFanMemberSchema, blacklistMpFansSchema, mpAccountIdBody, updateMpFanSchema } from '../validation';
@@ -51,7 +51,7 @@ export type MpFanBlacklistResult = z.infer<typeof mpFanBlacklistResultSchema>;
 
 export const mpFanListQuery = paginationQuery.extend({
   ...mpAccountIdQuery.shape,
-  keyword: z.string().optional().meta({ description: '按昵称 / openid / 备注模糊匹配' }),
+  keyword: keywordQuery('按昵称 / openid / 备注模糊匹配'),
   subscribe: queryEnum(MP_FAN_SUBSCRIBES),
   tagId: idQuery('按本地标签筛选'),
   blacklisted: queryBool('是否在黑名单'),

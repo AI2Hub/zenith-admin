@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { auditFieldsSchema, idParam, paginated, paginationQuery } from '../../core/api-schemas';
+import { auditFieldsSchema, idParam, keywordQuery, paginated, paginationQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { MP_DRAFT_STATUSES } from '../constants';
 import { createMpDraftSchema, mpArticleSchema, updateMpDraftSchema } from '../validation';
@@ -25,7 +25,7 @@ export type MpDraft = z.infer<typeof mpDraftSchema>;
 
 export const mpDraftListQuery = paginationQuery.extend({
   ...mpAccountIdQuery.shape,
-  keyword: z.string().optional().meta({ description: '按标题模糊匹配' }),
+  keyword: keywordQuery('按标题模糊匹配'),
 });
 
 // ─── 契约 ────────────────────────────────────────────────────────────────────

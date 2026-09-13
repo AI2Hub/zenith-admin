@@ -8,11 +8,10 @@ import { ruleDecisionTables, ruleDecisionTableVersions, ruleTestCases, ruleExecu
 import { getSettings } from '../../lib/settings';
 import { currentUser, currentUserOrNull } from '../../lib/context';
 import { tenantCondition, getCreateTenantId, pickTenantScopedRow } from '../../lib/tenant';
-import { buildWhere, keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition, withPagination } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation, isPgUniqueViolation } from '../../lib/db-errors';
 import { requireFirstRow, requireRow } from '../../lib/db-assert';
 import { buildListResult } from '../../lib/list-query';
-import { pageOffset } from '../../lib/pagination';
 import { formatDateTime, formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
 import { evaluateDecisionTable, isOutputExpression } from '../../lib/rules-engine';
 import { evaluateExpression, validateExpression } from '../../lib/workflow-expression';
@@ -103,7 +102,7 @@ export async function listDecisionTables(q: QueryOutputOf<typeof decisionTableCo
     pageSize,
     count: () => db.$count(ruleDecisionTables, where),
     rows: async () => {
-      const rows = await db.select().from(ruleDecisionTables).where(where).orderBy(desc(ruleDecisionTables.id)).limit(pageSize).offset(pageOffset(page, pageSize));
+      const rows = await withPagination(db.select().from(ruleDecisionTables).where(where).orderBy(desc(ruleDecisionTables.id)).$dynamic(), page, pageSize);
       // dirty 标记：批量取本页各表最新快照并与编辑态对比
       const ids = rows.map((r) => r.id);
       const versionRows = ids.length

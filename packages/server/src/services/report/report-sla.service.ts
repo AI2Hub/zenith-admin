@@ -1,7 +1,7 @@
 import { reportSlaContract } from '@zenith/shared/report';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { requireRow } from '../../lib/db-assert';
-import { buildListResult } from '../../lib/list-query';
+import { emptyListResult, listRows } from '../../lib/list-query';
 import dayjs from 'dayjs';
 import { and, desc, eq, gte, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
 import type { CreateReportSlaRuleInput, ReportSlaRule, ReportSlaType, ReportSlaViolation, UpdateReportSlaRuleInput, UpdateReportSlaViolationInput } from '@zenith/shared/report';
@@ -16,7 +16,6 @@ import {
 import { currentUserId, runWithCurrentUser } from '../../lib/context';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { formatDateTime, formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
-import { pageOffset } from '../../lib/pagination';
 import { mapAsyncTask, submitAsyncTask } from '../../lib/task-center';
 import { ensureDatasetExists } from './report-dataset.service';
 import { dueCronFireTime, loadScheduleActor } from './report-schedule-shared';
@@ -132,7 +131,7 @@ export async function listReportSlaRules(query: QueryOutputOf<typeof reportSlaCo
     await ensureReportResourceAccess('dataset', query.datasetId, 'viewer');
   } else {
     accessibleIds = await listAccessibleReportResourceIds('dataset');
-    if (accessibleIds?.length === 0) return { list: [], total: 0, page, pageSize };
+    if (accessibleIds?.length === 0) return emptyListResult(page, pageSize);
   }
   const where = buildWhere(
     scope,
@@ -141,12 +140,12 @@ export async function listReportSlaRules(query: QueryOutputOf<typeof reportSlaCo
     query.type ? eq(reportSlaRules.type, query.type) : undefined,
     query.enabled !== undefined ? eq(reportSlaRules.enabled, query.enabled) : undefined,
   );
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(reportSlaRules, where),
-    rows: () => db.select().from(reportSlaRules).where(where).orderBy(desc(reportSlaRules.id))
-            .limit(pageSize).offset(pageOffset(page, pageSize)),
+    table: reportSlaRules,
+    where,
+    orderBy: [desc(reportSlaRules.id)],
     map: mapReportSlaRule,
   });
 }
@@ -368,7 +367,7 @@ export async function listReportSlaViolations(query: QueryOutputOf<typeof report
     await ensureReportResourceAccess('dataset', query.datasetId, 'viewer');
   } else {
     accessibleIds = await listAccessibleReportResourceIds('dataset');
-    if (accessibleIds?.length === 0) return { list: [], total: 0, page, pageSize };
+    if (accessibleIds?.length === 0) return emptyListResult(page, pageSize);
   }
   let ruleId: number | undefined;
   if (query.ruleId) {
@@ -382,12 +381,12 @@ export async function listReportSlaViolations(query: QueryOutputOf<typeof report
     ruleId ? eq(reportSlaViolations.ruleId, ruleId) : undefined,
     query.status ? eq(reportSlaViolations.status, query.status) : undefined,
   );
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(reportSlaViolations, where),
-    rows: () => db.select().from(reportSlaViolations).where(where).orderBy(desc(reportSlaViolations.id))
-            .limit(pageSize).offset(pageOffset(page, pageSize)),
+    table: reportSlaViolations,
+    where,
+    orderBy: [desc(reportSlaViolations.id)],
     map: mapReportSlaViolation,
   });
 }

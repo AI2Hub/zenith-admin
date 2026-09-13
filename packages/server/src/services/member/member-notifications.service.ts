@@ -13,8 +13,7 @@ import type { MemberNotificationRow } from '../../db/schema';
 import type { DbExecutor } from '../../db/types';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { currentMemberId } from '../../lib/member-context';
-import { pageOffset } from '../../lib/pagination';
-import { buildListResult } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import { requireRow } from '../../lib/db-assert';
 import { buildWhere } from '../../lib/where-helpers';
 
@@ -70,15 +69,12 @@ export async function listMyNotifications(q: QueryOutputOf<typeof memberSelfCont
     eq(memberNotifications.memberId, memberId),
     q.unreadOnly ? isNull(memberNotifications.readAt) : undefined,
   );
-  return buildListResult({
+  return listRows({
     page: q.page,
     pageSize: q.pageSize,
-    count: () => db.$count(memberNotifications, where),
-    rows: () => db.select().from(memberNotifications)
-      .where(where)
-      .orderBy(desc(memberNotifications.id))
-      .limit(q.pageSize)
-      .offset(pageOffset(q.page, q.pageSize)),
+    table: memberNotifications,
+    where,
+    orderBy: [desc(memberNotifications.id)],
     map: mapMemberNotification,
   });
 }

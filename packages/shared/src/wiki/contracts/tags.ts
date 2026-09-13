@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { auditFieldsSchema, idParam, paginated, paginationQuery } from '../../core/api-schemas';
+import { auditFieldsSchema, idParam, keywordQuery, paginated, paginationQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { createWikiTagSchema, updateWikiTagSchema } from '../validation';
 
@@ -25,7 +25,7 @@ export type WikiDocTag = z.infer<typeof wikiDocTagSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const wikiTagListQuery = paginationQuery.extend({
-  keyword: z.string().optional().meta({ description: '按名称模糊匹配' }),
+  keyword: keywordQuery('按名称模糊匹配'),
 });
 
 export const wikiTagContract = defineContract('/api/wiki/tags', {

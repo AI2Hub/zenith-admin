@@ -8,7 +8,6 @@ import type { QueryOutputOf } from '@zenith/shared/core';
 import { and, desc, eq, gte, lte, sql } from 'drizzle-orm';
 import { db, readSnapshot } from '../../db';
 import { reportDatasetExecutionLogs, reportDatasets, reportDatasources, users } from '../../db/schema';
-import { pageOffset } from '../../lib/pagination';
 import { formatDateTime } from '../../lib/datetime';
 import { reportTenantScope } from './report-access';
 import {
@@ -17,7 +16,7 @@ import {
 } from './report-query-capacity.service';
 import { getReportRuntimeGovernance } from './report-dataset-shared';
 import type { ReportDatasetExecutionLog, ReportExecutionStats } from '@zenith/shared/report';
-import { buildWhere, dateRangeConditions } from '../../lib/where-helpers';
+import { buildWhere, dateRangeConditions, withPagination } from '../../lib/where-helpers';
 import { buildListResult } from '../../lib/list-query';
 
 function mapDatasetExecutionLog(row: {
@@ -84,7 +83,7 @@ export async function listDatasetExecutionLogs(query: QueryOutputOf<typeof repor
     page,
     pageSize,
     count: () => db.$count(reportDatasetExecutionLogs, where),
-    rows: () => db.select({
+    rows: () => withPagination(db.select({
       id: reportDatasetExecutionLogs.id,
       datasetId: reportDatasetExecutionLogs.datasetId,
       datasetName: reportDatasets.name,
@@ -112,9 +111,7 @@ export async function listDatasetExecutionLogs(query: QueryOutputOf<typeof repor
       .leftJoin(reportDatasources, eq(reportDatasources.id, reportDatasetExecutionLogs.datasourceId))
       .leftJoin(users, eq(users.id, reportDatasetExecutionLogs.userId))
       .where(where)
-      .orderBy(desc(reportDatasetExecutionLogs.id))
-      .limit(pageSize)
-      .offset(pageOffset(page, pageSize)),
+      .orderBy(desc(reportDatasetExecutionLogs.id)).$dynamic(), page, pageSize),
     map: (row) => mapDatasetExecutionLog({
       ...row,
       datasourceName: row.datasourceName ?? null,

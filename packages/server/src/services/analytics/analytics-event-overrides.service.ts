@@ -2,7 +2,7 @@
  * 行为中心阶段 1：租户级事件启停覆盖（Tracking Plan 全局屏蔽之外的租户自助开关）。
  */
 import { and, desc, eq } from 'drizzle-orm';
-import { buildListResult } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import { requireFirstRow } from '../../lib/db-assert';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
@@ -12,7 +12,6 @@ import type { QueryOutputOf } from '@zenith/shared/core';
 import { analyticsContract } from '@zenith/shared/analytics';
 import type { CreateAnalyticsEventOverrideInput, UpdateAnalyticsEventOverrideInput } from '@zenith/shared/analytics';
 import { formatTimestamps } from '../../lib/datetime';
-import { pageOffset } from '../../lib/pagination';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { currentUser } from '../../lib/context';
 import { getEffectiveTenantId } from '../../lib/tenant';
@@ -48,11 +47,12 @@ export async function listEventOverrides(q: QueryOutputOf<typeof analyticsContra
     q.status ? eq(analyticsEventOverrides.status, q.status) : undefined,
   );
 
-  return buildListResult({
+  return listRows({
     page: page,
     pageSize: pageSize,
-    count: () => db.$count(analyticsEventOverrides, where),
-    rows: () => db.select().from(analyticsEventOverrides).where(where).orderBy(desc(analyticsEventOverrides.updatedAt)).limit(pageSize).offset(pageOffset(page, pageSize)),
+    table: analyticsEventOverrides,
+    where,
+    orderBy: [desc(analyticsEventOverrides.updatedAt)],
     map: mapEventOverride,
   });
 }

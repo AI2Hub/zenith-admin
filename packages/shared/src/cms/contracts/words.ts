@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { entityStatusQuery, entityStatusSchema, idParam, paginated, paginationQuery } from '../../core/api-schemas';
+import { entityStatusQuery, entityStatusSchema, idParam, keywordQuery, paginated, paginationQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import {
   createCmsErrorProneWordSchema,
@@ -38,7 +38,7 @@ export type CmsErrorProneWord = z.infer<typeof cmsErrorProneWordSchema>;
 
 /** 敏感词 / 易错词为平台级词库，不按站点过滤 */
 export const cmsWordListQuery = paginationQuery.extend({
-  keyword: z.string().optional(),
+  keyword: keywordQuery(),
   status: entityStatusQuery,
 });
 

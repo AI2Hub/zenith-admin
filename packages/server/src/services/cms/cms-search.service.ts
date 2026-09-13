@@ -5,7 +5,7 @@ import type { QueryOutputOf } from '@zenith/shared/core';
 import { db } from '../../db';
 import { cmsContents, cmsChannels, cmsSearchWords } from '../../db/schema';
 import { formatNullableDateTime } from '../../lib/datetime';
-import { keywordCondition, buildWhere } from '../../lib/where-helpers';
+import { keywordCondition, buildWhere, withPagination } from '../../lib/where-helpers';
 import { config } from '../../config';
 import redis from '../../lib/redis';
 import logger from '../../lib/logger';
@@ -16,7 +16,6 @@ import { contentUrl } from './cms-urls';
 import { buildCmsLinkResolver } from './cms-link.service';
 import type { CmsLinkResolver } from './cms-link.service';
 import { getEffectivelyEnabledCmsChannelIds } from './cms-channel-visibility.service';
-import { pageOffset } from '../../lib/pagination';
 import { assertAllCmsSiteChannelsAccess, getAccessibleChannelIds } from './cms-channels.service';
 import { loadCmsExtensionWords, normalizeCmsSearchDictionaryWord } from './cms-search-dictionary';
 import { listSummaryOf } from './cms-content-columns';
@@ -38,7 +37,7 @@ function getJieba(siteId?: number): Jieba {
  * 启动时与词典 CRUD 后调用。
  */
 export async function reloadCmsSearchDict(siteId?: number): Promise<number> {
-  const rows = await db.select().from(cmsSearchWords).where(and(
+  const rows = await db.select().from(cmsSearchWords).where(buildWhere(
     eq(cmsSearchWords.status, 'enabled'),
     ...(siteId ? [eq(cmsSearchWords.siteId, siteId)] : []),
   ));
@@ -386,13 +385,11 @@ export async function searchCmsContents(q: CmsSearchQuery): Promise<{ list: CmsS
   const ftsWhere = and(baseWhere, sql`${cmsContents.searchVector} @@ ${tsquery}`);
   const [total, rows] = await Promise.all([
     countMatching(ftsWhere),
-    db.select({ ...selectShape, rank: sql<number>`ts_rank_cd(${cmsContents.searchVector}, ${tsquery})`.as('rank') })
+    withPagination(db.select({ ...selectShape, rank: sql<number>`ts_rank_cd(${cmsContents.searchVector}, ${tsquery})`.as('rank') })
       .from(cmsContents)
       .leftJoin(cmsChannels, eq(cmsContents.channelId, cmsChannels.id))
       .where(ftsWhere)
-      .orderBy(sql`rank desc`, sql`${cmsContents.publishedAt} desc nulls last`)
-      .limit(pageSize)
-      .offset(pageOffset(page, pageSize)),
+      .orderBy(sql`rank desc`, sql`${cmsContents.publishedAt} desc nulls last`).$dynamic(), page, pageSize),
   ]);
 
   if (total > 0) {
@@ -409,13 +406,11 @@ export async function searchCmsContents(q: CmsSearchQuery): Promise<{ list: CmsS
       const orWhere = and(baseWhere, sql`${cmsContents.searchVector} @@ ${orTsquery}`);
       const [orTotal, orRows] = await Promise.all([
         countMatching(orWhere),
-        db.select({ ...selectShape, rank: sql<number>`ts_rank_cd(${cmsContents.searchVector}, ${orTsquery})`.as('rank') })
+        withPagination(db.select({ ...selectShape, rank: sql<number>`ts_rank_cd(${cmsContents.searchVector}, ${orTsquery})`.as('rank') })
           .from(cmsContents)
           .leftJoin(cmsChannels, eq(cmsContents.channelId, cmsChannels.id))
           .where(orWhere)
-          .orderBy(sql`rank desc`, sql`${cmsContents.publishedAt} desc nulls last`)
-          .limit(pageSize)
-          .offset(pageOffset(page, pageSize)),
+          .orderBy(sql`rank desc`, sql`${cmsContents.publishedAt} desc nulls last`).$dynamic(), page, pageSize),
       ]);
       if (orTotal > 0) {
         const resolveLink = await buildCmsLinkResolver(siteId, '', orRows.map((r) => r.externalLink));
@@ -429,13 +424,11 @@ export async function searchCmsContents(q: CmsSearchQuery): Promise<{ list: CmsS
     const likeWhere = and(baseWhere, keywordCondition(keyword, [cmsContents.title], 'ilike'));
     const [likeTotal, likeRows] = await Promise.all([
       countMatching(likeWhere),
-      db.select({ ...selectShape, rank: sql<number>`0`.as('rank') })
+      withPagination(db.select({ ...selectShape, rank: sql<number>`0`.as('rank') })
         .from(cmsContents)
         .leftJoin(cmsChannels, eq(cmsContents.channelId, cmsChannels.id))
         .where(likeWhere)
-        .orderBy(sql`${cmsContents.publishedAt} desc nulls last`)
-        .limit(pageSize)
-        .offset(pageOffset(page, pageSize)),
+        .orderBy(sql`${cmsContents.publishedAt} desc nulls last`).$dynamic(), page, pageSize),
     ]);
     const resolveLink = await buildCmsLinkResolver(siteId, '', likeRows.map((r) => r.externalLink));
     return { list: likeRows.map((r) => mapSearchRow(r, [keyword.trim()], resolveLink)), total: likeTotal, page, pageSize, tokens };

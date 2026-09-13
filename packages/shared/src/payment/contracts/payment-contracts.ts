@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { dateRangeQuery, idParam, idQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { dateRangeQuery, idParam, idQuery, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import {
   PAYMENT_CHANNELS,
@@ -76,7 +76,7 @@ export type PaymentContractSignResult = z.infer<typeof paymentContractSignResult
 
 export const paymentContractListQuery = paginationQuery.extend({
   applicationId: z.coerce.number().int().positive(),
-  keyword: z.string().optional(),
+  keyword: keywordQuery(),
   status: queryEnum(PAYMENT_CONTRACT_STATUSES),
   channel: queryEnum(PAYMENT_CHANNELS),
   planId: idQuery(),

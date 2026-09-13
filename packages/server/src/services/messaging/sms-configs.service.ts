@@ -1,10 +1,10 @@
 import { eq, and, isNull, type SQL } from 'drizzle-orm';
 import { requireFirstRow } from '../../lib/db-assert';
-import { buildListResult } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import { db } from '../../db';
 import { smsConfigs } from '../../db/schema';
 import type { SmsConfigRow } from '../../db/schema';
-import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { formatTimestamps } from '../../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { clearDefaultFlag, ensureSingleDefault } from '../../lib/default-flag';
@@ -66,11 +66,12 @@ export async function listSmsConfigs(q: QueryOutputOf<typeof smsConfigContract.l
     q.provider ? eq(smsConfigs.provider, q.provider) : undefined,
     q.status ? eq(smsConfigs.status, q.status) : undefined,
   );
-  return buildListResult({
+  return listRows({
     page: q.page,
     pageSize: q.pageSize,
-    count: () => db.$count(smsConfigs, where),
-    rows: () => withPagination(db.select().from(smsConfigs).where(where).orderBy(smsConfigs.id).$dynamic(), q.page, q.pageSize),
+    table: smsConfigs,
+    where,
+    orderBy: [smsConfigs.id],
     map: mapSmsConfigSafe,
   });
 }

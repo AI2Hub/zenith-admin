@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { dateRangeQuery, idParam, paginated, paginationQuery, queryBool, queryEnum } from '../../core/api-schemas';
+import { dateRangeQuery, idParam, keywordQuery, paginated, paginationQuery, queryBool, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { sensitive } from '../../core/sensitive';
 import {
@@ -86,7 +86,7 @@ export type PaymentDisputeStats = z.infer<typeof paymentDisputeStatsSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const paymentDisputeListQuery = paginationQuery.extend({
-  keyword: z.string().optional(),
+  keyword: keywordQuery(),
   status: queryEnum(PAYMENT_DISPUTE_STATUSES),
   channel: queryEnum(PAYMENT_CHANNELS),
   type: queryEnum(PAYMENT_DISPUTE_TYPES),

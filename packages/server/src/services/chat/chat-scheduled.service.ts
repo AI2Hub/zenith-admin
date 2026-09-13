@@ -10,6 +10,7 @@ import { formatDateTime, formatTimestamps, parseDateTimeInput } from '../../lib/
 import logger from '../../lib/logger';
 import { sendMessage } from './chat.service';
 import type { ChatMessageExtra, ChatScheduledMessage, SendChatMessageInput } from '@zenith/shared/chat';
+import { buildWhere } from '../../lib/where-helpers';
 
 const MAX_PENDING_PER_USER = 20;
 const MAX_AHEAD_DAYS = 30;
@@ -104,7 +105,7 @@ export async function createScheduledMessage(
 export async function listMyScheduledMessages(status?: ChatScheduledMessage['status']): Promise<ChatScheduledMessage[]> {
   const me = currentUser();
   const rows = await db.query.chatScheduledMessages.findMany({
-    where: and(
+    where: buildWhere(
       eq(chatScheduledMessages.senderId, me.userId),
       status ? eq(chatScheduledMessages.status, status) : undefined,
     ),

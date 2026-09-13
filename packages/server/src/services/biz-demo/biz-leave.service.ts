@@ -19,8 +19,7 @@ import { currentUser } from '../../lib/context';
 import { formatDate, formatTimestamps, parseDateRangeStart } from '../../lib/datetime';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import { isSuperAdmin, getUserPermissions } from '../../lib/permissions';
-import { keywordCondition, buildWhere } from '../../lib/where-helpers';
-import { pageOffset } from '../../lib/pagination';
+import { keywordCondition, buildWhere, withPagination } from '../../lib/where-helpers';
 import { startWorkflowForBiz, resolveBizDefinitionId } from '../../lib/workflow-biz-bridge';
 import { buildListResult } from '../../lib/list-query';
 import { requireRow } from '../../lib/db-assert';
@@ -117,7 +116,7 @@ export async function listBizLeaves(query: BizLeaveListQuery) {
     pageSize,
     count: () => db.$count(bizLeaves, where),
     rows: async () => {
-      const rows = await db.select().from(bizLeaves).where(where).orderBy(desc(bizLeaves.id)).limit(pageSize).offset(pageOffset(page, pageSize));
+      const rows = await withPagination(db.select().from(bizLeaves).where(where).orderBy(desc(bizLeaves.id)).$dynamic(), page, pageSize);
       const nameMap = await buildApplicantNameMap(rows.map((r) => r.createdBy));
       return rows.map((r) => mapBizLeave(r, r.createdBy != null ? nameMap.get(r.createdBy) ?? null : null));
     },

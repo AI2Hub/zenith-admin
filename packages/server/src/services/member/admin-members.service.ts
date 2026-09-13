@@ -12,7 +12,7 @@ import { members, memberLevels, memberPointAccounts, memberWallets, memberPointT
 import type { MemberRow } from '../../db/schema';
 import { mapMember, ensureMemberExists } from './member-auth.service';
 import { forceLogoutAllByMember } from '../../lib/member-session-manager';
-import { buildWhere, dateRangeConditions, keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, dateRangeConditions, keywordCondition, withPagination } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
 import { buildListResult } from '../../lib/list-query';
 import { requireRow } from '../../lib/db-assert';
@@ -410,7 +410,7 @@ export async function listMemberLoginLogs(q: MemberLoginLogQuery) {
       .leftJoin(members, eq(members.id, memberLoginLogs.memberId))
       .where(where)
       .then((r) => r[0]?.value ?? 0),
-    rows: () => db.select({
+    rows: () => withPagination(db.select({
       id: memberLoginLogs.id,
       memberId: memberLoginLogs.memberId,
       memberNickname: members.nickname,
@@ -426,9 +426,7 @@ export async function listMemberLoginLogs(q: MemberLoginLogQuery) {
       .from(memberLoginLogs)
       .leftJoin(members, eq(members.id, memberLoginLogs.memberId))
       .where(where)
-      .orderBy(desc(memberLoginLogs.createdAt))
-      .limit(q.pageSize)
-      .offset(pageOffset(q.page, q.pageSize)),
+      .orderBy(desc(memberLoginLogs.createdAt)).$dynamic(), q.page, q.pageSize),
     map: mapMemberLoginLog,
   });
 }

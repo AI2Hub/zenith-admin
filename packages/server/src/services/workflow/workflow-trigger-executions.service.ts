@@ -4,12 +4,11 @@ import { desc, eq, sql, type SQL } from 'drizzle-orm';
 import { workflowJobExecutions, workflowJobs, workflowTasks, workflowInstances } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { tenantCondition } from '../../lib/tenant';
-import { pageOffset } from '../../lib/pagination';
 import { formatDateTime } from '../../lib/datetime';
 import type { WorkflowTriggerExecution, WorkflowTriggerExecutionStatus, WorkflowTriggerType } from '@zenith/shared/workflow';
 import { requireRow } from '../../lib/db-assert';
 import { buildListResult } from '../../lib/list-query';
-import { buildWhere } from '../../lib/where-helpers';
+import { buildWhere, withPagination } from '../../lib/where-helpers';
 import { payloadString } from './payload-utils';
 import { countJobExecutions, jobExecutionsWithJob } from './workflow-job-execution-helpers';
 
@@ -114,11 +113,9 @@ export async function listTriggerExecutions(params: QueryOutputOf<typeof workflo
     page,
     pageSize,
     count: () => countJobExecutions(where),
-    rows: () => triggerExecutionsQuery()
+    rows: () => withPagination(triggerExecutionsQuery()
       .where(where)
-      .orderBy(desc(workflowJobExecutions.id))
-      .limit(pageSize)
-      .offset(pageOffset(page, pageSize)),
+      .orderBy(desc(workflowJobExecutions.id)).$dynamic(), page, pageSize),
     map: mapTriggerExecution,
   });
 }

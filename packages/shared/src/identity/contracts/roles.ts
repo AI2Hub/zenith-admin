@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { auditFieldsSchema, dateRangeQuery, entityStatusQuery, entityStatusSchema, idParam, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { auditFieldsSchema, dateRangeQuery, entityStatusQuery, entityStatusSchema, idParam, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { sensitive } from '../../core/sensitive';
 import { DATA_SCOPES } from '../constants';
@@ -46,7 +46,7 @@ export type RoleUser = z.infer<typeof roleUserSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const roleListQuery = paginationQuery.extend({
-  keyword: z.string().optional().meta({ description: '按名称 / 编码模糊匹配' }),
+  keyword: keywordQuery('按名称 / 编码模糊匹配'),
   status: entityStatusQuery,
   ...dateRangeQuery('创建时间'),
 });

@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { entityStatusSchema, idParam, idQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { entityStatusSchema, idParam, idQuery, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import {
   acceptMpKfSessionSchema,
@@ -126,7 +126,7 @@ export const mpKfSessionListQuery = paginationQuery.extend({
   ...mpAccountIdQuery.shape,
   status: queryEnum(MP_KF_SESSION_STATUSES),
   kfId: idQuery('按承接客服筛选'),
-  keyword: z.string().optional().meta({ description: '按 openid / 粉丝昵称模糊匹配' }),
+  keyword: keywordQuery('按 openid / 粉丝昵称模糊匹配'),
 });
 
 export const mpKfSessionReportQuery = mpAccountIdQuery.extend({

@@ -1,6 +1,6 @@
 import { percentOf } from '@zenith/shared/core';
 import type { QueryOutputOf } from '@zenith/shared/core';
-import { buildListResult } from '../../lib/list-query';
+import { buildListResult, emptyListResult, listRows } from '../../lib/list-query';
 import { requireRow } from '../../lib/db-assert';
 import { and, desc, eq, gte, inArray, sql, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
@@ -73,7 +73,7 @@ export async function listAsyncTasks(query: QueryOutputOf<typeof asyncTaskContra
   let extra: SQL | undefined;
   if (query.createdBy) {
     const cond = await creatorCondition(query.createdBy);
-    if (!cond) return { list: [], total: 0, page, pageSize };
+    if (!cond) return emptyListResult(page, pageSize);
     extra = cond;
   }
   return queryTasks(buildAsyncTaskWhere(query, extra), page, pageSize);
@@ -198,15 +198,13 @@ export async function listAsyncTaskItems(taskId: number, query: QueryOutputOf<ty
     query.status ? eq(asyncTaskItems.status, query.status) : undefined,
     keywordCondition(query.keyword, [asyncTaskItems.itemKey, asyncTaskItems.label, asyncTaskItems.message], 'ilike'),
   );
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(asyncTaskItems, where),
-    rows: () => db.select().from(asyncTaskItems).where(where)
-      .orderBy(desc(asyncTaskItems.id))
-      .limit(pageSize)
-      .offset(pageOffset(page, pageSize)),
-    map: mapAsyncTaskItem,
+    table: asyncTaskItems,
+    where,
+    orderBy: [desc(asyncTaskItems.id)],
+        map: mapAsyncTaskItem,
   });
 }
 

@@ -12,9 +12,8 @@ import {
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../lib/context';
 import { inheritedTenantCondition, tenantCondition, getCreateTenantId } from '../../lib/tenant';
-import { buildWhere, dateRangeConditions, keywordCondition, nullableEq } from '../../lib/where-helpers';
+import { buildWhere, dateRangeConditions, keywordCondition, nullableEq, withPagination } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
-import { pageOffset } from '../../lib/pagination';
 import { formatDateTime, formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
 import { buildListResult } from '../../lib/list-query';
 import { requireFirstRow, requireRow } from '../../lib/db-assert';
@@ -103,14 +102,13 @@ export async function listSubscriptions(q: QueryOutputOf<typeof workflowEventSub
     page,
     pageSize,
     count: () => db.$count(workflowEventSubscriptions, where),
-    rows: () => db.select({
+    rows: () => withPagination(db.select({
       sub: workflowEventSubscriptions,
       definitionName: workflowDefinitions.name,
     }).from(workflowEventSubscriptions)
       .leftJoin(workflowDefinitions, eq(workflowEventSubscriptions.definitionId, workflowDefinitions.id))
       .where(where)
-      .orderBy(desc(workflowEventSubscriptions.id))
-      .limit(pageSize).offset(pageOffset(page, pageSize)),
+      .orderBy(desc(workflowEventSubscriptions.id)).$dynamic(), page, pageSize),
     map: (r) => mapSubscription(r.sub, r.definitionName),
   });
 }
@@ -342,9 +340,8 @@ export async function listDeliveries(q: QueryOutputOf<typeof workflowEventSubscr
     page,
     pageSize,
     count: () => countJobExecutions(where),
-    rows: () => deliveriesQuery()
-      .where(where).orderBy(desc(workflowJobExecutions.id))
-      .limit(pageSize).offset(pageOffset(page, pageSize)),
+    rows: () => withPagination(deliveriesQuery()
+      .where(where).orderBy(desc(workflowJobExecutions.id)).$dynamic(), page, pageSize),
     map: (r) => mapDelivery(r, r.subscriptionName),
   });
 }

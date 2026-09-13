@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { dateRangeQuery, entityStatusQuery, entityStatusSchema, idParam, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { dateRangeQuery, entityStatusQuery, entityStatusSchema, idParam, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import {
   PAYMENT_CHANNELS,
@@ -93,7 +93,7 @@ export const paymentRiskRuleContract = defineContract('/api/payment/risk-rules',
 }, { tags: ['支付中心-风控'] });
 
 export const paymentRiskHitListQuery = paginationQuery.extend({
-  keyword: z.string().optional(),
+  keyword: keywordQuery(),
   action: queryEnum(PAYMENT_RISK_ACTIONS),
   dimension: queryEnum(PAYMENT_RISK_HIT_QUERY_DIMENSIONS),
   channel: queryEnum(PAYMENT_CHANNELS),
@@ -101,7 +101,7 @@ export const paymentRiskHitListQuery = paginationQuery.extend({
 });
 
 export const paymentRiskReviewListQuery = paginationQuery.extend({
-  keyword: z.string().optional(),
+  keyword: keywordQuery(),
   status: queryEnum(PAYMENT_RISK_REVIEW_STATUSES),
   channel: queryEnum(PAYMENT_CHANNELS),
 });

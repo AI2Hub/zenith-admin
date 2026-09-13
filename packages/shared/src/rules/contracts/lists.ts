@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { entityStatusSchema, idParam, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { entityStatusSchema, idParam, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { RULE_LIST_MATCH_MODES, RULE_LIST_TYPES } from '../constants';
 import {
@@ -56,12 +56,12 @@ export type RuleListCheckResult = z.infer<typeof ruleListCheckResultSchema>;
 // ─── 入参 ────────────────────────────────────────────────────────────────────
 
 export const ruleListListQuery = paginationQuery.extend({
-  keyword: z.string().optional().meta({ description: '按名称模糊匹配' }),
+  keyword: keywordQuery('按名称模糊匹配'),
   type: queryEnum(RULE_LIST_TYPES),
 });
 
 export const ruleListItemListQuery = paginationQuery.extend({
-  keyword: z.string().optional().meta({ description: '按条目值模糊匹配' }),
+  keyword: keywordQuery('按条目值模糊匹配'),
 });
 
 export const ruleListItemParam = idParam.extend({

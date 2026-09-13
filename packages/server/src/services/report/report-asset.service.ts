@@ -1,6 +1,6 @@
 import { exactTenantCondition } from '../../lib/tenant';
 import { requireRow } from '../../lib/db-assert';
-import { buildListResult } from '../../lib/list-query';
+import { emptyListResult, listRows } from '../../lib/list-query';
 import { randomUUID } from 'node:crypto';
 import dayjs from 'dayjs';
 import { HTTPException } from 'hono/http-exception';
@@ -29,7 +29,7 @@ import { currentUserId } from '../../lib/context';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { formatDateTime, formatNullableDateTime, formatTimestamps, parseDateRangeEnd, parseDateRangeStart, parseDateTimeInput } from '../../lib/datetime';
 import { pageOffset } from '../../lib/pagination';
-import { buildWhere, keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition, withPagination } from '../../lib/where-helpers';
 import { createDashboard, getDashboard, updateDashboardDraft } from './report-dashboard.service';
 import { createDataset } from './report-dataset.service';
 import { createPrintTemplate } from './report-print.service';
@@ -357,11 +357,11 @@ export async function getReportAssetUsageSummary(
   await ensureReportResourceAccess(resourceType, resourceId, 'viewer');
   const startAt = dayjs().subtract(days, 'day').toDate();
   const scope = reportTenantScope(reportAssetUsageLogs);
-  const where = and(
+  const where = buildWhere(
     eq(reportAssetUsageLogs.resourceType, resourceType),
     eq(reportAssetUsageLogs.resourceId, resourceId),
     gte(reportAssetUsageLogs.occurredAt, startAt),
-    ...(scope ? [scope] : []),
+    scope,
   );
   const [usageRows, notice] = await Promise.all([
     db.select({
@@ -403,7 +403,7 @@ export async function listTopReportAssets(query: QueryOutputOf<typeof reportAsse
     resourceType: reportAssetUsageLogs.resourceType,
     resourceId: reportAssetUsageLogs.resourceId,
     count: sql<number>`count(*)::int`,
-  }).from(reportAssetUsageLogs).where(and(
+  }).from(reportAssetUsageLogs).where(buildWhere(
     gte(reportAssetUsageLogs.occurredAt, startAt),
     acl,
     ...(scope ? [scope] : []),
@@ -532,8 +532,7 @@ export async function listReportDeprecationNotices(query: QueryOutputOf<typeof r
   );
   const [total, rows] = await Promise.all([
     db.$count(reportDeprecationNotices, where),
-    db.select().from(reportDeprecationNotices).where(where).orderBy(desc(reportDeprecationNotices.id))
-      .limit(pageSize).offset(pageOffset(page, pageSize)),
+    withPagination(db.select().from(reportDeprecationNotices).where(where).orderBy(desc(reportDeprecationNotices.id)).$dynamic(), page, pageSize),
   ]);
   const list = [];
   for (const row of rows) {
@@ -669,7 +668,7 @@ export async function listReportAssetTemplates(query: QueryOutputOf<typeof repor
   const { page, pageSize } = query;
   const scope = reportTenantScope(reportAssetTemplates);
   const accessibleIds = await listAccessibleReportResourceIds('asset_template');
-  if (accessibleIds && !accessibleIds.length) return { list: [], total: 0, page, pageSize };
+  if (accessibleIds && !accessibleIds.length) return emptyListResult(page, pageSize);
   const where = buildWhere(
     scope,
     accessibleIds ? inArray(reportAssetTemplates.id, accessibleIds) : undefined,
@@ -677,12 +676,12 @@ export async function listReportAssetTemplates(query: QueryOutputOf<typeof repor
     query.type ? eq(reportAssetTemplates.type, query.type) : undefined,
     query.status ? eq(reportAssetTemplates.status, query.status) : undefined,
   );
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(reportAssetTemplates, where),
-    rows: () => db.select().from(reportAssetTemplates).where(where).orderBy(desc(reportAssetTemplates.id))
-            .limit(pageSize).offset(pageOffset(page, pageSize)),
+    table: reportAssetTemplates,
+    where,
+    orderBy: [desc(reportAssetTemplates.id)],
     map: (row) => mapReportAssetTemplate(row),
   });
 }

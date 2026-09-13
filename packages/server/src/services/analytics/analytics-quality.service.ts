@@ -11,12 +11,11 @@ import { analyticsContract } from '@zenith/shared/analytics';
 import type { AnalyticsQualityIssueType } from '@zenith/shared/analytics';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { formatDate, formatDateTime, formatTimestamps } from '../../lib/datetime';
-import { pageOffset } from '../../lib/pagination';
 import { config } from '../../config';
 import { currentUser } from '../../lib/context';
 import { isPlatformAdmin, getEffectiveTenantId, tenantScope } from '../../lib/tenant';
 import { clampDays } from '../../lib/analytics-helpers';
-import { buildWhere } from '../../lib/where-helpers';
+import { buildWhere, withPagination } from '../../lib/where-helpers';
 
 /** 质量日聚合表租户过滤：语义对齐 rollupTenantScope（tenantId 非空，0 表示无租户）。 */
 export function qualityTenantScope(): SQL | undefined {
@@ -40,9 +39,8 @@ export async function queryQuality(q: QueryOutputOf<typeof analyticsContract.qua
   );
 
   const [items, totalCount, totals] = await Promise.all([
-    db.select().from(analyticsEventQualityDaily).where(where)
-      .orderBy(desc(analyticsEventQualityDaily.statDate), desc(analyticsEventQualityDaily.count))
-      .limit(pageSize).offset(pageOffset(page, pageSize)),
+    withPagination(db.select().from(analyticsEventQualityDaily).where(where)
+      .orderBy(desc(analyticsEventQualityDaily.statDate), desc(analyticsEventQualityDaily.count)).$dynamic(), page, pageSize),
     db.$count(analyticsEventQualityDaily, where),
     db.select({ issueType: analyticsEventQualityDaily.issueType, count: sql<number>`sum(${analyticsEventQualityDaily.count})` })
       .from(analyticsEventQualityDaily).where(where).groupBy(analyticsEventQualityDaily.issueType),
@@ -79,7 +77,7 @@ export async function listDebugEvents(q: QueryOutputOf<typeof analyticsContract.
     pageSize,
     count: () => db.$count(userEvents, where),
     rows: async () => {
-      const rows = await db
+      const rows = await withPagination(db
         .select({
           id: userEvents.id,
           eventId: userEvents.eventId,
@@ -97,9 +95,7 @@ export async function listDebugEvents(q: QueryOutputOf<typeof analyticsContract.
         })
         .from(userEvents)
         .where(where)
-        .orderBy(desc(userEvents.createdAt))
-        .limit(pageSize)
-        .offset(pageOffset(page, pageSize));
+        .orderBy(desc(userEvents.createdAt)).$dynamic(), page, pageSize);
 
       const eventNames = [...new Set(rows.map((r) => r.eventName).filter((n): n is string => !!n))];
       const issueTypesByEventName = new Map<string, AnalyticsQualityIssueType[]>();

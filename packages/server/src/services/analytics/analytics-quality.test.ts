@@ -64,7 +64,7 @@ describe('queryQuality', () => {
       selectCall += 1;
       if (selectCall === 1) {
         // items query
-        return { from: () => ({ where: () => ({ orderBy: () => ({ limit: () => ({ offset: async () => [itemRow] }) }) }) }) };
+        return { from: () => ({ where: () => ({ orderBy: () => ({ $dynamic: () => ({ limit: () => ({ offset: async () => [itemRow] }) }) }) }) }) };
       }
       // totals groupBy query
       return { from: () => ({ where: () => ({ groupBy: async () => [{ issueType: 'missing_required', count: 3 }] }) }) };
@@ -88,7 +88,7 @@ describe('listDebugEvents', () => {
 
   it('pageSize 上限由契约 analyticsDebugEventsQuery 守住（≤200），服务层按解析值原样下发 limit', async () => {
     expect(analyticsDebugEventsQuery.safeParse({ pageSize: 500 }).success).toBe(false);
-    select.mockReturnValue({ from: () => ({ where: () => ({ orderBy: () => ({ limit: (n: number) => { expect(n).toBe(200); return { offset: () => Promise.resolve([]) }; } }) }) }) });
+    select.mockReturnValue({ from: () => ({ where: () => ({ orderBy: () => ({ $dynamic: () => ({ limit: (n: number) => { expect(n).toBe(200); return { offset: () => Promise.resolve([]) }; } }) }) }) }) });
     count.mockResolvedValue(0);
     await listDebugEvents(analyticsDebugEventsQuery.parse({ pageSize: '200' }));
   });
@@ -103,7 +103,7 @@ describe('listDebugEvents', () => {
     select.mockImplementation(() => {
       selectCall += 1;
       if (selectCall === 1) {
-        return { from: () => ({ where: () => ({ orderBy: () => ({ limit: () => ({ offset: async () => [eventRow] }) }) }) }) };
+        return { from: () => ({ where: () => ({ orderBy: () => ({ $dynamic: () => ({ limit: () => ({ offset: async () => [eventRow] }) }) }) }) }) };
       }
       return {
         from: () => ({

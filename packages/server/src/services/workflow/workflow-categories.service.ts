@@ -8,9 +8,8 @@ import { currentUser } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
-import { pageOffset } from '../../lib/pagination';
 import { formatTimestamps } from '../../lib/datetime';
-import { buildListResult } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import { requireFirstRow, requireRow } from '../../lib/db-assert';
 
 export function mapCategory(row: typeof workflowCategories.$inferSelect) {
@@ -40,11 +39,12 @@ export async function ensureCategoryExists(id: number) {
 export async function listWorkflowCategories(q: QueryOutputOf<typeof workflowCategoryContract.list>) {
   const { page, pageSize } = q;
   const where = buildWhere(tenantCondition(workflowCategories, currentUser()), keywordCondition(q.keyword, [workflowCategories.name]));
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(workflowCategories, where),
-    rows: () => db.select().from(workflowCategories).where(where).orderBy(asc(workflowCategories.sort), desc(workflowCategories.id)).limit(pageSize).offset(pageOffset(page, pageSize)),
+    table: workflowCategories,
+    where,
+    orderBy: [asc(workflowCategories.sort), desc(workflowCategories.id)],
     map: mapCategory,
   });
 }

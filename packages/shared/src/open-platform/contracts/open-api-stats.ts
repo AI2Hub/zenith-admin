@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { dateRangeQuery, paginated, paginationQuery, queryBool, queryEnum } from '../../core/api-schemas';
+import { dateRangeQuery, keywordQuery, paginated, paginationQuery, queryBool, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { OPEN_API_STATS_GRANULARITIES, OPEN_APP_ENVIRONMENTS, OPEN_AUTH_CHANNELS } from '../constants';
 
@@ -90,7 +90,7 @@ export const openApiCallLogListQuery = paginationQuery.extend({
   method: z.string().max(10).optional(),
   statusCode: z.coerce.number().int().min(100).max(599).optional(),
   environment: queryEnum(OPEN_APP_ENVIRONMENTS),
-  keyword: z.string().optional().meta({ description: '按路径 / 应用名称模糊匹配' }),
+  keyword: keywordQuery('按路径 / 应用名称模糊匹配'),
   ...dateRangeQuery(),
 });
 

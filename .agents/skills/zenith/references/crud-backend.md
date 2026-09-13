@@ -93,7 +93,7 @@ export type UpdateXxxInput = z.infer<typeof updateXxxSchema>;
 
 ```ts
 import * as z from 'zod';
-import { auditFieldsSchema, batchIdsBody, dateRangeQuery, entityStatusQuery, idParam, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { auditFieldsSchema, batchIdsBody, dateRangeQuery, entityStatusQuery, idParam, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { XXX_STATUSES } from '../constants';
 import { createXxxSchema, updateXxxSchema } from '../validation';
@@ -120,11 +120,11 @@ export type Xxx = z.infer<typeof xxxSchema>;
 export const xxxOptionSchema = xxxSchema.pick({ id: true, name: true, status: true }).meta({ id: 'XxxOption' });
 export type XxxOption = z.infer<typeof xxxOptionSchema>;
 
-// ─── 列表查询参数：分页 + 筛选。启用 / 禁用状态用 entityStatusQuery，其它枚举用 queryEnum（空串 = 全部），
-//     标准 startTime / endTime 范围用 ...dateRangeQuery('作用的时间字段')（非标准键名才逐个 dateRangeBound）；
-//     不导出 z.infer 类型——server 用 QueryOutputOf、web 用 QueryOf 从契约操作派生 ──
+// ─── 列表查询参数：分页 + 筛选。关键字用 keywordQuery（描述写明匹配的字段），启用 / 禁用状态用 entityStatusQuery，
+//     其它枚举用 queryEnum（空串 = 全部），标准 startTime / endTime 范围用 ...dateRangeQuery('作用的时间字段')
+//     （非标准键名才逐个 dateRangeBound）；不导出 z.infer 类型——server 用 QueryOutputOf、web 用 QueryOf 从契约操作派生 ──
 export const xxxListQuery = paginationQuery.extend({
-  keyword: z.string().optional().meta({ description: '按名称 / 描述模糊匹配' }),
+  keyword: keywordQuery('按名称 / 描述模糊匹配'),
   status: entityStatusQuery,
   type: queryEnum(XXX_TYPES),
   ...dateRangeQuery('创建时间'),
@@ -148,7 +148,7 @@ export const xxxContract = defineContract('/api/xxxs', {
   （默认 Bearer 登录令牌；凭证校验仍由 `middleware` 完成）；额外文档说明：`description`
 - 自定义路径参数：`params: z.object({ code: z.string().meta({ description: '编码', example: 'demo' }) })`
 - 查询串积木：布尔 `queryBool()`、枚举筛选 `queryEnum(XXX_VALUES)`、启用 / 禁用状态 `entityStatusQuery`
-  （三者都把空串视为未传，handler 无需再 `|| undefined`）；`entityStatusSchema` 只用于请求体 / 实体字段
+  （三者都把空串视为未传，handler 无需再 `|| undefined`）、关键字 `keywordQuery(description?)`；`entityStatusSchema` 只用于请求体 / 实体字段
 - 业务请求头（如幂等键）：`headers: z.object({ 'x-idempotency-key': z.string().min(8).max(128) })`，键为小写头名；
   服务端 `c.req.valid('header')`，客户端在输入的 `headers` 段提供；认证头不在契约声明
 
@@ -164,7 +164,7 @@ import { db } from '../../db';
 import { xxxs, type XxxRow } from '../../db/schema';
 import { formatTimestamps } from '../../lib/datetime';
 import { requireRow } from '../../lib/db-assert';
-import { buildListResult } from '../../lib/list-query';
+import { buildListResult, emptyListResult, listRows } from '../../lib/list-query';
 import { buildWhere, dateRangeConditions, keywordCondition, withPagination } from '../../lib/where-helpers';
 
 // ─── 数据映射（DB 行 → 公开字段），纯函数、无副作用 ──────────────────────
@@ -183,8 +183,9 @@ export function mapXxx(row: XxxRow) {
 
 // ─── 入参类型只从契约操作派生：QueryOutputOf 是解析后输出（page / pageSize 必填、枚举已收窄）──
 // 不手写 interface ListXxxsQuery，不在契约文件导出 z.infer 别名。
-// 所有读取入口共用的访问条件（筛选 + dataScope / tenantScope）集中在这里；
-// 筛选部分不含分页、字段全部可选，供 list / detail / update / delete / 导出中心复用
+// 带租户 / 数据权限 / 可见性条件的资源：所有读取入口共用的访问条件（筛选 + dataScope / tenantScope）集中在这里，
+// 筛选部分不含分页、字段全部可选，供 list / detail / update / delete / 导出中心复用，漏加隔离条件即安全缺陷；
+// 没有任何隔离条件的纯平台配置表可以在 list 里直接写 buildWhere(...)，不必为此抽函数
 type XxxWhereInput = Partial<Omit<QueryOutputOf<typeof xxxContract.list>, 'page' | 'pageSize'>> & { id?: number };
 
 async function buildXxxWhere(q: XxxWhereInput) {
@@ -206,13 +207,27 @@ export async function listXxxs(q: QueryOutputOf<typeof xxxContract.list>) {
   const { page, pageSize } = q;
   const where = await buildXxxWhere(q);
 
-  // count 与 rows 并行 + 分页包络由 buildListResult 编排；条件 / 排序 / 投影仍在这里显式书写
+  // 单表、全行、无 join：listRows 把 count / rows / 包络一次接好，count 与 rows 结构上共用同一 where
+  return listRows({ page, pageSize, table: xxxs, where, orderBy: [asc(xxxs.id)], map: mapXxx });
+}
+
+// 带 join / 投影 / 行后处理的列表：buildListResult 只负责 count 与 rows 并行 + 分页包络，
+// 条件 / 排序 / 投影仍在这里显式书写；可见范围为空等无需查库的短路用 emptyListResult
+export async function listXxxItems(q: QueryOutputOf<typeof xxxContract.items>) {
+  const { page, pageSize } = q;
+  const accessibleIds = await listAccessibleXxxIds();
+  if (accessibleIds?.length === 0) return emptyListResult(page, pageSize);
+  const where = buildWhere(accessibleIds ? inArray(xxxItems.xxxId, accessibleIds) : undefined, keywordCondition(q.keyword, [xxxItems.name]));
   return buildListResult({
     page,
     pageSize,
-    count: () => db.$count(xxxs, where),
-    rows: () => withPagination(db.select().from(xxxs).where(where).orderBy(asc(xxxs.id)).$dynamic(), page, pageSize),
-    map: mapXxx,
+    count: () => db.$count(xxxItems, where),
+    rows: () => withPagination(
+      db.select({ item: xxxItems, xxxName: xxxs.name }).from(xxxItems).leftJoin(xxxs, eq(xxxs.id, xxxItems.xxxId)).where(where).orderBy(desc(xxxItems.id)).$dynamic(),
+      page,
+      pageSize,
+    ),
+    map: (row) => ({ ...mapXxxItem(row.item), xxxName: row.xxxName }),
   });
 }
 
@@ -228,7 +243,7 @@ export async function ensureXxxExists(id: number) {
 }
 ```
 
-更新与删除也使用 `await buildXxxWhere({ id })`；route 的前置校验不替代 service 行级隔离。
+带隔离条件的资源，更新与删除也使用 `await buildXxxWhere({ id })`（或域内既有的 `requireVisibleXxx` 类 helper）；route 的前置校验不替代 service 行级隔离。
 
 命名约定：数据映射函数 `mapXxx` 前缀，前置校验函数 `ensureXxx` 前缀。
 

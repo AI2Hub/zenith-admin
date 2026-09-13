@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { entityStatusQuery, entityStatusSchema, idParam, idQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { entityStatusQuery, entityStatusSchema, idParam, idQuery, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import {
   CMS_SITE_INHERITABLE_FIELDS,
@@ -288,7 +288,7 @@ export type CmsOpenAppGrant = z.infer<typeof cmsOpenAppGrantSchema>;
 // ─── 入参 ────────────────────────────────────────────────────────────────────
 
 export const cmsSiteListQuery = paginationQuery.extend({
-  keyword: z.string().optional(),
+  keyword: keywordQuery(),
   status: entityStatusQuery,
 });
 

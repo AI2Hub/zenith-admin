@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { auditFieldsSchema, batchIdsBody, idParam, paginated, paginationQuery, queryBool, queryEnum } from '../../core/api-schemas';
+import { auditFieldsSchema, batchIdsBody, idParam, keywordQuery, paginated, paginationQuery, queryBool, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { WORKFLOW_EVENT_DELIVERY_STATUSES, WORKFLOW_EVENT_SIGN_MODES, WORKFLOW_EVENT_TYPES } from '../constants';
 import {
@@ -83,7 +83,7 @@ export const workflowEventDeliveryCountSchema = z.object({ count: z.int() }).met
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const workflowEventSubscriptionListQuery = paginationQuery.extend({
-  keyword: z.string().optional(),
+  keyword: keywordQuery(),
   definitionId: z.coerce.number().int().optional(),
   enabled: queryBool(),
 });

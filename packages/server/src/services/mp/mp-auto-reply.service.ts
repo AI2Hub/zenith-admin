@@ -1,11 +1,11 @@
 import { eq, and, desc, sql } from 'drizzle-orm';
 import { requireFirstRow, requireRow } from '../../lib/db-assert';
-import { buildListResult } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { mpAutoReplies, mpUnmatchedKeywords } from '../../db/schema';
 import type { MpAutoReplyRow, MpUnmatchedKeywordRow } from '../../db/schema';
-import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime, formatTimestamps } from '../../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { ensureMpAccountExists } from './mp-account.service';
@@ -64,11 +64,12 @@ export async function listMpAutoReplies(q: QueryOutputOf<typeof mpAutoReplyContr
     q.replyType ? eq(mpAutoReplies.replyType, q.replyType) : undefined,
     keywordCondition(q.keyword, [mpAutoReplies.keyword], 'ilike'),
   );
-  return buildListResult({
+  return listRows({
     page: q.page,
     pageSize: q.pageSize,
-    count: () => db.$count(mpAutoReplies, where),
-    rows: () => withPagination(db.select().from(mpAutoReplies).where(where).orderBy(mpAutoReplies.replyType, mpAutoReplies.sort, mpAutoReplies.id).$dynamic(), q.page, q.pageSize),
+    table: mpAutoReplies,
+    where,
+    orderBy: [mpAutoReplies.replyType, mpAutoReplies.sort, mpAutoReplies.id],
     map: mapMpAutoReply,
   });
 }
@@ -167,11 +168,12 @@ export async function resolveAutoReply(accountId: number, input: { event?: strin
 export async function listMpUnmatchedKeywords(accountId: number, page: number, pageSize: number) {
   await ensureMpAccountExists(accountId);
   const where = buildWhere(and(eq(mpUnmatchedKeywords.accountId, accountId), tenantScope(mpUnmatchedKeywords)));
-  return buildListResult({
+  return listRows({
     page: page,
     pageSize: pageSize,
-    count: () => db.$count(mpUnmatchedKeywords, where),
-    rows: () => withPagination(db.select().from(mpUnmatchedKeywords).where(where).orderBy(desc(mpUnmatchedKeywords.count), desc(mpUnmatchedKeywords.lastAt)).$dynamic(), page, pageSize),
+    table: mpUnmatchedKeywords,
+    where,
+    orderBy: [desc(mpUnmatchedKeywords.count), desc(mpUnmatchedKeywords.lastAt)],
     map: mapMpUnmatchedKeyword,
   });
 }

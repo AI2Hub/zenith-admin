@@ -28,11 +28,11 @@ import type { SaveChannelMenusInput } from '@zenith/shared/mp';
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../lib/context';
 import { formatDateTime, formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
-import { pageOffset } from '../../lib/pagination';
 import { broadcast, scheduleSendToUsers } from '../../lib/ws-manager';
 import { htmlToPlainExcerpt, mapChannelMessage } from './channel.service';
 import { sanitizeCmsHtml } from '../cms/cms-html-sanitizer';
 import { resolveUserNames } from '../../lib/user-nicknames';
+import { withPagination } from '../../lib/where-helpers';
 
 // ─── 频道前置校验 ──────────────────────────────────────────────────────────────
 
@@ -584,10 +584,8 @@ export async function listConversationMessages(
     pageSize,
     count: () => db.$count(channelMessages, where),
     rows: async () => {
-      const rows = await db.select().from(channelMessages).where(where)
-        .orderBy(desc(channelMessages.id))
-        .limit(pageSize)
-        .offset(pageOffset(page, pageSize));
+      const rows = await withPagination(db.select().from(channelMessages).where(where)
+        .orderBy(desc(channelMessages.id)).$dynamic(), page, pageSize);
 
       // Q3 已读回执：查该用户对本页 out 消息的已读状态（targets.readAt 非空 = 已读）
       const outIds = rows.filter((r) => r.direction === 'out' && r.audienceType === 'targeted').map((r) => r.id);

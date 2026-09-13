@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { paginated, paginationQuery } from '../../core/api-schemas';
+import { keywordQuery, paginated, paginationQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { LOGIN_RISK_ACTIONS, LOGIN_RISK_LEVELS } from '../constants';
 
@@ -24,7 +24,7 @@ export type LoginRiskEvent = z.infer<typeof loginRiskEventSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const loginRiskEventListQuery = paginationQuery.extend({
-  keyword: z.string().optional().meta({ description: '按用户名 / 原因 / IP 模糊匹配' }),
+  keyword: keywordQuery('按用户名 / 原因 / IP 模糊匹配'),
 });
 
 export const identitySecurityContract = defineContract('/api/identity-security', {

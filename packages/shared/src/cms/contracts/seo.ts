@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { entityStatusSchema, idParam, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { entityStatusSchema, idParam, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { asyncTaskSchema } from '../../tasks/contracts/async-tasks';
 import { CMS_PUSH_ENGINES } from '../constants';
@@ -66,7 +66,7 @@ export type CmsPushResult = z.infer<typeof cmsPushResultSchema>;
 
 export const cmsSeoListQuery = paginationQuery.extend({
   siteId: z.coerce.number().int().positive(),
-  keyword: z.string().optional(),
+  keyword: keywordQuery(),
 });
 
 export const cmsPushLogListQuery = paginationQuery.extend({

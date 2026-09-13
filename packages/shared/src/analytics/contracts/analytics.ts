@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { dateRangeQuery, idParam, paginated, paginationQuery, queryBool, queryEnum } from '../../core/api-schemas';
+import { dateRangeQuery, idParam, keywordQuery, paginated, paginationQuery, queryBool, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { userBehaviorEventTypeEnum } from '../validation';
 import { asyncTaskSchema } from '../../tasks/contracts/async-tasks';
@@ -149,7 +149,7 @@ export const analyticsCleanQuery = z.object({
 });
 
 export const analyticsEventMetaListQuery = paginationQuery.extend({
-  keyword: z.string().optional(),
+  keyword: keywordQuery(),
   status: queryEnum(ANALYTICS_EVENT_META_STATUSES),
   category: z.string().optional(),
 });
@@ -176,7 +176,7 @@ export const analyticsDebugEventsQuery = paginationQuery.extend({
 export const analyticsRollupQuery = z.object({ days: daysQuery(730, 30) });
 
 export const analyticsSegmentListQuery = paginationQuery.extend({
-  keyword: z.string().optional(),
+  keyword: keywordQuery(),
   status: queryEnum(ANALYTICS_EVENT_OVERRIDE_STATUSES),
 });
 

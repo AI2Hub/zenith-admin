@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { idParam, idQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { idParam, idQuery, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { COUPON_TEMPLATE_STATUSES, COUPON_TYPES, COUPON_VALID_TYPES, MEMBER_COUPON_STATUSES } from '../constants';
 import { createCouponSchema, issueCouponSchema, redeemCouponSchema, updateCouponSchema } from '../validation';
@@ -50,7 +50,7 @@ export type MemberCoupon = z.infer<typeof memberCouponSchema>;
 // ─── 契约（后台） ────────────────────────────────────────────────────────────
 
 export const couponListQuery = paginationQuery.extend({
-  keyword: z.string().optional(),
+  keyword: keywordQuery(),
   status: queryEnum(COUPON_TEMPLATE_STATUSES),
   type: queryEnum(COUPON_TYPES),
 });

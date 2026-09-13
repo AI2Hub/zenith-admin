@@ -16,11 +16,10 @@ import { MONITOR_ALERT_LEVELS, MONITOR_METRIC_META, formatMonitorMetricValue } f
 import { compareNumber, uniquePositiveInts } from '@zenith/shared/core';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { currentUserId, currentUsername } from '../../lib/context';
-import { buildWhere, dateRangeConditions, keywordCondition } from '../../lib/where-helpers';
-import { pageOffset } from '../../lib/pagination';
+import { buildWhere, dateRangeConditions, keywordCondition, withPagination } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
 import { requireFirstRow } from '../../lib/db-assert';
-import { buildListResult } from '../../lib/list-query';
+import { buildListResult, listRows } from '../../lib/list-query';
 import { getMetricSnapshotsByTenant } from './monitor-history.service';
 import { validateAlertDelivery } from '../../lib/alert-validation';
 import { dispatchAlertChannels, type AlertDispatchResult } from '../../lib/alert-dispatch';
@@ -145,12 +144,13 @@ export function buildRuleListWhere(q: MonitorAlertRuleQuery) {
 export async function listRules(q: MonitorAlertRuleQuery) {
   const { page, pageSize } = q;
   const where = buildRuleListWhere(q);
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(monitorAlertRules, where),
-    rows: () => db.select().from(monitorAlertRules).where(where).orderBy(desc(monitorAlertRules.id)).limit(pageSize).offset(pageOffset(page, pageSize)),
-    map: mapRule,
+    table: monitorAlertRules,
+    where,
+    orderBy: [desc(monitorAlertRules.id)],
+        map: mapRule,
   });
 }
 
@@ -356,14 +356,12 @@ export async function listEvents(q: MonitorAlertEventQuery) {
     page,
     pageSize,
     count: () => db.$count(monitorAlertEvents, where),
-    rows: () => db
+    rows: () => withPagination(db
       .select({ row: monitorAlertEvents, handledByName: users.nickname })
       .from(monitorAlertEvents)
       .leftJoin(users, eq(users.id, monitorAlertEvents.handledBy))
       .where(where)
-      .orderBy(desc(monitorAlertEvents.id))
-      .limit(pageSize)
-      .offset(pageOffset(page, pageSize)),
+      .orderBy(desc(monitorAlertEvents.id)).$dynamic(), page, pageSize),
     map: (item) => mapEvent(item.row, item.handledByName),
   });
 }

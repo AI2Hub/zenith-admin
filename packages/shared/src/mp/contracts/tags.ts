@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { auditFieldsSchema, idParam, paginated, paginationQuery } from '../../core/api-schemas';
+import { auditFieldsSchema, idParam, keywordQuery, paginated, paginationQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { createMpTagSchema, mpAccountIdBody, updateMpTagSchema } from '../validation';
 import { mpAccountIdQuery, mpSyncResultSchema } from './common';
@@ -23,7 +23,7 @@ export type MpTag = z.infer<typeof mpTagSchema>;
 
 export const mpTagListQuery = paginationQuery.extend({
   ...mpAccountIdQuery.shape,
-  keyword: z.string().optional().meta({ description: '按标签名模糊匹配' }),
+  keyword: keywordQuery('按标签名模糊匹配'),
 });
 
 // ─── 契约 ────────────────────────────────────────────────────────────────────

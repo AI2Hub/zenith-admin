@@ -9,8 +9,7 @@ import type { ApiScopeRow } from '../../db/schema';
 import { HTTPException } from 'hono/http-exception';
 import { formatTimestamps } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
-import { pageOffset } from '../../lib/pagination';
-import { buildWhere, keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition, withPagination } from '../../lib/where-helpers';
 import type { CreateApiScopeInput, UpdateApiScopeInput } from '@zenith/shared/open-platform';
 
 export function mapApiScope(row: ApiScopeRow, usedByAppCount = 0) {
@@ -59,11 +58,9 @@ export async function listApiScopes(opts: QueryOutputOf<typeof apiScopeContract.
     pageSize,
     count: () => db.$count(apiScopes, where),
     rows: async () => {
-      const list = await db.select().from(apiScopes)
+      const list = await withPagination(db.select().from(apiScopes)
         .where(where)
-        .orderBy(desc(apiScopes.createdAt))
-        .limit(pageSize)
-        .offset(pageOffset(page, pageSize));
+        .orderBy(desc(apiScopes.createdAt)).$dynamic(), page, pageSize);
       const refs = await countScopeReferences(list.map((row) => row.code));
       return list.map((row) => mapApiScope(row, refs.get(row.code) ?? 0));
     },

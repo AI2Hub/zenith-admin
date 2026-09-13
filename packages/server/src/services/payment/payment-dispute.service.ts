@@ -16,12 +16,12 @@ import { genPaymentNo } from './payment-no';
 import dayjs from 'dayjs';
 import { config } from '../../config';
 import { db } from '../../db';
-import { buildListResult } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import { paymentChannelConfigs, paymentDisputeReplies, paymentDisputes, paymentOrders, paymentRefunds, type PaymentDisputeReplyRow, type PaymentDisputeRow } from '../../db/schema';
 import { requireRow } from '../../lib/db-assert';
 import { currentUser, currentUserOrNull } from '../../lib/context';
 import { tenantCondition, exactTenantCondition } from '../../lib/tenant';
-import { buildWhere, dateRangeConditions, keywordCondition, withPagination } from '../../lib/where-helpers';
+import { buildWhere, dateRangeConditions, keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
 import { refund } from './payment.service';
 import { decide } from '../platform/rules-runtime.service';
@@ -99,11 +99,12 @@ export async function buildDisputesWhere(q: ListDisputesQuery) {
 export async function listDisputes(q: ListDisputesQuery) {
   const { page, pageSize } = q;
   const where = await buildDisputesWhere(q);
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(paymentDisputes, where),
-    rows: () => withPagination(db.select().from(paymentDisputes).where(where).orderBy(desc(paymentDisputes.id)).$dynamic(), page, pageSize),
+    table: paymentDisputes,
+    where,
+    orderBy: [desc(paymentDisputes.id)],
     map: mapDispute,
   });
 }

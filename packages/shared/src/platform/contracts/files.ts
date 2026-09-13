@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { dateRangeQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { dateRangeQuery, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, fileField, multipart, op } from '../../core/contract';
 import {
   FILE_ACCESS_PURPOSES,
@@ -121,7 +121,7 @@ const uploadIdParam = z.object({
 });
 
 export const fileListQuery = paginationQuery.extend({
-  keyword: z.string().optional().meta({ description: '按文件名 / 对象键 / 文件服务模糊匹配' }),
+  keyword: keywordQuery('按文件名 / 对象键 / 文件服务模糊匹配'),
   provider: queryEnum(FILE_STORAGE_PROVIDERS),
   fileType: queryEnum(FILE_TYPE_FILTERS),
   ...dateRangeQuery('上传时间'),

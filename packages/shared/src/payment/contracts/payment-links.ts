@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { idParam, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { idParam, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import {
   PAYMENT_CASHIER_METHODS,
@@ -84,7 +84,7 @@ export type PaymentCashierSession = z.infer<typeof paymentCashierSessionSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const paymentLinkListQuery = paginationQuery.extend({
-  keyword: z.string().optional(),
+  keyword: keywordQuery(),
   status: queryEnum(PAYMENT_LINK_STATUSES),
 });
 

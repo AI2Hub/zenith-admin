@@ -1,13 +1,11 @@
 import * as z from 'zod';
-import { auditFieldsSchema, idParam, paginated, paginationQuery } from '../../core/api-schemas';
+import { auditFieldsSchema, idParam, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { REPORT_ENVIRONMENT_KINDS, REPORT_PROMOTION_STATUSES, REPORT_RESOURCE_TYPES } from '../types';
 import {
   createReportEnvironmentPromotionSchema,
   createReportEnvironmentSchema,
   reportEnvironmentPromotionActionSchema,
-  reportPromotionStatusSchema,
-  reportResourceTypeSchema,
   updateReportEnvironmentSchema,
 } from '../validation';
 import { reportStatusSchema } from './_common';
@@ -64,8 +62,8 @@ export const reportEnvironmentPromotionSchema = z.object({
 export type ReportEnvironmentPromotion = z.infer<typeof reportEnvironmentPromotionSchema>;
 
 export const reportPromotionListQuery = paginationQuery.extend({
-  status: reportPromotionStatusSchema.optional(),
-  resourceType: reportResourceTypeSchema.optional(),
+  status: queryEnum(REPORT_PROMOTION_STATUSES),
+  resourceType: queryEnum(REPORT_RESOURCE_TYPES),
 });
 
 export const reportEnvironmentContract = defineContract('/api/report/environments', {

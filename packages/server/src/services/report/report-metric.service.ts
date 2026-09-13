@@ -1,7 +1,7 @@
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { exactTenantCondition } from '../../lib/tenant';
 import { requireRow } from '../../lib/db-assert';
-import { buildListResult } from '../../lib/list-query';
+import { buildListResult, emptyListResult } from '../../lib/list-query';
 import { HTTPException } from 'hono/http-exception';
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import { reportMetricContract, formatReportValue } from '@zenith/shared/report';
@@ -128,7 +128,7 @@ export async function listReportMetrics(query: QueryOutputOf<typeof reportMetric
   const { page, pageSize, keyword, datasetId, folderId, ownerId, type, status } = query;
   const tenantScope = reportTenantScope(reportMetrics);
   const accessibleIds = await listAccessibleReportResourceIds('metric');
-  if (accessibleIds && accessibleIds.length === 0) return { list: [], total: 0, page, pageSize };
+  if (accessibleIds && accessibleIds.length === 0) return emptyListResult(page, pageSize);
   const where = buildWhere(
     tenantScope,
     accessibleIds ? inArray(reportMetrics.id, accessibleIds) : undefined,

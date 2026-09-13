@@ -6,8 +6,7 @@ import { and, asc, avg, count, desc, eq, gte, inArray, isNotNull, lte, max } fro
 import { db } from '../../db';
 import { workflowJobs, workflowJobExecutions, workflowInstances, workflowDefinitions, systemSchedulerNodes } from '../../db/schema';
 import type { WorkflowJobRow, WorkflowJobExecutionRow } from '../../db/schema';
-import { pageOffset } from '../../lib/pagination';
-import { buildWhere, keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition, withPagination } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
 import { retryJob, skipJob } from '../../lib/workflow-jobs/engine';
 import { expiredWorkflowJobCondition } from '../../lib/workflow-jobs/engine';
@@ -78,14 +77,12 @@ export async function listWorkflowJobs(query: QueryOutputOf<typeof workflowEngin
     page,
     pageSize,
     count: () => db.$count(workflowJobs, where),
-    rows: () => db.select({ job: workflowJobs, instanceTitle: workflowInstances.title, definitionName: workflowDefinitions.name })
+    rows: () => withPagination(db.select({ job: workflowJobs, instanceTitle: workflowInstances.title, definitionName: workflowDefinitions.name })
       .from(workflowJobs)
       .leftJoin(workflowInstances, eq(workflowJobs.instanceId, workflowInstances.id))
       .leftJoin(workflowDefinitions, eq(workflowInstances.definitionId, workflowDefinitions.id))
       .where(where)
-      .orderBy(desc(workflowJobs.id))
-      .limit(pageSize)
-      .offset(pageOffset(page, pageSize)),
+      .orderBy(desc(workflowJobs.id)).$dynamic(), page, pageSize),
     map: (r) => mapJob(r.job, { instanceTitle: r.instanceTitle, definitionName: r.definitionName }),
   });
 }

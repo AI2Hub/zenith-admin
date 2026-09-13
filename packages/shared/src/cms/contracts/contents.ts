@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { batchIdsBody, dateRangeQuery, idParam, idQuery, paginated, paginationQuery, queryBool, queryEnum } from '../../core/api-schemas';
+import { batchIdsBody, dateRangeQuery, idParam, idQuery, keywordQuery, paginated, paginationQuery, queryBool, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { CMS_CONTENT_STATUSES, CMS_CONTENT_TYPES } from '../constants';
 import type { CmsLinkTarget } from '../link';
@@ -258,7 +258,7 @@ export const cmsContentListQuery = paginationQuery.extend({
   channelId: idQuery(),
   status: queryEnum(CMS_CONTENT_STATUSES),
   contentType: queryEnum(CMS_CONTENT_TYPES),
-  keyword: z.string().optional(),
+  keyword: keywordQuery(),
   isTop: queryBool(),
   isRecommend: queryBool(),
   isHot: queryBool(),

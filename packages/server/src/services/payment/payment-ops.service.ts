@@ -8,12 +8,12 @@ import type { QueryOutputOf } from '@zenith/shared/core';
 import { and, desc, eq, gte, inArray, like, or } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
-import { buildListResult } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import { appWebhookDeliveries, oauth2Clients, paymentApps, paymentEvents, paymentOrders, paymentReconBatches, paymentReconItems, paymentSharingOrders, paymentTransfers, type PaymentEventRow } from '../../db/schema';
 import { requireRow } from '../../lib/db-assert';
 import { currentUser } from '../../lib/context';
 import { tenantCondition } from '../../lib/tenant';
-import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { buildSandboxNotifyRequest } from '../../lib/payment/sandbox-notify';
 import { processEvent } from './payment-outbox.service';
@@ -85,11 +85,12 @@ export async function listPaymentEvents(q: QueryOutputOf<typeof paymentOpsContra
     q.type ? eq(paymentEvents.type, q.type) : undefined,
     tenantCondition(paymentEvents, currentUser()),
   );
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(paymentEvents, where),
-    rows: () => withPagination(db.select().from(paymentEvents).where(where).orderBy(desc(paymentEvents.id)).$dynamic(), page, pageSize),
+    table: paymentEvents,
+    where,
+    orderBy: [desc(paymentEvents.id)],
     map: mapOutboxEvent,
   });
 }

@@ -2,7 +2,7 @@ import { reportQueryCapacityContract } from '@zenith/shared/report';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { exactTenantCondition } from '../../lib/tenant';
 import { requireRow } from '../../lib/db-assert';
-import { buildListResult } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import { randomUUID } from 'node:crypto';
 import dayjs from 'dayjs';
 import { HTTPException } from 'hono/http-exception';
@@ -14,7 +14,6 @@ import { reportQueryCostLogs, reportQueryQuotas, users } from '../../db/schema';
 import { currentUserId, currentUserOrNull } from '../../lib/context';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { DATE_FORMAT, formatDateTime, formatTimestamps, parseDateRangeEnd, parseDateRangeStart } from '../../lib/datetime';
-import { pageOffset } from '../../lib/pagination';
 import redis from '../../lib/redis';
 import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { reportCreateTenantId, reportScopedWhere, reportTenantScope } from './report-access';
@@ -385,12 +384,12 @@ async function validateQuotaUser(scope: 'tenant' | 'user', userId: number | null
 export async function listReportQueryQuotas(query: QueryOutputOf<typeof reportQueryCapacityContract.quotas>) {
   const { page, pageSize } = query;
   const where = reportTenantScope(reportQueryQuotas);
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(reportQueryQuotas, where),
-    rows: () => db.select().from(reportQueryQuotas).where(where).orderBy(desc(reportQueryQuotas.id))
-            .limit(pageSize).offset(pageOffset(page, pageSize)),
+    table: reportQueryQuotas,
+    where,
+    orderBy: [desc(reportQueryQuotas.id)],
     map: mapReportQueryQuota,
   });
 }
@@ -499,12 +498,12 @@ export async function listReportQueryCostLogs(query: QueryOutputOf<typeof report
     query.datasourceId ? eq(reportQueryCostLogs.datasourceId, query.datasourceId) : undefined,
     query.success !== undefined ? eq(reportQueryCostLogs.success, query.success) : undefined,
   );
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(reportQueryCostLogs, where),
-    rows: () => db.select().from(reportQueryCostLogs).where(where).orderBy(desc(reportQueryCostLogs.occurredAt))
-            .limit(pageSize).offset(pageOffset(page, pageSize)),
+    table: reportQueryCostLogs,
+    where,
+    orderBy: [desc(reportQueryCostLogs.occurredAt)],
     map: mapReportQueryCost,
   });
 }

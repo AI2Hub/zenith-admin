@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { auditFieldsSchema, batchIdsBody, dateRangeQuery, entityStatusQuery, entityStatusSchema, idParam, paginated, paginationQuery } from '../../core/api-schemas';
+import { auditFieldsSchema, batchIdsBody, dateRangeQuery, entityStatusQuery, entityStatusSchema, idParam, keywordQuery, paginated, paginationQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { sensitive } from '../../core/sensitive';
 import { createPositionSchema, scopeUserIdsSchema, updatePositionSchema } from '../validation';
@@ -40,7 +40,7 @@ export type PositionMember = z.infer<typeof positionMemberSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const positionListQuery = paginationQuery.extend({
-  keyword: z.string().optional().meta({ description: '按名称 / 编码模糊匹配' }),
+  keyword: keywordQuery('按名称 / 编码模糊匹配'),
   status: entityStatusQuery,
   ...dateRangeQuery('创建时间'),
 });

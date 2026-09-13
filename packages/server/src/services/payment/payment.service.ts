@@ -11,14 +11,14 @@ import { HTTPException } from 'hono/http-exception';
 import { createHash } from 'node:crypto';
 import { genPaymentNo } from './payment-no';
 import { db } from '../../db';
-import { buildListResult } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import { paymentChannelConfigs, paymentApps, paymentNotifyLogs, paymentOrders, paymentRefunds, paymentSharingOrders, users, type PaymentChannelConfigRow, type PaymentNotifyLogRow, type PaymentOrderRow, type PaymentRefundRow } from '../../db/schema';
 import { config } from '../../config';
 import { requireRow } from '../../lib/db-assert';
 import { currentUser, currentUserOrNull } from '../../lib/context';
 import { requireTenantScopeId, tenantCondition, exactTenantCondition } from '../../lib/tenant';
 import { getDataScopeCondition } from '../../lib/data-scope';
-import { buildWhere, dateRangeConditions, keywordCondition, nullableEq, withPagination } from '../../lib/where-helpers';
+import { buildWhere, dateRangeConditions, keywordCondition, nullableEq } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
 import { decryptField } from '../../lib/encryption';
 import { isPgUniqueViolation } from '../../lib/db-errors';
@@ -1347,11 +1347,12 @@ export async function buildOrdersWhere(q: PaymentOrderListFilter) {
 export async function listOrders(q: ListOrdersQuery) {
   const { page, pageSize } = q;
   const finalWhere = await buildOrdersWhere(q);
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(paymentOrders, finalWhere),
-    rows: () => withPagination(db.select().from(paymentOrders).where(finalWhere).orderBy(desc(paymentOrders.id)).$dynamic(), page, pageSize),
+    table: paymentOrders,
+    where: finalWhere,
+    orderBy: [desc(paymentOrders.id)],
     map: mapOrder,
   });
 }
@@ -1408,11 +1409,12 @@ export function buildRefundsWhere(q: PaymentRefundListFilter) {
 export async function listRefunds(q: ListRefundsQuery) {
   const { page, pageSize } = q;
   const finalWhere = buildRefundsWhere(q);
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(paymentRefunds, finalWhere),
-    rows: () => withPagination(db.select().from(paymentRefunds).where(finalWhere).orderBy(desc(paymentRefunds.id)).$dynamic(), page, pageSize),
+    table: paymentRefunds,
+    where: finalWhere,
+    orderBy: [desc(paymentRefunds.id)],
     map: mapRefund,
   });
 }
@@ -1494,11 +1496,12 @@ export async function listNotifyLogs(q: QueryOutputOf<typeof paymentNotifyLogCon
     ...dateRangeConditions(paymentNotifyLogs.createdAt, q.startTime, q.endTime),
     tenantCondition(paymentNotifyLogs, currentUser()),
   );
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(paymentNotifyLogs, finalWhere),
-    rows: () => withPagination(db.select().from(paymentNotifyLogs).where(finalWhere).orderBy(desc(paymentNotifyLogs.id)).$dynamic(), page, pageSize),
+    table: paymentNotifyLogs,
+    where: finalWhere,
+    orderBy: [desc(paymentNotifyLogs.id)],
     map: mapNotifyLog,
   });
 }

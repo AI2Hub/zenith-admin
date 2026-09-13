@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { dateRangeQuery, idParam, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { dateRangeQuery, idParam, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { PAYMENT_CHANNELS, PAYMENT_TRANSFER_APPROVAL_STATUSES, PAYMENT_TRANSFER_STATUSES } from '../constants';
 import { approvePaymentTransferSchema, createPaymentTransferSchema, idempotencyKeyHeaders } from '../validation';
@@ -52,7 +52,7 @@ export type PaymentTransferSummary = z.infer<typeof paymentTransferSummarySchema
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const paymentTransferListQuery = paginationQuery.extend({
-  keyword: z.string().optional(),
+  keyword: keywordQuery(),
   channel: queryEnum(PAYMENT_CHANNELS),
   status: queryEnum(PAYMENT_TRANSFER_STATUSES),
   approvalStatus: queryEnum(PAYMENT_TRANSFER_APPROVAL_STATUSES),

@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { dateRangeBound, idParam, idQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { dateRangeBound, idParam, idQuery, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { httpUrl } from '../../core/validation';
 import { CHAT_SCHEDULED_STATUSES } from '../constants';
@@ -76,7 +76,7 @@ export const chatInviteTokenParam = z.object({
 });
 
 export const chatUserSearchQuery = z.object({
-  keyword: z.string().optional().meta({ description: '按昵称 / 用户名模糊匹配' }),
+  keyword: keywordQuery('按昵称 / 用户名模糊匹配'),
 });
 
 export const chatPresenceQuery = z.object({
@@ -95,7 +95,7 @@ export const chatMessagesQuery = z.object({
 
 // 聊天检索按会话滚动加载，分页边界复用通用契约积木
 export const chatMessageSearchQuery = paginationQuery.extend({
-  keyword: z.string().optional(),
+  keyword: keywordQuery(),
   types: z.string().optional().meta({ description: '逗号分隔的消息类型', example: 'text,image' }),
   senderId: idQuery(),
   startAt: dateRangeBound('起始时间'),

@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { auditFieldsSchema, entityStatusSchema, idParam } from '../../core/api-schemas';
+import { auditFieldsSchema, entityStatusSchema, idParam, keywordQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { createDepartmentSchema, updateDepartmentSchema } from '../validation';
 import { memberPreviewOp } from './scope-members';
@@ -43,7 +43,7 @@ export const departmentSchema: z.ZodType<Department> = departmentFieldsSchema
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const departmentTreeQuery = z.object({
-  keyword: z.string().optional().meta({ description: '按名称 / 编码过滤，命中节点保留其祖先链' }),
+  keyword: keywordQuery('按名称 / 编码过滤，命中节点保留其祖先链'),
   status: z.string().optional(),
 });
 

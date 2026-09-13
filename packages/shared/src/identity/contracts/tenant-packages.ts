@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { auditFieldsSchema, batchIdsBody, entityStatusQuery, entityStatusSchema, idParam, paginated, paginationQuery } from '../../core/api-schemas';
+import { auditFieldsSchema, batchIdsBody, entityStatusQuery, entityStatusSchema, idParam, keywordQuery, paginated, paginationQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { assignTenantPackageFeaturesSchema, tenantPackageQuotasSchema } from '../../licensing/validation';
 import { createTenantPackageSchema, updateTenantPackageSchema } from '../validation';
@@ -32,7 +32,7 @@ export type TenantPackageOption = z.infer<typeof tenantPackageOptionSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const tenantPackageListQuery = paginationQuery.extend({
-  keyword: z.string().optional().meta({ description: '按名称模糊匹配' }),
+  keyword: keywordQuery('按名称模糊匹配'),
   status: entityStatusQuery,
 });
 

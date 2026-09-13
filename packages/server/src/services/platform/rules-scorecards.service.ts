@@ -20,8 +20,7 @@ import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { requireFirstRow, requireRow } from '../../lib/db-assert';
-import { buildListResult } from '../../lib/list-query';
-import { pageOffset } from '../../lib/pagination';
+import { listRows } from '../../lib/list-query';
 import { formatDateTime, formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
 import { evaluateScorecard, type ScorecardLike } from '../../lib/rules-scorecard';
 import { recordRuleExecution, snapshotRuleScope } from './rules-executions.service';
@@ -80,12 +79,13 @@ export async function listRuleScorecards(q: QueryOutputOf<typeof ruleScorecardCo
     keywordCondition(q.keyword, [ruleScorecards.name]),
     q.status ? eq(ruleScorecards.status, q.status) : undefined,
   );
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(ruleScorecards, where),
-    rows: () => db.select().from(ruleScorecards).where(where).orderBy(desc(ruleScorecards.id)).limit(pageSize).offset(pageOffset(page, pageSize)),
-    map: mapRuleScorecard,
+    table: ruleScorecards,
+    where,
+    orderBy: [desc(ruleScorecards.id)],
+        map: mapRuleScorecard,
   });
 }
 

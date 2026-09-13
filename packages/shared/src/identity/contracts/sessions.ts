@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { idParam, paginated, paginationQuery } from '../../core/api-schemas';
+import { idParam, keywordQuery, paginated, paginationQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { tokenIdParam } from './auth';
 
@@ -23,7 +23,7 @@ export type OnlineSession = z.infer<typeof onlineSessionSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const sessionListQuery = paginationQuery.extend({
-  keyword: z.string().optional().meta({ description: '按用户名 / 昵称 / IP 模糊匹配' }),
+  keyword: keywordQuery('按用户名 / 昵称 / IP 模糊匹配'),
 });
 
 export const sessionContract = defineContract('/api/sessions', {

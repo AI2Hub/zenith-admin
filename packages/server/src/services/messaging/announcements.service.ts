@@ -6,7 +6,7 @@ import { announcements, announcementRecipients, announcementReads, users, userRo
 import { broadcast, sendToUser } from '../../lib/ws-manager';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import { requireFirstRow, requireRow } from '../../lib/db-assert';
-import { buildListResult } from '../../lib/list-query';
+import { buildListResult, emptyListResult } from '../../lib/list-query';
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../lib/context';
 import type { AnnouncementAttachment, announcementContract } from '@zenith/shared/messaging';
@@ -259,7 +259,7 @@ export async function getAnnouncementReadStats(id: number, q: QueryOutputOf<type
   let baseWhere: SQL | undefined;
   if (announcement.targetType === 'all') {
     const tc = tenantCondition(users, user);
-    baseWhere = and(eq(users.status, 'enabled'), ...(tc ? [tc] : []));
+    baseWhere = buildWhere(eq(users.status, 'enabled'), ...(tc ? [tc] : []));
   } else {
     const recipients = await db.select().from(announcementRecipients).where(eq(announcementRecipients.announcementId, id));
     const userIdSet = new Set<number>();
@@ -272,7 +272,7 @@ export async function getAnnouncementReadStats(id: number, q: QueryOutputOf<type
     ]);
     roleUsers.forEach((r) => userIdSet.add(r.userId));
     deptUsers.forEach((u) => userIdSet.add(u.id));
-    if (userIdSet.size === 0) return { readCount: 0, totalCount: 0, list: [], total: 0, page, pageSize };
+    if (userIdSet.size === 0) return { readCount: 0, totalCount: 0, ...emptyListResult(page, pageSize) };
     baseWhere = inArray(users.id, [...userIdSet]);
   }
 

@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { auditFieldsSchema, entityStatusQuery, idParam, idQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { auditFieldsSchema, entityStatusQuery, idParam, idQuery, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import {
   createReportPrintTemplateSchema,
@@ -104,7 +104,7 @@ export type ReportPrintRenderResult = z.infer<typeof reportPrintRenderResultSche
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const reportPrintListQuery = paginationQuery.extend({
-  keyword: z.string().optional(),
+  keyword: keywordQuery(),
   folderId: idQuery(),
   ownerId: idQuery(),
   status: entityStatusQuery,

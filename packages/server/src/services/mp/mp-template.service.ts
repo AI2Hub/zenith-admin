@@ -1,11 +1,11 @@
 import { eq, and, desc } from 'drizzle-orm';
 import { requireFirstRow } from '../../lib/db-assert';
-import { buildListResult } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { mpMessageTemplates, mpTemplateSendLogs } from '../../db/schema';
 import type { MpMessageTemplateRow, MpTemplateSendLogRow } from '../../db/schema';
-import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime, formatTimestamps } from '../../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { ensureMpAccountExists } from './mp-account.service';
@@ -64,11 +64,12 @@ export async function listMpTemplates(q: QueryOutputOf<typeof mpTemplateContract
     tenantScope(mpMessageTemplates),
     keywordCondition(q.keyword, [mpMessageTemplates.title], 'ilike'),
   );
-  return buildListResult({
+  return listRows({
     page: q.page,
     pageSize: q.pageSize,
-    count: () => db.$count(mpMessageTemplates, where),
-    rows: () => withPagination(db.select().from(mpMessageTemplates).where(where).orderBy(mpMessageTemplates.id).$dynamic(), q.page, q.pageSize),
+    table: mpMessageTemplates,
+    where,
+    orderBy: [mpMessageTemplates.id],
     map: mapMpTemplate,
   });
 }
@@ -134,11 +135,12 @@ export async function listMpTemplateSendLogs(q: QueryOutputOf<typeof mpTemplateC
     tenantScope(mpTemplateSendLogs),
     q.status ? eq(mpTemplateSendLogs.status, q.status) : undefined,
   );
-  return buildListResult({
+  return listRows({
     page: q.page,
     pageSize: q.pageSize,
-    count: () => db.$count(mpTemplateSendLogs, where),
-    rows: () => withPagination(db.select().from(mpTemplateSendLogs).where(where).orderBy(desc(mpTemplateSendLogs.id)).$dynamic(), q.page, q.pageSize),
+    table: mpTemplateSendLogs,
+    where,
+    orderBy: [desc(mpTemplateSendLogs.id)],
     map: mapMpTemplateSendLog,
   });
 }

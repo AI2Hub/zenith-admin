@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { idParam, paginated, paginationQuery } from '../../core/api-schemas';
+import { idParam, keywordQuery, paginated, paginationQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { createCmsTagSchema, updateCmsTagSchema } from '../validation';
 
@@ -22,7 +22,7 @@ export type CmsTag = z.infer<typeof cmsTagSchema>;
 
 export const cmsTagListQuery = paginationQuery.extend({
   siteId: z.coerce.number().int().positive(),
-  keyword: z.string().optional(),
+  keyword: keywordQuery(),
 });
 
 export const cmsSiteScopeQuery = z.object({

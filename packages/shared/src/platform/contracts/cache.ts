@@ -1,5 +1,6 @@
 import * as z from 'zod';
 import { defineContract, op } from '../../core/contract';
+import { keywordQuery } from '../../core/api-schemas';
 
 // ─── 实体 ────────────────────────────────────────────────────────────────────
 
@@ -50,7 +51,7 @@ export type CacheCountResult = z.infer<typeof cacheCountResultSchema>;
 // ─── 入参 ────────────────────────────────────────────────────────────────────
 
 export const cacheListQuery = z.object({
-  keyword: z.string().optional().meta({ example: 'session' }),
+  keyword: keywordQuery().meta({ example: 'session' }),
 });
 
 export const cacheKeyQuery = z.object({

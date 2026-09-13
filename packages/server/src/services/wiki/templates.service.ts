@@ -6,8 +6,8 @@ import { db } from '../../db';
 import { wikiTemplates, type WikiTemplateRow } from '../../db/schema';
 import { formatTimestamps } from '../../lib/datetime';
 import { requireFirstRow, requireRow } from '../../lib/db-assert';
-import { buildListResult } from '../../lib/list-query';
-import { buildWhere, keywordCondition, withPagination } from '../../lib/where-helpers';
+import { listRows } from '../../lib/list-query';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 
 export function mapWikiTemplate(row: WikiTemplateRow) {
   return {
@@ -41,15 +41,12 @@ export async function listWikiTemplates(q: QueryOutputOf<typeof wikiTemplateCont
   const { page, pageSize } = q;
   const where = buildWikiTemplateWhere(q);
 
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(wikiTemplates, where),
-    rows: () => withPagination(
-      db.select().from(wikiTemplates).where(where).orderBy(asc(wikiTemplates.sort), asc(wikiTemplates.id)).$dynamic(),
-      page,
-      pageSize,
-    ),
+    table: wikiTemplates,
+    where,
+    orderBy: [asc(wikiTemplates.sort), asc(wikiTemplates.id)],
     map: mapWikiTemplate,
   });
 }

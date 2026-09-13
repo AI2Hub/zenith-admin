@@ -1,4 +1,4 @@
-import { buildListResult } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { eq, desc } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
@@ -7,7 +7,7 @@ import { db } from '../../db';
 import { cmsPushLogs } from '../../db/schema';
 import type { CmsSiteRow, CmsPushLogRow } from '../../db/schema';
 import { formatDateTime } from '../../lib/datetime';
-import { buildWhere, withPagination } from '../../lib/where-helpers';
+import { buildWhere } from '../../lib/where-helpers';
 import { httpPost } from '../../lib/http-client';
 import logger from '../../lib/logger';
 import { assertSiteAccess } from './cms-sites.service';
@@ -151,15 +151,12 @@ export async function listCmsPushLogs(q: QueryOutputOf<typeof cmsSeoContract.pus
     eq(cmsPushLogs.siteId, q.siteId),
     q.engine ? eq(cmsPushLogs.engine, q.engine) : undefined,
   );
-  return buildListResult({
+  return listRows({
     page: q.page,
     pageSize: q.pageSize,
-    count: () => db.$count(cmsPushLogs, where),
-    rows: () => withPagination(
-      db.select().from(cmsPushLogs).where(where).orderBy(desc(cmsPushLogs.id)).$dynamic(),
-      q.page,
-      q.pageSize,
-    ),
+    table: cmsPushLogs,
+    where,
+    orderBy: [desc(cmsPushLogs.id)],
     map: mapCmsPushLog,
   });
 }

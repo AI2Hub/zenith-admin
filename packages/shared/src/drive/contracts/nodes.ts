@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { dateRangeQuery, idParam, idQuery, paginated, paginationQuery, queryBool, queryEnum } from '../../core/api-schemas';
+import { dateRangeQuery, idParam, idQuery, keywordQuery, paginated, paginationQuery, queryBool, queryEnum } from '../../core/api-schemas';
 import { defineContract, fileField, multipart, op } from '../../core/contract';
 import { fileAccessUrlSchema, uploadChunkResultSchema, uploadSessionInitSchema, uploadSessionStatusSchema } from '../../platform/contracts';
 import {
@@ -265,7 +265,7 @@ const optionalSpaceId = z.coerce.number().int().positive().optional();
 export const driveNodeListQuery = paginationQuery.extend({
   spaceId: optionalSpaceId.meta({ description: '空间 ID；与 parentId 二选一（parentId 缺省 = 空间根级）' }),
   parentId: idQuery('目录节点 ID'),
-  keyword: z.string().optional(),
+  keyword: keywordQuery(),
   tagId: idQuery(),
   type: queryEnum(DRIVE_NODE_TYPES),
   sortBy: queryEnum(DRIVE_NODE_SORT_FIELDS),
@@ -274,7 +274,7 @@ export const driveNodeListQuery = paginationQuery.extend({
 
 /** 个人视图（与我共享 / 收藏 / 最近）分页参数 */
 export const driveNodeViewQuery = paginationQuery.extend({
-  keyword: z.string().optional(),
+  keyword: keywordQuery(),
   type: queryEnum(DRIVE_NODE_TYPES),
 });
 

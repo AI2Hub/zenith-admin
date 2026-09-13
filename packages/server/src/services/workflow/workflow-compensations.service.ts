@@ -12,8 +12,8 @@ import { tenantCondition } from '../../lib/tenant';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { enqueueJob } from '../../lib/workflow-jobs/engine';
 import { bridgeReportFillWorkflowOutcome } from '../report/report-fill-workflow-bridge.service';
-import { buildWhere, withPagination } from '../../lib/where-helpers';
-import { buildListResult } from '../../lib/list-query';
+import { buildWhere } from '../../lib/where-helpers';
+import { listRows } from '../../lib/list-query';
 import { requireFirstRow } from '../../lib/db-assert';
 
 type Row = typeof workflowCompensations.$inferSelect;
@@ -87,11 +87,12 @@ export async function listCompensations(q: QueryOutputOf<typeof workflowInstance
     q.status ? eq(workflowCompensations.status, q.status) : undefined,
     q.instanceId ? eq(workflowCompensations.instanceId, q.instanceId) : undefined,
   );
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(workflowCompensations, where),
-    rows: () => withPagination(db.select().from(workflowCompensations).where(where).orderBy(desc(workflowCompensations.id)).$dynamic(), page, pageSize),
+    table: workflowCompensations,
+    where,
+    orderBy: [desc(workflowCompensations.id)],
     map,
   });
 }

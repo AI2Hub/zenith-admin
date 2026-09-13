@@ -6,8 +6,7 @@ import { db } from '../../db';
 import { openApiCallLogs, openApiCallStatsDaily } from '../../db/schema';
 import { buildListResult } from '../../lib/list-query';
 import { APP_TIME_ZONE, formatDate, formatDateTime, parseDateRangeStart, parseDateRangeEnd } from '../../lib/datetime';
-import { pageOffset } from '../../lib/pagination';
-import { buildWhere, keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition, withPagination } from '../../lib/where-helpers';
 import { getPolicyRetentionDays } from '../../lib/retention';
 import { HTTPException } from 'hono/http-exception';
 
@@ -299,13 +298,11 @@ export async function listOpenApiCallLogs(opts: OpenApiCallLogQuery) {
     page,
     pageSize,
     count: () => db.$count(openApiCallLogs, where),
-    rows: () => db
+    rows: () => withPagination(db
       .select()
       .from(openApiCallLogs)
       .where(where)
-      .orderBy(desc(openApiCallLogs.createdAt))
-      .limit(pageSize)
-      .offset(pageOffset(page, pageSize)),
+      .orderBy(desc(openApiCallLogs.createdAt)).$dynamic(), page, pageSize),
     map: (r) => ({
       id: r.id,
       clientId: r.clientId,

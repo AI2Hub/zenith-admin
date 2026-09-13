@@ -37,6 +37,26 @@ async function decorateVisibleNodes(rows: DriveNodeRow[], subjects: DriveSubject
   return { visible, list, byId: new Map(list.map((n) => [n.id, n])) };
 }
 
+/**
+ * 四个视图共用的节点可见性 + 类型 / 关键字筛选：未删除、类型、名称关键字、租户、ACL 可见；
+ * 各视图只在 `scope` 里追加自己的范围条件（收藏 / 最近 / 授权子查询、搜索的匹配条件…）。
+ */
+function viewNodeWhere(q: { type?: DriveNodeViewQuery['type']; keyword?: string }, subjects: DriveSubjects, ...scope: (SQL | undefined)[]) {
+  return buildWhere(
+    ...scope,
+    isNull(driveNodes.deletedAt),
+    q.type ? eq(driveNodes.type, q.type) : undefined,
+    keywordCondition(q.keyword, [driveNodes.name], 'ilike'),
+    tenantCondition(driveNodes, currentUser()),
+    visibleNodeCondition(subjects),
+  );
+}
+
+/** 视图的节点行：按更新时间倒序取当前页 */
+function selectViewNodes(where: SQL | undefined, page: number, pageSize: number) {
+  return withPagination(db.select().from(driveNodes).where(where).orderBy(desc(driveNodes.updatedAt), desc(driveNodes.id)).$dynamic(), page, pageSize);
+}
+
 // ─── 收藏 ─────────────────────────────────────────────────────────────────────
 
 export async function setDriveNodeStar(nodeId: number, starred: boolean): Promise<boolean> {
@@ -55,22 +75,14 @@ export async function listStarredNodes(q: DriveNodeViewQuery) {
   const { page, pageSize } = q;
   const uid = currentUserId();
   const subjects = await loadDriveSubjects();
-  const where = buildWhere(
+  const where = viewNodeWhere(q, subjects,
     inArray(driveNodes.id, db.select({ id: driveNodeStars.nodeId }).from(driveNodeStars).where(eq(driveNodeStars.userId, uid))),
-    isNull(driveNodes.deletedAt),
-    q.type ? eq(driveNodes.type, q.type) : undefined,
-    keywordCondition(q.keyword, [driveNodes.name], 'ilike'),
-    tenantCondition(driveNodes, currentUser()),
-    visibleNodeCondition(subjects),
   );
   return buildListResult({
     page,
     pageSize,
     count: () => db.$count(driveNodes, where),
-    rows: async () => {
-      const rows = await withPagination(db.select().from(driveNodes).where(where).orderBy(desc(driveNodes.updatedAt), desc(driveNodes.id)).$dynamic(), page, pageSize);
-      return (await decorateVisibleNodes(rows, subjects)).list;
-    },
+    rows: async () => (await decorateVisibleNodes(await selectViewNodes(where, page, pageSize), subjects)).list,
   });
 }
 
@@ -80,14 +92,7 @@ export async function listRecentNodes(q: DriveNodeViewQuery) {
   const { page, pageSize } = q;
   const uid = currentUserId();
   const subjects = await loadDriveSubjects();
-  const where = buildWhere(
-    eq(driveRecentAccess.userId, uid),
-    isNull(driveNodes.deletedAt),
-    q.type ? eq(driveNodes.type, q.type) : undefined,
-    keywordCondition(q.keyword, [driveNodes.name], 'ilike'),
-    tenantCondition(driveNodes, currentUser()),
-    visibleNodeCondition(subjects),
-  );
+  const where = viewNodeWhere(q, subjects, eq(driveRecentAccess.userId, uid));
   const base = db.select({ node: driveNodes, lastAccessAt: driveRecentAccess.lastAccessAt, lastAction: driveRecentAccess.action })
     .from(driveRecentAccess)
     .innerJoin(driveNodes, eq(driveNodes.id, driveRecentAccess.nodeId))
@@ -121,20 +126,15 @@ export async function listSharedWithMe(q: DriveNodeViewQuery) {
     subjectPairsCondition(driveNodePermissions, subjects),
     or(isNull(driveNodePermissions.expireAt), gt(driveNodePermissions.expireAt, new Date())),
   );
-  const where = buildWhere(
+  const where = viewNodeWhere(q, subjects,
     inArray(driveNodes.id, db.select({ id: driveNodePermissions.nodeId }).from(driveNodePermissions).where(grantWhere)),
-    isNull(driveNodes.deletedAt),
-    q.type ? eq(driveNodes.type, q.type) : undefined,
-    keywordCondition(q.keyword, [driveNodes.name], 'ilike'),
-    tenantCondition(driveNodes, currentUser()),
-    visibleNodeCondition(subjects),
   );
   return buildListResult({
     page,
     pageSize,
     count: () => db.$count(driveNodes, where),
     rows: async () => {
-      const rows = await withPagination(db.select().from(driveNodes).where(where).orderBy(desc(driveNodes.updatedAt), desc(driveNodes.id)).$dynamic(), page, pageSize);
+      const rows = await selectViewNodes(where, page, pageSize);
       const grants = rows.length
         ? await db.select().from(driveNodePermissions).where(and(inArray(driveNodePermissions.nodeId, rows.map((r) => r.id)), grantWhere))
         : [];
@@ -185,24 +185,21 @@ export async function searchDriveNodes(q: QueryOutputOf<typeof driveNodeContract
   const matchCondition: SQL | undefined = q.fullText
     ? or(nameCondition!, inArray(driveNodes.id, textSub))
     : nameCondition;
-  const where = buildWhere(
+  // 搜索的关键字走 matchCondition（名称 / 正文二选一），故只把 type 交给公共筛选
+  const where = viewNodeWhere({ type: q.type }, subjects,
     matchCondition,
-    isNull(driveNodes.deletedAt),
     q.spaceId !== undefined ? eq(driveNodes.spaceId, q.spaceId) : undefined,
-    q.type ? eq(driveNodes.type, q.type) : undefined,
     q.extension ? eq(driveNodes.extension, q.extension.toLowerCase().replace(/^\./, '')) : undefined,
     q.tagId ? inArray(driveNodes.id, db.select({ id: driveNodeTags.nodeId }).from(driveNodeTags).where(eq(driveNodeTags.tagId, q.tagId))) : undefined,
     q.createdBy ? eq(driveNodes.createdBy, q.createdBy) : undefined,
     ...dateRangeConditions(driveNodes.updatedAt, q.startTime, q.endTime),
-    tenantCondition(driveNodes, currentUser()),
-    visibleNodeCondition(subjects),
   );
   return buildListResult({
     page,
     pageSize,
     count: () => db.$count(driveNodes, where),
     rows: async () => {
-      const rows = await withPagination(db.select().from(driveNodes).where(where).orderBy(desc(driveNodes.updatedAt), desc(driveNodes.id)).$dynamic(), page, pageSize);
+      const rows = await selectViewNodes(where, page, pageSize);
       const { visible, list } = await decorateVisibleNodes(rows, subjects);
       const isCjk = CJK_PATTERN.test(keyword);
       const snippets = q.fullText && visible.length

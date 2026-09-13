@@ -1,10 +1,10 @@
 import { eq, and, desc } from 'drizzle-orm';
 import { requireFirstRow, requireRow } from '../../lib/db-assert';
-import { buildListResult } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import { db } from '../../db';
 import { mpDrafts } from '../../db/schema';
 import type { MpDraftRow } from '../../db/schema';
-import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { formatTimestamps } from '../../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { ensureMpAccountExists } from './mp-account.service';
@@ -42,11 +42,12 @@ export async function listMpDrafts(q: QueryOutputOf<typeof mpDraftContract.list>
     tenantScope(mpDrafts),
     keywordCondition(q.keyword, [mpDrafts.title], 'ilike'),
   );
-  return buildListResult({
+  return listRows({
     page: q.page,
     pageSize: q.pageSize,
-    count: () => db.$count(mpDrafts, where),
-    rows: () => withPagination(db.select().from(mpDrafts).where(where).orderBy(desc(mpDrafts.id)).$dynamic(), q.page, q.pageSize),
+    table: mpDrafts,
+    where,
+    orderBy: [desc(mpDrafts.id)],
     map: mapMpDraft,
   });
 }

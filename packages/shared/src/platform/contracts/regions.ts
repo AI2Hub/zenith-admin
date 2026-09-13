@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { entityStatusQuery, entityStatusSchema, idParam, queryEnum } from '../../core/api-schemas';
+import { entityStatusQuery, entityStatusSchema, idParam, keywordQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { lazyRecursive } from '../../core/validation';
 import type { EntityStatus } from '../../core/types';
@@ -39,7 +39,7 @@ export const regionSchema: z.ZodType<Region> = lazyRecursive(() => z.object({
 // ─── 入参 ────────────────────────────────────────────────────────────────────
 
 export const regionTreeQuery = z.object({
-  keyword: z.string().optional().meta({ description: '按名称 / 区划代码模糊匹配' }),
+  keyword: keywordQuery('按名称 / 区划代码模糊匹配'),
   status: entityStatusQuery,
   level: queryEnum(REGION_LEVELS),
 });

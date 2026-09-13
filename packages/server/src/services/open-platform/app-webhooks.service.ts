@@ -1,5 +1,5 @@
 import { randomBytes, createHmac, randomUUID } from 'node:crypto';
-import { buildListResult } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import { requireFirstRow, requireRow } from '../../lib/db-assert';
 import { eq, and, or, desc, inArray, isNotNull, isNull, lte, sql, arrayContained, type SQL } from 'drizzle-orm';
 import { db } from '../../db';
@@ -7,7 +7,6 @@ import { appWebhookSubscriptions, appWebhookDeliveries, cmsOpenAppGrants, oauth2
 import type { AppWebhookSubscriptionRow, AppWebhookDeliveryRow } from '../../db/schema';
 import { HTTPException } from 'hono/http-exception';
 import { formatDateTime, formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
-import { pageOffset } from '../../lib/pagination';
 import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { encryptField, decryptField } from '../../lib/encryption';
 import { httpPost, type HttpResponse } from '../../lib/http-client';
@@ -227,16 +226,13 @@ export async function listSubscriptions(opts: {
     status ? eq(appWebhookSubscriptions.status, status) : undefined,
     keywordCondition(keyword, [appWebhookSubscriptions.name, appWebhookSubscriptions.url], 'ilike'),
   );
-  return buildListResult({
+  return listRows({
     page: page,
     pageSize: pageSize,
-    count: () => db.$count(appWebhookSubscriptions, where),
-    rows: () => db.select().from(appWebhookSubscriptions)
-  .where(where)
-  .orderBy(desc(appWebhookSubscriptions.createdAt))
-  .limit(pageSize)
-  .offset(pageOffset(page, pageSize)),
-    map: mapSubscription,
+    table: appWebhookSubscriptions,
+    where,
+    orderBy: [desc(appWebhookSubscriptions.createdAt)],
+        map: mapSubscription,
   });
 }
 
@@ -353,16 +349,13 @@ export async function listDeliveries(opts: {
     status ? eq(appWebhookDeliveries.status, status) : undefined,
     eventType ? eq(appWebhookDeliveries.eventType, eventType) : undefined,
   );
-  return buildListResult({
+  return listRows({
     page: page,
     pageSize: pageSize,
-    count: () => db.$count(appWebhookDeliveries, where),
-    rows: () => db.select().from(appWebhookDeliveries)
-  .where(where)
-  .orderBy(desc(appWebhookDeliveries.createdAt))
-  .limit(pageSize)
-  .offset(pageOffset(page, pageSize)),
-    map: mapDelivery,
+    table: appWebhookDeliveries,
+    where,
+    orderBy: [desc(appWebhookDeliveries.createdAt)],
+        map: mapDelivery,
   });
 }
 
@@ -451,7 +444,7 @@ async function updateDeliveryAfterAttempt(
   expectedAttempt?: number,
   tenantId?: number | null,
 ): Promise<boolean> {
-  const where = and(
+  const where = buildWhere(
     eq(appWebhookDeliveries.id, id),
     expectedAttempt === undefined ? undefined : eq(appWebhookDeliveries.attempt, expectedAttempt),
     optionalExactTenantCondition(appWebhookDeliveries.tenantId, tenantId),

@@ -6,8 +6,7 @@ import { db } from '../../db';
 import { workflowInstances, workflowTasks, workflowDefinitions, workflowCategories, workflowJobs, users } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { tenantCondition } from '../../lib/tenant';
-import { pageOffset } from '../../lib/pagination';
-import { buildWhere, keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition, withPagination } from '../../lib/where-helpers';
 import { formatDateTime, formatTimestamps } from '../../lib/datetime';
 import { buildListResult } from '../../lib/list-query';
 import type { WorkflowAnalytics, WorkflowInstanceStatus, WorkflowAnalyticsTrendPoint, WorkflowOverdueTask } from '@zenith/shared/workflow';
@@ -238,7 +237,7 @@ export async function listOverdueTasks(query: QueryOutputOf<typeof workflowInsta
       .innerJoin(workflowJobs, eq(workflowJobs.taskId, workflowTasks.id))
       .where(where)
       .then((r) => r[0]?.c ?? 0),
-    rows: () => db.select({
+    rows: () => withPagination(db.select({
       taskId: workflowTasks.id,
       instanceId: workflowInstances.id,
       instanceTitle: workflowInstances.title,
@@ -255,9 +254,7 @@ export async function listOverdueTasks(query: QueryOutputOf<typeof workflowInsta
       .leftJoin(workflowDefinitions, eq(workflowInstances.definitionId, workflowDefinitions.id))
       .leftJoin(assignee, eq(workflowTasks.assigneeId, assignee.id))
       .where(where)
-      .orderBy(asc(workflowJobs.runAt))
-      .limit(pageSize)
-      .offset(pageOffset(page, pageSize)),
+      .orderBy(asc(workflowJobs.runAt)).$dynamic(), page, pageSize),
     map: (r): WorkflowOverdueTask => ({
       taskId: r.taskId,
       instanceId: r.instanceId,

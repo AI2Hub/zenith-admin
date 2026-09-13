@@ -149,7 +149,7 @@ export async function recordCmsAdImpressions(ids: number[], meta: CmsAdEventMeta
     .from(cmsAds)
     .innerJoin(cmsAdSlots, eq(cmsAds.slotId, cmsAdSlots.id))
     .innerJoin(cmsSites, eq(cmsAdSlots.siteId, cmsSites.id))
-    .where(and(
+    .where(buildWhere(
       inArray(cmsAds.id, unique),
       activeAdWhere(now),
       eq(cmsSites.status, 'enabled'),
@@ -169,7 +169,7 @@ export async function recordCmsAdClick(id: number, meta: CmsAdEventMeta): Promis
     .from(cmsAds)
     .innerJoin(cmsAdSlots, eq(cmsAds.slotId, cmsAdSlots.id))
     .innerJoin(cmsSites, eq(cmsAdSlots.siteId, cmsSites.id))
-    .where(and(
+    .where(buildWhere(
       eq(cmsAds.id, id),
       activeAdWhere(now),
       eq(cmsSites.status, 'enabled'),
@@ -266,7 +266,7 @@ export async function* streamCmsAdEvents(
       .innerJoin(cmsSites, eq(cmsAdEvents.siteId, cmsSites.id))
       .leftJoin(cmsAds, eq(cmsAdEvents.adId, cmsAds.id))
       .leftJoin(cmsAdSlots, eq(cmsAdEvents.slotId, cmsAdSlots.id))
-      .where(and(baseWhere, beforeId === null ? undefined : lt(cmsAdEvents.id, beforeId)))
+      .where(buildWhere(baseWhere, beforeId === null ? undefined : lt(cmsAdEvents.id, beforeId)))
       .orderBy(desc(cmsAdEvents.id))
       .limit(limit);
     return rows.map((row) => mapCmsAdEvent(row.event, row));

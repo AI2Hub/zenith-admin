@@ -1,4 +1,4 @@
-import { buildListResult } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import { requireRow } from '../../lib/db-assert';
 import { and, desc, eq, gt, isNull, or } from 'drizzle-orm';
 import { db } from '../../db';
@@ -13,7 +13,7 @@ import {
 import type { JwtPayload } from '../../middleware/auth';
 import { formatDateTime, formatTimestamps } from '../../lib/datetime';
 import { parseUserAgent } from '../../lib/request-helpers';
-import { buildWhere, dateRangeConditions, withPagination, keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, dateRangeConditions, keywordCondition } from '../../lib/where-helpers';
 import { lookupIpLocation } from '../../lib/ip-location';
 import { clampSmallint, truncateVarchar } from '../../lib/sanitize';
 import logger from '../../lib/logger';
@@ -646,11 +646,12 @@ export async function listMyLoginLogs(query: QueryOutputOf<typeof authContract.m
     status ? eq(loginLogs.status, status) : undefined,
     ...dateRangeConditions(loginLogs.createdAt, startTime, endTime),
   );
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(loginLogs, where),
-    rows: () => withPagination(db.select().from(loginLogs).where(where).orderBy(desc(loginLogs.createdAt)).$dynamic(), page, pageSize),
+    table: loginLogs,
+    where,
+    orderBy: [desc(loginLogs.createdAt)],
     map: (r) => ({ ...r, createdAt: formatDateTime(r.createdAt) }),
   });
 }
@@ -663,11 +664,12 @@ export async function listMyOperationLogs(query: QueryOutputOf<typeof authContra
     keywordCondition(module, [operationLogs.module]),
     ...dateRangeConditions(operationLogs.createdAt, startTime, endTime),
   );
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(operationLogs, where),
-    rows: () => withPagination(db.select().from(operationLogs).where(where).orderBy(desc(operationLogs.createdAt)).$dynamic(), page, pageSize),
+    table: operationLogs,
+    where,
+    orderBy: [desc(operationLogs.createdAt)],
     map: (r) => ({ ...r, createdAt: formatDateTime(r.createdAt) }),
   });
 }

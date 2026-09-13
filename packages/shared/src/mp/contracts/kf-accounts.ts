@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { auditFieldsSchema, entityStatusSchema, idParam, paginated, paginationQuery } from '../../core/api-schemas';
+import { auditFieldsSchema, entityStatusSchema, idParam, keywordQuery, paginated, paginationQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { createMpKfAccountSchema, mpAccountIdBody, updateMpKfAccountSchema } from '../validation';
 import { mpAccountIdQuery, mpSyncResultSchema } from './common';
@@ -27,7 +27,7 @@ export type MpKfAccount = z.infer<typeof mpKfAccountSchema>;
 
 export const mpKfAccountListQuery = paginationQuery.extend({
   ...mpAccountIdQuery.shape,
-  keyword: z.string().optional().meta({ description: '按客服昵称模糊匹配' }),
+  keyword: keywordQuery('按客服昵称模糊匹配'),
 });
 
 // ─── 契约 ────────────────────────────────────────────────────────────────────

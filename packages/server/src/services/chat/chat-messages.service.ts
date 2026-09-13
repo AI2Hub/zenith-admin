@@ -7,13 +7,12 @@ import { scheduleSendToUsers } from '../../lib/ws-manager';
 import { currentUser } from '../../lib/context';
 import { formatDateTime } from '../../lib/datetime';
 import { requireRow } from '../../lib/db-assert';
-import { buildListResult } from '../../lib/list-query';
-import { pageOffset } from '../../lib/pagination';
+import { buildListResult, emptyListResult } from '../../lib/list-query';
 import { HTTPException } from 'hono/http-exception';
 import { chatContract, type ForwardMessagesInput, type ChatMessage, type ChatMessageExtra, type ChatMessageSearchResult, type ChatMessageContext, type ChatMessageType, type ChatForwardedItem, type SendChatMessageInput } from '@zenith/shared/chat';
 import { notHiddenFor, rowSender, mapChatMessage, fetchUserBrief, listConversationMemberIds, ensureConversationMember, ensureMessageAccessible, touchConversation } from './chat-shared';
 import { aggregateReactions } from './chat-reactions.service';
-import { buildWhere, dateRangeConditions, keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, dateRangeConditions, keywordCondition, withPagination } from '../../lib/where-helpers';
 
 function parseMessageTypes(types: string | undefined): ChatMessage['type'][] {
   return types ? (types.split(',').filter(Boolean) as ChatMessage['type'][]) : [];
@@ -143,7 +142,7 @@ export async function listMessages(conversationId: number, beforeId: number | nu
   const me = currentUser();
   await ensureConversationMember(conversationId);
 
-  const where = and(
+  const where = buildWhere(
     eq(chatMessages.conversationId, conversationId),
     notHiddenFor(me.userId),
     beforeId ? lt(chatMessages.id, beforeId) : undefined,
@@ -224,16 +223,14 @@ function favoriteMessagesList(where: SQL | undefined, page: number, pageSize: nu
         .where(where);
       return Number(row?.count ?? 0);
     },
-    rows: async () => markFavorited(await withMembers(db
+    rows: async () => markFavorited(await withPagination(withMembers(db
       .select({ msg: chatMessages, nickname: users.nickname, avatar: users.avatar })
       .from(chatMessages)
       .innerJoin(chatMessageFavorites, eq(chatMessageFavorites.messageId, chatMessages.id))
       .$dynamic())
       .leftJoin(users, eq(chatMessages.senderId, users.id))
       .where(where)
-      .orderBy(desc(chatMessageFavorites.createdAt), desc(chatMessages.id))
-      .limit(pageSize)
-      .offset(pageOffset(page, pageSize))),
+      .orderBy(desc(chatMessageFavorites.createdAt), desc(chatMessages.id)).$dynamic(), page, pageSize)),
   });
 }
 
@@ -399,14 +396,12 @@ export async function searchConversationMessages(
         .where(where);
       return Number(row?.count ?? 0);
     },
-    rows: async () => mapSearchRows(await db
+    rows: async () => mapSearchRows(await withPagination(db
       .select({ msg: chatMessages, nickname: users.nickname, avatar: users.avatar })
       .from(chatMessages)
       .leftJoin(users, eq(chatMessages.senderId, users.id))
       .where(where)
-      .orderBy(desc(chatMessages.createdAt), desc(chatMessages.id))
-      .limit(params.pageSize)
-      .offset(pageOffset(params.page, params.pageSize))),
+      .orderBy(desc(chatMessages.createdAt), desc(chatMessages.id)).$dynamic(), params.page, params.pageSize)),
   });
 }
 
@@ -770,7 +765,7 @@ export async function searchGlobalMessages(
   const me = currentUser();
 
   const keyword = params.keyword.trim();
-  if (!keyword) return { list: [], total: 0, page: params.page, pageSize: params.pageSize, conversationNames: {} };
+  if (!keyword) return { ...emptyListResult(params.page, params.pageSize), conversationNames: {} };
 
   const types = parseMessageTypes(params.types);
 
@@ -788,15 +783,13 @@ export async function searchGlobalMessages(
       .from(chatMessages)
       .innerJoin(chatConversationMembers, eq(chatConversationMembers.conversationId, chatMessages.conversationId))
       .where(where),
-    db
+    withPagination(db
       .select({ msg: chatMessages, nickname: users.nickname, avatar: users.avatar })
       .from(chatMessages)
       .innerJoin(chatConversationMembers, eq(chatConversationMembers.conversationId, chatMessages.conversationId))
       .leftJoin(users, eq(chatMessages.senderId, users.id))
       .where(where)
-      .orderBy(desc(chatMessages.createdAt), desc(chatMessages.id))
-      .limit(params.pageSize)
-      .offset(pageOffset(params.page, params.pageSize)),
+      .orderBy(desc(chatMessages.createdAt), desc(chatMessages.id)).$dynamic(), params.page, params.pageSize),
   ]);
 
   // 批量拉取会话名称（direct 会话取对方昵称，group 取 name）

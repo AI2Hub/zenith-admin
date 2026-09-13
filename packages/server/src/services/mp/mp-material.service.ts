@@ -1,10 +1,10 @@
 import { eq, and, inArray, sql } from 'drizzle-orm';
 import { requireFirstRow } from '../../lib/db-assert';
-import { buildListResult } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import { db } from '../../db';
 import { mpMaterials } from '../../db/schema';
 import type { MpMaterialRow } from '../../db/schema';
-import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { formatTimestamps } from '../../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { ensureMpAccountExists } from './mp-account.service';
@@ -45,11 +45,12 @@ export async function listMpMaterials(q: QueryOutputOf<typeof mpMaterialContract
     q.type ? eq(mpMaterials.type, q.type) : undefined,
     keywordCondition(q.keyword, [mpMaterials.name], 'ilike'),
   );
-  return buildListResult({
+  return listRows({
     page: q.page,
     pageSize: q.pageSize,
-    count: () => db.$count(mpMaterials, where),
-    rows: () => withPagination(db.select().from(mpMaterials).where(where).orderBy(mpMaterials.id).$dynamic(), q.page, q.pageSize),
+    table: mpMaterials,
+    where,
+    orderBy: [mpMaterials.id],
     map: mapMpMaterial,
   });
 }

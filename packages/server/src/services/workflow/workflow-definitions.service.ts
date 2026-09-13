@@ -591,7 +591,7 @@ export async function disableDefinition(id: number) {
 }
 
 export async function enableDefinition(id: number) {
-  const where = and(findDefinition(id), eq(workflowDefinitions.status, 'disabled'));
+  const where = buildWhere(findDefinition(id), eq(workflowDefinitions.status, 'disabled'));
   const [existing] = await db.select().from(workflowDefinitions).where(where).limit(1);
   requireRow(existing, '流程定义不存在或不处于禁用状态', 400);
   // 启用同样过发布门禁：防御表单库后续编辑等外部变化导致带病上线（禁用态改内容已在 update 中强制回 draft）

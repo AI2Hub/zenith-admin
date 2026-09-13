@@ -1,6 +1,6 @@
 import * as z from 'zod';
 import { chatMessageExtraSchema } from '../../chat/contracts/chat-messages';
-import { entityStatusSchema, idParam, paginated, paginationQuery } from '../../core/api-schemas';
+import { entityStatusSchema, idParam, keywordQuery, paginated, paginationQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { addChannelSubscribersSchema, rateConversationSchema, saveChannelMenusSchema } from '../../mp/validation';
 import {
@@ -165,15 +165,15 @@ export const channelUserParams = idParam.extend({
 });
 
 export const channelKeywordQuery = z.object({
-  keyword: z.string().optional(),
+  keyword: keywordQuery(),
 });
 
 export const channelAdminListQuery = paginationQuery.extend({
-  keyword: z.string().optional().meta({ description: '按名称 / 编码模糊匹配' }),
+  keyword: keywordQuery('按名称 / 编码模糊匹配'),
 });
 
 export const channelSubscriberListQuery = paginationQuery.extend({
-  keyword: z.string().optional().meta({ description: '按昵称 / 用户名模糊匹配' }),
+  keyword: keywordQuery('按昵称 / 用户名模糊匹配'),
 });
 
 // ─── 契约：频道本体 / 订阅 / 菜单 / 自动回复 / 订阅者 ────────────────────────

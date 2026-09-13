@@ -23,12 +23,11 @@ import { SYSTEM_CHANNEL_CODE } from '@zenith/shared/platform';
 import { HTTPException } from 'hono/http-exception';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { requireRow } from '../../lib/db-assert';
-import { buildListResult } from '../../lib/list-query';
+import { buildListResult, listRows } from '../../lib/list-query';
 import { currentUser } from '../../lib/context';
 import { formatDateTime, formatNullableDateTime, formatTimestamps, parseDateTimeInput } from '../../lib/datetime';
-import { pageOffset } from '../../lib/pagination';
 import { broadcast, scheduleBroadcast, scheduleSendToUsers } from '../../lib/ws-manager';
-import { keywordCondition } from '../../lib/where-helpers';
+import { keywordCondition, withPagination, buildWhere } from '../../lib/where-helpers';
 import { sanitizeCmsHtml } from '../cms/cms-html-sanitizer';
 import logger from '../../lib/logger';
 
@@ -282,10 +281,8 @@ export async function listChannelMessages(channelId: number, q: QueryOutputOf<ty
     pageSize,
     count: () => db.$count(channelMessages, where),
     rows: async () => {
-      const rows = await db.select().from(channelMessages).where(where)
-        .orderBy(desc(channelMessages.id))
-        .limit(pageSize)
-        .offset(pageOffset(page, pageSize));
+      const rows = await withPagination(db.select().from(channelMessages).where(where)
+        .orderBy(desc(channelMessages.id)).$dynamic(), page, pageSize);
 
       const targetedIds = rows.filter((r) => r.audienceType === 'targeted').map((r) => r.id);
       const readMap = new Map<number, Date | null>();
@@ -391,9 +388,8 @@ export async function listChannelsAdmin(q: QueryOutputOf<typeof channelContract.
     count: () => db.$count(channels, where),
     rows: async () => {
       const [rows, userCount] = await Promise.all([
-        db.select().from(channels).where(where)
-          .orderBy(desc(channels.builtin), channels.id)
-          .limit(pageSize).offset(pageOffset(page, pageSize)),
+        withPagination(db.select().from(channels).where(where)
+          .orderBy(desc(channels.builtin), channels.id).$dynamic(), page, pageSize),
         db.$count(users),
       ]);
       // 两条 GROUP BY 聚合取齐本页全部频道计数（此前每频道各发 2 条 COUNT，查询数随页大小线性增长）
@@ -625,18 +621,18 @@ export async function listChannelMessageRecords(
   q: QueryOutputOf<typeof channelMessageContract.adminMessages>,
 ): Promise<PaginatedResponse<ChannelMessage>> {
   const { page, pageSize } = q;
-  const where = and(
+  const where = buildWhere(
     eq(channelMessages.channelId, channelId),
     eq(channelMessages.direction, 'out'),
     q.status ? eq(channelMessages.status, q.status) : undefined,
   );
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(channelMessages, where),
-    rows: () => db.select().from(channelMessages).where(where)
-      .orderBy(desc(channelMessages.id)).limit(pageSize).offset(pageOffset(page, pageSize)),
-    map: (r) => mapChannelMessage(r, true),
+    table: channelMessages,
+    where,
+    orderBy: [desc(channelMessages.id)],
+        map: (r) => mapChannelMessage(r, true),
   });
 }
 
@@ -761,25 +757,24 @@ export async function listChannelSubscribers(channelId: number, q: QueryOutputOf
       page,
       pageSize,
       count: () => db.$count(users, nameWhere),
-      rows: () => db.select({ id: users.id, nickname: users.nickname, username: users.username, avatar: users.avatar })
-        .from(users).where(nameWhere).orderBy(users.id).limit(pageSize).offset(pageOffset(page, pageSize)),
+      rows: () => withPagination(db.select({ id: users.id, nickname: users.nickname, username: users.username, avatar: users.avatar })
+        .from(users).where(nameWhere).orderBy(users.id).$dynamic(), page, pageSize),
       map: (u) => mapSubscriber(u, null, false),
     });
   }
 
-  const where = and(eq(channelSubscriptions.channelId, channelId), nameWhere);
+  const where = buildWhere(eq(channelSubscriptions.channelId, channelId), nameWhere);
   return buildListResult({
     page,
     pageSize,
     count: () => db.$count(channelSubscriptions, where),
-    rows: () => db.select({
+    rows: () => withPagination(db.select({
       id: users.id, nickname: users.nickname, username: users.username, avatar: users.avatar,
       subscribedAt: channelSubscriptions.subscribedAt, isMuted: channelSubscriptions.isMuted,
     }).from(channelSubscriptions)
       .innerJoin(users, eq(users.id, channelSubscriptions.userId))
       .where(where)
-      .orderBy(desc(channelSubscriptions.subscribedAt))
-      .limit(pageSize).offset(pageOffset(page, pageSize)),
+      .orderBy(desc(channelSubscriptions.subscribedAt)).$dynamic(), page, pageSize),
     map: (r) => mapSubscriber(r, r.subscribedAt, r.isMuted),
   });
 }

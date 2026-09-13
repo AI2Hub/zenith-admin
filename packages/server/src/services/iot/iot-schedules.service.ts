@@ -21,7 +21,7 @@ import {
 } from '../../db/schema';
 import { formatDateTime, formatNullableDateTime, formatTimestamps, parseDateTimeInput } from '../../lib/datetime';
 import { requireFirstRow, requireRow } from '../../lib/db-assert';
-import { buildListResult } from '../../lib/list-query';
+import { buildListResult, listRows } from '../../lib/list-query';
 import { buildWhere, keywordCondition, withPagination } from '../../lib/where-helpers';
 import { currentUser } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
@@ -115,8 +115,7 @@ export async function listIotSchedules(q: QueryOutputOf<typeof iotScheduleContra
           .leftJoin(iotDeviceGroups, eq(iotSchedules.groupId, iotDeviceGroups.id))
           .leftJoin(iotDevices, eq(iotSchedules.deviceId, iotDevices.id))
           .where(where)
-          .orderBy(desc(iotSchedules.id))
-          .$dynamic(),
+          .orderBy(desc(iotSchedules.id)).$dynamic(),
         page,
         pageSize,
       );
@@ -227,15 +226,12 @@ export async function listIotScheduleRuns(q: QueryOutputOf<typeof iotScheduleCon
   const where = buildWhere(
     q.scheduleId ? eq(iotScheduleRuns.scheduleId, q.scheduleId) : undefined,
   );
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(iotScheduleRuns, where),
-    rows: () => withPagination(
-      db.select().from(iotScheduleRuns).where(where).orderBy(desc(iotScheduleRuns.id)).$dynamic(),
-      page,
-      pageSize,
-    ),
+    table: iotScheduleRuns,
+    where,
+    orderBy: [desc(iotScheduleRuns.id)],
     map: mapIotScheduleRun,
   });
 }

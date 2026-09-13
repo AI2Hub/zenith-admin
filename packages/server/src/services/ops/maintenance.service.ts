@@ -5,8 +5,8 @@ import { db } from '../../db';
 import { maintenanceMode, maintenanceLogs } from '../../db/schema';
 import type { DbExecutor } from '../../db/types';
 import { currentUser } from '../../lib/context';
-import { buildWhere, withPagination } from '../../lib/where-helpers';
-import { buildListResult } from '../../lib/list-query';
+import { buildWhere } from '../../lib/where-helpers';
+import { listRows } from '../../lib/list-query';
 import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
 import type { MaintenanceLog } from '@zenith/shared/ops';
 
@@ -187,15 +187,12 @@ export async function listMaintenanceLogs(q: QueryOutputOf<typeof maintenanceCon
     q.status === 'completed' ? isNotNull(maintenanceLogs.endedAt) : undefined,
   );
 
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(maintenanceLogs, where),
-    rows: () => withPagination(
-      db.select().from(maintenanceLogs).where(where).orderBy(desc(maintenanceLogs.startedAt)).$dynamic(),
-      page,
-      pageSize,
-    ),
+    table: maintenanceLogs,
+    where,
+    orderBy: [desc(maintenanceLogs.startedAt)],
     map: mapMaintenanceLog,
   });
 }

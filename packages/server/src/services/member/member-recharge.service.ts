@@ -7,8 +7,7 @@ import type { QueryOutputOf } from '@zenith/shared/core';
 import { desc, eq, count, sql, type SQL } from 'drizzle-orm';
 import { db } from '../../db';
 import { paymentOrders, members } from '../../db/schema';
-import { buildWhere, dateRangeConditions, keywordCondition } from '../../lib/where-helpers';
-import { pageOffset } from '../../lib/pagination';
+import { buildWhere, dateRangeConditions, keywordCondition, withPagination } from '../../lib/where-helpers';
 import { buildListResult } from '../../lib/list-query';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { currentUserOrNull } from '../../lib/context';
@@ -89,7 +88,7 @@ export async function listMemberRecharges(q: MemberRechargeQuery) {
       .leftJoin(members, joinOn)
       .where(where)
       .then((r) => r[0]?.value ?? 0),
-    rows: () => db.select({
+    rows: () => withPagination(db.select({
       id: paymentOrders.id,
       orderNo: paymentOrders.orderNo,
       outTradeNo: paymentOrders.outTradeNo,
@@ -111,9 +110,7 @@ export async function listMemberRecharges(q: MemberRechargeQuery) {
       .from(paymentOrders)
       .leftJoin(members, joinOn)
       .where(where)
-      .orderBy(desc(paymentOrders.id))
-      .limit(q.pageSize)
-      .offset(pageOffset(q.page, q.pageSize)),
+      .orderBy(desc(paymentOrders.id)).$dynamic(), q.page, q.pageSize),
     map: (r) => mapRecharge(r as RechargeRow),
   });
 }

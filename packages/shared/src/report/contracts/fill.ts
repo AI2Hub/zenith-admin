@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { auditFieldsSchema, idParam, idQuery, paginated, paginationQuery } from '../../core/api-schemas';
+import { auditFieldsSchema, idParam, idQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import type { WorkflowFormSchema } from '../../workflow/types';
 import { workflowFormSchemaSchema } from '../../workflow/validation';
@@ -9,9 +9,7 @@ import {
   cloneReportFillTemplateSchema,
   createReportFillRecordSchema,
   createReportFillTemplateSchema,
-  reportFillRecordStatusSchema,
   reportFillTemplateLifecycleActionSchema,
-  reportFillTemplateStatusSchema,
   reviewReportFillRecordSchema,
   submitReportFillRecordSchema,
   updateReportFillRecordSchema,
@@ -88,19 +86,19 @@ export type ReportFillRecord = z.infer<typeof reportFillRecordSchema>;
 
 export const reportFillTemplateListQuery = paginationQuery.extend({
   keyword: z.string().max(128).optional(),
-  status: reportFillTemplateStatusSchema.optional(),
+  status: queryEnum(REPORT_FILL_TEMPLATE_STATUSES),
   ownerId: idQuery(),
   folderId: idQuery(),
 });
 
 export const reportFillMyRecordsQuery = paginationQuery.extend({
   keyword: z.string().max(128).optional(),
-  status: reportFillRecordStatusSchema.optional(),
+  status: queryEnum(REPORT_FILL_RECORD_STATUSES),
   templateId: idQuery(),
 });
 
 export const reportFillAdminRecordsQuery = paginationQuery.extend({
-  status: reportFillRecordStatusSchema.optional(),
+  status: queryEnum(REPORT_FILL_RECORD_STATUSES),
   templateId: idQuery(),
   submitterId: idQuery(),
 });

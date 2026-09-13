@@ -1,6 +1,6 @@
 import { describe, it, expect, expectTypeOf } from 'vitest';
 import * as z from 'zod';
-import { dateRangeBound, dateRangeQuery, entityStatusQuery, idQuery, paginated, paginationQuery, queryBool, queryEnum } from './api-schemas';
+import { dateRangeBound, dateRangeQuery, entityStatusQuery, idQuery, keywordQuery, paginated, paginationQuery, queryBool, queryEnum } from './api-schemas';
 
 describe('queryBool', () => {
   const schema = z.object({ enabled: queryBool() });
@@ -67,6 +67,16 @@ describe('paginationQuery / dateRangeBound', () => {
     expect(query.safeParse({ taskId: 'abc' }).success).toBe(false);
     expect(query.shape.channelId.meta()?.description).toBe('栏目');
     expect(query.shape.taskId.meta()).toBeUndefined();
+  });
+
+  it('keywordQuery：可选字符串原样通过，描述缺省为通用文案', () => {
+    const query = z.object({ keyword: keywordQuery('按名称 / 编码模糊匹配'), q: keywordQuery() });
+    expect(query.parse({})).toEqual({});
+    expect(query.parse({ keyword: ' abc ', q: '' })).toEqual({ keyword: ' abc ', q: '' });
+    expect(query.safeParse({ keyword: 12 }).success).toBe(false);
+    expect(query.shape.keyword.meta()?.description).toBe('按名称 / 编码模糊匹配');
+    expect(query.shape.q.meta()?.description).toBe('关键字模糊匹配');
+    expectTypeOf<z.output<typeof query>['keyword']>().toEqualTypeOf<string | undefined>();
   });
 
   it('wraps items into the paginated payload shape', () => {

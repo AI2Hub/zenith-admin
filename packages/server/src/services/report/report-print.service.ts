@@ -4,7 +4,7 @@
  */
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { requireRow } from '../../lib/db-assert';
-import { buildListResult } from '../../lib/list-query';
+import { buildListResult, emptyListResult } from '../../lib/list-query';
 import { HTTPException } from 'hono/http-exception';
 import { desc, eq, inArray, isNull, or } from 'drizzle-orm';
 import { reportPrintContract, ReportPrintValidationError, renderPrintContent } from '@zenith/shared/report';
@@ -123,7 +123,7 @@ export async function listPrintTemplates(query: QueryOutputOf<typeof reportPrint
   const { page, pageSize, keyword, folderId, ownerId, status, sourceType, entityKind, entityRefId } = query;
   const tenantScope = reportTenantScope(reportPrintTemplates);
   const accessibleIds = await listAccessibleReportResourceIds('print_template');
-  if (accessibleIds && accessibleIds.length === 0) return { list: [], total: 0, page, pageSize };
+  if (accessibleIds && accessibleIds.length === 0) return emptyListResult(page, pageSize);
   const where = buildWhere(
     tenantScope,
     accessibleIds ? inArray(reportPrintTemplates.id, accessibleIds) : undefined,

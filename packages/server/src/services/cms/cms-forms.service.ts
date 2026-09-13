@@ -1,6 +1,6 @@
 import { requireFirstRow } from '../../lib/db-assert';
 import type { QueryOutputOf } from '@zenith/shared/core';
-import { buildListResult } from '../../lib/list-query';
+import { buildListResult, listRows } from '../../lib/list-query';
 import { eq, asc, desc, and, inArray, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
@@ -277,18 +277,13 @@ export async function deleteCmsForm(id: number) {
 export async function listCmsFormSubmissions(formId: number, page: number, pageSize: number) {
   const form = await ensureCmsFormExists(formId);
   await assertSiteAccess(form.siteId);
-  const where = and(
-    eq(cmsFormSubmissions.formId, formId),
-  );
-  return buildListResult({
+  const where = eq(cmsFormSubmissions.formId, formId);
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(cmsFormSubmissions, where),
-    rows: () => withPagination(
-      db.select().from(cmsFormSubmissions).where(where).orderBy(desc(cmsFormSubmissions.id)).$dynamic(),
-      page,
-      pageSize,
-    ),
+    table: cmsFormSubmissions,
+    where,
+    orderBy: [desc(cmsFormSubmissions.id)],
     map: mapCmsFormSubmission,
   });
 }

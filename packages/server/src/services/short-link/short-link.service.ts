@@ -15,8 +15,8 @@ import { shortLinks, type ShortLinkRow } from '../../db/schema';
 import { config } from '../../config';
 import { formatNullableDateTime, formatTimestamps, parseDateTimeInput } from '../../lib/datetime';
 import { requireFirstRow, requireRow } from '../../lib/db-assert';
-import { buildListResult } from '../../lib/list-query';
-import { buildWhere, dateRangeConditions, keywordCondition, withPagination } from '../../lib/where-helpers';
+import { listRows } from '../../lib/list-query';
+import { buildWhere, dateRangeConditions, keywordCondition } from '../../lib/where-helpers';
 import { isPgUniqueViolation, rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { currentUser, currentUserOrNull } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
@@ -126,15 +126,12 @@ export function buildShortLinkWhere(q: ShortLinkWhereInput) {
 export async function listShortLinks(q: ListShortLinksQuery) {
   const { page, pageSize } = q;
   const where = buildShortLinkWhere(q);
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(shortLinks, where),
-    rows: () => withPagination(
-      db.select().from(shortLinks).where(where).orderBy(desc(shortLinks.id)).$dynamic(),
-      page,
-      pageSize,
-    ),
+    table: shortLinks,
+    where,
+    orderBy: [desc(shortLinks.id)],
     map: mapShortLink,
   });
 }

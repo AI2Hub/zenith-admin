@@ -1,5 +1,5 @@
 import { randomBytes, createHash, randomUUID } from 'node:crypto';
-import { buildListResult } from '../../lib/list-query';
+import { buildListResult, listRows } from '../../lib/list-query';
 import { requireFirstRow, requireRow } from '../../lib/db-assert';
 import { isIP } from 'node:net';
 import { and, eq, desc, inArray } from 'drizzle-orm';
@@ -22,11 +22,10 @@ import { getCreateTenantId, tenantCondition } from '../../lib/tenant';
 import { HTTPException } from 'hono/http-exception';
 import { formatDateTime, formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
-import { pageOffset } from '../../lib/pagination';
 import { encryptField, decryptField } from '../../lib/encryption';
 import type { CreateOAuth2ClientInput, UpdateOAuth2ClientInput } from '@zenith/shared/open-platform';
 import { config } from '../../config';
-import { buildWhere, keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition, withPagination } from '../../lib/where-helpers';
 
 // ─── 辅助：生成 & 哈希 client_secret ────────────────────────────────────────
 
@@ -93,16 +92,13 @@ export async function listOAuth2Clients(opts: QueryOutputOf<typeof oauth2ClientC
     reviewStatus ? eq(oauth2Clients.reviewStatus, reviewStatus) : undefined,
     tenantCondition(oauth2Clients, currentUser()),
   );
-  return buildListResult({
+  return listRows({
     page: page,
     pageSize: pageSize,
-    count: () => db.$count(oauth2Clients, where),
-    rows: () => db.select().from(oauth2Clients)
-  .where(where)
-  .orderBy(desc(oauth2Clients.createdAt))
-  .limit(pageSize)
-  .offset(pageOffset(page, pageSize)),
-    map: mapClientRow,
+    table: oauth2Clients,
+    where,
+    orderBy: [desc(oauth2Clients.createdAt)],
+        map: mapClientRow,
   });
 }
 
@@ -485,16 +481,13 @@ export async function listClientTokens(clientId: string, opts: { page: number; p
   await ensureScopedClientByClientId(clientId);
   const { page, pageSize } = opts;
   const where = eq(oauth2Tokens.clientId, clientId);
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(oauth2Tokens, where),
-    rows: () => db.select().from(oauth2Tokens)
-      .where(where)
-      .orderBy(desc(oauth2Tokens.createdAt))
-      .limit(pageSize)
-      .offset(pageOffset(page, pageSize)),
-    map: (r) => ({
+    table: oauth2Tokens,
+    where,
+    orderBy: [desc(oauth2Tokens.createdAt)],
+        map: (r) => ({
       id: r.id,
       tokenType: r.tokenType as 'access' | 'refresh',
       tokenPrefix: r.tokenPrefix,
@@ -516,7 +509,7 @@ export async function listClientGrants(clientId: string, opts: { page: number; p
     page,
     pageSize,
     count: () => db.$count(oauth2UserGrants, where),
-    rows: () => db.select({
+    rows: () => withPagination(db.select({
       id: oauth2UserGrants.id,
       userId: oauth2UserGrants.userId,
       username: users.username,
@@ -529,9 +522,7 @@ export async function listClientGrants(clientId: string, opts: { page: number; p
       .from(oauth2UserGrants)
       .leftJoin(users, eq(oauth2UserGrants.userId, users.id))
       .where(where)
-      .orderBy(desc(oauth2UserGrants.updatedAt))
-      .limit(pageSize)
-      .offset(pageOffset(page, pageSize)),
+      .orderBy(desc(oauth2UserGrants.updatedAt)).$dynamic(), page, pageSize),
     map: (row) => ({
       ...row,
       scopes: row.scopes ?? [],
@@ -574,7 +565,7 @@ export async function listMyGrants(userId: number, opts: { page: number; pageSiz
     page,
     pageSize,
     count: () => db.$count(oauth2UserGrants, where),
-    rows: () => db.select({
+    rows: () => withPagination(db.select({
       id: oauth2UserGrants.id,
       clientId: oauth2UserGrants.clientId,
       appName: oauth2Clients.name,
@@ -588,9 +579,7 @@ export async function listMyGrants(userId: number, opts: { page: number; pageSiz
       .from(oauth2UserGrants)
       .leftJoin(oauth2Clients, eq(oauth2UserGrants.clientId, oauth2Clients.clientId))
       .where(where)
-      .orderBy(desc(oauth2UserGrants.updatedAt))
-      .limit(pageSize)
-      .offset(pageOffset(page, pageSize)),
+      .orderBy(desc(oauth2UserGrants.updatedAt)).$dynamic(), page, pageSize),
     map: (row) => ({
       id: row.id,
       clientId: row.clientId,

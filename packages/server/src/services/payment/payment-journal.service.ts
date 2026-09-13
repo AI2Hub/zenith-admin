@@ -5,7 +5,7 @@ import type { SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { PAYMENT_LEDGER_STANDARD_ACCOUNTS, type CreatePaymentFundReservationInput, type CreatePaymentLedgerAccountInput, type PaymentActiveReservationAmount, type PaymentFundReservation, type PaymentJournal, type PaymentJournalLine, type PaymentLedgerAccount, type PaymentLedgerAccountCode, type PostPaymentJournalInput, type TransitionPaymentFundReservationInput, paymentJournalContract } from '@zenith/shared/payment';
 import { db } from '../../db';
-import { buildListResult } from '../../lib/list-query';
+import { buildListResult, listRows } from '../../lib/list-query';
 import { paymentApps, paymentChannelConfigs, paymentFundReservations, paymentJournalLines, paymentJournals, paymentLedgerAccounts, type PaymentFundReservationRow, type PaymentJournalRow, type PaymentLedgerAccountRow } from '../../db/schema';
 import type { DbExecutor } from '../../db/types';
 import { runAsUser } from '../../lib/audit-context';
@@ -111,11 +111,12 @@ export async function listLedgerAccounts(q: QueryOutputOf<typeof paymentJournalC
     q.status ? eq(paymentLedgerAccounts.status, q.status) : undefined,
     tenantCondition(paymentLedgerAccounts, currentUser()),
   );
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(paymentLedgerAccounts, where),
-    rows: () => withPagination(db.select().from(paymentLedgerAccounts).where(where).orderBy(desc(paymentLedgerAccounts.id)).$dynamic(), page, pageSize),
+    table: paymentLedgerAccounts,
+    where,
+    orderBy: [desc(paymentLedgerAccounts.id)],
     map: mapLedgerAccount,
   });
 }
@@ -710,11 +711,12 @@ export async function listFundReservations(q: QueryOutputOf<typeof paymentJourna
     q.sourceType ? eq(paymentFundReservations.sourceType, q.sourceType) : undefined,
     tenantCondition(paymentFundReservations, currentUser()),
   );
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(paymentFundReservations, where),
-    rows: () => withPagination(db.select().from(paymentFundReservations).where(where).orderBy(desc(paymentFundReservations.id)).$dynamic(), page, pageSize),
+    table: paymentFundReservations,
+    where,
+    orderBy: [desc(paymentFundReservations.id)],
     map: mapFundReservation,
   });
 }

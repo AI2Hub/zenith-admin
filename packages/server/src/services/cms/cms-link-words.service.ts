@@ -1,12 +1,12 @@
 import { requireFirstRow } from '../../lib/db-assert';
 import type { QueryOutputOf } from '@zenith/shared/core';
-import { buildListResult } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import { eq, asc } from 'drizzle-orm';
 import { db } from '../../db';
 import { cmsLinkWords } from '../../db/schema';
 import type { CmsLinkWordRow } from '../../db/schema';
 import { formatTimestamps } from '../../lib/datetime';
-import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { assertSiteAccess } from './cms-sites.service';
 import type { CreateCmsLinkWordInput, UpdateCmsLinkWordInput } from '@zenith/shared/cms';
@@ -107,15 +107,12 @@ export async function listCmsLinkWords(q: QueryOutputOf<typeof cmsSeoContract.li
     eq(cmsLinkWords.siteId, q.siteId),
     keywordCondition(q.keyword, [cmsLinkWords.keyword]),
   );
-  return buildListResult({
+  return listRows({
     page: q.page,
     pageSize: q.pageSize,
-    count: () => db.$count(cmsLinkWords, where),
-    rows: () => withPagination(
-      db.select().from(cmsLinkWords).where(where).orderBy(asc(cmsLinkWords.id)).$dynamic(),
-      q.page,
-      q.pageSize,
-    ),
+    table: cmsLinkWords,
+    where,
+    orderBy: [asc(cmsLinkWords.id)],
     map: mapCmsLinkWord,
   });
 }

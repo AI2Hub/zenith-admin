@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { idParam, paginated, paginationQuery } from '../../core/api-schemas';
+import { idParam, keywordQuery, paginated, paginationQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { chatWebhookPayloadSchema, createChatWebhookSchema, updateChatWebhookSchema } from '../validation';
 
@@ -26,7 +26,7 @@ export type ChatWebhook = z.infer<typeof chatWebhookSchema>;
 // ─── 契约：后台管理 ──────────────────────────────────────────────────────────
 
 export const chatBotListQuery = paginationQuery.extend({
-  keyword: z.string().optional().meta({ description: '按名称模糊匹配' }),
+  keyword: keywordQuery('按名称模糊匹配'),
 });
 
 export const chatBotContract = defineContract('/api/chat-bots', {

@@ -19,8 +19,7 @@ import {
 } from '../../db/schema';
 import type { CmsContentRow, CmsSiteRow } from '../../db/schema';
 import { formatDateTime, formatNullableDateTime, formatTimestamps, parseDateTimeInput } from '../../lib/datetime';
-import { pageOffset } from '../../lib/pagination';
-import { buildWhere, dateRangeConditions, keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, dateRangeConditions, keywordCondition, withPagination } from '../../lib/where-helpers';
 import {
   encodeCmsOpenCursor, OpenQueryError, pickCmsOpenFields,
   type CmsOpenSortRule, type ParsedCmsOpenQuery,
@@ -438,8 +437,7 @@ export async function listOpenCmsContents(site: CmsSiteRow, query: ParsedCmsOpen
     pageSize: query.pageSize,
     count: () => db.$count(cmsContents, baseWhere),
     rows: async () => {
-      const rows = await db.select(openContentColumns(query.includes)).from(cmsContents).where(baseWhere).orderBy(...order)
-        .limit(query.pageSize).offset(pageOffset(query.page, query.pageSize));
+      const rows = await withPagination(db.select(openContentColumns(query.includes)).from(cmsContents).where(baseWhere).orderBy(...order).$dynamic(), query.page, query.pageSize);
       const resolved = await resolveCmsContentRows(rows, site.id);
       const opts = await buildMapOptions(site.id, rows, query.includes);
       return resolved.map((row) => pickCmsOpenFields(mapOpenContent(row, opts), query.fields));

@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { idParam, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { idParam, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { sensitive } from '../../core/sensitive';
 import { SEND_SOURCES, SEND_STATUSES } from '../constants';
@@ -37,7 +37,7 @@ export type EmailSendResult = z.infer<typeof emailSendResultSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const emailSendLogListQuery = paginationQuery.extend({
-  keyword: z.string().optional().meta({ description: '按主题模糊匹配' }),
+  keyword: keywordQuery('按主题模糊匹配'),
   toEmail: z.string().optional(),
   status: queryEnum(SEND_STATUSES),
   source: queryEnum(SEND_SOURCES),

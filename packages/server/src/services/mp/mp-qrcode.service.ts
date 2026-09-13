@@ -1,10 +1,10 @@
 import { eq, and, desc, sql } from 'drizzle-orm';
 import { requireFirstRow } from '../../lib/db-assert';
-import { buildListResult } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import { db } from '../../db';
 import { mpQrcodes, mpFans } from '../../db/schema';
 import type { MpQrcodeRow } from '../../db/schema';
-import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { formatTimestamps } from '../../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { ensureMpAccountExists } from './mp-account.service';
@@ -48,11 +48,12 @@ export async function listMpQrcodes(q: QueryOutputOf<typeof mpQrcodeContract.lis
     q.type ? eq(mpQrcodes.type, q.type) : undefined,
     keywordCondition(q.keyword, [mpQrcodes.name, mpQrcodes.sceneStr], 'ilike'),
   );
-  return buildListResult({
+  return listRows({
     page: q.page,
     pageSize: q.pageSize,
-    count: () => db.$count(mpQrcodes, where),
-    rows: () => withPagination(db.select().from(mpQrcodes).where(where).orderBy(desc(mpQrcodes.id)).$dynamic(), q.page, q.pageSize),
+    table: mpQrcodes,
+    where,
+    orderBy: [desc(mpQrcodes.id)],
     map: mapMpQrcode,
   });
 }

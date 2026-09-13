@@ -7,12 +7,12 @@ import type { QueryOutputOf } from '@zenith/shared/core';
 import { and, desc, eq, isNull, or, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
-import { buildListResult } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import { paymentFeeRules, paymentJournalLines, paymentJournals, paymentLedgerAccounts, paymentOrders, paymentRefunds, type PaymentFeeRuleRow } from '../../db/schema';
 import { requireRow } from '../../lib/db-assert';
 import { currentUser } from '../../lib/context';
 import { requireTenantScopeId, tenantCondition, exactTenantCondition } from '../../lib/tenant';
-import { buildWhere, withPagination } from '../../lib/where-helpers';
+import { buildWhere } from '../../lib/where-helpers';
 import { formatTimestamps } from '../../lib/datetime';
 import { postSystemJournal, postSystemJournalWithin } from './payment-journal.service';
 import { paymentEventBus } from '../../lib/payment-event-bus';
@@ -45,15 +45,12 @@ export async function listFeeRules(q: QueryOutputOf<typeof paymentFeeRuleContrac
     q.status ? eq(paymentFeeRules.status, q.status) : undefined,
     tenantCondition(paymentFeeRules, currentUser()),
   );
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(paymentFeeRules, where),
-    rows: () => withPagination(
-      db.select().from(paymentFeeRules).where(where).orderBy(desc(paymentFeeRules.priority), desc(paymentFeeRules.id)).$dynamic(),
-      page,
-      pageSize,
-    ),
+    table: paymentFeeRules,
+    where,
+    orderBy: [desc(paymentFeeRules.priority), desc(paymentFeeRules.id)],
     map: mapFeeRule,
   });
 }

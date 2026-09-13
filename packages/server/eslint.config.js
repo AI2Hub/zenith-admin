@@ -100,6 +100,18 @@ export default tseslint.config(
           selector: "LogicalExpression[operator='??'][left.property.name=/^(page|pageSize)$/][right.type='Literal']",
           message: '禁止 q.page ?? 1 / q.pageSize ?? 10：分页默认值只在契约 paginationQuery 声明，入参类型用 QueryOutputOf。',
         },
+        {
+          selector: "CallExpression[callee.name='and'] > ConditionalExpression[alternate.type='Identifier'][alternate.name='undefined'], CallExpression[callee.name='and'] > ConditionalExpression[consequent.type='Identifier'][consequent.name='undefined'], CallExpression[callee.name='and'] > SpreadElement > ConditionalExpression",
+          message: '含可选条件（flag ? cond : undefined / ...(x ? [x] : [])）的 WHERE 请用 buildWhere(...)（lib/where-helpers）合并；and(a, b) 只用于两个都必然存在的条件。',
+        },
+        {
+          selector: "CallExpression[callee.property.name='offset'] > CallExpression.arguments[callee.name='pageOffset']",
+          message: 'SQL-builder 分页请用 withPagination(qb.$dynamic(), page, pageSize)（lib/where-helpers），不要手写 .limit(pageSize).offset(pageOffset(page, pageSize))；pageOffset 只用于 RQB 的 offset: 属性。',
+        },
+        {
+          selector: "ReturnStatement > ObjectExpression:has(Property[key.name='list'] > ArrayExpression[elements.length=0]):has(Property[key.name='total'] > Literal[value=0]):has(Property[key.name='page'])",
+          message: '空结果短路请用 emptyListResult(page, pageSize)（lib/list-query），不要手写 { list: [], total: 0, page, pageSize }。',
+        },
       ],
     },
   },

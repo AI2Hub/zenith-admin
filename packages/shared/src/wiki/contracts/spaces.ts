@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { auditFieldsSchema, entityStatusQuery, entityStatusSchema, idParam, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { auditFieldsSchema, entityStatusQuery, entityStatusSchema, idParam, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { WIKI_SPACE_MEMBER_ROLES, WIKI_SPACE_VISIBILITIES } from '../constants';
 import { createWikiSpaceSchema, saveWikiSpaceMembersSchema, updateWikiSpaceSchema } from '../validation';
@@ -41,7 +41,7 @@ export type WikiSpaceMember = z.infer<typeof wikiSpaceMemberSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const wikiSpaceListQuery = paginationQuery.extend({
-  keyword: z.string().optional().meta({ description: '按名称 / 描述模糊匹配' }),
+  keyword: keywordQuery('按名称 / 描述模糊匹配'),
   visibility: queryEnum(WIKI_SPACE_VISIBILITIES),
   status: entityStatusQuery,
 });

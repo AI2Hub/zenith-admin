@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { paginated, paginationQuery, queryBool, queryEnum } from '../../core/api-schemas';
+import { keywordQuery, paginated, paginationQuery, queryBool, queryEnum } from '../../core/api-schemas';
 import { defineContract, fileField, multipart, op } from '../../core/contract';
 import {
   ANALYTICS_DEVICE_TYPES,
@@ -141,7 +141,7 @@ export const replayListQuery = paginationQuery.extend({
   status: queryEnum(REPLAY_STATUSES),
   mode: queryEnum(REPLAY_MODES),
   triggerType: queryEnum(REPLAY_TRIGGER_TYPES),
-  keyword: z.string().optional().meta({ description: '匹配用户名 / 入口页 / 回放 ID / 会话 ID' }),
+  keyword: keywordQuery('匹配用户名 / 入口页 / 回放 ID / 会话 ID'),
   hasError: queryBool('仅含错误的回放'),
   source: queryEnum(['web_admin', 'web_member']),
   pagePath: z.string().max(256).optional().meta({ description: '内容检索：访问过的页面路径（模糊）' }),
@@ -157,7 +157,7 @@ export const replayHeatmapQuery = z.object({
 
 export const replayAccessLogListQuery = paginationQuery.extend({
   replayId: z.uuid().optional(),
-  keyword: z.string().optional(),
+  keyword: keywordQuery(),
 });
 
 /** 批量删除的回放会话 ID 列表 */

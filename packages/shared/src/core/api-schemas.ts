@@ -29,6 +29,16 @@ export function idQuery(description?: string) {
   return description ? schema.meta({ description }) : schema;
 }
 
+/**
+ * 列表查询的关键字模糊匹配参数（`?keyword=…`）：可选字符串，缺省不过滤。
+ * `description` 写明匹配的字段（「按名称 / 编码模糊匹配」），缺省为通用描述；
+ * 服务端配合 `keywordCondition(q.keyword, [cols])`（trim / 判空 / 转义都在那里）。
+ * 带长度上限或 `.trim()` 的关键字仍逐个书写，不套本积木。
+ */
+export function keywordQuery(description = '关键字模糊匹配') {
+  return z.string().optional().meta({ description });
+}
+
 /** 分页查询参数；列表接口用 `paginationQuery.extend({ ... })` 追加筛选字段 */
 export const paginationQuery = z.object({
   page: z.coerce.number().int().min(1).default(1).meta({ description: '页码（从 1 开始）', example: 1 }),

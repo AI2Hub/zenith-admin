@@ -283,58 +283,39 @@ export async function getOrCreateDirectConversation(targetUserId: number): Promi
 
 // ─── 置顶 / 取消置顶 ────────────────────────────────────────────────────────
 
-export async function pinConversation(conversationId: number, pin: boolean): Promise<void> {
+/** 当前用户在会话上的个人标记（置顶 / 星标 / 免打扰 / 归档）：只改本人成员行，不在会话里即 403 */
+async function setMyMemberFlag(conversationId: number, patch: Partial<Pick<typeof chatConversationMembers.$inferInsert, 'isPinned' | 'isStarred' | 'isMuted' | 'isArchived'>>): Promise<void> {
   const me = currentUser();
   const [updated] = await db.update(chatConversationMembers)
-    .set({ isPinned: pin })
+    .set(patch)
     .where(and(
       eq(chatConversationMembers.conversationId, conversationId),
       eq(chatConversationMembers.userId, me.userId),
     ))
     .returning({ id: chatConversationMembers.conversationId });
   requireRow(updated, '无权操作该会话', 403);
+}
+
+export async function pinConversation(conversationId: number, pin: boolean): Promise<void> {
+  await setMyMemberFlag(conversationId, { isPinned: pin });
 }
 
 // ─── 标记星标 / 取消星标 ──────────────────────────────────────────────────
 
 export async function starConversation(conversationId: number, star: boolean): Promise<void> {
-  const me = currentUser();
-  const [updated] = await db.update(chatConversationMembers)
-    .set({ isStarred: star })
-    .where(and(
-      eq(chatConversationMembers.conversationId, conversationId),
-      eq(chatConversationMembers.userId, me.userId),
-    ))
-    .returning({ id: chatConversationMembers.conversationId });
-  requireRow(updated, '无权操作该会话', 403);
+  await setMyMemberFlag(conversationId, { isStarred: star });
 }
 
 // ─── 免打扰 / 取消免打扰 ──────────────────────────────────────────────────
 
 export async function muteConversation(conversationId: number, mute: boolean): Promise<void> {
-  const me = currentUser();
-  const [updated] = await db.update(chatConversationMembers)
-    .set({ isMuted: mute })
-    .where(and(
-      eq(chatConversationMembers.conversationId, conversationId),
-      eq(chatConversationMembers.userId, me.userId),
-    ))
-    .returning({ id: chatConversationMembers.conversationId });
-  requireRow(updated, '无权操作该会话', 403);
+  await setMyMemberFlag(conversationId, { isMuted: mute });
 }
 
 // ─── 归档 / 取消归档 ──────────────────────────────────────────────────────────
 
 export async function archiveConversation(conversationId: number, archive: boolean): Promise<void> {
-  const me = currentUser();
-  const [updated] = await db.update(chatConversationMembers)
-    .set({ isArchived: archive })
-    .where(and(
-      eq(chatConversationMembers.conversationId, conversationId),
-      eq(chatConversationMembers.userId, me.userId),
-    ))
-    .returning({ id: chatConversationMembers.conversationId });
-  requireRow(updated, '无权操作该会话', 403);
+  await setMyMemberFlag(conversationId, { isArchived: archive });
 }
 
 // ─── 标记已读 ─────────────────────────────────────────────────────────────────

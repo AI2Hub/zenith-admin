@@ -1,5 +1,5 @@
 import { eq, desc, sql } from 'drizzle-orm';
-import { buildListResult } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import { requireFirstRow } from '../../lib/db-assert';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
@@ -10,7 +10,6 @@ import { analyticsContract } from '@zenith/shared/analytics';
 import type { TrackEventInput, CreateAnalyticsEventMetaInput, UpdateAnalyticsEventMetaInput } from '@zenith/shared/analytics';
 import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
-import { pageOffset } from '../../lib/pagination';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { currentUser } from '../../lib/context';
 import { isPlatformAdmin, tenantScope } from '../../lib/tenant';
@@ -76,11 +75,12 @@ export async function listEventMeta(q: QueryOutputOf<typeof analyticsContract.ev
     q.category ? eq(analyticsEventMeta.category, q.category) : undefined,
   );
 
-  return buildListResult({
+  return listRows({
     page: page,
     pageSize: pageSize,
-    count: () => db.$count(analyticsEventMeta, where),
-    rows: () => db.select().from(analyticsEventMeta).where(where).orderBy(desc(analyticsEventMeta.eventCount)).limit(pageSize).offset(pageOffset(page, pageSize)),
+    table: analyticsEventMeta,
+    where,
+    orderBy: [desc(analyticsEventMeta.eventCount)],
     map: mapEventMeta,
   });
 }

@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { batchIdsBody, idParam, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { batchIdsBody, idParam, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import {
   ANALYTICS_DEVICE_TYPES,
@@ -159,7 +159,7 @@ export const errorGroupListQuery = paginationQuery.extend({
   status: queryEnum(ERROR_STATUSES),
   errorType: queryEnum(FRONTEND_ERROR_TYPES),
   level: queryEnum(ERROR_LEVELS),
-  keyword: z.string().optional(),
+  keyword: keywordQuery(),
   assigneeId: z.coerce.number().int().optional(),
   environment: queryEnum(ANALYTICS_ENVIRONMENTS),
 });

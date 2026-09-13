@@ -1,6 +1,6 @@
 import { requireFirstRow, requireRow } from '../../lib/db-assert';
 import type { QueryOutputOf } from '@zenith/shared/core';
-import { buildListResult } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import { eq, asc } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { cmsSensitiveWordContract } from '@zenith/shared/cms';
@@ -8,7 +8,7 @@ import { db } from '../../db';
 import { cmsSensitiveWords } from '../../db/schema';
 import type { CmsSensitiveWordRow } from '../../db/schema';
 import { formatTimestamps } from '../../lib/datetime';
-import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { AhoCorasick, applyReplacements, createTtlCache, toCodePoints, type AcMatch } from '../../lib/aho-corasick';
 import { invalidateWordCheckCache } from './cms-word-check.service';
@@ -67,15 +67,12 @@ export async function listCmsSensitiveWords(q: QueryOutputOf<typeof cmsSensitive
     keywordCondition(q.keyword, [cmsSensitiveWords.word]),
     q.status ? eq(cmsSensitiveWords.status, q.status) : undefined,
   );
-  return buildListResult({
+  return listRows({
     page: q.page,
     pageSize: q.pageSize,
-    count: () => db.$count(cmsSensitiveWords, where),
-    rows: () => withPagination(
-      db.select().from(cmsSensitiveWords).where(where).orderBy(asc(cmsSensitiveWords.id)).$dynamic(),
-      q.page,
-      q.pageSize,
-    ),
+    table: cmsSensitiveWords,
+    where,
+    orderBy: [asc(cmsSensitiveWords.id)],
     map: mapCmsSensitiveWord,
   });
 }

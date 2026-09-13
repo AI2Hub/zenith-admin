@@ -724,7 +724,7 @@ export async function offlineCmsContent(id: number, options?: { skipAccessCheck?
     const [updated] = await tx.update(cmsContents).set({
       status: 'offline',
       version: sql`${cmsContents.version} + 1`,
-    }).where(and(
+    }).where(buildWhere(
       eq(cmsContents.id, id),
       eq(cmsContents.status, locked.status),
       isNull(cmsContents.lockedAt),

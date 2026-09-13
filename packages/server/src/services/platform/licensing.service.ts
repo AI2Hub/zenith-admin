@@ -6,7 +6,6 @@ import { db } from '../../db';
 import { licenses, licenseEvents, systemInstallations, systemSchedulerNodes } from '../../db/schema';
 import { config } from '../../config';
 import { formatDateTime } from '../../lib/datetime';
-import { pageOffset } from '../../lib/pagination';
 import { requireFirstRow } from '../../lib/db-assert';
 import { buildListResult } from '../../lib/list-query';
 import logger from '../../lib/logger';
@@ -33,6 +32,7 @@ import {
 import { notify } from '../messaging/notification-outbox.service';
 import { listEnabledPlatformSuperAdmins } from '../identity/platform-admins.service';
 import type { LicenseRow } from '../../db/schema/licensing';
+import { withPagination } from '../../lib/where-helpers';
 
 const isoToDisplay = (iso: string | null): string | null => (iso ? formatDateTime(new Date(iso)) : null);
 
@@ -229,7 +229,7 @@ export async function listLicenseEvents(q: QueryOutputOf<typeof licensingContrac
     page,
     pageSize,
     count: () => db.$count(licenseEvents),
-    rows: () => db.select().from(licenseEvents).orderBy(desc(licenseEvents.id)).limit(pageSize).offset(pageOffset(page, pageSize)),
+    rows: () => withPagination(db.select().from(licenseEvents).orderBy(desc(licenseEvents.id)).$dynamic(), page, pageSize),
     map: (r) => ({
       id: r.id,
       licenseId: r.licenseId,

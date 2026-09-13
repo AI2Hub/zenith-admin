@@ -22,14 +22,13 @@ import type { BizPayDemo } from '@zenith/shared/biz';
 import { BIZ_PAY_DEMO_STATUSES } from '@zenith/shared/biz';
 import type { PaymentMethod, PaymentCashierMethod, CreatePaymentResult } from '@zenith/shared/payment';
 import { db } from '../../db';
-import { buildListResult } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import { bizPayDemos, paymentOrders, type BizPayDemoRow } from '../../db/schema';
 import { requireRow } from '../../lib/db-assert';
 import { currentUser } from '../../lib/context';
 import { formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
 import { requireTenantScopeId, tenantCondition, exactTenantCondition } from '../../lib/tenant';
 import { keywordCondition, buildWhere } from '../../lib/where-helpers';
-import { pageOffset } from '../../lib/pagination';
 import logger from '../../lib/logger';
 import { createPayment } from './payment.service';
 
@@ -86,11 +85,12 @@ export async function listBizPayDemos(query: BizPayDemoListQuery) {
       : undefined,
     keywordCondition(query.keyword, [bizPayDemos.subject]),
   );
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(bizPayDemos, where),
-    rows: () => db.select().from(bizPayDemos).where(where).orderBy(desc(bizPayDemos.id)).limit(pageSize).offset(pageOffset(page, pageSize)),
+    table: bizPayDemos,
+    where,
+    orderBy: [desc(bizPayDemos.id)],
     map: mapBizPayDemo,
   });
 }

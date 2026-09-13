@@ -12,8 +12,7 @@ import { db } from '../../db';
 import { ruleExecutions, oauth2Clients } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { tenantCondition } from '../../lib/tenant';
-import { buildWhere, keywordCondition, dateRangeConditions } from '../../lib/where-helpers';
-import { pageOffset } from '../../lib/pagination';
+import { buildWhere, keywordCondition, dateRangeConditions, withPagination } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
 import { buildListResult } from '../../lib/list-query';
 
@@ -99,7 +98,7 @@ export async function listRuleExecutions(q: QueryOutputOf<typeof ruleExecutionCo
     pageSize,
     count: () => db.$count(ruleExecutions, where),
     rows: async () => {
-      const rows = await db.select().from(ruleExecutions).where(where).orderBy(desc(ruleExecutions.id)).limit(pageSize).offset(pageOffset(page, pageSize));
+      const rows = await withPagination(db.select().from(ruleExecutions).where(where).orderBy(desc(ruleExecutions.id)).$dynamic(), page, pageSize);
       const callerNameOf = await resolveCallerNames(rows.map((r) => r.caller));
       return rows.map((r): RuleExecution => ({
         id: r.id,

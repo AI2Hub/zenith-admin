@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { entityStatusQuery, entityStatusSchema, idParam, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { entityStatusQuery, entityStatusSchema, idParam, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { IN_APP_MESSAGE_TYPES } from '../constants';
 import { createInAppTemplateSchema, updateInAppTemplateSchema } from '../validation';
@@ -25,7 +25,7 @@ export type InAppTemplate = z.infer<typeof inAppTemplateSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const inAppTemplateListQuery = paginationQuery.extend({
-  keyword: z.string().optional().meta({ description: '按名称 / 编码模糊匹配' }),
+  keyword: keywordQuery('按名称 / 编码模糊匹配'),
   type: queryEnum(IN_APP_MESSAGE_TYPES),
   status: entityStatusQuery,
 });

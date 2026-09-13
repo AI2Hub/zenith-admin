@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { batchIdsBody, entityStatusQuery, entityStatusSchema, idParam, paginated, paginationQuery } from '../../core/api-schemas';
+import { batchIdsBody, entityStatusQuery, entityStatusSchema, idParam, keywordQuery, paginated, paginationQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { createTagSchema, updateTagSchema } from '../validation';
 
@@ -22,7 +22,7 @@ export type Tag = z.infer<typeof tagSchema>;
 // ─── 入参 ────────────────────────────────────────────────────────────────────
 
 export const tagListQuery = paginationQuery.extend({
-  keyword: z.string().optional().meta({ description: '按名称 / 描述模糊匹配' }),
+  keyword: keywordQuery('按名称 / 描述模糊匹配'),
   status: entityStatusQuery,
   groupName: z.string().optional(),
 });

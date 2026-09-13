@@ -20,7 +20,7 @@ import {
 } from '../../db/schema';
 import { formatDateTime, formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
 import { requireFirstRow, requireRow } from '../../lib/db-assert';
-import { buildListResult } from '../../lib/list-query';
+import { buildListResult, listRows } from '../../lib/list-query';
 import { buildWhere, keywordCondition, withPagination } from '../../lib/where-helpers';
 import { currentUser } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
@@ -99,8 +99,7 @@ export async function listIotForwardRules(q: QueryOutputOf<typeof iotForwardRule
           .leftJoin(iotProducts, eq(iotForwardRules.productId, iotProducts.id))
           .leftJoin(iotDeviceGroups, eq(iotForwardRules.groupId, iotDeviceGroups.id))
           .where(where)
-          .orderBy(desc(iotForwardRules.id))
-          .$dynamic(),
+          .orderBy(desc(iotForwardRules.id)).$dynamic(),
         page,
         pageSize,
       );
@@ -173,15 +172,12 @@ export async function listIotForwardLogs(q: QueryOutputOf<typeof iotForwardRuleC
     q.ruleId ? eq(iotForwardLogs.ruleId, q.ruleId) : undefined,
     q.status ? eq(iotForwardLogs.status, q.status) : undefined,
   );
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(iotForwardLogs, where),
-    rows: () => withPagination(
-      db.select().from(iotForwardLogs).where(where).orderBy(desc(iotForwardLogs.id)).$dynamic(),
-      page,
-      pageSize,
-    ),
+    table: iotForwardLogs,
+    where,
+    orderBy: [desc(iotForwardLogs.id)],
     map: mapIotForwardLog,
   });
 }

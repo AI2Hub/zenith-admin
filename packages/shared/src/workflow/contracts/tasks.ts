@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { dateRangeQuery, idParam, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { dateRangeQuery, idParam, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { WORKFLOW_TASK_MONITOR_NODE_TYPES, WORKFLOW_TASK_STATUSES, WORKFLOW_TASK_CONSULT_STATUSES } from '../constants';
 import {
@@ -136,7 +136,7 @@ export const workflowTaskIdParam = z.object({
 export const workflowTaskMonitorQuery = paginationQuery.extend({
   status: queryEnum(WORKFLOW_TASK_STATUSES),
   nodeType: queryEnum(WORKFLOW_TASK_MONITOR_NODE_TYPES),
-  keyword: z.string().optional(),
+  keyword: keywordQuery(),
   assigneeKeyword: z.string().optional(),
   definitionId: z.coerce.number().int().optional(),
   instanceId: z.coerce.number().int().optional(),

@@ -691,7 +691,7 @@ export async function resolveCmsWidgetPlacements(
 ): Promise<Map<string, CmsResolvedWidget>> {
   if (placements.length === 0) return new Map();
   const widgetIds = [...new Set(placements.map((placement) => placement.widgetId))];
-  const rows = await db.select().from(cmsWidgets).where(and(
+  const rows = await db.select().from(cmsWidgets).where(buildWhere(
     inArray(cmsWidgets.id, widgetIds),
     eq(cmsWidgets.siteId, siteId),
     ...(options?.useDraft ? [] : [eq(cmsWidgets.status, 'published')]),

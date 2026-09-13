@@ -10,11 +10,10 @@ import { db } from '../../db';
 import { ruleLists, ruleListItems, paymentRiskRules } from '../../db/schema';
 import { currentUser, currentUserOrNull } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
-import { buildWhere, keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition, withPagination } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { requireFirstRow } from '../../lib/db-assert';
-import { buildListResult } from '../../lib/list-query';
-import { pageOffset } from '../../lib/pagination';
+import { buildListResult, listRows } from '../../lib/list-query';
 import { formatDateTime, formatNullableDateTime, formatTimestamps, parseDateTimeInput } from '../../lib/datetime';
 
 type ListRow = typeof ruleLists.$inferSelect;
@@ -64,7 +63,7 @@ export async function listRuleLists(q: QueryOutputOf<typeof ruleListContract.lis
     pageSize,
     count: () => db.$count(ruleLists, where),
     rows: async () => {
-      const rows = await db.select().from(ruleLists).where(where).orderBy(desc(ruleLists.id)).limit(pageSize).offset(pageOffset(page, pageSize));
+      const rows = await withPagination(db.select().from(ruleLists).where(where).orderBy(desc(ruleLists.id)).$dynamic(), page, pageSize);
       const ids = rows.map((r) => r.id);
       const counts = ids.length
         ? await db.select({ listId: ruleListItems.listId, count: sql<number>`count(*)::int` })
@@ -150,12 +149,13 @@ export async function listRuleListItems(listId: number, q: QueryOutputOf<typeof 
     eq(ruleListItems.listId, listId),
     keywordCondition(q.keyword, [ruleListItems.value]),
   );
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(ruleListItems, where),
-    rows: () => db.select().from(ruleListItems).where(where).orderBy(desc(ruleListItems.id)).limit(pageSize).offset(pageOffset(page, pageSize)),
-    map: mapItem,
+    table: ruleListItems,
+    where,
+    orderBy: [desc(ruleListItems.id)],
+        map: mapItem,
   });
 }
 

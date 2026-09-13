@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { auditFieldsSchema, idParam, idQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { auditFieldsSchema, idParam, idQuery, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { WORKFLOW_INSTANCE_PRIORITIES, WORKFLOW_INSTANCE_STATUSES, WORKFLOW_SLA_LEVELS, WORKFLOW_TASK_CONSULT_STATUSES, WORKFLOW_TASK_STATUSES, WORKFLOW_INSTANCE_STATUS_FILTERS, WORKFLOW_INSTANCE_PRINT_SOURCES } from '../constants';
 import {
@@ -402,17 +402,17 @@ export const workflowMyInstanceListQuery = paginationQuery.extend({
 });
 
 export const workflowPendingMineQuery = paginationQuery.extend({
-  keyword: z.string().optional(),
+  keyword: keywordQuery(),
   definitionId: z.coerce.number().int().optional(),
 });
 
 export const workflowKeywordPageQuery = paginationQuery.extend({
-  keyword: z.string().optional(),
+  keyword: keywordQuery(),
 });
 
 export const workflowInstanceMonitorQuery = paginationQuery.extend({
   status: queryEnum(WORKFLOW_INSTANCE_STATUS_FILTERS),
-  keyword: z.string().optional(),
+  keyword: keywordQuery(),
   categoryId: z.coerce.number().int().optional(),
   definitionId: z.coerce.number().int().optional(),
   initiatorKeyword: z.string().optional(),
@@ -421,7 +421,7 @@ export const workflowInstanceMonitorQuery = paginationQuery.extend({
 
 export const workflowRelationOptionsQuery = z.object({
   definitionId: z.coerce.number().int().optional(),
-  keyword: z.string().optional(),
+  keyword: keywordQuery(),
   limit: z.coerce.number().int().min(1).max(50).optional(),
 });
 

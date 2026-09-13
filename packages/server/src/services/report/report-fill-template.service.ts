@@ -1,7 +1,7 @@
 import { reportFillContract } from '@zenith/shared/report';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { requireRow } from '../../lib/db-assert';
-import { buildListResult } from '../../lib/list-query';
+import { emptyListResult, listRows } from '../../lib/list-query';
 import { HTTPException } from 'hono/http-exception';
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '../../db';
@@ -9,7 +9,6 @@ import { reportFillRecords, reportFillTemplates, workflowDefinitions } from '../
 import { currentUser } from '../../lib/context';
 import { formatDateTime, formatTimestamps } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
-import { pageOffset } from '../../lib/pagination';
 import { tenantCondition } from '../../lib/tenant';
 import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import type { CloneReportFillTemplateInput, CreateReportFillTemplateInput, ReportFillTemplate, ReportFillTemplateLifecycleActionInput, UpdateReportFillTemplateInput } from '@zenith/shared/report';
@@ -79,7 +78,7 @@ async function validatePlacement(input: { ownerId?: number | null; folderId?: nu
 export async function listReportFillTemplates(query: QueryOutputOf<typeof reportFillContract.templates>) {
   const { page, pageSize } = query;
   const accessibleIds = await listAccessibleReportResourceIds('fill_template');
-  if (accessibleIds && accessibleIds.length === 0) return { list: [], total: 0, page, pageSize };
+  if (accessibleIds && accessibleIds.length === 0) return emptyListResult(page, pageSize);
   const where = buildWhere(
     reportTenantScope(reportFillTemplates),
     accessibleIds ? inArray(reportFillTemplates.id, accessibleIds) : undefined,
@@ -88,13 +87,12 @@ export async function listReportFillTemplates(query: QueryOutputOf<typeof report
     query.ownerId ? eq(reportFillTemplates.ownerId, query.ownerId) : undefined,
     query.folderId ? eq(reportFillTemplates.folderId, query.folderId) : undefined,
   );
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(reportFillTemplates, where),
-    rows: () => db.select().from(reportFillTemplates).where(where)
-            .orderBy(desc(reportFillTemplates.updatedAt))
-            .limit(pageSize).offset(pageOffset(page, pageSize)),
+    table: reportFillTemplates,
+    where,
+    orderBy: [desc(reportFillTemplates.updatedAt)],
     map: mapReportFillTemplate,
   });
 }
@@ -102,7 +100,7 @@ export async function listReportFillTemplates(query: QueryOutputOf<typeof report
 export async function listReportFillTemplateLookup() {
   const accessibleIds = await listAccessibleReportResourceIds('fill_template');
   if (accessibleIds && accessibleIds.length === 0) return [];
-  const where = and(
+  const where = buildWhere(
     reportTenantScope(reportFillTemplates),
     eq(reportFillTemplates.status, 'published'),
     accessibleIds ? inArray(reportFillTemplates.id, accessibleIds) : undefined,

@@ -3,7 +3,7 @@
  * 执行走任务中心（进度/取消/行级明细）；URL 级去重防重复采集；全程 http-client SSRF 防护。
  */
 import { requireFirstRow, requireRow } from '../../lib/db-assert';
-import { buildListResult } from '../../lib/list-query';
+import { buildListResult, listRows } from '../../lib/list-query';
 import { createRequire } from 'node:module';
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
@@ -77,8 +77,7 @@ export async function listCollectRules(params: { page: number; pageSize: number;
           eq(cmsCollectRules.channelId, cmsChannels.id),
         ))
         .where(where)
-        .orderBy(desc(cmsCollectRules.id))
-        .$dynamic(),
+        .orderBy(desc(cmsCollectRules.id)).$dynamic(),
       params.page, params.pageSize,
     ),
     map: (r) => mapCollectRule(r.rule, r.channelName),
@@ -193,14 +192,12 @@ export async function listCollectItems(params: { page: number; pageSize: number;
     eq(cmsCollectItems.ruleId, params.ruleId),
     params.status ? eq(cmsCollectItems.status, params.status as 'success' | 'skipped' | 'failed') : undefined,
   );
-  return buildListResult({
+  return listRows({
     page: params.page,
     pageSize: params.pageSize,
-    count: () => db.$count(cmsCollectItems, where),
-    rows: () => withPagination(
-      db.select().from(cmsCollectItems).where(where).orderBy(desc(cmsCollectItems.id)).$dynamic(),
-      params.page, params.pageSize,
-    ),
+    table: cmsCollectItems,
+    where,
+    orderBy: [desc(cmsCollectItems.id)],
     map: (r) => ({
       id: r.id, ruleId: r.ruleId, url: r.url, title: r.title ?? null,
       status: r.status, contentId: r.contentId ?? null, error: r.error ?? null,

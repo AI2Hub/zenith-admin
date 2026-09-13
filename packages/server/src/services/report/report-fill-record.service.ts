@@ -1,7 +1,7 @@
 import { reportFillContract } from '@zenith/shared/report';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { requireRow } from '../../lib/db-assert';
-import { buildListResult } from '../../lib/list-query';
+import { buildListResult, emptyListResult } from '../../lib/list-query';
 import { HTTPException } from 'hono/http-exception';
 import { and, desc, eq, inArray, or, sql } from 'drizzle-orm';
 import { db } from '../../db';
@@ -9,8 +9,7 @@ import { reportFillRecords, reportFillTemplates, users } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { formatDateTime, formatTimestamps } from '../../lib/datetime';
 import { getUserPermissions, isSuperAdmin } from '../../lib/permissions';
-import { pageOffset } from '../../lib/pagination';
-import { buildWhere, keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition, withPagination } from '../../lib/where-helpers';
 import type { CancelReportFillRecordInput, CreateReportFillRecordInput, ReportFillRecord, ReviewReportFillRecordInput, SubmitReportFillRecordInput, UpdateReportFillRecordInput } from '@zenith/shared/report';
 import { createInstance, withdrawInstance } from '../workflow/instances/lifecycle';
 import { reportCreateTenantId, reportScopedWhere, reportTenantScope } from './report-access';
@@ -113,9 +112,8 @@ export async function listMyReportFillRecords(query: QueryOutputOf<typeof report
     page,
     pageSize,
     count: () => db.$count(reportFillRecords, where),
-    rows: () => selectRecordListRows().where(where)
-            .orderBy(desc(reportFillRecords.updatedAt))
-            .limit(pageSize).offset(pageOffset(page, pageSize)),
+    rows: () => withPagination(selectRecordListRows().where(where)
+            .orderBy(desc(reportFillRecords.updatedAt)).$dynamic(), page, pageSize),
     map: mapRecordListRow,
   });
 }
@@ -123,8 +121,8 @@ export async function listMyReportFillRecords(query: QueryOutputOf<typeof report
 export async function listAdminReportFillRecords(query: QueryOutputOf<typeof reportFillContract.adminRecords>) {
   const { page, pageSize } = query;
   const accessibleTemplateIds = await listAccessibleReportResourceIds('fill_template');
-  if (accessibleTemplateIds && accessibleTemplateIds.length === 0) return { list: [], total: 0, page, pageSize };
-  const where = and(
+  if (accessibleTemplateIds && accessibleTemplateIds.length === 0) return emptyListResult(page, pageSize);
+  const where = buildWhere(
     reportTenantScope(reportFillRecords),
     accessibleTemplateIds ? inArray(reportFillRecords.templateId, accessibleTemplateIds) : undefined,
     query.status ? eq(reportFillRecords.status, query.status) : undefined,
@@ -135,9 +133,8 @@ export async function listAdminReportFillRecords(query: QueryOutputOf<typeof rep
     page,
     pageSize,
     count: () => db.$count(reportFillRecords, where),
-    rows: () => selectRecordListRows().where(where)
-            .orderBy(desc(reportFillRecords.updatedAt))
-            .limit(pageSize).offset(pageOffset(page, pageSize)),
+    rows: () => withPagination(selectRecordListRows().where(where)
+            .orderBy(desc(reportFillRecords.updatedAt)).$dynamic(), page, pageSize),
     map: mapRecordListRow,
   });
 }

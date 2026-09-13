@@ -24,8 +24,7 @@ import {
 import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
 import { clampDays, clampLimit } from '../../lib/analytics-helpers';
 import { requireRow } from '../../lib/db-assert';
-import { buildListResult } from '../../lib/list-query';
-import { withPagination } from '../../lib/where-helpers';
+import { listRows } from '../../lib/list-query';
 import logger from '../../lib/logger';
 import { ensureIotDeviceExists } from './iot-devices.service';
 import { touchDevice } from './iot-access.service';
@@ -273,15 +272,12 @@ export async function listIotCommands(deviceId: number, q: QueryOutputOf<typeof 
   await expireStaleCommands(deviceId);
   const { page, pageSize } = q;
   const where = eq(iotCommands.deviceId, deviceId);
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(iotCommands, where),
-    rows: () => withPagination(
-      db.select().from(iotCommands).where(where).orderBy(desc(iotCommands.id)).$dynamic(),
-      page,
-      pageSize,
-    ),
+    table: iotCommands,
+    where,
+    orderBy: [desc(iotCommands.id)],
     map: mapIotCommand,
   });
 }

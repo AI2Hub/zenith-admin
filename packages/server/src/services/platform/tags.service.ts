@@ -1,13 +1,13 @@
 import { eq, asc, inArray } from 'drizzle-orm';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { tagContract } from '@zenith/shared/platform';
-import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { db } from '../../db';
 import { tags } from '../../db/schema';
 import type { TagRow } from '../../db/schema';
 import { formatTimestamps } from '../../lib/datetime';
 import { requireFirstRow, requireRow } from '../../lib/db-assert';
-import { buildListResult } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import type { CreateTagInput, UpdateTagInput } from '@zenith/shared/platform';
 
@@ -54,15 +54,12 @@ export async function listTags(q: QueryOutputOf<typeof tagContract.list>) {
     q.status ? eq(tags.status, q.status) : undefined,
     keywordCondition(q.groupName, [tags.groupName]),
   );
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(tags, where),
-    rows: () => withPagination(
-      db.select().from(tags).where(where).orderBy(asc(tags.sortOrder), asc(tags.id)).$dynamic(),
-      page,
-      pageSize,
-    ),
+    table: tags,
+    where,
+    orderBy: [asc(tags.sortOrder), asc(tags.id)],
     map: mapTag,
   });
 }

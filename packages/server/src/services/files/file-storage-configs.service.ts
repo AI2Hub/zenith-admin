@@ -1,5 +1,5 @@
 import type { QueryOutputOf } from '@zenith/shared/core';
-import { buildListResult } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import { requireRow } from '../../lib/db-assert';
 import { clearDefaultFlag as clearTableDefaultFlag } from '../../lib/default-flag';
 import { fileStorageConfigs, managedFiles } from '../../db/schema';
@@ -155,7 +155,7 @@ export async function clearDefaultFlag(executor: DbExecutor) {
 // ─── 业务入口 ─────────────────────────────────────────────────────────────────
 import { asc, desc, eq } from 'drizzle-orm';
 import { db } from '../../db';
-import { buildWhere, dateRangeConditions, withPagination } from '../../lib/where-helpers';
+import { buildWhere, dateRangeConditions } from '../../lib/where-helpers';
 import { HTTPException } from 'hono/http-exception';
 
 export type FileStorageConfigListFilter = Omit<QueryOutputOf<typeof fileStorageConfigContract.list>, 'page' | 'pageSize'>;
@@ -171,11 +171,12 @@ export function buildFileStorageConfigsWhere(q: FileStorageConfigListFilter) {
 export async function listFileStorageConfigs(q: QueryOutputOf<typeof fileStorageConfigContract.list>) {
   const { page, pageSize } = q;
   const where = buildFileStorageConfigsWhere(q);
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(fileStorageConfigs, where),
-    rows: () => withPagination(db.select().from(fileStorageConfigs).where(where).orderBy(desc(fileStorageConfigs.isDefault), asc(fileStorageConfigs.id)).$dynamic(), page, pageSize),
+    table: fileStorageConfigs,
+    where,
+    orderBy: [desc(fileStorageConfigs.isDefault), asc(fileStorageConfigs.id)],
     map: mapFileStorageConfig,
   });
 }

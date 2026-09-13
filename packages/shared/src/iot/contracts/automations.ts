@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { auditFieldsSchema, entityStatusQuery, entityStatusSchema, idParam, idQuery, paginated, paginationQuery, queryBool, queryEnum } from '../../core/api-schemas';
+import { auditFieldsSchema, entityStatusQuery, entityStatusSchema, idParam, idQuery, keywordQuery, paginated, paginationQuery, queryBool, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import {
   IOT_AUTOMATION_ACTION_TYPES, IOT_AUTOMATION_TARGETS, IOT_AUTOMATION_TRIGGERS, IOT_COMPARE_OPS,
@@ -72,7 +72,7 @@ export type IotAutomationRun = z.infer<typeof iotAutomationRunSchema>;
 // ─── 入参 ────────────────────────────────────────────────────────────────────
 
 export const iotAutomationListQuery = paginationQuery.extend({
-  keyword: z.string().optional(),
+  keyword: keywordQuery(),
   productId: idQuery(),
   triggerType: queryEnum(IOT_AUTOMATION_TRIGGERS),
   status: entityStatusQuery,

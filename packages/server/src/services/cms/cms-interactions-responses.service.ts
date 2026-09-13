@@ -1,15 +1,4 @@
-import {
-  and,
-  asc,
-  desc,
-  eq,
-  gte,
-  inArray,
-  lt,
-  lte,
-  sql,
-  type SQL,
-} from 'drizzle-orm';
+import { asc, desc, eq, gte, inArray, lt, lte, sql, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { CMS_INTERACTION_MATRIX_SEPARATOR, CMS_INTERACTION_OTHER_PREFIX, CMS_INTERACTION_OTHER_VALUE, cmsInteractionContract } from '@zenith/shared/cms';
@@ -204,7 +193,7 @@ export async function* streamCmsInteractionResponses(
       .from(cmsInteractionResponses)
       .innerJoin(cmsInteractions, eq(cmsInteractionResponses.interactionId, cmsInteractions.id))
       .leftJoin(members, eq(cmsInteractionResponses.memberId, members.id))
-      .where(and(baseWhere, beforeId === null ? undefined : lt(cmsInteractionResponses.id, beforeId)))
+      .where(buildWhere(baseWhere, beforeId === null ? undefined : lt(cmsInteractionResponses.id, beforeId)))
       .orderBy(desc(cmsInteractionResponses.id))
       .limit(limit);
     const { answers, details } = await loadAnswers(rows.map((row) => row.response.id));

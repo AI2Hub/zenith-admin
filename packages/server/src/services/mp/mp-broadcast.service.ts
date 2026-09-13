@@ -1,11 +1,11 @@
 import { eq, and, desc, inArray, isNotNull, lte } from 'drizzle-orm';
 import { requireFirstRow, requireRow } from '../../lib/db-assert';
-import { buildListResult } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { mpBroadcasts, mpTags, mpAccounts } from '../../db/schema';
 import type { MpBroadcastRow } from '../../db/schema';
-import { buildWhere, withPagination } from '../../lib/where-helpers';
+import { buildWhere } from '../../lib/where-helpers';
 import { formatNullableDateTime, formatTimestamps, parseDateTimeInput } from '../../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { ensureMpAccountExists } from './mp-account.service';
@@ -50,11 +50,12 @@ export async function listMpBroadcasts(q: QueryOutputOf<typeof mpBroadcastContra
     tenantScope(mpBroadcasts),
     q.status ? eq(mpBroadcasts.status, q.status) : undefined,
   );
-  return buildListResult({
+  return listRows({
     page: q.page,
     pageSize: q.pageSize,
-    count: () => db.$count(mpBroadcasts, where),
-    rows: () => withPagination(db.select().from(mpBroadcasts).where(where).orderBy(desc(mpBroadcasts.id)).$dynamic(), q.page, q.pageSize),
+    table: mpBroadcasts,
+    where,
+    orderBy: [desc(mpBroadcasts.id)],
     map: mapMpBroadcast,
   });
 }

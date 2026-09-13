@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { auditFieldsSchema, dateRangeBound, entityStatusQuery, entityStatusSchema, idParam, paginated, paginationQuery } from '../../core/api-schemas';
+import { auditFieldsSchema, dateRangeBound, entityStatusQuery, entityStatusSchema, idParam, keywordQuery, paginated, paginationQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { lazyRecursive } from '../../core/validation';
 import type { EntityStatus } from '../../core/types';
@@ -60,7 +60,7 @@ export const dictItemSchema: z.ZodType<DictItem> = lazyRecursive(() => z.object(
 // ─── 入参 ────────────────────────────────────────────────────────────────────
 
 export const dictListQuery = paginationQuery.extend({
-  keyword: z.string().optional().meta({ description: '按字典名称 / 编码模糊匹配' }),
+  keyword: keywordQuery('按字典名称 / 编码模糊匹配'),
   status: entityStatusQuery,
   startDate: dateRangeBound('创建时间起'),
   endDate: dateRangeBound('创建时间止'),

@@ -1,11 +1,11 @@
 import { eq, and, or } from 'drizzle-orm';
 import { requireFirstRow } from '../../lib/db-assert';
-import { buildListResult } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { mpAccounts } from '../../db/schema';
 import type { MpAccountRow } from '../../db/schema';
-import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { formatTimestamps } from '../../lib/datetime';
 import { tenantScope, currentCreateTenantId, exactTenantCondition } from '../../lib/tenant';
 import { clearDefaultFlag } from '../../lib/default-flag';
@@ -60,11 +60,12 @@ export async function listMpAccounts(q: QueryOutputOf<typeof mpAccountContract.l
     q.type ? eq(mpAccounts.type, q.type) : undefined,
     q.status ? eq(mpAccounts.status, q.status) : undefined,
   );
-  return buildListResult({
+  return listRows({
     page: q.page,
     pageSize: q.pageSize,
-    count: () => db.$count(mpAccounts, where),
-    rows: () => withPagination(db.select().from(mpAccounts).where(where).orderBy(mpAccounts.id).$dynamic(), q.page, q.pageSize),
+    table: mpAccounts,
+    where,
+    orderBy: [mpAccounts.id],
     map: mapMpAccountSafe,
   });
 }

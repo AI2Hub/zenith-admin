@@ -1,7 +1,7 @@
 import { eq, asc, desc, and } from 'drizzle-orm';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { dictContract } from '@zenith/shared/platform';
-import { buildWhere, withPagination, keywordCondition, dateRangeConditions } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition, dateRangeConditions } from '../../lib/where-helpers';
 import { db } from '../../db';
 import { dicts, dictItems } from '../../db/schema';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
@@ -9,7 +9,7 @@ import { formatTimestamps } from '../../lib/datetime';
 import { currentUser } from '../../lib/context';
 import { HTTPException } from 'hono/http-exception';
 import { requireFirstRow, requireRow } from '../../lib/db-assert';
-import { buildListResult } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 
 export function mapDict(row: typeof dicts.$inferSelect) {
@@ -33,11 +33,12 @@ export async function listDicts(q: QueryOutputOf<typeof dictContract.list>) {
     ...dateRangeConditions(dicts.createdAt, q.startDate, q.endDate),
     tenantCondition(dicts, user),
   );
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(dicts, finalWhere),
-    rows: () => withPagination(db.select().from(dicts).where(finalWhere).orderBy(desc(dicts.createdAt)).$dynamic(), page, pageSize),
+    table: dicts,
+    where: finalWhere,
+    orderBy: [desc(dicts.createdAt)],
     map: mapDict,
   });
 }

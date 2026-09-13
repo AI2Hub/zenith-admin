@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { auditFieldsSchema, idParam, idQuery, paginated, paginationQuery, queryBool } from '../../core/api-schemas';
+import { auditFieldsSchema, idParam, idQuery, keywordQuery, paginated, paginationQuery, queryBool } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { asyncTaskSchema } from '../../tasks/contracts/async-tasks';
 import { createReportAlertSchema, reportBatchEnabledSchema, updateReportAlertSchema } from '../validation';
@@ -70,7 +70,7 @@ export const reportAlertEvalResultSchema = z.object({
 export type ReportAlertEvalResult = z.infer<typeof reportAlertEvalResultSchema>;
 
 export const reportAlertListQuery = paginationQuery.extend({
-  keyword: z.string().optional(),
+  keyword: keywordQuery(),
   datasetId: idQuery(),
   metricId: idQuery(),
   enabled: queryBool(),

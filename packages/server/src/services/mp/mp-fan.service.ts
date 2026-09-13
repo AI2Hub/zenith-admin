@@ -1,11 +1,11 @@
 import { eq, and, inArray, sql, desc } from 'drizzle-orm';
 import { requireFirstRow } from '../../lib/db-assert';
-import { buildListResult } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { mpFans, mpTags } from '../../db/schema';
 import type { MpFanRow } from '../../db/schema';
-import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { ensureMpAccountExists } from './mp-account.service';
@@ -88,7 +88,7 @@ export async function getMpFansBlacklistAudit(accountId: number, openids: string
 export async function getMpBlacklistStateAudit(accountId: number) {
   await ensureMpAccountExists(accountId);
   const tenant = tenantScope(mpFans);
-  const where = and(eq(mpFans.accountId, accountId), eq(mpFans.blacklisted, true), tenant);
+  const where = buildWhere(eq(mpFans.accountId, accountId), eq(mpFans.blacklisted, true), tenant);
   const [total, rows] = await Promise.all([
     db.$count(mpFans, where),
     db
@@ -124,11 +124,12 @@ export async function listMpFans(q: QueryOutputOf<typeof mpFanContract.list>) {
     q.tagId ? sql`${mpFans.tagIds} @> ${JSON.stringify([q.tagId])}::jsonb` : undefined,
     q.blacklisted !== undefined ? eq(mpFans.blacklisted, q.blacklisted) : undefined,
   );
-  return buildListResult({
+  return listRows({
     page: q.page,
     pageSize: q.pageSize,
-    count: () => db.$count(mpFans, where),
-    rows: () => withPagination(db.select().from(mpFans).where(where).orderBy(desc(mpFans.id)).$dynamic(), q.page, q.pageSize),
+    table: mpFans,
+    where,
+    orderBy: [desc(mpFans.id)],
     map: mapMpFan,
   });
 }

@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { dateRangeQuery, idParam, idQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { dateRangeQuery, idParam, idQuery, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { DRIVE_NODE_TYPES, DRIVE_SHARE_CAPABILITIES, DRIVE_SHARE_KINDS, DRIVE_SHARE_LINK_STATES } from '../constants';
 import { driveCollectPolicySchema, updateDriveShareLinkSchema } from '../validation';
@@ -76,7 +76,7 @@ export const driveShareShortLinkSchema = z.object({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const driveShareLinkListQuery = paginationQuery.extend({
-  keyword: z.string().optional(),
+  keyword: keywordQuery(),
   spaceId: idQuery(),
   kind: queryEnum(DRIVE_SHARE_KINDS),
   state: queryEnum(DRIVE_SHARE_LINK_STATES),

@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { auditFieldsSchema, dateRangeQuery, entityStatusQuery, idParam, idQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { auditFieldsSchema, dateRangeQuery, entityStatusQuery, idParam, idQuery, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { CRON_ALERT_LEVELS, CRON_ALERT_TYPES, CRON_JOB_STATUSES, CRON_RUN_STATUSES, CRON_RUN_TRIGGERS } from '../constants';
 import { createCronJobSchema, cronJobStatusSchema, cronValidateSchema, updateCronJobSchema } from '../validation';
@@ -254,7 +254,7 @@ export type CronValidateResult = z.infer<typeof cronValidateResultSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const cronJobListQuery = paginationQuery.extend({
-  keyword: z.string().optional().meta({ description: '按任务名称模糊匹配' }),
+  keyword: keywordQuery('按任务名称模糊匹配'),
   status: entityStatusQuery,
 });
 
@@ -262,7 +262,7 @@ export const cronJobLogListQuery = paginationQuery.extend({
   jobId: idQuery(),
   status: queryEnum(CRON_RUN_STATUSES, '按执行状态筛选'),
   trigger: queryEnum(CRON_RUN_TRIGGERS, '按触发方式筛选'),
-  keyword: z.string().optional().meta({ description: '按任务名称 / 输出模糊匹配' }),
+  keyword: keywordQuery('按任务名称 / 输出模糊匹配'),
   ...dateRangeQuery('开始时间'),
 });
 

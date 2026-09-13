@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { dateRangeQuery, entityStatusQuery, entityStatusSchema, idParam, idQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { dateRangeQuery, entityStatusQuery, entityStatusSchema, idParam, idQuery, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { PAYMENT_FUND_RESERVATION_STATUSES, PAYMENT_LEDGER_ACCOUNT_CODES, PAYMENT_LEDGER_NORMAL_BALANCES } from '../constants';
 import {
@@ -97,7 +97,7 @@ export type PaymentActiveReservationAmount = z.infer<typeof paymentActiveReserva
 const currencyQuery = z.string().regex(/^[A-Z]{3}$/).optional();
 
 export const paymentLedgerAccountListQuery = paginationQuery.extend({
-  keyword: z.string().optional(),
+  keyword: keywordQuery(),
   appId: idQuery(),
   channelConfigId: idQuery(),
   currency: currencyQuery,

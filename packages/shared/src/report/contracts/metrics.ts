@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { auditFieldsSchema, idParam, idQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { auditFieldsSchema, idParam, idQuery, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { REPORT_METRIC_LIFECYCLE_STATUSES, REPORT_METRIC_TYPES } from '../types';
 import {
@@ -75,7 +75,7 @@ export type ReportMetricLookupOption = z.infer<typeof reportMetricLookupOptionSc
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const reportMetricListQuery = paginationQuery.extend({
-  keyword: z.string().optional(),
+  keyword: keywordQuery(),
   datasetId: idQuery(),
   folderId: idQuery(),
   ownerId: idQuery(),
@@ -84,7 +84,7 @@ export const reportMetricListQuery = paginationQuery.extend({
 });
 
 export const reportMetricLookupQuery = z.object({
-  keyword: z.string().optional(),
+  keyword: keywordQuery(),
   status: queryEnum(REPORT_METRIC_LIFECYCLE_STATUSES),
   limit: z.coerce.number().int().min(1).max(200).default(20),
 });

@@ -1157,7 +1157,7 @@ export async function generateRssXml(site: CmsSiteRow, channel?: CmsChannelRow |
     return '<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel></channel></rss>';
   }
   const rows = await resolveCmsContentRows(await db.select(cmsContentListColumns).from(cmsContents)
-    .where(and(
+    .where(buildWhere(
       eq(cmsContents.siteId, site.id),
       ...(channel ? [eq(cmsContents.channelId, channel.id)] : []),
       eq(cmsContents.status, 'published'),

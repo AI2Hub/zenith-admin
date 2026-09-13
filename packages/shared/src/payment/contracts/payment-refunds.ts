@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { dateRangeQuery, idParam, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { dateRangeQuery, idParam, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { PAYMENT_CHANNELS, PAYMENT_REFUND_APPROVAL_STATUSES, PAYMENT_REFUND_STATUSES } from '../constants';
 import { approveRefundSchema, createRefundSchema, idempotencyKeyHeaders, rejectRefundSchema } from '../validation';
@@ -44,7 +44,7 @@ export type PaymentRefundResult = z.infer<typeof paymentRefundResultSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const paymentRefundListQuery = paginationQuery.extend({
-  keyword: z.string().optional(),
+  keyword: keywordQuery(),
   channel: queryEnum(PAYMENT_CHANNELS),
   status: queryEnum(PAYMENT_REFUND_STATUSES),
   approvalStatus: queryEnum(PAYMENT_REFUND_APPROVAL_STATUSES),

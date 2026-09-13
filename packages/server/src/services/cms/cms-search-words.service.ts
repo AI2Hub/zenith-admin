@@ -1,13 +1,13 @@
 import { requireFirstRow, requireRow } from '../../lib/db-assert';
 import type { QueryOutputOf } from '@zenith/shared/core';
-import { buildListResult } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import { eq, asc, inArray } from 'drizzle-orm';
 import { cmsSearchContract } from '@zenith/shared/cms';
 import { db } from '../../db';
 import { cmsSearchWords } from '../../db/schema';
 import type { CmsSearchWordRow } from '../../db/schema';
 import { formatTimestamps } from '../../lib/datetime';
-import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { reloadCmsSearchDict } from './cms-search.service';
 import type { CreateCmsSearchWordInput, UpdateCmsSearchWordInput } from '@zenith/shared/cms';
@@ -45,15 +45,12 @@ export async function listCmsSearchWords(q: QueryOutputOf<typeof cmsSearchContra
     q.groupName ? eq(cmsSearchWords.groupName, q.groupName) : undefined,
     q.status ? eq(cmsSearchWords.status, q.status) : undefined,
   );
-  return buildListResult({
+  return listRows({
     page: q.page,
     pageSize: q.pageSize,
-    count: () => db.$count(cmsSearchWords, where),
-    rows: () => withPagination(
-      db.select().from(cmsSearchWords).where(where).orderBy(asc(cmsSearchWords.id)).$dynamic(),
-      q.page,
-      q.pageSize,
-    ),
+    table: cmsSearchWords,
+    where,
+    orderBy: [asc(cmsSearchWords.id)],
     map: mapCmsSearchWord,
   });
 }

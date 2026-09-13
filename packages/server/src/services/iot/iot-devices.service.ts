@@ -416,7 +416,7 @@ export async function deleteIotDevices(ids: number[]): Promise<number> {
   if (blocked > 0) {
     throw new HTTPException(400, { message: '选中设备包含仍有子设备的网关，请先迁移或删除其子设备' });
   }
-  const where = and(inArray(iotDevices.id, ids), buildDeviceWhere({}));
+  const where = buildWhere(inArray(iotDevices.id, ids), buildDeviceWhere({}));
   const deleted = await db.delete(iotDevices).where(where).returning({ id: iotDevices.id, sn: iotDevices.sn });
   invalidateIotDeviceAuthCache(deleted.map((d) => d.sn));
   await clearOnlineKeys(deleted.map((d) => d.id));

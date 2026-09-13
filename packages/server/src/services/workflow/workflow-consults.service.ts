@@ -6,7 +6,6 @@ import { workflowTaskConsults, workflowTasks, workflowInstances } from '../../db
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../lib/context';
 import { tenantCondition } from '../../lib/tenant';
-import { pageOffset } from '../../lib/pagination';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { buildListResult } from '../../lib/list-query';
 import { requireRow } from '../../lib/db-assert';
@@ -14,7 +13,7 @@ import logger from '../../lib/logger';
 import type { WorkflowTaskConsult, CreateWorkflowConsultInput, ReplyWorkflowConsultInput } from '@zenith/shared/workflow';
 import { notify } from '../messaging/notification-outbox.service';
 import { loadWorkflowUserDisplays } from './workflow-user-helpers';
-import { buildWhere } from '../../lib/where-helpers';
+import { buildWhere, withPagination } from '../../lib/where-helpers';
 
 type ConsultRow = typeof workflowTaskConsults.$inferSelect;
 
@@ -171,13 +170,12 @@ export async function listMyConsults(query: QueryOutputOf<typeof workflowTaskCon
     pageSize,
     count: () => db.$count(workflowTaskConsults, where),
     rows: async () => {
-      const rows = await db.select({ consult: workflowTaskConsults, nodeName: workflowTasks.nodeName, instanceTitle: workflowInstances.title, serialNo: workflowInstances.serialNo })
+      const rows = await withPagination(db.select({ consult: workflowTaskConsults, nodeName: workflowTasks.nodeName, instanceTitle: workflowInstances.title, serialNo: workflowInstances.serialNo })
       .from(workflowTaskConsults)
       .leftJoin(workflowTasks, eq(workflowTaskConsults.taskId, workflowTasks.id))
       .leftJoin(workflowInstances, eq(workflowTaskConsults.instanceId, workflowInstances.id))
       .where(where)
-      .orderBy(desc(workflowTaskConsults.id))
-      .limit(pageSize).offset(pageOffset(page, pageSize));
+      .orderBy(desc(workflowTaskConsults.id)).$dynamic(), page, pageSize);
       const names = await loadWorkflowUserDisplays(rows.map((r) => r.consult.inviterId));
       return rows.map((r) => ({
         ...mapConsult(r.consult, { nodeName: r.nodeName, inviterName: names.get(r.consult.inviterId)?.name ?? null }),

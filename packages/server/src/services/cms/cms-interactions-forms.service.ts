@@ -1,6 +1,6 @@
 import { requireRow } from '../../lib/db-assert';
 import type { QueryOutputOf } from '@zenith/shared/core';
-import { buildListResult } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import {
   and,
   asc,
@@ -27,7 +27,7 @@ import type {
 import type { DbExecutor } from '../../db/types';
 import { formatNullableDateTime, formatTimestamps, parseDateTimeInput } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
-import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { assertSiteAccess, ensureCmsSiteExists } from './cms-sites.service';
 import { resolveEffectiveCmsSite } from './cms-site-inheritance.service';
 import { refreshCmsPublicConfiguration } from './cms-public-config-refresh.service';
@@ -101,15 +101,12 @@ export async function listCmsInteractions(q: QueryOutputOf<typeof cmsInteraction
     q.kind ? eq(cmsInteractions.kind, q.kind) : undefined,
     q.status ? eq(cmsInteractions.status, q.status) : undefined,
   );
-  return buildListResult({
+  return listRows({
     page: q.page,
     pageSize: q.pageSize,
-    count: () => db.$count(cmsInteractions, where),
-    rows: () => withPagination(
-      db.select().from(cmsInteractions).where(where).orderBy(desc(cmsInteractions.id)).$dynamic(),
-      q.page,
-      q.pageSize,
-    ),
+    table: cmsInteractions,
+    where,
+    orderBy: [desc(cmsInteractions.id)],
     map: (row) => mapCmsInteraction(row),
   });
 }

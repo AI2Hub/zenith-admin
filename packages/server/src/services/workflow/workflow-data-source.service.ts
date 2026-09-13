@@ -8,10 +8,9 @@ import { HTTPException } from 'hono/http-exception';
 import { desc, eq } from 'drizzle-orm';
 import { db } from '../../db';
 import { workflowDataSources } from '../../db/schema';
-import { pageOffset } from '../../lib/pagination';
 import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { formatTimestamps } from '../../lib/datetime';
-import { buildListResult } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import { requireFirstRow, requireRow } from '../../lib/db-assert';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { assertSafeWorkflowUrl, workflowHttp } from '../../lib/workflow-outbound';
@@ -96,11 +95,12 @@ export async function listDataSources(query: QueryOutputOf<typeof workflowDataSo
     keywordCondition(keyword, [workflowDataSources.name, workflowDataSources.url], 'ilike'),
     status ? eq(workflowDataSources.status, status) : undefined,
   );
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(workflowDataSources, where),
-    rows: () => db.select().from(workflowDataSources).where(where).orderBy(desc(workflowDataSources.id)).limit(pageSize).offset(pageOffset(page, pageSize)),
+    table: workflowDataSources,
+    where,
+    orderBy: [desc(workflowDataSources.id)],
     map: mapDataSource,
   });
 }

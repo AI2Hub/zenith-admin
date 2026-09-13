@@ -33,6 +33,7 @@ import { ensureCmsContentExists, getCmsContent } from './cms-contents-query.serv
 import { offlineCmsContent, publishCmsContent, rejectCmsContent, submitCmsContent } from './cms-contents-write.service';
 import { getEffectivelyEnabledCmsChannelIds } from './cms-channel-visibility.service';
 import { resolveEffectiveCmsSite } from './cms-site-inheritance.service';
+import { buildWhere } from '../../lib/where-helpers';
 
 // ─── 回收站 ───────────────────────────────────────────────────────────────────
 async function assertBatchSiteAccess(ids: number[]): Promise<void> {
@@ -265,7 +266,7 @@ async function setCmsContentsArchived(ids: number[], archived: boolean): Promise
   const mutation = await db.transaction(async (tx) => {
     const sites = await lockCmsSitesForRows(tx, initial);
     const archivedCondition = archived ? isNull(cmsContents.archivedAt) : isNotNull(cmsContents.archivedAt);
-    const locked = await tx.select().from(cmsContents).where(and(
+    const locked = await tx.select().from(cmsContents).where(buildWhere(
       inArray(cmsContents.id, ids),
       isNull(cmsContents.deletedAt),
       archivedCondition,

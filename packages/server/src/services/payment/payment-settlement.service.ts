@@ -9,12 +9,12 @@ import { and, between, desc, eq, inArray, isNull, lte, sql, type SQL } from 'dri
 import { HTTPException } from 'hono/http-exception';
 import { genPaymentNo } from './payment-no';
 import { db } from '../../db';
-import { buildListResult } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import { paymentApps, paymentChannelConfigs, paymentJournalLines, paymentJournals, paymentLedgerAccounts, paymentSettlementBatches, paymentSettlementItems, type PaymentSettlementBatchRow } from '../../db/schema';
 import { requireRow } from '../../lib/db-assert';
 import { currentUser } from '../../lib/context';
 import { requireTenantScopeId, tenantCondition, exactTenantCondition } from '../../lib/tenant';
-import { buildWhere, withPagination } from '../../lib/where-helpers';
+import { buildWhere } from '../../lib/where-helpers';
 import { formatDate, formatDateTime, formatNullableDateTime, formatTimestamps, parseDateRangeEnd, parseDateRangeStart } from '../../lib/datetime';
 import { isPgUniqueViolation, rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { postSystemJournalWithin } from './payment-journal.service';
@@ -77,11 +77,12 @@ export async function listSettlements(q: QueryOutputOf<typeof paymentSettlementC
     q.status ? eq(paymentSettlementBatches.status, q.status) : undefined,
     tenantCondition(paymentSettlementBatches, currentUser()),
   );
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(paymentSettlementBatches, where),
-    rows: () => withPagination(db.select().from(paymentSettlementBatches).where(where).orderBy(desc(paymentSettlementBatches.id)).$dynamic(), page, pageSize),
+    table: paymentSettlementBatches,
+    where,
+    orderBy: [desc(paymentSettlementBatches.id)],
     map: mapSettlementBatch,
   });
 }

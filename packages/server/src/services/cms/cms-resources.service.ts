@@ -275,7 +275,7 @@ async function deleteOrphanedManagedFile(row: Pick<CmsResourceRow, 'fileId' | 'o
   if (!row.fileId) return;
   // 引用登记型素材（文件中心选图、站点导入/站群分发复制）不持有文件，删除本行不得动物理文件
   if (!row.ownsFile) return;
-  const stillUsed = await db.$count(cmsResources, and(
+  const stillUsed = await db.$count(cmsResources, buildWhere(
     eq(cmsResources.fileId, row.fileId),
     excludeResourceIds.length > 0 ? notInArray(cmsResources.id, [...excludeResourceIds]) : undefined,
   ));

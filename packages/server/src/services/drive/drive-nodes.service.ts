@@ -322,7 +322,7 @@ export async function assertSubtreeNotLockedByOthers(roots: DriveNodeRow[]) {
 
 /** 加载子树（含根，未删除），按深度升序 */
 export async function loadSubtree(executor: DbExecutor, rootId: number, opts: { includeDeleted?: boolean; where?: SQL } = {}): Promise<DriveNodeRow[]> {
-  return executor.select().from(driveNodes).where(and(
+  return executor.select().from(driveNodes).where(buildWhere(
     sql`(${driveNodes.id} = ${rootId} OR ${driveNodes.ancestorIds} @> ARRAY[${rootId}]::integer[])`,
     opts.includeDeleted ? undefined : isNull(driveNodes.deletedAt),
     opts.where,

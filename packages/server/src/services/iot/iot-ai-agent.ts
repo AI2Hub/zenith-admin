@@ -8,7 +8,7 @@
  * 注册时机：getMastra() 初始化（见 lib/mastra/index.ts）；
  * 前端在智能体列表以「内置」形式出现，可直接发起对话。
  */
-import { and, desc, eq, gte, inArray } from 'drizzle-orm';
+import { desc, eq, gte, inArray } from 'drizzle-orm';
 import type { Mastra } from '@mastra/core';
 import type { AiBuiltinAgent } from '@zenith/shared/ai';
 import { IOT_ALARM_LEVEL_LABELS, IOT_ALARM_STATUS_LABELS } from '@zenith/shared/iot';
@@ -19,6 +19,7 @@ import {
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import logger from '../../lib/logger';
 import { getOnlineMap } from './iot-access.service';
+import { buildWhere } from '../../lib/where-helpers';
 
 export const IOT_AGENT_METAS: AiBuiltinAgent[] = [
   {
@@ -85,7 +86,7 @@ async function loadRecentEvents(days: number, anomalyOnly: boolean) {
     event: iotDeviceEvents, deviceName: iotDevices.name, deviceSn: iotDevices.sn,
   }).from(iotDeviceEvents)
     .innerJoin(iotDevices, eq(iotDeviceEvents.deviceId, iotDevices.id))
-    .where(and(
+    .where(buildWhere(
       gte(iotDeviceEvents.reportedAt, since),
       anomalyOnly ? eq(iotDeviceEvents.kind, 'anomaly') : undefined,
     ))

@@ -1,10 +1,10 @@
 import { eq, and, desc, sql } from 'drizzle-orm';
-import { buildListResult } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { mpMessages, mpFans } from '../../db/schema';
 import type { MpMessageRow } from '../../db/schema';
-import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { ensureMpAccountExists } from './mp-account.service';
@@ -42,11 +42,12 @@ export async function listMessages(q: QueryOutputOf<typeof mpMessageContract.lis
     q.msgType ? eq(mpMessages.msgType, q.msgType) : undefined,
     keywordCondition(q.keyword, [mpMessages.content], 'ilike'),
   );
-  return buildListResult({
+  return listRows({
     page: q.page,
     pageSize: q.pageSize,
-    count: () => db.$count(mpMessages, where),
-    rows: () => withPagination(db.select().from(mpMessages).where(where).orderBy(desc(mpMessages.id)).$dynamic(), q.page, q.pageSize),
+    table: mpMessages,
+    where,
+    orderBy: [desc(mpMessages.id)],
     map: mapMpMessage,
   });
 }

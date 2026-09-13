@@ -13,14 +13,13 @@ import {
 } from '../../db/schema';
 import { currentUser, currentUserOrNull, hasPermission } from '../../lib/context';
 import { formatDateTime, formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
-import { pageOffset } from '../../lib/pagination';
 import { sendWebhookNotification } from '../../lib/webhook-notify';
 import { sendEmail } from '../messaging/email-send-logs.service';
 import { sendInApp } from '../messaging/in-app-messages.service';
 import { reportScopedWhere, reportTenantScope } from './report-access';
 import { resolveReportSecret } from './report-secrets';
 import type { ReportAlertRule, ReportDashboardSubscription, ReportDeliveryAttempt, ReportDeliveryRun, ReportDeliveryStatus, ReportDeliveryTriggerType, ReportNotifyChannel, ReportScheduleMisfirePolicy } from '@zenith/shared/report';
-import { buildWhere, dateRangeConditions } from '../../lib/where-helpers';
+import { buildWhere, dateRangeConditions, withPagination } from '../../lib/where-helpers';
 
 const emailSchema = z.email('邮箱格式不正确');
 
@@ -194,16 +193,14 @@ export async function listDeliveryRuns(query: QueryOutputOf<typeof reportDeliver
   );
   const [total, rows] = await Promise.all([
     db.$count(reportDeliveryRuns, where),
-    db.select({
+    withPagination(db.select({
       row: reportDeliveryRuns,
       acknowledgedByName: users.nickname,
     })
       .from(reportDeliveryRuns)
       .leftJoin(users, eq(users.id, reportDeliveryRuns.acknowledgedBy))
       .where(where)
-      .orderBy(desc(reportDeliveryRuns.id))
-      .limit(pageSize)
-      .offset(pageOffset(page, pageSize)),
+      .orderBy(desc(reportDeliveryRuns.id)).$dynamic(), page, pageSize),
   ]);
   const runIds = rows.map((item) => item.row.id);
   const attemptsMap = includeAttempts ? await listAttemptsForRunIds(runIds) : new Map<number, ReportDeliveryAttempt[]>();

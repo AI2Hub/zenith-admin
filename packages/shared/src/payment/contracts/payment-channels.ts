@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { entityStatusQuery, entityStatusSchema, idParam, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
+import { entityStatusQuery, entityStatusSchema, idParam, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { PAYMENT_CHANNELS } from '../constants';
 import { createPaymentChannelConfigSchema, updatePaymentChannelConfigSchema } from '../validation';
@@ -60,7 +60,7 @@ export type ChannelConnectivityResult = z.infer<typeof channelConnectivityResult
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const paymentChannelListQuery = paginationQuery.extend({
-  keyword: z.string().optional(),
+  keyword: keywordQuery(),
   channel: queryEnum(PAYMENT_CHANNELS),
   status: entityStatusQuery,
 });

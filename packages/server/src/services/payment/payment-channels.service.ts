@@ -9,12 +9,12 @@ import { and, asc, desc, eq, or } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { randomBytes } from 'node:crypto';
 import { db } from '../../db';
-import { buildListResult } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import { paymentApps, paymentChannelConfigs, paymentContracts, paymentJournals, paymentLedgerAccounts, paymentOrders, paymentPreauths, paymentReconBatches, paymentSettlementBatches, paymentTransfers, type NewPaymentChannelConfig, type PaymentChannelConfigRow } from '../../db/schema';
 import { requireRow } from '../../lib/db-assert';
 import { currentUser } from '../../lib/context';
 import { tenantCondition, requireTenantScopeId } from '../../lib/tenant';
-import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { encryptField } from '../../lib/encryption';
 import { formatTimestamps } from '../../lib/datetime';
 import { clearDefaultFlag } from '../../lib/default-flag';
@@ -88,15 +88,12 @@ export async function listChannelConfigs(q: QueryOutputOf<typeof paymentChannelC
     q.status ? eq(paymentChannelConfigs.status, q.status) : undefined,
     tenantCondition(paymentChannelConfigs, currentUser()),
   );
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(paymentChannelConfigs, finalWhere),
-    rows: () => withPagination(
-      db.select().from(paymentChannelConfigs).where(finalWhere).orderBy(desc(paymentChannelConfigs.id)).$dynamic(),
-      page,
-      pageSize,
-    ),
+    table: paymentChannelConfigs,
+    where: finalWhere,
+    orderBy: [desc(paymentChannelConfigs.id)],
     map: mapChannelConfig,
   });
 }

@@ -89,8 +89,10 @@ describe('analytics-event-overrides.service — CRUD', () => {
       from: () => ({
         where: () => ({
           orderBy: () => ({
-            limit: () => ({
-              offset: async () => [overrideRow],
+            $dynamic: () => ({
+              limit: () => ({
+                offset: async () => [overrideRow],
+              }),
             }),
           }),
         }),

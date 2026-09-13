@@ -1,5 +1,5 @@
 import { requireRow } from '../../lib/db-assert';
-import { buildListResult } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import { createHash } from 'node:crypto';
 import dayjs from 'dayjs';
 import { HTTPException } from 'hono/http-exception';
@@ -13,7 +13,6 @@ import { reportDatasets, reportMaterializationSnapshots } from '../../db/schema'
 import { currentUserId } from '../../lib/context';
 import { formatFileTimestamp, formatNullableDateTime, formatTimestamps, parseDateTimeInput } from '../../lib/datetime';
 import logger from '../../lib/logger';
-import { pageOffset } from '../../lib/pagination';
 import redis from '../../lib/redis';
 import {
   deleteGeneratedManagedFile,
@@ -305,13 +304,12 @@ export async function listMaterializationSnapshots(datasetId: number, query: Que
     reportMaterializationSnapshots,
     eq(reportMaterializationSnapshots.datasetId, datasetId),
   );
-  return buildListResult({
+  return listRows({
     page,
     pageSize,
-    count: () => db.$count(reportMaterializationSnapshots, where),
-    rows: () => db.select().from(reportMaterializationSnapshots).where(where)
-            .orderBy(desc(reportMaterializationSnapshots.revision))
-            .limit(pageSize).offset(pageOffset(page, pageSize)),
+    table: reportMaterializationSnapshots,
+    where,
+    orderBy: [desc(reportMaterializationSnapshots.revision)],
     map: mapReportMaterializationSnapshot,
   });
 }

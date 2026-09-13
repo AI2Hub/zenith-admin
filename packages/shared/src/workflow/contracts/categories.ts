@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { auditFieldsSchema, idParam, paginated, paginationQuery } from '../../core/api-schemas';
+import { auditFieldsSchema, idParam, keywordQuery, paginated, paginationQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { createWorkflowCategorySchema, updateWorkflowCategorySchema } from '../validation';
 
@@ -24,7 +24,7 @@ export type WorkflowCategory = z.infer<typeof workflowCategorySchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const workflowCategoryListQuery = paginationQuery.extend({
-  keyword: z.string().optional().meta({ description: '按名称 / 编码模糊匹配' }),
+  keyword: keywordQuery('按名称 / 编码模糊匹配'),
 });
 
 export const workflowCategoryContract = defineContract('/api/workflows/categories', {
