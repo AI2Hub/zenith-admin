@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { deleteAction, ListSearchToolbar } from '@/components/list-page';
-import { Button, Form, Image, Select, Spin, Tag, Typography } from '@douyinfe/semi-ui';
+import { Button, Form, Image, Select, Tag, Typography } from '@douyinfe/semi-ui';
 import { Plus } from 'lucide-react';
 import { enumValueOf } from '@zenith/shared/core';
 import { MP_QRCODE_TYPE_OPTIONS, MP_QRCODE_TYPES, type CreateMpQrcodeInput, type MpQrcode, type MpQrcodeType } from '@zenith/shared/mp';
@@ -129,26 +129,24 @@ export default function MpQrcodesPage() {
       />
 
       <AppModal {...createModal.modalProps} title="生成带参二维码" width={560}>
-        <Spin spinning={false} wrapperClassName="modal-spin-wrapper">
-          <Form
-            {...createModal.formProps}
-            key={`${createModal.formKey}-${modalType}`}
-          >
-            <Form.Slot label="二维码类型">
-              <Select style={{ width: '100%' }} optionList={MP_QRCODE_TYPE_OPTIONS} value={modalType} onChange={(v) => setModalType(v as MpQrcodeType)} />
-            </Form.Slot>
-            <Form.Input field="name" label="名称" placeholder="如：线下门店物料"
-              rules={[{ required: true, message: '请输入名称' }]} maxLength={100} />
-            <Form.Input field="sceneStr" label="场景值" placeholder="渠道标识，仅字母/数字/下划线/连字符"
-              rules={[{ required: true, message: '请输入场景值' }, { pattern: /^[A-Za-z0-9_-]+$/, message: '仅支持字母、数字、下划线、连字符' }]} maxLength={64} />
-            {modalType === 'temporary' && (
-              <Form.InputNumber field="expireSeconds" label="有效期(秒)" style={{ width: '100%' }} min={60} max={2592000} step={60}
-                rules={[{ required: true, message: '请设置有效期' }]} />
-            )}
-            <Form.InputNumber field="rewardPoints" label="扫码奖励积分" style={{ width: '100%' }} min={0} max={100000}
-              extraText="扫码关注的粉丝若已绑定会员，自动入账该积分；0 表示不奖励" />
-          </Form>
-        </Spin>
+                <Form
+          {...createModal.formProps}
+          key={`${createModal.formKey}-${modalType}`}
+        >
+          <Form.Slot label="二维码类型">
+            <Select style={{ width: '100%' }} optionList={MP_QRCODE_TYPE_OPTIONS} value={modalType} onChange={(v) => setModalType(v as MpQrcodeType)} />
+          </Form.Slot>
+          <Form.Input field="name" label="名称" placeholder="如：线下门店物料"
+            rules={[{ required: true, message: '请输入名称' }]} maxLength={100} />
+          <Form.Input field="sceneStr" label="场景值" placeholder="渠道标识，仅字母/数字/下划线/连字符"
+            rules={[{ required: true, message: '请输入场景值' }, { pattern: /^[A-Za-z0-9_-]+$/, message: '仅支持字母、数字、下划线、连字符' }]} maxLength={64} />
+          {modalType === 'temporary' && (
+            <Form.InputNumber field="expireSeconds" label="有效期(秒)" style={{ width: '100%' }} min={60} max={2592000} step={60}
+              rules={[{ required: true, message: '请设置有效期' }]} />
+          )}
+          <Form.InputNumber field="rewardPoints" label="扫码奖励积分" style={{ width: '100%' }} min={0} max={100000}
+            extraText="扫码关注的粉丝若已绑定会员，自动入账该积分；0 表示不奖励" />
+        </Form>
       </AppModal>
     </div>
   );

@@ -6,6 +6,7 @@ import { Plus } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { AppModal } from '@/components/AppModal';
+import { EditFormModal } from '@/components/EditFormModal';
 import { copyableNoColumn, createdAtColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { useListSearch } from '@/hooks/useListSearch';
 import { usePermission } from '@/hooks/usePermission';
@@ -219,46 +220,42 @@ export default function PaymentPreauthsPage() {
         {...listTableProps({ ...listQuery, isFetching: appsFetching || listQuery.isFetching }, { pagination: buildPagination })}
       />
 
-      <AppModal {...createModal.modalProps} title="发起预授权冻结" width={660}>
-        <Banner type="warning" closeIcon={null} style={{ marginBottom: 16 }}
-          description="资金冻结操作（押金场景）：冻结成功计入渠道账户冻结余额，可转支付或解冻；沙箱渠道即时生效。" />
-        <Form key={createModal.formKey} {...createModal.formProps}>
-          <Row gutter={16}>
-            <Col span={12}>
-              <PaymentAppField optionList={appOptions} loading={appsFetching}
-                onChange={(appId) => { setSelectedAppId(appId); createModal.formApi.current?.setValue('payMethod', undefined); }} />
-            </Col>
-            <Col span={12}>
-              <Form.Select field="payMethod" label="预授权方式" style={{ width: '100%' }} optionList={preauthMethodOptions} disabled={selectedAppId == null} rules={[{ required: true, message: '请选择方式' }]} />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <PaymentCurrencyField disabled />
-            </Col>
-            <Col span={12}>
-              <Form.InputNumber field="amountYuan" label="冻结金额(元)" min={0.01} step={0.01} precision={2} style={{ width: '100%' }} rules={[{ required: true, message: '请输入冻结金额' }]} />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Input field="payerAccount" label="付款人账号" placeholder="微信 openid / 支付宝账号" rules={[{ required: true, message: '付款人账号不能为空' }]} />
-            </Col>
-            <Col span={12}>
-              <Form.Input field="subject" label="冻结事由" placeholder="如：民宿押金" rules={[{ required: true, message: '冻结事由不能为空' }]} />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Input field="bizType" label="业务类型" placeholder="可选，默认 admin_preauth" />
-            </Col>
-            <Col span={12}>
-              <Form.Input field="bizId" label="业务单号" placeholder="业务侧唯一单号" rules={[{ required: true, message: '请输入业务单号' }]} />
-            </Col>
-          </Row>
-          <Form.TextArea field="remark" label="备注" autosize rows={1} placeholder="可选" />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={createModal} title="发起预授权冻结" width={660} header={<Banner type="warning" closeIcon={null} style={{ marginBottom: 16 }} description="资金冻结操作（押金场景）：冻结成功计入渠道账户冻结余额，可转支付或解冻；沙箱渠道即时生效。" />}>
+        <Row gutter={16}>
+          <Col span={12}>
+            <PaymentAppField optionList={appOptions} loading={appsFetching}
+              onChange={(appId) => { setSelectedAppId(appId); createModal.formApi.current?.setValue('payMethod', undefined); }} />
+          </Col>
+          <Col span={12}>
+            <Form.Select field="payMethod" label="预授权方式" style={{ width: '100%' }} optionList={preauthMethodOptions} disabled={selectedAppId == null} rules={[{ required: true, message: '请选择方式' }]} />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={12}>
+            <PaymentCurrencyField disabled />
+          </Col>
+          <Col span={12}>
+            <Form.InputNumber field="amountYuan" label="冻结金额(元)" min={0.01} step={0.01} precision={2} style={{ width: '100%' }} rules={[{ required: true, message: '请输入冻结金额' }]} />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Input field="payerAccount" label="付款人账号" placeholder="微信 openid / 支付宝账号" rules={[{ required: true, message: '付款人账号不能为空' }]} />
+          </Col>
+          <Col span={12}>
+            <Form.Input field="subject" label="冻结事由" placeholder="如：民宿押金" rules={[{ required: true, message: '冻结事由不能为空' }]} />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Input field="bizType" label="业务类型" placeholder="可选，默认 admin_preauth" />
+          </Col>
+          <Col span={12}>
+            <Form.Input field="bizId" label="业务单号" placeholder="业务侧唯一单号" rules={[{ required: true, message: '请输入业务单号' }]} />
+          </Col>
+        </Row>
+        <Form.TextArea field="remark" label="备注" autosize rows={1} placeholder="可选" />
+      </EditFormModal>
 
       <AppModal title="预授权转支付" visible={captureTarget != null} onOk={handleCaptureOk} onCancel={() => setCaptureTarget(null)} okButtonProps={{ loading: captureMutation.isPending }} width={460} closeOnEsc>
         {captureTarget && (

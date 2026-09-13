@@ -256,6 +256,7 @@ export default function LeavePage() {
         )}
         width={520}
       >
+        {/* eslint-disable-next-line no-restricted-syntax -- 三按钮自定义 footer（保存草稿 / 提交审批）且不带默认标题，属复合弹窗 */}
         <Form key={modal.formKey} {...modal.formProps}
           onValueChange={(values: Record<string, unknown>, changed: Record<string, unknown>) => {
             // 选完日期区间自动按自然日算天数（含首尾），仍可手动改成 0.5 步进的实际天数

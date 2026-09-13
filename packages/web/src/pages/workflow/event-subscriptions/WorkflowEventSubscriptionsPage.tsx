@@ -4,7 +4,7 @@
  * 提供事件订阅 CRUD + 启用/禁用 + 投递记录查看与重试。
  */
 import { useState } from 'react';
-import { Button, Col, Form, Modal, Row, Space, SideSheet, Spin, Switch, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Col, Form, Modal, Row, Space, SideSheet, Switch, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { RotateCcw } from 'lucide-react';
@@ -37,8 +37,8 @@ import { useEditModal } from '@/hooks/useEditModal';
 import { EMPTY_PLACEHOLDER, dateTimeColumn } from '@/utils/table-columns';
 import { abortSubmit } from '@/lib/abort-submit';
 import { DateRangeFilter, FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
-import ModalFooter from '@/components/ModalFooter';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormSheet } from '@/components/EditFormModal';
 
 const DELIVERY_STATUS_COLORS: Record<WorkflowEventDeliveryStatus, 'green' | 'red' | 'orange' | 'grey'> = {
   pending: 'grey',
@@ -354,95 +354,82 @@ export default function WorkflowEventSubscriptionsPage() {
         {...tableProps}
       />
 
-      <SideSheet
-        title={eventSubscriptionModal.modalProps.title}
-        visible={eventSubscriptionModal.modalProps.visible}
-        onCancel={eventSubscriptionModal.modalProps.onCancel}
-        placement="right"
-        width={680}
-        closeOnEsc
-        bodyStyle={{ paddingBottom: 16 }}
-        footer={<ModalFooter {...eventSubscriptionModal.footerProps} okText={eventSubscriptionModal.isEdit ? '保存' : '创建'} />}
-      >
-        <Spin spinning={eventSubscriptionModal.detailLoading} wrapperClassName="modal-spin-wrapper">
-        <Form key={eventSubscriptionModal.formKey} {...eventSubscriptionModal.formProps}>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Input field="name" label="名称" maxLength={64} rules={[{ required: true, message: '请输入名称' }]} />
-            </Col>
-            <Col span={12}>
-              <Form.Select
-                field="definitionId" label="所属流程" showClear
-                style={{ width: '100%' }}
-                helpText="不选则订阅全局"
-                optionList={defs.map((d) => ({ value: d.id, label: d.name }))}
-              />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={24}>
-              <Form.Select
-                field="events" label="订阅事件" multiple maxTagCount={5}
-                style={{ width: '100%' }}
-                rules={[{ required: true, type: 'array', min: 1, message: '至少选择一个事件' }]}
-                optionList={WORKFLOW_EVENT_TYPE_OPTIONS}
-              />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={24}>
-              <Form.Input field="url" label="回调 URL" placeholder="https://example.com/webhook"
-                rules={[{ required: true, message: '请输入 URL' }, { pattern: /^https?:\/\//i, message: '必须以 http:// 或 https:// 开头' }]} />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Input
-                field="secret"
-                label="签名密钥"
-                placeholder={editing ? '留空保持不变' : '留空将自动生成'}
-                maxLength={256}
-              />
-            </Col>
-            <Col span={12}>
-              <Form.Select field="signMode" label="签名模式" style={{ width: '100%' }} optionList={[
-                { value: 'hmacSha256', label: 'HMAC-SHA256' },
-                { value: 'none', label: '不签名' },
-              ]} />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Switch field="enabled" label="启用" />
-            </Col>
-            <Col span={12}>
-              <Form.Select
-                field="connectorId" label="连接器" showClear
-                style={{ width: '100%' }}
-                helpText="经连接器投递（鉴权/超时/重试/熔断），URL 仍为完整地址"
-                optionList={connectorOptions}
-              />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={24}>
-              <Form.TextArea field="description" label="描述" maxLength={256} autosize={{ minRows: 1, maxRows: 3 }} />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={24}>
-              <Form.TextArea
-                field="headers"
-                label="自定义请求头"
-                autosize={{ minRows: 2, maxRows: 6 }}
-                placeholder={'{\n  "X-Source": "zenith"\n}'}
-                helpText="JSON 对象格式，可留空"
-              />
-            </Col>
-          </Row>
-        </Form>
-        </Spin>
-      </SideSheet>
+      <EditFormSheet modal={eventSubscriptionModal} placement="right" width={680} bodyStyle={{ paddingBottom: 16 }} okText={eventSubscriptionModal.isEdit ? '保存' : '创建'}>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Input field="name" label="名称" maxLength={64} rules={[{ required: true, message: '请输入名称' }]} />
+          </Col>
+          <Col span={12}>
+            <Form.Select
+              field="definitionId" label="所属流程" showClear
+              style={{ width: '100%' }}
+              helpText="不选则订阅全局"
+              optionList={defs.map((d) => ({ value: d.id, label: d.name }))}
+            />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={24}>
+            <Form.Select
+              field="events" label="订阅事件" multiple maxTagCount={5}
+              style={{ width: '100%' }}
+              rules={[{ required: true, type: 'array', min: 1, message: '至少选择一个事件' }]}
+              optionList={WORKFLOW_EVENT_TYPE_OPTIONS}
+            />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={24}>
+            <Form.Input field="url" label="回调 URL" placeholder="https://example.com/webhook"
+              rules={[{ required: true, message: '请输入 URL' }, { pattern: /^https?:\/\//i, message: '必须以 http:// 或 https:// 开头' }]} />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Input
+              field="secret"
+              label="签名密钥"
+              placeholder={editing ? '留空保持不变' : '留空将自动生成'}
+              maxLength={256}
+            />
+          </Col>
+          <Col span={12}>
+            <Form.Select field="signMode" label="签名模式" style={{ width: '100%' }} optionList={[
+              { value: 'hmacSha256', label: 'HMAC-SHA256' },
+              { value: 'none', label: '不签名' },
+            ]} />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Switch field="enabled" label="启用" />
+          </Col>
+          <Col span={12}>
+            <Form.Select
+              field="connectorId" label="连接器" showClear
+              style={{ width: '100%' }}
+              helpText="经连接器投递（鉴权/超时/重试/熔断），URL 仍为完整地址"
+              optionList={connectorOptions}
+            />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={24}>
+            <Form.TextArea field="description" label="描述" maxLength={256} autosize={{ minRows: 1, maxRows: 3 }} />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={24}>
+            <Form.TextArea
+              field="headers"
+              label="自定义请求头"
+              autosize={{ minRows: 2, maxRows: 6 }}
+              placeholder={'{\n  "X-Source": "zenith"\n}'}
+              helpText="JSON 对象格式，可留空"
+            />
+          </Col>
+        </Row>
+      </EditFormSheet>
 
       <SideSheet
         title="投递记录"

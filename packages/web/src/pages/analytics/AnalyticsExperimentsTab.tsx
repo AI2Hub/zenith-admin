@@ -234,6 +234,7 @@ export default function AnalyticsExperimentsTab() {
       />
 
       <AppModal {...experimentModal.modalProps} title={experimentModal.isEdit ? '编辑 A/B 实验' : '新增 A/B 实验'} width={660}>
+        {/* eslint-disable-next-line no-restricted-syntax -- 表单之后是独立维护的变体编辑区（受控 Input 列表），属复合弹窗 */}
         <Form key={experimentModal.formKey} {...experimentModal.formProps}>
           <Row gutter={16}>
             <Col span={12}>

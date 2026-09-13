@@ -1,7 +1,6 @@
 import { useRef, useState } from 'react';
-import ModalFooter from '@/components/ModalFooter';
 import { useNavigate } from 'react-router-dom';
-import { Form, Toast, Tag, Row, Col, Typography, SideSheet } from '@douyinfe/semi-ui';
+import { Form, Toast, Tag, Row, Col, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { Coupon, CouponType, CouponTemplateStatus, CreateCouponInput } from '@zenith/shared/member';
@@ -27,6 +26,7 @@ import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-fi
 import { useEditModal } from '@/hooks/useEditModal';
 import { abortSubmit } from '@/lib/abort-submit';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormSheet } from '@/components/EditFormModal';
 
 const typeOptions = (Object.keys(COUPON_TYPE_LABELS) as CouponType[]).map((v) => ({ value: v, label: COUPON_TYPE_LABELS[v] }));
 const statusOptions = (Object.keys(COUPON_TEMPLATE_STATUS_LABELS) as CouponTemplateStatus[]).map((v) => ({ value: v, label: COUPON_TEMPLATE_STATUS_LABELS[v] }));
@@ -213,94 +213,84 @@ export default function CouponsPage() {
 
       <ConfigurableTable<Coupon> columns={columns} {...tableProps} />
 
-      <SideSheet
-        title={couponModal.modalProps.title}
-        visible={couponModal.modalProps.visible}
-        onCancel={couponModal.modalProps.onCancel}
-        width={700}
-        closeOnEsc
-        footer={<ModalFooter onCancel={couponModal.modalProps.onCancel} onOk={() => void couponModal.modalProps.onOk()} loading={couponModal.modalProps.okButtonProps.loading} disabled={couponModal.modalProps.okButtonProps.disabled} />}
-      >
-        <Form key={couponModal.formKey} {...couponModal.formProps}
-          onValueChange={(values) => { if (values.type) setFormType(values.type as CouponType); if (values.validType) setFormValidType(values.validType as 'fixed' | 'relative'); if (values.status) setFormStatus(values.status as CouponTemplateStatus); }}>
+      <EditFormSheet modal={couponModal} width={700} okText="确定" formProps={{ onValueChange: (values) => { if (values.type) setFormType(values.type as CouponType); if (values.validType) setFormValidType(values.validType as 'fixed' | 'relative'); if (values.status) setFormStatus(values.status as CouponTemplateStatus); } }}>
+        <Row gutter={16}>
+          <Col span={24}>
+            <Form.Input field="name" label="券名称" rules={[{ required: true, message: '请输入券名称' }]} maxLength={64} />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Select field="type" label="券类型" optionList={typeOptions} style={{ width: '100%' }} rules={[{ required: true }]} />
+          </Col>
+          <Col span={12}>
+            <Form.Select field="status" label="状态" optionList={statusOptions} style={{ width: '100%' }} rules={[{ required: true }]} />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.InputNumber field="faceValue" label={formType === 'amount' ? '减免金额(元)' : '折扣百分比(%)'} style={{ width: '100%' }}
+              min={formType === 'amount' ? 0.01 : 1} max={formType === 'percent' ? 100 : undefined}
+              precision={formType === 'amount' ? 2 : 0}
+              placeholder={formType === 'amount' ? '如 10 表示减 10 元' : '如 80 表示 8 折'}
+              rules={[{ required: true, message: '请输入面值' }]} />
+          </Col>
+          <Col span={12}>
+            <Form.InputNumber field="threshold" label="使用门槛(元)" style={{ width: '100%' }} min={0} precision={2} placeholder="0 表示无门槛" />
+          </Col>
+        </Row>
+        {formType === 'percent' && (
           <Row gutter={16}>
-            <Col span={24}>
-              <Form.Input field="name" label="券名称" rules={[{ required: true, message: '请输入券名称' }]} maxLength={64} />
+            <Col span={12}>
+              <Form.InputNumber field="maxDiscount" label="最高减免(元)" style={{ width: '100%' }} min={0} precision={2} placeholder="0 或留空表示不限" />
             </Col>
           </Row>
-          <Row gutter={16}>
+        )}
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.InputNumber field="totalQuantity" label="发行总量" style={{ width: '100%' }} min={0} placeholder="0 表示不限量" />
+          </Col>
+          <Col span={12}>
+            <Form.InputNumber field="perLimit" label="每人限领" style={{ width: '100%' }} min={0} placeholder="0 表示不限" />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.InputNumber field="exchangePoints" label="兑换积分" style={{ width: '100%' }} min={0} precision={0}
+              placeholder="0 表示不可积分兑换" extraText="配置后会员可在前台用积分兑换本券" />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Select field="validType" label="有效期类型" style={{ width: '100%' }} rules={[{ required: true }]}
+              optionList={[{ value: 'fixed', label: '固定日期' }, { value: 'relative', label: '领取后 N 天' }]} />
+          </Col>
+          {formValidType === 'relative' && (
             <Col span={12}>
-              <Form.Select field="type" label="券类型" optionList={typeOptions} style={{ width: '100%' }} rules={[{ required: true }]} />
+              <Form.InputNumber field="validDays" label="有效天数" style={{ width: '100%' }} min={1} placeholder="领取后多少天内有效"
+                rules={[{ required: true, message: '请输入有效天数' }]} />
             </Col>
-            <Col span={12}>
-              <Form.Select field="status" label="状态" optionList={statusOptions} style={{ width: '100%' }} rules={[{ required: true }]} />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.InputNumber field="faceValue" label={formType === 'amount' ? '减免金额(元)' : '折扣百分比(%)'} style={{ width: '100%' }}
-                min={formType === 'amount' ? 0.01 : 1} max={formType === 'percent' ? 100 : undefined}
-                precision={formType === 'amount' ? 2 : 0}
-                placeholder={formType === 'amount' ? '如 10 表示减 10 元' : '如 80 表示 8 折'}
-                rules={[{ required: true, message: '请输入面值' }]} />
-            </Col>
-            <Col span={12}>
-              <Form.InputNumber field="threshold" label="使用门槛(元)" style={{ width: '100%' }} min={0} precision={2} placeholder="0 表示无门槛" />
-            </Col>
-          </Row>
-          {formType === 'percent' && (
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.InputNumber field="maxDiscount" label="最高减免(元)" style={{ width: '100%' }} min={0} precision={2} placeholder="0 或留空表示不限" />
-              </Col>
-            </Row>
           )}
+        </Row>
+        {formValidType === 'fixed' && (
           <Row gutter={16}>
             <Col span={12}>
-              <Form.InputNumber field="totalQuantity" label="发行总量" style={{ width: '100%' }} min={0} placeholder="0 表示不限量" />
+              <Form.DatePicker field="validStart" label="生效时间" type="dateTime" style={{ width: '100%' }}
+                rules={formStatus === 'active' ? [{ required: true, message: '生效中的券必须配置生效时间' }] : []}
+                extraText={formStatus === 'active' ? undefined : '草稿可暂不配置，上架时必填'} />
             </Col>
             <Col span={12}>
-              <Form.InputNumber field="perLimit" label="每人限领" style={{ width: '100%' }} min={0} placeholder="0 表示不限" />
+              <Form.DatePicker field="validEnd" label="失效时间" type="dateTime" style={{ width: '100%' }}
+                rules={formStatus === 'active' ? [{ required: true, message: '生效中的券必须配置失效时间' }] : []} />
             </Col>
           </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.InputNumber field="exchangePoints" label="兑换积分" style={{ width: '100%' }} min={0} precision={0}
-                placeholder="0 表示不可积分兑换" extraText="配置后会员可在前台用积分兑换本券" />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Select field="validType" label="有效期类型" style={{ width: '100%' }} rules={[{ required: true }]}
-                optionList={[{ value: 'fixed', label: '固定日期' }, { value: 'relative', label: '领取后 N 天' }]} />
-            </Col>
-            {formValidType === 'relative' && (
-              <Col span={12}>
-                <Form.InputNumber field="validDays" label="有效天数" style={{ width: '100%' }} min={1} placeholder="领取后多少天内有效"
-                  rules={[{ required: true, message: '请输入有效天数' }]} />
-              </Col>
-            )}
-          </Row>
-          {formValidType === 'fixed' && (
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.DatePicker field="validStart" label="生效时间" type="dateTime" style={{ width: '100%' }}
-                  rules={formStatus === 'active' ? [{ required: true, message: '生效中的券必须配置生效时间' }] : []}
-                  extraText={formStatus === 'active' ? undefined : '草稿可暂不配置，上架时必填'} />
-              </Col>
-              <Col span={12}>
-                <Form.DatePicker field="validEnd" label="失效时间" type="dateTime" style={{ width: '100%' }}
-                  rules={formStatus === 'active' ? [{ required: true, message: '生效中的券必须配置失效时间' }] : []} />
-              </Col>
-            </Row>
-          )}
-          <Row gutter={16}>
-            <Col span={24}>
-              <Form.TextArea field="description" label="说明" maxCount={256} />
-            </Col>
-          </Row>
-        </Form>
-      </SideSheet>
+        )}
+        <Row gutter={16}>
+          <Col span={24}>
+            <Form.TextArea field="description" label="说明" maxCount={256} />
+          </Col>
+        </Row>
+      </EditFormSheet>
 
       <AppModal title={`发放优惠券：${issuing?.name ?? ''}`} visible={issueVisible} width={420}
         onCancel={() => setIssueVisible(false)} onOk={handleIssue}>

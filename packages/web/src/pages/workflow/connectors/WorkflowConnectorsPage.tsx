@@ -312,7 +312,7 @@ export default function WorkflowConnectorsPage() {
         closeOnEsc
       >
         <Input prefix="路径" value={testPath} onChange={setTestPath} placeholder="可选，相对基础地址的路径，如 /health" style={{ marginBottom: 12 }} showClear />
-        <Spin spinning={testMutation.isPending} wrapperClassName="modal-spin-wrapper">
+        <Spin spinning={testMutation.isPending}>
           {!testResult ? (
             <Typography.Text type="tertiary" size="small">点击「发送测试」对连接器发起一次探测请求。</Typography.Text>
           ) : (

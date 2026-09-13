@@ -1,5 +1,4 @@
 import { useMemo, useState, type CSSProperties } from 'react';
-import ModalFooter from '@/components/ModalFooter';
 import { ListSearchToolbar } from '@/components/list-page';
 import { ArrayField, Banner, Button, Descriptions, Form, Modal, SideSheet, TabPane, Tabs, Tag, TextArea, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -57,7 +56,7 @@ import { copyableNoColumn, createdAtColumn, dateTimeColumn, renderEllipsis, rend
 import { abortSubmit } from '@/lib/abort-submit';
 import { COMMON_STATUS_OPTIONS, enumValueOf } from '@zenith/shared/core';
 import { useListPage } from '@/hooks/useListPage';
-import { EditFormModal } from '@/components/EditFormModal';
+import { EditFormModal, EditFormSheet } from '@/components/EditFormModal';
 
 const RESERVATION_STATUS_COLORS = {
   active: 'blue',
@@ -663,38 +662,25 @@ export default function PaymentLedgerPage() {
         </div>
       </EditFormModal>
 
-      <SideSheet
-        title="新建资金凭证"
-        visible={journalModal.modalProps.visible}
-        onCancel={journalModal.modalProps.onCancel}
-        width={860}
-        closeOnEsc
-        footer={<ModalFooter onCancel={journalModal.modalProps.onCancel} onOk={() => void journalModal.modalProps.onOk()} loading={journalModal.modalProps.okButtonProps.loading} disabled={journalModal.modalProps.okButtonProps.disabled} />}
-      >
-        <Form
-          key={journalModal.formKey}
-          {...journalModal.formProps}
-          onValueChange={(values) => setJournalScope({
+      <EditFormSheet modal={journalModal} title="新建资金凭证" width={860} okText="确定" formProps={{ onValueChange: (values) => setJournalScope({
             appId: values.appId as number | undefined,
             channelConfigId: values.channelConfigId as number | undefined,
             currency: (values.currency as string | undefined) ?? 'CNY',
-          })}
-        >
-          <div className="auto-grid" style={{ ['--auto-grid-min']: '220px', ['--auto-grid-cols']: 2 } as CSSProperties}>
-            <Form.Select field="appId" label="支付应用" style={{ width: '100%' }} optionList={appOptions} filter rules={[{ required: true, message: '请选择支付应用' }]} />
-            <Form.Select field="channelConfigId" label="商户配置" style={{ width: '100%' }} optionList={merchantOptions} filter rules={[{ required: true, message: '请选择商户配置' }]} />
-            <Form.Select field="currency" label="币种" style={{ width: '100%' }} optionList={CURRENCY_OPTIONS} rules={[{ required: true, message: '请选择币种' }]} />
-          </div>
-          <div className="auto-grid" style={{ ['--auto-grid-min']: '220px', ['--auto-grid-cols']: 2 } as CSSProperties}>
-            <Form.Input field="sourceType" label="来源类型" maxLength={64} rules={[{ required: true, message: '请输入来源类型' }]} />
-            <Form.Input field="sourceId" label="来源标识" maxLength={128} rules={[{ required: true, message: '请输入来源标识' }]} />
-          </div>
-          <Form.TextArea field="description" label="凭证摘要" maxCount={512} autosize rows={2} rules={[{ required: true, message: '请输入凭证摘要' }]} />
-          <Form.Slot label="分录行">
-            <JournalLinesField accountOptions={scopedAccountOptions} />
-          </Form.Slot>
-        </Form>
-      </SideSheet>
+          }) }}>
+        <div className="auto-grid" style={{ ['--auto-grid-min']: '220px', ['--auto-grid-cols']: 2 } as CSSProperties}>
+          <Form.Select field="appId" label="支付应用" style={{ width: '100%' }} optionList={appOptions} filter rules={[{ required: true, message: '请选择支付应用' }]} />
+          <Form.Select field="channelConfigId" label="商户配置" style={{ width: '100%' }} optionList={merchantOptions} filter rules={[{ required: true, message: '请选择商户配置' }]} />
+          <Form.Select field="currency" label="币种" style={{ width: '100%' }} optionList={CURRENCY_OPTIONS} rules={[{ required: true, message: '请选择币种' }]} />
+        </div>
+        <div className="auto-grid" style={{ ['--auto-grid-min']: '220px', ['--auto-grid-cols']: 2 } as CSSProperties}>
+          <Form.Input field="sourceType" label="来源类型" maxLength={64} rules={[{ required: true, message: '请输入来源类型' }]} />
+          <Form.Input field="sourceId" label="来源标识" maxLength={128} rules={[{ required: true, message: '请输入来源标识' }]} />
+        </div>
+        <Form.TextArea field="description" label="凭证摘要" maxCount={512} autosize rows={2} rules={[{ required: true, message: '请输入凭证摘要' }]} />
+        <Form.Slot label="分录行">
+          <JournalLinesField accountOptions={scopedAccountOptions} />
+        </Form.Slot>
+      </EditFormSheet>
 
       <EditFormModal modal={reservationModal} title="新建资金预占" width={720}>
         <Form.Select field="accountId" label="账本账户" style={{ width: '100%' }} optionList={accountOptions} filter rules={[{ required: true, message: '请选择账本账户' }]} />

@@ -172,6 +172,7 @@ export default function RuleFlowsPage() {
         width={880}
         bodyStyle={{ maxHeight: '72vh', overflowY: 'auto' }}
       >
+        {/* eslint-disable-next-line no-restricted-syntax -- 表单之后是独立维护的步骤编排区，属复合弹窗 */}
         <Form key={modal.formKey} {...modal.formProps}>
           <Form.Input field="key" label="Key" disabled={modal.isEdit} rules={[{ required: true, message: 'key 必填' }]} placeholder="如 risk_decision_flow" />
           <Form.Input field="name" label="名称" rules={[{ required: true, message: '名称必填' }]} />

@@ -34,6 +34,7 @@ import { EMPTY_PLACEHOLDER, dateTimeColumn, enabledStatusColumn, renderEllipsis 
 import { abortSubmit } from '@/lib/abort-submit';
 import { FilterSelect, StatusSelect } from '@/components/search-filters';
 import ModalFooter from '@/components/ModalFooter';
+
 import { useListPage } from '@/hooks/useListPage';
 
 const TRIGGER_COLORS: Record<WorkflowAutomationTrigger, TagColor> = {
@@ -492,7 +493,8 @@ export default function WorkflowAutomationsPage() {
         bodyStyle={{ paddingBottom: 16 }}
         footer={<ModalFooter {...automationModal.footerProps} okText={automationModal.isEdit ? '保存' : '创建'} />}
       >
-        <Spin spinning={automationModal.detailLoading} wrapperClassName="modal-spin-wrapper">
+        <Spin spinning={automationModal.detailLoading}>
+        {/* eslint-disable-next-line no-restricted-syntax -- 表单之后是独立维护的动作编辑区，属复合抽屉 */}
         <Form key={automationModal.formKey} {...automationModal.formProps}>
           <Row gutter={16}>
             <Col span={12}>

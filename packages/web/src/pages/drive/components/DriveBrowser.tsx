@@ -4,7 +4,7 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { ChevronDown, Copy, Download, FolderPlus, LayoutGrid, List as ListIcon, Lock, MoveRight, Star, Trash2, Upload } from 'lucide-react';
 import { formatBytes } from '@zenith/shared/core';
 import { DRIVE_NODE_SORT_FIELD_OPTIONS, DRIVE_ROLE_LABELS, type DriveNode, type DriveNodeListResult, type DriveNodeSortField } from '@zenith/shared/drive';
-import { AppModal } from '@/components/AppModal';
+import { EditFormModal } from '@/components/EditFormModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { CursorContextDropdown, type CursorPoint } from '@/components/CursorContextDropdown';
 import { FileNameCell } from '@/components/FileNameCell';
@@ -350,13 +350,11 @@ export function DriveBrowser({ spaceId, folderId, onNavigate, onOpenDetail, onUp
 
       <FilePreviewLayer preview={preview} watermark={watermark} />
 
-      <AppModal {...nameModal.modalProps} title={nameModal.isEdit ? '重命名' : '新建文件夹'} width={460}>
-        {/* onSubmit 接回车提交，与确定按钮走同一条校验 → 保存 → 关闭链路 */}
-        <Form key={nameModal.formKey} {...nameModal.formProps} onSubmit={() => void nameModal.modalProps.onOk()}>
-          <Form.Input field="name" label="名称" autoFocus maxLength={255}
-            rules={[{ required: true, message: '名称不能为空' }, { pattern: /^[^\\/:*?"<>|]+$/, message: '名称不能包含 \\ / : * ? " < > |' }]} />
-        </Form>
-      </AppModal>
+      {/* onSubmit 接回车提交，与确定按钮走同一条校验 → 保存 → 关闭链路 */}
+      <EditFormModal modal={nameModal} title={nameModal.isEdit ? '重命名' : '新建文件夹'} width={460} formProps={{ onSubmit: () => void nameModal.modalProps.onOk() }}>
+        <Form.Input field="name" label="名称" autoFocus maxLength={255}
+          rules={[{ required: true, message: '名称不能为空' }, { pattern: /^[^\\/:*?"<>|]+$/, message: '名称不能包含 \\ / : * ? " < > |' }]} />
+      </EditFormModal>
 
       <DriveFolderPicker visible={!!picker} title={picker?.mode === 'copy' ? '复制到' : '移动到'} okText={picker?.mode === 'copy' ? '复制' : '移动'}
         defaultSpaceId={spaceId} disabledNodeIds={picker?.nodes.filter((n) => n.type === 'folder').map((n) => n.id) ?? []}

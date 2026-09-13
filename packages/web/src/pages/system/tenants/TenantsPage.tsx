@@ -305,7 +305,7 @@ export default function TenantsPage() {
         onCancel={() => setStatsVisible(false)}
         width={420}
       >
-        <Spin spinning={statsQuery.isFetching} wrapperClassName="modal-spin-wrapper">
+        <Spin spinning={statsQuery.isFetching}>
           {stats ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div>

@@ -1,22 +1,7 @@
 import { useMemo, useState } from 'react';
 import ModalFooter from '@/components/ModalFooter';
 import { useNavigate } from 'react-router-dom';
-import {
-  Button,
-  Divider,
-  Form,
-  Modal,
-  Radio,
-  RadioGroup,
-  Select,
-  SideSheet,
-  Space,
-  TabPane,
-  Tabs,
-  Tag,
-  Toast,
-  Typography,
-} from '@douyinfe/semi-ui';
+import { Button, Divider, Form, Modal, Radio, RadioGroup, Select, SideSheet, Space, TabPane, Tabs, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import { AlertTriangle, Ban, Eye, Gauge, ShieldOff, Zap } from 'lucide-react';
 import {
   RATE_LIMIT_ALGORITHM_LABELS,
@@ -60,6 +45,7 @@ import {
   useUnbanRateLimitKey,
   useUnblockRateLimitKey,
 } from '@/hooks/queries/rate-limit';
+import { EditFormSheet } from '@/components/EditFormModal';
 
 const { Text } = Typography;
 
@@ -697,97 +683,88 @@ export default function RateLimitPage() {
         )}
       </Modal>
 
-      <SideSheet
-        title={editModal.modalProps.title}
-        visible={editModal.modalProps.visible}
-        onCancel={editModal.modalProps.onCancel}
-        closeOnEsc
-        width={680}
-        footer={<ModalFooter onCancel={editModal.modalProps.onCancel} onOk={() => void editModal.modalProps.onOk()} okText={editModal.editing ? '保存（立即生效）' : '创建（立即生效）'} loading={editModal.modalProps.okButtonProps.loading} disabled={editModal.modalProps.okButtonProps.disabled} />}
-      >
-        <Form key={editModal.formKey} {...editModal.formProps}>
-          {!editModal.editing && (
-            <Form.Input
-              field="name"
-              label="规则名称"
-              placeholder="小写字母/数字/下划线/连字符，如 upload"
-              rules={[
-                { required: true, message: '请输入规则名称' },
-                { pattern: /^[a-z][a-z0-9_-]*$/, message: '只能小写字母、数字、下划线、连字符，且以字母开头' },
-              ]}
-            />
-          )}
-          <Form.Input field="description" label="描述" placeholder="可选" />
-          <Form.Select
-            field="mode"
-            label="模式"
-            optionList={RATE_LIMIT_MODE_OPTIONS}
-            style={{ width: '100%' }}
-            extraText="观察模式下超限只记录统计不实际拦截，用于新规则上线前安全调参"
+      <EditFormSheet modal={editModal} width={680} footer={<ModalFooter onCancel={editModal.modalProps.onCancel} onOk={() => void editModal.modalProps.onOk()} okText={editModal.editing ? '保存（立即生效）' : '创建（立即生效）'} loading={editModal.modalProps.okButtonProps.loading} disabled={editModal.modalProps.okButtonProps.disabled} />}>
+        {!editModal.editing && (
+          <Form.Input
+            field="name"
+            label="规则名称"
+            placeholder="小写字母/数字/下划线/连字符，如 upload"
+            rules={[
+              { required: true, message: '请输入规则名称' },
+              { pattern: /^[a-z][a-z0-9_-]*$/, message: '只能小写字母、数字、下划线、连字符，且以字母开头' },
+            ]}
           />
-          <Form.Select
-            field="algorithm"
-            label="限流算法"
-            optionList={RATE_LIMIT_ALGORITHM_OPTIONS}
-            style={{ width: '100%' }}
-            extraText="滑动窗口消除固定窗口在边界处最多 2× 限额的突刺，适合 auth / 支付等敏感规则"
-          />
-          <div style={{ display: 'flex', gap: 8 }}>
-            <Form.InputNumber field="windowValue" label="时间窗口" min={1} style={{ width: '100%' }} rules={[{ required: true, message: '请输入窗口时长' }]} fieldStyle={{ flex: 1 }} />
-            <Form.Select field="windowUnit" label="单位" optionList={RATE_LIMIT_WINDOW_UNIT_OPTIONS} style={{ width: 110 }} />
-          </div>
-          <Form.InputNumber field="limit" label="窗口内上限" min={1} style={{ width: '100%' }} rules={[{ required: true, message: '请输入请求上限' }]} />
-          <Form.Select
-            field="keyType"
-            label="计数维度"
-            optionList={RATE_LIMIT_KEY_TYPE_OPTIONS}
-            style={{ width: '100%' }}
-            extraText="「登录用户」在无登录态的公开路径上自动回退为按 IP 计数"
-          />
-          <Form.Select
-            field="pathPatterns"
-            label="绑定路径"
-            placeholder="选择或输入 /api/ 开头的路径，支持 /* 通配，留空则仅代码挂载生效"
-            multiple
-            filter
-            allowCreate
-            showClear
-            searchPosition="dropdown"
-            style={{ width: '100%' }}
-            optionList={apiPaths}
-            virtualize={{ height: 260, width: '100%', itemSize: 36 }}
-            rules={[{
-              validator: (_rule: unknown, value: string[] | undefined) =>
-                !value || value.every((p) => p.startsWith('/api/')),
-              message: '绑定路径必须以 /api/ 开头（限流仅挂载在 /api/* 上）',
-            }]}
-          />
-          <Form.InputNumber
-            field="priority"
-            label="路径优先级"
-            min={0}
-            max={9999}
-            style={{ width: '100%' }}
-            extraText="多条规则的绑定路径命中同一请求时应用优先级大者；仅路径绑定时生效"
-          />
-          <Form.TagInput
-            field="allowlist"
-            label="白名单"
-            placeholder="IP、CIDR（10.0.0.0/8）或 u:用户ID，回车添加"
-            extraText="命中白名单的请求直接放行且不计数；用于内部探活、回调源与办公网豁免"
-          />
-          <Form.InputNumber
-            field="alertThreshold"
-            label="告警阈值"
-            min={1}
-            style={{ width: '100%' }}
-            placeholder="留空不告警"
-            extraText="单小时拦截数达到该值时通知平台管理员（同一小时只告警一次）"
-          />
-          <Form.Input field="blockedMessage" label="拦截提示文案" placeholder="为空使用默认提示" />
-          <Form.Switch field="enabled" label="启用" />
-        </Form>
-      </SideSheet>
+        )}
+        <Form.Input field="description" label="描述" placeholder="可选" />
+        <Form.Select
+          field="mode"
+          label="模式"
+          optionList={RATE_LIMIT_MODE_OPTIONS}
+          style={{ width: '100%' }}
+          extraText="观察模式下超限只记录统计不实际拦截，用于新规则上线前安全调参"
+        />
+        <Form.Select
+          field="algorithm"
+          label="限流算法"
+          optionList={RATE_LIMIT_ALGORITHM_OPTIONS}
+          style={{ width: '100%' }}
+          extraText="滑动窗口消除固定窗口在边界处最多 2× 限额的突刺，适合 auth / 支付等敏感规则"
+        />
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Form.InputNumber field="windowValue" label="时间窗口" min={1} style={{ width: '100%' }} rules={[{ required: true, message: '请输入窗口时长' }]} fieldStyle={{ flex: 1 }} />
+          <Form.Select field="windowUnit" label="单位" optionList={RATE_LIMIT_WINDOW_UNIT_OPTIONS} style={{ width: 110 }} />
+        </div>
+        <Form.InputNumber field="limit" label="窗口内上限" min={1} style={{ width: '100%' }} rules={[{ required: true, message: '请输入请求上限' }]} />
+        <Form.Select
+          field="keyType"
+          label="计数维度"
+          optionList={RATE_LIMIT_KEY_TYPE_OPTIONS}
+          style={{ width: '100%' }}
+          extraText="「登录用户」在无登录态的公开路径上自动回退为按 IP 计数"
+        />
+        <Form.Select
+          field="pathPatterns"
+          label="绑定路径"
+          placeholder="选择或输入 /api/ 开头的路径，支持 /* 通配，留空则仅代码挂载生效"
+          multiple
+          filter
+          allowCreate
+          showClear
+          searchPosition="dropdown"
+          style={{ width: '100%' }}
+          optionList={apiPaths}
+          virtualize={{ height: 260, width: '100%', itemSize: 36 }}
+          rules={[{
+            validator: (_rule: unknown, value: string[] | undefined) =>
+              !value || value.every((p) => p.startsWith('/api/')),
+            message: '绑定路径必须以 /api/ 开头（限流仅挂载在 /api/* 上）',
+          }]}
+        />
+        <Form.InputNumber
+          field="priority"
+          label="路径优先级"
+          min={0}
+          max={9999}
+          style={{ width: '100%' }}
+          extraText="多条规则的绑定路径命中同一请求时应用优先级大者；仅路径绑定时生效"
+        />
+        <Form.TagInput
+          field="allowlist"
+          label="白名单"
+          placeholder="IP、CIDR（10.0.0.0/8）或 u:用户ID，回车添加"
+          extraText="命中白名单的请求直接放行且不计数；用于内部探活、回调源与办公网豁免"
+        />
+        <Form.InputNumber
+          field="alertThreshold"
+          label="告警阈值"
+          min={1}
+          style={{ width: '100%' }}
+          placeholder="留空不告警"
+          extraText="单小时拦截数达到该值时通知平台管理员（同一小时只告警一次）"
+        />
+        <Form.Input field="blockedMessage" label="拦截提示文案" placeholder="为空使用默认提示" />
+        <Form.Switch field="enabled" label="启用" />
+      </EditFormSheet>
     </div>
   );
 }

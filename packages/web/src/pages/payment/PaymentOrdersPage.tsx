@@ -6,7 +6,7 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { PaymentResultModal } from './PaymentResultModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { CreateButton } from '@/components/toolbar-controls';
-import { compactParams } from '@/lib/query';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 // 本页无图表：直接引组件文件，避免经桶文件带入 ~2MB 的 vchart
 import { StatCard, StatGrid } from '@/components/charts/StatCard';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -30,7 +30,6 @@ import {
   useQueryPaymentOrder,
   useSimulatePaymentOrderPaid,
   invalidatePaymentOrders,
-  type PaymentOrderListParams,
 } from '@/hooks/queries/payment-orders';
 import { usePaymentStats } from '@/hooks/queries/payment-stats';
 import { useListSearch } from '@/hooks/useListSearch';
@@ -107,7 +106,7 @@ export default function PaymentOrdersPage() {
   const { options: paymentMethodOptions, canReadCapabilities, capabilitiesQuery } = useAppPaymentMethodOptions(selectedPaymentApp, PAYMENT_CREATE_METHODS);
 
   // 已提交筛选 → 契约查询参数：列表与导出共用同一份映射
-  const filterQuery = useMemo<Omit<PaymentOrderListParams, 'page' | 'pageSize'>>(() => compactParams({
+  const filterQuery = useFilterQuery({
     keyword: submittedParams.keyword,
     channel: enumValueOf(PAYMENT_CHANNELS, submittedParams.channel),
     status: enumValueOf(PAYMENT_ORDER_STATUSES, submittedParams.status),
@@ -116,7 +115,7 @@ export default function PaymentOrdersPage() {
     minAmount: submittedParams.minAmount === undefined ? undefined : Math.round(submittedParams.minAmount * 100),
     maxAmount: submittedParams.maxAmount === undefined ? undefined : Math.round(submittedParams.maxAmount * 100),
     ...formatDateTimeRangeForApi(submittedParams.timeRange),
-  }), [submittedParams]);
+  });
 
   const listQuery = usePaymentOrderList({ page, pageSize, ...filterQuery });
   const statsQuery = usePaymentStats();

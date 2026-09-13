@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
-import ModalFooter from '@/components/ModalFooter';
-import { ArrayField, Button, Form, SideSheet, Spin, TabPane, Tabs, Tag, Toast, Typography, useFormState, withField } from '@douyinfe/semi-ui';
+import { ArrayField, Button, Form, SideSheet, TabPane, Tabs, Tag, Toast, Typography, useFormState, withField } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -36,6 +35,7 @@ import {
   useIotAutomationRunList, useSaveIotAutomation,
 } from '@/hooks/queries/iot-automations';
 import { useFilterQuery } from '@/hooks/useFilterQuery';
+import { EditFormSheet } from '@/components/EditFormModal';
 
 const { Text } = Typography;
 
@@ -287,25 +287,14 @@ function AutomationRulesTab({ onShowRuns }: Readonly<{ onShowRuns: (automation: 
         {...listTableProps(listQuery, { pagination: buildPagination, empty: '暂无场景联动，点击「新增联动」创建第一条' })}
       />
 
-      <SideSheet
-        title={modal.modalProps.title}
-        visible={modal.modalProps.visible}
-        onCancel={modal.modalProps.onCancel}
-        closeOnEsc
-        width={720}
-        footer={<ModalFooter onCancel={modal.modalProps.onCancel} onOk={() => void modal.modalProps.onOk()} loading={modal.modalProps.okButtonProps.loading} disabled={modal.modalProps.okButtonProps.disabled} />}
-      >
-        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
-          <Form key={modal.formKey} {...modal.formProps}>
-            {({ formState }) => (
-              <AutomationFormBody
-                isEdit={modal.isEdit}
-                values={formState.values as Record<string, unknown>}
-              />
-            )}
-          </Form>
-        </Spin>
-      </SideSheet>
+      <EditFormSheet modal={modal} width={720} okText="确定">
+        {({ formState }) => (
+          <AutomationFormBody
+            isEdit={modal.isEdit}
+            values={formState.values as Record<string, unknown>}
+          />
+        )}
+      </EditFormSheet>
     </>
   );
 }

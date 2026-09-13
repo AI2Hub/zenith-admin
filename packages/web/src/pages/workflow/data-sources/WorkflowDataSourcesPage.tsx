@@ -212,7 +212,7 @@ export default function WorkflowDataSourcesPage() {
         width={480}
         closeOnEsc
       >
-        <Spin spinning={testMutation.isPending} wrapperClassName="modal-spin-wrapper">
+        <Spin spinning={testMutation.isPending}>
           {testError ? (
             <Typography.Text type="danger">{testError}</Typography.Text>
           ) : testOptions.length === 0 ? (

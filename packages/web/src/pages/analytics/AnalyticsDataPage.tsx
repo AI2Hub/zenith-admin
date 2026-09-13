@@ -861,6 +861,7 @@ export default function AnalyticsDataPage() {
                 </Typography.Text>
               )
             )}
+            {/* eslint-disable-next-line no-restricted-syntax -- 表单之前按引用统计条件渲染 Banner，之后还有独立说明区，属复合弹窗 */}
             <Form key={metaModal.formKey} {...metaModal.formProps}>
               <Form.Input field="eventName" label="事件名" placeholder="如 page_view" rules={[{ required: true, message: '请输入事件名' }]} />
               <Form.Input field="displayName" label="显示名" placeholder="可选，如 页面进入" />

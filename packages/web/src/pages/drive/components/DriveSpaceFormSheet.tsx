@@ -4,6 +4,7 @@ import {
   DRIVE_ROLE_OPTIONS, type CreateDriveSpaceInput, type DriveRole, type DriveSpace, type UpdateDriveSpaceInput,
 } from '@zenith/shared/drive';
 import { ModalFooter } from '@/components/ModalFooter';
+
 import { useEditModal } from '@/hooks/useEditModal';
 import { useDriveSpaceDetail, useSaveDriveSpace } from '@/hooks/queries/drive';
 import { DriveSubjectPicker, type SubjectGrant } from './DriveSubjectPicker';
@@ -74,6 +75,7 @@ export function DriveSpaceFormSheet({ target, onClose }: DriveSpaceFormSheetProp
     <SideSheet title={modal.modalProps.title} visible={modal.visible} onCancel={close} closeOnEsc width={640}
       footer={<ModalFooter {...modal.footerProps} okText="保存" />}>
       <Spin spinning={modal.detailLoading}>
+        {/* eslint-disable-next-line no-restricted-syntax -- 表单之后是协作者编辑区，属复合抽屉 */}
         <Form key={modal.formKey} {...modal.formProps}>
           <Form.Input field="name" label="空间名称" rules={[{ required: true, message: '请输入空间名称' }, { max: 100 }]} />
           <Form.TextArea field="description" label="描述" maxCount={300} rows={2} />

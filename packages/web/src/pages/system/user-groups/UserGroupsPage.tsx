@@ -34,8 +34,8 @@ import { BatchDeleteButton, CreateButton } from '@/components/toolbar-controls';
 import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmAndDelete, deleteAction, ListSearchToolbar, useRowSelection, useStatusToggle } from '@/components/list-page';
 import { MemberAssignmentSheet, memberPreviewColumn } from '@/components/members/MemberAssignmentSheet';
-import ModalFooter from '@/components/ModalFooter';
 import { useListPage } from '@/hooks/useListPage';
+import { EditFormSheet } from '@/components/EditFormModal';
 
 interface SearchParams {
   keyword: string;
@@ -274,123 +274,112 @@ export default function UserGroupsPage() {
         {...tableProps}
       />
 
-      <SideSheet
-        title={groupModal.modalProps.title}
-        visible={groupModal.modalProps.visible}
-        onCancel={groupModal.modalProps.onCancel}
-        width={520}
-        closeOnEsc
-        footer={<ModalFooter {...groupModal.footerProps} />}
-      >
-        <Spin spinning={groupModal.detailLoading}>
-        <Form key={groupModal.formKey} {...groupModal.formProps}>
-          {({ formState }) => {
-            const memberMode = (formState.values as { memberMode?: string }).memberMode ?? 'static';
-            return (
-              <>
-                <Form.Input field="name" label="名称" placeholder="请输入用户组名称" rules={[{ required: true, message: '请输入用户组名称' }]} />
-                <Form.Input field="code" label="编码" placeholder="字母数字下划线" rules={[
-                  { required: true, message: '请输入用户组编码' },
-                  { pattern: /^\w+$/, message: '编码只能包含字母、数字和下划线' },
-                ]} />
-                <Form.Select
-                  field="ownerId" label="负责人" placeholder="请选择负责人（可选）"
-                  style={{ width: '100%' }} filter showClear
-                  optionList={allUsers.map(u => ({ value: u.id, label: `${u.nickname} (${u.username})` }))}
-                />
-                <Form.Select
-                  field="status" label="状态" style={{ width: '100%' }}
-                  optionList={statusOptions}
-                />
-                <Form.RadioGroup
-                  field="memberMode" label="成员模式" type="button"
-                  extraText={memberMode === 'dynamic'
-                    ? '成员由规则自动维护：用户的部门/岗位/状态变化后自动加入或退出，不可手工增删'
-                    : '成员由管理员手工维护'}
-                >
-                  <Form.Radio value="static">静态（手工维护）</Form.Radio>
-                  <Form.Radio value="dynamic">动态（按规则自动维护）</Form.Radio>
-                </Form.RadioGroup>
-                {memberMode === 'dynamic' && (
-                  <div style={{
-                    border: '1px solid var(--semi-color-border)',
-                    borderRadius: 'var(--semi-border-radius-medium)',
-                    padding: '4px 16px 16px',
-                    margin: '12px 0',
-                  }}>
-                    <Form.TreeSelect
-                      field="memberRule.departmentIds" label="命中部门" placeholder="选择部门（可多选）"
-                      style={{ width: '100%' }} multiple filterTreeNode showClear leafOnly={false}
-                      treeData={departmentTreeData}
-                    />
-                    <Form.Switch field="memberRule.includeSubDepartments" label="包含子部门" checkedText="是" uncheckedText="否" />
-                    <Form.Select
-                      field="memberRule.positionIds" label="命中岗位" placeholder="选择岗位（可多选）"
-                      extraText="多个岗位满足任一即可；与部门条件同时设置时须同时满足"
-                      style={{ width: '100%' }} multiple filter showClear
-                      optionList={(positionsQuery.data ?? []).map((p) => ({ value: p.id, label: p.name }))}
-                    />
-                    <Form.Select
-                      field="memberRule.includeUserIds" label="强制包含" placeholder="选择用户（可选）"
-                      extraText="规则之外的例外成员"
-                      style={{ width: '100%' }} multiple filter showClear
-                      optionList={allUsers.map(u => ({ value: u.id, label: `${u.nickname} (${u.username})` }))}
-                    />
-                    <Form.Select
-                      field="memberRule.excludeUserIds" label="强制排除" placeholder="选择用户（可选）"
-                      extraText="优先级最高，命中规则也不会加入"
-                      style={{ width: '100%' }} multiple filter showClear
-                      optionList={allUsers.map(u => ({ value: u.id, label: `${u.nickname} (${u.username})` }))}
-                    />
-                    <Space vertical align="start" spacing={8} style={{ width: '100%', marginTop: 12 }}>
-                      <Button
-                        theme="light"
-                        loading={rulePreviewMutation.isPending}
-                        onClick={() => {
-                          const memberRule = ((formState.values as { memberRule?: UserGroupMemberRule }).memberRule ?? {});
-                          rulePreviewMutation.mutate(
-                            { body: { groupId: groupModal.editing?.id, memberRule } },
-                            { onSuccess: setRulePreview },
-                          );
-                        }}
-                      >
-                        预览成员变化
-                      </Button>
-                      {rulePreview && (
-                        <div style={{ fontSize: 12, lineHeight: '20px', width: '100%' }}>
-                          <Typography.Text type="secondary">
-                            目标成员 {rulePreview.total} 人：新加入 {rulePreview.joiningCount} 人，移除 {rulePreview.leavingCount} 人
-                          </Typography.Text>
-                          {rulePreview.joining.length > 0 && (
-                            <div style={{ marginTop: 4 }}>
-                              <Typography.Text type="success">加入：</Typography.Text>
-                              <Space wrap spacing={4}>
-                                {rulePreview.joining.map((u) => <Tag key={u.id} size="small" color="green">{u.nickname}</Tag>)}
-                                {rulePreview.joiningCount > rulePreview.joining.length && <Tag size="small">+{rulePreview.joiningCount - rulePreview.joining.length}</Tag>}
-                              </Space>
-                            </div>
-                          )}
-                          {rulePreview.leaving.length > 0 && (
-                            <div style={{ marginTop: 4 }}>
-                              <Typography.Text type="danger">移除：</Typography.Text>
-                              <Space wrap spacing={4}>
-                                {rulePreview.leaving.map((u) => <Tag key={u.id} size="small" color="red">{u.nickname}</Tag>)}
-                                {rulePreview.leavingCount > rulePreview.leaving.length && <Tag size="small">+{rulePreview.leavingCount - rulePreview.leaving.length}</Tag>}
-                              </Space>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </Space>
-                  </div>
-                )}
-                <Form.TextArea field="description" label="描述" placeholder="请输入描述（可选）" maxCount={256} />
-              </>
-            );
-          }}
-        </Form>
-        </Spin>
-      </SideSheet>
+      <EditFormSheet modal={groupModal} width={520} okText="确定">
+        {({ formState }) => {
+          const memberMode = (formState.values as { memberMode?: string }).memberMode ?? 'static';
+          return (
+            <>
+              <Form.Input field="name" label="名称" placeholder="请输入用户组名称" rules={[{ required: true, message: '请输入用户组名称' }]} />
+              <Form.Input field="code" label="编码" placeholder="字母数字下划线" rules={[
+                { required: true, message: '请输入用户组编码' },
+                { pattern: /^\w+$/, message: '编码只能包含字母、数字和下划线' },
+              ]} />
+              <Form.Select
+                field="ownerId" label="负责人" placeholder="请选择负责人（可选）"
+                style={{ width: '100%' }} filter showClear
+                optionList={allUsers.map(u => ({ value: u.id, label: `${u.nickname} (${u.username})` }))}
+              />
+              <Form.Select
+                field="status" label="状态" style={{ width: '100%' }}
+                optionList={statusOptions}
+              />
+              <Form.RadioGroup
+                field="memberMode" label="成员模式" type="button"
+                extraText={memberMode === 'dynamic'
+                  ? '成员由规则自动维护：用户的部门/岗位/状态变化后自动加入或退出，不可手工增删'
+                  : '成员由管理员手工维护'}
+              >
+                <Form.Radio value="static">静态（手工维护）</Form.Radio>
+                <Form.Radio value="dynamic">动态（按规则自动维护）</Form.Radio>
+              </Form.RadioGroup>
+              {memberMode === 'dynamic' && (
+                <div style={{
+                  border: '1px solid var(--semi-color-border)',
+                  borderRadius: 'var(--semi-border-radius-medium)',
+                  padding: '4px 16px 16px',
+                  margin: '12px 0',
+                }}>
+                  <Form.TreeSelect
+                    field="memberRule.departmentIds" label="命中部门" placeholder="选择部门（可多选）"
+                    style={{ width: '100%' }} multiple filterTreeNode showClear leafOnly={false}
+                    treeData={departmentTreeData}
+                  />
+                  <Form.Switch field="memberRule.includeSubDepartments" label="包含子部门" checkedText="是" uncheckedText="否" />
+                  <Form.Select
+                    field="memberRule.positionIds" label="命中岗位" placeholder="选择岗位（可多选）"
+                    extraText="多个岗位满足任一即可；与部门条件同时设置时须同时满足"
+                    style={{ width: '100%' }} multiple filter showClear
+                    optionList={(positionsQuery.data ?? []).map((p) => ({ value: p.id, label: p.name }))}
+                  />
+                  <Form.Select
+                    field="memberRule.includeUserIds" label="强制包含" placeholder="选择用户（可选）"
+                    extraText="规则之外的例外成员"
+                    style={{ width: '100%' }} multiple filter showClear
+                    optionList={allUsers.map(u => ({ value: u.id, label: `${u.nickname} (${u.username})` }))}
+                  />
+                  <Form.Select
+                    field="memberRule.excludeUserIds" label="强制排除" placeholder="选择用户（可选）"
+                    extraText="优先级最高，命中规则也不会加入"
+                    style={{ width: '100%' }} multiple filter showClear
+                    optionList={allUsers.map(u => ({ value: u.id, label: `${u.nickname} (${u.username})` }))}
+                  />
+                  <Space vertical align="start" spacing={8} style={{ width: '100%', marginTop: 12 }}>
+                    <Button
+                      theme="light"
+                      loading={rulePreviewMutation.isPending}
+                      onClick={() => {
+                        const memberRule = ((formState.values as { memberRule?: UserGroupMemberRule }).memberRule ?? {});
+                        rulePreviewMutation.mutate(
+                          { body: { groupId: groupModal.editing?.id, memberRule } },
+                          { onSuccess: setRulePreview },
+                        );
+                      }}
+                    >
+                      预览成员变化
+                    </Button>
+                    {rulePreview && (
+                      <div style={{ fontSize: 12, lineHeight: '20px', width: '100%' }}>
+                        <Typography.Text type="secondary">
+                          目标成员 {rulePreview.total} 人：新加入 {rulePreview.joiningCount} 人，移除 {rulePreview.leavingCount} 人
+                        </Typography.Text>
+                        {rulePreview.joining.length > 0 && (
+                          <div style={{ marginTop: 4 }}>
+                            <Typography.Text type="success">加入：</Typography.Text>
+                            <Space wrap spacing={4}>
+                              {rulePreview.joining.map((u) => <Tag key={u.id} size="small" color="green">{u.nickname}</Tag>)}
+                              {rulePreview.joiningCount > rulePreview.joining.length && <Tag size="small">+{rulePreview.joiningCount - rulePreview.joining.length}</Tag>}
+                            </Space>
+                          </div>
+                        )}
+                        {rulePreview.leaving.length > 0 && (
+                          <div style={{ marginTop: 4 }}>
+                            <Typography.Text type="danger">移除：</Typography.Text>
+                            <Space wrap spacing={4}>
+                              {rulePreview.leaving.map((u) => <Tag key={u.id} size="small" color="red">{u.nickname}</Tag>)}
+                              {rulePreview.leavingCount > rulePreview.leaving.length && <Tag size="small">+{rulePreview.leavingCount - rulePreview.leaving.length}</Tag>}
+                            </Space>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </Space>
+                </div>
+              )}
+              <Form.TextArea field="description" label="描述" placeholder="请输入描述（可选）" maxCount={256} />
+            </>
+          );
+        }}
+      </EditFormSheet>
 
       {memberGroup?.memberMode === 'dynamic' ? (
         <SideSheet
@@ -468,7 +457,7 @@ export default function UserGroupsPage() {
         confirmLoading={assignRolesMutation.isPending}
         width={480}
       >
-        <Spin spinning={groupRolesQuery.isFetching || allRolesQuery.isFetching} wrapperClassName="modal-spin-wrapper">
+        <Spin spinning={groupRolesQuery.isFetching || allRolesQuery.isFetching}>
           <div style={{ marginBottom: 8, fontSize: 12, color: 'var(--semi-color-text-2)' }}>
             组内成员将自动继承所选角色的菜单与数据权限（与成员直接分配的角色取并集）
           </div>

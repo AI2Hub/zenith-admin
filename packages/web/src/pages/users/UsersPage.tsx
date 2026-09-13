@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Button, Select, Space, Form, Toast, Tag, Row, Col, Tree, Spin } from '@douyinfe/semi-ui';
+import { Button, Select, Space, Form, Toast, Tag, Row, Col, Tree } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { ChevronsUpDown, ChevronsDownUp, Building2, KeyRound } from 'lucide-react';
 import type { CreateUserInput, User, Role, Department, Position } from '@zenith/shared/identity';
@@ -632,7 +632,6 @@ export default function UsersPage() {
       />
 
       <EditFormModal modal={modal} okButtonProps={{ disabled: modal.detailLoading }} width={660}>
-        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
         {editingUser ? (
           <>
             <Row gutter={16}>
@@ -762,7 +761,6 @@ export default function UsersPage() {
             />
           </Col>
         </Row>
-        </Spin>
       </EditFormModal>
 
       <EditFormModal modal={passwordModal} title={passwordModal.editing ? `修改密码 - ${passwordModal.editing.nickname}` : '修改密码'} onCancel={() => { passwordModal.close(); setEditPwdVal(''); }} width={420}>

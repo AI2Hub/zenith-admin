@@ -31,7 +31,12 @@ const listSearchRestrictions = [
   },
   {
     selector: 'LogicalExpression[operator="||"][right.type="Identifier"][right.name="undefined"]:matches([left.object.name=/^submitted/], [left.object.property.name=/^submitted/], [left.callee.object.object.name=/^submitted/], [left.callee.object.object.property.name=/^submitted/])',
-    message: '已提交筛选 → 契约查询参数只映射一次：const filterQuery = useMemo(() => compactParams({ keyword: submittedParams.keyword, … }), [submittedParams])，再 useXxxList({ page, pageSize, ...filterQuery })；不要逐字段写 `x || undefined`。布尔开关按「勾选才筛选」语义写 `flag ? true : undefined`。',
+    message: '已提交筛选 → 契约查询参数只映射一次：标准分页列表用 useListPage({ toQuery: (s) => ({ keyword: s.keyword, … }) })，其余用 const filterQuery = useFilterQuery({ keyword: submittedParams.keyword, … })；不要逐字段写 `x || undefined`。布尔开关按「勾选才筛选」语义写 `flag ? true : undefined`。',
+  },
+  {
+    // useMemo(() => compactParams({…}), [deps]) 的手写依赖数组形态：内容键控的 useFilterQuery 已把它收口
+    selector: 'CallExpression[callee.name="useMemo"] > ArrowFunctionExpression > CallExpression[callee.name="compactParams"]',
+    message: '已提交筛选 → 契约查询参数请用 @/hooks/useFilterQuery 的 useFilterQuery({ … })（compactParams 后按内容稳定引用，无需依赖数组）；标准分页列表页直接在 useListPage 的 toQuery 里映射。',
   },
   {
     // 按上下文兜底：不论草稿对象叫什么（catalogSearch / f / draft…），列表 hook 实参与导出 query 里的 `x || undefined` 都应由 compactParams 归一
@@ -74,6 +79,20 @@ const listPageBoilerplateRestrictions = [
     // 另一形态：x === 'enabled' ? <Tag …>启用</Tag> : <Tag …>停用</Tag>（整段 Tag 三元）
     selector: 'ConditionalExpression[test.type="BinaryExpression"][test.operator="==="][test.right.value="enabled"][consequent.type="JSXElement"][consequent.openingElement.name.name="Tag"][alternate.type="JSXElement"][alternate.openingElement.name.name="Tag"]',
     message: 'enabled / disabled 两态状态标签请用 @/utils/table-columns 的 renderEnabledStatusTag / enabledStatusColumn()（文案与颜色跟随 COMMON_STATUS_LABELS）；三态标签只把两态分支换成 renderEnabledStatusTag(v)。',
+  },
+  {
+    // AppModal({...x.modalProps}) > [Spin] > Form(key={x.formKey}) 三层壳：EditFormModal 已收口（Form 之前另有 Banner 传 header）
+    selector: ':matches(JSXElement[openingElement.name.name="AppModal"] > JSXElement[openingElement.name.name="Form"], JSXElement[openingElement.name.name="AppModal"] > JSXElement[openingElement.name.name="Spin"] > JSXElement[openingElement.name.name="Form"]):has(JSXOpeningElement[name.name="Form"] > JSXAttribute[name.name="key"] > JSXExpressionContainer > MemberExpression[property.name="formKey"])',
+    message: '新增 / 编辑弹窗壳请用 @/components/EditFormModal：<EditFormModal modal={modal} width={…}>字段</EditFormModal>（Form 之前的说明传 header，Form 额外属性传 formProps）；抽屉形态用 EditFormSheet。表单之外还有独立编辑区的复合弹窗保留 AppModal 并加 eslint-disable 注释注明理由。',
+  },
+  {
+    // SideSheet(visible={x.visible} onCancel={x.close} footer={<ModalFooter {...x.footerProps} …/>}) > [Spin] > Form(key={x.formKey})
+    selector: ':matches(JSXElement[openingElement.name.name="SideSheet"] > JSXElement[openingElement.name.name="Form"], JSXElement[openingElement.name.name="SideSheet"] > JSXElement[openingElement.name.name="Spin"] > JSXElement[openingElement.name.name="Form"]):has(JSXOpeningElement[name.name="Form"] > JSXAttribute[name.name="key"] > JSXExpressionContainer > MemberExpression[property.name="formKey"])',
+    message: '新增 / 编辑侧滑抽屉壳请用 @/components/EditFormModal 的 EditFormSheet：<EditFormSheet modal={modal} width={…}>字段</EditFormSheet>；完全自定义 footer 传 footer，追加收尾的关闭逻辑传 onCancel。',
+  },
+  {
+    selector: 'JSXAttribute[name.name="wrapperClassName"] > Literal[value="modal-spin-wrapper"]',
+    message: 'modal-spin-wrapper 没有任何 CSS 定义（Semi 带 children 的 Spin 本就是 block）：编辑表单壳用 EditFormModal / EditFormSheet，其它 Spin 直接去掉该属性。',
   },
 ];
 

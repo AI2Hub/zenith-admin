@@ -52,7 +52,7 @@ export function EditFormModal({ modal, header, formProps, children, ...modalProp
   );
 }
 
-export interface EditFormSheetProps extends EditFormBodyProps, Omit<SideSheetReactProps, 'visible' | 'onCancel' | 'footer' | 'children' | 'title'> {
+export interface EditFormSheetProps extends EditFormBodyProps, Omit<SideSheetReactProps, 'visible' | 'footer' | 'children' | 'title'> {
   /** 缺省取 `modal.modalProps.title`（由 `entityName` 生成的「新增 X / 编辑 X」） */
   readonly title?: ReactNode;
   /** 底部按钮文案，缺省「保存」 */
@@ -65,7 +65,7 @@ export interface EditFormSheetProps extends EditFormBodyProps, Omit<SideSheetRea
 
 /**
  * 新增 / 编辑侧滑抽屉壳：`SideSheet(visible / onCancel / closeOnEsc) + ModalFooter(footerProps) > Spin > Form`，
- * 用于字段多、需要更宽或分区展示的编辑表单。
+ * 用于字段多、需要更宽或分区展示的编辑表单。关闭时要附加收尾（通知父级等）可传 `onCancel` 覆盖缺省的 `modal.close`。
  *
  * @example
  * <EditFormSheet modal={modal} width={720}>…字段…</EditFormSheet>

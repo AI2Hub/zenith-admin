@@ -38,6 +38,7 @@ import { REPORT_CHATBI_SESSION_STATUS_LABELS } from '@zenith/shared/report';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
 import { NavListItem, NavListPanel } from '@/components/NavListPanel';
 import AppModal from '@/components/AppModal';
+import { EditFormModal } from '@/components/EditFormModal';
 import MarkdownPreviewPanel from '@/components/MarkdownPreviewPanel';
 import { WidgetRenderer } from './widgets/WidgetRenderer';
 import { formatDateTime } from '@/utils/date';
@@ -537,55 +538,35 @@ export default function ChatBiPage() {
         onBack={() => setActiveSessionId(undefined)}
       />
 
-      <AppModal
-        title="新建智能问数会话"
-       visible={createModal.visible}
-        width={560}
-       onCancel={createModal.close}
-       onOk={createModal.modalProps.onOk}
-       okButtonProps={createModal.modalProps.okButtonProps}
-       closeOnEsc
-      >
-       <Form key={createModal.formKey} {...createModal.formProps}>
-          <Form.Input field="title" label="会话名称" rules={[{ required: true, message: '请输入会话名称' }]} maxLength={128} />
-          <Form.Slot label="上下文类型">
-            <RadioGroup type="button" value={contextType} onChange={(event) => setContextType(event.target.value as typeof contextType)}>
-              <Radio value="dataset">治理数据集</Radio>
-              <Radio value="datasource">数据源</Radio>
-            </RadioGroup>
-          </Form.Slot>
-          <Form.Select
-            field="contextId"
-            label={contextType === 'dataset' ? '数据集' : '数据源'}
-            style={{ width: '100%' }}
-            rules={[{ required: true, message: '请选择数据上下文' }]}
-            filter
-            optionList={(contextType === 'dataset' ? datasetQuery.data : datasourceQuery.data)?.map((item) => ({
-              value: item.id,
-              label: item.name,
-            })) ?? []}
-          />
-          <Banner
-            type="info"
-            closeIcon={null}
-            description="创建后会冻结可访问的表结构与权限边界；对话不会暴露模型密钥或内部安全规则。"
-          />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={createModal} title="新建智能问数会话" width={560}>
+       <Form.Input field="title" label="会话名称" rules={[{ required: true, message: '请输入会话名称' }]} maxLength={128} />
+       <Form.Slot label="上下文类型">
+         <RadioGroup type="button" value={contextType} onChange={(event) => setContextType(event.target.value as typeof contextType)}>
+           <Radio value="dataset">治理数据集</Radio>
+           <Radio value="datasource">数据源</Radio>
+         </RadioGroup>
+       </Form.Slot>
+       <Form.Select
+         field="contextId"
+         label={contextType === 'dataset' ? '数据集' : '数据源'}
+         style={{ width: '100%' }}
+         rules={[{ required: true, message: '请选择数据上下文' }]}
+         filter
+         optionList={(contextType === 'dataset' ? datasetQuery.data : datasourceQuery.data)?.map((item) => ({
+           value: item.id,
+           label: item.name,
+         })) ?? []}
+       />
+       <Banner
+         type="info"
+         closeIcon={null}
+         description="创建后会冻结可访问的表结构与权限边界；对话不会暴露模型密钥或内部安全规则。"
+       />
+      </EditFormModal>
 
-      <AppModal
-        title="重命名会话"
-        visible={renameModal.visible}
-        width={480}
-        onCancel={renameModal.close}
-        onOk={renameModal.modalProps.onOk}
-        okButtonProps={renameModal.modalProps.okButtonProps}
-        closeOnEsc
-      >
-        <Form key={renameModal.formKey} {...renameModal.formProps}>
-          <Form.Input field="title" label="名称" rules={[{ required: true, message: '请输入会话名称' }]} maxLength={128} />
-        </Form>
-      </AppModal>
+      <EditFormModal modal={renameModal} title="重命名会话" width={480}>
+       <Form.Input field="title" label="名称" rules={[{ required: true, message: '请输入会话名称' }]} maxLength={128} />
+      </EditFormModal>
 
       <AppModal
         title="保存为治理资源"

@@ -622,6 +622,7 @@ export default function AnnouncementsPage() {
         }
       >
         <Spin spinning={modalDetailLoading} tip="加载中..." size="small">
+        {/* eslint-disable-next-line no-restricted-syntax -- viewOnly 双态 footer 与带 tip 的加载态，属复合抽屉 */}
         <Form
           key={modal.formKey} {...modal.formProps}
           layout="vertical"

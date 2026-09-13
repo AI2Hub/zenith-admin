@@ -127,7 +127,7 @@ export default function MpDraftsPage() {
       <AppModal title={editingRecord ? '编辑图文' : '新增图文'} visible={modalVisible}
         onOk={handleSubmit} onCancel={() => setModalVisible(false)} confirmLoading={saveMutation.isPending}
         okButtonProps={{ disabled: !!editingRecord && detailQuery.isFetching }} width={760}>
-        <Spin spinning={!!editingRecord && detailQuery.isFetching} wrapperClassName="modal-spin-wrapper">
+        <Spin spinning={!!editingRecord && detailQuery.isFetching}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxHeight: '60vh', overflow: 'auto' }}>
             {articles.map((a, i) => (
               <div key={i} style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: 12 }}>

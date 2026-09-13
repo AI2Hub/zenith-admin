@@ -6,6 +6,7 @@ import { SendHorizontal } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { AppModal } from '@/components/AppModal';
+import { EditFormModal } from '@/components/EditFormModal';
 import { EMPTY_PLACEHOLDER, copyableNoColumn, createdAtColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { useAuth } from '@/hooks/useAuth';
@@ -266,8 +267,8 @@ export default function PaymentTransfersPage() {
         {...listTableProps({ ...listQuery, refetch: () => { void listQuery.refetch(); void summaryQuery.refetch(); } }, { pagination: buildPagination })}
       />
 
-      <AppModal
-        {...transferModal.modalProps}
+      <EditFormModal
+        modal={transferModal}
         title="发起转账"
         width={660}
         onCancel={() => {
@@ -275,58 +276,55 @@ export default function PaymentTransfersPage() {
           transferIdempotencyKey.current = null;
           transferModal.modalProps.onCancel?.();
         }}
+        header={<Banner type="warning" closeIcon={null} style={{ marginBottom: 16 }} description="资金流出操作：微信渠道收款账号为用户 openid（转入零钱），支付宝渠道为登录账号。沙箱渠道为模拟转账。" />}
       >
-        <Banner type="warning" closeIcon={null} style={{ marginBottom: 16 }}
-          description="资金流出操作：微信渠道收款账号为用户 openid（转入零钱），支付宝渠道为登录账号。沙箱渠道为模拟转账。" />
-        <Form key={transferModal.formKey} {...transferModal.formProps}>
-          <Row gutter={16}>
-            <Col span={12}>
-              <PaymentAppField optionList={appOptions} loading={appsFetching}
-                onChange={(appId) => { setSelectedAppId(appId); transferModal.formApi.current?.setValue('channel', undefined); }} />
-            </Col>
-            <Col span={12}>
-              <Form.Select field="channel" label="渠道" style={{ width: '100%' }}
-                optionList={createChannelOptions} disabled={selectedAppId == null} rules={[{ required: true, message: '请选择渠道' }]} />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <PaymentCurrencyField disabled />
-            </Col>
-            <Col span={12}>
-              <Form.InputNumber field="amountYuan" label="转账金额(元)" min={0.01} step={0.01} precision={2} style={{ width: '100%' }} rules={[{ required: true, message: '请输入转账金额' }]} />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Input field="receiverAccount" label="收款账号" placeholder="微信 openid / 支付宝登录账号" rules={[{ required: true, message: '收款账号不能为空' }]} />
-            </Col>
-            <Col span={12}>
-              <Form.Input field="receiverName" label="收款人姓名" placeholder="可选（支付宝大额建议填写校验）" />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Input field="bizType" label="业务类型" placeholder="可选" />
-            </Col>
-            <Col span={12}>
-              <Form.Input field="bizId" label="业务单号" placeholder="可选" />
-            </Col>
-          </Row>
-          <Form.TextArea
-            field="remark"
-            label="转账原因"
-            autosize
-            rows={2}
-            maxCount={256}
-            placeholder="请填写资金用途和转账依据"
-            rules={[
-              { required: true, message: '请填写转账原因' },
-              { validator: (_rule: unknown, value: unknown) => Boolean(String(value ?? '').trim()), message: '转账原因不能只包含空格' },
-            ]}
-          />
-        </Form>
-      </AppModal>
+        <Row gutter={16}>
+          <Col span={12}>
+            <PaymentAppField optionList={appOptions} loading={appsFetching}
+              onChange={(appId) => { setSelectedAppId(appId); transferModal.formApi.current?.setValue('channel', undefined); }} />
+          </Col>
+          <Col span={12}>
+            <Form.Select field="channel" label="渠道" style={{ width: '100%' }}
+              optionList={createChannelOptions} disabled={selectedAppId == null} rules={[{ required: true, message: '请选择渠道' }]} />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={12}>
+            <PaymentCurrencyField disabled />
+          </Col>
+          <Col span={12}>
+            <Form.InputNumber field="amountYuan" label="转账金额(元)" min={0.01} step={0.01} precision={2} style={{ width: '100%' }} rules={[{ required: true, message: '请输入转账金额' }]} />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Input field="receiverAccount" label="收款账号" placeholder="微信 openid / 支付宝登录账号" rules={[{ required: true, message: '收款账号不能为空' }]} />
+          </Col>
+          <Col span={12}>
+            <Form.Input field="receiverName" label="收款人姓名" placeholder="可选（支付宝大额建议填写校验）" />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Input field="bizType" label="业务类型" placeholder="可选" />
+          </Col>
+          <Col span={12}>
+            <Form.Input field="bizId" label="业务单号" placeholder="可选" />
+          </Col>
+        </Row>
+        <Form.TextArea
+          field="remark"
+          label="转账原因"
+          autosize
+          rows={2}
+          maxCount={256}
+          placeholder="请填写资金用途和转账依据"
+          rules={[
+            { required: true, message: '请填写转账原因' },
+            { validator: (_rule: unknown, value: unknown) => Boolean(String(value ?? '').trim()), message: '转账原因不能只包含空格' },
+          ]}
+        />
+      </EditFormModal>
 
       <AppModal
         title="审批通过转账"
