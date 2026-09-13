@@ -1,78 +1,58 @@
-import { eq, and, sql } from 'drizzle-orm';
-import { requireFirstRow } from '../../lib/db-assert';
-import { listRows } from '../../lib/list-query';
+import { and, eq, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
+import { mpTagContract, mpTagSchema } from '@zenith/shared/mp';
 import { db } from '../../db';
 import { mpTags } from '../../db/schema';
-import type { MpTagRow } from '../../db/schema';
-import { buildWhere, keywordCondition } from '../../lib/where-helpers';
-import { formatTimestamps } from '../../lib/datetime';
-import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
-import { rethrowPgUniqueViolation } from '../../lib/db-errors';
+import { defineCrudService } from '../../lib/crud-service';
+import { entityMapper } from '../../lib/entity-map';
+import { currentCreateTenantId } from '../../lib/tenant';
+import { keywordCondition } from '../../lib/where-helpers';
 import { ensureMpAccountExists } from './mp-account.service';
 import { getWechatTags, WechatApiError } from '../../lib/wechat';
-import type { CreateMpTagInput, UpdateMpTagInput, mpTagContract } from '@zenith/shared/mp';
-import type { QueryOutputOf } from '@zenith/shared/core';
+import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 
-export function mapMpTag(row: MpTagRow) {
-  return {
-    id: row.id,
-    accountId: row.accountId,
-    wechatTagId: row.wechatTagId ?? null,
-    name: row.name,
-    fansCount: row.fansCount,
-    createdBy: row.createdBy ?? null,
-    updatedBy: row.updatedBy ?? null,
-    ...formatTimestamps(row),
-  };
-}
+export const mapMpTag = entityMapper(mpTagSchema);
 
-export async function ensureMpTagExists(id: number): Promise<MpTagRow> {
-  return requireFirstRow(db.select().from(mpTags).where(and(eq(mpTags.id, id), tenantScope(mpTags))).limit(1), '标签不存在');
-}
-
-export async function listMpTags(q: QueryOutputOf<typeof mpTagContract.list>) {
-  await ensureMpAccountExists(q.accountId); // 校验账号归属当前租户
-  const where = buildWhere(
-    eq(mpTags.accountId, q.accountId),
-    tenantScope(mpTags),
-    keywordCondition(q.keyword, [mpTags.name], 'ilike'),
-  );
-  return listRows({
-    page: q.page,
-    pageSize: q.pageSize,
-    table: mpTags,
-    where,
+const mpTagCrud = defineCrudService(mpTagContract, {
+  table: mpTags,
+  map: mapMpTag,
+  notFound: '标签不存在',
+  unique: '该标签名称已存在',
+  tenant: true,
+  list: (q) => ({
+    where: [
+      eq(mpTags.accountId, q.accountId),
+      keywordCondition(q.keyword, [mpTags.name], 'ilike'),
+    ],
     orderBy: [mpTags.id],
-    map: mapMpTag,
-  });
+  }),
+  create: {
+    before: async (data) => {
+      await ensureMpAccountExists(data.accountId);
+    },
+    toRow: (data) => ({
+      accountId: data.accountId,
+      name: data.name,
+    }),
+  },
+  update: {
+    toRow: (data) => ({ name: data.name }),
+  },
+});
+
+export async function listMpTags(q: Parameters<typeof mpTagCrud.list>[0]) {
+  await ensureMpAccountExists(q.accountId);
+  return mpTagCrud.list(q);
 }
+
+export const {
+  ensure: ensureMpTagExists,
+  create: createMpTag,
+  update: updateMpTag,
+} = mpTagCrud;
 
 /** 审计前快照 */
-export async function getMpTagBeforeAudit(id: number) {
-  return mapMpTag(await ensureMpTagExists(id));
-}
-
-export async function createMpTag(data: CreateMpTagInput) {
-  await ensureMpAccountExists(data.accountId);
-  try {
-    const tenantId = currentCreateTenantId();
-    const [row] = await db.insert(mpTags).values({ accountId: data.accountId, name: data.name, tenantId }).returning();
-    return mapMpTag(row);
-  } catch (err) {
-    rethrowPgUniqueViolation(err, '该标签名称已存在');
-  }
-}
-
-export async function updateMpTag(id: number, data: UpdateMpTagInput) {
-  await ensureMpTagExists(id);
-  try {
-    const [row] = await db.update(mpTags).set({ name: data.name }).where(eq(mpTags.id, id)).returning();
-    return mapMpTag(row);
-  } catch (err) {
-    rethrowPgUniqueViolation(err, '该标签名称已存在');
-  }
-}
+export const getMpTagBeforeAudit = mpTagCrud.get;
 
 export async function deleteMpTag(id: number) {
   const tag = await ensureMpTagExists(id);
@@ -88,6 +68,8 @@ export async function deleteMpTag(id: number) {
     `);
   });
 }
+
+export const mpTagService = { ...mpTagCrud, list: listMpTags, remove: deleteMpTag };
 
 /** 从微信同步标签到本地（按 wechatTagId / name 去重 upsert） */
 export async function syncMpTags(accountId: number): Promise<{ success: boolean; created: number; updated: number; total: number }> {

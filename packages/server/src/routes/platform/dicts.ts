@@ -5,17 +5,13 @@ import { guard, setAuditBeforeData } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
-  listDicts,
-  createDict,
-  updateDict,
-  deleteDict,
   listDictItems,
   listDictItemsByCode,
   createDictItem,
   updateDictItem,
   deleteDictItem,
   getDictItemBeforeAudit,
-  getDict,
+  dictService,
   getDictItem,
 } from '../../services/platform/dicts.service';
 import { mountCrud } from '../_crud';
@@ -77,7 +73,7 @@ const deleteItemRoute = defineContractRoute(dictContract.removeItem, {
 });
 
 mountCrud(dictsRouter, dictContract,
-  { list: listDicts, get: getDict, create: createDict, update: updateDict, remove: deleteDict },
+  dictService,
   { permission: 'system:dict', label: '字典' },
   [listItemsRoute, getItemsByCodeRoute, getItemRoute, createItemRoute, updateItemRoute, deleteItemRoute],
 );

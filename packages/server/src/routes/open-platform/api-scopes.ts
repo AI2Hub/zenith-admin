@@ -7,11 +7,8 @@ import { validationHook, okBody } from '../../lib/openapi-schemas';
 import {
   listApiScopes,
   listEnabledApiScopes,
-  getApiScope,
-  createApiScope,
-  updateApiScope,
-  deleteApiScope,
   batchDeleteApiScopes,
+  apiScopeService,
 } from '../../services/open-platform/api-scopes.service';
 import { mountCrud } from '../_crud';
 
@@ -34,10 +31,10 @@ const batchDelete = defineContractRoute(apiScopeContract.removeBatch, {
 mountCrud(router, apiScopeContract,
   {
     list: listApiScopes,
-    get: getApiScope,
-    create: createApiScope,
-    update: updateApiScope,
-    remove: deleteApiScope,
+    get: apiScopeService.get,
+    create: apiScopeService.create,
+    update: apiScopeService.update,
+    remove: apiScopeService.remove,
   },
   {
     permission: { read: 'open:scope:view', write: 'open:scope:manage' },

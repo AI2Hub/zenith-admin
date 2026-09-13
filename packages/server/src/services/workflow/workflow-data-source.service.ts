@@ -1,23 +1,19 @@
-import { workflowDataSourceContract } from '@zenith/shared/workflow';
-import type { QueryOutputOf } from '@zenith/shared/core';
+import { workflowDataSourceContract, workflowDataSourceSchema } from '@zenith/shared/workflow';
 /**
  * 表单远程数据源 Service
  * CRUD + 代理拉取选项（仅登记 URL 可被调用；保存时与请求时都经 workflow-outbound 做 SSRF 防护）。
  */
 import { HTTPException } from 'hono/http-exception';
 import { desc, eq } from 'drizzle-orm';
-import { db } from '../../db';
 import { workflowDataSources } from '../../db/schema';
-import { buildWhere, keywordCondition } from '../../lib/where-helpers';
-import { formatTimestamps } from '../../lib/datetime';
-import { listRows } from '../../lib/list-query';
-import { requireFirstRow, requireRow } from '../../lib/db-assert';
-import { rethrowPgUniqueViolation } from '../../lib/db-errors';
+import { keywordCondition } from '../../lib/where-helpers';
 import { assertSafeWorkflowUrl, workflowHttp } from '../../lib/workflow-outbound';
 import { decryptSecret, encryptSecret } from '../../lib/secret-crypto';
 import type { WorkflowDataSourceRow } from '../../db/schema';
-import type { WorkflowDataSource, WorkflowDataSourceOption, CreateWorkflowDataSourceInput, UpdateWorkflowDataSourceInput } from '@zenith/shared/workflow';
+import type { WorkflowDataSourceOption } from '@zenith/shared/workflow';
 import { SECRET_PLACEHOLDER, getByPath } from '@zenith/shared/core';
+import { defineCrudService } from '../../lib/crud-service';
+import { entityMapper } from '../../lib/entity-map';
 
 const OPTIONS_CACHE_TTL = 30_000;
 const optionsCache = new Map<string, { data: WorkflowDataSourceOption[]; expire: number }>();
@@ -62,53 +58,28 @@ function mergeHeadersForUpdate(
   return encryptHeaders(merged);
 }
 
-export function mapDataSource(row: WorkflowDataSourceRow): WorkflowDataSource {
-  return {
-    id: row.id,
-    name: row.name,
-    method: (row.method === 'POST' ? 'POST' : 'GET'),
-    url: row.url,
-    headers: maskHeaders(decryptHeaders(row.headersEncrypted)),
-    itemsPath: row.itemsPath ?? null,
-    valueField: row.valueField,
-    labelField: row.labelField,
-    keywordParam: row.keywordParam ?? null,
-    status: row.status,
-    remark: row.remark ?? null,
-    createdBy: row.createdBy ?? null,
-    updatedBy: row.updatedBy ?? null,
-    ...formatTimestamps(row),
-  };
-}
+export const mapDataSource = entityMapper(workflowDataSourceSchema, (row: WorkflowDataSourceRow) => ({
+  method: row.method === 'POST' ? 'POST' : 'GET',
+  headers: maskHeaders(decryptHeaders(row.headersEncrypted)),
+}));
 
-export async function ensureDataSourceExists(id: number): Promise<WorkflowDataSourceRow> {
-  return requireFirstRow(db.select().from(workflowDataSources).where(eq(workflowDataSources.id, id)).limit(1), '数据源不存在');
-}
-
-export async function getDataSource(id: number): Promise<WorkflowDataSource> {
-  return mapDataSource(await ensureDataSourceExists(id));
-}
-
-export async function listDataSources(query: QueryOutputOf<typeof workflowDataSourceContract.list>) {
-  const { page, pageSize, keyword, status } = query;
-  const where = buildWhere(
-    keywordCondition(keyword, [workflowDataSources.name, workflowDataSources.url], 'ilike'),
-    status ? eq(workflowDataSources.status, status) : undefined,
-  );
-  return listRows({
-    page,
-    pageSize,
-    table: workflowDataSources,
-    where,
+export const workflowDataSourceService = defineCrudService(workflowDataSourceContract, {
+  table: workflowDataSources,
+  map: mapDataSource,
+  notFound: '数据源不存在',
+  unique: '数据源名称已存在',
+  list: (query) => ({
+    where: [
+      keywordCondition(query.keyword, [workflowDataSources.name, workflowDataSources.url], 'ilike'),
+      query.status ? eq(workflowDataSources.status, query.status) : undefined,
+    ],
     orderBy: [desc(workflowDataSources.id)],
-    map: mapDataSource,
-  });
-}
-
-export async function createDataSource(input: CreateWorkflowDataSourceInput): Promise<WorkflowDataSource> {
-  await assertSafeWorkflowUrl(input.url);
-  try {
-    const [row] = await db.insert(workflowDataSources).values({
+  }),
+  create: {
+    before: async (input) => {
+      await assertSafeWorkflowUrl(input.url);
+    },
+    toRow: (input) => ({
       name: input.name,
       method: input.method ?? 'GET',
       url: input.url,
@@ -119,19 +90,13 @@ export async function createDataSource(input: CreateWorkflowDataSourceInput): Pr
       keywordParam: input.keywordParam,
       status: input.status ?? 'enabled',
       remark: input.remark,
-    }).returning();
-    return mapDataSource(row);
-  } catch (err) {
-    rethrowPgUniqueViolation(err, '数据源名称已存在');
-    throw err;
-  }
-}
-
-export async function updateDataSource(id: number, input: UpdateWorkflowDataSourceInput): Promise<WorkflowDataSource> {
-  const existing = await ensureDataSourceExists(id);
-  if (input.url !== undefined) await assertSafeWorkflowUrl(input.url);
-  try {
-    const [row] = await db.update(workflowDataSources).set({
+    }),
+  },
+  update: {
+    before: async (input) => {
+      if (input.url !== undefined) await assertSafeWorkflowUrl(input.url);
+    },
+    toRow: (input, existing) => ({
       name: input.name,
       method: input.method,
       url: input.url,
@@ -142,22 +107,28 @@ export async function updateDataSource(id: number, input: UpdateWorkflowDataSour
       keywordParam: input.keywordParam,
       status: input.status,
       remark: input.remark,
-    }).where(eq(workflowDataSources.id, id)).returning();
-    requireRow(row, '数据源不存在');
-    optionsCache.clear();
-    rawItemsCache.clear();
-    return mapDataSource(row);
-  } catch (err) {
-    rethrowPgUniqueViolation(err, '数据源名称已存在');
-    throw err;
-  }
-}
+    }),
+    after: () => {
+      optionsCache.clear();
+      rawItemsCache.clear();
+    },
+  },
+  remove: {
+    after: () => {
+      optionsCache.clear();
+      rawItemsCache.clear();
+    },
+  },
+});
 
-export async function deleteDataSource(id: number): Promise<void> {
-  await db.delete(workflowDataSources).where(eq(workflowDataSources.id, id));
-  optionsCache.clear();
-  rawItemsCache.clear();
-}
+export const {
+  ensure: ensureDataSourceExists,
+  get: getDataSource,
+  list: listDataSources,
+  create: createDataSource,
+  update: updateDataSource,
+  remove: deleteDataSource,
+} = workflowDataSourceService;
 
 /** 代理拉取数据源原始记录列表（带 30s 缓存），选项与记录回填共用 */
 async function fetchDataSourceRawItems(id: number, keyword?: string): Promise<Array<Record<string, unknown>>> {

@@ -5,12 +5,8 @@ import { guard } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { validationHook, okBody } from '../../lib/openapi-schemas';
 import {
-  createWikiTemplate,
-  deleteWikiTemplate,
-  getWikiTemplate,
   listAllWikiTemplates,
-  listWikiTemplates,
-  updateWikiTemplate,
+  wikiTemplateService,
 } from '../../services/wiki/templates.service';
 import { mountCrud } from '../_crud';
 
@@ -22,13 +18,7 @@ const allRoute = defineContractRoute(wikiTemplateContract.all, {
 });
 
 mountCrud(templatesRouter, wikiTemplateContract,
-  {
-    list: listWikiTemplates,
-    get: getWikiTemplate,
-    create: createWikiTemplate,
-    update: updateWikiTemplate,
-    remove: deleteWikiTemplate,
-  },
+  wikiTemplateService,
   {
     permission: { read: 'wiki:template:list', create: 'wiki:template:create', update: 'wiki:template:edit', remove: 'wiki:template:delete' },
     label: '文档模板',

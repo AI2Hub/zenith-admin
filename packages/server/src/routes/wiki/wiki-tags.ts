@@ -7,10 +7,9 @@ import { validationHook, okBody } from '../../lib/openapi-schemas';
 import {
   createWikiTag,
   deleteWikiTag,
-  ensureWikiTagExists,
+  getWikiTag,
   listAllWikiTags,
   listWikiTags,
-  mapWikiTag,
   updateWikiTag,
 } from '../../services/wiki/tags.service';
 import { mountCrud } from '../_crud';
@@ -24,7 +23,7 @@ const allRoute = defineContractRoute(wikiTagContract.all, {
 mountCrud(tagsRouter, wikiTagContract,
   {
     list: listWikiTags,
-    get: async (id: number) => mapWikiTag(await ensureWikiTagExists(id)),
+    get: getWikiTag,
     create: createWikiTag,
     update: updateWikiTag,
     remove: deleteWikiTag,

@@ -15,6 +15,7 @@ import type {
 } from '@zenith/shared/platform';
 import {
   cronJobContract,
+  cronJobSchema,
   CRON_HEALTH_RULES,
   CRON_ALERT_TYPE_LABELS,
   countConsecutiveFails,
@@ -44,15 +45,11 @@ import {
 } from '../../lib/pg-boss-scheduler';
 import { HTTPException } from 'hono/http-exception';
 import { currentUserOrNull } from '../../lib/context';
-import { formatDateTime, formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
+import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
+import { defineCrudService } from '../../lib/crud-service';
+import { entityMapper } from '../../lib/entity-map';
 
-export function mapCronJob(row: typeof cronJobs.$inferSelect) {
-  return {
-    ...row,
-    lastRunAt: formatNullableDateTime(row.lastRunAt),
-    ...formatTimestamps(row),
-  };
-}
+export const mapCronJob = entityMapper(cronJobSchema);
 
 function mapLog(r: typeof cronJobLogs.$inferSelect) {
   return {
@@ -85,49 +82,44 @@ export function buildCronJobsWhere(q: CronJobListFilter) {
   );
 }
 
-export async function listCronJobs(q: QueryOutputOf<typeof cronJobContract.list>) {
-  const { page, pageSize } = q;
-  const where = buildCronJobsWhere(q);
-  return listRows({
-    page,
-    pageSize,
-    table: cronJobs,
-    where,
+export const cronJobService = defineCrudService(cronJobContract, {
+  table: cronJobs,
+  map: mapCronJob,
+  notFound: '任务不存在',
+  list: (q) => ({
+    where: [
+      keywordCondition(q.keyword, [cronJobs.name]),
+      q.status ? eq(cronJobs.status, q.status) : undefined,
+    ],
     orderBy: [desc(cronJobs.id)],
-    map: mapCronJob,
-  });
-}
+  }),
+  create: {
+    before: async (data) => {
+      if (!validateCronExpression(data.cronExpression)) throw new HTTPException(400, { message: 'Cron 表达式无效' });
+      const [existing] = await db.select().from(cronJobs).where(eq(cronJobs.name, data.name)).limit(1);
+      if (existing) throw new HTTPException(400, { message: '任务名称已存在' });
+    },
+    after: async (_entity, row) => {
+      if (row.status === 'enabled') await scheduleJob(row);
+    },
+  },
+  update: {
+    before: (data) => {
+      if (data.cronExpression && !validateCronExpression(data.cronExpression)) throw new HTTPException(400, { message: 'Cron 表达式无效' });
+    },
+    after: async (_entity, row) => {
+      if (row.status === 'enabled') await scheduleJob(row);
+      else await stopJob(row.id);
+    },
+  },
+  remove: {
+    before: async (row) => {
+      await stopJob(row.id);
+    },
+  },
+});
 
-export async function createCronJob(data: typeof cronJobs.$inferInsert) {
-  if (!validateCronExpression(data.cronExpression)) throw new HTTPException(400, { message: 'Cron 表达式无效' });
-  const [existing] = await db.select().from(cronJobs).where(eq(cronJobs.name, data.name)).limit(1);
-  if (existing) throw new HTTPException(400, { message: '任务名称已存在' });
-  const [row] = await db.insert(cronJobs).values(data).returning();
-  if (row.status === 'enabled') await scheduleJob(row);
-  return mapCronJob(row);
-}
-
-export async function updateCronJob(id: number, data: Partial<typeof cronJobs.$inferInsert>) {
-  if (data.cronExpression && !validateCronExpression(data.cronExpression)) throw new HTTPException(400, { message: 'Cron 表达式无效' });
-  const [row] = await db.update(cronJobs).set({ ...data }).where(eq(cronJobs.id, id)).returning();
-  requireRow(row, '任务不存在');
-  if (row.status === 'enabled') await scheduleJob(row);
-  else await stopJob(row.id);
-  return mapCronJob(row);
-}
-
-export async function deleteCronJob(id: number) {
-  const [row] = await db.select({ id: cronJobs.id, name: cronJobs.name }).from(cronJobs).where(eq(cronJobs.id, id)).limit(1);
-  requireRow(row, '任务不存在');
-  await stopJob(row.id);
-  await db.delete(cronJobs).where(eq(cronJobs.id, id));
-}
-
-export async function getCronJob(id: number) {
-  const [row] = await db.select().from(cronJobs).where(eq(cronJobs.id, id)).limit(1);
-  requireRow(row, '任务不存在');
-  return mapCronJob(row);
-}
+export const { list: listCronJobs, get: getCronJob, create: createCronJob, update: updateCronJob, remove: deleteCronJob } = cronJobService;
 
 export async function getCronJobBeforeAudit(id: number) {
   const [row] = await db.select().from(cronJobs).where(eq(cronJobs.id, id)).limit(1);

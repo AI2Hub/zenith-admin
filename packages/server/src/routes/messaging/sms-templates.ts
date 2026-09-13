@@ -1,25 +1,13 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { smsTemplateContract } from '@zenith/shared/messaging';
 import { validationHook } from '../../lib/openapi-schemas';
-import {
-  listSmsTemplates,
-  getSmsTemplate,
-  createSmsTemplate,
-  updateSmsTemplate,
-  deleteSmsTemplate,
-} from '../../services/messaging/sms-templates.service';
+import { smsTemplateService } from '../../services/messaging/sms-templates.service';
 import { mountCrud } from '../_crud';
 
 const smsTemplatesRouter = new OpenAPIHono({ defaultHook: validationHook });
 
 mountCrud(smsTemplatesRouter, smsTemplateContract,
-  {
-    list: listSmsTemplates,
-    get: getSmsTemplate,
-    create: createSmsTemplate,
-    update: updateSmsTemplate,
-    remove: deleteSmsTemplate,
-  },
+  smsTemplateService,
   { permission: 'system:sms-template', label: '短信模板', module: '短信模板' },
 );
 

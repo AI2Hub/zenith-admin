@@ -1,52 +1,44 @@
 import { eq, and, ne, desc } from 'drizzle-orm';
-import type { QueryOutputOf } from '@zenith/shared/core';
-import { ratePlanContract } from '@zenith/shared/open-platform';
-import { listRows } from '../../lib/list-query';
-import { requireRow } from '../../lib/db-assert';
+import { ratePlanContract, ratePlanSchema } from '@zenith/shared/open-platform';
 import { clearDefaultFlag } from '../../lib/default-flag';
 import { db } from '../../db';
 import { ratePlans, oauth2Clients } from '../../db/schema';
 import type { RatePlanRow } from '../../db/schema';
 import type { DbExecutor } from '../../db/types';
 import { HTTPException } from 'hono/http-exception';
-import { formatTimestamps } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
-import { buildWhere, keywordCondition } from '../../lib/where-helpers';
+import { keywordCondition } from '../../lib/where-helpers';
 import type { CreateRatePlanInput, UpdateRatePlanInput } from '@zenith/shared/open-platform';
+import { defineCrudService } from '../../lib/crud-service';
+import { entityMapper } from '../../lib/entity-map';
 
-export function mapRatePlan(row: RatePlanRow) {
-  return {
-    id: row.id,
-    code: row.code,
-    name: row.name,
-    description: row.description ?? null,
-    qpsLimit: row.qpsLimit,
-    dailyQuota: row.dailyQuota,
-    monthlyQuota: row.monthlyQuota,
-    isDefault: row.isDefault,
-    status: row.status,
-    createdBy: row.createdBy ?? null,
-    updatedBy: row.updatedBy ?? null,
-    ...formatTimestamps(row),
-  };
-}
+export const mapRatePlan = entityMapper(ratePlanSchema);
 
-export async function listRatePlans(opts: QueryOutputOf<typeof ratePlanContract.list>) {
-  const { page, pageSize, keyword, status } = opts;
-  const where = buildWhere(
-    keywordCondition(keyword, [ratePlans.code, ratePlans.name], 'ilike'),
-    status ? eq(ratePlans.status, status) : undefined,
-  );
-
-  return listRows({
-    page: page,
-    pageSize: pageSize,
-    table: ratePlans,
-    where,
+export const ratePlanService = defineCrudService(ratePlanContract, {
+  table: ratePlans,
+  map: mapRatePlan,
+  notFound: '限流套餐不存在',
+  list: (q) => ({
+    where: [
+      keywordCondition(q.keyword, [ratePlans.code, ratePlans.name], 'ilike'),
+      q.status ? eq(ratePlans.status, q.status) : undefined,
+    ],
     orderBy: [desc(ratePlans.isDefault), desc(ratePlans.createdAt)],
-    map: mapRatePlan,
-  });
-}
+  }),
+  remove: {
+    before: async (existing) => {
+      if (existing.isDefault) {
+        throw new HTTPException(400, { message: '默认套餐不可删除，请先将其他套餐设为默认' });
+      }
+      const usedBy = await db.$count(oauth2Clients, eq(oauth2Clients.ratePlanId, existing.id));
+      if (usedBy > 0) {
+        throw new HTTPException(400, { message: `该套餐已被 ${usedBy} 个应用绑定，无法删除` });
+      }
+    },
+  },
+});
+
+export const { list: listRatePlans, get: getRatePlan, remove: deleteRatePlan } = ratePlanService;
 
 /** 全部启用的套餐（供应用配置下拉，无分页） */
 export async function listEnabledRatePlans() {
@@ -56,15 +48,7 @@ export async function listEnabledRatePlans() {
   return rows.map(mapRatePlan);
 }
 
-export async function getRatePlan(id: number) {
-  const [row] = await db.select().from(ratePlans).where(eq(ratePlans.id, id)).limit(1);
-  requireRow(row, '限流套餐不存在');
-  return mapRatePlan(row);
-}
-
-export async function getRatePlanBeforeAudit(id: number) {
-  return getRatePlan(id);
-}
+export const getRatePlanBeforeAudit = getRatePlan;
 
 /** 原始行：供网关限流中间件读取配额（不映射为 DTO） */
 export async function getRatePlanRowById(id: number): Promise<RatePlanRow | null> {
@@ -130,22 +114,4 @@ export async function updateRatePlan(id: number, input: UpdateRatePlanInput) {
     rethrowPgUniqueViolation(err, '套餐编码已存在');
     throw err;
   }
-}
-
-export async function deleteRatePlan(id: number) {
-  const [existing] = await db.select({ isDefault: ratePlans.isDefault, name: ratePlans.name })
-    .from(ratePlans)
-    .where(eq(ratePlans.id, id))
-    .limit(1);
-  requireRow(existing, '限流套餐不存在');
-  // 默认套餐是所有未显式绑定套餐的应用的回退目标，删掉会让这些应用的限流行为悬空
-  if (existing.isDefault) {
-    throw new HTTPException(400, { message: '默认套餐不可删除，请先将其他套餐设为默认' });
-  }
-  const usedBy = await db.$count(oauth2Clients, eq(oauth2Clients.ratePlanId, id));
-  if (usedBy > 0) {
-    throw new HTTPException(400, { message: `该套餐已被 ${usedBy} 个应用绑定，无法删除` });
-  }
-  const result = await db.delete(ratePlans).where(eq(ratePlans.id, id)).returning();
-  requireRow(result[0], '限流套餐不存在');
 }

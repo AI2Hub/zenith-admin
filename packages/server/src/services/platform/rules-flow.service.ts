@@ -7,23 +7,22 @@
  */
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import type { QueryOutputOf } from '@zenith/shared/core';
 import type { RuleFlowStep, RuleFlowEvaluateResult } from '@zenith/shared/rules';
-import { decisionFlowContract } from '@zenith/shared/rules';
+import { decisionFlowContract, ruleDecisionFlowSchema } from '@zenith/shared/rules';
 import { db } from '../../db';
 import { ruleDecisionFlows, ruleDecisionTables, ruleAssetVersions } from '../../db/schema';
 import { currentUser } from '../../lib/context';
-import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
+import { tenantCondition } from '../../lib/tenant';
 import { buildWhere, keywordCondition } from '../../lib/where-helpers';
-import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { requireFirstRow } from '../../lib/db-assert';
-import { listRows } from '../../lib/list-query';
-import { formatDateTime, formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
+import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { validateExpression } from '../../lib/workflow-expression';
 import { evaluateDecisionFlowSteps } from '../../lib/rules-flow';
 import { resolveRuntimeDecisionTable, resolveDecisionTableForTest, findWorkflowGatewayUsages } from './rules.service';
 import { recordRuleExecution, snapshotRuleScope } from './rules-executions.service';
 import { invalidateRuleRuntimeCache } from './rules-runtime-cache';
+import { defineCrudService } from '../../lib/crud-service';
+import { entityMapper } from '../../lib/entity-map';
 
 type FlowRow = typeof ruleDecisionFlows.$inferSelect;
 
@@ -31,51 +30,72 @@ const NS_PATTERN = /^[a-zA-Z_$][\w$]*$/;
 
 const stepsComparable = (steps: unknown) => JSON.stringify(steps ?? []);
 
-export function mapDecisionFlow(row: FlowRow) {
+export const mapDecisionFlow = entityMapper(ruleDecisionFlowSchema, (row: FlowRow) => {
   const steps = (row.steps ?? []) as RuleFlowStep[];
   const publishedSteps = (row.publishedSteps ?? null) as RuleFlowStep[] | null;
   return {
-    id: row.id,
-    key: row.key,
-    name: row.name,
-    description: row.description ?? null,
-    status: row.status,
     steps,
     publishedSteps,
-    version: row.version,
     publishedAt: formatNullableDateTime(row.publishedAt),
     dirty: publishedSteps ? stepsComparable(steps) !== stepsComparable(publishedSteps) : false,
-    ...formatTimestamps(row),
   };
-}
+});
 
-export async function ensureDecisionFlow(id: number): Promise<FlowRow> {
-  const tc = tenantCondition(ruleDecisionFlows, currentUser());
-  return requireFirstRow(
-    db.select().from(ruleDecisionFlows).where(buildWhere(eq(ruleDecisionFlows.id, id), tc)).limit(1),
-    '决策流不存在',
-  );
-}
-
-export async function listDecisionFlows(q: QueryOutputOf<typeof decisionFlowContract.list>) {
-  const { page, pageSize } = q;
-  const where = buildWhere(
-    tenantCondition(ruleDecisionFlows, currentUser()),
-    keywordCondition(q.keyword, [ruleDecisionFlows.name]),
-    q.status ? eq(ruleDecisionFlows.status, q.status) : undefined,
-  );
-  return listRows({
-    page,
-    pageSize,
-    table: ruleDecisionFlows,
-    where,
+export const decisionFlowService = defineCrudService(decisionFlowContract, {
+  table: ruleDecisionFlows,
+  map: mapDecisionFlow,
+  notFound: '决策流不存在',
+  unique: '决策流 key 已存在',
+  tenant: true,
+  list: (q) => ({
+    where: [
+      keywordCondition(q.keyword, [ruleDecisionFlows.name]),
+      q.status ? eq(ruleDecisionFlows.status, q.status) : undefined,
+    ],
     orderBy: [desc(ruleDecisionFlows.id)],
-        map: mapDecisionFlow,
-  });
-}
+  }),
+  create: {
+    toRow: (input) => ({
+      key: input.key,
+      name: input.name,
+      description: input.description ?? null,
+      steps: input.steps ?? [],
+    }),
+  },
+  update: {
+    before: (input, current) => {
+      if (input.expectedUpdatedAt && formatDateTime(current.updatedAt) !== input.expectedUpdatedAt) {
+        throw new HTTPException(409, { message: '决策流已被他人修改，请刷新后重试' });
+      }
+    },
+    toRow: (input) => ({
+      ...(input.name !== undefined ? { name: input.name } : {}),
+      ...(input.description !== undefined ? { description: input.description } : {}),
+      ...(input.steps !== undefined ? { steps: input.steps } : {}),
+    }),
+    after: () => {
+      invalidateRuleRuntimeCache();
+    },
+  },
+  remove: {
+    before: ensureFlowNotReferenced,
+    after: () => {
+      invalidateRuleRuntimeCache();
+    },
+  },
+});
 
-export async function getDecisionFlow(id: number) {
-  return mapDecisionFlow(await ensureDecisionFlow(id));
+export const {
+  list: listDecisionFlows,
+  ensure: ensureDecisionFlow,
+  get: getDecisionFlow,
+  create: createDecisionFlow,
+  update: updateDecisionFlow,
+  remove: deleteDecisionFlow,
+} = decisionFlowService;
+
+export async function deleteDecisionFlows(ids: number[]): Promise<void> {
+  await decisionFlowService.removeMany(ids);
 }
 
 export async function getDecisionFlowBeforeAudit(id: number) {
@@ -85,67 +105,12 @@ export async function getDecisionFlowBeforeAudit(id: number) {
   });
 }
 
-export interface CreateDecisionFlowInput {
-  key: string;
-  name: string;
-  description?: string | null;
-  steps?: RuleFlowStep[];
-}
-
-export async function createDecisionFlow(input: CreateDecisionFlowInput) {
-  try {
-    const [row] = await db.insert(ruleDecisionFlows).values({
-      key: input.key,
-      name: input.name,
-      description: input.description ?? null,
-      steps: input.steps ?? [],
-      tenantId: getCreateTenantId(currentUser()),
-    }).returning();
-    return mapDecisionFlow(row);
-  } catch (err) {
-    rethrowPgUniqueViolation(err, '决策流 key 已存在');
-  }
-}
-
-export type UpdateDecisionFlowInput = Partial<Omit<CreateDecisionFlowInput, 'key'>> & { expectedUpdatedAt?: string };
-
-export async function updateDecisionFlow(id: number, input: UpdateDecisionFlowInput) {
-  const current = await ensureDecisionFlow(id);
-  if (input.expectedUpdatedAt && formatDateTime(current.updatedAt) !== input.expectedUpdatedAt) {
-    throw new HTTPException(409, { message: '决策流已被他人修改，请刷新后重试' });
-  }
-  const patch: Partial<typeof ruleDecisionFlows.$inferInsert> = {};
-  if (input.name !== undefined) patch.name = input.name;
-  if (input.description !== undefined) patch.description = input.description;
-  if (input.steps !== undefined) patch.steps = input.steps;
-  const [row] = await db.update(ruleDecisionFlows).set(patch).where(eq(ruleDecisionFlows.id, id)).returning();
-  invalidateRuleRuntimeCache();
-  return mapDecisionFlow(row);
-}
-
 /** 删除前校验：仍被工作流网关引用时拒绝删除 */
 async function ensureFlowNotReferenced(row: FlowRow): Promise<void> {
   const usages = await findWorkflowGatewayUsages(row.key, 'flow', row.tenantId ?? null);
   if (usages.length === 0) return;
   const names = usages.slice(0, 3).map((u) => u.name).join('、');
   throw new HTTPException(400, { message: `决策流「${row.name}」被 ${usages.length} 处工作流引用（${names}${usages.length > 3 ? ' 等' : ''}），请先解除引用后再删除` });
-}
-
-export async function deleteDecisionFlow(id: number): Promise<void> {
-  const row = await ensureDecisionFlow(id);
-  await ensureFlowNotReferenced(row);
-  await db.delete(ruleDecisionFlows).where(eq(ruleDecisionFlows.id, id));
-  invalidateRuleRuntimeCache();
-}
-
-export async function deleteDecisionFlows(ids: number[]): Promise<void> {
-  if (!ids.length) return;
-  const tc = tenantCondition(ruleDecisionFlows, currentUser());
-  const where = buildWhere(inArray(ruleDecisionFlows.id, ids), tc);
-  const rows = await db.select().from(ruleDecisionFlows).where(where);
-  for (const row of rows) await ensureFlowNotReferenced(row);
-  await db.delete(ruleDecisionFlows).where(where);
-  invalidateRuleRuntimeCache();
 }
 
 export async function toggleDecisionFlow(id: number, enabled: boolean) {

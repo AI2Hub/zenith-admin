@@ -4,12 +4,10 @@ import { authMiddleware } from '../../middleware/auth';
 import { defineContractRoute } from '../../lib/contract-route';
 import { validationHook, okBody } from '../../lib/openapi-schemas';
 import {
-  listRatePlans,
   listEnabledRatePlans,
-  getRatePlan,
   createRatePlan,
   updateRatePlan,
-  deleteRatePlan,
+  ratePlanService,
 } from '../../services/open-platform/rate-plans.service';
 import { mountCrud } from '../_crud';
 
@@ -23,11 +21,11 @@ const options = defineContractRoute(ratePlanContract.options, {
 
 mountCrud(router, ratePlanContract,
   {
-    list: listRatePlans,
-    get: getRatePlan,
+    list: ratePlanService.list,
+    get: ratePlanService.get,
     create: createRatePlan,
     update: updateRatePlan,
-    remove: deleteRatePlan,
+    remove: ratePlanService.remove,
   },
   { permission: { read: 'open:rate-plan:view', write: 'open:rate-plan:manage' }, label: '限流套餐', module: MODULE },
   [options],

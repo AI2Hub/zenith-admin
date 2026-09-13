@@ -1,104 +1,83 @@
-import { eq, and } from 'drizzle-orm';
-import { requireFirstRow } from '../../lib/db-assert';
-import { listRows } from '../../lib/list-query';
+import { and, eq } from 'drizzle-orm';
+import { mpKfAccountContract, mpKfAccountSchema } from '@zenith/shared/mp';
 import { db } from '../../db';
 import { mpKfAccounts } from '../../db/schema';
-import type { MpKfAccountRow } from '../../db/schema';
-import { buildWhere, keywordCondition } from '../../lib/where-helpers';
-import { formatTimestamps } from '../../lib/datetime';
-import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
+import { defineCrudService } from '../../lib/crud-service';
+import { entityMapper } from '../../lib/entity-map';
+import { currentCreateTenantId } from '../../lib/tenant';
+import { keywordCondition } from '../../lib/where-helpers';
 import { ensureMpAccountExists } from './mp-account.service';
 import { getWechatKfList, addWechatKfAccount, updateWechatKfAccount, delWechatKfAccount } from '../../lib/wechat';
 import { mapWechatError } from '../../lib/wechat-error';
-import { rethrowPgUniqueViolation } from '../../lib/db-errors';
-import type { CreateMpKfAccountInput, UpdateMpKfAccountInput, mpKfAccountContract } from '@zenith/shared/mp';
-import type { QueryOutputOf } from '@zenith/shared/core';
 
-export function mapMpKfAccount(row: MpKfAccountRow) {
-  return {
-    id: row.id,
-    accountId: row.accountId,
-    kfAccount: row.kfAccount,
-    nickname: row.nickname,
-    avatar: row.avatar ?? null,
-    kfId: row.kfId ?? null,
-    inviteStatus: row.inviteStatus,
-    inviteWx: row.inviteWx ?? null,
-    status: row.status,
-    createdBy: row.createdBy ?? null,
-    updatedBy: row.updatedBy ?? null,
-    ...formatTimestamps(row),
-  };
-}
+export const mapMpKfAccount = entityMapper(mpKfAccountSchema);
 
-export async function ensureMpKfAccountExists(id: number): Promise<MpKfAccountRow> {
-  return requireFirstRow(db.select().from(mpKfAccounts).where(and(eq(mpKfAccounts.id, id), tenantScope(mpKfAccounts))).limit(1), '客服账号不存在');
-}
-
-export async function getMpKfAccountBeforeAudit(id: number) {
-  return mapMpKfAccount(await ensureMpKfAccountExists(id));
-}
-
-export async function listMpKfAccounts(q: QueryOutputOf<typeof mpKfAccountContract.list>) {
-  await ensureMpAccountExists(q.accountId);
-  const where = buildWhere(
-    eq(mpKfAccounts.accountId, q.accountId),
-    tenantScope(mpKfAccounts),
-    keywordCondition(q.keyword, [mpKfAccounts.nickname], 'ilike'),
-  );
-  return listRows({
-    page: q.page,
-    pageSize: q.pageSize,
-    table: mpKfAccounts,
-    where,
+const mpKfAccountCrud = defineCrudService(mpKfAccountContract, {
+  table: mpKfAccounts,
+  map: mapMpKfAccount,
+  notFound: '客服账号不存在',
+  unique: '该客服账号已存在',
+  tenant: true,
+  list: (q) => ({
+    where: [
+      eq(mpKfAccounts.accountId, q.accountId),
+      keywordCondition(q.keyword, [mpKfAccounts.nickname], 'ilike'),
+    ],
     orderBy: [mpKfAccounts.id],
-    map: mapMpKfAccount,
-  });
+  }),
+  create: {
+    before: async (data) => {
+      const account = await ensureMpAccountExists(data.accountId);
+      try {
+        await addWechatKfAccount(account, data.kfAccount, data.nickname);
+      } catch (err) {
+        return mapWechatError(err);
+      }
+    },
+    toRow: (data) => ({
+      accountId: data.accountId,
+      kfAccount: data.kfAccount,
+      nickname: data.nickname,
+    }),
+  },
+  update: {
+    before: async (data, existing) => {
+      const account = await ensureMpAccountExists(existing.accountId);
+      try {
+        await updateWechatKfAccount(account, existing.kfAccount, data.nickname);
+      } catch (err) {
+        return mapWechatError(err);
+      }
+    },
+    toRow: (data) => ({ nickname: data.nickname }),
+  },
+  remove: {
+    before: async (existing) => {
+      const account = await ensureMpAccountExists(existing.accountId);
+      try {
+        await delWechatKfAccount(account, existing.kfAccount);
+      } catch (err) {
+        return mapWechatError(err);
+      }
+    },
+  },
+});
+
+export async function listMpKfAccounts(q: Parameters<typeof mpKfAccountCrud.list>[0]) {
+  await ensureMpAccountExists(q.accountId);
+  return mpKfAccountCrud.list(q);
 }
 
-/** 创建客服账号：调微信 kfaccount/add，成功后登记本地。 */
-export async function createMpKfAccount(data: CreateMpKfAccountInput) {
-  const account = await ensureMpAccountExists(data.accountId);
-  try {
-    await addWechatKfAccount(account, data.kfAccount, data.nickname);
-  } catch (err) {
-    return mapWechatError(err);
-  }
-  const tenantId = currentCreateTenantId();
-  try {
-    const [row] = await db.insert(mpKfAccounts).values({
-      accountId: data.accountId, kfAccount: data.kfAccount, nickname: data.nickname, tenantId,
-    }).returning();
-    return mapMpKfAccount(row);
-  } catch (err) {
-    rethrowPgUniqueViolation(err, '该客服账号已存在');
-  }
-}
+export const mpKfAccountService = { ...mpKfAccountCrud, list: listMpKfAccounts };
 
-/** 修改客服昵称：调微信 kfaccount/update，成功后更新本地。 */
-export async function updateMpKfAccount(id: number, data: UpdateMpKfAccountInput) {
-  const existing = await ensureMpKfAccountExists(id);
-  const account = await ensureMpAccountExists(existing.accountId);
-  try {
-    await updateWechatKfAccount(account, existing.kfAccount, data.nickname);
-  } catch (err) {
-    return mapWechatError(err);
-  }
-  const [row] = await db.update(mpKfAccounts).set({ nickname: data.nickname }).where(eq(mpKfAccounts.id, id)).returning();
-  return mapMpKfAccount(row);
-}
+export const {
+  ensure: ensureMpKfAccountExists,
+  create: createMpKfAccount,
+  update: updateMpKfAccount,
+  remove: deleteMpKfAccount,
+} = mpKfAccountCrud;
 
-/** 删除客服账号：调微信 kfaccount/del，成功后删除本地。 */
-export async function deleteMpKfAccount(id: number) {
-  const existing = await ensureMpKfAccountExists(id);
-  const account = await ensureMpAccountExists(existing.accountId);
-  try {
-    await delWechatKfAccount(account, existing.kfAccount);
-  } catch (err) {
-    return mapWechatError(err);
-  }
-  await db.delete(mpKfAccounts).where(eq(mpKfAccounts.id, id));
-}
+export const getMpKfAccountBeforeAudit = mpKfAccountCrud.get;
 
 /** 从微信同步客服账号（按 kf_account upsert）。 */
 export async function syncMpKfAccounts(accountId: number): Promise<{ success: boolean; created: number; updated: number; total: number }> {

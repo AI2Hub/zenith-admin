@@ -1,76 +1,65 @@
-import { eq, and, desc } from 'drizzle-orm';
-import { requireFirstRow, requireRow } from '../../lib/db-assert';
-import { listRows } from '../../lib/list-query';
+import { desc, eq } from 'drizzle-orm';
+import { mpDraftContract, mpDraftSchema, type MpArticle } from '@zenith/shared/mp';
 import { db } from '../../db';
-import { mpDrafts } from '../../db/schema';
-import type { MpDraftRow } from '../../db/schema';
-import { buildWhere, keywordCondition } from '../../lib/where-helpers';
-import { formatTimestamps } from '../../lib/datetime';
-import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
+import { mpDrafts, type MpDraftRow } from '../../db/schema';
+import { defineCrudService } from '../../lib/crud-service';
+import { entityMapper } from '../../lib/entity-map';
+import { keywordCondition } from '../../lib/where-helpers';
 import { ensureMpAccountExists } from './mp-account.service';
 import { addWechatDraft } from '../../lib/wechat';
 import { mapWechatError } from '../../lib/wechat-error';
-import type { CreateMpDraftInput, UpdateMpDraftInput, MpArticle, mpDraftContract } from '@zenith/shared/mp';
-import type { QueryOutputOf } from '@zenith/shared/core';
+import { requireRow } from '../../lib/db-assert';
 
-export function mapMpDraft(row: MpDraftRow) {
-  return {
-    id: row.id,
-    accountId: row.accountId,
-    title: row.title,
-    articles: (row.articles ?? []) as MpArticle[],
-    wechatMediaId: row.wechatMediaId ?? null,
-    status: row.status,
-    createdBy: row.createdBy ?? null,
-    updatedBy: row.updatedBy ?? null,
-    ...formatTimestamps(row),
-  };
-}
+export const mapMpDraft = entityMapper(mpDraftSchema, (row: MpDraftRow) => ({
+  articles: (row.articles ?? []) as MpArticle[],
+}));
 
-export async function ensureMpDraftExists(id: number): Promise<MpDraftRow> {
-  return requireFirstRow(db.select().from(mpDrafts).where(and(eq(mpDrafts.id, id), tenantScope(mpDrafts))).limit(1), '图文草稿不存在');
-}
-
-export async function getMpDraft(id: number) {
-  return mapMpDraft(await ensureMpDraftExists(id));
-}
-
-export async function listMpDrafts(q: QueryOutputOf<typeof mpDraftContract.list>) {
-  await ensureMpAccountExists(q.accountId);
-  const where = buildWhere(
-    eq(mpDrafts.accountId, q.accountId),
-    tenantScope(mpDrafts),
-    keywordCondition(q.keyword, [mpDrafts.title], 'ilike'),
-  );
-  return listRows({
-    page: q.page,
-    pageSize: q.pageSize,
-    table: mpDrafts,
-    where,
+const mpDraftCrud = defineCrudService(mpDraftContract, {
+  table: mpDrafts,
+  map: mapMpDraft,
+  notFound: '图文草稿不存在',
+  tenant: true,
+  list: (q) => ({
+    where: [
+      eq(mpDrafts.accountId, q.accountId),
+      keywordCondition(q.keyword, [mpDrafts.title], 'ilike'),
+    ],
     orderBy: [desc(mpDrafts.id)],
-    map: mapMpDraft,
-  });
+  }),
+  create: {
+    before: async (data) => {
+      await ensureMpAccountExists(data.accountId);
+    },
+    toRow: (data) => ({
+      accountId: data.accountId,
+      title: data.articles[0]?.title ?? '未命名图文',
+      articles: data.articles,
+    }),
+  },
+  update: {
+    toRow: (data) => ({
+      title: data.articles[0]?.title ?? '未命名图文',
+      articles: data.articles,
+      status: 'draft' as const,
+      wechatMediaId: null,
+    }),
+  },
+});
+
+export async function listMpDrafts(q: Parameters<typeof mpDraftCrud.list>[0]) {
+  await ensureMpAccountExists(q.accountId);
+  return mpDraftCrud.list(q);
 }
 
-export async function createMpDraft(data: CreateMpDraftInput) {
-  await ensureMpAccountExists(data.accountId);
-  const tenantId = currentCreateTenantId();
-  const title = data.articles[0]?.title ?? '未命名图文';
-  const [row] = await db.insert(mpDrafts).values({ accountId: data.accountId, title, articles: data.articles, tenantId }).returning();
-  return mapMpDraft(row);
-}
+export const mpDraftService = { ...mpDraftCrud, list: listMpDrafts };
 
-export async function updateMpDraft(id: number, data: UpdateMpDraftInput) {
-  await ensureMpDraftExists(id);
-  const title = data.articles[0]?.title ?? '未命名图文';
-  const [row] = await db.update(mpDrafts).set({ title, articles: data.articles, status: 'draft', wechatMediaId: null }).where(eq(mpDrafts.id, id)).returning();
-  return mapMpDraft(row);
-}
-
-export async function deleteMpDraft(id: number) {
-  await ensureMpDraftExists(id);
-  await db.delete(mpDrafts).where(eq(mpDrafts.id, id));
-}
+export const {
+  get: getMpDraft,
+  ensure: ensureMpDraftExists,
+  create: createMpDraft,
+  update: updateMpDraft,
+  remove: deleteMpDraft,
+} = mpDraftCrud;
 
 /** 推送图文草稿到微信草稿箱 */
 export async function pushMpDraft(id: number) {

@@ -5,11 +5,7 @@ import { guard } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
-  listMpTags,
-  createMpTag,
-  updateMpTag,
-  deleteMpTag,
-  getMpTagBeforeAudit,
+  mpTagService,
   syncMpTags,
 } from '../../services/mp/mp-tag.service';
 import { mountCrud } from '../_crud';
@@ -21,7 +17,7 @@ const syncRoute = defineContractRoute(mpTagContract.sync, {
 });
 
 mountCrud(mpTagsRouter, mpTagContract,
-  { list: listMpTags, get: getMpTagBeforeAudit, create: createMpTag, update: updateMpTag, remove: deleteMpTag },
+  mpTagService,
   { permission: 'mp:tag', label: '公众号标签', module: '公众号标签' },
   [syncRoute],
 );

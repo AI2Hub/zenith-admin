@@ -1,88 +1,41 @@
-import { eq, and } from 'drizzle-orm';
-import { requireFirstRow } from '../../lib/db-assert';
-import { listRows } from '../../lib/list-query';
+import { eq } from 'drizzle-orm';
+import { emailTemplateContract, emailTemplateSchema } from '@zenith/shared/messaging';
 import { db } from '../../db';
 import { emailTemplates } from '../../db/schema';
-import type { EmailTemplateRow } from '../../db/schema';
+import { defineCrudService } from '../../lib/crud-service';
+import { entityMapper } from '../../lib/entity-map';
+import { tenantScope } from '../../lib/tenant';
 import { buildWhere, keywordCondition } from '../../lib/where-helpers';
-import { formatTimestamps } from '../../lib/datetime';
-import { rethrowPgUniqueViolation } from '../../lib/db-errors';
-import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
-import type { CreateEmailTemplateInput, UpdateEmailTemplateInput, emailTemplateContract } from '@zenith/shared/messaging';
-import type { QueryOutputOf } from '@zenith/shared/core';
 
-export function mapEmailTemplate(row: EmailTemplateRow) {
-  return {
-    id: row.id,
-    name: row.name,
-    code: row.code,
-    subject: row.subject,
-    content: row.content,
-    variables: row.variables ?? null,
-    status: row.status,
-    remark: row.remark ?? null,
-    ...formatTimestamps(row),
-  };
-}
+export const mapEmailTemplate = entityMapper(emailTemplateSchema);
 
-export async function ensureEmailTemplateExists(id: number) {
-  return requireFirstRow(
-    db.select().from(emailTemplates).where(and(eq(emailTemplates.id, id), tenantScope(emailTemplates))).limit(1),
-    '邮件模板不存在',
-  );
-}
-
-export async function listEmailTemplates(q: QueryOutputOf<typeof emailTemplateContract.list>) {
-  const where = buildWhere(
-    tenantScope(emailTemplates),
-    keywordCondition(q.keyword, [emailTemplates.name, emailTemplates.code], 'ilike'),
-    q.status ? eq(emailTemplates.status, q.status) : undefined,
-  );
-  return listRows({
-    page: q.page,
-    pageSize: q.pageSize,
-    table: emailTemplates,
-    where,
+export const emailTemplateService = defineCrudService(emailTemplateContract, {
+  table: emailTemplates,
+  map: mapEmailTemplate,
+  notFound: '邮件模板不存在',
+  unique: '邮件模板编码已存在',
+  tenant: true,
+  list: (q) => ({
+    where: [
+      keywordCondition(q.keyword, [emailTemplates.name, emailTemplates.code], 'ilike'),
+      q.status ? eq(emailTemplates.status, q.status) : undefined,
+    ],
     orderBy: [emailTemplates.id],
-    map: mapEmailTemplate,
-  });
-}
+  }),
+});
 
-export async function getEmailTemplate(id: number) {
-  const row = await ensureEmailTemplateExists(id);
-  return mapEmailTemplate(row);
-}
+export const {
+  list: listEmailTemplates,
+  get: getEmailTemplate,
+  ensure: ensureEmailTemplateExists,
+  create: createEmailTemplate,
+  update: updateEmailTemplate,
+  remove: deleteEmailTemplate,
+} = emailTemplateService;
 
-export async function getEmailTemplateBeforeAudit(id: number) {
-  const row = await ensureEmailTemplateExists(id);
-  return mapEmailTemplate(row);
-}
-
-export async function createEmailTemplate(data: CreateEmailTemplateInput) {
-  try {
-    const [row] = await db.insert(emailTemplates).values({ ...data, tenantId: currentCreateTenantId() }).returning();
-    return mapEmailTemplate(row);
-  } catch (err) {
-    rethrowPgUniqueViolation(err, '邮件模板编码已存在');
-  }
-}
-
-export async function updateEmailTemplate(id: number, data: UpdateEmailTemplateInput) {
-  await ensureEmailTemplateExists(id);
-  try {
-    const [row] = await db.update(emailTemplates).set(data).where(eq(emailTemplates.id, id)).returning();
-    return mapEmailTemplate(row);
-  } catch (err) {
-    rethrowPgUniqueViolation(err, '邮件模板编码已存在');
-  }
-}
-
-export async function deleteEmailTemplate(id: number) {
-  await ensureEmailTemplateExists(id);
-  await db.delete(emailTemplates).where(eq(emailTemplates.id, id));
-}
+export const getEmailTemplateBeforeAudit = emailTemplateService.get;
 
 export async function findEmailTemplateByCode(code: string) {
-  const [row] = await db.select().from(emailTemplates).where(and(eq(emailTemplates.code, code), tenantScope(emailTemplates))).limit(1);
+  const [row] = await db.select().from(emailTemplates).where(buildWhere(eq(emailTemplates.code, code), tenantScope(emailTemplates))).limit(1);
   return row ?? null;
 }

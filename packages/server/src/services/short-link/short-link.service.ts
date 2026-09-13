@@ -8,54 +8,33 @@ import type { QueryOutputOf } from '@zenith/shared/core';
 import { randomBytes } from 'node:crypto';
 import { HTTPException } from 'hono/http-exception';
 import { and, desc, eq, inArray } from 'drizzle-orm';
-import { SHORT_LINK_CODE_ALPHABET, SHORT_LINK_CODE_LENGTH, SHORT_LINK_RESERVED_CODES, type ShortLinkBizType, shortLinkContract } from '@zenith/shared/short-link';
-import type { CreateShortLinkInput, UpdateShortLinkInput } from '@zenith/shared/short-link';
+import { SHORT_LINK_CODE_ALPHABET, SHORT_LINK_CODE_LENGTH, SHORT_LINK_RESERVED_CODES, type ShortLinkBizType, shortLinkContract, shortLinkSchema } from '@zenith/shared/short-link';
+import type { CreateShortLinkInput } from '@zenith/shared/short-link';
 import { db } from '../../db';
 import { shortLinks, type ShortLinkRow } from '../../db/schema';
 import { config } from '../../config';
-import { formatNullableDateTime, formatTimestamps, parseDateTimeInput } from '../../lib/datetime';
-import { requireFirstRow, requireRow } from '../../lib/db-assert';
-import { listRows } from '../../lib/list-query';
+import { parseDateTimeInput } from '../../lib/datetime';
 import { buildWhere, dateRangeConditions, keywordCondition } from '../../lib/where-helpers';
 import { isPgUniqueViolation, rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { currentUser, currentUserOrNull } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import { invalidateShortLinkCache } from './short-link-redirect.service';
+import { defineCrudService } from '../../lib/crud-service';
+import { entityMapper } from '../../lib/entity-map';
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
 export function buildShortUrl(code: string): string {
   return `${config.publicBaseUrl}/s/${code}`;
 }
 
-export function mapShortLink(row: ShortLinkRow) {
+export const mapShortLink = entityMapper(shortLinkSchema, (row: ShortLinkRow) => {
   const expiresAt = row.expiresAt ?? null;
   return {
-    id: row.id,
-    code: row.code,
     shortUrl: buildShortUrl(row.code),
-    targetUrl: row.targetUrl,
-    title: row.title ?? null,
-    redirectType: row.redirectType,
-    status: row.status,
-    expiresAt: formatNullableDateTime(expiresAt),
     expired: expiresAt !== null && expiresAt.getTime() <= Date.now(),
-    maxVisits: row.maxVisits ?? null,
-    password: row.password ?? null,
-    utmSource: row.utmSource ?? null,
-    utmMedium: row.utmMedium ?? null,
-    utmCampaign: row.utmCampaign ?? null,
-    utmTerm: row.utmTerm ?? null,
-    utmContent: row.utmContent ?? null,
     bizType: row.bizType as ShortLinkBizType,
-    bizRef: row.bizRef ?? null,
-    remark: row.remark ?? null,
-    totalPv: row.totalPv,
-    lastVisitAt: formatNullableDateTime(row.lastVisitAt),
-    createdBy: row.createdBy ?? null,
-    updatedBy: row.updatedBy ?? null,
-    ...formatTimestamps(row),
   };
-}
+});
 
 // ─── 目标 URL 安全校验 ────────────────────────────────────────────────────────
 const PRIVATE_HOST_PATTERN = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.0\.0\.0|\[::1\]|::1$)/i;
@@ -123,27 +102,6 @@ export function buildShortLinkWhere(q: ShortLinkWhereInput) {
   );
 }
 
-export async function listShortLinks(q: ListShortLinksQuery) {
-  const { page, pageSize } = q;
-  const where = buildShortLinkWhere(q);
-  return listRows({
-    page,
-    pageSize,
-    table: shortLinks,
-    where,
-    orderBy: [desc(shortLinks.id)],
-    map: mapShortLink,
-  });
-}
-
-export async function ensureShortLinkExists(id: number): Promise<ShortLinkRow> {
-  return requireFirstRow(db.select().from(shortLinks).where(buildShortLinkWhere({ id })).limit(1), '短链不存在');
-}
-
-export async function getShortLink(id: number) {
-  return mapShortLink(await ensureShortLinkExists(id));
-}
-
 // ─── 写入 ─────────────────────────────────────────────────────────────────────
 function parseExpiresAt(value: string | null | undefined): Date | null | undefined {
   if (value === undefined) return undefined;
@@ -152,6 +110,62 @@ function parseExpiresAt(value: string | null | undefined): Date | null | undefin
   if (!parsed) throw new HTTPException(400, { message: '过期时间格式不正确' });
   return parsed;
 }
+
+export const shortLinkService = defineCrudService(shortLinkContract, {
+  table: shortLinks,
+  map: mapShortLink,
+  notFound: '短链不存在',
+  scope: () => tenantCondition(shortLinks, currentUser()),
+  list: (q) => ({
+    where: [
+      keywordCondition(q.keyword, [shortLinks.code, shortLinks.title, shortLinks.targetUrl]),
+      q.status ? eq(shortLinks.status, q.status) : undefined,
+      q.bizType ? eq(shortLinks.bizType, q.bizType) : undefined,
+      ...dateRangeConditions(shortLinks.createdAt, q.startTime, q.endTime),
+    ],
+    orderBy: [desc(shortLinks.id)],
+  }),
+  update: {
+    before: (data) => {
+      if (data.targetUrl !== undefined) ensureSafeTargetUrl(data.targetUrl);
+    },
+    toRow: (data) => {
+      const expiresAt = parseExpiresAt(data.expiresAt);
+      return {
+        ...(data.targetUrl !== undefined ? { targetUrl: data.targetUrl } : {}),
+        ...(data.title !== undefined ? { title: data.title } : {}),
+        ...(data.redirectType !== undefined ? { redirectType: data.redirectType } : {}),
+        ...(data.status !== undefined ? { status: data.status } : {}),
+        ...(expiresAt !== undefined ? { expiresAt } : {}),
+        ...(data.maxVisits !== undefined ? { maxVisits: data.maxVisits } : {}),
+        ...(data.password !== undefined ? { password: data.password } : {}),
+        ...(data.utmSource !== undefined ? { utmSource: data.utmSource } : {}),
+        ...(data.utmMedium !== undefined ? { utmMedium: data.utmMedium } : {}),
+        ...(data.utmCampaign !== undefined ? { utmCampaign: data.utmCampaign } : {}),
+        ...(data.utmTerm !== undefined ? { utmTerm: data.utmTerm } : {}),
+        ...(data.utmContent !== undefined ? { utmContent: data.utmContent } : {}),
+        ...(data.remark !== undefined ? { remark: data.remark } : {}),
+      };
+    },
+    after: async (_entity, row) => {
+      await invalidateShortLinkCache(row.code);
+    },
+  },
+  remove: {
+    after: async (row) => {
+      await invalidateShortLinkCache(row.code);
+    },
+  },
+});
+
+export const {
+  list: listShortLinks,
+  ensure: ensureShortLinkExists,
+  get: getShortLink,
+  update: updateShortLink,
+  remove: deleteShortLink,
+  removeMany: deleteShortLinks,
+} = shortLinkService;
 
 export async function createShortLink(data: CreateShortLinkInput) {
   ensureSafeTargetUrl(data.targetUrl);
@@ -205,48 +219,6 @@ async function insertShortLinkRow(baseValues: Omit<typeof shortLinks.$inferInser
     }
   }
   throw new HTTPException(500, { message: '短码生成失败，请重试' });
-}
-
-export async function updateShortLink(id: number, data: UpdateShortLinkInput) {
-  const before = await ensureShortLinkExists(id);
-  if (data.targetUrl !== undefined) ensureSafeTargetUrl(data.targetUrl);
-  const expiresAt = parseExpiresAt(data.expiresAt);
-
-  const [row] = await db
-    .update(shortLinks)
-    .set({
-      ...(data.targetUrl !== undefined ? { targetUrl: data.targetUrl } : {}),
-      ...(data.title !== undefined ? { title: data.title } : {}),
-      ...(data.redirectType !== undefined ? { redirectType: data.redirectType } : {}),
-      ...(data.status !== undefined ? { status: data.status } : {}),
-      ...(expiresAt !== undefined ? { expiresAt } : {}),
-      ...(data.maxVisits !== undefined ? { maxVisits: data.maxVisits } : {}),
-      ...(data.password !== undefined ? { password: data.password } : {}),
-      ...(data.utmSource !== undefined ? { utmSource: data.utmSource } : {}),
-      ...(data.utmMedium !== undefined ? { utmMedium: data.utmMedium } : {}),
-      ...(data.utmCampaign !== undefined ? { utmCampaign: data.utmCampaign } : {}),
-      ...(data.utmTerm !== undefined ? { utmTerm: data.utmTerm } : {}),
-      ...(data.utmContent !== undefined ? { utmContent: data.utmContent } : {}),
-      ...(data.remark !== undefined ? { remark: data.remark } : {}),
-    })
-    .where(buildShortLinkWhere({ id }))
-    .returning();
-
-  await invalidateShortLinkCache(before.code);
-  return mapShortLink(requireRow(row, '短链不存在'));
-}
-
-export async function deleteShortLink(id: number): Promise<void> {
-  const before = await ensureShortLinkExists(id);
-  await db.delete(shortLinks).where(buildShortLinkWhere({ id }));
-  await invalidateShortLinkCache(before.code);
-}
-
-export async function deleteShortLinks(ids: number[]): Promise<number> {
-  const where = buildWhere(inArray(shortLinks.id, ids), buildShortLinkWhere({}));
-  const deleted = await db.delete(shortLinks).where(where).returning({ code: shortLinks.code });
-  await Promise.all(deleted.map((d) => invalidateShortLinkCache(d.code)));
-  return deleted.length;
 }
 
 export async function batchUpdateShortLinkStatus(ids: number[], status: 'enabled' | 'disabled'): Promise<number> {

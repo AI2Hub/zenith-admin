@@ -1,31 +1,17 @@
 import { eq, desc, inArray, sql } from 'drizzle-orm';
 import type { QueryOutputOf } from '@zenith/shared/core';
-import { apiScopeContract } from '@zenith/shared/open-platform';
-import { requireRow } from '../../lib/db-assert';
+import { apiScopeContract, apiScopeSchema } from '@zenith/shared/open-platform';
 import { buildListResult } from '../../lib/list-query';
 import { db } from '../../db';
 import { apiScopes, oauth2Clients } from '../../db/schema';
 import type { ApiScopeRow } from '../../db/schema';
 import { HTTPException } from 'hono/http-exception';
-import { formatTimestamps } from '../../lib/datetime';
-import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { buildWhere, keywordCondition, withPagination } from '../../lib/where-helpers';
-import type { CreateApiScopeInput, UpdateApiScopeInput } from '@zenith/shared/open-platform';
+import { defineCrudService } from '../../lib/crud-service';
+import { pickEntity } from '../../lib/entity-map';
 
 export function mapApiScope(row: ApiScopeRow, usedByAppCount = 0) {
-  return {
-    id: row.id,
-    code: row.code,
-    name: row.name,
-    description: row.description ?? null,
-    scopeGroup: row.scopeGroup,
-    status: row.status,
-    /** 当前引用该 scope 的应用数量（引用中的 scope 不可删除） */
-    usedByAppCount,
-    createdBy: row.createdBy ?? null,
-    updatedBy: row.updatedBy ?? null,
-    ...formatTimestamps(row),
-  };
+  return pickEntity(apiScopeSchema, row, { usedByAppCount });
 }
 
 /**
@@ -76,46 +62,10 @@ export async function listEnabledApiScopes() {
 }
 
 export async function getApiScope(id: number) {
-  const [row] = await db.select().from(apiScopes).where(eq(apiScopes.id, id)).limit(1);
-  requireRow(row, 'API Scope 不存在');
-  return mapApiScope(row);
+  return apiScopeService.get(id);
 }
 
-export async function getApiScopeBeforeAudit(id: number) {
-  return getApiScope(id);
-}
-
-export async function createApiScope(input: CreateApiScopeInput) {
-  try {
-    const [row] = await db.insert(apiScopes).values({
-      code: input.code.trim(),
-      name: input.name.trim(),
-      description: input.description,
-      scopeGroup: input.scopeGroup ?? 'general',
-      status: input.status ?? 'enabled',
-    }).returning();
-    return mapApiScope(row);
-  } catch (err) {
-    rethrowPgUniqueViolation(err, 'scope 编码已存在');
-    throw err;
-  }
-}
-
-export async function updateApiScope(id: number, input: UpdateApiScopeInput) {
-  await getApiScope(id);
-  try {
-    const [row] = await db.update(apiScopes).set({
-      name: input.name?.trim(),
-      description: input.description,
-      scopeGroup: input.scopeGroup,
-      status: input.status,
-    }).where(eq(apiScopes.id, id)).returning();
-    return mapApiScope(row);
-  } catch (err) {
-    rethrowPgUniqueViolation(err, 'scope 编码已存在');
-    throw err;
-  }
-}
+export const getApiScopeBeforeAudit = getApiScope;
 
 /**
  * 删除 scope 前必须确认没有应用引用它。
@@ -131,13 +81,7 @@ async function ensureScopesUnreferenced(codes: string[]): Promise<void> {
 }
 
 export async function deleteApiScope(id: number) {
-  const [existing] = await db.select({ code: apiScopes.code }).from(apiScopes)
-    .where(eq(apiScopes.id, id))
-    .limit(1);
-  requireRow(existing, 'API Scope 不存在');
-  await ensureScopesUnreferenced([existing.code]);
-  const result = await db.delete(apiScopes).where(eq(apiScopes.id, id)).returning();
-  requireRow(result[0], 'API Scope 不存在');
+  await apiScopeService.remove(id);
 }
 
 export async function batchDeleteApiScopes(ids: number[]) {
@@ -148,3 +92,42 @@ export async function batchDeleteApiScopes(ids: number[]) {
   const result = await db.delete(apiScopes).where(inArray(apiScopes.id, ids)).returning();
   return result.length;
 }
+
+export const apiScopeService = defineCrudService(apiScopeContract, {
+  table: apiScopes,
+  map: (row) => mapApiScope(row),
+  notFound: 'API Scope 不存在',
+  unique: 'scope 编码已存在',
+  list: (q) => ({
+    where: [
+      keywordCondition(q.keyword, [apiScopes.code, apiScopes.name], 'ilike'),
+      q.scopeGroup ? eq(apiScopes.scopeGroup, q.scopeGroup) : undefined,
+      q.status ? eq(apiScopes.status, q.status) : undefined,
+    ],
+    orderBy: [desc(apiScopes.createdAt)],
+  }),
+  create: {
+    toRow: (input) => ({
+      code: input.code.trim(),
+      name: input.name.trim(),
+      description: input.description,
+      scopeGroup: input.scopeGroup ?? 'general',
+      status: input.status ?? 'enabled',
+    }),
+  },
+  update: {
+    toRow: (input) => ({
+      name: input.name?.trim(),
+      description: input.description,
+      scopeGroup: input.scopeGroup,
+      status: input.status,
+    }),
+  },
+  remove: {
+    before: async (existing) => {
+      await ensureScopesUnreferenced([existing.code]);
+    },
+  },
+});
+
+export const { create: createApiScope, update: updateApiScope } = apiScopeService;

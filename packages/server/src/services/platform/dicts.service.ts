@@ -1,20 +1,17 @@
 import { eq, asc, desc, and } from 'drizzle-orm';
-import type { QueryOutputOf } from '@zenith/shared/core';
-import { dictContract } from '@zenith/shared/platform';
-import { buildWhere, keywordCondition, dateRangeConditions } from '../../lib/where-helpers';
+import { dictContract, dictSchema } from '@zenith/shared/platform';
+import { keywordCondition, dateRangeConditions } from '../../lib/where-helpers';
 import { db } from '../../db';
 import { dicts, dictItems } from '../../db/schema';
-import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
+import { tenantCondition } from '../../lib/tenant';
 import { formatTimestamps } from '../../lib/datetime';
 import { currentUser } from '../../lib/context';
 import { HTTPException } from 'hono/http-exception';
 import { requireFirstRow, requireRow } from '../../lib/db-assert';
-import { listRows } from '../../lib/list-query';
-import { rethrowPgUniqueViolation } from '../../lib/db-errors';
+import { defineCrudService } from '../../lib/crud-service';
+import { entityMapper } from '../../lib/entity-map';
 
-export function mapDict(row: typeof dicts.$inferSelect) {
-  return { ...row, ...formatTimestamps(row) };
-}
+export const mapDict = entityMapper(dictSchema);
 
 export function mapDictItem(row: typeof dictItems.$inferSelect) {
   return {
@@ -24,53 +21,23 @@ export function mapDictItem(row: typeof dictItems.$inferSelect) {
   };
 }
 
-export async function listDicts(q: QueryOutputOf<typeof dictContract.list>) {
-  const user = currentUser();
-  const { page, pageSize } = q;
-  const finalWhere = buildWhere(
-    keywordCondition(q.keyword, [dicts.name, dicts.code]),
-    q.status ? eq(dicts.status, q.status) : undefined,
-    ...dateRangeConditions(dicts.createdAt, q.startDate, q.endDate),
-    tenantCondition(dicts, user),
-  );
-  return listRows({
-    page,
-    pageSize,
-    table: dicts,
-    where: finalWhere,
+export const dictService = defineCrudService(dictContract, {
+  table: dicts,
+  map: mapDict,
+  notFound: '字典不存在',
+  unique: '字典编码已存在',
+  tenant: true,
+  list: (q) => ({
+    where: [
+      keywordCondition(q.keyword, [dicts.name, dicts.code]),
+      q.status ? eq(dicts.status, q.status) : undefined,
+      ...dateRangeConditions(dicts.createdAt, q.startDate, q.endDate),
+    ],
     orderBy: [desc(dicts.createdAt)],
-    map: mapDict,
-  });
-}
+  }),
+});
 
-export async function createDict(data: typeof dicts.$inferInsert) {
-  const user = currentUser();
-  try {
-    const [row] = await db.insert(dicts).values({ ...data, tenantId: getCreateTenantId(user) }).returning();
-    return mapDict(row);
-  } catch (err) {
-    rethrowPgUniqueViolation(err, '字典编码已存在');
-  }
-}
-
-export async function updateDict(id: number, data: Partial<typeof dicts.$inferInsert>) {
-  const user = currentUser();
-  const [row] = await db
-    .update(dicts)
-    .set({ ...data })
-    .where(and(eq(dicts.id, id), tenantCondition(dicts, user)))
-    .returning();
-  return mapDict(requireRow(row, '字典不存在'));
-}
-
-export async function deleteDict(id: number) {
-  const user = currentUser();
-  const [row] = await db
-    .delete(dicts)
-    .where(and(eq(dicts.id, id), tenantCondition(dicts, user)))
-    .returning();
-  requireRow(row, '字典不存在');
-}
+export const { list: listDicts, get: getDict, create: createDict, update: updateDict, remove: deleteDict } = dictService;
 
 export async function listDictItems(dictId: number) {
   const user = currentUser();
@@ -154,16 +121,6 @@ export async function deleteDictItem(itemId: number) {
     '字典项不存在',
   );
   await db.delete(dictItems).where(eq(dictItems.id, itemId));
-}
-
-export async function getDict(id: number) {
-  const user = currentUser();
-  const tc = tenantCondition(dicts, user);
-  const row = await requireFirstRow(
-    db.select().from(dicts).where(and(eq(dicts.id, id), tc)).limit(1),
-    '字典不存在',
-  );
-  return mapDict(row);
 }
 
 export async function getDictItem(dictId: number, itemId: number) {

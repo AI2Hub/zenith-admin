@@ -1,26 +1,13 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { cmsErrorProneWordContract } from '@zenith/shared/cms';
 import { validationHook } from '../../lib/openapi-schemas';
-import {
-  listCmsErrorProneWords,
-  createCmsErrorProneWord,
-  updateCmsErrorProneWord,
-  deleteCmsErrorProneWord,
-  mapCmsErrorProneWord,
-  ensureCmsErrorProneWordExists,
-} from '../../services/cms/cms-error-prone-words.service';
+import { cmsErrorProneWordService } from '../../services/cms/cms-error-prone-words.service';
 import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
 mountCrud(router, cmsErrorProneWordContract,
-  {
-    list: listCmsErrorProneWords,
-    get: async (id: number) => mapCmsErrorProneWord(await ensureCmsErrorProneWordExists(id)),
-    create: createCmsErrorProneWord,
-    update: updateCmsErrorProneWord,
-    remove: deleteCmsErrorProneWord,
-  },
+  cmsErrorProneWordService,
   {
     permission: { read: 'cms:word:list', write: 'cms:word:manage' },
     label: ' CMS 易错词',

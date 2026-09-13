@@ -6,11 +6,7 @@ import { idempotencyGuard } from '../../middleware/idempotency';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
-  listCoupons,
-  getCoupon,
-  createCoupon,
-  updateCoupon,
-  deleteCoupon,
+  couponService,
   ensureCouponExists,
   issueCoupon,
   listMemberCoupons,
@@ -71,7 +67,7 @@ const issueRoute = defineContractRoute(couponContract.issue, {
 });
 
 mountCrud(couponsRouter, couponContract,
-  { list: listCoupons, get: getCoupon, create: createCoupon, update: updateCoupon, remove: deleteCoupon },
+  couponService,
   { permission: 'member:coupon', label: '优惠券', module: '优惠券' },
   [recordsRoute, revokeRoute, byCodeRoute, redeemRoute, issueRoute],
 );

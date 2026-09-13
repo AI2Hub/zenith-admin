@@ -6,12 +6,7 @@ import { sensitiveRateLimit } from '../../middleware/rate-limit';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
-  listDecisionFlows,
-  getDecisionFlow,
-  createDecisionFlow,
-  updateDecisionFlow,
-  deleteDecisionFlow,
-  deleteDecisionFlows,
+  decisionFlowService,
   toggleDecisionFlow,
   publishDecisionFlow,
   testEvaluateDecisionFlow,
@@ -65,14 +60,7 @@ const evaluateRoute = defineContractRoute(decisionFlowContract.evaluate, {
 });
 
 mountCrud(router, decisionFlowContract,
-  {
-    list: listDecisionFlows,
-    get: getDecisionFlow,
-    create: createDecisionFlow,
-    update: updateDecisionFlow,
-    remove: deleteDecisionFlow,
-    removeMany: deleteDecisionFlows,
-  },
+  decisionFlowService,
   { permission: 'rule:flow', label: '决策流', module: '规则中心', messages: { removeBatch: '删除成功' } },
   [versionsRoute, rollbackRoute, publishRoute, toggleRoute, testRoute, evaluateRoute],
 );

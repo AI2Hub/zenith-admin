@@ -5,11 +5,7 @@ import { guard } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
-  listWorkflowConnectors,
-  getWorkflowConnector,
-  createWorkflowConnector,
-  updateWorkflowConnector,
-  deleteWorkflowConnector,
+  workflowConnectorService,
   testWorkflowConnector,
   getConnectorStats,
   listConnectorInvocations,
@@ -38,13 +34,7 @@ const invocationsRoute = defineContractRoute(workflowConnectorContract.invocatio
 });
 
 mountCrud(router, workflowConnectorContract,
-  {
-    list: listWorkflowConnectors,
-    get: getWorkflowConnector,
-    create: createWorkflowConnector,
-    update: updateWorkflowConnector,
-    remove: deleteWorkflowConnector,
-  },
+  workflowConnectorService,
   { permission: 'workflow:connector', label: '流程连接器', module: '流程连接器' },
   [testRoute, statsRoute, invocationsRoute],
 );

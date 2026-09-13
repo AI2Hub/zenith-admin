@@ -6,10 +6,7 @@ import { idempotencyGuard } from '../../middleware/idempotency';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
-  listMpBroadcasts,
-  createMpBroadcast,
-  updateMpBroadcast,
-  deleteMpBroadcast,
+  mpBroadcastService,
   sendMpBroadcast,
   getMpBroadcastBeforeAudit,
   previewMpBroadcast,
@@ -48,13 +45,7 @@ const resultRoute = defineContractRoute(mpBroadcastContract.result, {
 });
 
 mountCrud(mpBroadcastsRouter, mpBroadcastContract,
-  {
-    list: listMpBroadcasts,
-    get: getMpBroadcastBeforeAudit,
-    create: createMpBroadcast,
-    update: updateMpBroadcast,
-    remove: deleteMpBroadcast,
-  },
+  mpBroadcastService,
   { permission: 'mp:broadcast', label: '公众号群发', module: '公众号群发', messages: { create: '已创建群发草稿' } },
   [sendRoute, previewRoute, resultRoute],
 );

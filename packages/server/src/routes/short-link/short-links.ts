@@ -8,14 +8,11 @@ import { guard } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { validationHook, okBody, errBody } from '../../lib/openapi-schemas';
 import {
-  listShortLinks,
-  getShortLink,
   createShortLink,
-  updateShortLink,
-  deleteShortLink,
   deleteShortLinks,
   batchUpdateShortLinkStatus,
   ensureShortLink,
+  shortLinkService,
 } from '../../services/short-link/short-link.service';
 import { getShortLinkStats } from '../../services/short-link/short-link-stats.service';
 import { mountCrud } from '../_crud';
@@ -66,11 +63,11 @@ const statsRoute = defineContractRoute(shortLinkContract.stats, {
 
 mountCrud(shortLinksRouter, shortLinkContract,
   {
-    list: listShortLinks,
-    get: getShortLink,
+    list: shortLinkService.list,
+    get: shortLinkService.get,
     create: createShortLink,
-    update: updateShortLink,
-    remove: deleteShortLink,
+    update: shortLinkService.update,
+    remove: shortLinkService.remove,
   },
   { permission: 'shortlink:link', label: '短链', exclude: ['removeBatch'] },
   [batchDeleteRoute, batchStatusRoute, ensureRoute, statsRoute],

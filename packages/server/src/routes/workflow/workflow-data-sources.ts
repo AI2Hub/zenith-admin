@@ -4,11 +4,7 @@ import { authMiddleware } from '../../middleware/auth';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
-  listDataSources,
-  getDataSource,
-  createDataSource,
-  updateDataSource,
-  deleteDataSource,
+  workflowDataSourceService,
   fetchDataSourceOptions,
   fetchDataSourceRecord,
 } from '../../services/workflow/workflow-data-source.service';
@@ -37,13 +33,7 @@ const recordRoute = defineContractRoute(workflowDataSourceContract.record, {
 });
 
 mountCrud(router, workflowDataSourceContract,
-  {
-    list: listDataSources,
-    get: getDataSource,
-    create: createDataSource,
-    update: updateDataSource,
-    remove: deleteDataSource,
-  },
+  workflowDataSourceService,
   { permission: 'workflow:datasource', label: '远程数据源', module: '远程数据源' },
   [optionsRoute, recordRoute],
 );

@@ -5,11 +5,8 @@ import { guard, setAuditBeforeData } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
-  listMpDrafts,
   getMpDraft,
-  createMpDraft,
-  updateMpDraft,
-  deleteMpDraft,
+  mpDraftService,
   pushMpDraft,
 } from '../../services/mp/mp-draft.service';
 import { mountCrud } from '../_crud';
@@ -26,7 +23,7 @@ const pushRoute = defineContractRoute(mpDraftContract.push, {
 });
 
 mountCrud(mpDraftsRouter, mpDraftContract,
-  { list: listMpDrafts, get: getMpDraft, create: createMpDraft, update: updateMpDraft, remove: deleteMpDraft },
+  mpDraftService,
   { permission: 'mp:draft', label: '图文草稿', module: '公众号图文' },
   [pushRoute],
 );

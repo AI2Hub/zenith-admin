@@ -1,13 +1,13 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { paymentFeeRuleContract } from '@zenith/shared/payment';
 import { validationHook } from '../../lib/openapi-schemas';
-import { listFeeRules, getFeeRule, createFeeRule, updateFeeRule, deleteFeeRule } from '../../services/payment/payment-fee.service';
+import { paymentFeeRuleService } from '../../services/payment/payment-fee.service';
 import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
 mountCrud(router, paymentFeeRuleContract,
-  { list: listFeeRules, get: getFeeRule, create: createFeeRule, update: updateFeeRule, remove: deleteFeeRule },
+  paymentFeeRuleService,
   {
     permission: 'payment:fee',
     label: '支付费率规则',

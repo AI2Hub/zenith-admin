@@ -1,86 +1,67 @@
-import { eq, and, inArray, sql } from 'drizzle-orm';
-import { requireFirstRow } from '../../lib/db-assert';
-import { listRows } from '../../lib/list-query';
+import { and, eq, inArray, sql } from 'drizzle-orm';
+import { mpMaterialContract, mpMaterialSchema, type MpMaterialType } from '@zenith/shared/mp';
 import { db } from '../../db';
 import { mpMaterials } from '../../db/schema';
-import type { MpMaterialRow } from '../../db/schema';
-import { buildWhere, keywordCondition } from '../../lib/where-helpers';
-import { formatTimestamps } from '../../lib/datetime';
-import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
+import { defineCrudService } from '../../lib/crud-service';
+import { entityMapper } from '../../lib/entity-map';
+import { currentCreateTenantId } from '../../lib/tenant';
+import { keywordCondition } from '../../lib/where-helpers';
 import { ensureMpAccountExists } from './mp-account.service';
 import { batchGetWechatMaterials, deleteWechatMaterial, uploadWechatMaterial } from '../../lib/wechat';
 import { mapWechatError } from '../../lib/wechat-error';
 import logger from '../../lib/logger';
-import type { CreateMpMaterialInput, UpdateMpMaterialInput, MpMaterialType, mpMaterialContract } from '@zenith/shared/mp';
-import type { QueryOutputOf } from '@zenith/shared/core';
 
-export function mapMpMaterial(row: MpMaterialRow) {
-  return {
-    id: row.id,
-    accountId: row.accountId,
-    type: row.type,
-    name: row.name,
-    wechatMediaId: row.wechatMediaId ?? null,
-    url: row.url ?? null,
-    fileSize: row.fileSize ?? null,
-    createdBy: row.createdBy ?? null,
-    updatedBy: row.updatedBy ?? null,
-    ...formatTimestamps(row),
-  };
-}
+export const mapMpMaterial = entityMapper(mpMaterialSchema);
 
-export async function ensureMpMaterialExists(id: number): Promise<MpMaterialRow> {
-  return requireFirstRow(db.select().from(mpMaterials).where(and(eq(mpMaterials.id, id), tenantScope(mpMaterials))).limit(1), '素材不存在');
-}
-
-export async function getMpMaterialBeforeAudit(id: number) {
-  return mapMpMaterial(await ensureMpMaterialExists(id));
-}
-
-export async function listMpMaterials(q: QueryOutputOf<typeof mpMaterialContract.list>) {
-  await ensureMpAccountExists(q.accountId);
-  const where = buildWhere(
-    eq(mpMaterials.accountId, q.accountId),
-    tenantScope(mpMaterials),
-    q.type ? eq(mpMaterials.type, q.type) : undefined,
-    keywordCondition(q.keyword, [mpMaterials.name], 'ilike'),
-  );
-  return listRows({
-    page: q.page,
-    pageSize: q.pageSize,
-    table: mpMaterials,
-    where,
+const mpMaterialCrud = defineCrudService(mpMaterialContract, {
+  table: mpMaterials,
+  map: mapMpMaterial,
+  notFound: '素材不存在',
+  tenant: true,
+  list: (q) => ({
+    where: [
+      eq(mpMaterials.accountId, q.accountId),
+      q.type ? eq(mpMaterials.type, q.type) : undefined,
+      keywordCondition(q.keyword, [mpMaterials.name], 'ilike'),
+    ],
     orderBy: [mpMaterials.id],
-    map: mapMpMaterial,
-  });
+  }),
+  create: {
+    before: async (data) => {
+      await ensureMpAccountExists(data.accountId);
+    },
+  },
+  update: {
+    toRow: (data) => ({ name: data.name }),
+  },
+  remove: {
+    before: async (row) => {
+      if (!row.wechatMediaId) return;
+      try {
+        const account = await ensureMpAccountExists(row.accountId);
+        await deleteWechatMaterial(account, row.wechatMediaId);
+      } catch (err) {
+        logger.warn(`[mp-material] 微信端素材删除失败（已忽略）: ${(err as Error).message}`);
+      }
+    },
+  },
+});
+
+export async function listMpMaterials(q: Parameters<typeof mpMaterialCrud.list>[0]) {
+  await ensureMpAccountExists(q.accountId);
+  return mpMaterialCrud.list(q);
 }
 
-export async function createMpMaterial(data: CreateMpMaterialInput) {
-  await ensureMpAccountExists(data.accountId);
-  const tenantId = currentCreateTenantId();
-  const [row] = await db.insert(mpMaterials).values({ ...data, tenantId }).returning();
-  return mapMpMaterial(row);
-}
+export const mpMaterialService = { ...mpMaterialCrud, list: listMpMaterials };
 
-export async function updateMpMaterial(id: number, data: UpdateMpMaterialInput) {
-  await ensureMpMaterialExists(id);
-  const [row] = await db.update(mpMaterials).set({ name: data.name }).where(eq(mpMaterials.id, id)).returning();
-  return mapMpMaterial(row);
-}
+export const {
+  ensure: ensureMpMaterialExists,
+  create: createMpMaterial,
+  update: updateMpMaterial,
+  remove: deleteMpMaterial,
+} = mpMaterialCrud;
 
-export async function deleteMpMaterial(id: number) {
-  const row = await ensureMpMaterialExists(id);
-  // 尽力删除微信端永久素材（失败不阻塞本地删除）
-  if (row.wechatMediaId) {
-    try {
-      const account = await ensureMpAccountExists(row.accountId);
-      await deleteWechatMaterial(account, row.wechatMediaId);
-    } catch (err) {
-      logger.warn(`[mp-material] 微信端素材删除失败（已忽略）: ${(err as Error).message}`);
-    }
-  }
-  await db.delete(mpMaterials).where(eq(mpMaterials.id, id));
-}
+export const getMpMaterialBeforeAudit = mpMaterialCrud.get;
 
 /** 上传二进制素材到微信永久素材库，并登记本地。 */
 export async function uploadMpMaterial(
@@ -92,7 +73,6 @@ export async function uploadMpMaterial(
   videoMeta?: { title: string; introduction: string },
 ) {
   const account = await ensureMpAccountExists(accountId);
-  const tenantId = currentCreateTenantId();
   let result;
   try {
     result = await uploadWechatMaterial(account, type, file, filename, videoMeta);
@@ -106,10 +86,11 @@ export async function uploadMpMaterial(
     wechatMediaId: result.mediaId,
     url: result.url,
     fileSize: file.size,
-    tenantId,
+    tenantId: currentCreateTenantId(),
   }).returning();
   return mapMpMaterial(row);
 }
+
 export async function syncMpMaterials(accountId: number): Promise<{ success: boolean; created: number; updated: number; total: number }> {
   const account = await ensureMpAccountExists(accountId);
   const tenantId = currentCreateTenantId();

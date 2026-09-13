@@ -27,55 +27,15 @@ import { buildPaymentEventPayload } from './payment-events';
 import { checkRuleListsBatch, type RuleListBatchHit } from '../platform/rules-lists.service';
 import { decide } from '../platform/rules-runtime.service';
 import { resolveRuntimeDecisionTable } from '../platform/rules.service';
-import type { CreatePaymentRiskRuleInput, UpdatePaymentRiskRuleInput } from '@zenith/shared/payment';
-import type { PaymentChannel, PaymentRiskDimension, PaymentRiskHit, PaymentRiskReview, PaymentRiskRule, PaymentRiskScope } from '@zenith/shared/payment';
+import { paymentRiskRuleSchema } from '@zenith/shared/payment';
+import type { CreatePaymentRiskRuleInput, PaymentChannel, PaymentRiskDimension, PaymentRiskHit, PaymentRiskReview, PaymentRiskScope } from '@zenith/shared/payment';
+import { defineCrudService } from '../../lib/crud-service';
+import { entityMapper } from '../../lib/entity-map';
 
-export function mapRiskRule(row: PaymentRiskRuleRow): PaymentRiskRule {
-  return {
-    id: row.id,
-    name: row.name,
-    scope: row.scope,
-    channel: row.channel ?? null,
-    bizType: row.bizType ?? null,
-    singleLimit: row.singleLimit ?? null,
-    dailyLimit: row.dailyLimit ?? null,
-    dailyCountLimit: row.dailyCountLimit ?? null,
-    blockListKeys: row.blockListKeys ?? [],
-    allowListKeys: row.allowListKeys ?? [],
-    action: row.action,
-    status: row.status,
-    remark: row.remark ?? null,
-    ...formatTimestamps(row),
-  };
-}
-
-export async function listRiskRules(q: QueryOutputOf<typeof paymentRiskRuleContract.list>) {
-  const { page, pageSize } = q;
-  const where = buildWhere(
-    q.scope ? eq(paymentRiskRules.scope, q.scope) : undefined,
-    q.status ? eq(paymentRiskRules.status, q.status) : undefined,
-    tenantCondition(paymentRiskRules, currentUser()),
-  );
-  return listRows({
-    page,
-    pageSize,
-    table: paymentRiskRules,
-    where,
-    orderBy: [desc(paymentRiskRules.id)],
-    map: mapRiskRule,
-  });
-}
-
-async function ensureRiskRule(id: number): Promise<PaymentRiskRuleRow> {
-  const tc = tenantCondition(paymentRiskRules, currentUser());
-  const [row] = await db.select().from(paymentRiskRules).where(and(eq(paymentRiskRules.id, id), tc)).limit(1);
-  requireRow(row, '风控规则不存在');
-  return row;
-}
-
-export async function getRiskRule(id: number): Promise<PaymentRiskRule> {
-  return mapRiskRule(await ensureRiskRule(id));
-}
+export const mapRiskRule = entityMapper(paymentRiskRuleSchema, (row: PaymentRiskRuleRow) => ({
+  blockListKeys: row.blockListKeys ?? [],
+  allowListKeys: row.allowListKeys ?? [],
+}));
 
 function normalizeScopeFields(input: Partial<CreatePaymentRiskRuleInput>): { channel: PaymentChannel | null; bizType: string | null } {
   if (input.scope === 'channel') return { channel: input.channel ?? null, bizType: null };
@@ -97,15 +57,29 @@ async function ensureListRefs(blockKeys: string[], allowKeys: string[]): Promise
   if (badAllow.length > 0) throw new HTTPException(400, { message: `白名单字段只能引用白名单库：${badAllow.join('、')}` });
 }
 
-export async function createRiskRule(input: CreatePaymentRiskRuleInput): Promise<PaymentRiskRule> {
-  const tenantId = requireTenantScopeId(currentUser());
+export const paymentRiskRuleService = defineCrudService(paymentRiskRuleContract, {
+  table: paymentRiskRules,
+  map: mapRiskRule,
+  notFound: '风控规则不存在',
+  scope: () => tenantCondition(paymentRiskRules, currentUser()),
+  list: (q) => ({
+    where: [
+      q.scope ? eq(paymentRiskRules.scope, q.scope) : undefined,
+      q.status ? eq(paymentRiskRules.status, q.status) : undefined,
+    ],
+    orderBy: [desc(paymentRiskRules.id)],
+  }),
+  create: {
+    before: async (input) => {
+      requireTenantScopeId(currentUser());
+      const scoped = normalizeScopeFields(input);
+      if (input.scope === 'channel' && !scoped.channel) throw new HTTPException(400, { message: '按渠道规则需指定渠道' });
+      if (input.scope === 'bizType' && !scoped.bizType) throw new HTTPException(400, { message: '按业务类型规则需指定业务类型' });
+      await ensureListRefs(input.blockListKeys ?? [], input.allowListKeys ?? []);
+    },
+    toRow: (input) => {
   const scoped = normalizeScopeFields(input);
-  if (input.scope === 'channel' && !scoped.channel) throw new HTTPException(400, { message: '按渠道规则需指定渠道' });
-  if (input.scope === 'bizType' && !scoped.bizType) throw new HTTPException(400, { message: '按业务类型规则需指定业务类型' });
-  await ensureListRefs(input.blockListKeys ?? [], input.allowListKeys ?? []);
-  const [row] = await db
-    .insert(paymentRiskRules)
-    .values({
+      return {
       name: input.name,
       scope: input.scope ?? 'global',
       channel: scoped.channel,
@@ -118,49 +92,61 @@ export async function createRiskRule(input: CreatePaymentRiskRuleInput): Promise
       action: input.action ?? 'block',
       status: input.status ?? 'enabled',
       remark: input.remark ?? null,
-      tenantId,
-    })
-    .returning();
-  return mapRiskRule(row);
-}
+      tenantId: requireTenantScopeId(currentUser()),
+      };
+    },
+  },
+  update: {
+    before: async (input, existing) => {
+      requireTenantScopeId(currentUser());
+      const nextScope = input.scope ?? existing.scope;
+      if (input.scope !== undefined || input.channel !== undefined || input.bizType !== undefined) {
+        const scoped = normalizeScopeFields({ scope: nextScope, channel: input.channel ?? existing.channel ?? undefined, bizType: input.bizType ?? existing.bizType ?? undefined });
+        if (nextScope === 'channel' && !scoped.channel) throw new HTTPException(400, { message: '按渠道规则需指定渠道' });
+        if (nextScope === 'bizType' && !scoped.bizType) throw new HTTPException(400, { message: '按业务类型规则需指定业务类型' });
+      }
+      if (input.blockListKeys !== undefined || input.allowListKeys !== undefined) {
+        await ensureListRefs(input.blockListKeys ?? existing.blockListKeys ?? [], input.allowListKeys ?? existing.allowListKeys ?? []);
+      }
+    },
+    toRow: (input, existing) => {
+      const set: Partial<PaymentRiskRuleRow> = {};
+      if (input.name !== undefined) set.name = input.name;
+      const nextScope = input.scope ?? existing.scope;
+      if (input.scope !== undefined || input.channel !== undefined || input.bizType !== undefined) {
+        const scoped = normalizeScopeFields({ scope: nextScope, channel: input.channel ?? existing.channel ?? undefined, bizType: input.bizType ?? existing.bizType ?? undefined });
+        set.scope = nextScope;
+        set.channel = scoped.channel;
+        set.bizType = scoped.bizType;
+      }
+      if (input.singleLimit !== undefined) set.singleLimit = input.singleLimit ?? null;
+      if (input.dailyLimit !== undefined) set.dailyLimit = input.dailyLimit ?? null;
+      if (input.dailyCountLimit !== undefined) set.dailyCountLimit = input.dailyCountLimit ?? null;
+      if (input.blockListKeys !== undefined || input.allowListKeys !== undefined) {
+        set.blockListKeys = input.blockListKeys ?? existing.blockListKeys ?? [];
+        set.allowListKeys = input.allowListKeys ?? existing.allowListKeys ?? [];
+      }
+      if (input.action !== undefined) set.action = input.action;
+      if (input.status !== undefined) set.status = input.status;
+      if (input.remark !== undefined) set.remark = input.remark ?? null;
+      return set;
+    },
+  },
+  remove: {
+    before: () => {
+      requireTenantScopeId(currentUser());
+    },
+  },
+});
 
-export async function updateRiskRule(id: number, input: UpdatePaymentRiskRuleInput): Promise<PaymentRiskRule> {
-  requireTenantScopeId(currentUser());
-  const existing = await ensureRiskRule(id);
-  const set: Partial<PaymentRiskRuleRow> = {};
-  if (input.name !== undefined) set.name = input.name;
-  const nextScope = input.scope ?? existing.scope;
-  if (input.scope !== undefined || input.channel !== undefined || input.bizType !== undefined) {
-    const scoped = normalizeScopeFields({ scope: nextScope, channel: input.channel ?? existing.channel ?? undefined, bizType: input.bizType ?? existing.bizType ?? undefined });
-    if (nextScope === 'channel' && !scoped.channel) throw new HTTPException(400, { message: '按渠道规则需指定渠道' });
-    if (nextScope === 'bizType' && !scoped.bizType) throw new HTTPException(400, { message: '按业务类型规则需指定业务类型' });
-    set.scope = nextScope;
-    set.channel = scoped.channel;
-    set.bizType = scoped.bizType;
-  }
-  if (input.singleLimit !== undefined) set.singleLimit = input.singleLimit ?? null;
-  if (input.dailyLimit !== undefined) set.dailyLimit = input.dailyLimit ?? null;
-  if (input.dailyCountLimit !== undefined) set.dailyCountLimit = input.dailyCountLimit ?? null;
-  if (input.blockListKeys !== undefined || input.allowListKeys !== undefined) {
-    const nextBlock = input.blockListKeys ?? existing.blockListKeys ?? [];
-    const nextAllow = input.allowListKeys ?? existing.allowListKeys ?? [];
-    await ensureListRefs(nextBlock, nextAllow);
-    set.blockListKeys = nextBlock;
-    set.allowListKeys = nextAllow;
-  }
-  if (input.action !== undefined) set.action = input.action;
-  if (input.status !== undefined) set.status = input.status;
-  if (input.remark !== undefined) set.remark = input.remark ?? null;
-  const tc = tenantCondition(paymentRiskRules, currentUser());
-  const [row] = await db.update(paymentRiskRules).set(set).where(and(eq(paymentRiskRules.id, id), tc)).returning();
-  return mapRiskRule(row);
-}
-
-export async function deleteRiskRule(id: number): Promise<void> {
-  requireTenantScopeId(currentUser());
-  await ensureRiskRule(id);
-  await db.delete(paymentRiskRules).where(eq(paymentRiskRules.id, id));
-}
+export const {
+  list: listRiskRules,
+  ensure: ensureRiskRule,
+  get: getRiskRule,
+  create: createRiskRule,
+  update: updateRiskRule,
+  remove: deleteRiskRule,
+} = paymentRiskRuleService;
 
 // ─── 下单风控评估 ─────────────────────────────────────────────────────────────
 export interface RiskCheckInput {

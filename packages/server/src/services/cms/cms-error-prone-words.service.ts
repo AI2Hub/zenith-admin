@@ -1,17 +1,13 @@
-import { requireFirstRow, requireRow } from '../../lib/db-assert';
-import type { QueryOutputOf } from '@zenith/shared/core';
-import { listRows } from '../../lib/list-query';
 import { eq, asc } from 'drizzle-orm';
-import { cmsErrorProneWordContract } from '@zenith/shared/cms';
+import { cmsErrorProneWordContract, cmsErrorProneWordSchema } from '@zenith/shared/cms';
 import { db } from '../../db';
 import { cmsErrorProneWords } from '../../db/schema';
 import type { CmsErrorProneWordRow } from '../../db/schema';
-import { formatTimestamps } from '../../lib/datetime';
-import { buildWhere, keywordCondition } from '../../lib/where-helpers';
-import { rethrowPgUniqueViolation } from '../../lib/db-errors';
+import { keywordCondition } from '../../lib/where-helpers';
 import { AhoCorasick, applyReplacements, createTtlCache, toCodePoints, type AcMatch } from '../../lib/aho-corasick';
 import { invalidateWordCheckCache } from './cms-word-check.service';
-import type { CreateCmsErrorProneWordInput, UpdateCmsErrorProneWordInput } from '@zenith/shared/cms';
+import { defineCrudService } from '../../lib/crud-service';
+import { entityMapper } from '../../lib/entity-map';
 
 // ─── 易错词自动替换（Aho-Corasick 多模式匹配，与敏感词同构）────────────────────
 const REPLACE_CACHE_TTL_MS = 60_000;
@@ -46,61 +42,29 @@ export async function replaceErrorProneWords(text: string): Promise<string> {
 }
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
-export function mapCmsErrorProneWord(row: CmsErrorProneWordRow) {
-  return {
-    id: row.id,
-    word: row.word,
-    correction: row.correction,
-    status: row.status,
-    remark: row.remark ?? null,
-    ...formatTimestamps(row),
-  };
-}
+export const mapCmsErrorProneWord = entityMapper(cmsErrorProneWordSchema);
 
-export async function ensureCmsErrorProneWordExists(id: number): Promise<CmsErrorProneWordRow> {
-  return requireFirstRow(db.select().from(cmsErrorProneWords).where(eq(cmsErrorProneWords.id, id)).limit(1), '易错词不存在');
-}
-
-// ─── 查询 ─────────────────────────────────────────────────────────────────────
-export async function listCmsErrorProneWords(q: QueryOutputOf<typeof cmsErrorProneWordContract.list>) {
-  const where = buildWhere(
-    keywordCondition(q.keyword, [cmsErrorProneWords.word, cmsErrorProneWords.correction]),
-    q.status ? eq(cmsErrorProneWords.status, q.status) : undefined,
-  );
-  return listRows({
-    page: q.page,
-    pageSize: q.pageSize,
-    table: cmsErrorProneWords,
-    where,
+export const cmsErrorProneWordService = defineCrudService(cmsErrorProneWordContract, {
+  table: cmsErrorProneWords,
+  map: mapCmsErrorProneWord,
+  notFound: '易错词不存在',
+  unique: '该易错词已存在',
+  list: (q) => ({
+    where: [
+      keywordCondition(q.keyword, [cmsErrorProneWords.word, cmsErrorProneWords.correction]),
+      q.status ? eq(cmsErrorProneWords.status, q.status) : undefined,
+    ],
     orderBy: [asc(cmsErrorProneWords.id)],
-    map: mapCmsErrorProneWord,
-  });
-}
+  }),
+  create: { after: () => invalidateErrorProneCaches() },
+  update: { after: () => invalidateErrorProneCaches() },
+  remove: { after: () => invalidateErrorProneCaches() },
+});
 
-// ─── 写入 ─────────────────────────────────────────────────────────────────────
-export async function createCmsErrorProneWord(data: CreateCmsErrorProneWordInput) {
-  try {
-    const [row] = await db.insert(cmsErrorProneWords).values(data).returning();
-    invalidateErrorProneCaches();
-    return mapCmsErrorProneWord(row);
-  } catch (err) {
-    rethrowPgUniqueViolation(err, '该易错词已存在');
-  }
-}
-
-export async function updateCmsErrorProneWord(id: number, data: UpdateCmsErrorProneWordInput) {
-  try {
-    const [row] = await db.update(cmsErrorProneWords).set(data).where(eq(cmsErrorProneWords.id, id)).returning();
-    requireRow(row, '易错词不存在');
-    invalidateErrorProneCaches();
-    return mapCmsErrorProneWord(row);
-  } catch (err) {
-    rethrowPgUniqueViolation(err, '该易错词已存在');
-  }
-}
-
-export async function deleteCmsErrorProneWord(id: number) {
-  const [row] = await db.delete(cmsErrorProneWords).where(eq(cmsErrorProneWords.id, id)).returning();
-  requireRow(row, '易错词不存在');
-  invalidateErrorProneCaches();
-}
+export const {
+  list: listCmsErrorProneWords,
+  ensure: ensureCmsErrorProneWordExists,
+  create: createCmsErrorProneWord,
+  update: updateCmsErrorProneWord,
+  remove: deleteCmsErrorProneWord,
+} = cmsErrorProneWordService;

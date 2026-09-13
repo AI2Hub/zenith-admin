@@ -1,22 +1,18 @@
 import { workflowConnectorContract } from '@zenith/shared/workflow';
-import type { QueryOutputOf } from '@zenith/shared/core';
 /**
  * 流程连接器服务：统一外部集成注册中心（首期 http）。
  * - CRUD + 凭据 AES 加密落库 / 脱敏返回
  * - invokeConnector：运行时调用（http-client 重试/超时 + 熔断），供未来触发器/Webhook 节点复用
  * - testConnector：一键测试探测
  */
-import { and, desc, eq, gte, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, gte, sql } from 'drizzle-orm';
 import { db } from '../../db';
 import { workflowConnectors, workflowConnectorInvocations, smsConfigs, smsTemplates } from '../../db/schema';
 import type { WorkflowConnectorRow } from '../../db/schema';
 import { currentUser } from '../../lib/context';
-import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
+import { tenantCondition } from '../../lib/tenant';
 import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime, formatTimestamps } from '../../lib/datetime';
-import { listRows } from '../../lib/list-query';
-import { requireFirstRow } from '../../lib/db-assert';
-import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { encryptField, decryptField } from '../../lib/encryption';
 import { assertSafeWorkflowUrl, buildConnectorUrl, workflowHttp } from '../../lib/workflow-outbound';
 import { markWorkflowExternalEffect } from '../../lib/workflow-jobs/external-effects';
@@ -25,7 +21,8 @@ import { sendMail } from '../../lib/email';
 import { sendSmsByProvider, renderTemplate } from '../../lib/sms-sender';
 import { breakerAllow, breakerSuccess, breakerFailure, breakerState, breakerReset } from '../../lib/workflow-connector-breaker';
 import { rateLimitAcquire, rateLimitReset } from '../../lib/workflow-connector-rate-limit';
-import type { WorkflowConnector, WorkflowConnectorType, WorkflowConnectorHttpConfig, WorkflowConnectorCredentials, WorkflowConnectorInvokeResult, CreateWorkflowConnectorInput, UpdateWorkflowConnectorInput, TestWorkflowConnectorInput } from '@zenith/shared/workflow';
+import type { WorkflowConnector, WorkflowConnectorType, WorkflowConnectorHttpConfig, WorkflowConnectorCredentials, WorkflowConnectorInvokeResult, TestWorkflowConnectorInput } from '@zenith/shared/workflow';
+import { defineCrudService } from '../../lib/crud-service';
 
 // ─── 凭据编解码 ───────────────────────────────────────────────────────────────
 function encodeCredentials(creds: WorkflowConnectorCredentials | undefined): string | null {
@@ -42,7 +39,7 @@ function decodeCredentials(enc: string | null): WorkflowConnectorCredentials {
 }
 
 // ─── 映射（脱敏，绝不回传凭据明文）──────────────────────────────────────────────
-async function mapConnector(row: WorkflowConnectorRow): Promise<WorkflowConnector> {
+export async function mapConnector(row: WorkflowConnectorRow): Promise<WorkflowConnector> {
   return {
     id: row.id,
     name: row.name,
@@ -68,14 +65,6 @@ async function mapConnector(row: WorkflowConnectorRow): Promise<WorkflowConnecto
   };
 }
 
-function findConnector(id: number): SQL {
-  return buildWhere(eq(workflowConnectors.id, id), tenantCondition(workflowConnectors, currentUser()))!;
-}
-
-async function ensureConnector(id: number): Promise<WorkflowConnectorRow> {
-  return requireFirstRow(db.select().from(workflowConnectors).where(findConnector(id)).limit(1), '连接器不存在');
-}
-
 // ─── CRUD ─────────────────────────────────────────────────────────────────────
 /** HTTP 类连接器（http / webhook / IM 机器人）的基地址在保存时就要通过出站地址校验 */
 const HTTP_CONNECTOR_TYPES = new Set<string>(['http', 'webhook', 'wecom', 'dingtalk', 'feishu']);
@@ -86,33 +75,23 @@ async function assertConnectorConfigSafe(type: string | undefined, cfg: Record<s
   if (baseUrl) await assertSafeWorkflowUrl(baseUrl);
 }
 
-export async function listWorkflowConnectors(query: QueryOutputOf<typeof workflowConnectorContract.list>) {
-  const { page, pageSize, keyword, type, status } = query;
-  const where = buildWhere(
-    tenantCondition(workflowConnectors, currentUser()),
-    type ? eq(workflowConnectors.type, type) : undefined,
-    status ? eq(workflowConnectors.status, status) : undefined,
-    keywordCondition(keyword, [workflowConnectors.name, workflowConnectors.code], 'ilike'),
-  );
-  return listRows({
-    page,
-    pageSize,
-    table: workflowConnectors,
-    where,
+export const workflowConnectorService = defineCrudService(workflowConnectorContract, {
+  table: workflowConnectors,
+  map: mapConnector,
+  notFound: '连接器不存在',
+  unique: '连接器编码已存在',
+  tenant: true,
+  list: (query) => ({
+    where: [
+      query.type ? eq(workflowConnectors.type, query.type) : undefined,
+      query.status ? eq(workflowConnectors.status, query.status) : undefined,
+      keywordCondition(query.keyword, [workflowConnectors.name, workflowConnectors.code], 'ilike'),
+    ],
     orderBy: [desc(workflowConnectors.id)],
-    map: mapConnector,
-  });
-}
-
-export async function getWorkflowConnector(id: number): Promise<WorkflowConnector> {
-  return mapConnector(await ensureConnector(id));
-}
-
-export async function createWorkflowConnector(input: CreateWorkflowConnectorInput): Promise<WorkflowConnector> {
-  const tenantId = getCreateTenantId(currentUser());
-  await assertConnectorConfigSafe(input.type ?? 'http', input.config as Record<string, unknown> | undefined);
-  try {
-    const [row] = await db.insert(workflowConnectors).values({
+  }),
+  create: {
+    before: (input) => assertConnectorConfigSafe(input.type ?? 'http', input.config as Record<string, unknown> | undefined),
+    toRow: (input) => ({
       name: input.name,
       code: input.code,
       description: input.description ?? null,
@@ -128,53 +107,49 @@ export async function createWorkflowConnector(input: CreateWorkflowConnectorInpu
       rateLimitWindowSec: input.rateLimitWindowSec ?? 1,
       rateLimitMax: input.rateLimitMax ?? 0,
       status: input.status ?? 'enabled',
-      tenantId,
-    }).returning();
-    return mapConnector(row);
-  } catch (err) {
-    rethrowPgUniqueViolation(err, '连接器编码已存在');
-    throw err;
-  }
-}
+    }),
+  },
+  update: {
+    before: (input, existing) => input.config !== undefined
+      ? assertConnectorConfigSafe(input.type ?? existing.type, input.config as Record<string, unknown> | undefined)
+      : undefined,
+    toRow: (input) => {
+      const patch: Partial<typeof workflowConnectors.$inferInsert> = {};
+      if (input.name !== undefined) patch.name = input.name;
+      if (input.code !== undefined) patch.code = input.code;
+      if (input.description !== undefined) patch.description = input.description ?? null;
+      if (input.type !== undefined) patch.type = input.type;
+      if (input.config !== undefined) patch.config = input.config as Record<string, unknown>;
+      if (input.timeoutMs !== undefined) patch.timeoutMs = input.timeoutMs;
+      if (input.retryMax !== undefined) patch.retryMax = input.retryMax;
+      if (input.circuitBreakerEnabled !== undefined) patch.circuitBreakerEnabled = input.circuitBreakerEnabled;
+      if (input.failureThreshold !== undefined) patch.failureThreshold = input.failureThreshold;
+      if (input.cooldownSec !== undefined) patch.cooldownSec = input.cooldownSec;
+      if (input.rateLimitEnabled !== undefined) patch.rateLimitEnabled = input.rateLimitEnabled;
+      if (input.rateLimitWindowSec !== undefined) patch.rateLimitWindowSec = input.rateLimitWindowSec;
+      if (input.rateLimitMax !== undefined) patch.rateLimitMax = input.rateLimitMax;
+      if (input.status !== undefined) patch.status = input.status;
+      if (input.clearCredentials) patch.credentialsEncrypted = null;
+      else if (input.credentials !== undefined) patch.credentialsEncrypted = encodeCredentials(input.credentials);
+      return patch;
+    },
+  },
+  remove: {
+    after: async (existing) => {
+      await breakerReset(existing.id);
+      await rateLimitReset(existing.id);
+    },
+  },
+});
 
-export async function updateWorkflowConnector(id: number, input: UpdateWorkflowConnectorInput): Promise<WorkflowConnector> {
-  const existing = await ensureConnector(id);
-  if (input.config !== undefined) {
-    await assertConnectorConfigSafe(input.type ?? existing.type, input.config as Record<string, unknown> | undefined);
-  }
-  const patch: Partial<typeof workflowConnectors.$inferInsert> = {};
-  if (input.name !== undefined) patch.name = input.name;
-  if (input.code !== undefined) patch.code = input.code;
-  if (input.description !== undefined) patch.description = input.description ?? null;
-  if (input.type !== undefined) patch.type = input.type;
-  if (input.config !== undefined) patch.config = input.config as Record<string, unknown>;
-  if (input.timeoutMs !== undefined) patch.timeoutMs = input.timeoutMs;
-  if (input.retryMax !== undefined) patch.retryMax = input.retryMax;
-  if (input.circuitBreakerEnabled !== undefined) patch.circuitBreakerEnabled = input.circuitBreakerEnabled;
-  if (input.failureThreshold !== undefined) patch.failureThreshold = input.failureThreshold;
-  if (input.cooldownSec !== undefined) patch.cooldownSec = input.cooldownSec;
-  if (input.rateLimitEnabled !== undefined) patch.rateLimitEnabled = input.rateLimitEnabled;
-  if (input.rateLimitWindowSec !== undefined) patch.rateLimitWindowSec = input.rateLimitWindowSec;
-  if (input.rateLimitMax !== undefined) patch.rateLimitMax = input.rateLimitMax;
-  if (input.status !== undefined) patch.status = input.status;
-  // 凭据：clearCredentials=清空；传 credentials=覆盖；都不传=保留原凭据
-  if (input.clearCredentials) patch.credentialsEncrypted = null;
-  else if (input.credentials !== undefined) patch.credentialsEncrypted = encodeCredentials(input.credentials);
-  try {
-    const [row] = await db.update(workflowConnectors).set(patch).where(eq(workflowConnectors.id, existing.id)).returning();
-    return mapConnector(row);
-  } catch (err) {
-    rethrowPgUniqueViolation(err, '连接器编码已存在');
-    throw err;
-  }
-}
-
-export async function deleteWorkflowConnector(id: number): Promise<void> {
-  const existing = await ensureConnector(id);
-  await db.delete(workflowConnectors).where(eq(workflowConnectors.id, existing.id));
-  await breakerReset(existing.id);
-  await rateLimitReset(existing.id);
-}
+export const {
+  list: listWorkflowConnectors,
+  ensure: ensureConnector,
+  get: getWorkflowConnector,
+  create: createWorkflowConnector,
+  update: updateWorkflowConnector,
+  remove: deleteWorkflowConnector,
+} = workflowConnectorService;
 
 // ─── 运行时调用 ───────────────────────────────────────────────────────────────
 // URL 拼装见 lib/workflow-outbound.buildConnectorUrl：path 只能是相对路径或与 baseUrl 同源，

@@ -1,26 +1,13 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { cmsSensitiveWordContract } from '@zenith/shared/cms';
 import { validationHook } from '../../lib/openapi-schemas';
-import {
-  listCmsSensitiveWords,
-  createCmsSensitiveWord,
-  updateCmsSensitiveWord,
-  deleteCmsSensitiveWord,
-  ensureCmsSensitiveWordExists,
-  mapCmsSensitiveWord,
-} from '../../services/cms/cms-sensitive-words.service';
+import { cmsSensitiveWordService } from '../../services/cms/cms-sensitive-words.service';
 import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
 mountCrud(router, cmsSensitiveWordContract,
-  {
-    list: listCmsSensitiveWords,
-    get: async (id: number) => mapCmsSensitiveWord(await ensureCmsSensitiveWordExists(id)),
-    create: createCmsSensitiveWord,
-    update: updateCmsSensitiveWord,
-    remove: deleteCmsSensitiveWord,
-  },
+  cmsSensitiveWordService,
   {
     permission: { read: 'cms:sensitive:list', write: 'cms:sensitive:manage' },
     label: ' CMS 敏感词',

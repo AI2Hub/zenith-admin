@@ -6,11 +6,7 @@ import { guard } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
-  listMpMaterials,
-  createMpMaterial,
-  updateMpMaterial,
-  deleteMpMaterial,
-  getMpMaterialBeforeAudit,
+  mpMaterialService,
   syncMpMaterials,
   uploadMpMaterial,
 } from '../../services/mp/mp-material.service';
@@ -41,13 +37,7 @@ const uploadRoute = defineContractRoute(mpMaterialContract.upload, {
 });
 
 mountCrud(mpMaterialsRouter, mpMaterialContract,
-  {
-    list: listMpMaterials,
-    get: getMpMaterialBeforeAudit,
-    create: createMpMaterial,
-    update: updateMpMaterial,
-    remove: deleteMpMaterial,
-  },
+  mpMaterialService,
   { permission: 'mp:material', label: '公众号素材', module: '公众号素材', audit: { create: '新增公众号素材' } },
   [syncRoute, uploadRoute],
 );

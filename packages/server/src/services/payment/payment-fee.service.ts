@@ -1,4 +1,3 @@
-import type { QueryOutputOf } from '@zenith/shared/core';
 /**
  * 支付手续费/费率 Service。
  * 维护费率规则（按渠道/支付方式匹配，万分比 + 固定费，clamp 上下限），
@@ -7,64 +6,18 @@ import type { QueryOutputOf } from '@zenith/shared/core';
 import { and, desc, eq, isNull, or, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
-import { listRows } from '../../lib/list-query';
 import { paymentFeeRules, paymentJournalLines, paymentJournals, paymentLedgerAccounts, paymentOrders, paymentRefunds, type PaymentFeeRuleRow } from '../../db/schema';
-import { requireRow } from '../../lib/db-assert';
 import { currentUser } from '../../lib/context';
 import { requireTenantScopeId, tenantCondition, exactTenantCondition } from '../../lib/tenant';
-import { buildWhere } from '../../lib/where-helpers';
-import { formatTimestamps } from '../../lib/datetime';
 import { postSystemJournal, postSystemJournalWithin } from './payment-journal.service';
 import { paymentEventBus } from '../../lib/payment-event-bus';
 import logger from '../../lib/logger';
-import { PAYMENT_METHOD_CHANNEL, paymentFeeRuleContract } from '@zenith/shared/payment';
-import type { CreatePaymentFeeRuleInput, UpdatePaymentFeeRuleInput } from '@zenith/shared/payment';
-import type { PaymentChannel, PaymentFeeRule, PaymentMethod } from '@zenith/shared/payment';
+import { PAYMENT_METHOD_CHANNEL, paymentFeeRuleContract, paymentFeeRuleSchema } from '@zenith/shared/payment';
+import type { PaymentChannel, PaymentMethod } from '@zenith/shared/payment';
+import { defineCrudService } from '../../lib/crud-service';
+import { entityMapper } from '../../lib/entity-map';
 
-export function mapFeeRule(row: PaymentFeeRuleRow): PaymentFeeRule {
-  return {
-    id: row.id,
-    name: row.name,
-    channel: row.channel,
-    payMethod: row.payMethod ?? null,
-    rateBps: row.rateBps,
-    fixedFee: row.fixedFee,
-    minFee: row.minFee ?? null,
-    maxFee: row.maxFee ?? null,
-    status: row.status,
-    priority: row.priority,
-    remark: row.remark ?? null,
-    ...formatTimestamps(row),
-  };
-}
-
-export async function listFeeRules(q: QueryOutputOf<typeof paymentFeeRuleContract.list>) {
-  const { page, pageSize } = q;
-  const where = buildWhere(
-    q.channel ? eq(paymentFeeRules.channel, q.channel) : undefined,
-    q.status ? eq(paymentFeeRules.status, q.status) : undefined,
-    tenantCondition(paymentFeeRules, currentUser()),
-  );
-  return listRows({
-    page,
-    pageSize,
-    table: paymentFeeRules,
-    where,
-    orderBy: [desc(paymentFeeRules.priority), desc(paymentFeeRules.id)],
-    map: mapFeeRule,
-  });
-}
-
-async function ensureFeeRule(id: number): Promise<PaymentFeeRuleRow> {
-  const tc = tenantCondition(paymentFeeRules, currentUser());
-  const [row] = await db.select().from(paymentFeeRules).where(and(eq(paymentFeeRules.id, id), tc)).limit(1);
-  requireRow(row, '费率规则不存在');
-  return row;
-}
-
-export async function getFeeRule(id: number): Promise<PaymentFeeRule> {
-  return mapFeeRule(await ensureFeeRule(id));
-}
+export const mapFeeRule = entityMapper(paymentFeeRuleSchema);
 
 function assertFeeBounds(min?: number | null, max?: number | null): void {
   if (min != null && max != null && min > max) {
@@ -78,13 +31,25 @@ function assertFeeMethodChannel(channel: PaymentChannel, payMethod?: PaymentMeth
   }
 }
 
-export async function createFeeRule(input: CreatePaymentFeeRuleInput): Promise<PaymentFeeRule> {
-  const tenantId = requireTenantScopeId(currentUser());
-  assertFeeBounds(input.minFee, input.maxFee);
-  assertFeeMethodChannel(input.channel, input.payMethod);
-  const [row] = await db
-    .insert(paymentFeeRules)
-    .values({
+export const paymentFeeRuleService = defineCrudService(paymentFeeRuleContract, {
+  table: paymentFeeRules,
+  map: mapFeeRule,
+  notFound: '费率规则不存在',
+  scope: () => tenantCondition(paymentFeeRules, currentUser()),
+  list: (q) => ({
+    where: [
+      q.channel ? eq(paymentFeeRules.channel, q.channel) : undefined,
+      q.status ? eq(paymentFeeRules.status, q.status) : undefined,
+    ],
+    orderBy: [desc(paymentFeeRules.priority), desc(paymentFeeRules.id)],
+  }),
+  create: {
+    before: (input) => {
+      requireTenantScopeId(currentUser());
+      assertFeeBounds(input.minFee, input.maxFee);
+      assertFeeMethodChannel(input.channel, input.payMethod);
+    },
+    toRow: (input) => ({
       name: input.name,
       channel: input.channel,
       payMethod: input.payMethod ?? null,
@@ -95,40 +60,45 @@ export async function createFeeRule(input: CreatePaymentFeeRuleInput): Promise<P
       status: input.status ?? 'enabled',
       priority: input.priority ?? 0,
       remark: input.remark ?? null,
-      tenantId,
-    })
-    .returning();
-  return mapFeeRule(row);
-}
+      tenantId: requireTenantScopeId(currentUser()),
+    }),
+  },
+  update: {
+    before: (input, existing) => {
+      requireTenantScopeId(currentUser());
+      const min = input.minFee !== undefined ? input.minFee : existing.minFee;
+      const max = input.maxFee !== undefined ? input.maxFee : existing.maxFee;
+      assertFeeBounds(min, max);
+      assertFeeMethodChannel(input.channel ?? existing.channel, input.payMethod !== undefined ? input.payMethod : existing.payMethod);
+    },
+    toRow: (input) => ({
+      ...(input.name !== undefined ? { name: input.name } : {}),
+      ...(input.channel !== undefined ? { channel: input.channel } : {}),
+      ...(input.payMethod !== undefined ? { payMethod: input.payMethod ?? null } : {}),
+      ...(input.rateBps !== undefined ? { rateBps: input.rateBps } : {}),
+      ...(input.fixedFee !== undefined ? { fixedFee: input.fixedFee } : {}),
+      ...(input.minFee !== undefined ? { minFee: input.minFee ?? null } : {}),
+      ...(input.maxFee !== undefined ? { maxFee: input.maxFee ?? null } : {}),
+      ...(input.status !== undefined ? { status: input.status } : {}),
+      ...(input.priority !== undefined ? { priority: input.priority } : {}),
+      ...(input.remark !== undefined ? { remark: input.remark ?? null } : {}),
+    }),
+  },
+  remove: {
+    before: () => {
+      requireTenantScopeId(currentUser());
+    },
+  },
+});
 
-export async function updateFeeRule(id: number, input: UpdatePaymentFeeRuleInput): Promise<PaymentFeeRule> {
-  requireTenantScopeId(currentUser());
-  const existing = await ensureFeeRule(id);
-  const min = input.minFee !== undefined ? input.minFee : existing.minFee;
-  const max = input.maxFee !== undefined ? input.maxFee : existing.maxFee;
-  assertFeeBounds(min, max);
-  assertFeeMethodChannel(input.channel ?? existing.channel, input.payMethod !== undefined ? input.payMethod : existing.payMethod);
-  const set: Partial<PaymentFeeRuleRow> = {};
-  if (input.name !== undefined) set.name = input.name;
-  if (input.channel !== undefined) set.channel = input.channel;
-  if (input.payMethod !== undefined) set.payMethod = input.payMethod ?? null;
-  if (input.rateBps !== undefined) set.rateBps = input.rateBps;
-  if (input.fixedFee !== undefined) set.fixedFee = input.fixedFee;
-  if (input.minFee !== undefined) set.minFee = input.minFee ?? null;
-  if (input.maxFee !== undefined) set.maxFee = input.maxFee ?? null;
-  if (input.status !== undefined) set.status = input.status;
-  if (input.priority !== undefined) set.priority = input.priority;
-  if (input.remark !== undefined) set.remark = input.remark ?? null;
-  const tc = tenantCondition(paymentFeeRules, currentUser());
-  const [row] = await db.update(paymentFeeRules).set(set).where(and(eq(paymentFeeRules.id, id), tc)).returning();
-  return mapFeeRule(row);
-}
-
-export async function deleteFeeRule(id: number): Promise<void> {
-  requireTenantScopeId(currentUser());
-  await ensureFeeRule(id);
-  await db.delete(paymentFeeRules).where(eq(paymentFeeRules.id, id));
-}
+export const {
+  list: listFeeRules,
+  ensure: ensureFeeRule,
+  get: getFeeRule,
+  create: createFeeRule,
+  update: updateFeeRule,
+  remove: deleteFeeRule,
+} = paymentFeeRuleService;
 
 /** 计算手续费（分）：rate*amount/10000 + fixed，clamp[min,max]。无匹配规则返回 0。 */
 export function computeFeeByRule(rule: PaymentFeeRuleRow, amount: number): number {

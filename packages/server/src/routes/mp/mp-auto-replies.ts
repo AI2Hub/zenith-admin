@@ -5,11 +5,7 @@ import { guard, setAuditBeforeData } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
-  listMpAutoReplies,
-  createMpAutoReply,
-  updateMpAutoReply,
-  deleteMpAutoReply,
-  getMpAutoReplyBeforeAudit,
+  mpAutoReplyService,
   listMpUnmatchedKeywords,
   deleteMpUnmatchedKeyword,
   getMpUnmatchedKeywordBeforeAudit,
@@ -39,13 +35,7 @@ const unmatchedDeleteRoute = defineContractRoute(mpAutoReplyContract.removeUnmat
 });
 
 mountCrud(mpAutoRepliesRouter, mpAutoReplyContract,
-  {
-    list: listMpAutoReplies,
-    get: getMpAutoReplyBeforeAudit,
-    create: createMpAutoReply,
-    update: updateMpAutoReply,
-    remove: deleteMpAutoReply,
-  },
+  mpAutoReplyService,
   { permission: 'mp:reply', label: '自动回复', module: '公众号自动回复' },
   [unmatchedListRoute, unmatchedDeleteRoute],
 );

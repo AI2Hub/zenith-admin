@@ -6,10 +6,6 @@ import { validateCronExpression, getRegisteredHandlers } from '../../lib/pg-boss
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
-  listCronJobs,
-  createCronJob,
-  updateCronJob,
-  deleteCronJob,
   runCronJob,
   setCronJobStatus,
   listAllCronJobLogs,
@@ -17,7 +13,7 @@ import {
   clearCronJobLogs,
   getCronJobBeforeAudit,
   getClearCronJobLogsBeforeAudit,
-  getCronJob,
+  cronJobService,
   getCronJobStats,
   getCronJobDetailStats,
 } from '../../services/tasks/cron-jobs.service';
@@ -114,7 +110,7 @@ const statsRoute = defineContractRoute(cronJobContract.stats, {
 });
 
 mountCrud(cronJobsRoute, cronJobContract,
-  { list: listCronJobs, get: getCronJob, create: createCronJob, update: updateCronJob, remove: deleteCronJob },
+  cronJobService,
   { permission: 'system:cronjob', label: '任务', module: '定时任务', audit: { create: '新增任务' } },
   [
     handlersRoute,

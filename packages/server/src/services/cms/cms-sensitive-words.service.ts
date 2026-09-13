@@ -1,18 +1,14 @@
-import { requireFirstRow, requireRow } from '../../lib/db-assert';
-import type { QueryOutputOf } from '@zenith/shared/core';
-import { listRows } from '../../lib/list-query';
 import { eq, asc } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import { cmsSensitiveWordContract } from '@zenith/shared/cms';
+import { cmsSensitiveWordContract, cmsSensitiveWordSchema } from '@zenith/shared/cms';
 import { db } from '../../db';
 import { cmsSensitiveWords } from '../../db/schema';
 import type { CmsSensitiveWordRow } from '../../db/schema';
-import { formatTimestamps } from '../../lib/datetime';
-import { buildWhere, keywordCondition } from '../../lib/where-helpers';
-import { rethrowPgUniqueViolation } from '../../lib/db-errors';
+import { keywordCondition } from '../../lib/where-helpers';
 import { AhoCorasick, applyReplacements, createTtlCache, toCodePoints, type AcMatch } from '../../lib/aho-corasick';
 import { invalidateWordCheckCache } from './cms-word-check.service';
-import type { CreateCmsSensitiveWordInput, UpdateCmsSensitiveWordInput } from '@zenith/shared/cms';
+import { defineCrudService } from '../../lib/crud-service';
+import { entityMapper } from '../../lib/entity-map';
 
 // ─── 内存缓存 + Aho-Corasick 自动机 ────────────────────────────────────────────
 const CACHE_TTL_MS = 60_000;
@@ -48,58 +44,29 @@ export async function sanitizeUserText(text: string): Promise<string> {
 }
 
 // ─── 数据映射 / CRUD ──────────────────────────────────────────────────────────
-export function mapCmsSensitiveWord(row: CmsSensitiveWordRow) {
-  return {
-    id: row.id,
-    word: row.word,
-    replaceWith: row.replaceWith ?? null,
-    status: row.status,
-    ...formatTimestamps(row),
-  };
-}
+export const mapCmsSensitiveWord = entityMapper(cmsSensitiveWordSchema);
 
-export async function ensureCmsSensitiveWordExists(id: number): Promise<CmsSensitiveWordRow> {
-  return requireFirstRow(db.select().from(cmsSensitiveWords).where(eq(cmsSensitiveWords.id, id)).limit(1), '敏感词不存在');
-}
-
-export async function listCmsSensitiveWords(q: QueryOutputOf<typeof cmsSensitiveWordContract.list>) {
-  const where = buildWhere(
-    keywordCondition(q.keyword, [cmsSensitiveWords.word]),
-    q.status ? eq(cmsSensitiveWords.status, q.status) : undefined,
-  );
-  return listRows({
-    page: q.page,
-    pageSize: q.pageSize,
-    table: cmsSensitiveWords,
-    where,
+export const cmsSensitiveWordService = defineCrudService(cmsSensitiveWordContract, {
+  table: cmsSensitiveWords,
+  map: mapCmsSensitiveWord,
+  notFound: '敏感词不存在',
+  unique: '该敏感词已存在',
+  list: (q) => ({
+    where: [
+      keywordCondition(q.keyword, [cmsSensitiveWords.word]),
+      q.status ? eq(cmsSensitiveWords.status, q.status) : undefined,
+    ],
     orderBy: [asc(cmsSensitiveWords.id)],
-    map: mapCmsSensitiveWord,
-  });
-}
+  }),
+  create: { after: () => invalidateSensitiveWordCache() },
+  update: { after: () => invalidateSensitiveWordCache() },
+  remove: { after: () => invalidateSensitiveWordCache() },
+});
 
-export async function createCmsSensitiveWord(data: CreateCmsSensitiveWordInput) {
-  try {
-    const [row] = await db.insert(cmsSensitiveWords).values(data).returning();
-    invalidateSensitiveWordCache();
-    return mapCmsSensitiveWord(row);
-  } catch (err) {
-    rethrowPgUniqueViolation(err, '该敏感词已存在');
-  }
-}
-
-export async function updateCmsSensitiveWord(id: number, data: UpdateCmsSensitiveWordInput) {
-  try {
-    const [row] = await db.update(cmsSensitiveWords).set(data).where(eq(cmsSensitiveWords.id, id)).returning();
-    requireRow(row, '敏感词不存在');
-    invalidateSensitiveWordCache();
-    return mapCmsSensitiveWord(row);
-  } catch (err) {
-    rethrowPgUniqueViolation(err, '该敏感词已存在');
-  }
-}
-
-export async function deleteCmsSensitiveWord(id: number) {
-  const [row] = await db.delete(cmsSensitiveWords).where(eq(cmsSensitiveWords.id, id)).returning();
-  requireRow(row, '敏感词不存在');
-  invalidateSensitiveWordCache();
-}
+export const {
+  list: listCmsSensitiveWords,
+  ensure: ensureCmsSensitiveWordExists,
+  create: createCmsSensitiveWord,
+  update: updateCmsSensitiveWord,
+  remove: deleteCmsSensitiveWord,
+} = cmsSensitiveWordService;

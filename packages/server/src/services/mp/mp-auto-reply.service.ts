@@ -1,106 +1,90 @@
-import { eq, and, desc, sql } from 'drizzle-orm';
-import { requireFirstRow, requireRow } from '../../lib/db-assert';
-import { listRows } from '../../lib/list-query';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
+import {
+  mpAutoReplyContract,
+  mpAutoReplySchema,
+  mpUnmatchedKeywordSchema,
+  type MpReplyArticle,
+  type MpReplyContentType,
+} from '@zenith/shared/mp';
 import { db } from '../../db';
-import { mpAutoReplies, mpUnmatchedKeywords } from '../../db/schema';
-import type { MpAutoReplyRow, MpUnmatchedKeywordRow } from '../../db/schema';
+import { mpAutoReplies, mpUnmatchedKeywords, type MpAutoReplyRow, type MpUnmatchedKeywordRow } from '../../db/schema';
+import { requireRow } from '../../lib/db-assert';
+import { defineCrudService } from '../../lib/crud-service';
+import { formatDateTime } from '../../lib/datetime';
+import { entityMapper } from '../../lib/entity-map';
+import { listRows } from '../../lib/list-query';
+import { tenantScope } from '../../lib/tenant';
 import { buildWhere, keywordCondition } from '../../lib/where-helpers';
-import { formatDateTime, formatTimestamps } from '../../lib/datetime';
-import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { ensureMpAccountExists } from './mp-account.service';
-import type { CreateMpAutoReplyInput, UpdateMpAutoReplyInput, MpReplyContentType, MpReplyArticle, mpAutoReplyContract } from '@zenith/shared/mp';
-import type { QueryOutputOf } from '@zenith/shared/core';
 
-export function mapMpAutoReply(row: MpAutoReplyRow) {
-  return {
-    id: row.id,
-    accountId: row.accountId,
-    replyType: row.replyType,
-    keyword: row.keyword ?? null,
-    matchType: row.matchType,
-    contentType: row.contentType,
-    content: row.content ?? null,
-    mediaId: row.mediaId ?? null,
-    newsArticles: row.newsArticles ?? null,
-    transferToKf: row.transferToKf,
-    status: row.status,
-    sort: row.sort,
-    createdBy: row.createdBy ?? null,
-    updatedBy: row.updatedBy ?? null,
-    ...formatTimestamps(row),
-  };
+export const mapMpAutoReply = entityMapper(mpAutoReplySchema, (row: MpAutoReplyRow) => ({
+  newsArticles: row.newsArticles ?? null,
+}));
+
+const mpAutoReplyCrud = defineCrudService(mpAutoReplyContract, {
+  table: mpAutoReplies,
+  map: mapMpAutoReply,
+  notFound: '自动回复不存在',
+  tenant: true,
+  list: (q) => ({
+    where: [
+      eq(mpAutoReplies.accountId, q.accountId),
+      q.replyType ? eq(mpAutoReplies.replyType, q.replyType) : undefined,
+      keywordCondition(q.keyword, [mpAutoReplies.keyword], 'ilike'),
+    ],
+    orderBy: [mpAutoReplies.replyType, mpAutoReplies.sort, mpAutoReplies.id],
+  }),
+  create: {
+    before: async (data) => {
+      await ensureMpAccountExists(data.accountId);
+      // 关注回复 / 默认回复 每账号仅允许一条
+      if (data.replyType === 'subscribe' || data.replyType === 'default') {
+        const [existing] = await db.select({ id: mpAutoReplies.id }).from(mpAutoReplies)
+          .where(and(eq(mpAutoReplies.accountId, data.accountId), eq(mpAutoReplies.replyType, data.replyType), tenantScope(mpAutoReplies)))
+          .limit(1);
+        if (existing) {
+          throw new HTTPException(400, { message: data.replyType === 'subscribe' ? '已存在关注回复，请直接编辑' : '已存在默认回复，请直接编辑' });
+        }
+      }
+    },
+  },
+});
+
+export async function listMpAutoReplies(q: Parameters<typeof mpAutoReplyCrud.list>[0]) {
+  await ensureMpAccountExists(q.accountId);
+  return mpAutoReplyCrud.list(q);
 }
 
-export async function ensureMpAutoReplyExists(id: number): Promise<MpAutoReplyRow> {
-  return requireFirstRow(db.select().from(mpAutoReplies).where(and(eq(mpAutoReplies.id, id), tenantScope(mpAutoReplies))).limit(1), '自动回复不存在');
+export const {
+  ensure: ensureMpAutoReplyExists,
+  create: createMpAutoReply,
+  remove: deleteMpAutoReply,
+} = mpAutoReplyCrud;
+
+export const getMpAutoReplyBeforeAudit = mpAutoReplyCrud.get;
+
+export async function updateMpAutoReply(id: number, data: Parameters<typeof mpAutoReplyCrud.update>[1]) {
+  const existing = await ensureMpAutoReplyExists(id);
+  // 空补丁直接返回，避免 Drizzle "No values to set"
+  if (Object.keys(data).length === 0) return mapMpAutoReply(existing);
+  return mpAutoReplyCrud.update(id, data);
 }
 
-export async function getMpAutoReplyBeforeAudit(id: number) {
-  return mapMpAutoReply(await ensureMpAutoReplyExists(id));
-}
+export const mpAutoReplyService = {
+  ...mpAutoReplyCrud,
+  list: listMpAutoReplies,
+  update: updateMpAutoReply,
+};
 
-export function mapMpUnmatchedKeyword(row: MpUnmatchedKeywordRow) {
-  return {
-    id: row.id,
-    accountId: row.accountId,
-    keyword: row.keyword,
-    count: row.count,
-    lastAt: formatDateTime(row.lastAt),
-  };
-}
+export const mapMpUnmatchedKeyword = entityMapper(mpUnmatchedKeywordSchema, (row: MpUnmatchedKeywordRow) => ({
+  lastAt: formatDateTime(row.lastAt),
+}));
 
 export async function getMpUnmatchedKeywordBeforeAudit(id: number) {
   const [row] = await db.select().from(mpUnmatchedKeywords).where(and(eq(mpUnmatchedKeywords.id, id), tenantScope(mpUnmatchedKeywords))).limit(1);
   if (!row) return null;
   return mapMpUnmatchedKeyword(row);
-}
-
-export async function listMpAutoReplies(q: QueryOutputOf<typeof mpAutoReplyContract.list>) {
-  await ensureMpAccountExists(q.accountId);
-  const where = buildWhere(
-    eq(mpAutoReplies.accountId, q.accountId),
-    tenantScope(mpAutoReplies),
-    q.replyType ? eq(mpAutoReplies.replyType, q.replyType) : undefined,
-    keywordCondition(q.keyword, [mpAutoReplies.keyword], 'ilike'),
-  );
-  return listRows({
-    page: q.page,
-    pageSize: q.pageSize,
-    table: mpAutoReplies,
-    where,
-    orderBy: [mpAutoReplies.replyType, mpAutoReplies.sort, mpAutoReplies.id],
-    map: mapMpAutoReply,
-  });
-}
-
-export async function createMpAutoReply(data: CreateMpAutoReplyInput) {
-  await ensureMpAccountExists(data.accountId);
-  // 关注回复 / 默认回复 每账号仅允许一条
-  if (data.replyType === 'subscribe' || data.replyType === 'default') {
-    const [existing] = await db.select({ id: mpAutoReplies.id }).from(mpAutoReplies)
-      .where(and(eq(mpAutoReplies.accountId, data.accountId), eq(mpAutoReplies.replyType, data.replyType), tenantScope(mpAutoReplies)))
-      .limit(1);
-    if (existing) {
-      throw new HTTPException(400, { message: data.replyType === 'subscribe' ? '已存在关注回复，请直接编辑' : '已存在默认回复，请直接编辑' });
-    }
-  }
-  const tenantId = currentCreateTenantId();
-  const [row] = await db.insert(mpAutoReplies).values({ ...data, tenantId }).returning();
-  return mapMpAutoReply(row);
-}
-
-export async function updateMpAutoReply(id: number, data: UpdateMpAutoReplyInput) {
-  const existing = await ensureMpAutoReplyExists(id);
-  // 空补丁直接返回，避免 Drizzle "No values to set"
-  if (Object.keys(data).length === 0) return mapMpAutoReply(existing);
-  const [row] = await db.update(mpAutoReplies).set(data).where(eq(mpAutoReplies.id, id)).returning();
-  return mapMpAutoReply(row);
-}
-
-export async function deleteMpAutoReply(id: number) {
-  await ensureMpAutoReplyExists(id);
-  await db.delete(mpAutoReplies).where(eq(mpAutoReplies.id, id));
 }
 
 /** 回调匹配到的回复（含富媒体字段） */
@@ -169,8 +153,8 @@ export async function listMpUnmatchedKeywords(accountId: number, page: number, p
   await ensureMpAccountExists(accountId);
   const where = buildWhere(and(eq(mpUnmatchedKeywords.accountId, accountId), tenantScope(mpUnmatchedKeywords)));
   return listRows({
-    page: page,
-    pageSize: pageSize,
+    page,
+    pageSize,
     table: mpUnmatchedKeywords,
     where,
     orderBy: [desc(mpUnmatchedKeywords.count), desc(mpUnmatchedKeywords.lastAt)],

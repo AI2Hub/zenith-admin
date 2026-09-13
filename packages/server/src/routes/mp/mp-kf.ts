@@ -5,11 +5,7 @@ import { guard } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
-  listMpKfAccounts,
-  createMpKfAccount,
-  updateMpKfAccount,
-  deleteMpKfAccount,
-  getMpKfAccountBeforeAudit,
+  mpKfAccountService,
   syncMpKfAccounts,
 } from '../../services/mp/mp-kf.service';
 import { mountCrud } from '../_crud';
@@ -21,13 +17,7 @@ const syncRoute = defineContractRoute(mpKfAccountContract.sync, {
 });
 
 mountCrud(mpKfRouter, mpKfAccountContract,
-  {
-    list: listMpKfAccounts,
-    get: getMpKfAccountBeforeAudit,
-    create: createMpKfAccount,
-    update: updateMpKfAccount,
-    remove: deleteMpKfAccount,
-  },
+  mpKfAccountService,
   { permission: 'mp:kf', label: '客服账号', module: '公众号多客服', audit: { create: '添加客服账号', update: '修改客服账号' } },
   [syncRoute],
 );

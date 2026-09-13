@@ -1,83 +1,64 @@
-import { eq, and, desc, inArray, isNotNull, lte } from 'drizzle-orm';
-import { requireFirstRow, requireRow } from '../../lib/db-assert';
-import { listRows } from '../../lib/list-query';
+import { desc, eq, inArray, isNotNull, lte } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
+import { mpBroadcastContract, mpBroadcastSchema } from '@zenith/shared/mp';
 import { db } from '../../db';
-import { mpBroadcasts, mpTags, mpAccounts } from '../../db/schema';
-import type { MpBroadcastRow } from '../../db/schema';
+import { mpAccounts, mpBroadcasts, mpTags } from '../../db/schema';
+import { requireRow } from '../../lib/db-assert';
+import { defineCrudService } from '../../lib/crud-service';
+import { parseDateTimeInput } from '../../lib/datetime';
+import { entityMapper } from '../../lib/entity-map';
+import { tenantScope } from '../../lib/tenant';
 import { buildWhere } from '../../lib/where-helpers';
-import { formatNullableDateTime, formatTimestamps, parseDateTimeInput } from '../../lib/datetime';
-import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { ensureMpAccountExists } from './mp-account.service';
 import { assertContentSafe } from './mp-security.service';
 import { massSend, previewMassSend, getMassSendResult, WechatApiError } from '../../lib/wechat';
 import { mapWechatError } from '../../lib/wechat-error';
-import type { CreateMpBroadcastInput, UpdateMpBroadcastInput, mpBroadcastContract } from '@zenith/shared/mp';
-import type { QueryOutputOf } from '@zenith/shared/core';
 
-export function mapMpBroadcast(row: MpBroadcastRow) {
-  return {
-    id: row.id,
-    accountId: row.accountId,
-    msgType: row.msgType,
-    target: row.target,
-    tagId: row.tagId ?? null,
-    content: row.content ?? null,
-    mediaId: row.mediaId ?? null,
-    status: row.status,
-    wechatMsgId: row.wechatMsgId ?? null,
-    scheduledAt: formatNullableDateTime(row.scheduledAt),
-    errorMsg: row.errorMsg ?? null,
-    sentAt: formatNullableDateTime(row.sentAt),
-    createdBy: row.createdBy ?? null,
-    updatedBy: row.updatedBy ?? null,
-    ...formatTimestamps(row),
-  };
-}
+export const mapMpBroadcast = entityMapper(mpBroadcastSchema);
 
-export async function ensureMpBroadcastExists(id: number): Promise<MpBroadcastRow> {
-  return requireFirstRow(db.select().from(mpBroadcasts).where(and(eq(mpBroadcasts.id, id), tenantScope(mpBroadcasts))).limit(1), '群发记录不存在');
-}
-
-export async function getMpBroadcastBeforeAudit(id: number) {
-  return mapMpBroadcast(await ensureMpBroadcastExists(id));
-}
-
-export async function listMpBroadcasts(q: QueryOutputOf<typeof mpBroadcastContract.list>) {
-  await ensureMpAccountExists(q.accountId);
-  const where = buildWhere(
-    eq(mpBroadcasts.accountId, q.accountId),
-    tenantScope(mpBroadcasts),
-    q.status ? eq(mpBroadcasts.status, q.status) : undefined,
-  );
-  return listRows({
-    page: q.page,
-    pageSize: q.pageSize,
-    table: mpBroadcasts,
-    where,
+const mpBroadcastCrud = defineCrudService(mpBroadcastContract, {
+  table: mpBroadcasts,
+  map: mapMpBroadcast,
+  notFound: '群发记录不存在',
+  tenant: true,
+  list: (q) => ({
+    where: [
+      eq(mpBroadcasts.accountId, q.accountId),
+      q.status ? eq(mpBroadcasts.status, q.status) : undefined,
+    ],
     orderBy: [desc(mpBroadcasts.id)],
-    map: mapMpBroadcast,
-  });
+  }),
+  create: {
+    before: async (data) => {
+      await ensureMpAccountExists(data.accountId);
+    },
+    toRow: (data) => ({
+      accountId: data.accountId,
+      msgType: data.msgType,
+      target: data.target,
+      tagId: data.target === 'tag' ? (data.tagId ?? null) : null,
+      content: data.msgType === 'text' ? (data.content ?? null) : null,
+      mediaId: data.msgType === 'text' ? null : (data.mediaId ?? null),
+      scheduledAt: parseDateTimeInput(data.scheduledAt),
+      status: 'draft' as const,
+    }),
+  },
+});
+
+export async function listMpBroadcasts(q: Parameters<typeof mpBroadcastCrud.list>[0]) {
+  await ensureMpAccountExists(q.accountId);
+  return mpBroadcastCrud.list(q);
 }
 
-export async function createMpBroadcast(data: CreateMpBroadcastInput) {
-  await ensureMpAccountExists(data.accountId);
-  const tenantId = currentCreateTenantId();
-  const [row] = await db.insert(mpBroadcasts).values({
-    accountId: data.accountId,
-    msgType: data.msgType,
-    target: data.target,
-    tagId: data.target === 'tag' ? (data.tagId ?? null) : null,
-    content: data.msgType === 'text' ? (data.content ?? null) : null,
-    mediaId: data.msgType === 'text' ? null : (data.mediaId ?? null),
-    scheduledAt: parseDateTimeInput(data.scheduledAt),
-    status: 'draft',
-    tenantId,
-  }).returning();
-  return mapMpBroadcast(row);
-}
+export const {
+  ensure: ensureMpBroadcastExists,
+  create: createMpBroadcast,
+  remove: deleteMpBroadcast,
+} = mpBroadcastCrud;
 
-export async function updateMpBroadcast(id: number, data: UpdateMpBroadcastInput) {
+export const getMpBroadcastBeforeAudit = mpBroadcastCrud.get;
+
+export async function updateMpBroadcast(id: number, data: Parameters<typeof mpBroadcastCrud.update>[1]) {
   const existing = await ensureMpBroadcastExists(id);
   if (existing.status === 'sent') throw new HTTPException(400, { message: '已发送的群发不可修改' });
   const { scheduledAt, ...rest } = data;
@@ -92,10 +73,11 @@ export async function updateMpBroadcast(id: number, data: UpdateMpBroadcastInput
   return mapMpBroadcast(row);
 }
 
-export async function deleteMpBroadcast(id: number) {
-  await ensureMpBroadcastExists(id);
-  await db.delete(mpBroadcasts).where(eq(mpBroadcasts.id, id));
-}
+export const mpBroadcastService = {
+  ...mpBroadcastCrud,
+  list: listMpBroadcasts,
+  update: updateMpBroadcast,
+};
 
 /** 发送群发：解析标签 → 调微信 mass/sendall；成功回填 msg_id/sentAt，失败落 errorMsg 并抛错。 */
 export async function sendMpBroadcast(id: number) {
@@ -107,7 +89,7 @@ export async function sendMpBroadcast(id: number) {
   if (broadcast.target === 'tag') {
     if (!broadcast.tagId) throw new HTTPException(400, { message: '请先指定群发标签' });
     const [tag] = await db.select({ wechatTagId: mpTags.wechatTagId }).from(mpTags)
-      .where(and(eq(mpTags.id, broadcast.tagId), tenantScope(mpTags))).limit(1);
+      .where(buildWhere(eq(mpTags.id, broadcast.tagId), tenantScope(mpTags))).limit(1);
     requireRow(tag, '群发标签不存在', 400);
     if (tag.wechatTagId == null) throw new HTTPException(400, { message: '该标签尚未同步到微信，无法按标签群发' });
     wechatTagId = tag.wechatTagId;
@@ -161,7 +143,7 @@ export async function getMpBroadcastResult(id: number) {
 /** 定时群发扫描：发送所有到期（scheduledAt<=now）且仍为草稿的群发。供 mp-broadcast-tick 调用（无登录上下文）。 */
 export async function runDueMpBroadcasts(): Promise<{ sent: number; failed: number }> {
   const due = await db.select().from(mpBroadcasts)
-    .where(and(eq(mpBroadcasts.status, 'draft'), isNotNull(mpBroadcasts.scheduledAt), lte(mpBroadcasts.scheduledAt, new Date())));
+    .where(buildWhere(eq(mpBroadcasts.status, 'draft'), isNotNull(mpBroadcasts.scheduledAt), lte(mpBroadcasts.scheduledAt, new Date())));
   if (due.length === 0) return { sent: 0, failed: 0 };
   // 批量预取账号与标签，避免循环内逐条查询（N+1）
   const accountIds = [...new Set(due.map((b) => b.accountId))];

@@ -5,12 +5,8 @@ import { guard } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
-  listWorkflowCategories,
   listAllWorkflowCategories,
-  getWorkflowCategory,
-  createWorkflowCategory,
-  updateWorkflowCategory,
-  deleteWorkflowCategory,
+  workflowCategoryService,
 } from '../../services/workflow/workflow-categories.service';
 import { mountCrud } from '../_crud';
 
@@ -23,13 +19,7 @@ const allRoute = defineContractRoute(workflowCategoryContract.all, {
 });
 
 mountCrud(router, workflowCategoryContract,
-  {
-    list: listWorkflowCategories,
-    get: getWorkflowCategory,
-    create: createWorkflowCategory,
-    update: updateWorkflowCategory,
-    remove: deleteWorkflowCategory,
-  },
+  workflowCategoryService,
   {
     permission: { read: 'workflow:definition:list', write: 'workflow:definition:edit' },
     label: '流程分类',
