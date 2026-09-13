@@ -37,6 +37,7 @@ export const IDENTITY_PERMISSIONS = definePermissions({
   'system:role:update': { label: '编辑角色', menu: 'SystemRoles' },
   'system:role:delete': { label: '删除角色', menu: 'SystemRoles' },
   'system:role:assign': { label: '分配菜单', menu: 'SystemRoles' },
+  'system:permission-matrix:view': { label: '查询', menu: 'SystemPermissionMatrix' },
   'system:tenant:list': { label: '查询', menu: 'SystemTenants' },
   'system:tenant:create': { label: '新增租户', menu: 'SystemTenants', uiOnly: true },
   'system:tenant:update': { label: '编辑租户', menu: 'SystemTenants', uiOnly: true },

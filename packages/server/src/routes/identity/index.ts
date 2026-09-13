@@ -11,6 +11,7 @@ import {
   loginLogContract,
   menuContract,
   oauthConfigContract,
+  permissionMatrixContract,
   oauthContract,
   positionContract,
   roleContract,
@@ -34,6 +35,7 @@ import impersonationRoutes from './impersonation';
 import loginLogsRoutes from './login-logs';
 import menusRoutes from './menus';
 import oauthConfigRoutes from './oauth-config';
+import permissionMatrixRoutes from './permission-matrix';
 import oauthRoutes from './oauth';
 import positionsRoutes from './positions';
 import rolesRoutes from './roles';
@@ -53,6 +55,7 @@ export default defineRouteDomain({
     [userGroupContract.basePath, userGroupsRoutes],
     [menuContract.basePath, menusRoutes],
     [roleContract.basePath, rolesRoutes],
+    [permissionMatrixContract.basePath, permissionMatrixRoutes],
     [loginLogContract.basePath, loginLogsRoutes],
     [identitySecurityContract.basePath, identitySecurityRoutes],
     [impersonationContract.basePath, impersonationRoutes],
