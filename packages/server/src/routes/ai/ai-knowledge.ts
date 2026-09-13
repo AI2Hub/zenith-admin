@@ -22,11 +22,6 @@ const router = new OpenAPIHono({ defaultHook: validationHook });
 const read = [authMiddleware, guard({ permission: 'ai:kb:list' })] as const;
 const edit = [authMiddleware, guard({ permission: 'ai:kb:edit' })] as const;
 
-const list = defineContractRoute(aiKnowledgeBaseContract.list, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await listKnowledgeBases()), 200),
-});
-
 /** 聊天页挂载选择器用：无需 kb:list 权限，仅登录即可读取自己的知识库 */
 const available = defineContractRoute(aiKnowledgeBaseContract.all, {
   middleware: [authMiddleware],
@@ -91,15 +86,9 @@ const removeDoc = defineContractRoute(aiKnowledgeBaseContract.removeDocument, {
 });
 
 mountCrud(router, aiKnowledgeBaseContract,
-  { create: createKnowledgeBase },
-  {
-    permission: { create: 'ai:kb:create', update: 'ai:kb:edit', remove: 'ai:kb:delete' },
-    label: '知识库',
-    module: '智能助手',
-    audit: { update: null },
-    exclude: ['list', 'update', 'remove'],
-  },
-  [list, available, update, remove, listDocs, addDoc, importUrl, listChunks, removeDoc],
+  { create: createKnowledgeBase, list: listKnowledgeBases },
+  { permission: 'ai:kb', label: '知识库', module: '智能助手', audit: { update: null }, exclude: ['update', 'remove'] },
+  [available, update, remove, listDocs, addDoc, importUrl, listChunks, removeDoc],
 );
 
 export default router;

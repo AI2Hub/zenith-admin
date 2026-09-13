@@ -17,39 +17,15 @@ import {
   getTenantPackageBeforeAudit,
   getTenantPackagesBeforeAudit,
 } from '../../services/identity/tenant-packages.service';
+import { mountCrud } from '../_crud';
 
 const tenantPackagesRoute = new OpenAPIHono({ defaultHook: validationHook });
 
 const admin = [authMiddleware, platformAdminOnly({ message: '仅平台管理员可管理租户套餐' })] as const;
 
-const listRoute = defineContractRoute(tenantPackageContract.list, {
-  middleware: admin,
-  handler: async (c) => c.json(okBody(await listTenantPackages(c.req.valid('query'))), 200),
-});
-
 const allRoute = defineContractRoute(tenantPackageContract.all, {
   middleware: admin,
   handler: async (c) => c.json(okBody(await listAllTenantPackages()), 200),
-});
-
-const detailRoute = defineContractRoute(tenantPackageContract.detail, {
-  middleware: admin,
-  handler: async (c) => c.json(okBody(await getTenantPackage(c.req.valid('param').id)), 200),
-});
-
-const createRouteDef = defineContractRoute(tenantPackageContract.create, {
-  middleware: [...admin, guard({ audit: { module: '租户套餐', description: '创建套餐' } })],
-  handler: async (c) => c.json(okBody(await createTenantPackage(c.req.valid('json')), '创建成功'), 200),
-});
-
-const updateRouteDef = defineContractRoute(tenantPackageContract.update, {
-  middleware: [...admin, guard({ audit: { module: '租户套餐', description: '更新套餐' } })],
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    const before = await getTenantPackageBeforeAudit(id);
-    if (before) setAuditBeforeData(c, before);
-    return c.json(okBody(await updateTenantPackage(id, c.req.valid('json')), '更新成功'), 200);
-  },
 });
 
 const assignFeaturesRouteDef = defineContractRoute(tenantPackageContract.assignFeatures, {
@@ -77,18 +53,23 @@ const batchDeleteRouteDef = defineContractRoute(tenantPackageContract.removeBatc
   },
 });
 
-const deleteRouteDef = defineContractRoute(tenantPackageContract.remove, {
-  middleware: [...admin, guard({ audit: { module: '租户套餐', description: '删除套餐' } })],
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    const before = await getTenantPackageBeforeAudit(id);
-    if (before) setAuditBeforeData(c, before);
-    await deleteTenantPackage(id);
-    return c.json(okBody(null, '删除成功'), 200);
-  },
-});
-
 // DELETE /batch 必须先于 DELETE /{id} 注册，否则 "batch" 会被当成 id
-tenantPackagesRoute.openapiRoutes([listRoute, allRoute, detailRoute, createRouteDef, updateRouteDef, assignFeaturesRouteDef, batchDeleteRouteDef, deleteRouteDef] as const);
+mountCrud(tenantPackagesRoute, tenantPackageContract,
+  {
+    list: listTenantPackages,
+    get: getTenantPackage,
+    create: createTenantPackage,
+    update: updateTenantPackage,
+    remove: deleteTenantPackage,
+  },
+  {
+    permission: null,
+    label: '套餐',
+    module: '租户套餐',
+    middleware: [platformAdminOnly({ message: '仅平台管理员可管理租户套餐' })],
+    exclude: ['removeBatch'],
+  },
+  [allRoute, assignFeaturesRouteDef, batchDeleteRouteDef],
+);
 
 export default tenantPackagesRoute;

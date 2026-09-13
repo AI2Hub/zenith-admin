@@ -79,12 +79,9 @@ async function ensureDelegationAccess(id: number): Promise<DelegationRow> {
   return row;
 }
 
-export async function getWorkflowDelegationBeforeAudit(id: number) {
-  const row = await ensureDelegationAccess(id).catch((err) => {
-    if (err instanceof HTTPException && err.status === 404) return null;
-    throw err;
-  });
-  return row ? mapDelegation(row) : null;
+/** 当前用户可操作的委托规则（管理员或委托人本人）；不存在 404、无权 403 */
+export async function getWorkflowDelegation(id: number): Promise<WorkflowDelegation> {
+  return mapDelegation(await ensureDelegationAccess(id));
 }
 
 export async function listWorkflowDelegations(q: QueryOutputOf<typeof workflowDelegationContract.list>) {

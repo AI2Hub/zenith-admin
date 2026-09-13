@@ -4,18 +4,33 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { iotDashboardContract, iotFirmwareContract, iotOtaTaskContract } from '@zenith/shared/iot';
 import { authMiddleware } from '../../middleware/auth';
-import { guard, setAuditBeforeData } from '../../middleware/guard';
+import { guard } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { ErrorResponse, errBody, jsonContent, okBody, validationHook } from '../../lib/openapi-schemas';
 import { getIotDashboard } from '../../services/iot/iot-dashboard.service';
 import {
-  abortIotFirmwareUpload, completeIotFirmwareUpload, createIotFirmware, deleteIotFirmware, ensureIotFirmwareExists,
-  getIotFirmwareUploadStatus, initIotFirmwareUpload, listIotFirmwares, mapIotFirmware, updateIotFirmware, uploadIotFirmwareChunk,
+  abortIotFirmwareUpload,
+  completeIotFirmwareUpload,
+  createIotFirmware,
+  deleteIotFirmware,
+  ensureIotFirmwareExists,
+  getIotFirmwareUploadStatus,
+  initIotFirmwareUpload,
+  listIotFirmwares,
+  mapIotFirmware,
+  updateIotFirmware,
+  uploadIotFirmwareChunk,
 } from '../../services/iot/iot-firmware.service';
 import {
-  cancelIotOtaTask, createIotOtaTask, getIotOtaTask, listIotOtaTaskDevices, listIotOtaTasks,
-  releaseNextIotOtaBatch, resumeIotOtaTask,
+  cancelIotOtaTask,
+  createIotOtaTask,
+  getIotOtaTask,
+  listIotOtaTaskDevices,
+  listIotOtaTasks,
+  releaseNextIotOtaBatch,
+  resumeIotOtaTask,
 } from '../../services/iot/iot-ota.service';
+import { mountCrud } from '../_crud';
 
 const otaRead = [authMiddleware, guard({ permission: 'iot:ota:list' })] as const;
 const notFound = { 404: { content: jsonContent(ErrorResponse), description: '不存在' } } as const;
@@ -37,11 +52,6 @@ const firmwareManage = (description: string, recordBody = true) => [authMiddlewa
   permission: 'iot:ota:firmware:manage',
   audit: { description, module: 'IoT 固件', ...(recordBody ? {} : { recordBody: false }) },
 })] as const;
-
-const listFirmwaresRoute = defineContractRoute(iotFirmwareContract.list, {
-  middleware: otaRead,
-  handler: async (c) => c.json(okBody(await listIotFirmwares(c.req.valid('query'))), 200),
-});
 
 const uploadFirmwareRoute = defineContractRoute(iotFirmwareContract.upload, {
   middleware: firmwareManage('上传 IoT 固件', false),
@@ -94,38 +104,29 @@ const firmwareUploadAbortRoute = defineContractRoute(iotFirmwareContract.uploadA
   },
 });
 
-const updateFirmwareRoute = defineContractRoute(iotFirmwareContract.update, {
-  middleware: firmwareManage('更新 IoT 固件'),
-  responses: notFound,
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    setAuditBeforeData(c, mapIotFirmware(await ensureIotFirmwareExists(id)));
-    return c.json(okBody(await updateIotFirmware(id, c.req.valid('json')), '更新成功'), 200);
+mountCrud(iotFirmwaresRouter, iotFirmwareContract,
+  {
+    list: listIotFirmwares,
+    get: async (id: number) => mapIotFirmware(await ensureIotFirmwareExists(id)),
+    update: updateIotFirmware,
+    remove: deleteIotFirmware,
   },
-});
-
-const deleteFirmwareRoute = defineContractRoute(iotFirmwareContract.remove, {
-  middleware: firmwareManage('删除 IoT 固件'),
-  responses: notFound,
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    setAuditBeforeData(c, mapIotFirmware(await ensureIotFirmwareExists(id)));
-    await deleteIotFirmware(id);
-    return c.json(okBody(null, '删除成功'), 200);
+  {
+    permission: { read: 'iot:ota:list', write: 'iot:ota:firmware:manage' },
+    label: 'IoT 固件',
+    module: 'IoT 固件',
+    audit: { update: '更新 IoT 固件', remove: '删除 IoT 固件' },
+    responses: { update: notFound, remove: notFound },
   },
-});
-
-iotFirmwaresRouter.openapiRoutes([
-  listFirmwaresRoute,
-  uploadFirmwareRoute,
-  firmwareUploadInitRoute,
-  firmwareUploadChunkRoute,
-  firmwareUploadCompleteRoute,
-  firmwareUploadStatusRoute,
-  firmwareUploadAbortRoute,
-  updateFirmwareRoute,
-  deleteFirmwareRoute,
-] as const);
+  [
+    uploadFirmwareRoute,
+    firmwareUploadInitRoute,
+    firmwareUploadChunkRoute,
+    firmwareUploadCompleteRoute,
+    firmwareUploadStatusRoute,
+    firmwareUploadAbortRoute,
+  ],
+);
 
 // ─── OTA 任务 ─────────────────────────────────────────────────────────────────
 export const iotOtaTasksRouter = new OpenAPIHono({ defaultHook: validationHook });
@@ -134,25 +135,6 @@ const taskManage = (description: string) => [authMiddleware, guard({
   permission: 'iot:ota:task:create',
   audit: { description, module: 'IoT 固件' },
 })] as const;
-
-const listTasksRoute = defineContractRoute(iotOtaTaskContract.list, {
-  middleware: otaRead,
-  handler: async (c) => c.json(okBody(await listIotOtaTasks(c.req.valid('query'))), 200),
-});
-
-const createTaskRoute = defineContractRoute(iotOtaTaskContract.create, {
-  middleware: taskManage('创建 IoT 升级任务'),
-  handler: async (c) => c.json(okBody(await createIotOtaTask(c.req.valid('json')), '升级任务已创建'), 200),
-});
-
-const getTaskRoute = defineContractRoute(iotOtaTaskContract.detail, {
-  middleware: otaRead,
-  responses: notFound,
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    return c.json(okBody(await getIotOtaTask(id)), 200);
-  },
-});
 
 const listTaskDevicesRoute = defineContractRoute(iotOtaTaskContract.devices, {
   middleware: otaRead,
@@ -189,12 +171,15 @@ const resumeTaskRoute = defineContractRoute(iotOtaTaskContract.resume, {
   },
 });
 
-iotOtaTasksRouter.openapiRoutes([
-  listTasksRoute,
-  createTaskRoute,
-  getTaskRoute,
-  listTaskDevicesRoute,
-  cancelTaskRoute,
-  releaseBatchRoute,
-  resumeTaskRoute,
-] as const);
+mountCrud(iotOtaTasksRouter, iotOtaTaskContract,
+  { list: listIotOtaTasks, get: getIotOtaTask, create: createIotOtaTask },
+  {
+    permission: { read: 'iot:ota:list', write: 'iot:ota:task:create' },
+    label: 'IoT 升级任务',
+    module: 'IoT 固件',
+    audit: { create: '创建 IoT 升级任务' },
+    messages: { create: '升级任务已创建' },
+    responses: { detail: notFound },
+  },
+  [listTaskDevicesRoute, cancelTaskRoute, releaseBatchRoute, resumeTaskRoute],
+);

@@ -29,6 +29,7 @@ import { listRecentNodes, listSharedWithMe, listStarredNodes, searchDriveNodes }
 import { batchDownloadDriveNodes } from '../../services/drive/drive-tasks.service';
 import { ensureDriveUploadDirectories } from '../../services/drive/drive-directories.service';
 import { attachmentDisposition, inlineOrAttachmentDisposition } from '../../lib/content-disposition';
+import { mountCrud } from '../_crud';
 
 /**
  * 网盘节点静态路径路由（列表 / 个人视图 / 回收站 / 批量操作 / 上传）。
@@ -70,13 +71,6 @@ export const binaryResponses = {
   206: { content: { 'application/octet-stream': { schema: z.string() } }, description: '文件内容分片' },
   416: { content: jsonContent(ErrorResponse), description: 'Range 不合法' },
 } as const;
-
-// ─── 列表 / 个人视图 ─────────────────────────────────────────────────────────
-
-const listRoute = defineContractRoute(driveNodeContract.list, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await listDriveNodes(c.req.valid('query'))), 200),
-});
 
 const searchRoute = defineContractRoute(driveNodeContract.search, {
   middleware: read,
@@ -250,11 +244,32 @@ const uploadAbortRoute = defineContractRoute(driveNodeContract.uploadAbort, {
   },
 });
 
-router.openapiRoutes([
-  listRoute, searchRoute, sharedRoute, starredRoute, recentRoute,
-  recycleListRoute, recycleRestoreRoute, recyclePurgeRoute, recycleEmptyRoute,
-  createFolderRoute, moveRoute, copyRoute, batchDeleteRoute, batchDownloadRoute,
-  ensureDirectoriesRoute, precheckRoute, uploadRoute, uploadInitRoute, uploadChunkRoute, uploadCompleteRoute, uploadStatusRoute, uploadAbortRoute,
-] as const);
+mountCrud(router, driveNodeContract,
+  { list: listDriveNodes },
+  { permission: 'drive:node', exclude: ['detail', 'removeBatch'] },
+  [
+    searchRoute,
+    sharedRoute,
+    starredRoute,
+    recentRoute,
+    recycleListRoute,
+    recycleRestoreRoute,
+    recyclePurgeRoute,
+    recycleEmptyRoute,
+    createFolderRoute,
+    moveRoute,
+    copyRoute,
+    batchDeleteRoute,
+    batchDownloadRoute,
+    ensureDirectoriesRoute,
+    precheckRoute,
+    uploadRoute,
+    uploadInitRoute,
+    uploadChunkRoute,
+    uploadCompleteRoute,
+    uploadStatusRoute,
+    uploadAbortRoute,
+  ],
+);
 
 export default router;

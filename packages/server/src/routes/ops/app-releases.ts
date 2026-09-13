@@ -53,6 +53,7 @@ import {
   getClientDeviceBeforeAudit,
   listClientDevices,
 } from '../../services/ops/client-devices.service';
+import { mountCrud } from '../_crud';
 
 const MODULE = '应用版本管理';
 const list = [authMiddleware, guard({ permission: 'system:app-release:list' })] as const;
@@ -64,88 +65,32 @@ const notFoundResponse = { 404: { content: jsonContent(ErrorResponse), descripti
 
 export const clientAppsRouter = new OpenAPIHono({ defaultHook: validationHook });
 
-const listAppsRoute = defineContractRoute(clientAppContract.list, {
-  middleware: list,
-  handler: async (c) => c.json(okBody(await listClientApps(c.req.valid('query'))), 200),
-});
-
 const allAppsRoute = defineContractRoute(clientAppContract.all, {
   middleware: list,
   handler: async (c) => c.json(okBody(await listAllClientApps()), 200),
 });
 
-const createAppRoute = defineContractRoute(clientAppContract.create, {
-  middleware: audited('system:app-release:create', '创建应用'),
-  handler: async (c) => c.json(okBody(await createClientApp(c.req.valid('json')), '创建成功'), 200),
-});
-
-const updateAppRoute = defineContractRoute(clientAppContract.update, {
-  middleware: audited('system:app-release:update', '更新应用'),
-  responses: notFoundResponse,
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    setAuditBeforeData(c, await getClientAppBeforeAudit(id));
-    return c.json(okBody(await updateClientApp(id, c.req.valid('json')), '更新成功'), 200);
-  },
-});
-
-const deleteAppRoute = defineContractRoute(clientAppContract.remove, {
-  middleware: audited('system:app-release:delete', '删除应用'),
-  responses: notFoundResponse,
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    setAuditBeforeData(c, await getClientAppBeforeAudit(id));
-    await deleteClientApp(id);
-    return c.json(okBody(null, '删除成功'), 200);
-  },
-});
-
 // 静态 /all 先于 /{id}
-clientAppsRouter.openapiRoutes([listAppsRoute, allAppsRoute, createAppRoute, updateAppRoute, deleteAppRoute] as const);
+mountCrud(clientAppsRouter, clientAppContract,
+  {
+    list: listClientApps,
+    get: getClientAppBeforeAudit,
+    create: createClientApp,
+    update: updateClientApp,
+    remove: deleteClientApp,
+  },
+  {
+    permission: 'system:app-release',
+    label: '应用',
+    module: MODULE,
+    responses: { update: notFoundResponse, remove: notFoundResponse },
+  },
+  [allAppsRoute],
+);
 
 // ─── 版本 ────────────────────────────────────────────────────────────────────
 
 export const appReleasesRouter = new OpenAPIHono({ defaultHook: validationHook });
-
-const listReleasesRoute = defineContractRoute(appReleaseContract.list, {
-  middleware: list,
-  handler: async (c) => c.json(okBody(await listAppReleases(c.req.valid('query'))), 200),
-});
-
-const getReleaseRoute = defineContractRoute(appReleaseContract.detail, {
-  middleware: list,
-  responses: notFoundResponse,
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    return c.json(okBody(await getAppRelease(id)), 200);
-  },
-});
-
-const createReleaseRoute = defineContractRoute(appReleaseContract.create, {
-  middleware: audited('system:app-release:create', '创建版本'),
-  handler: async (c) => c.json(okBody(await createAppRelease(c.req.valid('json')), '创建成功'), 200),
-});
-
-const updateReleaseRoute = defineContractRoute(appReleaseContract.update, {
-  middleware: audited('system:app-release:update', '更新版本'),
-  responses: notFoundResponse,
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    setAuditBeforeData(c, await getAppReleaseBeforeAudit(id));
-    return c.json(okBody(await updateAppRelease(id, c.req.valid('json')), '更新成功'), 200);
-  },
-});
-
-const deleteReleaseRoute = defineContractRoute(appReleaseContract.remove, {
-  middleware: audited('system:app-release:delete', '删除版本'),
-  responses: notFoundResponse,
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    setAuditBeforeData(c, await getAppReleaseBeforeAudit(id));
-    await deleteAppRelease(id);
-    return c.json(okBody(null, '删除成功'), 200);
-  },
-});
 
 const publishReleaseRoute = defineContractRoute(appReleaseContract.publish, {
   middleware: audited('system:app-release:publish', '发布版本'),
@@ -258,40 +203,42 @@ const artifactUploadAbortRoute = defineContractRoute(appReleaseContract.uploadAb
   },
 });
 
-appReleasesRouter.openapiRoutes([
-  listReleasesRoute,
-  getReleaseRoute,
-  createReleaseRoute,
-  updateReleaseRoute,
-  deleteReleaseRoute,
-  publishReleaseRoute,
-  revokeReleaseRoute,
-  rolloutRoute,
-  uploadArtifactRoute,
-  externalArtifactRoute,
-  artifactUploadInitRoute,
-  artifactUploadChunkRoute,
-  artifactUploadCompleteRoute,
-  artifactUploadStatusRoute,
-  artifactUploadAbortRoute,
-] as const);
+mountCrud(appReleasesRouter, appReleaseContract,
+  {
+    list: listAppReleases,
+    get: getAppRelease,
+    create: createAppRelease,
+    update: updateAppRelease,
+    remove: deleteAppRelease,
+  },
+  {
+    permission: 'system:app-release',
+    label: '版本',
+    module: MODULE,
+    responses: { detail: notFoundResponse, update: notFoundResponse, remove: notFoundResponse },
+  },
+  [
+    publishReleaseRoute,
+    revokeReleaseRoute,
+    rolloutRoute,
+    uploadArtifactRoute,
+    externalArtifactRoute,
+    artifactUploadInitRoute,
+    artifactUploadChunkRoute,
+    artifactUploadCompleteRoute,
+    artifactUploadStatusRoute,
+    artifactUploadAbortRoute,
+  ],
+);
 
 // ─── 制品 ────────────────────────────────────────────────────────────────────
 
 export const appArtifactsRouter = new OpenAPIHono({ defaultHook: validationHook });
 
-const deleteArtifactRoute = defineContractRoute(appArtifactContract.remove, {
-  middleware: audited('system:app-release:delete', '删除制品'),
-  responses: notFoundResponse,
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    setAuditBeforeData(c, await getAppArtifactBeforeAudit(id));
-    await deleteAppArtifact(id);
-    return c.json(okBody(null, '删除成功'), 200);
-  },
-});
-
-appArtifactsRouter.openapiRoutes([deleteArtifactRoute] as const);
+mountCrud(appArtifactsRouter, appArtifactContract,
+  { get: getAppArtifactBeforeAudit, remove: deleteAppArtifact },
+  { permission: 'system:app-release', label: '制品', module: MODULE, responses: { remove: notFoundResponse } },
+);
 
 // ─── 看板统计 ────────────────────────────────────────────────────────────────
 
@@ -311,11 +258,6 @@ appReleaseStatsRouter.openapiRoutes([statsRoute] as const);
 
 export const clientDevicesRouter = new OpenAPIHono({ defaultHook: validationHook });
 
-const listDevicesRoute = defineContractRoute(clientDeviceContract.list, {
-  middleware: list,
-  handler: async (c) => c.json(okBody(await listClientDevices(c.req.valid('query'))), 200),
-});
-
 const unbindDeviceRoute = defineContractRoute(clientDeviceContract.unbind, {
   middleware: audited('system:app-release:update', '解绑设备推送'),
   responses: notFoundResponse,
@@ -327,15 +269,8 @@ const unbindDeviceRoute = defineContractRoute(clientDeviceContract.unbind, {
   },
 });
 
-const deleteDeviceRoute = defineContractRoute(clientDeviceContract.remove, {
-  middleware: audited('system:app-release:delete', '删除设备档案'),
-  responses: notFoundResponse,
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    setAuditBeforeData(c, await getClientDeviceBeforeAudit(id));
-    await deleteClientDevice(id);
-    return c.json(okBody(null, '删除成功'), 200);
-  },
-});
-
-clientDevicesRouter.openapiRoutes([listDevicesRoute, unbindDeviceRoute, deleteDeviceRoute] as const);
+mountCrud(clientDevicesRouter, clientDeviceContract,
+  { list: listClientDevices, get: getClientDeviceBeforeAudit, remove: deleteClientDevice },
+  { permission: 'system:app-release', label: '设备档案', module: MODULE, responses: { remove: notFoundResponse } },
+  [unbindDeviceRoute],
+);

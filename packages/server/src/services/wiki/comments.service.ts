@@ -2,11 +2,11 @@ import { HTTPException } from 'hono/http-exception';
 import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import type { CreateWikiCommentInput, WikiCommentStatus } from '@zenith/shared/wiki';
-import { wikiCommentContract } from '@zenith/shared/wiki';
+import { wikiCommentContract, wikiCommentFieldsSchema } from '@zenith/shared/wiki';
+import { pickEntity } from '../../lib/entity-map';
 import { db } from '../../db';
 import { users, wikiComments, wikiDocs, type WikiCommentRow } from '../../db/schema';
 import { currentUser, currentUserId } from '../../lib/context';
-import { formatDateTime } from '../../lib/datetime';
 import { requireFirstRow } from '../../lib/db-assert';
 import { buildListResult } from '../../lib/list-query';
 import { getSettings } from '../../lib/settings';
@@ -22,20 +22,11 @@ interface CommentExtras {
 }
 
 export function mapWikiComment(row: WikiCommentRow, extras: CommentExtras = {}) {
-  return {
-    id: row.id,
-    docId: row.docId,
-    parentId: row.parentId ?? null,
-    content: row.content,
-    status: row.status,
+  return pickEntity(wikiCommentFieldsSchema, row, {
     mentionedUserIds: row.mentionedUserIds ?? [],
-    isQuestion: row.isQuestion,
-    resolvedAt: row.resolvedAt ? formatDateTime(row.resolvedAt) : null,
-    authorId: row.authorId ?? null,
     authorName: extras.authorName ?? null,
-    ...(extras.docTitle !== undefined ? { docTitle: extras.docTitle } : {}),
-    createdAt: formatDateTime(row.createdAt),
-  };
+    docTitle: extras.docTitle,
+  });
 }
 
 // ─── 文档下的评论（用户端）────────────────────────────────────────────────────

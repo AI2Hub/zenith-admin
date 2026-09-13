@@ -6,7 +6,8 @@ import { currentUser } from '../../lib/context';
 import { getCreateTenantId } from '../../lib/tenant';
 import { formatTimestamps } from '../../lib/datetime';
 import { clearDefaultFlag } from '../../lib/default-flag';
-import type { WorkflowSavedView, CreateWorkflowSavedViewInput, UpdateWorkflowSavedViewInput } from '@zenith/shared/workflow';
+import type { QueryOutputOf } from '@zenith/shared/core';
+import { workflowSavedViewContract, type WorkflowSavedView, type CreateWorkflowSavedViewInput, type UpdateWorkflowSavedViewInput } from '@zenith/shared/workflow';
 
 type Row = typeof workflowSavedViews.$inferSelect;
 
@@ -35,7 +36,7 @@ async function ensureOwn(id: number): Promise<Row> {
   return row;
 }
 
-export async function listSavedViews(pageKey: string): Promise<WorkflowSavedView[]> {
+export async function listSavedViews({ pageKey }: QueryOutputOf<typeof workflowSavedViewContract.list>): Promise<WorkflowSavedView[]> {
   const user = currentUser();
   const rows = await db.select().from(workflowSavedViews)
     .where(and(eq(workflowSavedViews.userId, user.userId), eq(workflowSavedViews.pageKey, pageKey)))
@@ -43,12 +44,9 @@ export async function listSavedViews(pageKey: string): Promise<WorkflowSavedView
   return rows.map(mapView);
 }
 
-export async function getSavedViewBeforeAudit(id: number): Promise<WorkflowSavedView | null> {
-  const row = await ensureOwn(id).catch((err) => {
-    if (err instanceof HTTPException && err.status === 404) return null;
-    throw err;
-  });
-  return row ? mapView(row) : null;
+/** 当前用户自己的视图；不存在或非本人 404 */
+export async function getSavedView(id: number): Promise<WorkflowSavedView> {
+  return mapView(await ensureOwn(id));
 }
 
 export async function createSavedView(input: CreateWorkflowSavedViewInput): Promise<WorkflowSavedView> {

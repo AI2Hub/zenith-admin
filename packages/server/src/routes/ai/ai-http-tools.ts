@@ -10,11 +10,6 @@ import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
-const list = defineContractRoute(aiHttpToolContract.list, {
-  middleware: [authMiddleware, guard({ permission: 'ai:tool:list' })],
-  handler: async (c) => c.json(okBody(await listHttpTools()), 200),
-});
-
 /** 智能体编辑器工具勾选用：内置 + HTTP 工具统一视图，登录即可读 */
 const available = defineContractRoute(aiHttpToolContract.all, {
   middleware: [authMiddleware],
@@ -38,14 +33,14 @@ const remove = defineContractRoute(aiHttpToolContract.remove, {
 });
 
 mountCrud(router, aiHttpToolContract,
-  { create: createHttpTool },
+  { create: createHttpTool, list: listHttpTools },
   {
-    permission: { write: 'ai:tool:manage' },
+    permission: { read: 'ai:tool:list', write: 'ai:tool:manage' },
     label: ' AI HTTP 工具',
     module: '智能助手',
-    exclude: ['list', 'update', 'remove'],
+    exclude: ['update', 'remove'],
   },
-  [list, available, update, remove],
+  [available, update, remove],
 );
 
 export default router;

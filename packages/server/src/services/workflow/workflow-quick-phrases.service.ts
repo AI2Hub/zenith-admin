@@ -45,12 +45,9 @@ async function ensureOwnPhrase(id: number): Promise<PhraseRow> {
   return row;
 }
 
-export async function getQuickPhraseBeforeAudit(id: number): Promise<WorkflowQuickPhrase | null> {
-  const row = await ensureOwnPhrase(id).catch((err) => {
-    if (err instanceof HTTPException && err.status === 404) return null;
-    throw err;
-  });
-  return row ? mapQuickPhrase(row) : null;
+/** 当前用户自己的常用语；不存在 404、非本人 403 */
+export async function getMyQuickPhrase(id: number): Promise<WorkflowQuickPhrase> {
+  return mapQuickPhrase(await ensureOwnPhrase(id));
 }
 
 export async function updateMyQuickPhrase(id: number, input: UpdateWorkflowQuickPhraseInput): Promise<WorkflowQuickPhrase> {

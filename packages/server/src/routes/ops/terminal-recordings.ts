@@ -14,19 +14,13 @@ import {
   deleteRecording,
   cleanRecordings,
 } from '../../services/ops/terminal-recordings.service';
+import { mountCrud } from '../_crud';
 
 const recordingsRouter = new OpenAPIHono({ defaultHook: validationHook });
 
 const PERM = 'system:terminal:execute';
 
 const read = [authMiddleware, guard({ permission: PERM })] as const;
-
-const listRoute = defineContractRoute(terminalRecordingContract.list, {
-  middleware: read,
-  handler: async (c) => {
-    return c.json(okBody(await listRecordings(c.req.valid('query'))), 200);
-  },
-});
 
 const createRoute_ = defineContractRoute(terminalRecordingContract.create, {
   middleware: [authMiddleware, guard({ permission: PERM, audit: { description: '保存终端录屏', module: 'Web 终端', recordBody: false } })],
@@ -83,6 +77,10 @@ const cleanRoute = defineContractRoute(terminalRecordingContract.clean, {
 });
 
 // 静态 DELETE /clean 必须先于 DELETE /{id} 注册
-recordingsRouter.openapiRoutes([listRoute, createRoute_, cleanRoute, exportAsciinemaRoute, getRoute, deleteRoute] as const);
+mountCrud(recordingsRouter, terminalRecordingContract,
+  { list: listRecordings },
+  { permission: { read: PERM }, exclude: ['detail', 'create', 'remove'] },
+  [createRoute_, cleanRoute, exportAsciinemaRoute, getRoute, deleteRoute],
+);
 
 export default recordingsRouter;

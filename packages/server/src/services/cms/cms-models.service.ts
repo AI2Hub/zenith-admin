@@ -4,12 +4,12 @@ import { buildListResult } from '../../lib/list-query';
 import { eq, asc, and, or, inArray, isNull, type SQL } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { HTTPException } from 'hono/http-exception';
-import { cmsModelContract } from '@zenith/shared/cms';
+import { cmsModelContract, cmsModelFieldViewSchema, cmsModelSchema, type CmsModel, type CmsModelField } from '@zenith/shared/cms';
+import { pickEntity } from '../../lib/entity-map';
 import { db } from '../../db';
 import { cmsModels, cmsModelFields, cmsChannels, cmsContents, cmsSites, dicts, dictItems } from '../../db/schema';
 import type { CmsModelRow, CmsModelFieldRow } from '../../db/schema';
 import type { DbExecutor } from '../../db/types';
-import { formatTimestamps } from '../../lib/datetime';
 import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import type { CreateCmsModelInput, UpdateCmsModelInput, CmsModelFieldInput } from '@zenith/shared/cms';
@@ -68,28 +68,8 @@ export async function resolveCmsModelFieldOptions(
   return resolved;
 }
 
-export function mapCmsModelField(row: CmsModelFieldRow, resolvedOptions?: { label: string; value: string }[]) {
-  return {
-    id: row.id,
-    modelId: row.modelId,
-    name: row.name,
-    label: row.label,
-    fieldType: row.fieldType,
-    required: row.required,
-    searchable: row.searchable,
-    showInList: row.showInList,
-    showInDetail: row.showInDetail,
-    detailGroup: row.detailGroup ?? null,
-    detailSort: row.detailSort,
-    placeholder: row.placeholder ?? null,
-    defaultValue: row.defaultValue ?? null,
-    optionSource: row.optionSource,
-    dictCode: row.dictCode ?? null,
-    options: row.options ?? null,
-    ...(resolvedOptions ? { resolvedOptions } : {}),
-    sort: row.sort,
-    ...formatTimestamps(row),
-  };
+export function mapCmsModelField(row: CmsModelFieldRow, resolvedOptions?: { label: string; value: string }[]): CmsModelField {
+  return pickEntity(cmsModelFieldViewSchema, row, { options: row.options ?? null, resolvedOptions });
 }
 
 /** 带选项解析的字段映射（前端动态表单入口统一走这里） */
@@ -98,20 +78,11 @@ export async function mapCmsModelFieldsResolved(rows: readonly CmsModelFieldRow[
   return rows.map((row) => mapCmsModelField(row, resolved.get(row.id) ?? []));
 }
 
-export function mapCmsModel(row: CmsModelRow, fields?: CmsModelFieldRow[], ownerSiteName?: string | null) {
-  return {
-    id: row.id,
-    ownerSiteId: row.ownerSiteId ?? null,
+export function mapCmsModel(row: CmsModelRow, fields?: CmsModelFieldRow[], ownerSiteName?: string | null): CmsModel {
+  return pickEntity(cmsModelSchema, row, {
     ownerSiteName: ownerSiteName ?? null,
-    name: row.name,
-    code: row.code,
-    description: row.description ?? null,
-    isSystem: row.isSystem,
-    status: row.status,
-    sort: row.sort,
-    ...(fields ? { fields: fields.map((field) => mapCmsModelField(field)) } : {}),
-    ...formatTimestamps(row),
-  };
+    fields: fields?.map((field) => mapCmsModelField(field)),
+  });
 }
 
 // ─── 前置校验 ─────────────────────────────────────────────────────────────────

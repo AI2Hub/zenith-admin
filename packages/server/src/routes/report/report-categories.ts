@@ -11,11 +11,6 @@ const router = new OpenAPIHono({ defaultHook: validationHook });
 
 const notFound = { 404: { content: jsonContent(ErrorResponse), description: '不存在' } } as const;
 
-const listRoute = defineContractRoute(reportCategoryContract.list, {
-  middleware: [authMiddleware, guard({ permission: 'report:dashboard:list' })],
-  handler: async (c) => c.json(okBody(await listCategories()), 200),
-});
-
 const lookupRoute = defineContractRoute(reportCategoryContract.lookup, {
   middleware: [authMiddleware, guard({ permission: 'report:dashboard:list' })],
   handler: async (c) => c.json(okBody(await listCategoryLookup(c.req.valid('query'))), 200),
@@ -27,15 +22,15 @@ mountCrud(router, reportCategoryContract,
     create: createCategory,
     update: updateCategory,
     remove: deleteCategory,
+    list: listCategories,
   },
   {
-    permission: { write: 'report:dashboard:update' },
+    permission: { read: 'report:dashboard:list', write: 'report:dashboard:update' },
     label: '报表分类',
     module: '报表分类',
-    exclude: ['list'],
     responses: { update: notFound, remove: notFound },
   },
-  [listRoute, lookupRoute],
+  [lookupRoute],
 );
 
 export default router;

@@ -14,15 +14,11 @@ import {
   submitCmsPublishTask,
   submitCmsSiteGroupPublish,
 } from '../../services/cms/cms-publishing.service';
+import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
 const view = [authMiddleware, guard({ permission: 'cms:publish:view' })] as const;
-
-const listRoute = defineContractRoute(cmsPublishingContract.list, {
-  middleware: view,
-  handler: async (c) => c.json(okBody(await listCmsPublishingTasks(c.req.valid('query'))), 200),
-});
 
 const artifactsRoute = defineContractRoute(cmsPublishingContract.artifacts, {
   middleware: view,
@@ -57,11 +53,6 @@ const batchActionRoute = defineContractRoute(cmsPublishingContract.batchAction, 
   },
 });
 
-const detailRoute = defineContractRoute(cmsPublishingContract.detail, {
-  middleware: view,
-  handler: async (c) => c.json(okBody(await getCmsPublishingDetail(c.req.valid('param').id)), 200),
-});
-
 const actionRoute = defineContractRoute(cmsPublishingContract.action, {
   middleware: [authMiddleware, guard({ permission: 'cms:publish:manage', audit: { description: '操作 CMS 发布任务', module: 'CMS内容管理' } })],
   handler: async (c) => {
@@ -70,9 +61,10 @@ const actionRoute = defineContractRoute(cmsPublishingContract.action, {
   },
 });
 
-router.openapiRoutes([
-  listRoute, artifactsRoute, submitRoute, batchActionRoute, detailRoute, actionRoute,
-  groupSubmitRoute,
-] as const);
+mountCrud(router, cmsPublishingContract,
+  { list: listCmsPublishingTasks, get: getCmsPublishingDetail },
+  { permission: { read: 'cms:publish:view' } },
+  [artifactsRoute, submitRoute, batchActionRoute, actionRoute, groupSubmitRoute],
+);
 
 export default router;

@@ -23,7 +23,8 @@ export interface Region {
   children?: Region[];
 }
 
-export const regionSchema: z.ZodType<Region> = lazyRecursive(() => z.object({
+/** 区划节点字段（不含子树）；服务端行投影用它，树接口在此基础上递归挂 children */
+export const regionFieldsSchema = z.object({
   id: z.int(),
   code: z.string().meta({ example: '110000' }),
   name: z.string().meta({ example: '北京市' }),
@@ -33,6 +34,9 @@ export const regionSchema: z.ZodType<Region> = lazyRecursive(() => z.object({
   status: entityStatusSchema,
   createdAt: z.string(),
   updatedAt: z.string(),
+});
+
+export const regionSchema: z.ZodType<Region> = lazyRecursive(() => regionFieldsSchema.extend({
   children: z.array(regionSchema).optional(),
 })).meta({ id: 'Region' });
 

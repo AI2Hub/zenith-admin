@@ -5,11 +5,21 @@ import { guard, setAuditBeforeData } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
-  listPublishedForUser, markAnnouncementRead, markAllAnnouncementsRead, getInbox, listAnnouncements,
-  batchDeleteAnnouncements, getAnnouncementReadStats, getAnnouncementDetail,
-  createAnnouncement, updateAnnouncement, deleteAnnouncement, getAnnouncementBeforeAudit, getAnnouncementsBeforeAudit,
+  listPublishedForUser,
+  markAnnouncementRead,
+  markAllAnnouncementsRead,
+  getInbox,
+  listAnnouncements,
+  batchDeleteAnnouncements,
+  getAnnouncementReadStats,
+  getAnnouncementDetail,
+  createAnnouncement,
+  updateAnnouncement,
+  deleteAnnouncement,
+  getAnnouncementsBeforeAudit,
   getUnreadAnnouncementCount,
 } from '../../services/messaging/announcements.service';
+import { mountCrud } from '../_crud';
 
 const announcementsRouter = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -47,11 +57,6 @@ const inboxRoute = defineContractRoute(announcementContract.inbox, {
   handler: async (c) => c.json(okBody(await getInbox(c.req.valid('query'))), 200),
 });
 
-const listRoute = defineContractRoute(announcementContract.list, {
-  middleware: manage,
-  handler: async (c) => c.json(okBody(await listAnnouncements(c.req.valid('query'))), 200),
-});
-
 const batchDeleteRoute = defineContractRoute(announcementContract.removeBatch, {
   middleware: [authMiddleware, guard({ permission: 'system:announcement:delete', audit: { description: '批量删除公告', module: '公告' } })],
   handler: async (c) => {
@@ -71,43 +76,24 @@ const readStatsRoute = defineContractRoute(announcementContract.readStats, {
   },
 });
 
-const detailRoute = defineContractRoute(announcementContract.detail, {
-  middleware: manage,
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    return c.json(okBody(await getAnnouncementDetail(id)), 200);
+mountCrud(announcementsRouter, announcementContract,
+  {
+    list: listAnnouncements,
+    get: getAnnouncementDetail,
+    create: createAnnouncement,
+    update: updateAnnouncement,
+    remove: deleteAnnouncement,
   },
-});
-
-const createRouteDef = defineContractRoute(announcementContract.create, {
-  middleware: [authMiddleware, guard({ permission: 'system:announcement:create', audit: { description: '创建公告', module: '公告' } })],
-  handler: async (c) => c.json(okBody(await createAnnouncement(c.req.valid('json')), '创建成功'), 200),
-});
-
-const updateRouteDef = defineContractRoute(announcementContract.update, {
-  middleware: [authMiddleware, guard({ permission: 'system:announcement:update', audit: { description: '更新公告', module: '公告' } })],
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    const before = await getAnnouncementBeforeAudit(id);
-    if (before) setAuditBeforeData(c, before);
-    return c.json(okBody(await updateAnnouncement(id, c.req.valid('json')), '更新成功'), 200);
-  },
-});
-
-const deleteRouteDef = defineContractRoute(announcementContract.remove, {
-  middleware: [authMiddleware, guard({ permission: 'system:announcement:delete', audit: { description: '删除公告', module: '公告' } })],
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    const before = await getAnnouncementBeforeAudit(id);
-    if (before) setAuditBeforeData(c, before);
-    await deleteAnnouncement(id);
-    return c.json(okBody(null, '删除成功'), 200);
-  },
-});
-
-announcementsRouter.openapiRoutes([
-  publishedRoute, unreadCountRoute, readRoute, readAllRoute, inboxRoute, listRoute,
-  batchDeleteRoute, readStatsRoute, detailRoute, createRouteDef, updateRouteDef, deleteRouteDef,
-] as const);
+  { permission: 'system:announcement', label: '公告', module: '公告', exclude: ['removeBatch'] },
+  [
+    publishedRoute,
+    unreadCountRoute,
+    readRoute,
+    readAllRoute,
+    inboxRoute,
+    batchDeleteRoute,
+    readStatsRoute,
+  ],
+);
 
 export default announcementsRouter;

@@ -1,23 +1,14 @@
 import { asc, eq } from 'drizzle-orm';
 import { db } from '../../db';
 import { regions } from '../../db/schema';
-import { buildRegionTree, filterRegionTree, REGION_LEVEL_SHORT_LABELS, validateRegionLevelHierarchy, type Region, type RegionLevel } from '@zenith/shared/platform';
+import { buildRegionTree, filterRegionTree, REGION_LEVEL_SHORT_LABELS, regionFieldsSchema, validateRegionLevelHierarchy, type Region, type RegionLevel } from '@zenith/shared/platform';
+import { pickEntity } from '../../lib/entity-map';
 import { HTTPException } from 'hono/http-exception';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { requireFirstRow, requireRow } from '../../lib/db-assert';
-import { formatTimestamps } from '../../lib/datetime';
 
 export function mapRegion(row: typeof regions.$inferSelect): Omit<Region, 'children'> {
-  return {
-    id: row.id,
-    code: row.code,
-    name: row.name,
-    level: row.level,
-    parentCode: row.parentCode ?? null,
-    sort: row.sort,
-    status: row.status,
-    ...formatTimestamps(row),
-  };
+  return pickEntity(regionFieldsSchema, row);
 }
 
 export interface CreateRegionInput {

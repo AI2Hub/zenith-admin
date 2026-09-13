@@ -231,11 +231,13 @@
 ## Route 层（Step 6-7）
 
 - **标准操作由契约派生**：契约上的 `list` / `detail` / `create` / `update` / `remove` / `removeBatch` 一律经
-  `mountCrud(router, contract, service, { permission, label, module?, messages?, responses?, exclude? }, extraRoutes)`
+  `mountCrud(router, contract, service, { permission, label, module?, messages?, responses?, middleware?, exclude? }, extraRoutes)`
   （`routes/_crud.ts`）生成：权限码按前缀 + 约定后缀（不按约定传 `{ read, write }` 或逐操作映射）、审计文案
   「创建 / 更新 / 删除 / 批量删除 + label」、更新 / 删除前以契约实体做审计快照、`DELETE /batch` 先于 `/{id}`；
-  服务侧传 `defineCrudService` 产物或显式函数包 `{ list, get, create, update, remove, removeMany, snapshot }`。
-  需要自定义 handler 的标准操作在 `exclude` 里声明后显式书写；**禁止**再逐条手写与派生形态等价的
+  服务侧传 `defineCrudService` 产物或显式函数包 `{ list, get, create, update, remove, removeMany, snapshot }`，
+  返回值**逐操作**对照契约响应（列表行 / 详情实体 / 创建结果可为不同 schema）；需要请求上下文或闭包参数的服务函数在 bag 里以箭头函数绑定。
+  需要自定义 handler 的标准操作在 `exclude` 里声明后显式书写，并在 `routes/_crud-explicit.ts` 登记理由（`crud-coverage.test.ts`：
+  未登记即失败、登记表只准缩小）；**禁止**再逐条手写与派生形态等价的
   `c.json(okBody(await listXxxs(c.req.valid('query'))), 200)` / `setAuditBeforeData(c, await ensureXxxExists(id))` 路由块。
   读 / 写中间件元组用 `readGuard(permission)` / `writeGuard(permission, audit)`
 - **路由一律由契约定义**：`defineContractRoute(xxxContract.op, { middleware, handler })`（`lib/contract-route.ts`）；

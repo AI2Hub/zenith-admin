@@ -8,7 +8,8 @@ import type {
   UpdateWikiDocInput,
   WikiDocTreeNode,
 } from '@zenith/shared/wiki';
-import { wikiDocContract } from '@zenith/shared/wiki';
+import { wikiDocContract, wikiDocSchema } from '@zenith/shared/wiki';
+import { pickEntity } from '../../lib/entity-map';
 import { db } from '../../db';
 import type { DbExecutor } from '../../db/types';
 import {
@@ -30,7 +31,7 @@ import {
   type WikiDocRow,
 } from '../../db/schema';
 import { currentUser, currentUserId, isSuperAdmin, setAuditBefore } from '../../lib/context';
-import { formatDateTime, formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
+import { formatDateTime } from '../../lib/datetime';
 import { requireRow } from '../../lib/db-assert';
 import { buildListResult } from '../../lib/list-query';
 import { getSettings } from '../../lib/settings';
@@ -47,32 +48,15 @@ import { resolveUserNames } from '../../lib/user-nicknames';
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
 
+/** 文档行投影：实体去掉关联 / 视角字段（标签、作者名、收藏与阅读状态等由各查询按需拼装） */
+const wikiDocRowSchema = wikiDocSchema.omit({
+  spaceName: true, content: true, ownerName: true, tags: true, tagIds: true, authorName: true, attachments: true,
+  snippet: true, favorited: true, favoriteCount: true, commentCount: true, commentsEnabled: true, subscribed: true,
+  readConfirmed: true, readReceiptCount: true,
+});
+
 export function mapWikiDoc(row: WikiDocRow) {
-  return {
-    id: row.id,
-    spaceId: row.spaceId,
-    parentId: row.parentId ?? null,
-    title: row.title,
-    summary: row.summary ?? null,
-    status: row.status,
-    rejectReason: row.rejectReason ?? null,
-    sort: row.sort,
-    isPinned: row.isPinned,
-    viewCount: row.viewCount,
-    currentVersion: row.currentVersion,
-    revision: row.revision,
-    requireReadReceipt: row.requireReadReceipt,
-    ownerId: row.ownerId ?? null,
-    expireAt: formatNullableDateTime(row.expireAt),
-    reviewCycleDays: row.reviewCycleDays ?? null,
-    nextReviewAt: formatNullableDateTime(row.nextReviewAt),
-    isArchived: row.isArchived,
-    publishedAt: formatNullableDateTime(row.publishedAt),
-    deletedAt: formatNullableDateTime(row.deletedAt),
-    createdBy: row.createdBy ?? null,
-    updatedBy: row.updatedBy ?? null,
-    ...formatTimestamps(row),
-  };
+  return pickEntity(wikiDocRowSchema, row);
 }
 
 type WikiDocListQuery = QueryOutputOf<typeof wikiDocContract.list> & {

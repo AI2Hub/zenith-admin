@@ -1,15 +1,15 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import type { AppWebhookContract } from '@zenith/shared/open-platform';
 import { authMiddleware } from '../../middleware/auth';
-import { guard, setAuditAfterData, setAuditBeforeData, type AuditLogOptions } from '../../middleware/guard';
+import { guard, setAuditAfterData, type AuditLogOptions } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { validationHook, okBody } from '../../lib/openapi-schemas';
+import { mountCrud } from '../_crud';
 import {
   createSubscription,
   deleteSubscription,
   getDelivery,
   getSubscription,
-  getSubscriptionBeforeAudit,
   listDeliveries,
   listSubscriptions,
   listWebhookEvents,
@@ -47,11 +47,6 @@ export function createAppWebhookRouter(contract: AppWebhookContract, options: Ap
     handler: async (c) => c.json(okBody(await scheduleBatchRetryDeliveries(c.req.valid('json').ids, domain), '已加入重试队列'), 200),
   });
 
-  const list = defineContractRoute(contract.list, {
-    middleware: read,
-    handler: async (c) => c.json(okBody(await listSubscriptions(c.req.valid('query'), domain)), 200),
-  });
-
   const events = defineContractRoute(contract.events, {
     middleware: read,
     handler: (c) => c.json(okBody(listWebhookEvents(domain)), 200),
@@ -81,20 +76,6 @@ export function createAppWebhookRouter(contract: AppWebhookContract, options: Ap
     },
   });
 
-  const detail = defineContractRoute(contract.detail, {
-    middleware: read,
-    handler: async (c) => c.json(okBody(await getSubscription(c.req.valid('param').id, domain)), 200),
-  });
-
-  const update = defineContractRoute(contract.update, {
-    middleware: manage('更新 Webhook 订阅'),
-    handler: async (c) => {
-      const { id } = c.req.valid('param');
-      setAuditBeforeData(c, await getSubscriptionBeforeAudit(id, domain));
-      return c.json(okBody(await updateSubscription(id, c.req.valid('json'), domain), '更新成功'), 200);
-    },
-  });
-
   const regenerate = defineContractRoute(contract.regenerateSecret, {
     middleware: manage('重置 Webhook 密钥', { recordResponseBody: false }),
     handler: async (c) => {
@@ -109,20 +90,21 @@ export function createAppWebhookRouter(contract: AppWebhookContract, options: Ap
     handler: async (c) => c.json(okBody(await testSubscription(c.req.valid('param').id, domain), '已发送测试投递'), 200),
   });
 
-  const remove = defineContractRoute(contract.remove, {
-    middleware: manage('删除 Webhook 订阅'),
-    handler: async (c) => {
-      const { id } = c.req.valid('param');
-      setAuditBeforeData(c, await getSubscriptionBeforeAudit(id, domain));
-      await deleteSubscription(id, domain);
-      return c.json(okBody(null, '删除成功'), 200);
+  mountCrud(router, contract,
+    {
+      list: (q) => listSubscriptions(q, domain),
+      get: (id) => getSubscription(id, domain),
+      update: (id, input) => updateSubscription(id, input, domain),
+      remove: (id) => deleteSubscription(id, domain),
     },
-  });
-
-  router.openapiRoutes([
-    list, events, deliveryList, deliveryBatchRetry, deliveryDetail, deliveryRetry,
-    create, detail, update, regenerate, test, remove,
-  ] as const);
+    {
+      permission: { read: [viewPermission, managePermission], write: managePermission },
+      label: 'Webhook 订阅',
+      module: auditModule,
+      exclude: ['create'],
+    },
+    [events, deliveryList, deliveryBatchRetry, deliveryDetail, deliveryRetry, create, regenerate, test],
+  );
 
   return router;
 }

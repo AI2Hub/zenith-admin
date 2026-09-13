@@ -22,11 +22,6 @@ const router = new OpenAPIHono({ defaultHook: validationHook });
 
 const read = [authMiddleware, guard({ permission: 'ai:eval:list' })] as const;
 const manage = [authMiddleware, guard({ permission: 'ai:eval:manage' })] as const;
-
-const list = defineContractRoute(aiEvalContract.list, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await listEvalDatasets()), 200),
-});
 const update = defineContractRoute(aiEvalContract.update, {
   middleware: manage,
   handler: async (c) => {
@@ -94,9 +89,9 @@ const experimentResults = defineContractRoute(aiEvalContract.experimentDetail, {
 });
 
 mountCrud(router, aiEvalContract,
-  { create: createEvalDataset },
-  { permission: { write: 'ai:eval:manage' }, audit: null, exclude: ['list', 'update', 'remove'] },
-  [list, update, remove, items, addItems, removeItem, runExperiment, experiments, experimentResults],
+  { create: createEvalDataset, list: listEvalDatasets },
+  { permission: { read: 'ai:eval:list', write: 'ai:eval:manage' }, audit: null, exclude: ['update', 'remove'] },
+  [update, remove, items, addItems, removeItem, runExperiment, experiments, experimentResults],
 );
 
 export default router;

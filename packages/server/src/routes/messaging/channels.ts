@@ -5,27 +5,67 @@ import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/g
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
-  listMyChannels, listChannelMessages, markChannelRead,
-  listChannelsAdmin, createChannel, updateChannel, deleteChannel, publishToChannel,
-  subscribeChannel, unsubscribeChannel, listDiscoverableChannels,
-  listChannelMessageRecords, updateDeferredMessage, deleteDeferredMessage, publishDeferredMessageNow,
-  estimateAudience, retractMessage, testSend,
-  listChannelSubscribers, addChannelSubscribers, removeChannelSubscriber, exportChannelSubscribers,
-  getChannelBeforeAudit, getChannelMessageBeforeAudit,
+  listMyChannels,
+  listChannelMessages,
+  markChannelRead,
+  listChannelsAdmin,
+  createChannel,
+  updateChannel,
+  deleteChannel,
+  publishToChannel,
+  subscribeChannel,
+  unsubscribeChannel,
+  listDiscoverableChannels,
+  listChannelMessageRecords,
+  updateDeferredMessage,
+  deleteDeferredMessage,
+  publishDeferredMessageNow,
+  estimateAudience,
+  retractMessage,
+  testSend,
+  listChannelSubscribers,
+  addChannelSubscribers,
+  removeChannelSubscriber,
+  exportChannelSubscribers,
+  getChannelBeforeAudit,
+  getChannelMessageBeforeAudit,
 } from '../../services/messaging/channel.service';
 import { getChannelDashboard } from '../../services/messaging/channel-dashboard.service';
 import {
-  listChannelTemplates, createChannelTemplate, updateChannelTemplate, deleteChannelTemplate, getChannelTemplateBeforeAudit,
+  listChannelTemplates,
+  createChannelTemplate,
+  updateChannelTemplate,
+  deleteChannelTemplate,
+  getChannelTemplateBeforeAudit,
 } from '../../services/messaging/channel-template.service';
 import {
-  getChannelMenus, saveChannelMenus,
-  listChannelAutoReplies, createChannelAutoReply, updateChannelAutoReply, deleteChannelAutoReply, getChannelAutoReplyBeforeAudit,
-  sendUserMessage, replyAsAgent, handleSubscribeAutoReply,
-  listCsChannels, listChannelConversations, listConversationMessages,
-  listChannelQuickReplies, createChannelQuickReply, updateChannelQuickReply, deleteChannelQuickReply, getChannelQuickReplyBeforeAudit,
-  assignConversation, resolveConversation, setConversationTags, listCsAgents,
-  rateConversation, getCsPerformance, getConversationBeforeAudit,
+  getChannelMenus,
+  saveChannelMenus,
+  listChannelAutoReplies,
+  createChannelAutoReply,
+  updateChannelAutoReply,
+  deleteChannelAutoReply,
+  getChannelAutoReplyBeforeAudit,
+  sendUserMessage,
+  replyAsAgent,
+  handleSubscribeAutoReply,
+  listCsChannels,
+  listChannelConversations,
+  listConversationMessages,
+  listChannelQuickReplies,
+  createChannelQuickReply,
+  updateChannelQuickReply,
+  deleteChannelQuickReply,
+  getChannelQuickReplyBeforeAudit,
+  assignConversation,
+  resolveConversation,
+  setConversationTags,
+  listCsAgents,
+  rateConversation,
+  getCsPerformance,
+  getConversationBeforeAudit,
 } from '../../services/messaging/channel-cs.service';
+import { mountCrud } from '../_crud';
 
 const channelsRoute = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -53,39 +93,6 @@ const read = defineContractRoute(channelContract.markRead, {
     const { id } = c.req.valid('param');
     await markChannelRead(id);
     return c.json(okBody(null, '已标记已读'), 200);
-  },
-});
-
-// ─── 管理后台 ────────────────────────────────────────────────────────────────
-
-const adminList = defineContractRoute(channelContract.list, {
-  middleware: [authMiddleware, guard({ permission: 'channel:channel:list' })],
-  handler: async (c) => {
-    return c.json(okBody(await listChannelsAdmin(c.req.valid('query'))), 200);
-  },
-});
-
-const create = defineContractRoute(channelContract.create, {
-  middleware: [authMiddleware, guard({ permission: 'channel:channel:create', audit: { description: '新建频道', module: '消息中心' } })],
-  handler: async (c) => c.json(okBody(await createChannel(c.req.valid('json')), '创建成功'), 200),
-});
-
-const update = defineContractRoute(channelContract.update, {
-  middleware: [authMiddleware, guard({ permission: 'channel:channel:update', audit: { description: '编辑频道', module: '消息中心' } })],
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    setAuditBeforeData(c, await getChannelBeforeAudit(id));
-    return c.json(okBody(await updateChannel(id, c.req.valid('json')), '更新成功'), 200);
-  },
-});
-
-const remove = defineContractRoute(channelContract.remove, {
-  middleware: [authMiddleware, guard({ permission: 'channel:channel:delete', audit: { description: '删除频道', module: '消息中心' } })],
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    setAuditBeforeData(c, await getChannelBeforeAudit(id));
-    await deleteChannel(id);
-    return c.json(okBody(null, '删除成功'), 200);
   },
 });
 
@@ -450,11 +457,32 @@ const audienceEstimate = defineContractRoute(channelMessageContract.audienceEsti
 });
 
 // 单批 openapiRoutes 超过约 30 条会触发 TS2589，按主题分三批注册
-channelsRoute.openapiRoutes([
-  listMine, listMessages, read, adminList, create, update, remove, publish, discoverable, subscribe, unsubscribe,
-  sendMessage, listMenus, saveMenus,
-  listAutoReplies, createAutoReply, updateAutoReply, removeAutoReply,
-] as const);
+mountCrud(channelsRoute, channelContract,
+  {
+    list: listChannelsAdmin,
+    get: getChannelBeforeAudit,
+    create: createChannel,
+    update: updateChannel,
+    remove: deleteChannel,
+  },
+  { permission: 'channel:channel', label: '频道', module: '消息中心', audit: { create: '新建频道', update: '编辑频道' } },
+  [
+    listMine,
+    listMessages,
+    read,
+    publish,
+    discoverable,
+    subscribe,
+    unsubscribe,
+    sendMessage,
+    listMenus,
+    saveMenus,
+    listAutoReplies,
+    createAutoReply,
+    updateAutoReply,
+    removeAutoReply,
+  ],
+);
 channelsRoute.openapiRoutes([
   adminMessages, updateDraft, deleteDraft, publishDraftNow, retract, audienceEstimate, dashboard,
   subscribers, addSubscribers, removeSubscriber,

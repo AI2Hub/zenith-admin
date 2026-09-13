@@ -8,10 +8,19 @@ import { namedRateLimit } from '../../middleware/rate-limit';
 import { defineContractRoute } from '../../lib/contract-route';
 import { ErrorResponse, jsonContent, okBody, validationHook } from '../../lib/openapi-schemas';
 import {
-  ingestReplaySegment, listReplaySessions, getReplaySessionDetail, getReplaySegmentData, deleteReplaySessions,
-  getReplayStorageStats, listHeatmapPages, getClickHeatmap, listReplayAccessLogs, REPLAY_SEGMENT_MAX_BYTES,
+  ingestReplaySegment,
+  listReplaySessions,
+  getReplaySessionDetail,
+  getReplaySegmentData,
+  deleteReplaySessions,
+  getReplayStorageStats,
+  listHeatmapPages,
+  getClickHeatmap,
+  listReplayAccessLogs,
+  REPLAY_SEGMENT_MAX_BYTES,
 } from '../../services/analytics/session-replays.service';
 import { getClientIp } from '../../lib/request-helpers';
+import { mountCrud } from '../_crud';
 
 const r = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -47,12 +56,6 @@ const ingestRoute = defineContractRoute(sessionReplayContract.ingestSegment, {
     });
     return c.json(okBody(null, '上报成功'), 200);
   },
-});
-
-// ─── 查询 ─────────────────────────────────────────────────────────────────────
-const listRoute = defineContractRoute(sessionReplayContract.list, {
-  middleware: replayList,
-  handler: async (c) => c.json(okBody(await listReplaySessions(c.req.valid('query'))), 200),
 });
 
 const statsRoute = defineContractRoute(sessionReplayContract.stats, {
@@ -105,6 +108,19 @@ const batchDeleteRoute = defineContractRoute(sessionReplayContract.removeBatch, 
   },
 });
 
-r.openapiRoutes([ingestRoute, listRoute, statsRoute, heatmapPagesRoute, heatmapRoute, accessLogsRoute, batchDeleteRoute, detailRoute, segmentDataRoute] as const);
+mountCrud(r, sessionReplayContract,
+  { list: listReplaySessions },
+  { permission: 'monitor:replay', exclude: ['detail', 'removeBatch'] },
+  [
+    ingestRoute,
+    statsRoute,
+    heatmapPagesRoute,
+    heatmapRoute,
+    accessLogsRoute,
+    batchDeleteRoute,
+    detailRoute,
+    segmentDataRoute,
+  ],
+);
 
 export default r;

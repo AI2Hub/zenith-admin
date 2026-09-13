@@ -10,17 +10,13 @@ import {
   runPolicyNow,
   updatePolicy,
 } from '../../services/ops/retention.service';
+import { mountCrud } from '../_crud';
 
 const retentionRouter = new OpenAPIHono({ defaultHook: validationHook });
 
 const VIEW_PERM = 'system:retention:view';
 const EDIT_PERM = 'system:retention:edit';
 const RUN_PERM = 'system:retention:run';
-
-const listRoute = defineContractRoute(retentionPolicyContract.list, {
-  middleware: [authMiddleware, guard({ permission: VIEW_PERM })],
-  handler: async (c) => c.json(okBody(await listPolicies()), 200),
-});
 
 const updateRoute = defineContractRoute(retentionPolicyContract.update, {
   middleware: [authMiddleware, guard({
@@ -56,6 +52,10 @@ const runRoute = defineContractRoute(retentionPolicyContract.run, {
   },
 });
 
-retentionRouter.openapiRoutes([listRoute, updateRoute, previewRoute, runRoute] as const);
+mountCrud(retentionRouter, retentionPolicyContract,
+  { list: listPolicies },
+  { permission: { read: VIEW_PERM }, exclude: ['update'] },
+  [updateRoute, previewRoute, runRoute],
+);
 
 export default retentionRouter;

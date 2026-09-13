@@ -240,10 +240,6 @@ export async function getSubscription(id: number, domain: AppWebhookDomain = 'al
   return mapSubscription(await getExternalSubscriptionRow(id, currentTenantId(), domain));
 }
 
-export async function getSubscriptionBeforeAudit(id: number, domain: AppWebhookDomain = 'all') {
-  return getSubscription(id, domain);
-}
-
 /**
  * 创建 / 更新订阅时即时校验回调地址。
  *

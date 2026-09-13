@@ -36,12 +36,9 @@ export async function listWorkflowTemplates(): Promise<WorkflowTemplate[]> {
   return rows.map(mapTemplate);
 }
 
-export async function getWorkflowTemplateBeforeAudit(id: number): Promise<WorkflowTemplate | null> {
-  const row = await ensureTemplate(id).catch((err) => {
-    if (err instanceof HTTPException && err.status === 404) return null;
-    throw err;
-  });
-  return row ? mapTemplate(row) : null;
+/** 当前租户可见的模板；不存在 404 */
+export async function getWorkflowTemplate(id: number): Promise<WorkflowTemplate> {
+  return mapTemplate(await ensureTemplate(id));
 }
 
 export async function createWorkflowTemplate(input: CreateWorkflowTemplateInput): Promise<WorkflowTemplate> {

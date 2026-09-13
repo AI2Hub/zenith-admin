@@ -6,10 +6,12 @@
  */
 import { HTTPException } from 'hono/http-exception';
 import { asc, eq, and } from 'drizzle-orm';
-import type {
-  CreateIotEventInput, CreateIotPropertyInput, CreateIotServiceInput, ImportIotTslInput,
-  UpdateIotEventInput, UpdateIotPropertyInput, UpdateIotServiceInput,
+import {
+  iotProductEventSchema, iotProductServiceSchema,
+  type CreateIotEventInput, type CreateIotPropertyInput, type CreateIotServiceInput, type ImportIotTslInput, type IotProductEvent, type IotProductService,
+  type UpdateIotEventInput, type UpdateIotPropertyInput, type UpdateIotServiceInput,
 } from '@zenith/shared/iot';
+import { pickEntity } from '../../lib/entity-map';
 import { db } from '../../db';
 import {
   iotProductEvents, iotProductProperties, iotProducts, iotProductServices,
@@ -49,32 +51,12 @@ export function mapIotProperty(row: IotProductPropertyRow) {
   };
 }
 
-export function mapIotService(row: IotProductServiceRow) {
-  return {
-    id: row.id,
-    productId: row.productId,
-    identifier: row.identifier,
-    name: row.name,
-    params: row.params ?? [],
-    danger: row.danger,
-    sort: row.sort,
-    description: row.description ?? null,
-    ...formatTimestamps(row),
-  };
+export function mapIotService(row: IotProductServiceRow): IotProductService {
+  return pickEntity(iotProductServiceSchema, row, { params: row.params ?? [] });
 }
 
-export function mapIotEvent(row: IotProductEventRow) {
-  return {
-    id: row.id,
-    productId: row.productId,
-    identifier: row.identifier,
-    name: row.name,
-    level: row.level,
-    params: row.params ?? [],
-    sort: row.sort,
-    description: row.description ?? null,
-    ...formatTimestamps(row),
-  };
+export function mapIotEvent(row: IotProductEventRow): IotProductEvent {
+  return pickEntity(iotProductEventSchema, row, { params: row.params ?? [] });
 }
 
 // ─── 运行时模型缓存 ───────────────────────────────────────────────────────────

@@ -61,6 +61,14 @@ export type CrudEntityOf<C extends CrudContractLike> = C['detail'] extends AnyOp
     : C['update'] extends AnyOperation
       ? ResponseOutputOf<C['update']>
       : ListItemOf<C['list']>;
+/**
+ * 逐操作的契约响应：路由派生时服务函数按各自操作对照（列表行 / 详情实体 / 创建与更新的返回可以是不同 schema，
+ * 如 `paginated(xxxSchema)` + `xxxDetailSchema`）。缺 `detail` 的契约 `get` 只服务于审计快照，返回值不约束。
+ */
+export type CrudListResponseOf<C extends CrudContractLike> = ResponseOutputOf<C['list']>;
+export type CrudDetailOf<C extends CrudContractLike> = C['detail'] extends AnyOperation ? ResponseOutputOf<C['detail']> : unknown;
+export type CrudCreateResponseOf<C extends CrudContractLike> = ResponseOutputOf<C['create']>;
+export type CrudUpdateResponseOf<C extends CrudContractLike> = ResponseOutputOf<C['update']>;
 /** 主键类型：取 `detail` / `update` / `remove` 的 `params.id`（缺省 number；UUID 资源为 string） */
 export type CrudIdOf<C extends CrudContractLike> = ParamsOutputOf<C['detail'] extends AnyOperation ? C['detail'] : C['update'] extends AnyOperation ? C['update'] : C['remove']> extends { id: infer Id } ? Id : number;
 export type CrudListQueryOf<C extends CrudContractLike> = C['list'] extends AnyOperation ? QueryOutputOf<C['list']> : never;

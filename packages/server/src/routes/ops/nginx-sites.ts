@@ -16,6 +16,7 @@ import {
   testNginxConfig,
   reloadNginx,
 } from '../../services/ops/nginx-sites.service';
+import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -25,11 +26,6 @@ const manage = (description: string) => [authMiddleware, guard({ permission: 'sy
 const infoRoute = defineContractRoute(nginxSiteContract.info, {
   middleware: view,
   handler: async (c) => c.json(okBody(await getNginxInfo()), 200),
-});
-
-const listRoute = defineContractRoute(nginxSiteContract.list, {
-  middleware: view,
-  handler: async (c) => c.json(okBody(await listNginxSites()), 200),
 });
 
 const testRoute = defineContractRoute(nginxSiteContract.test, {
@@ -106,17 +102,20 @@ const disableRoute = defineContractRoute(nginxSiteContract.disable, {
 });
 
 // 静态 /info /test /reload 先于动态 /{name} 注册
-router.openapiRoutes([
-  infoRoute,
-  listRoute,
-  testRoute,
-  reloadRoute,
-  detailRoute,
-  createRouteDef,
-  updateRoute,
-  deleteRoute,
-  enableRoute,
-  disableRoute,
-] as const);
+mountCrud(router, nginxSiteContract,
+  { list: listNginxSites },
+  { permission: { read: 'system:nginx:view' }, exclude: ['detail', 'create', 'update', 'remove'] },
+  [
+    infoRoute,
+    testRoute,
+    reloadRoute,
+    detailRoute,
+    createRouteDef,
+    updateRoute,
+    deleteRoute,
+    enableRoute,
+    disableRoute,
+  ],
+);
 
 export default router;

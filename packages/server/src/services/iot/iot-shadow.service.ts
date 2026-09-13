@@ -8,26 +8,17 @@
 import { HTTPException } from 'hono/http-exception';
 import { requireRow } from '../../lib/db-assert';
 import { eq, sql } from 'drizzle-orm';
-import type { IotDesiredPayload, IotMetricValue, SetIotDesiredInput } from '@zenith/shared/iot';
+import { iotDeviceShadowSchema, type IotDesiredPayload, type IotDeviceShadow, type IotMetricValue, type SetIotDesiredInput } from '@zenith/shared/iot';
+import { pickEntity } from '../../lib/entity-map';
 import { db } from '../../db';
 import { iotDeviceState, type IotDeviceRow, type IotDeviceStateRow, type IotProductPropertyRow } from '../../db/schema';
-import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { ensureIotDeviceExists } from './iot-devices.service';
 import { loadThingModel } from './iot-model.service';
 import { pushDesiredToDevice } from './iot-gateway.service';
 import { pushIotRealtime } from './iot-realtime';
 
-export function mapIotShadow(row: IotDeviceStateRow) {
-  return {
-    deviceId: row.deviceId,
-    reported: row.reported ?? {},
-    reportedAt: formatNullableDateTime(row.reportedAt),
-    desired: row.desired ?? {},
-    desiredVersion: row.desiredVersion,
-    desiredAt: formatNullableDateTime(row.desiredAt),
-    online: row.online,
-    updatedAt: formatDateTime(row.updatedAt),
-  };
+export function mapIotShadow(row: IotDeviceStateRow): IotDeviceShadow {
+  return pickEntity(iotDeviceShadowSchema, row, { reported: row.reported ?? {}, desired: row.desired ?? {} });
 }
 
 async function loadStateRow(deviceId: number): Promise<IotDeviceStateRow> {

@@ -1,7 +1,7 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { exportJobContract } from '@zenith/shared/tasks';
 import { authMiddleware } from '../../middleware/auth';
-import { guard, setAuditBeforeData } from '../../middleware/guard';
+import { guard } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
@@ -18,6 +18,7 @@ import {
 import { registerExportDefinitions } from '../../lib/export-center/definitions';
 import { getClientIp } from '../../lib/request-helpers';
 import { attachmentDisposition } from '../../lib/content-disposition';
+import { mountCrud } from '../_crud';
 
 registerExportDefinitions();
 
@@ -26,21 +27,6 @@ const exportJobsRoute = new OpenAPIHono({ defaultHook: validationHook });
 const entitiesRoute = defineContractRoute(exportJobContract.entities, {
   middleware: [authMiddleware],
   handler: async (c) => c.json(okBody(await listExportEntities()), 200),
-});
-
-const createRouteDef = defineContractRoute(exportJobContract.create, {
-  middleware: [authMiddleware, guard({ audit: { description: '创建导出任务', module: '导出中心', recordResponseBody: false } })],
-  handler: async (c) => c.json(okBody(await createExportJob(c.req.valid('json')), '导出任务已创建'), 200),
-});
-
-const listRoute = defineContractRoute(exportJobContract.list, {
-  middleware: [authMiddleware],
-  handler: async (c) => c.json(okBody(await listExportJobs(c.req.valid('query'))), 200),
-});
-
-const getOneRoute = defineContractRoute(exportJobContract.detail, {
-  middleware: [authMiddleware],
-  handler: async (c) => c.json(okBody(await getExportJob(c.req.valid('param').id)), 200),
 });
 
 const downloadRoute = defineContractRoute(exportJobContract.download, {
@@ -77,17 +63,16 @@ const retryRoute = defineContractRoute(exportJobContract.retry, {
   handler: async (c) => c.json(okBody(await retryExportJob(c.req.valid('param').id), '已重试'), 200),
 });
 
-const deleteRoute = defineContractRoute(exportJobContract.remove, {
-  middleware: [authMiddleware, guard({ audit: { description: '删除导出任务', module: '导出中心' } })],
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    const before = await getExportJob(id);
-    setAuditBeforeData(c, before);
-    await deleteExportJob(id);
-    return c.json(okBody(null, '已删除'), 200);
+mountCrud(exportJobsRoute, exportJobContract,
+  { list: listExportJobs, get: getExportJob, create: createExportJob, remove: deleteExportJob },
+  {
+    permission: null,
+    label: '导出任务',
+    module: '导出中心',
+    audit: { create: { recordResponseBody: false } },
+    messages: { create: '导出任务已创建', remove: '已删除' },
   },
-});
-
-exportJobsRoute.openapiRoutes([entitiesRoute, createRouteDef, listRoute, getOneRoute, downloadRoute, downloadsRoute, cancelRoute, retryRoute, deleteRoute] as const);
+  [entitiesRoute, downloadRoute, downloadsRoute, cancelRoute, retryRoute],
+);
 
 export default exportJobsRoute;

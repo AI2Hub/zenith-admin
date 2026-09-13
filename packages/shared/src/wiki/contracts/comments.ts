@@ -26,7 +26,8 @@ export type WikiComment = {
   createdAt: string;
 };
 
-export const wikiCommentSchema: z.ZodType<WikiComment> = lazyRecursive(() => z.object({
+/** 评论节点字段（不含二级回复）；服务端行投影用它，评论树在此基础上递归挂 replies */
+export const wikiCommentFieldsSchema = z.object({
   id: z.int(),
   docId: z.int(),
   docTitle: z.string().optional(),
@@ -38,8 +39,11 @@ export const wikiCommentSchema: z.ZodType<WikiComment> = lazyRecursive(() => z.o
   resolvedAt: z.string().nullable(),
   authorId: z.int().nullable(),
   authorName: z.string().nullable(),
-  replies: z.array(wikiCommentSchema).optional(),
   createdAt: z.string(),
+});
+
+export const wikiCommentSchema: z.ZodType<WikiComment> = lazyRecursive(() => wikiCommentFieldsSchema.extend({
+  replies: z.array(wikiCommentSchema).optional(),
 })).meta({ id: 'WikiComment' });
 
 // ─── 契约 ────────────────────────────────────────────────────────────────────

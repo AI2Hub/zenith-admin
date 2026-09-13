@@ -7,11 +7,6 @@ import { listApiTokens, createApiToken, deleteApiToken } from '../../services/id
 import { mountCrud } from '../_crud';
 
 const apiTokensRoute = new OpenAPIHono({ defaultHook: validationHook });
-
-const list = defineContractRoute(apiTokenContract.list, {
-  middleware: [authMiddleware] as const,
-  handler: async (c) => c.json(okBody(await listApiTokens()), 200),
-});
 const deleteToken = defineContractRoute(apiTokenContract.remove, {
   middleware: [authMiddleware] as const,
   handler: async (c) => {
@@ -22,14 +17,14 @@ const deleteToken = defineContractRoute(apiTokenContract.remove, {
 });
 
 mountCrud(apiTokensRoute, apiTokenContract,
-  { create: createApiToken },
+  { create: createApiToken, list: listApiTokens },
   {
     permission: null,
     audit: null,
     messages: { create: 'Token 已创建，请务必复制保存，此后将无法再次查看完整 Token', remove: 'Token 已撤销' },
-    exclude: ['list', 'remove'],
+    exclude: ['remove'],
   },
-  [list, deleteToken],
+  [deleteToken],
 );
 
 export default apiTokensRoute;

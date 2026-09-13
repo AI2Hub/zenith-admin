@@ -23,11 +23,6 @@ const router = new OpenAPIHono({ defaultHook: validationHook });
 const read = [authMiddleware, guard({ permission: 'ai:provider:list' })] as const;
 const edit = [authMiddleware, guard({ permission: 'ai:provider:edit' })] as const;
 
-const list = defineContractRoute(aiProviderContract.list, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await listAiProviderConfigs()), 200),
-});
-
 const catalog = defineContractRoute(aiProviderContract.catalog, {
   middleware: read,
   handler: async (c) => c.json(okBody(await getProviderCatalog()), 200),
@@ -67,13 +62,13 @@ mountCrud(router, aiProviderContract,
     create: createAiProviderConfig,
     update: updateAiProviderConfig,
     remove: deleteAiProviderConfig,
+    list: listAiProviderConfigs,
   },
   {
     permission: { read: 'ai:provider:list', create: 'ai:provider:create', update: 'ai:provider:edit', remove: 'ai:provider:delete' },
     audit: null,
-    exclude: ['list'],
   },
-  [list, catalog, catalogModels, setDefault, testConnection, fetchModels],
+  [catalog, catalogModels, setDefault, testConnection, fetchModels],
 );
 
 export default router;

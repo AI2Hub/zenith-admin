@@ -1,7 +1,7 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { tenantContract } from '@zenith/shared/identity';
 import { authMiddleware } from '../../middleware/auth';
-import { guard, setAuditBeforeData, setAuditAfterData } from '../../middleware/guard';
+import { guard, setAuditAfterData } from '../../middleware/guard';
 import { platformAdminOnly } from '../../middleware/platform-admin';
 import { defineContractRoute } from '../../lib/contract-route';
 import { validationHook, okBody } from '../../lib/openapi-schemas';
@@ -13,17 +13,12 @@ import {
   createTenant,
   updateTenant,
   deleteTenant,
-  getTenantBeforeAudit,
 } from '../../services/identity/tenants.service';
+import { mountCrud } from '../_crud';
 
 const tenantsRoute = new OpenAPIHono({ defaultHook: validationHook });
 
 const admin = [authMiddleware, platformAdminOnly({ message: '仅平台管理员可管理租户' })] as const;
-
-const listRoute = defineContractRoute(tenantContract.list, {
-  middleware: admin,
-  handler: async (c) => c.json(okBody(await listTenants(c.req.valid('query'))), 200),
-});
 
 const allRoute = defineContractRoute(tenantContract.all, {
   middleware: admin,
@@ -33,11 +28,6 @@ const allRoute = defineContractRoute(tenantContract.all, {
 const statsRoute = defineContractRoute(tenantContract.stats, {
   middleware: admin,
   handler: async (c) => c.json(okBody(await getTenantStats(c.req.valid('param').id)), 200),
-});
-
-const detailRoute = defineContractRoute(tenantContract.detail, {
-  middleware: admin,
-  handler: async (c) => c.json(okBody(await getTenant(c.req.valid('param').id)), 200),
 });
 
 const createRouteDef = defineContractRoute(tenantContract.create, {
@@ -52,27 +42,15 @@ const createRouteDef = defineContractRoute(tenantContract.create, {
   },
 });
 
-const updateRouteDef = defineContractRoute(tenantContract.update, {
-  middleware: [...admin, guard({ audit: { module: '租户管理', description: '更新租户' } })],
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    const before = await getTenantBeforeAudit(id);
-    if (before) setAuditBeforeData(c, before);
-    return c.json(okBody(await updateTenant(id, c.req.valid('json')), '更新成功'), 200);
+mountCrud(tenantsRoute, tenantContract,
+  { list: listTenants, get: getTenant, update: updateTenant, remove: deleteTenant },
+  {
+    permission: null,
+    label: '租户',
+    middleware: [platformAdminOnly({ message: '仅平台管理员可管理租户' })],
+    exclude: ['create'],
   },
-});
-
-const deleteRouteDef = defineContractRoute(tenantContract.remove, {
-  middleware: [...admin, guard({ audit: { module: '租户管理', description: '删除租户' } })],
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    const before = await getTenantBeforeAudit(id);
-    if (before) setAuditBeforeData(c, before);
-    await deleteTenant(id);
-    return c.json(okBody(null, '删除成功'), 200);
-  },
-});
-
-tenantsRoute.openapiRoutes([listRoute, allRoute, statsRoute, detailRoute, createRouteDef, updateRouteDef, deleteRouteDef] as const);
+  [allRoute, statsRoute, createRouteDef],
+);
 
 export default tenantsRoute;

@@ -14,11 +14,6 @@ import { mountCrud } from '../_crud';
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
 const authed = [authMiddleware] as const;
-
-const getConfigs = defineContractRoute(userAiConfigContract.list, {
-  middleware: authed,
-  handler: async (c) => c.json(okBody(await getUserAiConfigs()), 200),
-});
 const updateConfig = defineContractRoute(userAiConfigContract.update, {
   middleware: authed,
   handler: async (c) => {
@@ -37,9 +32,9 @@ const deleteConfig = defineContractRoute(userAiConfigContract.remove, {
 });
 
 mountCrud(router, userAiConfigContract,
-  { create: createUserAiConfig },
-  { permission: null, audit: null, exclude: ['list', 'update', 'remove'] },
-  [getConfigs, updateConfig, deleteConfig],
+  { create: createUserAiConfig, list: getUserAiConfigs },
+  { permission: null, audit: null, exclude: ['update', 'remove'] },
+  [updateConfig, deleteConfig],
 );
 
 export default router;

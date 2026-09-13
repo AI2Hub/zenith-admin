@@ -58,10 +58,6 @@ export async function getOpsHost(id: number): Promise<OpsHost> {
   return mapHost(await ensureHostExists(id));
 }
 
-export async function getOpsHostBeforeAudit(id: number): Promise<OpsHost> {
-  return getOpsHost(id);
-}
-
 function assertCredentialsComplete(input: CreateOpsHostInput): void {
   if (input.authType === 'password' && !input.password) {
     throw new HTTPException(400, { message: '密码认证方式必须提供密码' });

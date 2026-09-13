@@ -19,22 +19,13 @@ import {
   resolveDispute,
   simulateDispute,
 } from '../../services/payment/payment-dispute.service';
+import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
-
-const listRoute = defineContractRoute(paymentDisputeContract.list, {
-  middleware: [authMiddleware, guard({ permission: 'payment:dispute:list' })],
-  handler: async (c) => c.json(okBody(await listDisputes(c.req.valid('query'))), 200),
-});
 
 const statsRoute = defineContractRoute(paymentDisputeContract.stats, {
   middleware: [authMiddleware, guard({ permission: 'payment:dispute:list' })],
   handler: async (c) => c.json(okBody(await getDisputeStats()), 200),
-});
-
-const detailRoute = defineContractRoute(paymentDisputeContract.detail, {
-  middleware: [authMiddleware, guard({ permission: 'payment:dispute:list' })],
-  handler: async (c) => c.json(okBody(await getDisputeDetail(c.req.valid('param').id)), 200),
 });
 
 const replyRoute = defineContractRoute(paymentDisputeContract.reply, {
@@ -73,6 +64,10 @@ const simulateRoute = defineContractRoute(paymentDisputeContract.simulate, {
   handler: async (c) => c.json(okBody(await simulateDispute(c.req.valid('json').orderNo), '模拟投诉已生成'), 200),
 });
 
-router.openapiRoutes([listRoute, statsRoute, detailRoute, replyRoute, resolveRoute, refundRoute, simulateRoute] as const);
+mountCrud(router, paymentDisputeContract,
+  { list: listDisputes, get: getDisputeDetail },
+  { permission: 'payment:dispute' },
+  [statsRoute, replyRoute, resolveRoute, refundRoute, simulateRoute],
+);
 
 export default router;

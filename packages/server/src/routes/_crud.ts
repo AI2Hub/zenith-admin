@@ -19,9 +19,11 @@
 import type { OpenAPIHono, RouteConfig } from '@hono/zod-openapi';
 import type { Context, MiddlewareHandler } from 'hono';
 import type { LicenseFeatureKey } from '@zenith/shared/licensing';
-import type { AnyOperation, PaginatedResponse } from '@zenith/shared/core';
+import type { AnyOperation } from '@zenith/shared/core';
 import { defineContractRoute } from '../lib/contract-route';
-import type { CrudContractLike, CrudCreateInputOf, CrudEntityOf, CrudIdOf, CrudListQueryOf, CrudUpdateInputOf } from '../lib/crud-service';
+import type {
+  CrudContractLike, CrudCreateInputOf, CrudCreateResponseOf, CrudDetailOf, CrudIdOf, CrudListQueryOf, CrudListResponseOf, CrudUpdateInputOf, CrudUpdateResponseOf,
+} from '../lib/crud-service';
 import { okBody } from '../lib/openapi-schemas';
 import { authMiddleware } from '../middleware/auth';
 import { guard, setAuditBeforeData, type AuditLogOptions } from '../middleware/guard';
@@ -30,24 +32,24 @@ export type CrudOpName = 'list' | 'detail' | 'create' | 'update' | 'remove' | 'r
 
 /**
  * 路由派生需要的服务能力：`defineCrudService` 的产物天然满足；尚未工厂化的显式 Service 以同名函数装配
- * `{ list: listTags, get: getTag, create: createTag, … }`。返回值类型对照契约实体检查——服务与契约漂移在这里报错。
- * 缺失 `snapshot` 时批量删除的审计快照回落为逐 id `get`。
+ * `{ list: listTags, get: getTag, create: createTag, … }`。返回值逐操作对照契约响应检查（列表行与详情实体
+ * 可以是不同 schema）——服务与契约漂移在这里报错。缺失 `snapshot` 时批量删除的审计快照回落为逐 id `get`。
  */
 /**
- * 契约实体的宽松形态：可选键允许显式 `undefined`（服务映射常写 `x: row.x ?? undefined`；
+ * 契约响应的宽松形态：可选键允许显式 `undefined`（服务映射常写 `x: row.x ?? undefined`；
  * JSON 序列化会丢弃 undefined，与契约 `x?: T` 等价），与 hono 对 `c.json()` 的检查口径一致。
  */
 type Loose<T> = T extends (infer U)[] ? Loose<U>[] : T extends object ? { [K in keyof T]: Loose<T[K]> } : T;
-type LooseEntity<C extends CrudContractLike> = Loose<CrudEntityOf<C>>;
 
 export interface CrudServiceLike<C extends CrudContractLike> {
-  readonly list?: (query: CrudListQueryOf<C>) => Promise<PaginatedResponse<LooseEntity<C>>>;
-  readonly get?: (id: CrudIdOf<C>) => Promise<LooseEntity<C>>;
-  readonly create?: (input: CrudCreateInputOf<C>) => Promise<LooseEntity<C>>;
-  readonly update?: (id: CrudIdOf<C>, input: CrudUpdateInputOf<C>) => Promise<LooseEntity<C>>;
+  readonly list?: (query: CrudListQueryOf<C>) => Promise<Loose<CrudListResponseOf<C>>>;
+  /** 详情实体；契约无 `detail` 时仅用于 update / remove 的审计前快照 */
+  readonly get?: (id: CrudIdOf<C>) => Promise<Loose<CrudDetailOf<C>>>;
+  readonly create?: (input: CrudCreateInputOf<C>) => Promise<Loose<CrudCreateResponseOf<C>>>;
+  readonly update?: (id: CrudIdOf<C>, input: CrudUpdateInputOf<C>) => Promise<Loose<CrudUpdateResponseOf<C>>>;
   readonly remove?: (id: CrudIdOf<C>) => Promise<unknown>;
   readonly removeMany?: (ids: CrudIdOf<C>[]) => Promise<unknown>;
-  readonly snapshot?: (ids: CrudIdOf<C>[]) => Promise<LooseEntity<C>[]>;
+  readonly snapshot?: (ids: CrudIdOf<C>[]) => Promise<unknown[]>;
 }
 
 /** 生成顺序即注册顺序：`removeBatch`（`DELETE /batch`）先于 `remove`（`DELETE /{id}`） */
@@ -100,11 +102,11 @@ export interface CrudMountOptions {
   readonly module?: string;
   /** 逐操作覆盖审计（文案字符串、部分 `AuditLogOptions`，或 `null` 关闭该操作的审计）；整体传 `null` = 全部写操作不记审计 */
   readonly audit?: null | Partial<Record<Exclude<CrudOpName, 'list' | 'detail'>, string | null | Partial<AuditLogOptions>>>;
-  /** 写操作的成功提示；`removeBatch` 可按实际删除数生成 */
+  /** 写操作的成功提示；`null` = 不带提示（`okBody(data)`）；`removeBatch` 可按实际删除数生成 */
   readonly messages?: {
-    readonly create?: string;
-    readonly update?: string;
-    readonly remove?: string;
+    readonly create?: string | null;
+    readonly update?: string | null;
+    readonly remove?: string | null;
     readonly removeBatch?: string | ((count: number) => string);
   };
   /** 所属可授权功能，进入每个操作的 `guard({ feature })` */
@@ -203,10 +205,12 @@ export function crudRoutes<C extends CrudContractLike>(
 ): ContractRoute[] {
   const routes: ContractRoute[] = [];
   const messages = options.messages ?? {};
+  /** `null` = 不带成功提示 */
+  const message = (op: 'create' | 'update' | 'remove', fallback: string) => (messages[op] === null ? undefined : (messages[op] ?? fallback));
   const snapshot = service.snapshot ?? (async (ids: CrudIdOf<C>[]) => {
     const get = required(service, 'get', contract, 'removeBatch');
     const rows = await Promise.all(ids.map((id) => get(id).catch(() => null)));
-    return rows.filter((row) => row !== null) as LooseEntity<C>[];
+    return rows.filter((row) => row !== null);
   });
   for (const name of CRUD_OPS) {
     const op = contract[name] as AnyOperation | undefined;
@@ -214,9 +218,9 @@ export function crudRoutes<C extends CrudContractLike>(
     const middleware = middlewareFor(options, name);
     switch (name) {
       case 'list': {
-        if (!op.query) throw new Error(`${contract.basePath} 的 list 操作没有分页 query，不能由 crudRoutes 派生，请 exclude 后显式书写`);
         const list = required(service, 'list', contract, name);
-        routes.push(route(op, middleware, async (c) => c.json(okBody(await list(valid(c, 'query'))), 200), options.responses?.list));
+        // 无 query 的列表（「我的 xxx」一类）：服务函数不取参
+        routes.push(route(op, middleware, async (c) => c.json(okBody(await list(op.query ? valid(c, 'query') : (undefined as never))), 200), options.responses?.list));
         break;
       }
       case 'detail': {
@@ -226,7 +230,7 @@ export function crudRoutes<C extends CrudContractLike>(
       }
       case 'create': {
         const create = required(service, 'create', contract, name);
-        routes.push(route(op, middleware, async (c) => c.json(okBody(await create(valid(c, 'json')), messages.create ?? '创建成功'), 200), options.responses?.create));
+        routes.push(route(op, middleware, async (c) => c.json(okBody(await create(valid(c, 'json')), message('create', '创建成功')), 200), options.responses?.create));
         break;
       }
       case 'update': {
@@ -235,7 +239,7 @@ export function crudRoutes<C extends CrudContractLike>(
         routes.push(route(op, middleware, async (c) => {
           const { id } = valid<{ id: CrudIdOf<C> }>(c, 'param');
           setAuditBeforeData(c, await get(id));
-          return c.json(okBody(await update(id, valid(c, 'json')), messages.update ?? '更新成功'), 200);
+          return c.json(okBody(await update(id, valid(c, 'json')), message('update', '更新成功')), 200);
         }, options.responses?.update));
         break;
       }
@@ -259,7 +263,7 @@ export function crudRoutes<C extends CrudContractLike>(
           const { id } = valid<{ id: CrudIdOf<C> }>(c, 'param');
           setAuditBeforeData(c, await get(id));
           await remove(id);
-          return c.json(okBody(null, messages.remove ?? '删除成功'), 200);
+          return c.json(okBody(null, message('remove', '删除成功')), 200);
         }, options.responses?.remove));
         break;
       }

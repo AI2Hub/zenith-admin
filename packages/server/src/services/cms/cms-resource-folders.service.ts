@@ -4,22 +4,14 @@ import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { cmsResourceFolders, cmsResources } from '../../db/schema';
 import type { CmsResourceFolderRow } from '../../db/schema';
-import { formatTimestamps } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
-import type { CmsResourceFolder, CreateCmsResourceFolderInput, UpdateCmsResourceFolderInput } from '@zenith/shared/cms';
+import { cmsResourceFolderFieldsSchema, type CmsResourceFolder, type CreateCmsResourceFolderInput, type UpdateCmsResourceFolderInput } from '@zenith/shared/cms';
+import { pickEntity } from '../../lib/entity-map';
 import { assertSiteAccess, ensureCmsSiteExists } from './cms-sites.service';
 import { buildTree } from '@zenith/shared/core';
 
 export function mapCmsResourceFolder(row: CmsResourceFolderRow, resourceCount = 0): CmsResourceFolder {
-  return {
-    id: row.id,
-    siteId: row.siteId,
-    parentId: row.parentId,
-    name: row.name,
-    sort: row.sort,
-    resourceCount,
-    ...formatTimestamps(row),
-  };
+  return pickEntity(cmsResourceFolderFieldsSchema, row, { resourceCount });
 }
 
 export async function ensureCmsResourceFolderExists(id: number): Promise<CmsResourceFolderRow> {

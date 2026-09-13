@@ -4,28 +4,34 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { iotAlarmContract, iotAlarmRuleContract, iotMaintenanceWindowContract } from '@zenith/shared/iot';
 import { authMiddleware } from '../../middleware/auth';
-import { guard, setAuditBeforeData } from '../../middleware/guard';
+import { guard } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { ErrorResponse, jsonContent, okBody, validationHook } from '../../lib/openapi-schemas';
 import {
-  acknowledgeIotAlarm, createIotAlarmRule, deleteIotAlarmRule, ensureIotAlarmRuleExists, listIotAlarmRules,
-  listIotAlarms, mapIotAlarmRule, resolveIotAlarm, updateIotAlarmRule,
+  acknowledgeIotAlarm,
+  createIotAlarmRule,
+  deleteIotAlarmRule,
+  ensureIotAlarmRuleExists,
+  listIotAlarmRules,
+  listIotAlarms,
+  mapIotAlarmRule,
+  resolveIotAlarm,
+  updateIotAlarmRule,
 } from '../../services/iot/iot-alarms.service';
 import {
-  createIotMaintenanceWindow, deleteIotMaintenanceWindow, ensureIotMaintenanceWindowExists,
-  listIotMaintenanceWindows, mapIotMaintenanceWindow, updateIotMaintenanceWindow,
+  createIotMaintenanceWindow,
+  deleteIotMaintenanceWindow,
+  ensureIotMaintenanceWindowExists,
+  listIotMaintenanceWindows,
+  mapIotMaintenanceWindow,
+  updateIotMaintenanceWindow,
 } from '../../services/iot/iot-maintenance.service';
+import { mountCrud } from '../_crud';
 
-const read = [authMiddleware, guard({ permission: 'iot:alarm:list' })] as const;
 const notFound = { 404: { content: jsonContent(ErrorResponse), description: '不存在' } } as const;
 
 // ─── 告警记录 ────────────────────────────────────────────────────────────────
 export const iotAlarmsRouter = new OpenAPIHono({ defaultHook: validationHook });
-
-const listAlarmsRoute = defineContractRoute(iotAlarmContract.list, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await listIotAlarms(c.req.valid('query'))), 200),
-});
 
 const acknowledgeAlarmRoute = defineContractRoute(iotAlarmContract.acknowledge, {
   middleware: [authMiddleware, guard({
@@ -52,104 +58,48 @@ const resolveAlarmRoute = defineContractRoute(iotAlarmContract.resolve, {
   },
 });
 
-iotAlarmsRouter.openapiRoutes([listAlarmsRoute, acknowledgeAlarmRoute, resolveAlarmRoute] as const);
+mountCrud(iotAlarmsRouter, iotAlarmContract,
+  { list: listIotAlarms },
+  { permission: 'iot:alarm' },
+  [acknowledgeAlarmRoute, resolveAlarmRoute],
+);
 
 // ─── 告警规则 ────────────────────────────────────────────────────────────────
 export const iotAlarmRulesRouter = new OpenAPIHono({ defaultHook: validationHook });
 
-const listRulesRoute = defineContractRoute(iotAlarmRuleContract.list, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await listIotAlarmRules(c.req.valid('query'))), 200),
-});
-
-const createRuleRoute = defineContractRoute(iotAlarmRuleContract.create, {
-  middleware: [authMiddleware, guard({
-    permission: 'iot:alarm:rule:create',
-    audit: { description: '创建 IoT 告警规则', module: 'IoT 告警' },
-  })],
-  handler: async (c) => c.json(okBody(await createIotAlarmRule(c.req.valid('json')), '创建成功'), 200),
-});
-
-const updateRuleRoute = defineContractRoute(iotAlarmRuleContract.update, {
-  middleware: [authMiddleware, guard({
-    permission: 'iot:alarm:rule:update',
-    audit: { description: '更新 IoT 告警规则', module: 'IoT 告警' },
-  })],
-  responses: notFound,
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    setAuditBeforeData(c, mapIotAlarmRule(await ensureIotAlarmRuleExists(id)));
-    return c.json(okBody(await updateIotAlarmRule(id, c.req.valid('json')), '更新成功'), 200);
+mountCrud(iotAlarmRulesRouter, iotAlarmRuleContract,
+  {
+    list: listIotAlarmRules,
+    get: async (id: number) => mapIotAlarmRule(await ensureIotAlarmRuleExists(id)),
+    create: createIotAlarmRule,
+    update: updateIotAlarmRule,
+    remove: deleteIotAlarmRule,
   },
-});
-
-const deleteRuleRoute = defineContractRoute(iotAlarmRuleContract.remove, {
-  middleware: [authMiddleware, guard({
-    permission: 'iot:alarm:rule:delete',
-    audit: { description: '删除 IoT 告警规则', module: 'IoT 告警' },
-  })],
-  responses: notFound,
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    setAuditBeforeData(c, mapIotAlarmRule(await ensureIotAlarmRuleExists(id)));
-    await deleteIotAlarmRule(id);
-    return c.json(okBody(null, '删除成功'), 200);
+  {
+    permission: { read: 'iot:alarm:list', create: 'iot:alarm:rule:create', update: 'iot:alarm:rule:update', remove: 'iot:alarm:rule:delete' },
+    label: 'IoT 告警规则',
+    module: 'IoT 告警',
+    audit: { create: '创建 IoT 告警规则', update: '更新 IoT 告警规则', remove: '删除 IoT 告警规则' },
+    responses: { update: notFound, remove: notFound },
   },
-});
-
-iotAlarmRulesRouter.openapiRoutes([
-  listRulesRoute,
-  createRuleRoute,
-  updateRuleRoute,
-  deleteRuleRoute,
-] as const);
+);
 
 // ─── 维护窗口 ────────────────────────────────────────────────────────────────
 export const iotMaintenanceWindowsRouter = new OpenAPIHono({ defaultHook: validationHook });
 
-const listWindowsRoute = defineContractRoute(iotMaintenanceWindowContract.list, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await listIotMaintenanceWindows(c.req.valid('query'))), 200),
-});
-
-const createWindowRoute = defineContractRoute(iotMaintenanceWindowContract.create, {
-  middleware: [authMiddleware, guard({
-    permission: 'iot:alarm:rule:create',
-    audit: { description: '创建 IoT 维护窗口', module: 'IoT 告警' },
-  })],
-  handler: async (c) => c.json(okBody(await createIotMaintenanceWindow(c.req.valid('json')), '创建成功'), 200),
-});
-
-const updateWindowRoute = defineContractRoute(iotMaintenanceWindowContract.update, {
-  middleware: [authMiddleware, guard({
-    permission: 'iot:alarm:rule:update',
-    audit: { description: '更新 IoT 维护窗口', module: 'IoT 告警' },
-  })],
-  responses: notFound,
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    setAuditBeforeData(c, mapIotMaintenanceWindow(await ensureIotMaintenanceWindowExists(id)));
-    return c.json(okBody(await updateIotMaintenanceWindow(id, c.req.valid('json')), '更新成功'), 200);
+mountCrud(iotMaintenanceWindowsRouter, iotMaintenanceWindowContract,
+  {
+    list: listIotMaintenanceWindows,
+    get: async (id: number) => mapIotMaintenanceWindow(await ensureIotMaintenanceWindowExists(id)),
+    create: createIotMaintenanceWindow,
+    update: updateIotMaintenanceWindow,
+    remove: deleteIotMaintenanceWindow,
   },
-});
-
-const deleteWindowRoute = defineContractRoute(iotMaintenanceWindowContract.remove, {
-  middleware: [authMiddleware, guard({
-    permission: 'iot:alarm:rule:delete',
-    audit: { description: '删除 IoT 维护窗口', module: 'IoT 告警' },
-  })],
-  responses: notFound,
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    setAuditBeforeData(c, mapIotMaintenanceWindow(await ensureIotMaintenanceWindowExists(id)));
-    await deleteIotMaintenanceWindow(id);
-    return c.json(okBody(null, '删除成功'), 200);
+  {
+    permission: { read: 'iot:alarm:list', create: 'iot:alarm:rule:create', update: 'iot:alarm:rule:update', remove: 'iot:alarm:rule:delete' },
+    label: 'IoT 维护窗口',
+    module: 'IoT 告警',
+    audit: { create: '创建 IoT 维护窗口', update: '更新 IoT 维护窗口', remove: '删除 IoT 维护窗口' },
+    responses: { update: notFound, remove: notFound },
   },
-});
-
-iotMaintenanceWindowsRouter.openapiRoutes([
-  listWindowsRoute,
-  createWindowRoute,
-  updateWindowRoute,
-  deleteWindowRoute,
-] as const);
+);

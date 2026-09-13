@@ -5,11 +5,26 @@ import { guard, setAuditBeforeData } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
-  listCmsContents, getCmsContent, createCmsContent, updateCmsContent,
-  submitCmsContent, publishCmsContent, rejectCmsContent, offlineCmsContent,
-  recycleCmsContents, restoreCmsContents, purgeCmsContents, restoreCmsContentToVersion,
-  batchMoveCmsContents, batchSetCmsContentFlags, batchAddCmsContentTags, batchTransitionCmsContents,
-  duplicateCmsContent, distributeCmsContents, archiveCmsContents, unarchiveCmsContents,
+  listCmsContents,
+  getCmsContent,
+  createCmsContent,
+  updateCmsContent,
+  submitCmsContent,
+  publishCmsContent,
+  rejectCmsContent,
+  offlineCmsContent,
+  recycleCmsContents,
+  restoreCmsContents,
+  purgeCmsContents,
+  restoreCmsContentToVersion,
+  batchMoveCmsContents,
+  batchSetCmsContentFlags,
+  batchAddCmsContentTags,
+  batchTransitionCmsContents,
+  duplicateCmsContent,
+  distributeCmsContents,
+  archiveCmsContents,
+  unarchiveCmsContents,
   checkCmsContentTitle,
 } from '../../services/cms/cms-contents.service';
 import { listContentVersions, diffContentVersion } from '../../services/cms/cms-versions.service';
@@ -20,15 +35,11 @@ import { createContentPreviewLink } from '../../services/cms/cms-preview.service
 import { lockCmsContent, unlockCmsContent } from '../../services/cms/cms-content-lock.service';
 import { describeCmsLink } from '../../services/cms/cms-link.service';
 import { ensureCmsSiteExists, assertSiteAccess } from '../../services/cms/cms-sites.service';
+import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
 const read = [authMiddleware, guard({ permission: 'cms:content:list' })] as const;
-
-const listRoute = defineContractRoute(cmsContentContract.list, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await listCmsContents(c.req.valid('query'))), 200),
-});
 
 const checkTitleRoute = defineContractRoute(cmsContentContract.checkTitle, {
   middleware: read,
@@ -46,16 +57,6 @@ const describeLinkRoute = defineContractRoute(cmsContentContract.linkTarget, {
     await assertSiteAccess(siteId);
     return c.json(okBody(await describeCmsLink(siteId, link)), 200);
   },
-});
-
-const getOneRoute = defineContractRoute(cmsContentContract.detail, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await getCmsContent(c.req.valid('param').id)), 200),
-});
-
-const createRouteDef = defineContractRoute(cmsContentContract.create, {
-  middleware: [authMiddleware, guard({ permission: 'cms:content:create', audit: { description: '创建 CMS 内容', module: 'CMS内容管理' } })],
-  handler: async (c) => c.json(okBody(await createCmsContent(c.req.valid('json')), '创建成功'), 200),
 });
 
 const updateRouteDef = defineContractRoute(cmsContentContract.update, {
@@ -292,12 +293,31 @@ const persistentUnlockRoute = defineContractRoute(cmsContentContract.unlock, {
 });
 
 // 分两批注册：单批过长会触发 TS2589（类型实例化过深）
-router.openapiRoutes([
-  listRoute, checkTitleRoute, describeLinkRoute, getOneRoute, createRouteDef, updateRouteDef,
-  submitRoute, publishRoute, rejectRoute, offlineRoute,
-  recycleRoute, restoreRoute, purgeRoute,
-  versionsRoute, restoreVersionRoute, versionDiffRoute,
-] as const);
+mountCrud(router, cmsContentContract,
+  { list: listCmsContents, get: getCmsContent, create: createCmsContent },
+  {
+    permission: 'cms:content',
+    label: 'CMS 内容',
+    module: 'CMS内容管理',
+    audit: { create: '创建 CMS 内容' },
+    exclude: ['update'],
+  },
+  [
+    checkTitleRoute,
+    describeLinkRoute,
+    updateRouteDef,
+    submitRoute,
+    publishRoute,
+    rejectRoute,
+    offlineRoute,
+    recycleRoute,
+    restoreRoute,
+    purgeRoute,
+    versionsRoute,
+    restoreVersionRoute,
+    versionDiffRoute,
+  ],
+);
 router.openapiRoutes([
   editLockAcquireRoute, editLockReleaseRoute, previewLinkRoute,
   batchMoveRoute, batchFlagsRoute, batchTagRoute, batchStatusRoute, duplicateRoute, distributeRoute,

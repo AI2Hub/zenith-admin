@@ -17,20 +17,15 @@ const router = new OpenAPIHono({ defaultHook: validationHook });
 
 const authed = [authMiddleware] as const;
 
-const listMine = defineContractRoute(aiAgentContract.list, {
-  middleware: authed,
-  handler: async (c) => c.json(okBody(await listMyAgents()), 200),
-});
-
 const builtin = defineContractRoute(aiAgentContract.builtin, {
   middleware: authed,
   handler: async (c) => c.json(okBody(await listBuiltinAgents()), 200),
 });
 
 mountCrud(router, aiAgentContract,
-  { get: getAgentDetail, create: createAgent, update: updateAgent, remove: deleteAgent },
-  { permission: null, audit: null, exclude: ['list'] },
-  [listMine, builtin],
+  { get: getAgentDetail, create: createAgent, update: updateAgent, remove: deleteAgent, list: listMyAgents },
+  { permission: null, audit: null },
+  [builtin],
 );
 
 export default router;

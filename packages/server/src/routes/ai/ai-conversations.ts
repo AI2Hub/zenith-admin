@@ -23,38 +23,12 @@ import {
   updateFeedbackStatus,
   exportConversation,
 } from '../../services/ai/ai-conversations.service';
+import { mountCrud } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
 const authed = [authMiddleware] as const;
 const feedbackViewer = [authMiddleware, guard({ permission: 'ai:feedback:view' })] as const;
-
-const list = defineContractRoute(aiConversationContract.list, {
-  middleware: authed,
-  handler: async (c) => c.json(okBody(await listConversations(c.req.valid('query'))), 200),
-});
-
-const create = defineContractRoute(aiConversationContract.create, {
-  middleware: authed,
-  handler: async (c) => c.json(okBody(await createConversation(c.req.valid('json'))), 200),
-});
-
-const getOne = defineContractRoute(aiConversationContract.detail, {
-  middleware: authed,
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    return c.json(okBody(await getConversation(id)), 200);
-  },
-});
-
-const remove = defineContractRoute(aiConversationContract.remove, {
-  middleware: authed,
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    await deleteConversation(id);
-    return c.json(okBody(null, '删除成功'), 200);
-  },
-});
 
 const getMessages = defineContractRoute(aiConversationContract.messages, {
   middleware: authed,
@@ -173,6 +147,24 @@ const setSystemPrompt = defineContractRoute(aiConversationContract.setSystemProm
   },
 });
 
-router.openapiRoutes([list, create, getOne, remove, getMessages, rename, togglePin, toggleArchive, setSystemPrompt, exportConv, submitFeedback, deleteMsg, deleteMsgCascade, adminFeedbackList, adminFeedbackExport, adminFeedbackContext, updateFeedback] as const);
+mountCrud(router, aiConversationContract,
+  { list: listConversations, get: getConversation, create: createConversation, remove: deleteConversation },
+  { permission: null, audit: null, messages: { create: null } },
+  [
+    getMessages,
+    rename,
+    togglePin,
+    toggleArchive,
+    setSystemPrompt,
+    exportConv,
+    submitFeedback,
+    deleteMsg,
+    deleteMsgCascade,
+    adminFeedbackList,
+    adminFeedbackExport,
+    adminFeedbackContext,
+    updateFeedback,
+  ],
+);
 
 export default router;

@@ -3,12 +3,12 @@ import type { QueryOutputOf } from '@zenith/shared/core';
 import { eq, asc, and, inArray, isNull, isNotNull } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { pinyin } from 'pinyin-pro';
-import { cmsChannelContract } from '@zenith/shared/cms';
+import { cmsChannelContract, cmsChannelFieldsSchema } from '@zenith/shared/cms';
+import { pickEntity } from '../../lib/entity-map';
 import { db } from '../../db';
 import { cmsChannels, cmsContents, cmsModels, cmsContentChannels, cmsCollectRules, cmsChannelUsers, cmsPages, users } from '../../db/schema';
 import type { CmsChannelRow } from '../../db/schema';
 import type { DbExecutor } from '../../db/types';
-import { formatTimestamps } from '../../lib/datetime';
 import { buildWhere } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { currentCmsOpenApiAccess, currentUser } from '../../lib/context';
@@ -31,34 +31,7 @@ import { buildTree } from '@zenith/shared/core';
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
 export function mapCmsChannel(row: CmsChannelRow, modelName?: string | null): CmsChannel {
-  return {
-    id: row.id,
-    siteId: row.siteId,
-    parentId: row.parentId,
-    modelId: row.modelId ?? null,
-    modelName: modelName ?? null,
-    name: row.name,
-    code: row.code,
-    slug: row.slug,
-    path: row.path,
-    type: row.type,
-    linkUrl: row.linkUrl ?? null,
-    listTemplate: row.listTemplate ?? null,
-    detailTemplate: row.detailTemplate ?? null,
-    staticMode: row.staticMode,
-    detailPathRule: row.detailPathRule,
-    pageSize: row.pageSize,
-    pageContent: row.pageContent ?? null,
-    seoTitle: row.seoTitle ?? null,
-    seoKeywords: row.seoKeywords ?? null,
-    seoDescription: row.seoDescription ?? null,
-    image: row.image ?? null,
-    visible: row.visible,
-    status: row.status,
-    sort: row.sort,
-    settings: row.settings ?? {},
-    ...formatTimestamps(row),
-  };
+  return pickEntity(cmsChannelFieldsSchema, row, { modelName: modelName ?? null, settings: row.settings ?? {} });
 }
 
 /** 平铺列表 → 树（保持入参的 sort 顺序） */

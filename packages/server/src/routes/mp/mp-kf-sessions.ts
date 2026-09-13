@@ -5,20 +5,25 @@ import { guard, setAuditBeforeData } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
-  listMpKfSessions, getMpKfSessionDetail, getMpKfSessionStats,
-  acceptMpKfSession, transferMpKfSession, closeMpKfSession, replyMpKfSession,
-  getMpKfRoutingConfig, updateMpKfRoutingConfig, rateMpKfSession, getMpKfSessionReport,
-  getMpKfRoutingConfigBeforeAudit, getMpKfSessionBeforeAudit,
+  listMpKfSessions,
+  getMpKfSessionDetail,
+  getMpKfSessionStats,
+  acceptMpKfSession,
+  transferMpKfSession,
+  closeMpKfSession,
+  replyMpKfSession,
+  getMpKfRoutingConfig,
+  updateMpKfRoutingConfig,
+  rateMpKfSession,
+  getMpKfSessionReport,
+  getMpKfRoutingConfigBeforeAudit,
+  getMpKfSessionBeforeAudit,
 } from '../../services/mp/mp-kf-session.service';
+import { mountCrud } from '../_crud';
 
 const mpKfSessionRouter = new OpenAPIHono({ defaultHook: validationHook });
 
 const read = [authMiddleware, guard({ permission: 'mp:kf:session:list' })] as const;
-
-const listRoute = defineContractRoute(mpKfSessionContract.list, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await listMpKfSessions(c.req.valid('query'))), 200),
-});
 
 const statsRoute = defineContractRoute(mpKfSessionContract.stats, {
   middleware: read,
@@ -37,11 +42,6 @@ const updateConfigRoute = defineContractRoute(mpKfSessionContract.updateConfig, 
     setAuditBeforeData(c, await getMpKfRoutingConfigBeforeAudit(accountId));
     return c.json(okBody(await updateMpKfRoutingConfig(accountId, c.req.valid('json')), '保存成功'), 200);
   },
-});
-
-const detailRoute = defineContractRoute(mpKfSessionContract.detail, {
-  middleware: read,
-  handler: async (c) => c.json(okBody(await getMpKfSessionDetail(c.req.valid('param').id)), 200),
 });
 
 const acceptRoute = defineContractRoute(mpKfSessionContract.accept, {
@@ -103,9 +103,20 @@ const rateRoute = defineContractRoute(mpKfSessionContract.rate, {
   },
 });
 
-mpKfSessionRouter.openapiRoutes([
-  listRoute, statsRoute, reportRoute, getConfigRoute, updateConfigRoute, detailRoute,
-  acceptRoute, transferRoute, closeRoute, replyRoute, rateRoute,
-] as const);
+mountCrud(mpKfSessionRouter, mpKfSessionContract,
+  { list: listMpKfSessions, get: getMpKfSessionDetail },
+  { permission: 'mp:kf:session' },
+  [
+    statsRoute,
+    reportRoute,
+    getConfigRoute,
+    updateConfigRoute,
+    acceptRoute,
+    transferRoute,
+    closeRoute,
+    replyRoute,
+    rateRoute,
+  ],
+);
 
 export default mpKfSessionRouter;

@@ -12,7 +12,7 @@ import { db } from '../../db';
 import { coupons, memberCoupons, memberPointAccounts, memberPointTransactions, members } from '../../db/schema';
 import type { CouponRow, MemberCouponRow } from '../../db/schema';
 import type { DbTransaction } from '../../db/types';
-import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
+import { parseDateTimeInput } from '../../lib/datetime';
 import { currentMemberId } from '../../lib/member-context';
 import { decide } from '../platform/rules-runtime.service';
 import { buildWhere, keywordCondition } from '../../lib/where-helpers';
@@ -21,29 +21,17 @@ import { buildListResult } from '../../lib/list-query';
 import { requireRow } from '../../lib/db-assert';
 import { trackServerEvent } from '../analytics/analytics-server-events.service';
 import type { CouponType, CouponValidType, CouponTemplateStatus } from '@zenith/shared/member';
-import { COUPON_TEMPLATE_STATUS_LABELS, couponContract, couponSchema, memberSelfContract } from '@zenith/shared/member';
+import { COUPON_TEMPLATE_STATUS_LABELS, couponContract, couponSchema, memberCouponSchema, memberSelfContract, type MemberCoupon } from '@zenith/shared/member';
 import { ANALYTICS_EVENT_NAMES } from '@zenith/shared/analytics';
 import { memberReferenceCondition } from './member-query-helpers';
 import { defineCrudService } from '../../lib/crud-service';
-import { entityMapper } from '../../lib/entity-map';
+import { entityMapper, pickEntity } from '../../lib/entity-map';
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
 export const mapCoupon = entityMapper(couponSchema);
 
-export function mapMemberCoupon(row: MemberCouponRow, coupon?: CouponRow | null, memberName?: string | null) {
-  return {
-    id: row.id,
-    couponId: row.couponId,
-    memberId: row.memberId,
-    code: row.code,
-    status: row.status,
-    receivedAt: formatDateTime(row.receivedAt),
-    usedAt: formatNullableDateTime(row.usedAt),
-    expireAt: formatNullableDateTime(row.expireAt),
-    coupon: coupon ? mapCoupon(coupon) : undefined,
-    memberName: memberName ?? undefined,
-    createdAt: formatDateTime(row.createdAt),
-  };
+export function mapMemberCoupon(row: MemberCouponRow, coupon?: CouponRow | null, memberName?: string | null): MemberCoupon {
+  return pickEntity(memberCouponSchema, row, { coupon: coupon ? mapCoupon(coupon) : undefined, memberName: memberName ?? undefined });
 }
 
 // ─── 模板 CRUD ────────────────────────────────────────────────────────────────

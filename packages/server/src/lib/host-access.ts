@@ -1,5 +1,7 @@
 import type { Context } from 'hono';
+import { createMiddleware } from 'hono/factory';
 import { HTTPException } from 'hono/http-exception';
+import type { AppEnv } from './context';
 import { isSuperAdmin, getUserPermissions } from './permissions';
 
 /**
@@ -29,3 +31,9 @@ export function assertPlatformHostAccess(c: Context): void {
     throw new HTTPException(403, { message: '运维主机仅平台侧可见' });
   }
 }
+
+/** `assertPlatformHostAccess` 的中间件形态：放在 `authMiddleware` 之后，供整组路由 / `mountCrud` 复用 */
+export const platformHostOnly = createMiddleware<AppEnv>(async (c, next) => {
+  assertPlatformHostAccess(c);
+  await next();
+});

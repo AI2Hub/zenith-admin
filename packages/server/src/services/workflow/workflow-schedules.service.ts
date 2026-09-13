@@ -102,7 +102,8 @@ export async function listSchedules(query: QueryOutputOf<typeof workflowSchedule
   });
 }
 
-async function loadScheduleWithNames(id: number): Promise<WorkflowSchedule> {
+/** 定时规则（含流程 / 发起人名称）；不存在 404 */
+export async function getWorkflowSchedule(id: number): Promise<WorkflowSchedule> {
   const [r] = await db.select({ row: workflowSchedules, definitionName: workflowDefinitions.name, initiatorName: users.nickname })
     .from(workflowSchedules)
     .leftJoin(workflowDefinitions, eq(workflowSchedules.definitionId, workflowDefinitions.id))
@@ -111,13 +112,6 @@ async function loadScheduleWithNames(id: number): Promise<WorkflowSchedule> {
     .limit(1);
   requireRow(r, '定时规则不存在');
   return mapSchedule(r.row, { definitionName: r.definitionName, initiatorName: r.initiatorName });
-}
-
-export async function getWorkflowScheduleBeforeAudit(id: number): Promise<WorkflowSchedule | null> {
-  return loadScheduleWithNames(id).catch((err) => {
-    if (err instanceof HTTPException && err.status === 404) return null;
-    throw err;
-  });
 }
 
 export async function createSchedule(input: CreateWorkflowScheduleInput): Promise<WorkflowSchedule> {
@@ -138,7 +132,7 @@ export async function createSchedule(input: CreateWorkflowScheduleInput): Promis
     nextRunAt: (input.status ?? 'enabled') === 'enabled' ? computeNextRun(input.cronExpression, input.timezone) : null,
     tenantId: getCreateTenantId(user),
   }).returning();
-  return loadScheduleWithNames(row.id);
+  return getWorkflowSchedule(row.id);
 }
 
 export async function updateSchedule(id: number, input: UpdateWorkflowScheduleInput): Promise<WorkflowSchedule> {
@@ -166,7 +160,7 @@ export async function updateSchedule(id: number, input: UpdateWorkflowScheduleIn
   // 重新计算 nextRunAt：启用时按（可能更新的）cron/时区计算，停用时清空
   patch.nextRunAt = nextStatus === 'enabled' ? computeNextRun(nextCron, nextTz) : null;
   const [row] = await db.update(workflowSchedules).set(patch).where(eq(workflowSchedules.id, id)).returning();
-  return loadScheduleWithNames(row.id);
+  return getWorkflowSchedule(row.id);
 }
 
 export async function deleteSchedule(id: number): Promise<void> {
@@ -180,7 +174,7 @@ export async function runScheduleNow(id: number): Promise<WorkflowSchedule> {
   const [s] = await db.select().from(workflowSchedules).where(findSchedule(id)).limit(1);
   requireRow(s, '定时规则不存在');
   await fireSchedule(s);
-  return loadScheduleWithNames(id);
+  return getWorkflowSchedule(id);
 }
 
 /** 单条定时规则执行：以 initiator 身份发起实例，并回写运行状态 */
