@@ -342,7 +342,7 @@ export const NOTIFICATION_EVENTS = defineNotificationEvents({
   },
   'ops.error.alert': {
     group: 'ops',
-    label: '前端错误监控告警',
+    label: '错误监控告警（前端错误 / 服务端异常）',
     severity: 'critical',
     defaultChannels: ['inapp'],
     availableChannels: ['inapp', 'email', 'webhook', 'push'],

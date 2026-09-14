@@ -1,4 +1,4 @@
-import { and, eq, gte, lt, desc, isNull, or } from 'drizzle-orm';
+import { and, eq, gte, lt, desc, isNull, ne, or } from 'drizzle-orm';
 import { listRows } from '../../lib/list-query';
 import { requireFirstRow } from '../../lib/db-assert';
 import { db } from '../../db';
@@ -36,9 +36,10 @@ export function mapRule(row: ErrorAlertRuleRow) {
 }
 
 export type AlertRuleListQuery = PaginationQuery;
+/** 前端错误页只管理浏览器端规则（source 为空或 web_*）；服务端规则归异常日志页 */
 export async function listAlertRules(q: AlertRuleListQuery) {
   const { page, pageSize } = q;
-  const where = tenantScope(errorAlertRules);
+  const where = buildWhere(or(isNull(errorAlertRules.source), ne(errorAlertRules.source, 'server')), tenantScope(errorAlertRules));
   return listRows({
     page: page,
     pageSize: pageSize,

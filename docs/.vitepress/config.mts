@@ -397,6 +397,7 @@ export default withMermaid(defineConfig({
           { text: '主机与中间件', link: '/ops/host-infra' },
           { text: '数据库、缓存与保留策略', link: '/ops/data-platform' },
           { text: '监控与告警', link: '/ops/observability' },
+          { text: '异常日志（服务端异常）', link: '/backend/error-tracking' },
           { text: '应用版本与在线升级', link: '/ops/app-releases' },
           { text: '接口与页面速查', link: '/ops/reference' },
           { text: '定时任务', link: '/backend/cron-jobs' },

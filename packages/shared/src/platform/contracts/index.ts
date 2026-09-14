@@ -3,6 +3,7 @@ export * from './cache';
 export * from './cron-jobs';
 export * from './data-mask';
 export * from './dicts';
+export * from './exception-logs';
 export * from './file-storage-configs';
 export * from './files';
 export * from './health';

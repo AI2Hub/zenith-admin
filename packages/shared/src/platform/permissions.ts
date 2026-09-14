@@ -29,6 +29,8 @@ export const PLATFORM_PERMISSIONS = definePermissions({
   'system:monitor:view': { label: '查询', menu: 'SystemMonitor' },
   'system:log:operation': { label: '查询', menu: 'SystemOperationLogs' },
   'system:trace:view': { label: '查询', menu: 'SystemTrace' },
+  'system:exception-log:list': { label: '查询', menu: 'SystemExceptionLogs' },
+  'system:exception-log:manage': { label: '处理 / 删除 / 告警规则', menu: 'SystemExceptionLogs' },
   'system:ip-access:view': { label: '查询', menu: 'SystemIpAccess' },
   'system:ip-access:update': { label: '保存配置', menu: 'SystemIpAccess' },
   'system:ip-access:log': { label: '查看拦截日志', menu: 'SystemIpAccess' },

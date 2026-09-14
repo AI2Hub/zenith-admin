@@ -301,7 +301,7 @@ export const RETENTION_POLICIES: readonly RetentionPolicyDefinition[] = [
   },
   {
     key: 'error_events',
-    title: '前端错误事件',
+    title: '错误事件（前端 / 服务端异常）',
     module: '数据分析',
     tableName: 'error_events',
     timeColumn: 'created_at',
@@ -311,7 +311,7 @@ export const RETENTION_POLICIES: readonly RetentionPolicyDefinition[] = [
       const { purgeOrphanErrorGroups } = await import('../../services/analytics/analytics-rollup.service');
       await purgeOrphanErrorGroups();
     },
-    description: '前端 JS 异常上报明细；各租户可单独指定错误保留天数。清理后同步回收无引用的错误分组。',
+    description: '前端错误上报与服务端异常（异常日志）的事件明细，含堆栈与请求快照；各租户可单独指定前端错误保留天数，服务端异常归平台按全局天数清理。清理后同步回收无引用的错误分组。',
   },
   {
     key: 'replay_sessions',

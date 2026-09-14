@@ -501,7 +501,7 @@ server 启动时加载全部路由 / 服务模块图，任何模块顶层静态 
 - **Webhook 收件人只能是 `external`**（它是地址不是人）；配置开关翻译为 `channelPolicy`，
   渠道参数（短信模板 / 邮件主题）放 `channelOptions`，禁止业务侧自行分发渠道
 
-### 进程级错误兜底
+### 进程级错误兜底与异常采集
 
 - **fire-and-forget 必须自带 catch**：`void promise.catch((err) => logger.error(...))`；
   **禁止**裸悬空 Promise——unhandledRejection 会触发进程级 fatal 兜底并 exit(1)
@@ -512,6 +512,13 @@ server 启动时加载全部路由 / 服务模块图，任何模块顶层静态 
 - **进程入口导入顺序固定**：`src/index.ts` 第一条 import 为 `./lib/fatal-handlers`（自装上述兜底），第二条为
   `import '@hono/zod-openapi'`（shared schema 须在原型补丁后构造）；`src/test-setup.ts` 首条 import 同为
   `@hono/zod-openapi`（`index.import-order.test.ts` 锁定）；新增进程入口同样如此
+- **服务端异常进异常日志由采集器统一完成**（`lib/error-tracking`，见 [docs/backend/error-tracking.md](../../../../docs/backend/error-tracking.md)）：
+  全局 `onError`（≥500）、任务中心 runner、pg-boss 调度、三条事件总线、崩溃哨兵补投已接入，
+  `catch (err) { logger.error('[x] …', err) }` 会被 `logger.error / fatal` 兜底网自动记为 `logged_error`——
+  业务代码**不要**为了"进异常日志"再写一份上报；只有需要结构化上下文（外部系统、作业 id、显式分组）时才显式
+  `captureException(err, { kind, message, job, extra, fingerprint })`。预期内的业务失败一律抛 `HTTPException(4xx)`（不会被记录），
+  **禁止**用 `logger.error` 记录预期内失败（会制造无价值 Issue）；**禁止**自建异常表 / 自行写 `error_events`，
+  新增失败路径（新的总线 / 执行器）在 catch 处调用 `captureException` 并带 `kind`
 
 ### CMS 前台脚本（islands）
 

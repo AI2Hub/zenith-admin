@@ -5,6 +5,7 @@ import {
   cacheContract,
   dataMaskContract,
   dictContract,
+  exceptionLogContract,
   healthContract,
   ipAccessLogContract,
   monitorAlertContract,
@@ -27,6 +28,7 @@ import { defineRouteDomain } from '../_kit';
 import cacheRoutes from './cache';
 import dataMaskRoutes from './data-mask';
 import dictsRoutes from './dicts';
+import exceptionLogsRoutes from './exception-logs';
 import healthRoutes from './health';
 import ipAccessLogsRoutes from './ip-access-logs';
 import monitorAlertsRoutes from './monitor-alerts';
@@ -69,6 +71,7 @@ export default defineRouteDomain({
     [ruleScorecardContract.basePath, rulesScorecardsRoutes, { feature: 'rules' }],
     [tagContract.basePath, tagsRoutes],
     [traceContract.basePath, traceRoutes],
+    [exceptionLogContract.basePath, exceptionLogsRoutes],
     [rateLimitContract.basePath, rateLimitRoutes],
     ['/api/ws', createWsRoute(upgradeWebSocket)],
     [healthContract.basePath, healthRoutes],
