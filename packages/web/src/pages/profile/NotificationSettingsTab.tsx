@@ -7,7 +7,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Banner, Button, Collapse, Form, Select, Spin, Switch, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
-import { Lock, Volume2 } from 'lucide-react';
+import { BellRing, Lock, Volume2 } from 'lucide-react';
 import { enumValueOf } from '@zenith/shared/core';
 import {
   NOTIFICATION_CHANNEL_LABELS,
@@ -26,6 +26,12 @@ import {
 } from '@/hooks/queries/notification-preferences';
 import { usePreferences } from '@/hooks/usePreferences';
 import { NOTIFICATION_SOUND_STYLES, NOTIFICATION_SOUND_STYLE_OPTIONS, playNotificationSound } from '@/utils/notification-sound';
+import {
+  desktopNotificationPermission,
+  requestDesktopNotificationPermission,
+  showDesktopNotification,
+  type DesktopNotificationPermission,
+} from '@/utils/desktop-notification';
 import { DEFAULT_TIMEZONE } from '@/utils/timezones';
 import { NOTIFICATION_SEVERITY_TAG_COLOR } from '../system/notify-policies/notify-tag-colors';
 
@@ -41,6 +47,49 @@ const DIGEST_HOUR_OPTIONS = Array.from({ length: 24 }, (_, hour) => ({
   value: hour,
   label: `${String(hour).padStart(2, '0')}:00`,
 }));
+
+/** 桌面通知开关：开启时申请浏览器授权，被拒绝 / 不支持时回退关闭并说明原因；已授权时可发一条测试通知 */
+function DesktopNotificationControls({ enabled, onChange }: Readonly<{ enabled: boolean; onChange: (enabled: boolean) => void }>) {
+  const [permission, setPermission] = useState<DesktopNotificationPermission>(desktopNotificationPermission);
+  const [requesting, setRequesting] = useState(false);
+
+  const handleToggle = async (checked: boolean) => {
+    if (!checked) {
+      onChange(false);
+      return;
+    }
+    setRequesting(true);
+    const result = await requestDesktopNotificationPermission();
+    setRequesting(false);
+    setPermission(result);
+    if (result === 'granted') {
+      onChange(true);
+      return;
+    }
+    Toast.warning(result === 'unsupported' ? '当前浏览器不支持桌面通知' : '浏览器已拒绝通知权限，请在地址栏站点设置中允许通知后再开启');
+  };
+
+  const handleTest = () => {
+    const shown = showDesktopNotification({ title: '测试通知', body: '桌面通知已生效，站内信与公告会以此形式提醒你', tag: 'desktop-notification-test' });
+    if (!shown) Toast.warning('未能弹出通知，请检查浏览器与系统的通知权限');
+  };
+
+  const blocked = permission === 'denied' || permission === 'unsupported';
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+      <Switch checked={enabled && permission === 'granted'} loading={requesting} onChange={(v) => void handleToggle(v)} aria-label="桌面通知" />
+      <Text>桌面通知</Text>
+      {blocked && (
+        <Text type="tertiary" size="small">
+          {permission === 'unsupported' ? '当前浏览器不支持' : '浏览器已拒绝授权，需在站点设置中允许通知'}
+        </Text>
+      )}
+      {enabled && permission === 'granted' && (
+        <Button theme="light" icon={<BellRing size={14} />} onClick={handleTest}>发送测试通知</Button>
+      )}
+    </div>
+  );
+}
 
 function EventRow({ event }: Readonly<{ event: NotificationMatrixEvent }>) {
   const saveMutation = useSaveNotificationPreferences();
@@ -208,6 +257,15 @@ export default function NotificationSettingsTab() {
           试听
         </Button>
       </div>
+
+      <div className="section-title" style={{ marginTop: 32 }}>桌面通知</div>
+      <Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 8 }}>
+        浏览器页签不在前台时，站内信与公告到达改为弹出系统通知，点击即回到本页；需浏览器授权，聊天消息的桌面通知在聊天页单独设置。
+      </Text>
+      <DesktopNotificationControls
+        enabled={preferences.desktopNotification}
+        onChange={(enabled) => setPreferences({ desktopNotification: enabled })}
+      />
 
       <div className="section-title" style={{ marginTop: 32 }}>订阅偏好</div>
       <Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 8 }}>

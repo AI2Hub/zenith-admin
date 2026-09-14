@@ -317,6 +317,7 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
     recentInAppMessageRef,
     userTenantId: user.tenantId,
     viewingTenantId,
+    navigate,
   });
 
   // 空闲时预热拼音词典（菜单/标签/命令面板搜索用），不占首屏关键路径

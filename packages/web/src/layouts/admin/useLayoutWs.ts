@@ -1,11 +1,13 @@
 import { useCallback, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
 import { Notification } from '@douyinfe/semi-ui';
+import type { NavigateFunction } from 'react-router-dom';
 import type { InAppMessage } from '@zenith/shared/messaging';
 import type { WsMessage } from '@zenith/shared/platform';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { useOptionalPreferences } from '@/hooks/usePreferences';
 import { reloadTrackerConfig } from '@/utils/tracker';
 import { playNotificationSound } from '@/utils/notification-sound';
+import { showDesktopNotification } from '@/utils/desktop-notification';
 import { updateMessageReadIfUnread, markAllMessagesRead, removeMessageById } from './utils';
 
 // ─── WebSocket ──────────────────────────────────────────────────────────────
@@ -19,6 +21,7 @@ export function useLayoutWs({
   recentInAppMessageRef,
   userTenantId,
   viewingTenantId,
+  navigate,
 }: {
   onLogout: () => void;
   clearLockPassword: () => void;
@@ -29,11 +32,23 @@ export function useLayoutWs({
   recentInAppMessageRef: MutableRefObject<Map<string, number>>;
   userTenantId: number | null | undefined;
   viewingTenantId: number | null;
+  navigate: NavigateFunction;
 }) {
-  // 提示音偏好：useWebSocket 以 ref 持有 handler，偏好变化只更新闭包，不会重连
+  // 提示音 / 桌面通知偏好：useWebSocket 以 ref 持有 handler，偏好变化只更新闭包，不会重连
   const prefs = useOptionalPreferences();
   const soundEnabled = prefs?.preferences.notificationSound ?? false;
   const soundStyle = prefs?.preferences.notificationSoundStyle;
+  const desktopEnabled = prefs?.preferences.desktopNotification ?? false;
+
+  // 页签隐藏时站内 Toast 看不到，改弹系统通知；可见时维持站内 Toast
+  const notifyArrival = useCallback((title: string, body: string, tag: string, path: string) => {
+    if (soundEnabled) playNotificationSound(soundStyle);
+    if (desktopEnabled && document.hidden) {
+      const shown = showDesktopNotification({ title, body, tag, onClick: () => navigate(path) });
+      if (shown) return;
+    }
+    Notification.info({ title, content: body, duration: 5, position: 'topRight' });
+  }, [soundEnabled, soundStyle, desktopEnabled, navigate]);
 
   const handleWsMessage = useCallback((msg: WsMessage) => {
     if (msg.type === 'in-app-message:new') {
@@ -55,13 +70,7 @@ export function useLayoutWs({
       // 重新拉一次以获取带有实际 id 的记录
       fetchInAppMessages();
 
-      if (soundEnabled) playNotificationSound(soundStyle);
-      Notification.info({
-        title: '新消息',
-        content: msg.payload.title,
-        duration: 5,
-        position: 'topRight',
-      });
+      notifyArrival('新消息', msg.payload.title, 'in-app-message', '/inbox');
     } else if (msg.type === 'in-app-message:read') {
       setInAppMessages(updateMessageReadIfUnread(msg.payload.id));
       setUnreadCount((c) => Math.max(0, c - 1));
@@ -83,13 +92,7 @@ export function useLayoutWs({
     ) {
       globalThis.dispatchEvent(new CustomEvent('announcement:refresh', { detail: msg }));
       if (msg.type === 'announcement:new') {
-        if (soundEnabled) playNotificationSound(soundStyle);
-        Notification.info({
-          title: '新公告',
-          content: msg.payload.title,
-          duration: 5,
-          position: 'topRight',
-        });
+        notifyArrival('新公告', msg.payload.title, 'announcement', '/announcements');
       }
     } else if (msg.type === 'chat:message') {
       // 只在当前不在 /chat 页面时增加未读
@@ -110,7 +113,7 @@ export function useLayoutWs({
       const effectiveTenantId = viewingTenantId !== null ? viewingTenantId : userTenantId;
       if (msg.payload.tenantId === effectiveTenantId) reloadTrackerConfig();
     }
-  }, [onLogout, fetchInAppMessages, clearLockPassword, userTenantId, viewingTenantId, setInAppMessages, setUnreadCount, setChatUnreadCount, recentInAppMessageRef, soundEnabled, soundStyle]);
+  }, [onLogout, fetchInAppMessages, clearLockPassword, userTenantId, viewingTenantId, setInAppMessages, setUnreadCount, setChatUnreadCount, recentInAppMessageRef, notifyArrival]);
 
   const { disconnect: disconnectWs } = useWebSocket(handleWsMessage);
 

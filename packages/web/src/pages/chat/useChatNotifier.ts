@@ -5,6 +5,7 @@ import { useWebSocket } from '@/hooks/useWebSocket';
 import { useOptionalPreferences } from '@/hooks/usePreferences';
 import { useConversations } from '@/hooks/queries/chat';
 import { playNotificationSound } from '@/utils/notification-sound';
+import { showDesktopNotification } from '@/utils/desktop-notification';
 import { getChatNotifyPrefs } from '@/pages/chat/notifyPrefs';
 import { getMessageSummary } from '@/pages/chat/utils';
 
@@ -43,19 +44,14 @@ export function useChatNotifier(currentUserId: number | null) {
     const prefs = getChatNotifyPrefs();
     if (prefs.sound) playNotificationSound(soundStyle);
 
-    if (prefs.desktop && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-      try {
-        const notification = new Notification(msg.senderName ?? '新消息', {
-          body: getMessageSummary(msg),
-          tag: `chat-${msg.conversationId}`,
-          icon: isAbsoluteUrl(msg.senderAvatar) ? msg.senderAvatar : undefined,
-        });
-        notification.onclick = () => {
-          globalThis.focus();
-          navigate(`/chat?conv=${msg.conversationId}`);
-          notification.close();
-        };
-      } catch { /* ignore */ }
+    if (prefs.desktop) {
+      showDesktopNotification({
+        title: msg.senderName ?? '新消息',
+        body: getMessageSummary(msg),
+        tag: `chat-${msg.conversationId}`,
+        icon: isAbsoluteUrl(msg.senderAvatar) ? msg.senderAvatar : undefined,
+        onClick: () => navigate(`/chat?conv=${msg.conversationId}`),
+      });
     }
   }, [currentUserId, navigate, soundStyle]);
 
