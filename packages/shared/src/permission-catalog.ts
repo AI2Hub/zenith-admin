@@ -1,32 +1,52 @@
 /**
- * 接口权限目录：由契约 `access` 派生的只读视图，前后端共用同一份推导——
- * 前端权限矩阵页直接在浏览器内计算目录与命中结果，服务端只补充「角色 / 用户各自持有哪些权限码」。
+ * 接口目录：由契约派生的只读视图，前后端共用同一份推导——
+ * 前端接口目录 / 权限矩阵页直接在浏览器内计算目录与命中结果，服务端只补充「角色 / 用户各自持有哪些权限码」。
  *
  * 没有任何新表：接口需要什么权限 = 契约声明；谁拥有什么权限 = 角色 / 用户 / 用户组绑定的按钮菜单。
  */
-import { accessPermissions, accessPlatformOnly, type AnyOperation, type OperationAccess } from './core/contract';
+import { accessPermissions, accessPlatformOnly, type AnyOperation, type OperationAccess, type SecurityScheme } from './core/contract';
 import type { Permission } from './core/permissions';
 import { CONTRACTS_BY_DOMAIN, listAllOperations, type ContractDomain } from './contracts';
 
 /** 访问要求的形态，供目录筛选 / 展示 */
 export type AccessKind = 'permission' | 'authenticated' | 'platform';
 
-export interface PermissionCatalogEntry {
+/** 认证方式展示名 */
+export const SECURITY_SCHEME_LABELS: Record<SecurityScheme, string> = {
+  bearer: '登录令牌',
+  none: '公开',
+  'member-bearer': '会员令牌',
+  'device-signature': '设备签名',
+  'open-gateway': '开放网关',
+};
+
+/** 目录里的一个接口：全部凭证类型都收录；只有后台登录令牌操作带 `access` */
+export interface ApiCatalogEntry {
   readonly domain: ContractDomain;
   readonly basePath: string;
   readonly name: string;
   readonly method: AnyOperation['method'];
   readonly fullPath: string;
   readonly summary: string;
+  readonly description: string | null;
   readonly tags: readonly string[];
   readonly deprecated: boolean;
-  readonly access: OperationAccess;
-  readonly accessKind: AccessKind;
-  /** 任一即可的权限码；`authenticated` / 仅平台超管 → 空 */
+  readonly security: SecurityScheme;
+  /** 后台登录令牌操作必有；其它凭证为 null */
+  readonly access: OperationAccess | null;
+  readonly accessKind: AccessKind | null;
+  /** 任一即可的权限码；`authenticated` / 仅平台超管 / 非 bearer → 空 */
   readonly permissions: readonly Permission[];
   readonly platformOnly: false | true | 'multi-tenant';
   readonly audit: string | null;
   readonly feature: string | null;
+}
+
+/** 权限目录条目：仅后台登录令牌操作，`access` 必有 */
+export interface PermissionCatalogEntry extends ApiCatalogEntry {
+  readonly security: 'bearer';
+  readonly access: OperationAccess;
+  readonly accessKind: AccessKind;
 }
 
 export function accessKindOf(access: OperationAccess): AccessKind {
@@ -34,11 +54,11 @@ export function accessKindOf(access: OperationAccess): AccessKind {
   return access.permission === undefined ? 'platform' : 'permission';
 }
 
-/** 全部后台登录令牌操作（公开 / 会员 / 设备 / 开放网关操作不在权限矩阵范围内），按域 → 契约组 → 声明顺序 */
-export function listPermissionCatalog(): PermissionCatalogEntry[] {
-  const entries: PermissionCatalogEntry[] = [];
+/** 全部契约操作（含公开 / 会员 / 设备 / 开放网关），按域 → 契约组 → 声明顺序 */
+export function listApiCatalog(): ApiCatalogEntry[] {
+  const entries: ApiCatalogEntry[] = [];
   for (const { domain, contract, op } of listAllOperations()) {
-    if (op.security !== 'bearer' || op.access === undefined) continue;
+    const access = op.security === 'bearer' ? (op.access ?? null) : null;
     entries.push({
       domain,
       basePath: contract.basePath,
@@ -46,17 +66,28 @@ export function listPermissionCatalog(): PermissionCatalogEntry[] {
       method: op.method,
       fullPath: op.fullPath,
       summary: op.summary,
+      description: op.description ?? null,
       tags: op.tags,
       deprecated: op.deprecated,
-      access: op.access,
-      accessKind: accessKindOf(op.access),
-      permissions: accessPermissions(op.access),
-      platformOnly: accessPlatformOnly(op.access),
+      security: op.security,
+      access,
+      accessKind: access ? accessKindOf(access) : null,
+      permissions: access ? accessPermissions(access) : [],
+      platformOnly: access ? accessPlatformOnly(access) : false,
       audit: op.audit?.description ?? null,
       feature: op.feature ?? null,
     });
   }
   return entries;
+}
+
+function isPermissionCatalogEntry(entry: ApiCatalogEntry): entry is PermissionCatalogEntry {
+  return entry.security === 'bearer' && entry.access !== null;
+}
+
+/** 全部后台登录令牌操作（公开 / 会员 / 设备 / 开放网关操作不在权限矩阵范围内） */
+export function listPermissionCatalog(catalog: readonly ApiCatalogEntry[] = listApiCatalog()): PermissionCatalogEntry[] {
+  return catalog.filter(isPermissionCatalogEntry);
 }
 
 /** 权限矩阵里的「主体」：一个角色或一个用户生效的权限集合 */

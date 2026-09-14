@@ -1,6 +1,33 @@
 import { describe, expect, it } from 'vitest';
 import { ALL_PERMISSIONS } from './permissions';
-import { judgeOperation, listPermissionCatalog, operationsByPermission } from './permission-catalog';
+import { CONTRACT_DOMAIN_LABELS, CONTRACTS_BY_DOMAIN } from './contracts';
+import { judgeOperation, listApiCatalog, listPermissionCatalog, operationsByPermission, SECURITY_SCHEME_LABELS } from './permission-catalog';
+
+describe('接口目录（契约派生）', () => {
+  const api = listApiCatalog();
+
+  it('收录全部凭证类型的操作，非 bearer 操作不带访问要求', () => {
+    expect(api.length).toBeGreaterThan(listPermissionCatalog(api).length);
+    const schemes = new Set(api.map((entry) => entry.security));
+    expect([...schemes].sort()).toEqual(['bearer', 'device-signature', 'member-bearer', 'none', 'open-gateway']);
+    for (const entry of api) {
+      if (entry.security !== 'bearer') {
+        expect(entry.access).toBeNull();
+        expect(entry.accessKind).toBeNull();
+        expect(entry.permissions).toEqual([]);
+      }
+      expect(SECURITY_SCHEME_LABELS[entry.security]).toBeTruthy();
+    }
+    const login = api.find((entry) => entry.fullPath === '/api/auth/login' && entry.method === 'post');
+    expect(login).toMatchObject({ domain: 'identity', security: 'none', access: null });
+  });
+
+  it('每个契约域都有展示名', () => {
+    for (const domain of Object.keys(CONTRACTS_BY_DOMAIN)) {
+      expect(CONTRACT_DOMAIN_LABELS[domain as keyof typeof CONTRACT_DOMAIN_LABELS], domain).toBeTruthy();
+    }
+  });
+});
 
 describe('接口权限目录（契约 access 派生）', () => {
   const catalog = listPermissionCatalog();

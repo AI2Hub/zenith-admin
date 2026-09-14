@@ -73,6 +73,34 @@ export const CONTRACTS_BY_DOMAIN = {
 
 export type ContractDomain = keyof typeof CONTRACTS_BY_DOMAIN;
 
+/** 域的展示名（接口目录 / 权限矩阵筛选与列展示） */
+export const CONTRACT_DOMAIN_LABELS: Record<ContractDomain, string> = {
+  identity: '身份与组织',
+  platform: '平台基础',
+  ops: '运维',
+  messaging: '消息通知',
+  tasks: '任务中心',
+  licensing: 'License',
+  settings: '系统设置',
+  workflow: '工作流',
+  chat: '即时通讯',
+  rules: '规则引擎',
+  analytics: '行为分析',
+  report: '报表',
+  payment: '支付',
+  member: '会员',
+  biz: '业务示例',
+  mp: '公众号',
+  cms: 'CMS',
+  wiki: '知识库',
+  drive: '企业网盘',
+  'open-platform': '开放平台',
+  ai: 'AI',
+  iot: 'IoT',
+  marketing: '营销',
+  'short-link': '短链',
+};
+
 export const ALL_CONTRACTS: readonly AnyContract[] = Object.values(CONTRACTS_BY_DOMAIN).flat();
 
 export interface CatalogOperation {
