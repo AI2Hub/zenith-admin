@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import type { ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useDebouncer } from '@tanstack/react-pacer';
 import { PREFERENCES_KEY } from '@zenith/shared/core';
 import { authContract } from '@zenith/shared/identity';
@@ -55,6 +56,17 @@ export function PreferencesProvider({ children }: Readonly<{ children: ReactNode
   });
   const [ready, setReady] = useState(false);
   const prefsRef = useRef(prefs);
+  const queryClient = useQueryClient();
+
+  // 切回窗口 / 页签时是否重取过期数据：改 QueryClient 默认项，对后续挂载的 query 生效；
+  // 显式声明了 refetchOnWindowFocus 的 query（如登录态）不受影响
+  useEffect(() => {
+    const current = queryClient.getDefaultOptions();
+    queryClient.setDefaultOptions({
+      ...current,
+      queries: { ...current.queries, refetchOnWindowFocus: prefs.refetchOnFocus },
+    });
+  }, [queryClient, prefs.refetchOnFocus]);
 
   const applyLocalPreferences = useCallback((next: UserPreferences, persist = true) => {
     prefsRef.current = next;

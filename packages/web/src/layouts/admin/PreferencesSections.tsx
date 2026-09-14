@@ -665,6 +665,19 @@ export function PrefsGeneralSection({
       </div>
       )}
 
+      {/* ── 聚焦时自动刷新 ── */}
+      {matchesPref(['自动刷新', '聚焦', '切回', '窗口', '页签', '重新获取', '过期数据', 'refetch']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          切回窗口时自动刷新数据
+          <Tooltip content="从其他窗口或页签切回时，自动重新获取已过期的列表与详情数据；网络较差时可关闭" position="right">
+            <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+          </Tooltip>
+        </span>
+        <Switch checked={preferences.refetchOnFocus ?? false} onChange={(v) => setPreferences({ refetchOnFocus: v })} />
+      </div>
+      )}
+
       {/* ── 页面加载进度条 ── */}
       {matchesPref(['进度条', '加载进度', '页面加载', '顶部进度', 'NProgress']) && (
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
