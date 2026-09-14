@@ -16,7 +16,7 @@ import {
 import { CreateButton } from '@/components/toolbar-controls';
 import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { ListSearchToolbar, useCrudOperationColumn } from '@/components/list-page';
-import { EMPTY_PLACEHOLDER, dateTimeColumn } from '@/utils/table-columns';
+import { EMPTY_PLACEHOLDER, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { useListPage } from '@/hooks/useListPage';
 
 type StatusFilter = WorkflowFormStatus | undefined;
@@ -106,8 +106,8 @@ export default function WorkflowFormsPage() {
     {
       title: '标识',
       dataIndex: 'code',
-      width: 160,
-      render: (value: string | null) => value || EMPTY_PLACEHOLDER,
+      width: 220,
+      render: renderEllipsis,
     },
     {
       title: '分类',
