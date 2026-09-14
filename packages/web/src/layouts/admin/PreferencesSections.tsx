@@ -1041,7 +1041,7 @@ export function PrefsTabsSection({
         >
           {(['none', 'fade', 'slide', 'scale'] as const).map((anim) => {
             const labels: Record<string, string> = { none: '无', fade: '淡入', slide: '滑入', scale: '缩放' };
-            const radio = <Radio value={anim}>{labels[anim]}</Radio>;
+            const radio = <Radio key={anim} value={anim}>{labels[anim]}</Radio>;
             if (anim === 'none') return radio;
             return (
               <Popover
