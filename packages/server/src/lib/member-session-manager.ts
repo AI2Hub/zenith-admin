@@ -86,6 +86,11 @@ export async function forceLogoutAllByMember(memberId: number): Promise<string[]
   return store.forceLogoutByOwner(memberId);
 }
 
+/** 启动时把索引外的会员会话补挂到会员索引，返回处理数 */
+export async function rebuildMemberSessionIndex(): Promise<number> {
+  return store.rebuildOwnerIndex();
+}
+
 /** 正常登出：吊销 access token、撤销 refresh 授权并删除会话 */
 export async function removeMemberSession(tokenId: string): Promise<void> {
   await store.remove(tokenId);

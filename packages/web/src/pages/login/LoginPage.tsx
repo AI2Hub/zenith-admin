@@ -1,14 +1,14 @@
-import { lazy, Suspense, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Button, Checkbox, Divider, PinCode, Spin, Toast, Typography } from '@douyinfe/semi-ui';
-import { User, Lock, Mail, AtSign, Building2, ShieldCheck, BriefcaseBusiness, Check, ChevronRight } from 'lucide-react';
+import { User, Lock, Mail, AtSign, Building2, ShieldCheck, ShieldAlert, BriefcaseBusiness, Check, ChevronRight } from 'lucide-react';
 import dayjs from 'dayjs';
 import { MAX_STORED_ACCOUNTS, REFRESH_TOKEN_KEY, TOKEN_KEY } from '@zenith/shared/core';
 import { OAUTH_PROVIDER_LABELS, enterpriseAuthContract, oauthContract } from '@zenith/shared/identity';
 import type { RegisterInput, OAuthProviderType, LoginResult, LoginResponse, MfaLoginChallenge, TenantIdentityProviderSummary } from '@zenith/shared/identity';
 import { api } from '@/lib/contract-query';
 import { ApiError } from '@/lib/query';
-import { AUTH_INVALIDATED_REASON_KEY } from '@/utils/http-client';
+import { takeAuthInvalidatedReason, type AuthInvalidatedReason } from '@/utils/http-client';
 import { config } from '@/config';
 import { markPostLoginHome } from '@/lib/post-login';
 import { readMfaHandoff } from '@/lib/mfa-handoff';
@@ -98,18 +98,6 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
     return () => clearInterval(timer);
   }, [retrySeconds]);
 
-  // 被动下线（过期/他端注销/管理员强退）落地登录页时说明原因，避免被当成系统故障
-  useEffect(() => {
-    try {
-      const reason = sessionStorage.getItem(AUTH_INVALIDATED_REASON_KEY);
-      if (reason) {
-        sessionStorage.removeItem(AUTH_INVALIDATED_REASON_KEY);
-        Toast.warning({ content: reason, duration: 6 });
-      }
-    } catch {
-      // sessionStorage 不可用时跳过
-    }
-  }, []);
   const isDemoMode = import.meta.env.VITE_DEMO_MODE === 'true';
 
   const captchaQuery = usePublicCaptcha();
@@ -140,6 +128,24 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
   );
   const loginForm = useLoginForm<LoginFormValues>(loginInitial, loginRules);
   const registerForm = useLoginForm<RegisterFormValues>(EMPTY_REGISTER, REGISTER_RULES);
+
+  // 被动下线（过期/他端注销/管理员强退/被挤下线）落地登录页时说明原因，避免被当成系统故障：
+  // 带机读原因的（被挤下线 / 改密 / 强退）用常驻横幅并预填账号，其余保留轻提示。sessionStorage 标记读一次即清，用 ref 防重入
+  const [invalidated, setInvalidated] = useState<AuthInvalidatedReason | null>(null);
+  const invalidatedTakenRef = useRef(false);
+  const setLoginValue = loginForm.setValue;
+  useEffect(() => {
+    if (invalidatedTakenRef.current) return;
+    invalidatedTakenRef.current = true;
+    const detail = takeAuthInvalidatedReason();
+    if (!detail) return;
+    if (detail.reason && detail.reason !== 'rotated' && detail.reason !== 'logout') {
+      setInvalidated(detail);
+      if (detail.username && !prefillUsername) setLoginValue('username', detail.username);
+    } else {
+      Toast.warning({ content: detail.message, duration: 6 });
+    }
+  }, [setLoginValue, prefillUsername]);
 
   const [debouncedTenantCode] = useDebouncedValue(loginForm.values.tenantCode, { wait: 250 });
   const enterpriseProvidersQuery = useEnterpriseProviders(debouncedTenantCode);
@@ -590,6 +596,22 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
               <Divider align="center">
                 <span className="login-oauth-label">或使用其他账号登录</span>
               </Divider>
+            </div>
+          )}
+          {/* 被挤下线 / 改密 / 强退：常驻横幅说明原因，如非本人操作可直接找回密码 */}
+          {invalidated && !mfaChallenge && (
+            <div className={`login-alert${invalidated.reason === 'concurrent-login' ? ' login-alert-danger' : ''}`} role="alert">
+              <ShieldAlert size={18} className="login-alert-icon" aria-hidden />
+              <div className="login-alert-body">
+                <div className="login-alert-title">
+                  {invalidated.reason === 'concurrent-login' ? '已在其他设备登录' : invalidated.reason === 'password-changed' ? '密码已修改' : '会话已被强制下线'}
+                </div>
+                <div className="login-alert-text">{invalidated.message}</div>
+                {invalidated.reason === 'concurrent-login' && forgotPasswordEnabled && (
+                  <button type="button" className="login-alert-link" onClick={openForgotPassword}>不是我本人操作，找回密码</button>
+                )}
+              </div>
+              <button type="button" className="login-alert-close" aria-label="关闭提示" onClick={() => setInvalidated(null)}>×</button>
             </div>
           )}
           {mfaChallenge ? (

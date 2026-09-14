@@ -1,7 +1,7 @@
 import * as z from 'zod';
 import { idParam, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
-import { SESSION_CLIENT_KINDS } from '../constants';
+import { SESSION_CLIENT_KIND_OPTIONS, SESSION_CLIENT_KINDS } from '../constants';
 import { tokenIdParam } from './auth';
 
 // ─── 实体 ────────────────────────────────────────────────────────────────────
@@ -27,7 +27,7 @@ export type OnlineSession = z.infer<typeof onlineSessionSchema>;
 
 export const sessionListQuery = paginationQuery.extend({
   keyword: keywordQuery('用户名 / 昵称 / IP '),
-  client: queryEnum(SESSION_CLIENT_KINDS, '登录终端'),
+  client: queryEnum(SESSION_CLIENT_KINDS, { description: '登录终端；空 = 全部', options: SESSION_CLIENT_KIND_OPTIONS }),
 });
 
 export const sessionContract = defineContract('/api/sessions', {

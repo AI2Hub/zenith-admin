@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { createMiddleware } from 'hono/factory';
 import { jwt, type JwtVariables } from 'hono/jwt';
 import { getTokenRevocation, touchSession, registerSession } from '../lib/session-manager';
-import { checkSessionLiveness, clientFingerprint, SESSION_REVOKED_MESSAGES } from '../lib/session-liveness';
+import { checkSessionLiveness, clientFingerprint, sessionRevokedBody } from '../lib/session-liveness';
 import { db } from '../db';
 import { impersonationSessions, tenants, userApiTokens, users } from '../db/schema';
 import { and, eq, isNull, lt, or } from 'drizzle-orm';
@@ -322,7 +322,7 @@ export const authMiddleware = createMiddleware<AuthEnv>(async (c, next) => {
       const jti = payload.jti;
       const { revoked, touched } = await checkSessionLiveness(jti, { revocation: getTokenRevocation, touch: touchSession, logPrefix: '[Auth]' });
       if (revoked) {
-        return c.json(errBody(SESSION_REVOKED_MESSAGES[revoked], 401), 401);
+        return c.json(sessionRevokedBody(revoked), 401);
       }
       // Session missing (e.g. Redis restarted) — lazily re-register to keep online-users list accurate
       // (best-effort: any failure here must not block the request)

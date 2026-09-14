@@ -82,3 +82,17 @@ export function formatPasswordPolicyHint(policy: PasswordRules | null | undefine
   if (policy.requireSpecialChar) parts.push('包含特殊字符');
   return parts.join('、');
 }
+
+/**
+ * 会话并发策略的一句话说明：身份安全页保存前预览、「我的设备」向用户解释为何会被挤下线 / 新设备登不上。
+ * 前后端文案同源，禁止各自重写。
+ */
+export function formatSessionPolicyHint(policy: SessionConcurrencyPolicy): string {
+  if (policy.maxSessions <= 0) return '不限制同一账号的同时在线数量。';
+  const where = policy.scope === 'per-client' ? '每种终端（网页 / 移动审批 / 桌面端）各' : '';
+  const limit = policy.maxSessions === 1 ? '只能在一处登录' : `最多同时在 ${policy.maxSessions} 处登录`;
+  const action = policy.exceedAction === 'kick-oldest'
+    ? '新登录会挤掉最早登录的会话，被挤设备会收到提示'
+    : '超出后新登录会被拒绝，可在登录页选择下线其它设备后再登录';
+  return `同一账号${where}${limit}；${action}。模拟登录会话不计入。`;
+}

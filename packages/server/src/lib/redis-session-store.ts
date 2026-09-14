@@ -201,6 +201,23 @@ export function createRedisSessionStore<T extends BaseSessionInfo>(options: Redi
     return revokeSessions(sessions.filter((s) => s.tokenId !== options.except), options.reason ?? 'force-logout');
   }
 
+  /**
+   * 把全部在线会话补挂到主体索引（进程启动时执行一次）：索引之前登录的会话、从备份恢复的 Redis 数据
+   * 靠这里一次性收敛，不依赖会话再发请求；已在索引中的成员 SADD 幂等。返回处理的会话数。
+   */
+  async function rebuildOwnerIndex(): Promise<number> {
+    const sessions = await getAll();
+    if (sessions.length === 0) return 0;
+    const pipeline = redis.pipeline();
+    for (const s of sessions) {
+      const key = ownerKey(ownerIdOf(s));
+      pipeline.sadd(key, s.tokenId);
+      pipeline.expire(key, refreshTtlSeconds);
+    }
+    await pipeline.exec();
+    return sessions.length;
+  }
+
   /** 正常登出：与强制下线同样吊销 access token 与 refresh 授权（不再只删会话） */
   async function remove(tokenId: string, reason: SessionRevokeReason = 'logout'): Promise<void> {
     await revoke(tokenId, reason);
@@ -232,6 +249,6 @@ export function createRedisSessionStore<T extends BaseSessionInfo>(options: Redi
 
   return {
     register, grantRefresh, consumeRefreshGrant, touch, isBlacklisted, getRevocation, revoke, revokeSessions,
-    forceLogout, forceLogoutMatching, forceLogoutByOwner, listByOwner, remove, get, getAll, count,
+    forceLogout, forceLogoutMatching, forceLogoutByOwner, listByOwner, rebuildOwnerIndex, remove, get, getAll, count,
   };
 }

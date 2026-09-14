@@ -144,6 +144,7 @@ export const ErrorResponse = z.object({
   message: z.string(),
   data: z.null().optional().nullable(),
   requestId: z.string().optional().meta({ description: '服务端内部错误（500）时回传的请求 ID，可凭它在异常日志 / 日志查看器中定位' }),
+  reason: z.string().optional().meta({ description: '会话已吊销（401）时的原因：concurrent-login / password-changed / force-logout / logout / rotated，登录页据此给出精确提示' }),
 });
 
 /** 构造 application/json content */

@@ -122,6 +122,11 @@ export async function listUserSessions(userId: number): Promise<SessionInfo[]> {
   return store.listByOwner(userId);
 }
 
+/** 启动时把索引外的在线会话补挂到用户索引（升级前登录的会话 / 恢复的 Redis 数据），返回处理数 */
+export async function rebuildUserSessionIndex(): Promise<number> {
+  return store.rebuildOwnerIndex();
+}
+
 /** Get all online sessions */
 export async function getOnlineSessions(): Promise<SessionInfo[]> {
   return store.getAll();

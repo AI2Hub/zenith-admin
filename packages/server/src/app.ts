@@ -35,6 +35,7 @@ import { errBody, internalErrorBody } from './lib/openapi-schemas';
 import { captureRequestException } from './lib/error-tracking/reporter';
 import { CONTRACT_SECURITY_SCHEMES } from './lib/contract-route';
 import { OAuth2Error, oauth2ErrorBody } from './lib/oauth2-error';
+import { SessionRevokedException, sessionRevokedBody } from './lib/session-liveness';
 import { registerZenithMetrics } from './lib/prometheus-metrics';
 import { httpMetricsMiddleware } from './middleware/http-metrics';
 import { httpLoggerMiddleware } from './middleware/http-logger';
@@ -308,6 +309,8 @@ export function createApp() {
     }
     if (err instanceof HTTPException) {
       if (err.status >= 500) void captureRequestException(err, c, { status: err.status });
+      // 会话已吊销：文案之外附带机读原因，登录页据此展示「已在其他设备登录」等精确提示
+      if (err instanceof SessionRevokedException) return c.json(sessionRevokedBody(err.reason), 401);
       return c.json(errBody(err.message, err.status), err.status);
     }
     void captureRequestException(err, c, { status: 500 });

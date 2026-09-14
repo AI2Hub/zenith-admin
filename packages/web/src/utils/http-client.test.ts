@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { HttpClient } from './http-client';
+import { HttpClient, takeAuthInvalidatedReason } from './http-client';
 
 vi.mock('./request-toast', () => ({ showRequestErrorToast: vi.fn(), showRequestWarningToast: vi.fn() }));
 
@@ -136,5 +136,40 @@ describe.each(['request', 'fetchRaw'] as const)('HttpClient.%s headers', (method
     expect(outgoing.headers.get('content-type')).toMatch(/^multipart\/form-data; boundary=.+/);
     expect((await outgoing.formData()).get('description')).toBe('upload');
     expect(headers.get('content-type')).toBe(contentType ?? null);
+  });
+
+  it('sends the configured client kind on every request, including the refresh call', async () => {
+    localStorage.setItem('access-token', 'old-token');
+    localStorage.setItem('refresh-token', 'old-refresh');
+    fetchMock
+      .mockResolvedValueOnce(new Response(null, { status: 401 }))
+      .mockResolvedValueOnce(Response.json({ code: 0, data: { accessToken: 'new-token', refreshToken: 'new-refresh' } }));
+    const client = new HttpClient({
+      baseUrl: '', tokenKey: 'access-token', refreshTokenKey: 'refresh-token', refreshPath: '/refresh', loginUrl: () => '/login',
+      clientKind: () => 'desktop',
+    });
+
+    await client[method]('/resource');
+
+    expect(fetchMock.mock.calls.map(([, options]) => new Headers(options?.headers).get('x-zenith-client'))).toEqual(['desktop', 'desktop', 'desktop']);
+  });
+
+  it('keeps the first 401 revocation reason and the kicked username for the login page when refresh is rejected', async () => {
+    localStorage.setItem('access-token', `h.${btoa(JSON.stringify({ username: 'alice', jti: 'j1' })).replace(/=+$/, '')}.s`);
+    localStorage.setItem('refresh-token', 'old-refresh');
+    fetchMock
+      .mockResolvedValueOnce(Response.json({ code: 401, message: '您的账号已在其他设备登录，当前会话已退出', data: null, reason: 'concurrent-login' }, { status: 401 }))
+      .mockResolvedValueOnce(Response.json({ code: 401, message: '登录状态已失效，请重新登录', data: null }, { status: 401 }));
+    const onUnauthorized = vi.fn();
+    const client = new HttpClient({
+      baseUrl: '', tokenKey: 'access-token', refreshTokenKey: 'refresh-token', refreshPath: '/refresh', loginUrl: () => '/login', onUnauthorized,
+    });
+
+    // request 路径在认证失效后以 abortSubmit 中止调用链（抛出）；fetchRaw 返回 null
+    await client[method]('/resource', { silent: true }).catch(() => undefined);
+
+    expect(onUnauthorized).toHaveBeenCalledOnce();
+    expect(takeAuthInvalidatedReason()).toEqual({ reason: 'concurrent-login', message: '您的账号已在其他设备登录，当前会话已退出', username: 'alice' });
+    expect(takeAuthInvalidatedReason()).toBeNull();
   });
 });

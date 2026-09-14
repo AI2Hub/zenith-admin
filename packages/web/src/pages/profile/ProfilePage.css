@@ -141,6 +141,11 @@
   gap: 4px 10px;
 }
 
+.session-list-client {
+  flex: none;
+  color: var(--semi-color-text-2);
+}
+
 .session-list-meta {
   min-width: 0;
 }

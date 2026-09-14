@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
 import { Notification } from '@douyinfe/semi-ui';
 import type { NavigateFunction } from 'react-router-dom';
+import { TOKEN_KEY } from '@zenith/shared/core';
 import type { InAppMessage } from '@zenith/shared/messaging';
 import type { WsMessage } from '@zenith/shared/platform';
 import { subscribeWsStatus, useWebSocket } from '@/hooks/useWebSocket';
 import { useOptionalPreferences } from '@/hooks/usePreferences';
+import { usernameFromAccessToken, writeAuthInvalidatedReason } from '@/utils/http-client';
 import { reloadTrackerConfig } from '@/utils/tracker';
 import { playNotificationSound } from '@/utils/notification-sound';
 import { showDesktopNotification } from '@/utils/desktop-notification';
@@ -124,11 +126,18 @@ export function useLayoutWs({
         setChatUnreadCount((v) => v + 1);
       }
     } else if (msg.type === 'session:force-logout') {
+      const kicked = msg.payload.code === 'concurrent-login';
       Notification.warning({
-        title: '强制下线',
+        title: kicked ? '已在其他设备登录' : '强制下线',
         content: msg.payload.reason,
-        duration: 0,
+        duration: kicked ? 10 : 0,
         position: 'topRight',
+      });
+      // 落到登录页后仍能看到原因（常驻横幅 + 预填账号）：与 401 路径写同一份标记
+      writeAuthInvalidatedReason({
+        message: msg.payload.reason,
+        reason: msg.payload.code ?? 'force-logout',
+        username: usernameFromAccessToken(localStorage.getItem(TOKEN_KEY)),
       });
       // Auto-logout after a brief delay so the user can see the notification
       setTimeout(() => { clearLockPassword(); onLogout(); }, 2000);

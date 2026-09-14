@@ -6,10 +6,11 @@ import { users, loginLogs, tenants, operationLogs, passwordResetTokens, type Use
 import { reserveTenantSeats } from '../../lib/tenant-quota';
 import { signToken, verifyToken } from '../../lib/jwt';
 import {
-  generateTokenId, registerSession, removeSession, grantRefresh, consumeRefreshGrant, isTokenBlacklisted,
+  generateTokenId, registerSession, removeSession, grantRefresh, consumeRefreshGrant, getTokenRevocation,
   checkLoginLock, recordLoginFailure, clearLoginAttempts, forceLogout, forceLogoutAllByUser,
   forceLogoutAllByUserExcept, getSession, listUserSessions,
 } from '../../lib/session-manager';
+import { SessionRevokedException } from '../../lib/session-liveness';
 import type { JwtPayload } from '../../middleware/auth';
 import { formatDateTime, formatTimestamps } from '../../lib/datetime';
 import { parseUserAgent } from '../../lib/request-helpers';
@@ -473,7 +474,10 @@ export async function refreshAccessToken(token: string, clientInfo?: { ip: strin
     throw new HTTPException(401, { message: '无效的 refresh token' });
   }
   const previousTokenId = payload.jti;
-  if (await isTokenBlacklisted(previousTokenId) || !(await consumeRefreshGrant(previousTokenId))) {
+  // 被挤下线 / 改密 / 强退的 jti 带原因回 401（黑名单 2h 内），登录页据此给出精确提示；授权已被消费则按一般失效
+  const revoked = await getTokenRevocation(previousTokenId);
+  if (revoked) throw new SessionRevokedException(revoked);
+  if (!(await consumeRefreshGrant(previousTokenId))) {
     throw new HTTPException(401, { message: '登录状态已失效，请重新登录' });
   }
   // 授权已被消费：后续任何校验失败都必须让该会话彻底作废，避免半开状态

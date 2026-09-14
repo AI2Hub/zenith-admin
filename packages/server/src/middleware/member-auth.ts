@@ -8,7 +8,7 @@ import { createMiddleware } from 'hono/factory';
 import { jwt, type JwtVariables } from 'hono/jwt';
 import { and, eq, isNull } from 'drizzle-orm';
 import { getMemberTokenRevocation, touchMemberSession, registerMemberSession } from '../lib/member-session-manager';
-import { checkSessionLiveness, clientFingerprint, SESSION_REVOKED_MESSAGES } from '../lib/session-liveness';
+import { checkSessionLiveness, clientFingerprint, sessionRevokedBody } from '../lib/session-liveness';
 import { db } from '../db';
 import { members, tenants } from '../db/schema';
 import { config } from '../config';
@@ -146,7 +146,7 @@ export const memberAuthMiddleware = createMiddleware<MemberAuthEnv>(async (c, ne
       const jti = payload.jti;
       const { revoked, touched } = await checkSessionLiveness(jti, { revocation: getMemberTokenRevocation, touch: touchMemberSession, logPrefix: '[MemberAuth]' });
       if (revoked) {
-        return c.json(errBody(SESSION_REVOKED_MESSAGES[revoked], 401), 401);
+        return c.json(sessionRevokedBody(revoked), 401);
       }
       // 会话缺失（如 Redis 重启）——懒重注册保持在线列表准确（best-effort，失败不阻断请求）
       if (!touched) {

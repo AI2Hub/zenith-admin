@@ -1,0 +1,32 @@
+/* 身份安全 → 会话并发：单选 + 内联数字输入同一行；预览行对齐到控件列 */
+.session-policy-limit {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  min-height: 32px;
+}
+
+/* 非「最多 N 处」模式：数字输入保持挂载以保住表单值，但不占位（压过 Semi 的 [x-label-pos] 布局规则） */
+.session-policy-limit .session-policy-limit-hidden.semi-form-field {
+  display: none;
+}
+
+.session-policy-preview {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  max-width: 560px;
+  padding: 8px 12px;
+  border-radius: var(--semi-border-radius-medium);
+  background: var(--semi-color-fill-0);
+  color: var(--semi-color-text-1);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.session-policy-preview svg {
+  flex: none;
+  margin-top: 3px;
+  color: var(--semi-color-primary);
+}

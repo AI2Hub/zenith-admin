@@ -13,6 +13,8 @@ import { config } from '../config';
 import logger from '../lib/logger';
 import { startWsFanoutSubscriber, stopWsFanoutSubscriber } from '../lib/ws-fanout';
 import { startPresenceSync, stopPresenceSync } from '../lib/ws-manager';
+import { rebuildUserSessionIndex } from '../lib/session-manager';
+import { rebuildMemberSessionIndex } from '../lib/member-session-manager';
 import { startWorkerWatchdog, stopWorkerWatchdog } from '../lib/worker-watchdog';
 import { bootstrapRateLimitRules } from '../middleware/rate-limit';
 import { warmupOpenApiDoc } from './openapi-warmup';
@@ -64,6 +66,10 @@ export async function startApiRole(): Promise<ApiRoleHandle> {
   await startWsFanoutSubscriber();
   // 在线状态跨进程同步：立即广播本进程持有情况，并周期快照 / 淘汰失联节点镜像
   startPresenceSync();
+  // 会话主体索引补挂（一次 SCAN）：索引之前登录的会话 / 恢复的 Redis 数据也能参与并发限制与按用户强退；失败只告警
+  void Promise.all([rebuildUserSessionIndex(), rebuildMemberSessionIndex()])
+    .then(([users, members]) => { if (users + members > 0) logger.info(`[session] owner index rebuilt: ${users} admin / ${members} member sessions`); })
+    .catch((err) => logger.warn('[session] owner index rebuild failed', err));
   // 纯 api 进程每分钟自查 worker 心跳：worker 全部下线时评估器已停，只有这里还能发出「worker 缺失」告警
   startWorkerWatchdog();
 

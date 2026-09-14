@@ -91,4 +91,6 @@ export const request = new Request({
   onUnauthorized: () => globalThis.dispatchEvent(new Event(ADMIN_AUTH_INVALIDATED_EVENT)),
   unauthorizedFallbackMessage: '密码错误',
   handleMaintenance: true,
+  // 同一份后台产物既跑浏览器也被 Electron 承载：按预加载桥接判定终端类型，供会话展示与按终端并发限制
+  clientKind: () => (globalThis.window?.electronAPI?.isElectron ? 'desktop' : 'web'),
 });

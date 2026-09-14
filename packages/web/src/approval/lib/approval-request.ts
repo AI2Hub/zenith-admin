@@ -34,4 +34,5 @@ export const approvalRequest = new ApprovalRequest({
   refreshPath: authContract.refresh.fullPath,
   loginUrl: approvalLoginUrl,
   logoutClearKeys: [TOKEN_KEY],
+  clientKind: 'mobile',
 });

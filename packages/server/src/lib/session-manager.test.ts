@@ -26,6 +26,7 @@ import {
   forceLogout,
   forceLogoutAllByUserExcept,
   listUserSessions,
+  rebuildUserSessionIndex,
   removeSession,
   grantRefresh,
   consumeRefreshGrant,
@@ -290,6 +291,18 @@ describe('按用户索引取会话', () => {
     expect(commandsNamed('set').every((c) => c[2] === 'password-changed')).toBe(true);
     expect(commandsNamed('srem').map((c) => c[2]).sort()).toEqual(['a', 'b']);
     expect(redisMock.pipeline).toHaveBeenCalledTimes(1);
+  });
+
+  it('rebuildUserSessionIndex：SCAN 全部在线会话，按 userId 补挂到各自索引并续期', async () => {
+    redisMock.scan.mockResolvedValueOnce(['0', ['zenith:session:x', 'zenith:session:y']]);
+    redisMock.mget.mockResolvedValueOnce([
+      JSON.stringify({ ...makeSessionInfo({ tokenId: 'x', userId: 1 }), lastActiveAt: new Date() }),
+      JSON.stringify({ ...makeSessionInfo({ tokenId: 'y', userId: 2 }), lastActiveAt: new Date() }),
+    ]);
+
+    expect(await rebuildUserSessionIndex()).toBe(2);
+    expect(commandsNamed('sadd').sort()).toEqual([['sadd', 'zenith:user-sessions:1', 'x'], ['sadd', 'zenith:user-sessions:2', 'y']]);
+    expect(commandsNamed('expire')).toHaveLength(2);
   });
 });
 

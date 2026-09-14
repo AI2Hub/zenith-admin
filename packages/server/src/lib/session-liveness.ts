@@ -1,6 +1,8 @@
 import type { Context } from 'hono';
+import { HTTPException } from 'hono/http-exception';
 import type { SessionClientKind, SessionRevokeReason } from '@zenith/shared/identity';
 import logger from './logger';
+import { errBody } from './openapi-schemas';
 import { getClientIp, getClientKind, parseUserAgent } from './request-helpers';
 
 export interface SessionLivenessDeps {
@@ -20,6 +22,18 @@ export const SESSION_REVOKED_MESSAGES: Record<SessionRevokeReason, string> = {
   logout: '已退出登录，请重新登录',
   rotated: '登录状态已失效，请重新登录',
 };
+
+/** 会话已吊销的 401 响应体：文案 + 机读原因（前端登录页据此展示精确提示，WS 断开时也不丢信息） */
+export function sessionRevokedBody(reason: SessionRevokeReason) {
+  return { ...errBody(SESSION_REVOKED_MESSAGES[reason], 401), reason };
+}
+
+/** 服务层抛出的「会话已吊销」：全局错误处理按 sessionRevokedBody 渲染，保留机读原因（如 refresh 续签遇到被挤下线的 jti） */
+export class SessionRevokedException extends HTTPException {
+  constructor(readonly reason: SessionRevokeReason) {
+    super(401, { message: SESSION_REVOKED_MESSAGES[reason] });
+  }
+}
 
 /**
  * 认证中间件共用的会话活性检查：吊销检查与会话续期相互独立，并行执行。

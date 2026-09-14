@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { Form, Button, Typography, Toast, Tag, Space, Spin, Avatar, Modal, Tabs, List as SemiList, Descriptions, Divider, PinCode } from '@douyinfe/semi-ui';
+import { Form, Button, Typography, Toast, Tag, Space, Spin, Avatar, Modal, Tabs, List as SemiList, Descriptions, Divider, PinCode, Banner } from '@douyinfe/semi-ui';
 import { UserRound, Shield, Monitor, List, Key, LogOut, Plus, Copy, CheckCircle, Smartphone, ShieldCheck, BellRing } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 
-import { OAUTH_PROVIDERS, OAUTH_PROVIDER_LABELS } from '@zenith/shared/identity';
+import { OAUTH_PROVIDERS, OAUTH_PROVIDER_LABELS, SESSION_CLIENT_KIND_LABELS } from '@zenith/shared/identity';
 import type { User as UserType, OAuthProviderType, UserSession, UserApiTokenCreated, MfaFactor, TotpSetupResult } from '@zenith/shared/identity';
 import { useAvatarCropUpload } from '@/hooks/useAvatarCropUpload';
 import { AppModal } from '@/components/AppModal';
@@ -11,9 +11,11 @@ import { AvatarCropperModal } from '@/components/AvatarCropperModal';
 import { PresetAvatarPickerModal } from '@/components/PresetAvatarPickerModal';
 import { UserAvatar } from '@/components/UserAvatar';
 import { OAuthProviderIcon } from '@/components/OAuthProviderIcon';
+import { SessionClientIcon } from '@/components/SessionClientTag';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
 import DateTimeText from '@/components/DateTimeText';
-import type { PasswordRules as PasswordPolicy } from '@zenith/shared/settings';
+import type { PasswordRules as PasswordPolicy, SessionConcurrencyPolicy } from '@zenith/shared/settings';
+import { formatSessionPolicyHint } from '@zenith/shared/settings';
 import { useMySettings } from '@/hooks/queries/settings';
 import { PasswordStrengthMeter } from '@/components/PasswordStrengthMeter';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -65,6 +67,20 @@ interface ProfilePageProps {
   readonly user: Omit<UserType, 'password'>;
 }
 
+/** 会话并发策略生效时向用户说明：为什么会被挤下线 / 为什么新设备登不上 */
+function SessionPolicyHint({ policy }: { readonly policy: SessionConcurrencyPolicy | undefined }) {
+  if (!policy || policy.maxSessions <= 0) return null;
+  return (
+    <Banner
+      type="info"
+      closeIcon={null}
+      fullMode={false}
+      style={{ marginBottom: 12 }}
+      description={`当前策略：${formatSessionPolicyHint(policy)}`}
+    />
+  );
+}
+
 function SessionList({
   sessions,
   loading,
@@ -87,7 +103,9 @@ function SessionList({
           className="session-list-item"
           main={(
             <div className="session-list-main">
+              <SessionClientIcon client={session.client} size={16} className="session-list-client" />
               <Text strong>{session.browser}</Text>
+              <Text type="tertiary" size="small">{SESSION_CLIENT_KIND_LABELS[session.client] ?? session.client}</Text>
               {session.isCurrent && <Tag color="blue" size="small">当前设备</Tag>}
               <Text type="tertiary" size="small" className="session-list-meta">
                 {session.os} · {session.location ? `${session.location}（${session.ip}）` : `IP: ${session.ip}`}
@@ -663,6 +681,7 @@ export default function ProfilePage({ user }: ProfilePageProps) {
                       退出其他设备
                     </Button>
                   </div>
+                  <SessionPolicyHint policy={mySettingsQuery.data?.identitySecurity.session} />
                   <SessionList sessions={sessions} loading={sessionsLoading} onKick={handleKickSession} />
               </div>
             </Tabs.TabPane>

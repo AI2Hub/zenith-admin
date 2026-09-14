@@ -452,6 +452,84 @@
   color: var(--semi-color-primary);
 }
 
+/* ===== 被动下线原因横幅（被挤下线 / 改密 / 强退）===== */
+.login-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 10px 12px;
+  border-radius: var(--semi-border-radius-medium);
+  background: color-mix(in srgb, var(--semi-color-warning) 8%, var(--semi-color-bg-2));
+  border: 1px solid color-mix(in srgb, var(--semi-color-warning) 30%, transparent);
+  color: var(--semi-color-text-0);
+  text-align: left;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.login-alert-danger {
+  background: color-mix(in srgb, var(--semi-color-danger) 7%, var(--semi-color-bg-2));
+  border-color: color-mix(in srgb, var(--semi-color-danger) 30%, transparent);
+}
+
+.login-alert-icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--semi-color-warning);
+}
+
+.login-alert-danger .login-alert-icon {
+  color: var(--semi-color-danger);
+}
+
+.login-alert-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.login-alert-title {
+  font-weight: 600;
+}
+
+.login-alert-text {
+  color: var(--semi-color-text-1);
+  overflow-wrap: anywhere;
+}
+
+.login-alert-link {
+  padding: 0;
+  margin-top: 2px;
+  border: 0;
+  background: none;
+  color: var(--semi-color-primary);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.login-alert-link:hover {
+  text-decoration: underline;
+}
+
+.login-alert-close {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin: -2px -4px 0 0;
+  border: 0;
+  border-radius: var(--semi-border-radius-small);
+  background: none;
+  color: var(--semi-color-text-2);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.login-alert-close:hover {
+  background: var(--semi-color-fill-0);
+  color: var(--semi-color-text-0);
+}
+
 /* ===== 暗色模式 ===== */
 body[theme-mode='dark'] .login-page {
   background: linear-gradient(180deg, #101622 0%, #0e1420 60%, #0c111c 100%);

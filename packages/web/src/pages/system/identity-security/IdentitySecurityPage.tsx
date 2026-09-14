@@ -17,6 +17,8 @@ import { RefreshButton } from '@/components/toolbar-controls';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import { useListPage } from '@/hooks/useListPage';
+import { SessionPolicyFields } from './SessionPolicyFields';
+import './IdentitySecurityPage.css';
 const { TabPane } = Tabs;
 
 // 默认值以 shared schema 为唯一真相（通用设置页与服务端同源）
@@ -108,6 +110,9 @@ export default function IdentitySecurityPage() {
               <div className="section-title" style={{ marginTop: 24 }}>账号锁定</div>
               <Form.InputNumber field="lockout.maxAttempts" label="失败次数阈值" min={1} max={100} />
               <Form.InputNumber field="lockout.durationMinutes" label="锁定时长（分钟）" min={1} max={1440} />
+
+              <div className="section-title" style={{ marginTop: 24 }}>会话并发</div>
+              <SessionPolicyFields />
 
               <div className="section-title" style={{ marginTop: 24 }}>MFA 策略</div>
               <Form.Switch field="mfa.enabled" label="启用 MFA" />

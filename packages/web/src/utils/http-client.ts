@@ -1,4 +1,5 @@
 import type { ApiResponse } from '@zenith/shared/core';
+import { SESSION_CLIENT_HEADER, type SessionClientKind, type SessionRevokeReason } from '@zenith/shared/identity';
 import { showRequestErrorToast, showRequestWarningToast } from './request-toast';
 import { abortSubmit } from '@/lib/abort-submit';
 
@@ -7,6 +8,52 @@ export type ApiResponseWithMeta<T> = ApiResponse<T> & { retryAfterSeconds?: numb
 
 /** 会话被动失效的原因标记（sessionStorage）：登录页读取后提示并清除 */
 export const AUTH_INVALIDATED_REASON_KEY = 'zenith_auth_invalidated_reason';
+
+/** 会话被动失效的结构化原因：登录页据 `reason` 决定展示方式（被挤下线 → 常驻横幅；其它 → 提示），`username` 用于预填 */
+export interface AuthInvalidatedReason {
+  message: string;
+  /** 服务端 401 响应体回传的吊销原因；WS 被挤下线也写入 concurrent-login */
+  reason?: SessionRevokeReason;
+  /** 失效前登录的账号（从本地 access token 解出），登录页预填用户名 */
+  username?: string;
+}
+
+const GENERIC_INVALIDATED_MESSAGE = '登录状态已失效：会话已过期，或已在其他设备被注销/被管理员下线，请重新登录';
+
+export function writeAuthInvalidatedReason(detail: AuthInvalidatedReason): void {
+  try {
+    sessionStorage.setItem(AUTH_INVALIDATED_REASON_KEY, JSON.stringify(detail));
+  } catch {
+    // sessionStorage 不可用时跳过提示
+  }
+}
+
+/** 读取并清除失效原因；兼容历史的纯文本值 */
+export function takeAuthInvalidatedReason(): AuthInvalidatedReason | null {
+  try {
+    const raw = sessionStorage.getItem(AUTH_INVALIDATED_REASON_KEY);
+    if (!raw) return null;
+    sessionStorage.removeItem(AUTH_INVALIDATED_REASON_KEY);
+    if (!raw.startsWith('{')) return { message: raw };
+    const parsed = JSON.parse(raw) as Partial<AuthInvalidatedReason>;
+    return { message: parsed.message || GENERIC_INVALIDATED_MESSAGE, reason: parsed.reason, username: parsed.username };
+  } catch {
+    return null;
+  }
+}
+
+/** 从 JWT 载荷解出用户名（不校验签名，仅用于登录页预填）；解析失败返回 undefined */
+export function usernameFromAccessToken(token: string | null): string | undefined {
+  if (!token) return undefined;
+  try {
+    const b64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const bytes = Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0));
+    const username = (JSON.parse(new TextDecoder().decode(bytes)) as { username?: unknown }).username;
+    return typeof username === 'string' && username ? username : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 export interface HttpRequestOptions {
   /** 静默模式：为 true 时不自动弹出错误提示，由调用方自行处理 */
@@ -40,6 +87,8 @@ export interface HttpClientConfig {
   unauthorizedFallbackMessage?: string;
   /** 是否处理 503 维护模式（派发 maintenance:enabled 事件，仅 admin 端启用） */
   handleMaintenance?: boolean;
+  /** 本端的登录终端类型（网页 / 移动审批 / 桌面端），随每个请求以 X-Zenith-Client 上报；服务端据此展示会话终端并按终端分别计算并发 */
+  clientKind?: SessionClientKind | (() => SessionClientKind);
 }
 
 /**
@@ -59,6 +108,7 @@ export class HttpClient {
   private readonly logoutClearKeys: string[];
   private readonly unauthorizedFallbackMessage: string;
   private readonly handleMaintenance: boolean;
+  private readonly clientKind?: SessionClientKind | (() => SessionClientKind);
   private refreshing: Promise<RefreshOutcome> | null = null;
 
   constructor(config: HttpClientConfig) {
@@ -71,6 +121,7 @@ export class HttpClient {
     this.logoutClearKeys = config.logoutClearKeys ?? [config.tokenKey, config.refreshTokenKey];
     this.unauthorizedFallbackMessage = config.unauthorizedFallbackMessage ?? '未授权';
     this.handleMaintenance = config.handleMaintenance ?? false;
+    this.clientKind = config.clientKind;
   }
 
   protected getHeaders(body?: BodyInit | null, overrides?: HeadersInit): Headers {
@@ -84,6 +135,8 @@ export class HttpClient {
     // 每次发送（含刷新重试）读取所属账户的最新令牌，业务头不能切换认证身份。
     headers.delete('authorization');
     for (const [name, value] of Object.entries(this.authHeaders())) headers.set(name, value);
+    const client = typeof this.clientKind === 'function' ? this.clientKind() : this.clientKind;
+    if (client) headers.set(SESSION_CLIENT_HEADER, client);
     return headers;
   }
 
@@ -91,6 +144,20 @@ export class HttpClient {
   authHeaders(): Record<string, string> {
     const token = localStorage.getItem(this.tokenKey);
     return token ? { Authorization: `Bearer ${token}` } : {};
+  }
+
+  /** 最近一次 refresh 失效时服务端回传的原因（如 jti 被挤下线），供 clearAuthAndRedirect 兜底 */
+  private lastInvalidation: AuthInvalidatedReason | null = null;
+
+  /** 读取 401 响应体里的吊销原因（不消费原响应）；解析失败返回 null */
+  protected async readInvalidation(res: Response): Promise<AuthInvalidatedReason | null> {
+    try {
+      const body = await res.clone().json() as { message?: unknown; reason?: unknown };
+      if (typeof body.reason !== 'string') return null;
+      return { reason: body.reason as SessionRevokeReason, message: typeof body.message === 'string' && body.message ? body.message : GENERIC_INVALIDATED_MESSAGE };
+    } catch {
+      return null;
+    }
   }
 
   protected async tryRefreshToken(): Promise<RefreshOutcome> {
@@ -101,13 +168,17 @@ export class HttpClient {
       if (!refreshToken) return 'invalid';
 
       try {
+        const client = typeof this.clientKind === 'function' ? this.clientKind() : this.clientKind;
         const res = await fetch(`${this.baseUrl}${this.refreshPath}`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...(client ? { [SESSION_CLIENT_HEADER]: client } : {}) },
           body: JSON.stringify({ refreshToken }),
         });
         // 仅 401/403 表示 refresh token 确认失效；429 限流、5xx 等瞬时故障不得清凭证登出
-        if (res.status === 401 || res.status === 403) return 'invalid';
+        if (res.status === 401 || res.status === 403) {
+          this.lastInvalidation = await this.readInvalidation(res);
+          return 'invalid';
+        }
         if (!res.ok) return 'transient';
         const data = await res.json();
         if (data.code === 0 && data.data?.accessToken) {
@@ -129,18 +200,19 @@ export class HttpClient {
     return this.refreshing;
   }
 
-  /** 清除本地凭证，并通知宿主或跳转登录页 */
-  protected clearAuthAndRedirect(): void {
+  /**
+   * 清除本地凭证，并通知宿主或跳转登录页。
+   * 被动失效（token 过期 / 在其他设备被注销 / 被管理员强退）与用户主动退出不同：留下原因标记，登录页展示提示，
+   * 避免用户误以为系统故障；服务端回传了吊销原因（被挤下线 / 改密）时按原文案 + 机读原因写入，并带上失效账号供预填。
+   */
+  protected clearAuthAndRedirect(detail?: AuthInvalidatedReason | null): void {
+    const username = usernameFromAccessToken(localStorage.getItem(this.tokenKey));
     for (const key of this.logoutClearKeys) {
       localStorage.removeItem(key);
     }
-    // 被动失效（token 过期 / 在其他设备被注销 / 被管理员强退）与用户主动退出不同：
-    // 留下原因标记，登录页展示提示，避免用户误以为系统故障
-    try {
-      sessionStorage.setItem(AUTH_INVALIDATED_REASON_KEY, '登录状态已失效：会话已过期，或已在其他设备被注销/被管理员下线，请重新登录');
-    } catch {
-      // sessionStorage 不可用时跳过提示
-    }
+    const resolved = detail ?? this.lastInvalidation ?? { message: GENERIC_INVALIDATED_MESSAGE };
+    this.lastInvalidation = null;
+    writeAuthInvalidatedReason({ ...resolved, username });
     if (this.onUnauthorized) {
       this.onUnauthorized();
       return;
@@ -174,13 +246,15 @@ export class HttpClient {
     }
     if (res.status !== 401) return res;
 
+    // 先记下首个 401 的吊销原因（被挤下线 / 改密），refresh 确认失效后按它提示——比 refresh 自身的失效文案更具体
+    const invalidation = await this.readInvalidation(res);
     const outcome = await this.tryRefreshToken();
     if (outcome === 'transient') {
       if (!silent) showRequestErrorToast('登录状态刷新暂时不可用，请稍后重试');
       return null;
     }
     if (outcome === 'invalid') {
-      this.clearAuthAndRedirect();
+      this.clearAuthAndRedirect(invalidation);
       return null;
     }
     try {
@@ -191,7 +265,7 @@ export class HttpClient {
       return null;
     }
     if (res.status === 401) {
-      this.clearAuthAndRedirect();
+      this.clearAuthAndRedirect(await this.readInvalidation(res));
       return null;
     }
     return res;
@@ -220,7 +294,8 @@ export class HttpClient {
           return { code: 401, message: this.unauthorizedFallbackMessage, data: null as unknown as T };
         }
       }
-      // Try refresh token before giving up
+      // Try refresh token before giving up（先记下首个 401 的吊销原因，refresh 确认失效后按它提示）
+      const invalidation = await this.readInvalidation(res);
       const outcome = await this.tryRefreshToken();
       if (outcome === 'refreshed') {
         // Retry original request with new token
@@ -230,11 +305,11 @@ export class HttpClient {
           return this.fail<T>(silent, '网络请求失败，请检查网络连接');
         }
         if (res.status === 401) {
-          this.clearAuthAndRedirect();
+          this.clearAuthAndRedirect(await this.readInvalidation(res));
           abortSubmit('Unauthorized');
         }
       } else if (outcome === 'invalid') {
-        this.clearAuthAndRedirect();
+        this.clearAuthAndRedirect(invalidation);
         abortSubmit('Unauthorized');
       } else {
         // 瞬时故障（限流/维护/网络抖动）：保留凭证，本次请求按失败返回，用户稍后重试即可

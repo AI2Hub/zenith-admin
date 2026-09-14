@@ -714,11 +714,12 @@ describe('refreshAccessToken - 授权消费与轮换', () => {
     expect(dbMock.select).not.toHaveBeenCalled();
   });
 
-  it('jti 已拉黑（强制下线）→ 401', async () => {
+  it('jti 已拉黑（被挤下线）→ 401，且响应带机读原因与精确文案', async () => {
     const token = await makeToken({ type: 'refresh', jti: 'revoked-jti' });
     const sm = await import('../../lib/session-manager');
-    vi.mocked(sm.isTokenBlacklisted).mockResolvedValueOnce(true);
-    await expect(refreshAccessToken(token)).rejects.toMatchObject({ status: 401, message: '登录状态已失效，请重新登录' });
+    vi.mocked(sm.getTokenRevocation).mockResolvedValueOnce('concurrent-login');
+    await expect(refreshAccessToken(token)).rejects.toMatchObject({ status: 401, reason: 'concurrent-login', message: '您的账号已在其他设备登录，当前会话已退出' });
+    expect(vi.mocked(sm.consumeRefreshGrant)).not.toHaveBeenCalled();
   });
 
   it('缺少 jti 的 refresh token → 401', async () => {
