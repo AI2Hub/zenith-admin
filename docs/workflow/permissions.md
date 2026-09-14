@@ -48,6 +48,7 @@
 | --- | --- | --- |
 | `GET /api/workflows/categories/all` | `workflow:definition:list` / `workflow:instance:create` / `workflow:task:handle` | 发起工作台分组、待办筛选读取全部分类 |
 | `GET /api/workflows/definitions/published` | `workflow:instance:create` | 发起工作台与发起深链读取「已发布定义」（按发起范围过滤），整页发起 `/workflow/launch/:id` 同源取数，不调用管理端定义详情接口 |
+| `GET /api/workflows/instances/workbench-summary` | `workflow:task:handle` / `workflow:instance:list` / `workflow:instance:create` | 发起工作台顶部「我的审批概览」七项计数；每项再按其对应列表的权限门控（待我审批 / 超时 / 协办 → `task:handle`，抄送未读 / 审批中 → `instance:list`，退回 / 草稿 → `instance:create`），缺权限返回 `null`、前端不渲染该卡片 |
 
 ### 文件上传
 

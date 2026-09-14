@@ -280,6 +280,24 @@ export const workflowExtraHandlers = [
     const total = mockWorkflowInstances.filter((i) => i.status !== 'draft').length;
     return ok({ count: Math.max(0, total - ccReadState.size) });
   }),
+  // ── 发起工作台概览：与上面各口径同源（Demo 用户 id=1，全部权限）──
+  mock(workflowInstanceContract.workbenchSummary, ({ ok }) => {
+    const myPendingTasks = mockWorkflowTasks.filter((t) => {
+      if (t.assigneeId !== 1 || t.status !== 'pending') return false;
+      return mockWorkflowInstances.find((i) => i.id === t.instanceId)?.status === 'running';
+    });
+    const mine = (status: WorkflowInstance['status']) => mockWorkflowInstances.filter((i) => i.initiatorId === 1 && i.status === status).length;
+    return ok({
+      pending: myPendingTasks.length,
+      // 待办列表 Demo SLA 按 4 档轮换，第一档即「已超时」
+      pendingOverdue: Math.ceil(myPendingTasks.length / 4),
+      consultsPending: mockConsults.filter((c) => c.consulteeId === 1 && c.status === 'pending').length,
+      ccUnread: Math.max(0, mockWorkflowInstances.filter((i) => i.status !== 'draft').length - ccReadState.size),
+      myReturned: mine('returned'),
+      myDrafts: mine('draft'),
+      myRunning: mine('running'),
+    });
+  }),
   mock(workflowInstanceContract.ccRead, ({ params, ok }) => {
     ccReadState.add(params.ccTaskId);
     return ok(null, '已标记已读');
