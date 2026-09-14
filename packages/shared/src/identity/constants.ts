@@ -35,7 +35,7 @@ export const USER_GROUP_MEMBER_MODES = ['static', 'dynamic'] as const;
 
 export type UserGroupMemberMode = (typeof USER_GROUP_MEMBER_MODES)[number];
 
-export const LOGIN_EVENT_TYPES = ['login', 'logout', 'impersonate', 'impersonate_end'] as const;
+export const LOGIN_EVENT_TYPES = ['login', 'logout', 'impersonate', 'impersonate_end', 'kicked'] as const;
 
 export type LoginEventType = (typeof LOGIN_EVENT_TYPES)[number];
 
@@ -44,7 +44,51 @@ export const LOGIN_EVENT_TYPE_LABELS: Record<LoginEventType, string> = {
   logout: '退出登录',
   impersonate: '模拟登录',
   impersonate_end: '结束模拟',
+  kicked: '被挤下线',
 };
+
+// ─── 登录会话（并发限制 / 终端类型）────────────────────────────────────────────
+/** 登录终端类型：web 浏览器后台 / mobile 移动审批 / desktop 桌面端（Electron） */
+export const SESSION_CLIENT_KINDS = ['web', 'mobile', 'desktop'] as const;
+
+export type SessionClientKind = (typeof SESSION_CLIENT_KINDS)[number];
+
+export const SESSION_CLIENT_KIND_LABELS: Record<SessionClientKind, string> = {
+  web: '网页',
+  mobile: '移动审批',
+  desktop: '桌面端',
+};
+
+export const SESSION_CLIENT_KIND_OPTIONS: Array<{ value: SessionClientKind; label: string }> =
+  createLabelOptions(SESSION_CLIENT_KINDS, SESSION_CLIENT_KIND_LABELS);
+
+/** 请求头：前端各入口自报终端类型，服务端只接受 SESSION_CLIENT_KINDS 内的值，其余按 web */
+export const SESSION_CLIENT_HEADER = 'x-zenith-client';
+
+/** 并发统计范围：global 全部终端合计 / per-client 按终端类型分别计算 */
+export const SESSION_CONCURRENCY_SCOPES = ['global', 'per-client'] as const;
+
+export type SessionConcurrencyScope = (typeof SESSION_CONCURRENCY_SCOPES)[number];
+
+export const SESSION_CONCURRENCY_SCOPE_LABELS: Record<SessionConcurrencyScope, string> = {
+  global: '全部终端合计',
+  'per-client': '按终端类型分别计算',
+};
+
+/** 超限处理：kick-oldest 新登录挤掉最早的会话 / reject-new 拒绝新登录（登录页可选择下线其它设备） */
+export const SESSION_EXCEED_ACTIONS = ['kick-oldest', 'reject-new'] as const;
+
+export type SessionExceedAction = (typeof SESSION_EXCEED_ACTIONS)[number];
+
+export const SESSION_EXCEED_ACTION_LABELS: Record<SessionExceedAction, string> = {
+  'kick-oldest': '挤掉最早登录的会话',
+  'reject-new': '拒绝新登录',
+};
+
+/** 会话被吊销的原因：写入黑名单值，认证中间件据此返回精确的 401 文案 */
+export const SESSION_REVOKE_REASONS = ['logout', 'force-logout', 'concurrent-login', 'rotated', 'password-changed'] as const;
+
+export type SessionRevokeReason = (typeof SESSION_REVOKE_REASONS)[number];
 
 // ─── 模拟登录（管理员以用户身份操作）────────────────────────────────────────
 /** 模拟会话结束原因：manual 操作者主动结束 / expired 到期 / forced 被管理员强制结束 */

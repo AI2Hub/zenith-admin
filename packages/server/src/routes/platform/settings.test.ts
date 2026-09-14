@@ -37,6 +37,7 @@ vi.mock('../../db', () => {
 
 vi.mock('../../lib/session-manager', () => ({
   isTokenBlacklisted: vi.fn().mockResolvedValue(false),
+  getTokenRevocation: vi.fn().mockResolvedValue(null),
   touchSession: vi.fn().mockResolvedValue(true),
   registerSession: vi.fn(),
 }));

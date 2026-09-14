@@ -2,7 +2,7 @@ import * as z from 'zod';
 import { dateRangeQuery, idParam, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { operationLogSchema } from '../../platform/contracts/operation-logs';
-import { LOGIN_EVENT_TYPES, LOGIN_STATUSES, MFA_FACTOR_STATUSES, MFA_FACTOR_TYPES, MFA_METHODS } from '../constants';
+import { LOGIN_EVENT_TYPES, LOGIN_STATUSES, MFA_FACTOR_STATUSES, MFA_FACTOR_TYPES, MFA_METHODS, SESSION_CLIENT_KINDS } from '../constants';
 import {
   changePasswordSchema,
   forgotPasswordSchema,
@@ -86,6 +86,7 @@ export type SwitchTenantResult = z.infer<typeof switchTenantResultSchema>;
 /** 当前用户自己的登录会话 */
 export const userSessionSchema = z.object({
   tokenId: z.string().meta({ example: 'abcdef123456' }),
+  client: z.enum(SESSION_CLIENT_KINDS).meta({ description: '登录终端：web 网页 / mobile 移动审批 / desktop 桌面端' }),
   ip: z.string().meta({ example: '127.0.0.1' }),
   location: z.string().nullable().meta({ example: '广东省 深圳市' }),
   browser: z.string().meta({ example: 'Chrome 120.0' }),

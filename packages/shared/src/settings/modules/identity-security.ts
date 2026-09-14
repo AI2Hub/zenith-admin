@@ -1,8 +1,8 @@
 import * as z from 'zod';
-import { LOGIN_RISK_NEW_DEVICE_ACTIONS, MFA_MODES } from '../../identity/constants';
+import { LOGIN_RISK_NEW_DEVICE_ACTIONS, MFA_MODES, SESSION_CONCURRENCY_SCOPES, SESSION_EXCEED_ACTIONS } from '../../identity/constants';
 import { defineSettingsModule } from '../module-def';
 
-/** 身份安全策略：密码规则、登录锁定、MFA、登录风险 */
+/** 身份安全策略：密码规则、登录锁定、会话并发、MFA、登录风险 */
 export const identitySecuritySettingsSchema = z.object({
   password: z.object({
     minLength: z.int().min(6).max(64).default(6).meta({ title: '密码最小长度' }),
@@ -15,6 +15,11 @@ export const identitySecuritySettingsSchema = z.object({
     maxAttempts: z.int().min(1).max(100).default(10).meta({ title: '登录失败最大次数', description: '超出后锁定账号' }),
     durationMinutes: z.int().min(1).max(1440).default(30).meta({ title: '锁定时长（分钟）' }),
   }).prefault({}).meta({ title: '登录锁定' }),
+  session: z.object({
+    maxSessions: z.int().min(0).max(20).default(0).meta({ title: '同时在线上限', description: '0 不限制；1 = 同一账号只能在一处登录；模拟登录会话不计入' }),
+    scope: z.enum(SESSION_CONCURRENCY_SCOPES).default('global').meta({ title: '统计范围', description: 'global 全部终端合计 / per-client 网页、移动审批、桌面端各算一份' }),
+    exceedAction: z.enum(SESSION_EXCEED_ACTIONS).default('kick-oldest').meta({ title: '超限处理', description: 'kick-oldest 新登录挤掉最早的会话 / reject-new 拒绝新登录，登录页可选择下线其它设备' }),
+  }).prefault({}).meta({ title: '会话并发' }),
   mfa: z.object({
     enabled: z.boolean().default(false).meta({ title: '启用 MFA' }),
     mode: z.enum(MFA_MODES).default('off').meta({ title: 'MFA 模式', description: 'off 关闭 / optional 用户自选 / required 强制' }),
@@ -34,6 +39,7 @@ export const identitySecuritySettingsSchema = z.object({
 
 export type IdentitySecuritySettings = z.output<typeof identitySecuritySettingsSchema>;
 export type PasswordPolicy = IdentitySecuritySettings['password'];
+export type SessionConcurrencyPolicy = IdentitySecuritySettings['session'];
 /** 校验明文密码只需要的三条规则（过期策略与之无关），供只持有部分字段的调用方复用 */
 export type PasswordRules = Pick<PasswordPolicy, 'minLength' | 'requireUppercase' | 'requireSpecialChar'>;
 
@@ -44,8 +50,9 @@ export const identitySecuritySettingsModule = defineSettingsModule({
   scope: 'tenant',
   readPermission: 'system:identity-security:manage',
   writePermission: 'system:identity-security:manage',
-  // 密码规则在注册 / 找回密码页匿名可见；模拟登录参数供发起弹窗（登录用户）读取上限与模式开关
-  visibility: { password: 'public', impersonation: 'authenticated' },
+  // 密码规则在注册 / 找回密码页匿名可见；模拟登录参数供发起弹窗（登录用户）读取上限与模式开关；
+  // 会话并发策略供「我的设备」向用户说明为何会被挤下线
+  visibility: { password: 'public', impersonation: 'authenticated', session: 'authenticated' },
   page: '/system/identity-security',
   sort: 20,
 });

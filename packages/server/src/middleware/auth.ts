@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
 import { createMiddleware } from 'hono/factory';
 import { jwt, type JwtVariables } from 'hono/jwt';
-import { isTokenBlacklisted, touchSession, registerSession } from '../lib/session-manager';
-import { checkSessionLiveness, clientFingerprint } from '../lib/session-liveness';
+import { getTokenRevocation, touchSession, registerSession } from '../lib/session-manager';
+import { checkSessionLiveness, clientFingerprint, SESSION_REVOKED_MESSAGES } from '../lib/session-liveness';
 import { db } from '../db';
 import { impersonationSessions, tenants, userApiTokens, users } from '../db/schema';
 import { and, eq, isNull, lt, or } from 'drizzle-orm';
@@ -316,13 +316,13 @@ export const authMiddleware = createMiddleware<AuthEnv>(async (c, next) => {
       if (denial) return c.json(errBody(denial, 403), 403);
     }
 
-    // Blacklist check + session touch are independent Redis ops — run in parallel
+    // Revocation check + session touch are independent Redis ops — run in parallel
     // (each best-effort: Redis errors log a warning and never block the request)
     if (payload.jti) {
       const jti = payload.jti;
-      const { blacklisted, touched } = await checkSessionLiveness(jti, { isBlacklisted: isTokenBlacklisted, touch: touchSession, logPrefix: '[Auth]' });
-      if (blacklisted) {
-        return c.json(errBody('会话已被强制下线', 401), 401);
+      const { revoked, touched } = await checkSessionLiveness(jti, { revocation: getTokenRevocation, touch: touchSession, logPrefix: '[Auth]' });
+      if (revoked) {
+        return c.json(errBody(SESSION_REVOKED_MESSAGES[revoked], 401), 401);
       }
       // Session missing (e.g. Redis restarted) — lazily re-register to keep online-users list accurate
       // (best-effort: any failure here must not block the request)

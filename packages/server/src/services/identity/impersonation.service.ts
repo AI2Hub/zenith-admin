@@ -9,7 +9,7 @@
 import { and, desc, eq, gt, isNotNull, isNull, lte, or } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import type { QueryOutputOf } from '@zenith/shared/core';
-import { impersonationContract, impersonationSessionSchema, type ImpersonationState, type StartImpersonationInput } from '@zenith/shared/identity';
+import { impersonationContract, impersonationSessionSchema, type ImpersonationState, type SessionClientKind, type StartImpersonationInput } from '@zenith/shared/identity';
 import { db } from '../../db';
 import { impersonationSessions, users, type ImpersonationSessionRow } from '../../db/schema';
 import { currentUser } from '../../lib/context';
@@ -37,6 +37,8 @@ import { userHasPlatformSuperRole } from './role-grant';
 interface ClientInfo {
   ip: string;
   ua: string;
+  /** 发起模拟的终端；缺省 web */
+  client?: SessionClientKind;
 }
 
 function isActive(row: Pick<ImpersonationSessionRow, 'endedAt' | 'expiresAt'>, now = new Date()): boolean {
@@ -134,6 +136,7 @@ export async function startImpersonation(input: StartImpersonationInput, client:
       username: target.username,
       nickname: target.nickname,
       tenantId: target.tenantId ?? null,
+      client: client.client ?? 'web',
       ip: client.ip,
       location,
       browser,

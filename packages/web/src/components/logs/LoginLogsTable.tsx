@@ -31,6 +31,7 @@ const LOGIN_EVENT_TYPE_COLORS: Record<LoginEventType, TagColor> = {
   logout: 'blue',
   impersonate: 'orange',
   impersonate_end: 'grey',
+  kicked: 'red',
 };
 
 function LoginEventTypeTag({ eventType, size }: Readonly<{ eventType?: LoginLog['eventType']; size?: 'small' | 'default' | 'large' }>) {

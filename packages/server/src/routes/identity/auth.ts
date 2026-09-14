@@ -39,8 +39,7 @@ const captchaRoute = defineContractRoute(authContract.captcha, {
 const loginRoute = defineContractRoute(authContract.login, {
   middleware: [authRateLimit] as const,
   handler: async (c) => {
-    const { ip, ua } = getClientInfo(c);
-    const result = await login({ ...c.req.valid('json'), ip, ua });
+    const result = await login({ ...c.req.valid('json'), ...getClientInfo(c) });
     return c.json(okBody(result, '登录成功'), 200);
   },
 });
@@ -58,8 +57,7 @@ const refreshRoute = defineContractRoute(authContract.refresh, {
   middleware: [] as const,
   handler: async (c) => {
     const { refreshToken } = c.req.valid('json');
-    const { ip, ua } = getClientInfo(c);
-    return c.json(okBody(await refreshAccessToken(refreshToken, { ip, ua })), 200);
+    return c.json(okBody(await refreshAccessToken(refreshToken, getClientInfo(c))), 200);
   },
 });
 

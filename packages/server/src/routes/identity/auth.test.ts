@@ -80,6 +80,7 @@ vi.mock('../../lib/session-manager', () => ({
   // 额外消费一次 db.select mock 队列，导致依赖队列顺序的用例错位失败
   touchSession: vi.fn().mockResolvedValue(true),
   isTokenBlacklisted: vi.fn().mockResolvedValue(false),
+  getTokenRevocation: vi.fn().mockResolvedValue(null),
   forceLogout: vi.fn(),
   forceLogoutAllByUser: vi.fn().mockResolvedValue([]),
   forceLogoutAllByUserExcept: vi.fn().mockResolvedValue([]),
@@ -88,6 +89,8 @@ vi.mock('../../lib/session-manager', () => ({
   recordLoginFailure: vi.fn(),
   clearLoginAttempts: vi.fn(),
   getOnlineSessions: vi.fn().mockResolvedValue([]),
+  listUserSessions: vi.fn().mockResolvedValue([]),
+  revokeSessions: vi.fn().mockResolvedValue([]),
   unlockUser: vi.fn(),
 }));
 
@@ -733,8 +736,8 @@ describe('refreshAccessToken - 授权消费与轮换', () => {
     const sm = await import('../../lib/session-manager');
     expect(vi.mocked(sm.consumeRefreshGrant)).toHaveBeenCalledWith('old-jti');
     expect(vi.mocked(sm.grantRefresh)).toHaveBeenCalledWith('mock-token-id');
-    expect(vi.mocked(sm.removeSession)).toHaveBeenCalledWith('old-jti');
-    expect(vi.mocked(sm.registerSession)).toHaveBeenCalledWith(expect.objectContaining({ tokenId: 'mock-token-id', userId: 1 }));
+    expect(vi.mocked(sm.removeSession)).toHaveBeenCalledWith('old-jti', 'rotated');
+    expect(vi.mocked(sm.registerSession)).toHaveBeenCalledWith(expect.objectContaining({ tokenId: 'mock-token-id', userId: 1, client: 'web' }));
     const access = await verifyToken<{ jti: string; type?: string }>(result.accessToken);
     const refresh = await verifyToken<{ jti: string; type?: string }>(result.refreshToken);
     expect(access.jti).toBe('mock-token-id');

@@ -28,6 +28,7 @@ vi.mock('../config', () => ({
 
 vi.mock('../lib/member-session-manager', () => ({
   isMemberTokenBlacklisted: vi.fn().mockResolvedValue(false),
+  getMemberTokenRevocation: vi.fn().mockResolvedValue(null),
   touchMemberSession: vi.fn().mockResolvedValue(true),
   registerMemberSession: vi.fn(),
 }));

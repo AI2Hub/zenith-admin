@@ -2,6 +2,7 @@ import type { Context } from 'hono';
 import { getConnInfo } from '@hono/node-server/conninfo';
 import { UAParser } from 'ua-parser-js';
 import ipRangeCheck from 'ip-range-check';
+import { SESSION_CLIENT_HEADER, SESSION_CLIENT_KINDS, type SessionClientKind } from '@zenith/shared/identity';
 import { config } from '../config';
 
 /**
@@ -45,14 +46,32 @@ export function parseUserAgent(ua: string): { browser: string; os: string } {
   };
 }
 
+const CLIENT_KIND_SET: ReadonlySet<string> = new Set(SESSION_CLIENT_KINDS);
+
 /**
- * 从请求中提取客户端 IP 与 User-Agent（登录日志 / 风险事件 / 登录锁定 / 会话审计共用）。
+ * 登录终端类型：前端各入口经 `X-Zenith-Client` 自报（网页 / 移动审批 / 桌面端），
+ * 只接受枚举内的值，缺省或伪造值一律按 web——它只影响会话展示与「按终端分别计算」的并发分组，不参与鉴权。
+ */
+export function getClientKind(c: Context): SessionClientKind {
+  const raw = c.req.header(SESSION_CLIENT_HEADER)?.trim().toLowerCase();
+  return raw && CLIENT_KIND_SET.has(raw) ? (raw as SessionClientKind) : 'web';
+}
+
+export interface ClientInfo {
+  ip: string;
+  ua: string;
+  client: SessionClientKind;
+}
+
+/**
+ * 从请求中提取客户端 IP、User-Agent 与终端类型（登录日志 / 风险事件 / 登录锁定 / 会话审计共用）。
  * IP 复用 getClientIp 的可信代理链判定，直连客户端伪造的 x-forwarded-for / x-real-ip 不生效；
  * 截断到 64 字符防止异常长值溢出各日志表的 ip varchar(64)。
  */
-export function getClientInfo(c: Context): { ip: string; ua: string } {
+export function getClientInfo(c: Context): ClientInfo {
   return {
     ip: getClientIp(c).slice(0, 64),
     ua: c.req.header('user-agent') ?? '',
+    client: getClientKind(c),
   };
 }

@@ -11,7 +11,7 @@ import { config } from '../../config';
 import { completeLoginWithMfa, type DeviceInfo } from './auth.service';
 import { userHasPlatformSuperRole } from './role-grant';
 import { OAUTH_PROVIDERS } from '@zenith/shared/identity';
-import type { OAuthProviderType } from '@zenith/shared/identity';
+import type { OAuthProviderType, SessionClientKind } from '@zenith/shared/identity';
 import { formatDateTime } from '../../lib/datetime';
 
 const VALID_PROVIDERS = new Set<string>(OAUTH_PROVIDERS);
@@ -198,7 +198,7 @@ export async function resolveOAuthCallback(provider: string, code: string): Prom
 export async function handleOAuthCallback(
   provider: string,
   input: { code: string; state: string; deviceId?: string },
-  client: { ip: string; ua: string; deviceInfo?: DeviceInfo },
+  client: { ip: string; ua: string; client?: SessionClientKind; deviceInfo?: DeviceInfo },
 ) {
   const p = await ensureProviderUsable(provider);
   await consumeOAuthState(input.state, { provider: p, intent: 'login' });
@@ -211,10 +211,10 @@ export async function handleOAuthCallback(
     };
   }
 
-  // 与密码登录 / 企业 SSO 共用 MFA 决策、密码过期检查、登录日志与会话登记
+  // 与密码登录 / 企业 SSO 共用 MFA 决策、会话并发判定、密码过期检查、登录日志与会话登记
   const loginResult = await completeLoginWithMfa(
     result.user,
-    { ip: client.ip, ua: client.ua, deviceInfo: client.deviceInfo, deviceId: input.deviceId },
+    { ip: client.ip, ua: client.ua, client: client.client, deviceInfo: client.deviceInfo, deviceId: input.deviceId },
     `第三方登录成功（${p}）`,
   );
   return { data: loginResult, message: 'mfaRequired' in loginResult ? '请完成多因素认证' : '登录成功' };

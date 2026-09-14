@@ -67,6 +67,7 @@ vi.mock('../../lib/session-manager', () => ({
   registerSession: vi.fn(),
   touchSession: vi.fn().mockResolvedValue(undefined),
   isTokenBlacklisted: vi.fn().mockResolvedValue(false),
+  getTokenRevocation: vi.fn().mockResolvedValue(null),
   forceLogout: vi.fn(),
   removeSession: vi.fn(),
   checkLoginLock: vi.fn().mockResolvedValue({ isLocked: false, attempts: 0 }),

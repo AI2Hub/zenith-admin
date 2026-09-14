@@ -1,0 +1,1 @@
+ALTER TYPE "public"."login_event_type" ADD VALUE 'kicked';

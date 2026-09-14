@@ -34,8 +34,7 @@ const callbackRoute = defineContractRoute(oauthContract.callback, {
   handler: async (c) => {
     const { provider } = c.req.valid('param');
     const body = c.req.valid('json');
-    const { ip, ua } = getClientInfo(c);
-    const result = await handleOAuthCallback(provider, body, { ip, ua });
+    const result = await handleOAuthCallback(provider, body, getClientInfo(c));
     return c.json(okBody(result.data, result.message), 200);
   },
 });

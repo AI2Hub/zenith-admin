@@ -1,5 +1,6 @@
 import type { ChatMessage, ChatPresence, ChatReactionGroup, ChatVoteData } from '../chat/contracts';
 import type { RtcIceCandidateInit, RtcInvitePayload, RtcPeerInfo } from '../chat/types';
+import type { SessionClientKind, SessionRevokeReason } from '../identity/constants';
 import type { Announcement, ChannelMessage, InAppMessage } from '../messaging/contracts';
 import type { MpMessageDirection, MpMessageType } from '../mp/constants';
 import type { MpKfSession } from '../mp/contracts';
@@ -19,6 +20,15 @@ export type FileUrlStrategy = 'proxy' | 'public' | 'presigned';
 export type FileVisibility = 'public' | 'restricted';
 
 // ─── WebSocket 推送消息 ────────────────────────────────────────────────────────
+/** 挤下线时告知被挤方「谁在哪登录了」，前端据此给出可判断是否本人操作的提示 */
+export interface SessionForceLogoutPayload {
+  reason: string;
+  /** 吊销原因；缺省按管理员强制下线 */
+  code?: SessionRevokeReason;
+  /** concurrent-login 时的新登录信息 */
+  by?: { client: SessionClientKind; ip: string; location: string | null; browser: string; os: string; at: string };
+}
+
 export type WsMessage =
   | { type: 'announcement:new'; payload: Announcement }
   | { type: 'announcement:updated'; payload: Announcement }
@@ -29,7 +39,7 @@ export type WsMessage =
   | { type: 'in-app-message:read'; payload: { id: number } }
   | { type: 'in-app-message:read-all'; payload: Record<string, never> }
   | { type: 'in-app-message:deleted'; payload: { id: number } }
-  | { type: 'session:force-logout'; payload: { reason: string } }
+  | { type: 'session:force-logout'; payload: SessionForceLogoutPayload }
   | { type: 'chat:message'; payload: ChatMessage }
   | { type: 'chat:recall'; payload: { conversationId: number; messageId: number } }
   | { type: 'chat:read'; payload: { conversationId: number; userId: number; readAt: string } }

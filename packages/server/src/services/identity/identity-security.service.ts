@@ -12,7 +12,7 @@ import { getSettings } from '../../lib/settings';
 import { buildTotpUri, generateTotpSecret, verifyTotp } from '../../lib/totp';
 import type { IdentitySecuritySettings } from '@zenith/shared/settings';
 import type { QueryOutputOf } from '@zenith/shared/core';
-import type { identitySecurityContract } from '@zenith/shared/identity';
+import type { identitySecurityContract, SessionClientKind } from '@zenith/shared/identity';
 import { tenantCondition } from '../../lib/tenant';
 import { buildWhere, keywordCondition, withPagination } from '../../lib/where-helpers';
 import { buildListResult } from '../../lib/list-query';
@@ -25,6 +25,8 @@ export interface MfaChallengePayload {
   tenantId: number | null;
   ip: string;
   ua: string;
+  /** 发起登录的终端类型；挑战完成后注册会话沿用（缺省 web） */
+  client?: SessionClientKind;
   deviceInfo?: unknown;
   deviceId?: string;
   rememberDevice?: boolean;

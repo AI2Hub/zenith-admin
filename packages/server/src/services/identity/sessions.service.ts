@@ -35,6 +35,7 @@ function toSessionDto(s: SessionInfo) {
     userId: s.userId,
     username: s.username,
     nickname: s.nickname,
+    client: s.client ?? 'web',
     ip: s.ip,
     location: s.location ?? null,
     browser: s.browser,
@@ -45,12 +46,13 @@ function toSessionDto(s: SessionInfo) {
 }
 
 export async function listSessions(q: QueryOutputOf<typeof sessionContract.list>) {
-  const { page, pageSize } = q;
+  const { page, pageSize, client } = q;
   const keyword = q.keyword ?? '';
   let sessions = await visibleSessions();
   if (keyword) {
     sessions = sessions.filter((s) => s.username.includes(keyword) || s.nickname.includes(keyword) || s.ip.includes(keyword));
   }
+  if (client) sessions = sessions.filter((s) => (s.client ?? 'web') === client);
   return buildListResult({
     page,
     pageSize,
@@ -61,7 +63,7 @@ export async function listSessions(q: QueryOutputOf<typeof sessionContract.list>
 }
 
 function notifyForceLogout(tokenId: string) {
-  sendToToken(tokenId, { type: 'session:force-logout', payload: { reason: '您已被管理员强制下线' } });
+  sendToToken(tokenId, { type: 'session:force-logout', payload: { code: 'force-logout', reason: '您已被管理员强制下线' } });
   setTimeout(() => closeTokenConnection(tokenId, '强制下线'), 500);
 }
 
@@ -78,7 +80,7 @@ export async function forceLogoutSession(tokenId: string) {
 export async function forceLogoutAllUserSessions(userId: number) {
   const tokenIds = await forceLogoutAllByUser(userId);
   if (tokenIds.length === 0) throw new HTTPException(404, { message: '该用户暂无在线会话' });
-  const msg = { type: 'session:force-logout' as const, payload: { reason: '您已被管理员强制下线' } };
+  const msg = { type: 'session:force-logout' as const, payload: { code: 'force-logout' as const, reason: '您已被管理员强制下线' } };
   sendToUser(userId, msg);
   setTimeout(() => closeUserConnections(userId, '强制下线'), 500);
 }

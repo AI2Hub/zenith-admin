@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import type { SessionClientKind, SessionRevokeReason } from '@zenith/shared/identity';
 import { config } from '../config';
 import redis from './redis';
 import { createRedisSessionStore } from './redis-session-store';
@@ -9,6 +10,8 @@ export interface SessionInfo {
   username: string;
   nickname: string;
   tenantId?: number | null;
+  /** 登录终端（网页 / 移动审批 / 桌面端），并发限制按终端分别计算时的分组键 */
+  client: SessionClientKind;
   ip: string;
   location: string | null;
   browser: string;
@@ -24,6 +27,7 @@ const { keyPrefix } = config.redis;
 const SESSION_PREFIX = `${keyPrefix}session:`;
 const BLACKLIST_PREFIX = `${keyPrefix}blacklist:`;
 const REFRESH_PREFIX = `${keyPrefix}refresh:`;
+const USER_SESSIONS_PREFIX = `${keyPrefix}user-sessions:`;
 
 /**
  * 管理员会话存储：会话 TTL 8h（每次请求续期），黑名单 TTL 2h（与 accessToken 一致），
@@ -33,6 +37,8 @@ const store = createRedisSessionStore<SessionInfo>({
   sessionPrefix: SESSION_PREFIX,
   blacklistPrefix: BLACKLIST_PREFIX,
   refreshPrefix: REFRESH_PREFIX,
+  ownerIndexPrefix: USER_SESSIONS_PREFIX,
+  ownerIdOf: (s) => s.userId,
 });
 
 /** Generate a unique token ID */
@@ -65,19 +71,28 @@ export async function isTokenBlacklisted(tokenId: string): Promise<boolean> {
   return store.isBlacklisted(tokenId);
 }
 
+/** 令牌的吊销原因（被挤下线 / 改密 / 管理员强退 / 登出 / 轮换）；未吊销返回 null */
+export async function getTokenRevocation(tokenId: string): Promise<SessionRevokeReason | null> {
+  return store.getRevocation(tokenId);
+}
+
 /** Force logout a session by tokenId */
-export async function forceLogout(tokenId: string): Promise<boolean> {
-  return store.forceLogout(tokenId);
+export async function forceLogout(tokenId: string, reason: SessionRevokeReason = 'force-logout'): Promise<boolean> {
+  return store.forceLogout(tokenId, reason);
 }
 
 /** Force logout all sessions belonging to a specific user */
-export async function forceLogoutAllByUser(userId: number): Promise<string[]> {
-  return forceLogoutAllByUsers([userId]);
+export async function forceLogoutAllByUser(userId: number, reason: SessionRevokeReason = 'force-logout'): Promise<string[]> {
+  return store.forceLogoutByOwner(userId, { reason });
 }
 
 /** 强制下线某用户除指定 jti 外的全部会话（改密后保留当前设备） */
-export async function forceLogoutAllByUserExcept(userId: number, keepTokenId: string | undefined): Promise<string[]> {
-  return store.forceLogoutMatching((s) => s.userId === userId && s.tokenId !== keepTokenId);
+export async function forceLogoutAllByUserExcept(
+  userId: number,
+  keepTokenId: string | undefined,
+  reason: SessionRevokeReason = 'password-changed',
+): Promise<string[]> {
+  return store.forceLogoutByOwner(userId, { except: keepTokenId, reason });
 }
 
 /** Force logout all sessions belonging to any of the specified users (single SCAN + pipeline) */
@@ -87,14 +102,24 @@ export async function forceLogoutAllByUsers(userIds: number[]): Promise<string[]
   return store.forceLogoutMatching((s) => idSet.has(s.userId));
 }
 
+/** 批量吊销已知会话（登录期并发限制挤人用），返回被下线的 tokenId 列表 */
+export async function revokeSessions(sessions: SessionInfo[], reason: SessionRevokeReason): Promise<string[]> {
+  return store.revokeSessions(sessions, reason);
+}
+
 /** 登出 / 轮换淘汰：吊销 access token、撤销 refresh 授权并删除在线会话 */
-export async function removeSession(tokenId: string): Promise<void> {
-  await store.remove(tokenId);
+export async function removeSession(tokenId: string, reason: Extract<SessionRevokeReason, 'logout' | 'rotated'> = 'logout'): Promise<void> {
+  await store.remove(tokenId, reason);
 }
 
 /** Get a single session by tokenId */
 export async function getSession(tokenId: string): Promise<SessionInfo | null> {
   return store.get(tokenId);
+}
+
+/** 某用户的全部在线会话（含模拟会话；按主体索引取，不做全量 SCAN） */
+export async function listUserSessions(userId: number): Promise<SessionInfo[]> {
+  return store.listByOwner(userId);
 }
 
 /** Get all online sessions */

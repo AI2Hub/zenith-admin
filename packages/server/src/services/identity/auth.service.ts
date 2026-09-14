@@ -7,8 +7,8 @@ import { reserveTenantSeats } from '../../lib/tenant-quota';
 import { signToken, verifyToken } from '../../lib/jwt';
 import {
   generateTokenId, registerSession, removeSession, grantRefresh, consumeRefreshGrant, isTokenBlacklisted,
-  checkLoginLock, recordLoginFailure, clearLoginAttempts, getOnlineSessions, forceLogout, forceLogoutAllByUser,
-  forceLogoutAllByUserExcept, getSession,
+  checkLoginLock, recordLoginFailure, clearLoginAttempts, forceLogout, forceLogoutAllByUser,
+  forceLogoutAllByUserExcept, getSession, listUserSessions,
 } from '../../lib/session-manager';
 import type { JwtPayload } from '../../middleware/auth';
 import { formatDateTime, formatTimestamps } from '../../lib/datetime';
@@ -18,9 +18,9 @@ import { lookupIpLocation } from '../../lib/ip-location';
 import { clampSmallint, truncateVarchar } from '../../lib/sanitize';
 import logger from '../../lib/logger';
 import { getSettings } from '../../lib/settings';
-import { validatePassword, type IdentitySecuritySettings } from '@zenith/shared/settings';
+import { validatePassword, type IdentitySecuritySettings, type SessionConcurrencyPolicy } from '@zenith/shared/settings';
 import type { QueryOutputOf } from '@zenith/shared/core';
-import type { authContract, LoginEventType as SharedLoginEventType } from '@zenith/shared/identity';
+import { SESSION_CLIENT_KIND_LABELS, type authContract, type LoginEventType as SharedLoginEventType, type SessionClientKind } from '@zenith/shared/identity';
 import {
   clearMfaChallenge,
   createMfaChallenge,
@@ -28,6 +28,7 @@ import {
   shouldRequireMfa,
   verifyLoginTotp,
 } from './identity-security.service';
+import { enforceSessionLimit, findConflictingSessions } from './session-policy.service';
 
 // ─── 获取用户角色列表 ─────────────────────────────────────────────────────────
 
@@ -91,12 +92,17 @@ export interface LoginLogParams {
   tenantId?: number | null;
   ip: string;
   ua: string;
+  /** 无 UA 可解析时（如记录被挤下线的旧会话）直接给出浏览器 / 操作系统 */
+  browser?: string;
+  os?: string;
   deviceInfo?: DeviceInfo;
 }
 
 export async function recordLoginLog(params: LoginLogParams) {
   const { username, eventType = 'login', status, message, userId, tenantId, ip, ua, deviceInfo } = params;
-  const { browser, os } = parseUserAgent(ua);
+  const parsed = params.browser === undefined && params.os === undefined ? parseUserAgent(ua) : null;
+  const browser = params.browser ?? parsed?.browser ?? 'Unknown';
+  const os = params.os ?? parsed?.os ?? 'Unknown';
   try {
     // 各列按 schema 长度截断兜底：ip / ua / browser / os 等源自不可信请求头
     await db.insert(loginLogs).values({
@@ -162,45 +168,79 @@ export interface LoginInput {
   tenantCode?: string;
   ip: string;
   ua: string;
+  client: SessionClientKind;
   deviceInfo?: DeviceInfo;
   deviceId?: string;
   rememberDevice?: boolean;
 }
 
+/** 登录来源的客户端信息：IP / UA 必有，终端类型缺省 web（注册、旧调用方） */
+export interface LoginClient {
+  ip: string;
+  ua: string;
+  client?: SessionClientKind;
+  deviceInfo?: DeviceInfo;
+}
+
 export async function finalizeLogin(
   user: UserRow,
-  input: { ip: string; ua: string; deviceInfo?: DeviceInfo },
-  options: { logMessage: string; requirePasswordChange?: boolean },
+  input: LoginClient,
+  options: { logMessage: string; requirePasswordChange?: boolean; sessionPolicy?: SessionConcurrencyPolicy; evictOthers?: boolean },
 ) {
   const userRoleList = await getUserRoles(user.id);
   const { accessToken, refreshToken, tokenId } = await issueTokens(user, userRoleList.map((r) => r.code));
 
   const { browser, os } = parseUserAgent(input.ua);
+  const client = input.client ?? 'web';
+  const location = lookupIpLocation(input.ip);
+  const loginAt = new Date();
+  const tenantId = user.tenantId ?? null;
+  // 先注册本次会话再执行并发限制：挤人失败不影响本次登录，用户也不会处于「0 个会话」
   await Promise.all([
     registerSession({
       tokenId,
       userId: user.id,
       username: user.username,
       nickname: user.nickname,
-      tenantId: user.tenantId ?? null,
+      tenantId,
+      client,
       ip: input.ip,
-      location: lookupIpLocation(input.ip),
+      location,
       browser,
       os,
-      loginAt: new Date(),
+      loginAt,
     }),
     grantRefresh(tokenId),
+  ]);
+  const kicked = await enforceSessionLimit(
+    { userId: user.id, tenantId, tokenId, client, ip: input.ip, location, browser, os, loginAt },
+    { policy: options.sessionPolicy, evictAll: options.evictOthers },
+  );
+  const kickedNote = kicked.length > 0 ? `（挤掉 ${kicked.length} 个会话）` : '';
+  await Promise.all([
     recordLoginLog({
       ip: input.ip,
       ua: input.ua,
       username: user.username,
       status: 'success',
-      message: options.logMessage,
+      message: `${options.logMessage}${kickedNote}`,
       userId: user.id,
-      tenantId: user.tenantId ?? null,
+      tenantId,
       deviceInfo: input.deviceInfo,
     }),
-    db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id)),
+    ...kicked.map((victim) => recordLoginLog({
+      eventType: 'kicked',
+      ip: victim.ip,
+      ua: '',
+      browser: victim.browser,
+      os: victim.os,
+      username: user.username,
+      status: 'success',
+      message: `被新登录挤下线：${SESSION_CLIENT_KIND_LABELS[client]} ${browser} / ${os}（${location ? `${location} ` : ''}${input.ip}）`,
+      userId: user.id,
+      tenantId,
+    })),
+    db.update(users).set({ lastLoginAt: loginAt }).where(eq(users.id, user.id)),
   ]);
   const { password: _pw, ...userInfo } = user;
   return {
@@ -216,22 +256,26 @@ export async function finalizeLogin(
 }
 
 /**
- * 非密码登录（企业 SSO / 第三方 OAuth）的统一收口：与 `login()` 共用同一套 MFA 决策与密码过期检查。
+ * 非密码登录（企业 SSO / 第三方 OAuth）的统一收口：与 `login()` 共用同一套 MFA 决策、会话并发判定与密码过期检查。
  * 策略要求或新设备风控命中时返回挑战（前端走 verifyMfaLogin），否则签发 token。
  */
 export async function completeLoginWithMfa(
   user: UserRow,
-  client: { ip: string; ua: string; deviceInfo?: DeviceInfo; deviceId?: string },
+  client: { ip: string; ua: string; client?: SessionClientKind; deviceInfo?: DeviceInfo; deviceId?: string },
   logMessage: string,
 ) {
-  const mfa = await shouldRequireMfa({ user, ip: client.ip, ua: client.ua, deviceId: client.deviceId });
+  const tenantId = user.tenantId ?? null;
+  const policy = await getSettings('identitySecurity', { tenantId });
+  await rejectIfSessionLimitReached({ userId: user.id, tenantId, client: client.client ?? 'web' }, policy.session);
+  const mfa = await shouldRequireMfa({ user, ip: client.ip, ua: client.ua, deviceId: client.deviceId, policy });
   if (mfa.required) {
     const challenge = await createMfaChallenge({
       userId: user.id,
       username: user.username,
-      tenantId: user.tenantId ?? null,
+      tenantId,
       ip: client.ip,
       ua: client.ua,
+      client: client.client,
       deviceInfo: client.deviceInfo,
       deviceId: client.deviceId,
       rememberDevice: false,
@@ -244,8 +288,22 @@ export async function completeLoginWithMfa(
       reason: mfa.reason,
     };
   }
-  const requirePasswordChange = await checkPasswordExpiry(user);
-  return finalizeLogin(user, { ip: client.ip, ua: client.ua, deviceInfo: client.deviceInfo }, { logMessage, requirePasswordChange });
+  const requirePasswordChange = await checkPasswordExpiry(user, policy);
+  return finalizeLogin(user, client, { logMessage, requirePasswordChange, sessionPolicy: policy.session });
+}
+
+/**
+ * 拒绝模式：凭据已通过后、签发 token 前判定名额。未认证请求拿不到这个结果，避免探测账号是否在线。
+ * MFA 挑战之前判定——名额不足时不必再走二次验证。
+ */
+async function rejectIfSessionLimitReached(
+  login: { userId: number; tenantId: number | null; client: SessionClientKind },
+  policy: SessionConcurrencyPolicy,
+) {
+  const conflicts = await findConflictingSessions(login, policy);
+  if (conflicts.length > 0) {
+    throw new HTTPException(409, { message: `该账号已在其他设备登录（同时在线上限 ${policy.maxSessions} 处），请先退出其它设备` });
+  }
 }
 
 export async function login(input: LoginInput) {
@@ -309,6 +367,9 @@ export async function login(input: LoginInput) {
     clearLoginAttempts(input.username),
   ]);
 
+  // 会话并发（拒绝模式）：凭据已通过，此时判定名额才不会泄露账号在线状态
+  await rejectIfSessionLimitReached({ userId: user.id, tenantId: user.tenantId ?? null, client: input.client }, policy.session);
+
   const mfa = await shouldRequireMfa({ user, ip: input.ip, ua: input.ua, deviceId: input.deviceId, policy });
   if (mfa.required) {
     const challenge = await createMfaChallenge({
@@ -317,6 +378,7 @@ export async function login(input: LoginInput) {
       tenantId: user.tenantId ?? null,
       ip: input.ip,
       ua: input.ua,
+      client: input.client,
       deviceInfo: input.deviceInfo,
       deviceId: input.deviceId,
       rememberDevice: input.rememberDevice ?? false,
@@ -330,7 +392,7 @@ export async function login(input: LoginInput) {
     };
   }
 
-  return finalizeLogin(user, input, { logMessage: '登录成功', requirePasswordChange });
+  return finalizeLogin(user, input, { logMessage: '登录成功', requirePasswordChange, sessionPolicy: policy.session });
 }
 
 export interface RegisterInput {
@@ -379,7 +441,7 @@ export async function verifyMfaLogin(challengeId: string, code: string, remember
   await clearMfaChallenge(challengeId);
   return finalizeLogin(
     user,
-    { ip: challenge.ip, ua: challenge.ua, deviceInfo: challenge.deviceInfo as DeviceInfo | undefined },
+    { ip: challenge.ip, ua: challenge.ua, client: challenge.client, deviceInfo: challenge.deviceInfo as DeviceInfo | undefined },
     { logMessage: 'MFA 验证后登录成功', requirePasswordChange },
   );
 }
@@ -391,7 +453,7 @@ export async function verifyMfaLogin(challengeId: string, code: string, remember
  * 2. 每次续签签发新 jti 并把授权与在线会话迁移过去，旧 jti 立即吊销（旧 access / refresh 同时作废），
  *    被盗的 refresh token 最多只能用一次，且与合法客户端并发使用时会立刻暴露。
  */
-export async function refreshAccessToken(token: string, clientInfo?: { ip: string; ua: string }) {
+export async function refreshAccessToken(token: string, clientInfo?: { ip: string; ua: string; client?: SessionClientKind }) {
   let payload: {
     userId: number;
     username: string;
@@ -465,6 +527,7 @@ export async function refreshAccessToken(token: string, clientInfo?: { ip: strin
       username: u.username,
       nickname: u.nickname,
       tenantId: dbTenantId,
+      client: existing?.client ?? clientInfo?.client ?? 'web',
       ip: existing?.ip ?? clientInfo?.ip ?? '',
       location: existing?.location ?? (clientInfo ? lookupIpLocation(clientInfo.ip) : null),
       browser: existing?.browser ?? browser,
@@ -472,7 +535,7 @@ export async function refreshAccessToken(token: string, clientInfo?: { ip: strin
       loginAt: existing?.loginAt ?? new Date(),
     }),
     grantRefresh(tokenId),
-    removeSession(previousTokenId),
+    removeSession(previousTokenId, 'rotated'),
   ]);
   return { accessToken, refreshToken };
 }
@@ -686,10 +749,10 @@ export async function listMyOperationLogs(query: QueryOutputOf<typeof authContra
 
 export async function listMySessions() {
   const { userId, jti: currentTokenId } = currentUser();
-  const allSessions = await getOnlineSessions();
-  const mySessions = allSessions.filter((s) => s.userId === userId);
+  const mySessions = await listUserSessions(userId);
   return mySessions.map((s) => ({
     tokenId: s.tokenId,
+    client: s.client,
     ip: s.ip,
     location: s.location ?? null,
     browser: s.browser,
@@ -702,17 +765,14 @@ export async function listMySessions() {
 
 export async function deleteMyOtherSessions() {
   const { userId, jti: currentTokenId } = currentUser();
-  const allSessions = await getOnlineSessions();
-  const others = allSessions.filter((s) => s.userId === userId && s.tokenId !== currentTokenId);
-  await Promise.all(others.map((s) => forceLogout(s.tokenId)));
-  return others.length;
+  const kicked = await forceLogoutAllByUserExcept(userId, currentTokenId, 'force-logout');
+  return kicked.length;
 }
 
 export async function deleteMySession(tokenId: string) {
   const { userId, jti: currentTokenId } = currentUser();
   if (tokenId === currentTokenId) throw new HTTPException(400, { message: '不能退出当前设备，请使用退出登录功能' });
-  const allSessions = await getOnlineSessions();
-  const session = allSessions.find((s) => s.tokenId === tokenId && s.userId === userId);
+  const session = (await listUserSessions(userId)).find((s) => s.tokenId === tokenId);
   requireRow(session, '会话不存在或已过期');
   await forceLogout(tokenId);
 }
@@ -736,8 +796,9 @@ export async function switchTenantView(targetTenantId: number | null, ip: string
     '30d',
   );
   const { browser, os } = parseUserAgent(ua);
-  // 旧 jti 立即吊销（access / refresh 一并作废），新 jti 注册会话并签发 refresh 授权
-  if (payload.jti) await removeSession(payload.jti);
+  // 会话迁移（非新登录）：沿用原会话的终端类型与登录时间，不触发并发限制；旧 jti 立即吊销（access / refresh 一并作废）
+  const existing = payload.jti ? await getSession(payload.jti) : null;
+  if (payload.jti) await removeSession(payload.jti, 'rotated');
   await Promise.all([
     registerSession({
       tokenId,
@@ -745,11 +806,12 @@ export async function switchTenantView(targetTenantId: number | null, ip: string
       username: payload.username,
       nickname: payload.username,
       tenantId: payload.tenantId,
+      client: existing?.client ?? 'web',
       ip,
       location: lookupIpLocation(ip),
       browser,
       os,
-      loginAt: new Date(),
+      loginAt: existing?.loginAt ?? new Date(),
     }),
     grantRefresh(tokenId),
   ]);

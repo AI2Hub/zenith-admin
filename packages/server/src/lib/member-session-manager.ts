@@ -2,13 +2,15 @@
  * 会员会话管理（与管理员 session-manager 完全隔离）。
  *
  * Redis key 使用独立命名空间，避免与管理员会话互窜：
- *   - `{prefix}member-session:{jti}`   会员在线会话，TTL 8h（每次请求续期）
- *   - `{prefix}member-refresh:{jti}`   会员 refresh 授权，TTL 30d（登出 / 下线即撤销，续签一次性消费并轮换）
- *   - `{prefix}member-blacklist:{jti}` 会员吊销标记，TTL 2h（与 accessToken 一致）
+ *   - `{prefix}member-session:{jti}`        会员在线会话，TTL 8h（每次请求续期）
+ *   - `{prefix}member-refresh:{jti}`        会员 refresh 授权，TTL 30d（登出 / 下线即撤销，续签一次性消费并轮换）
+ *   - `{prefix}member-blacklist:{jti}`      会员吊销标记，TTL 2h（与 accessToken 一致）
+ *   - `{prefix}member-sessions:{memberId}`  该会员全部在线 jti 的索引 SET
  *
  * 底层通用实现见 redis-session-store.ts。
  */
 import crypto from 'node:crypto';
+import type { SessionRevokeReason } from '@zenith/shared/identity';
 import { config } from '../config';
 import redis from './redis';
 import { getSettings } from './settings';
@@ -35,6 +37,8 @@ const store = createRedisSessionStore<MemberSessionInfo>({
   sessionPrefix: `${keyPrefix}member-session:`,
   blacklistPrefix: `${keyPrefix}member-blacklist:`,
   refreshPrefix: `${keyPrefix}member-refresh:`,
+  ownerIndexPrefix: `${keyPrefix}member-sessions:`,
+  ownerIdOf: (s) => s.memberId,
 });
 
 /** 生成唯一会话 ID */
@@ -67,14 +71,19 @@ export async function isMemberTokenBlacklisted(tokenId: string): Promise<boolean
   return store.isBlacklisted(tokenId);
 }
 
+/** 会员令牌的吊销原因；未吊销返回 null */
+export async function getMemberTokenRevocation(tokenId: string): Promise<SessionRevokeReason | null> {
+  return store.getRevocation(tokenId);
+}
+
 /** 强制下线某个会员会话 */
 export async function forceLogoutMember(tokenId: string): Promise<boolean> {
   return store.forceLogout(tokenId);
 }
 
-/** 强制下线某会员的所有会话 */
+/** 强制下线某会员的所有会话（按会员索引取，不做全量 SCAN） */
 export async function forceLogoutAllByMember(memberId: number): Promise<string[]> {
-  return store.forceLogoutMatching((s) => s.memberId === memberId);
+  return store.forceLogoutByOwner(memberId);
 }
 
 /** 正常登出：吊销 access token、撤销 refresh 授权并删除会话 */

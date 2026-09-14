@@ -148,6 +148,13 @@
       "when": 1789394045347,
       "tag": "0020_system_monitoring_menu_split",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1789406462645,
+      "tag": "0021_login_event_kicked",
+      "breakpoints": true
     }
   ]
 }

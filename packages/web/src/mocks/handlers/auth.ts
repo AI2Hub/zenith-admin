@@ -18,6 +18,7 @@ const mockMfaFactors: MfaFactor[] = [];
 const mockMySessionStore: UserSession[] = [
   {
     tokenId: 'current-session-mock',
+    client: 'web',
     ip: '127.0.0.1',
     location: '本地网络',
     browser: 'Chrome 124',
@@ -28,19 +29,21 @@ const mockMySessionStore: UserSession[] = [
   },
   {
     tokenId: 'other-session-001',
+    client: 'mobile',
     ip: '119.29.xx.xx',
     location: '广东省 深圳市 电信',
     browser: 'Safari 17',
-    os: 'macOS Sonoma',
+    os: 'iOS 18',
     loginAt: mockDateTimeOffset(-86400 * 1000),
     lastActiveAt: mockDateTimeOffset(-3600 * 1000),
     isCurrent: false,
   },
   {
     tokenId: 'other-session-002',
+    client: 'desktop',
     ip: '101.22.xx.xx',
     location: '上海市 联通',
-    browser: 'Firefox 125',
+    browser: 'Electron 33',
     os: 'Ubuntu 22.04',
     loginAt: mockDateTimeOffset(-3 * 86400 * 1000),
     lastActiveAt: mockDateTimeOffset(-2 * 86400 * 1000),

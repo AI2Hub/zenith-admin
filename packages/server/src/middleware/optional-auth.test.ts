@@ -31,6 +31,9 @@ vi.mock('../lib/member-session-manager', () => ({
   isMemberTokenBlacklisted: vi.fn(() => {
     throw new Error('optionalAuthMiddleware must not touch member session redis state');
   }),
+  getMemberTokenRevocation: vi.fn(() => {
+    throw new Error('optionalAuthMiddleware must not touch member session redis state');
+  }),
   touchMemberSession: vi.fn(() => {
     throw new Error('optionalAuthMiddleware must not touch member session redis state');
   }),
@@ -41,6 +44,9 @@ vi.mock('../lib/member-session-manager', () => ({
 
 vi.mock('../lib/session-manager', () => ({
   isTokenBlacklisted: vi.fn(() => {
+    throw new Error('optionalAuthMiddleware must not touch admin session redis state');
+  }),
+  getTokenRevocation: vi.fn(() => {
     throw new Error('optionalAuthMiddleware must not touch admin session redis state');
   }),
   touchSession: vi.fn(() => {
