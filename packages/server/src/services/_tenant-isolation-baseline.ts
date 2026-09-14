@@ -30,7 +30,7 @@ export const tenantIsolationBaseline: readonly TenantIsolationBaselineEntry[] = 
   { file: 'services/chat/chat-groups.service.ts', fn: 'transferGroupOwnership', table: 'users', reason: '组织架构查找（成员 / 部门）：待复核是否应限当前租户' },
   { file: 'services/chat/chat-invites.service.ts', fn: 'addMemberViaInvite', table: 'users', reason: '组织架构查找（成员 / 部门）：待复核是否应限当前租户' },
   { file: 'services/chat/chat-invites.service.ts', fn: 'getGroupOrThrow', table: 'chatConversations', reason: '会话按成员关系校验（requireGroupMember 等），不按租户列' },
-  { file: 'services/chat/chat-messages.service.ts', fn: 'sendMessage', table: 'chatConversations', reason: '会话按成员关系校验（requireGroupMember 等），不按租户列' },
+  { file: 'services/chat/chat-messages.service.ts', fn: 'loadSendContext', table: 'chatConversations', reason: '会话按成员关系校验（同一 Promise.all 里的成员行 requireRow），不按租户列；sendMessage / sendMessagesBulk 共用' },
   { file: 'services/chat/chat-scheduled.service.ts', fn: 'resolveConversationNames', table: 'chatConversations', reason: '会话按成员关系校验（requireGroupMember 等），不按租户列' },
   { file: 'services/chat/chat-shared.ts', fn: 'fetchUserBrief', table: 'users', reason: '后台作业 / 系统或公开上下文，无请求租户；id 来自内部记录' },
   { file: 'services/chat/chat-shared.ts', fn: 'getUserNickname', table: 'users', reason: '后台作业 / 系统或公开上下文，无请求租户；id 来自内部记录' },
