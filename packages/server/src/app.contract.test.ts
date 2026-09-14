@@ -165,8 +165,10 @@ describe('认证契约：声明与运行时行为必须一致', () => {
     // 均受 Redis IP 限流、站点解析与一次性令牌约束。
     // 审批单验真页 1 个匿名端点（GET /api/workflows/print-verify/{token}）：HMAC 签名令牌、只输出单据身份与终态、
     // 无表单内容与参与人、无脚本、noindex；全局路径限流可按 /api/workflows/print-verify/* 配置。
+    // 会话并发拒绝模式 1 个匿名端点（POST /api/auth/session-conflict/resolve）：与 MFA 验证同构——凭据已通过后签发的
+    // 5 分钟一次性票据（GETDEL），受 authRateLimit 约束，不接受任何身份声明。
     const publicOps = operations.filter((op) => op.isDeclaredPublic);
-    expect(publicOps.length).toBeLessThanOrEqual(67);
+    expect(publicOps.length).toBeLessThanOrEqual(68);
   });
 });
 

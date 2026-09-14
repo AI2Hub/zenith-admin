@@ -29,7 +29,7 @@ import {
   shouldRequireMfa,
   verifyLoginTotp,
 } from './identity-security.service';
-import { enforceSessionLimit, findConflictingSessions } from './session-policy.service';
+import { consumeSessionConflictTicket, enforceSessionLimit, findConflictingSessions, issueSessionConflict } from './session-policy.service';
 
 // ─── 获取用户角色列表 ─────────────────────────────────────────────────────────
 
@@ -256,18 +256,42 @@ export async function finalizeLogin(
   };
 }
 
+/** 凭据已通过后的登录上下文：终端 / 设备信息随会话与 MFA 挑战、冲突票据一路传递 */
+export interface AuthenticatedLoginClient {
+  ip: string;
+  ua: string;
+  client?: SessionClientKind;
+  deviceInfo?: DeviceInfo;
+  deviceId?: string;
+  rememberDevice?: boolean;
+}
+
 /**
- * 非密码登录（企业 SSO / 第三方 OAuth）的统一收口：与 `login()` 共用同一套 MFA 决策、会话并发判定与密码过期检查。
- * 策略要求或新设备风控命中时返回挑战（前端走 verifyMfaLogin），否则签发 token。
+ * 凭据已通过后的统一收口（密码 / 企业 SSO / 第三方 OAuth / 冲突票据兑换共用）：
+ * 会话并发（拒绝模式）→ MFA 决策 → 密码过期检查 → 签发 token。
+ * 名额已满返回冲突结果（前端弹层确认后凭票据兑换）；策略要求或新设备风控命中返回 MFA 挑战（前端走 verifyMfaLogin）。
+ * `evictOthers`：用户已确认下线其它设备，跳过名额判定并在签发后全部挤掉（经 MFA 时随挑战记忆）。
  */
 export async function completeLoginWithMfa(
   user: UserRow,
-  client: { ip: string; ua: string; client?: SessionClientKind; deviceInfo?: DeviceInfo; deviceId?: string },
+  client: AuthenticatedLoginClient,
   logMessage: string,
+  options: { policy?: IdentitySecuritySettings; evictOthers?: boolean } = {},
 ) {
   const tenantId = user.tenantId ?? null;
-  const policy = await getSettings('identitySecurity', { tenantId });
-  await rejectIfSessionLimitReached({ userId: user.id, tenantId, client: client.client ?? 'web' }, policy.session);
+  const policy = options.policy ?? await getSettings('identitySecurity', { tenantId });
+  const clientKind = client.client ?? 'web';
+  // 拒绝模式：凭据已通过，此时判定名额才不会泄露账号在线状态；MFA 之前判定，名额不足时不必再走二次验证
+  if (!options.evictOthers) {
+    const conflicts = await findConflictingSessions({ userId: user.id, tenantId, client: clientKind }, policy.session);
+    if (conflicts.length > 0) {
+      return issueSessionConflict(
+        { userId: user.id, username: user.username, tenantId, ...client, client: clientKind, logMessage },
+        conflicts,
+        policy.session.maxSessions,
+      );
+    }
+  }
   const mfa = await shouldRequireMfa({ user, ip: client.ip, ua: client.ua, deviceId: client.deviceId, policy });
   if (mfa.required) {
     const challenge = await createMfaChallenge({
@@ -279,7 +303,9 @@ export async function completeLoginWithMfa(
       client: client.client,
       deviceInfo: client.deviceInfo,
       deviceId: client.deviceId,
-      rememberDevice: false,
+      rememberDevice: client.rememberDevice ?? false,
+      evictOthers: options.evictOthers,
+      logMessage,
     });
     return {
       mfaRequired: true as const,
@@ -290,21 +316,21 @@ export async function completeLoginWithMfa(
     };
   }
   const requirePasswordChange = await checkPasswordExpiry(user, policy);
-  return finalizeLogin(user, client, { logMessage, requirePasswordChange, sessionPolicy: policy.session });
+  return finalizeLogin(user, client, { logMessage, requirePasswordChange, sessionPolicy: policy.session, evictOthers: options.evictOthers });
 }
 
-/**
- * 拒绝模式：凭据已通过后、签发 token 前判定名额。未认证请求拿不到这个结果，避免探测账号是否在线。
- * MFA 挑战之前判定——名额不足时不必再走二次验证。
- */
-async function rejectIfSessionLimitReached(
-  login: { userId: number; tenantId: number | null; client: SessionClientKind },
-  policy: SessionConcurrencyPolicy,
-) {
-  const conflicts = await findConflictingSessions(login, policy);
-  if (conflicts.length > 0) {
-    throw new HTTPException(409, { message: `该账号已在其他设备登录（同时在线上限 ${policy.maxSessions} 处），请先退出其它设备` });
-  }
+/** 拒绝模式：用户在登录页确认「下线其它设备并登录」，凭一次性票据继续原登录流程（不必重输密码） */
+export async function resolveSessionConflict(ticket: string) {
+  const payload = await consumeSessionConflictTicket(ticket);
+  const [user] = await db.select().from(users).where(eq(users.id, payload.userId)).limit(1);
+  if (!user) throw new HTTPException(401, { message: '用户不存在' });
+  if (user.status === 'disabled') throw new HTTPException(403, { message: '账号已被禁用' });
+  return completeLoginWithMfa(
+    user,
+    { ip: payload.ip, ua: payload.ua, client: payload.client, deviceInfo: payload.deviceInfo, deviceId: payload.deviceId, rememberDevice: payload.rememberDevice },
+    `${payload.logMessage}（已下线其它设备）`,
+    { evictOthers: true },
+  );
 }
 
 export async function login(input: LoginInput) {
@@ -363,37 +389,9 @@ export async function login(input: LoginInput) {
     throw new HTTPException(400, { message: '用户名或密码错误' });
   }
 
-  const [requirePasswordChange] = await Promise.all([
-    checkPasswordExpiry(user, policy),
-    clearLoginAttempts(input.username),
-  ]);
-
-  // 会话并发（拒绝模式）：凭据已通过，此时判定名额才不会泄露账号在线状态
-  await rejectIfSessionLimitReached({ userId: user.id, tenantId: user.tenantId ?? null, client: input.client }, policy.session);
-
-  const mfa = await shouldRequireMfa({ user, ip: input.ip, ua: input.ua, deviceId: input.deviceId, policy });
-  if (mfa.required) {
-    const challenge = await createMfaChallenge({
-      userId: user.id,
-      username: user.username,
-      tenantId: user.tenantId ?? null,
-      ip: input.ip,
-      ua: input.ua,
-      client: input.client,
-      deviceInfo: input.deviceInfo,
-      deviceId: input.deviceId,
-      rememberDevice: input.rememberDevice ?? false,
-    });
-    return {
-      mfaRequired: true as const,
-      challengeId: challenge.challengeId,
-      methods: mfa.methods,
-      expiresAt: challenge.expiresAt,
-      reason: mfa.reason,
-    };
-  }
-
-  return finalizeLogin(user, input, { logMessage: '登录成功', requirePasswordChange, sessionPolicy: policy.session });
+  await clearLoginAttempts(input.username);
+  // 凭据已通过：会话并发 → MFA → 密码过期 → 签发，与 SSO / OAuth 同一收口
+  return completeLoginWithMfa(user, input, '登录成功', { policy });
 }
 
 export interface RegisterInput {
@@ -443,7 +441,8 @@ export async function verifyMfaLogin(challengeId: string, code: string, remember
   return finalizeLogin(
     user,
     { ip: challenge.ip, ua: challenge.ua, client: challenge.client, deviceInfo: challenge.deviceInfo as DeviceInfo | undefined },
-    { logMessage: 'MFA 验证后登录成功', requirePasswordChange },
+    // 冲突票据兑换后转入 MFA 的挑战带着「已确认下线其它设备」，签发后照约挤掉
+    { logMessage: challenge.logMessage ? `${challenge.logMessage}（MFA 验证）` : 'MFA 验证后登录成功', requirePasswordChange, evictOthers: challenge.evictOthers },
   );
 }
 

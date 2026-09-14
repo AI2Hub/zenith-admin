@@ -6,7 +6,7 @@ import { enterpriseAuthContract } from '@zenith/shared/identity';
 import { api } from '@/lib/contract-query';
 import { ApiError } from '@/lib/query';
 import { markPostLoginHome } from '@/lib/post-login';
-import type { MfaHandoffState } from '@/lib/mfa-handoff';
+import { handoffFromLoginResult } from '@/lib/mfa-handoff';
 
 export default function EnterpriseCallbackPage() {
   const [searchParams] = useSearchParams();
@@ -28,12 +28,13 @@ export default function EnterpriseCallbackPage() {
     }
     callback
       .then(({ loginResult, redirectTo }) => {
-        // 企业 SSO 与密码登录共用 MFA 策略：命中挑战时交给登录页的验证表单完成
-        if ('mfaRequired' in loginResult) {
-          const handoff: MfaHandoffState = { mfaChallenge: loginResult, redirectTo: redirectTo ?? null };
+        // 企业 SSO 与密码登录共用 MFA 策略与会话并发判定：命中挑战 / 冲突时交给登录页的验证表单 / 确认弹层完成
+        const handoff = handoffFromLoginResult(loginResult, redirectTo);
+        if (handoff) {
           navigate('/login', { replace: true, state: handoff });
           return;
         }
+        if (!('token' in loginResult)) return;
         localStorage.setItem(TOKEN_KEY, loginResult.token.accessToken);
         localStorage.setItem(REFRESH_TOKEN_KEY, loginResult.token.refreshToken);
         Toast.success('登录成功');

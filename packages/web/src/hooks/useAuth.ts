@@ -46,6 +46,8 @@ export interface AuthContextValue {
     rememberDevice: boolean,
     options?: LoginOptions,
   ) => Promise<AuthResponse<LoginResponse>>;
+  /** 会话并发拒绝模式：用户确认「下线其它设备并登录」，凭冲突票据继续原登录流程（可能再转入 MFA） */
+  resolveSessionConflict: (ticket: string, options?: LoginOptions) => Promise<AuthResponse<LoginResult>>;
   register: (data: {
     username: string;
     nickname: string;

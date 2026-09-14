@@ -5,7 +5,7 @@ import { User, Lock, Mail, AtSign, Building2, ShieldCheck, ShieldAlert, Briefcas
 import dayjs from 'dayjs';
 import { MAX_STORED_ACCOUNTS, REFRESH_TOKEN_KEY, TOKEN_KEY } from '@zenith/shared/core';
 import { OAUTH_PROVIDER_LABELS, enterpriseAuthContract, oauthContract } from '@zenith/shared/identity';
-import type { RegisterInput, OAuthProviderType, LoginResult, LoginResponse, MfaLoginChallenge, TenantIdentityProviderSummary } from '@zenith/shared/identity';
+import type { RegisterInput, OAuthProviderType, LoginResult, LoginResponse, MfaLoginChallenge, SessionConflict, TenantIdentityProviderSummary } from '@zenith/shared/identity';
 import { api } from '@/lib/contract-query';
 import { ApiError } from '@/lib/query';
 import { takeAuthInvalidatedReason, type AuthInvalidatedReason } from '@/utils/http-client';
@@ -29,6 +29,7 @@ import './LoginPage.css';
 // Semi Form / Tabs / Modal 都不进本文件的静态闭包，弹窗按需加载。
 const ForgotPasswordModal = lazy(() => import('./ForgotPasswordModal'));
 const DirectoryLoginModal = lazy(() => import('./DirectoryLoginModal'));
+const SessionConflictModal = lazy(() => import('./SessionConflictModal'));
 
 const { Title, Text } = Typography;
 
@@ -67,18 +68,22 @@ function isMfaChallenge(data: LoginResult): data is MfaLoginChallenge {
   return 'mfaRequired' in data && data.mfaRequired;
 }
 
+function isSessionConflict(data: LoginResult): data is SessionConflict {
+  return 'sessionConflict' in data && data.sessionConflict;
+}
+
 export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly<LoginPageProps>) {
   const navigate = useNavigate();
   const location = useLocation();
   const params = new URLSearchParams(location.search);
-  // 企业 SSO 回调页命中 MFA 时经 location.state 交接挑战，复用本页验证表单
+  // 企业 SSO / 第三方 OAuth 回调页命中 MFA 或会话冲突时经 location.state 交接，复用本页验证表单 / 确认弹层
   const mfaHandoff = readMfaHandoff(location.state);
   const redirectTo = mfaHandoff?.redirectTo || params.get('redirect') || '/';
   // 添加账号模式：保留当前登录，成功后停靠原账号并整页切换为新账号
   const addAccountMode = params.get('add_account') === '1';
   const prefillUsername = params.get('username') ?? '';
   const loginOptions: LoginOptions | undefined = addAccountMode ? { addAccount: true } : undefined;
-  const { status: authStatus, parkedAccounts, canAddAccount, switchAccount } = useAuth();
+  const { status: authStatus, parkedAccounts, canAddAccount, switchAccount, resolveSessionConflict } = useAuth();
   const [resumingId, setResumingId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState<'login' | 'register'>('login');
@@ -108,6 +113,9 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
   const [mfaCode, setMfaCode] = useState('');
   const [mfaError, setMfaError] = useState<string | undefined>();
   const [rememberDevice, setRememberDevice] = useState(true);
+  // 会话并发拒绝模式：凭据已通过但名额已满 → 弹层确认后凭票据兑换；弹层组件按需加载
+  const [sessionConflict, setSessionConflict] = useState<SessionConflict | null>(mfaHandoff?.sessionConflict ?? null);
+  const [conflictResolving, setConflictResolving] = useState(false);
   const [directoryProvider, setDirectoryProvider] = useState<TenantIdentityProviderSummary | null>(null);
   const [directoryMounted, setDirectoryMounted] = useState(false);
   const [directoryLoginLoading, setDirectoryLoginLoading] = useState(false);
@@ -171,11 +179,7 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
         loginOptions,
       );
       if (res.code === 0) {
-        if (isMfaChallenge(res.data)) {
-          setMfaChallenge(res.data);
-          return;
-        }
-        if (addAccountMode) return; // 添加账号成功后由 AuthProvider 整页重载接管
+        if (handleLoginResult(res.data)) return;
         navigateAfterLogin(redirectTo);
         return;
       }
@@ -186,6 +190,41 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
       if (captchaEnabled) fetchCaptcha();
     } finally {
       setLoading(false);
+    }
+  };
+
+  /**
+   * 登录结果的非终态分支：MFA 挑战转入验证表单，会话冲突弹出确认层，添加账号成功交给 AuthProvider 整页重载。
+   * 返回 true 表示已接管、调用方不必再跳转。
+   */
+  const handleLoginResult = (data: LoginResult): boolean => {
+    if (isMfaChallenge(data)) {
+      setMfaChallenge(data);
+      return true;
+    }
+    if (isSessionConflict(data)) {
+      setSessionConflict(data);
+      return true;
+    }
+    return addAccountMode;
+  };
+
+  const handleResolveConflict = async () => {
+    if (!sessionConflict || conflictResolving) return;
+    setConflictResolving(true);
+    try {
+      const res = await resolveSessionConflict(sessionConflict.ticket, loginOptions);
+      if (res.code === 0) {
+        setSessionConflict(null);
+        if (handleLoginResult(res.data)) return;
+        navigateAfterLogin(redirectTo);
+        return;
+      }
+      // 票据过期 / 已被消费：关闭弹层回到表单重新登录
+      Toast.error(res.message);
+      setSessionConflict(null);
+    } finally {
+      setConflictResolving(false);
     }
   };
 
@@ -501,9 +540,9 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
           redirectTo,
         },
       }, { silent: true });
-      // 企业 SSO 与密码登录共用 MFA 策略：命中挑战时切到同一套验证表单
-      if (isMfaChallenge(loginResult)) {
-        setMfaChallenge(loginResult);
+      // 企业 SSO 与密码登录共用 MFA 策略与会话并发判定：命中挑战 / 冲突时切到同一套验证表单 / 确认弹层
+      if (isMfaChallenge(loginResult) || isSessionConflict(loginResult)) {
+        handleLoginResult(loginResult);
         setDirectoryProvider(null);
         return;
       }
@@ -720,6 +759,16 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
             loading={directoryLoginLoading}
             onCancel={() => setDirectoryProvider(null)}
             onSubmit={handleDirectoryLogin}
+          />
+        </Suspense>
+      )}
+      {sessionConflict && (
+        <Suspense fallback={null}>
+          <SessionConflictModal
+            conflict={sessionConflict}
+            loading={conflictResolving}
+            onConfirm={() => void handleResolveConflict()}
+            onCancel={() => setSessionConflict(null)}
           />
         </Suspense>
       )}

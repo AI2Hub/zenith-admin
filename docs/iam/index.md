@@ -101,6 +101,22 @@
 
 `/api/auth/refresh` 一次性消费 Redis 中的 refresh 授权，重新校验用户状态、租户状态与租户到期时间后**轮换**签发新 `jti` 的 access token 与 refresh token（旧 `jti` 立即吊销，在线会话迁移到新 `jti`）。登出、强制下线、修改 / 重置密码都会撤销 refresh 授权，未过期的 refresh token 随之失效；客户端须用响应中的新 refresh token 覆盖本地保存。
 
+### 会话存储与吊销原因
+
+会话由 `jti` 标识，Redis 中对应四类 key（`lib/redis-session-store.ts`，管理员 / 会员各自实例化）：`session:{jti}` 在线会话（滑动 TTL 8h）、`refresh:{jti}` refresh 授权（30d）、`blacklist:{jti}` 吊销标记（2h，与 access token 同寿命）、`user-sessions:{userId}` 该用户全部在线 `jti` 的 SET 索引。登录期并发限制、我的设备、改密 / 按用户强退都按索引 O(k) 取会话，不再全量 SCAN；索引成员随会话过期自然失效并在读取时懒清理，`touch` 回写与 api 角色启动时的一次 SCAN 会把索引外的会话补挂进来。
+
+吊销标记的值就是**吊销原因**（`SESSION_REVOKE_REASONS`：`concurrent-login` 被挤下线 / `password-changed` 改密 / `force-logout` 管理员强退 / `logout` 登出 / `rotated` 续签轮换）。认证中间件与 `/api/auth/refresh` 命中标记时返回 401，响应体除文案外带机读 `reason`，前端登录页据此展示精确提示；WS 断开时也不丢信息。
+
+### 会话并发限制
+
+策略 `identitySecurity.session`（租户级）：`maxSessions` 同时在线上限（0 不限，1 = 单用户登录）、`scope` 全部终端合计 / 按终端类型分别计算、`exceedAction` 挤掉最早登录的会话 / 拒绝新登录。实现：`services/identity/session-policy.service.ts`。
+
+- **终端类型**：前端各入口经请求头 `X-Zenith-Client` 自报 `web`（浏览器后台）/ `mobile`（移动审批）/ `desktop`（Electron，同一份后台产物按预加载桥接判定），服务端只接受枚举值、缺省按 `web`，写入会话 `client` 字段——在线用户列表「终端」列与筛选、我的设备图标、`per-client` 分组都取自它；它不参与鉴权。
+- **执行点唯一**：所有登录路径（密码 / MFA 完成 / 企业 SSO / 第三方 OAuth）都经 `completeLoginWithMfa()` → `finalizeLogin()`。`finalizeLogin` 先注册新会话再执行 `enforceSessionLimit()`——挤人失败不影响本次登录，用户永不处于 0 个会话；两台设备同秒登录各自「保留自己、挤最早的」，最终一致，不需要分布式锁。refresh 轮换与切换租户视角是**会话迁移**（新 `jti` 继承旧会话的终端与登录时间），不触发限制；模拟登录会话是操作者的会话（`impersonatorId` 非空），既不计数也不会被挤。
+- **挤掉最早的（默认）**：手里有密码的人比一个不知在哪的旧会话更可能是本人，也不会被僵尸会话锁死。被挤会话按 `concurrent-login` 吊销（access 立即失效、refresh 换不出新 token），收到带新登录信息（终端 / IP / 归属地 / 浏览器 / 时间）的 `session:force-logout` 后连接关闭；前端弹出「已在其他设备登录」通知并落到登录页常驻横幅（预填账号、可直达找回密码）。登录日志：新登录一行 message 附「挤掉 N 个会话」，每个被挤会话一行 `eventType = kicked`（记录新登录的终端 / IP），用户在个人中心「登录记录」自己能看到。
+- **拒绝新登录**：与 MFA 挑战同构。凭据校验**通过后**（避免未认证探测账号在线状态）、MFA 之前判定名额：已满则不签发 token，返回 `{ sessionConflict: true, ticket, maxSessions, sessions }`（占用者只含终端 / IP / 归属地 / 浏览器 / 时间，不含 `tokenId`），票据 5 分钟一次性（GETDEL），冻结了原登录上下文（用户 / 终端 / IP / UA / 设备信息 / 日志文案）。登录页弹层展示占用设备，用户确认「下线其他设备并登录」→ `POST /api/auth/session-conflict/resolve` 凭票据继续原流程（可能再转入 MFA，挑战里带 `evictOthers` 记忆），签发后全部挤掉；不必重输密码。企业 SSO / OAuth 回调页拿到冲突结果时与 MFA 挑战一样经 `location.state` 交回登录页处理。
+- **用户可见**：`session` 字段对登录用户可见（`/api/settings/me`），「我的设备」在策略开启时说明当前规则；身份安全页保存前实时预览生效行为（文案 `formatSessionPolicyHint` 前后端同源）。
+
 ### 多账号切换
 
 前端账号切换器实现位于 `packages\web\src\lib\account-store.ts` 与 `AuthProvider.tsx`：
@@ -132,6 +148,9 @@
 | `password.requireSpecialChar` | 是否要求特殊字符 |
 | `password.expiryEnabled` / `password.expiryDays` | 密码过期强制修改 |
 | `lockout.maxAttempts` / `lockout.durationMinutes` | 登录失败锁定阈值与锁定时长，按用户所属租户解析 |
+| `session.maxSessions` | 同时在线上限：0 不限制、1 仅一处登录、N 最多 N 处；模拟登录会话不计入 |
+| `session.scope` | 并发统计范围：`global` 全部终端合计 / `per-client` 网页、移动审批、桌面端各算一份 |
+| `session.exceedAction` | 超限处理：`kick-oldest` 新登录挤掉最早的会话 / `reject-new` 拒绝新登录（登录页可选择下线其它设备） |
 | `mfa.enabled` / `mfa.mode` | MFA 总开关与模式：`off`、`optional`、`required` |
 | `mfa.rememberDeviceDays` | 可信设备免 MFA 天数 |
 | `risk.enabled` / `risk.newDeviceAction` | 新设备风险策略；动作支持 `allow`、`challenge` |
@@ -140,7 +159,7 @@
 | `impersonation.allowWrite` | 是否允许可操作模式；关闭时只能只读模拟 |
 | `impersonation.notifyTarget` | 开始模拟时是否通知被模拟用户 |
 
-密码规则（`password`）是匿名可见字段：登录 / 注册 / 改密页通过 `GET /api/settings/public` 与 `/api/settings/me` 读取并做前端提示。模拟登录参数（`impersonation`）对登录用户可见（`/api/settings/me`），供发起弹窗读取时长上限与模式开关。
+密码规则（`password`）是匿名可见字段：登录 / 注册 / 改密页通过 `GET /api/settings/public` 与 `/api/settings/me` 读取并做前端提示。模拟登录参数（`impersonation`）与会话并发策略（`session`）对登录用户可见（`/api/settings/me`），分别供发起弹窗读取时长上限与模式开关、供「我的设备」说明当前规则。
 
 MFA 当前落库类型包括 `totp`、`passkey`、`recovery_code`，接口实现覆盖 TOTP 绑定、确认、停用与登录验证。新设备触发挑战时写入 `login_risk_events`，风险等级为 `low`、`medium`、`high`，动作是 `allow`、`challenge`、`block`。
 
@@ -255,7 +274,7 @@ MFA 当前落库类型包括 `totp`、`passkey`、`recovery_code`，接口实现
 
 | 根路径 | 主要能力 |
 | --- | --- |
-| `/api/auth` | 验证码、登录、注册、刷新、登出、按 refresh token 登出、个人资料、密码、MFA、可信设备、个人日志、个人会话、租户视角、偏好、收藏菜单 |
+| `/api/auth` | 验证码、登录、注册、刷新、登出、按 refresh token 登出、MFA 验证、会话冲突票据兑换、个人资料、密码、MFA、可信设备、个人日志、个人会话、租户视角、偏好、收藏菜单 |
 | `/api/users` | 用户列表、详情、创建、更新、删除、批量删除、批量状态、密码重置、解锁、导入、导入模板、授权、数据权限、有效权限 |
 | `/api/roles` | 角色全量/分页/详情、创建、更新、删除、分配菜单、读取/设置角色用户 |
 | `/api/menus` | 当前用户菜单、管理菜单树、平铺菜单、详情、创建、更新、删除 |

@@ -447,6 +447,15 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
     return res;
   }, [activateAddedAccount, activateSession]);
 
+  const resolveSessionConflict = useCallback<AuthContextValue['resolveSessionConflict']>(async (ticket, options) => {
+    const res = await apiRaw(authContract.resolveSessionConflict, { body: { ticket } }, { silent: true });
+    if (res.code === 0 && isLoginResponse(res.data)) {
+      if (options?.addAccount) activateAddedAccount(res.data);
+      else await activateSession(res.data.token);
+    }
+    return res;
+  }, [activateAddedAccount, activateSession]);
+
   const register = useCallback<AuthContextValue['register']>(async (data, options) => {
     const res = await apiRaw(authContract.register, { body: data }, { silent: true });
     if (res.code === 0) {
@@ -521,6 +530,7 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
     canAddAccount: parkedAccounts.length + (session?.user ? 1 : 0) < MAX_STORED_ACCOUNTS,
     login,
     verifyMfaLogin,
+    resolveSessionConflict,
     register,
     logout,
     refresh,
@@ -541,6 +551,7 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
     refresh,
     register,
     removeAccount,
+    resolveSessionConflict,
     session,
     sessionQuery.error,
     sessionQuery.isFetching,

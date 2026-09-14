@@ -11,7 +11,7 @@ import {
   listMyLoginLogs, listMyOperationLogs, listMySessions, deleteMyOtherSessions, deleteMySession,
   switchTenantView, listSwitchableTenants, forgotPassword, resetPassword,
   getMyPreferences, saveMyPreferences, getMyFavoriteMenus, saveMyFavoriteMenus,
-  verifyMfaLogin,
+  verifyMfaLogin, resolveSessionConflict,
 } from '../../services/identity/auth.service';
 import { getClientInfo } from '../../lib/request-helpers';
 import {
@@ -67,6 +67,14 @@ const mfaVerifyRoute = defineContractRoute(authContract.mfaVerify, {
     const { challengeId, code, rememberDevice } = c.req.valid('json');
     const result = await verifyMfaLogin(challengeId, code, rememberDevice);
     return c.json(okBody(result, '登录成功'), 200);
+  },
+});
+
+const resolveSessionConflictRoute = defineContractRoute(authContract.resolveSessionConflict, {
+  middleware: [authRateLimit] as const,
+  handler: async (c) => {
+    const result = await resolveSessionConflict(c.req.valid('json').ticket);
+    return c.json(okBody(result, 'mfaRequired' in result ? '请完成多因素认证' : '登录成功'), 200);
   },
 });
 
@@ -224,6 +232,6 @@ const deleteTrustedDeviceRoute = defineContractRoute(authContract.removeTrustedD
 });
 
 // /my-sessions/others 先于 /my-sessions/{tokenId} 注册，否则 "others" 会被当成 tokenId
-auth.openapiRoutes([captchaRoute, loginRoute, registerRoute, refreshRoute, mfaVerifyRoute, logoutRoute, logoutByRefreshRoute, meRoute, profileRoute, passwordRoute, myLoginLogsRoute, myOperationLogsRoute, mySessionsRoute, deleteOtherSessionsRoute, deleteSessionRoute, switchTenantRoute, authTenantsRoute, forgotPasswordRoute, resetPasswordRoute, getPreferencesRoute, savePreferencesRoute, getFavoriteMenusRoute, saveFavoriteMenusRoute, verifyPasswordRoute, myMfaFactorsRoute, beginTotpSetupRoute, verifyTotpSetupRoute, disableMfaFactorRoute, deleteMfaFactorRoute, myTrustedDevicesRoute, deleteTrustedDeviceRoute] as const);
+auth.openapiRoutes([captchaRoute, loginRoute, registerRoute, refreshRoute, mfaVerifyRoute, resolveSessionConflictRoute, logoutRoute, logoutByRefreshRoute, meRoute, profileRoute, passwordRoute, myLoginLogsRoute, myOperationLogsRoute, mySessionsRoute, deleteOtherSessionsRoute, deleteSessionRoute, switchTenantRoute, authTenantsRoute, forgotPasswordRoute, resetPasswordRoute, getPreferencesRoute, savePreferencesRoute, getFavoriteMenusRoute, saveFavoriteMenusRoute, verifyPasswordRoute, myMfaFactorsRoute, beginTotpSetupRoute, verifyTotpSetupRoute, disableMfaFactorRoute, deleteMfaFactorRoute, myTrustedDevicesRoute, deleteTrustedDeviceRoute] as const);
 
 export default auth;

@@ -1,0 +1,63 @@
+/* 登录页：会话并发冲突确认弹层 */
+.session-conflict-intro {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 14px;
+  line-height: 1.6;
+}
+
+.session-conflict-intro svg {
+  flex: none;
+  margin-top: 3px;
+  color: var(--semi-color-danger);
+}
+
+.session-conflict-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--semi-color-border);
+  border-radius: var(--semi-border-radius-medium);
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.session-conflict-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 14px;
+}
+
+.session-conflict-item + .session-conflict-item {
+  border-top: 1px solid var(--semi-color-border);
+}
+
+.session-conflict-icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--semi-color-text-2);
+}
+
+.session-conflict-body {
+  min-width: 0;
+  flex: 1;
+}
+
+.session-conflict-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-conflict-meta {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.session-conflict-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}

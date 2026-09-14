@@ -58,7 +58,38 @@ export const mfaLoginChallengeSchema = z.object({
 
 export type MfaLoginChallenge = z.infer<typeof mfaLoginChallengeSchema>;
 
-export const loginResultSchema = z.union([loginResponseSchema, mfaLoginChallengeSchema]).meta({ id: 'LoginResult' });
+/** 占用同时在线名额的既有会话（拒绝模式下展示给正在登录的用户本人） */
+export const conflictingSessionSchema = z.object({
+  client: z.enum(SESSION_CLIENT_KINDS),
+  ip: z.string(),
+  location: z.string().nullable(),
+  browser: z.string(),
+  os: z.string(),
+  loginAt: z.string(),
+  lastActiveAt: z.string(),
+}).meta({ id: 'ConflictingSession' });
+
+export type ConflictingSession = z.infer<typeof conflictingSessionSchema>;
+
+/**
+ * 会话并发「拒绝新登录」命中：凭据已通过但名额已满，返回冲突票据与占用者。
+ * 用户确认「下线其它设备并登录」后凭票据兑换，不必重输密码；票据 5 分钟有效、一次性。
+ */
+export const sessionConflictSchema = z.object({
+  sessionConflict: z.literal(true),
+  ticket: z.string(),
+  maxSessions: z.int(),
+  sessions: z.array(conflictingSessionSchema),
+  expiresAt: z.number(),
+}).meta({ id: 'SessionConflict' });
+
+export type SessionConflict = z.infer<typeof sessionConflictSchema>;
+
+export const resolveSessionConflictSchema = z.object({
+  ticket: z.string().min(1),
+}).meta({ id: 'ResolveSessionConflictInput' });
+
+export const loginResultSchema = z.union([loginResponseSchema, mfaLoginChallengeSchema, sessionConflictSchema]).meta({ id: 'LoginResult' });
 
 export type LoginResult = z.infer<typeof loginResultSchema>;
 
@@ -157,6 +188,7 @@ export const authContract = defineContract('/api/auth', {
   register: op.post('/register', { body: registerSchema, response: loginResponseSchema, summary: '注册', public: true }),
   refresh: op.post('/refresh', { body: refreshTokenSchema, response: refreshTokenResultSchema, summary: '刷新令牌', public: true }),
   mfaVerify: op.post('/mfa/verify', { body: mfaVerifySchema, response: loginResponseSchema, summary: '登录 MFA 验证', public: true }),
+  resolveSessionConflict: op.post('/session-conflict/resolve', { body: resolveSessionConflictSchema, response: loginResultSchema, summary: '下线其它设备并继续登录（会话并发拒绝模式）', public: true }),
   logout: op.post('/logout', { access: 'authenticated', summary: '退出登录' }),
   logoutByRefresh: op.post('/logout-by-refresh', { body: refreshTokenSchema, summary: '按 refresh token 退出会话（账号切换器注销停靠账号）', public: true }),
   me: op.get('/me', { access: 'authenticated', response: userProfileSchema, summary: '获取当前用户', unmasked: true }),

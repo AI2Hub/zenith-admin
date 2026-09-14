@@ -35,7 +35,7 @@ Sec-WebSocket-Protocol: zenith-auth, eyJ...
 | `in-app-message:read` | `{ id: number }` | 站内信已读 |
 | `in-app-message:read-all` | `{}` | 站内信全部已读 |
 | `in-app-message:deleted` | `{ id: number }` | 站内信删除 |
-| `session:force-logout` | `{ reason?: string }` | 强制下线 |
+| `session:force-logout` | `{ reason: string; code?: SessionRevokeReason; by?: { client, ip, location, browser, os, at } }` | 强制下线；`code = concurrent-login`（会话并发挤下线）时 `by` 携带新登录信息，前端据此提示「已在其他设备登录」并落到登录页横幅 |
 | `chat:message` | `unknown` | 聊天消息 |
 | `chat:recall` | `{ messageId: number; conversationId: number }` | 撤回消息 |
 | `chat:read` | `{ conversationId: number; userId: number }` | 会话已读 |

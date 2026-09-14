@@ -10,13 +10,17 @@
  *
  * 两台设备同秒登录：各自「保留自己、挤最早的」，后到者的强制把先到者挤掉，最终一致，无需分布式锁。
  */
-import { SESSION_CLIENT_KIND_LABELS, type SessionClientKind } from '@zenith/shared/identity';
+import { randomBytes } from 'node:crypto';
+import { HTTPException } from 'hono/http-exception';
+import { SESSION_CLIENT_KIND_LABELS, type ConflictingSession, type SessionClientKind } from '@zenith/shared/identity';
 import type { SessionForceLogoutPayload } from '@zenith/shared/platform';
 import type { SessionConcurrencyPolicy } from '@zenith/shared/settings';
 import { formatDateTime } from '../../lib/datetime';
+import redis from '../../lib/redis';
 import { listUserSessions, revokeSessions, type SessionInfo } from '../../lib/session-manager';
 import { getSettings } from '../../lib/settings';
 import { closeTokenConnection, sendToToken } from '../../lib/ws-manager';
+import type { DeviceInfo } from './auth.service';
 
 /** 触发并发判定的新登录 */
 export interface NewLoginContext {
@@ -106,4 +110,69 @@ export async function enforceSessionLimit(
     setTimeout(() => closeTokenConnection(victim.tokenId, '被挤下线'), 500);
   }
   return victims;
+}
+
+// ─── 拒绝模式：冲突票据 ────────────────────────────────────────────────────────
+// 凭据已通过但名额已满时不签发 token，而是发一张 5 分钟一次性票据；用户在登录页确认「下线其它设备并登录」后凭票兑换，
+// 服务端据票据里冻结的登录上下文（用户 / 终端 / IP / UA / 设备信息 / 日志文案）继续原登录流程，不必重输密码。
+// 与 MFA 挑战同构：密码 / SSO / OAuth 三条路径都经此收口。
+
+const CONFLICT_TICKET_PREFIX = 'session-conflict:';
+const CONFLICT_TICKET_TTL_SECONDS = 5 * 60;
+
+export interface SessionConflictTicketPayload {
+  userId: number;
+  username: string;
+  tenantId: number | null;
+  ip: string;
+  ua: string;
+  client: SessionClientKind;
+  deviceInfo?: DeviceInfo;
+  deviceId?: string;
+  rememberDevice?: boolean;
+  logMessage: string;
+  expiresAt: number;
+}
+
+function toConflictingSession(s: SessionInfo): ConflictingSession {
+  return {
+    client: s.client ?? 'web',
+    ip: s.ip,
+    location: s.location ?? null,
+    browser: s.browser,
+    os: s.os,
+    loginAt: formatDateTime(s.loginAt),
+    lastActiveAt: formatDateTime(s.lastActiveAt),
+  };
+}
+
+/** 签发冲突票据并组装返回给登录页的冲突结果 */
+export async function issueSessionConflict(
+  context: Omit<SessionConflictTicketPayload, 'expiresAt'>,
+  conflicts: SessionInfo[],
+  maxSessions: number,
+) {
+  const ticket = randomBytes(24).toString('base64url');
+  const expiresAt = Date.now() + CONFLICT_TICKET_TTL_SECONDS * 1000;
+  const payload: SessionConflictTicketPayload = { ...context, expiresAt };
+  await redis.set(`${CONFLICT_TICKET_PREFIX}${ticket}`, JSON.stringify(payload), 'EX', CONFLICT_TICKET_TTL_SECONDS);
+  return {
+    sessionConflict: true as const,
+    ticket,
+    maxSessions,
+    sessions: conflicts
+      .slice()
+      .sort((a, b) => b.lastActiveAt.getTime() - a.lastActiveAt.getTime())
+      .map(toConflictingSession),
+    expiresAt,
+  };
+}
+
+/** 一次性消费冲突票据（GETDEL）；不存在 / 过期 → 400 让用户重新登录 */
+export async function consumeSessionConflictTicket(ticket: string): Promise<SessionConflictTicketPayload> {
+  const raw = await redis.getdel(`${CONFLICT_TICKET_PREFIX}${ticket}`);
+  if (!raw) throw new HTTPException(400, { message: '确认已过期，请重新登录' });
+  const payload = JSON.parse(raw) as SessionConflictTicketPayload;
+  if (payload.expiresAt < Date.now()) throw new HTTPException(400, { message: '确认已过期，请重新登录' });
+  return payload;
 }

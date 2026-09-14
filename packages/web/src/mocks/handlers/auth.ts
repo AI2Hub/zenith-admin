@@ -8,11 +8,14 @@ import { mockLoginLogs, mockOperationLogs } from '@/mocks/data/logs';
 import { mockDateTime, mockDateTimeOffset } from '@/mocks/utils/date';
 import { currentMockSession, isMockPlatformAdmin, mockAccessToken, mockRefreshToken, mockUserPermissions, resolveMockSession, MOCK_REFRESH_TOKEN_PREFIX } from '@/mocks/utils/auth';
 import { matchesFilter } from '@/mocks/utils/filter';
+import { getMockSettings } from '@/mocks/data/settings';
 
 // 偏好设置 & 收藏菜单 mock 状态（模块级可变，模拟服务端持久化）
 let mockPreferencesStore: Record<string, unknown> | null = null;
 let mockFavoriteMenusStore: number[] = [];
 const mockMfaFactors: MfaFactor[] = [];
+/** 会话并发拒绝模式的冲突票据 → 用户名（Demo 内存态） */
+const pendingConflictTickets = new Map<string, string>();
 
 // ─── 我的设备 mock 状态（模块级可变，支持踢人操作）────────────────────────────
 const mockMySessionStore: UserSession[] = [
@@ -64,17 +67,44 @@ export const authHandlers = [
     return ok({ enabled: false, captchaId: '', svg: '' });
   }),
 
-  // 登录
+  // 登录：Demo 模式按身份安全设置演示拒绝模式——名额已满时返回冲突票据，确认后 resolveSessionConflict 签发
   mock(authContract.login, ({ body, ok }) => {
     const user = mockUsers.find((u) => u.username === body.username || (u.phone && u.phone === body.username));
     if (!user || body.password !== user.password) {
       return unauthorized('用户名或密码错误', { status: 401 });
+    }
+    const { session } = getMockSettings('identitySecurity');
+    const others = mockMySessionStore.filter((s) => !s.isCurrent);
+    if (session.maxSessions > 0 && session.exceedAction === 'reject-new' && others.length >= session.maxSessions) {
+      const ticket = `conflict-${user.username}-${Date.now()}`;
+      pendingConflictTickets.set(ticket, user.username);
+      return ok({
+        sessionConflict: true as const,
+        ticket,
+        maxSessions: session.maxSessions,
+        sessions: others.map(({ tokenId: _t, isCurrent: _c, ...rest }) => rest),
+        expiresAt: Date.now() + 5 * 60 * 1000,
+      });
     }
     const { password: _, ...userWithoutPassword } = user;
     return ok({
       user: userWithoutPassword,
       token: { accessToken: mockAccessToken(user.username), refreshToken: mockRefreshToken(user.username) },
     });
+  }),
+
+  mock(authContract.resolveSessionConflict, ({ body, ok }) => {
+    const username = pendingConflictTickets.get(body.ticket);
+    if (!username) return badRequest('确认已过期，请重新登录');
+    pendingConflictTickets.delete(body.ticket);
+    const user = mockUsers.find((u) => u.username === username) ?? mockUsers[0];
+    // 下线其它设备：只保留当前设备
+    mockMySessionStore.splice(0, mockMySessionStore.length, ...mockMySessionStore.filter((s) => s.isCurrent));
+    const { password: _, ...userWithoutPassword } = user;
+    return ok({
+      user: userWithoutPassword,
+      token: { accessToken: mockAccessToken(user.username), refreshToken: mockRefreshToken(user.username) },
+    }, '登录成功');
   }),
 
   mock(authContract.mfaVerify, ({ ok }) => {
