@@ -2,7 +2,7 @@ import { useMemo, type ReactNode } from 'react';
 import { Tag, Tooltip, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { PaginationProps } from '@douyinfe/semi-ui/lib/es/pagination';
-import type { OperationVerdict } from '@zenith/shared/permission-catalog';
+import { SECURITY_SCHEME_LABELS, type OperationVerdict } from '@zenith/shared/permission-catalog-core';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { ListSearchToolbar } from '@/components/list-page';
 import { FilterSelect, KeywordInput } from '@/components/search-filters';
@@ -17,15 +17,15 @@ import {
   VERDICT_LABELS,
   VERDICT_TAG_COLORS,
   describeAccess,
-  domainLabel,
   domainOptions,
   featureOptions,
-  permissionLabel,
   permissionOptions,
   type CatalogFilters,
   type CatalogRow,
 } from './catalog-model';
-import { SECURITY_SCHEME_LABELS } from '@zenith/shared/permission-catalog';
+
+/** 权限码 → 注册表登记的按钮名（由目录接口随条目下发） */
+export type PermissionLabels = Readonly<Record<string, string>>;
 
 /** 方法标签：等宽大写，颜色按语义（读绿 / 写蓝 / 改橙 / 删红） */
 export function MethodTag({ method }: Readonly<{ method: CatalogRow['method'] }>) {
@@ -37,14 +37,14 @@ export function MethodTag({ method }: Readonly<{ method: CatalogRow['method'] }>
 }
 
 /** 权限码标签：最多展示 2 个，其余折成「+N」并悬停列出全部；带注册表里的中文名 */
-export function PermissionTags({ codes, max = 2 }: Readonly<{ codes: readonly string[]; max?: number }>) {
+export function PermissionTags({ codes, labels, max = 2 }: Readonly<{ codes: readonly string[]; labels: PermissionLabels; max?: number }>) {
   if (codes.length === 0) return <>{EMPTY_PLACEHOLDER}</>;
   const shown = codes.slice(0, max);
   const rest = codes.slice(max);
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, maxWidth: '100%', minWidth: 0 }}>
       {shown.map((code) => (
-        <Tooltip key={code} content={permissionLabel(code) ?? code}>
+        <Tooltip key={code} content={labels[code] ?? code}>
           <Tag size="small" color="light-blue" style={{ fontFamily: 'var(--semi-font-family-mono, monospace)', maxWidth: 220 }}>
             <Typography.Text ellipsis style={{ fontSize: 'inherit', color: 'inherit' }}>{code}</Typography.Text>
           </Tag>
@@ -60,14 +60,14 @@ export function PermissionTags({ codes, max = 2 }: Readonly<{ codes: readonly st
 }
 
 /** 访问要求单元格：权限码标签 / 登录即可 / 仅平台超管；非 bearer 显示凭证类型 */
-function renderAccess(row: CatalogRow): ReactNode {
+function renderAccess(row: CatalogRow, labels: PermissionLabels): ReactNode {
   if (row.security !== 'bearer' || row.accessKind === null) {
     return <Typography.Text type="tertiary">{SECURITY_SCHEME_LABELS[row.security]}</Typography.Text>;
   }
   if (row.accessKind === 'permission') {
     return (
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, maxWidth: '100%' }}>
-        <PermissionTags codes={row.permissions} />
+        <PermissionTags codes={row.permissions} labels={labels} />
         {row.platformOnly && <Tag size="small" color="violet">{row.platformOnly === 'multi-tenant' ? '多租户仅平台' : '仅平台'}</Tag>}
       </span>
     );
@@ -75,23 +75,23 @@ function renderAccess(row: CatalogRow): ReactNode {
   return <Tag size="small" color={row.accessKind === 'platform' ? 'violet' : 'grey'}>{describeAccess(row)}</Tag>;
 }
 
-export interface ApiCatalogSearchBarProps<F extends CatalogFilters> {
+export interface ApiCatalogSearchBarProps {
   readonly rows: readonly CatalogRow[];
-  /** `useListSearch<F>` 的返回值：控件绑定草稿，点「查询」才提交 */
-  readonly search: UseListSearchReturn<F>;
-  /** 追加的筛选控件（矩阵 Tab 的判定筛选） */
+  readonly permissionLabels: PermissionLabels;
+  /** `useListSearch<CatalogFilters>` 的返回值：控件绑定草稿，点「查询」才提交 */
+  readonly search: UseListSearchReturn<CatalogFilters>;
+  /** 追加的筛选控件（选中主体后的判定筛选） */
   readonly extraFilters?: ReactNode;
   /** 工具栏右侧说明（匹配数量等） */
   readonly extra?: ReactNode;
 }
 
 /** 目录搜索栏：标准「查询 / 重置」语义——筛选改动只进草稿，点「查询」提交后过滤并回到第 1 页 */
-export function ApiCatalogSearchBar<F extends CatalogFilters>({ rows, search, extraFilters, extra }: ApiCatalogSearchBarProps<F>) {
+export function ApiCatalogSearchBar({ rows, permissionLabels, search, extraFilters, extra }: ApiCatalogSearchBarProps) {
   const domains = useMemo(() => domainOptions(rows), [rows]);
-  const permissions = useMemo(() => permissionOptions(rows), [rows]);
+  const permissions = useMemo(() => permissionOptions(rows, permissionLabels), [rows, permissionLabels]);
   const features = useMemo(() => featureOptions(rows), [rows]);
-  // 子类型筛选状态（矩阵多一个 verdict 键）对目录字段的绑定与 CatalogFilters 完全一致
-  const { bind, bindKeyword, handleSearch, handleReset } = search as unknown as UseListSearchReturn<CatalogFilters>;
+  const { bind, bindKeyword, handleSearch, handleReset } = search;
   return (
     <ListSearchToolbar
       keyword={<KeywordInput placeholder="搜索名称 / 路径 / 权限码（支持拼音）" {...bindKeyword('keyword')} width={280} />}
@@ -117,15 +117,17 @@ export function ApiCatalogSearchBar<F extends CatalogFilters>({ rows, search, ex
 export interface ApiCatalogTableProps {
   /** 当前页的行（调用方按 page / pageSize 切片） */
   readonly rows: readonly CatalogRow[];
+  readonly permissionLabels: PermissionLabels;
   readonly pagination: PaginationProps;
+  readonly loading?: boolean;
   readonly onOpen: (row: CatalogRow) => void;
-  /** 传入即追加「可调用」列（权限矩阵 Tab） */
-  readonly verdictOf?: (row: CatalogRow) => OperationVerdict;
+  /** 选中查看主体后传入即追加「可调用」列；非登录令牌接口不经权限码门禁，返回 null 显示「不适用」 */
+  readonly verdictOf?: (row: CatalogRow) => OperationVerdict | null;
 }
 
-export function ApiCatalogTable({ rows, pagination, onOpen, verdictOf }: ApiCatalogTableProps) {
+export function ApiCatalogTable({ rows, permissionLabels, pagination, loading, onOpen, verdictOf }: ApiCatalogTableProps) {
   const columns = useMemo<ColumnProps<CatalogRow>[]>(() => [
-    { title: '模块', dataIndex: 'domain', width: 110, render: (domain: CatalogRow['domain']) => domainLabel(domain) },
+    { title: '模块', dataIndex: 'domainLabel', width: 110 },
     { title: '方法', dataIndex: 'method', width: 90, render: (method: CatalogRow['method']) => <MethodTag method={method} /> },
     copyableNoColumn<CatalogRow>('路径', 'fullPath', { flex: true }),
     {
@@ -140,7 +142,7 @@ export function ApiCatalogTable({ rows, pagination, onOpen, verdictOf }: ApiCata
       ),
     },
     { title: '认证', dataIndex: 'security', width: 100, render: (security: CatalogRow['security']) => SECURITY_SCHEME_LABELS[security] },
-    { title: '访问要求', dataIndex: 'permissions', width: 300, render: (_: unknown, row: CatalogRow) => renderAccess(row) },
+    { title: '访问要求', dataIndex: 'permissions', width: 300, render: (_: unknown, row: CatalogRow) => renderAccess(row, permissionLabels) },
     { title: '审计', dataIndex: 'audit', width: 150, render: renderEllipsis },
     { title: '功能门控', dataIndex: 'feature', width: 110, render: renderEllipsis },
     ...(verdictOf
@@ -151,11 +153,12 @@ export function ApiCatalogTable({ rows, pagination, onOpen, verdictOf }: ApiCata
         fixed: 'right' as const,
         render: (_: unknown, row: CatalogRow) => {
           const verdict = verdictOf(row);
+          if (verdict === null) return <Tag size="small" color="grey">不适用</Tag>;
           return <Tag size="small" color={VERDICT_TAG_COLORS[verdict]}>{VERDICT_LABELS[verdict]}</Tag>;
         },
       }]
       : []),
-  ], [verdictOf]);
+  ], [verdictOf, permissionLabels]);
 
   return (
     <ConfigurableTable<CatalogRow>
@@ -165,6 +168,7 @@ export function ApiCatalogTable({ rows, pagination, onOpen, verdictOf }: ApiCata
       columns={columns}
       dataSource={rows as CatalogRow[]}
       pagination={pagination}
+      loading={loading}
       empty="没有符合条件的接口"
       onRow={(row) => ({ onClick: () => { if (row) onOpen(row); }, style: { cursor: 'pointer' } })}
     />

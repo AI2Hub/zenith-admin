@@ -61,6 +61,22 @@ License 门控在 `feature`。`defineContractRoute` 据此装配 `authMiddleware
 
 平台管理员判定使用 `platformAdminOnly()`（由契约 `access.platformOnly` 装配）或 `isPlatformAdmin(user)`。在多租户模式下，平台超管必须同时满足 `roles` 包含 `super_admin` 且 `tenantId === null`。
 
+### 接口目录与权限矩阵
+
+「系统管理 → 接口目录」（`/system/api-catalog`，权限 `system:api-catalog:view`）把契约声明以只读方式展示：全部操作的模块、方法、
+地址、认证方式（登录令牌 / 公开 / 会员令牌 / 设备签名 / 开放网关）、访问要求（权限码 / 登录即可 / 仅平台超管）、审计与功能门控，
+并可按角色或用户查看每个接口的判定（可调用 / 无权限 / 仅平台超管）。数据面全部由契约派生，不落新表：
+
+| 端点 | 说明 |
+| --- | --- |
+| `GET /api/api-catalog` | 目录条目 + 引用到的权限码的注册表标签；`@zenith/shared/permission-catalog` 的 `buildApiCatalog()` 生成，服务端进程内缓存 |
+| `GET /api/permission-matrix/roles` | 各角色生效的权限码（角色绑定的启用按钮菜单 → `permission`，经租户套餐功能集过滤） |
+| `GET /api/permission-matrix/users/{id}` | 用户生效的权限码（角色 + 直授菜单 + 用户组角色合并，与登录态下发口径一致） |
+
+判定在浏览器内用 `@zenith/shared/permission-catalog-core` 的 `judgeOperation()` 完成，与门禁链同口径（平台超管全放行 →
+`platformOnly` 限定 → 任一权限码命中）。前端只依赖 `permission-catalog-core` 这一叶子模块，不 import 契约聚合，
+否则全部域契约会进入共享分包。
+
 ## 多因素、可信设备与登录风险
 
 身份安全策略由运行时设置模块 `identitySecurity`（租户作用域，见[运行时设置](./settings.md)）和身份路由共同实现：

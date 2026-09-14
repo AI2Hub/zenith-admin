@@ -1,48 +1,36 @@
 /**
  * 接口目录页的纯数据层：目录条目、筛选状态与谓词、下拉选项、展示映射。
- * 目录本身由 `@zenith/shared/permission-catalog` 从契约派生，这里不复制任何契约知识。
+ * 目录本身由服务端 `GET /api/api-catalog` 从契约派生；这里**不 import 任何契约聚合**
+ * （那会把全部域契约拉进共享分包），只依赖 `@zenith/shared/permission-catalog-core` 的纯判定与标签。
  */
 import type { TagColor } from '@douyinfe/semi-ui/lib/es/tag/interface';
-import { CONTRACT_DOMAIN_LABELS, type ContractDomain } from '@zenith/shared/contracts';
-import { ALL_PERMISSIONS } from '@zenith/shared/permissions';
 import type { SecurityScheme } from '@zenith/shared/core';
-import {
-  listApiCatalog,
-  listPermissionCatalog,
-  operationsByPermission,
-  SECURITY_SCHEME_LABELS,
-  type AccessKind,
-  type ApiCatalogEntry,
-  type OperationVerdict,
-  type PermissionCatalogEntry,
-} from '@zenith/shared/permission-catalog';
+import type { ApiCatalog, ApiCatalogItem } from '@zenith/shared/identity';
+import { SECURITY_SCHEME_LABELS, type AccessKind, type OperationVerdict } from '@zenith/shared/permission-catalog-core';
 import { textMatches } from '@/utils/pinyin';
 
-export type HttpMethod = ApiCatalogEntry['method'];
+export type HttpMethod = ApiCatalogItem['method'];
 
 /** 目录条目 + 稳定行键（同一路径不同方法各占一行） */
-export interface CatalogRow extends ApiCatalogEntry {
+export interface CatalogRow extends ApiCatalogItem {
   readonly key: string;
 }
 
-/** 目录一次构建、模块级缓存：契约是静态代码，无需随渲染重算 */
-let cachedRows: CatalogRow[] | null = null;
-export function catalogRows(): CatalogRow[] {
-  cachedRows ??= listApiCatalog().map((entry) => ({ ...entry, key: `${entry.method} ${entry.fullPath}` }));
-  return cachedRows;
+export function toCatalogRows(catalog: ApiCatalog | undefined): CatalogRow[] {
+  return (catalog?.items ?? []).map((item) => ({ ...item, key: `${item.method} ${item.fullPath}` }));
 }
 
 /** 权限码 → 引用它的接口（详情抽屉「同权限码的接口」） */
-let cachedByPermission: Map<string, CatalogRow[]> | null = null;
-export function rowsByPermission(): Map<string, CatalogRow[]> {
-  cachedByPermission ??= operationsByPermission(listPermissionRows(catalogRows())) as Map<string, CatalogRow[]>;
-  return cachedByPermission;
-}
-
-/** 权限矩阵范围：只有后台登录令牌操作经权限码门禁 */
-export type PermissionRow = CatalogRow & PermissionCatalogEntry;
-export function listPermissionRows(rows: readonly CatalogRow[]): PermissionRow[] {
-  return listPermissionCatalog(rows) as PermissionRow[];
+export function rowsByPermission(rows: readonly CatalogRow[]): Map<string, CatalogRow[]> {
+  const map = new Map<string, CatalogRow[]>();
+  for (const row of rows) {
+    for (const code of row.permissions) {
+      const list = map.get(code) ?? [];
+      list.push(row);
+      map.set(code, list);
+    }
+  }
+  return map;
 }
 
 // ─── 展示映射 ────────────────────────────────────────────────────────────────
@@ -73,17 +61,8 @@ export const VERDICT_TAG_COLORS: Record<OperationVerdict, TagColor> = {
   'platform-only': 'violet',
 };
 
-export function domainLabel(domain: ContractDomain): string {
-  return CONTRACT_DOMAIN_LABELS[domain] ?? domain;
-}
-
-/** 权限码的中文标签（注册表登记的按钮名） */
-export function permissionLabel(code: string): string | undefined {
-  return ALL_PERMISSIONS[code]?.label;
-}
-
 /** 访问要求的一句话描述：权限码列表 / 登录即可 / 仅平台超管（含多租户限定） */
-export function describeAccess(entry: ApiCatalogEntry): string {
+export function describeAccess(entry: ApiCatalogItem): string {
   if (entry.security !== 'bearer' || entry.accessKind === null) return SECURITY_SCHEME_LABELS[entry.security];
   const platform = entry.platformOnly === true ? '仅平台超管' : entry.platformOnly === 'multi-tenant' ? '多租户下仅平台超管' : null;
   if (entry.accessKind === 'authenticated') return ACCESS_KIND_LABELS.authenticated;
@@ -96,7 +75,7 @@ export function describeAccess(entry: ApiCatalogEntry): string {
 
 export interface CatalogFilters {
   keyword: string;
-  domain: ContractDomain | undefined;
+  domain: string | undefined;
   method: HttpMethod | undefined;
   security: SecurityScheme | undefined;
   accessKind: AccessKind | undefined;
@@ -105,6 +84,8 @@ export interface CatalogFilters {
   feature: string | undefined;
   /** 「其他凭证」统计卡：只看会员令牌 / 设备签名 / 开放网关 */
   otherCredential: true | undefined;
+  /** 选中查看主体后的判定筛选（未选主体时无效） */
+  verdict: OperationVerdict | undefined;
 }
 
 export const EMPTY_FILTERS: CatalogFilters = {
@@ -117,14 +98,8 @@ export const EMPTY_FILTERS: CatalogFilters = {
   audit: undefined,
   feature: undefined,
   otherCredential: undefined,
+  verdict: undefined,
 };
-
-/** 权限矩阵的筛选：目录筛选 + 判定结果 */
-export interface MatrixFilters extends CatalogFilters {
-  verdict: OperationVerdict | undefined;
-}
-
-export const EMPTY_MATRIX_FILTERS: MatrixFilters = { ...EMPTY_FILTERS, verdict: undefined };
 
 export function hasActiveFilter(filters: CatalogFilters): boolean {
   return Object.values(filters).some((value) => value !== undefined && value !== '');
@@ -170,18 +145,18 @@ export const AUDIT_OPTIONS = [
   { value: 'no' as const, label: '不记审计' },
 ];
 
+/** 模块选项：按目录出现顺序（域 → 契约组 → 声明顺序）去重 */
 export function domainOptions(rows: readonly CatalogRow[]) {
-  const present = new Set(rows.map((row) => row.domain));
-  return (Object.keys(CONTRACT_DOMAIN_LABELS) as ContractDomain[])
-    .filter((domain) => present.has(domain))
-    .map((domain) => ({ value: domain, label: CONTRACT_DOMAIN_LABELS[domain] }));
+  const seen = new Map<string, string>();
+  for (const row of rows) if (!seen.has(row.domain)) seen.set(row.domain, row.domainLabel);
+  return [...seen].map(([value, label]) => ({ value, label }));
 }
 
-export function permissionOptions(rows: readonly CatalogRow[]) {
+export function permissionOptions(rows: readonly CatalogRow[], permissionLabels: Readonly<Record<string, string>>) {
   const codes = new Set<string>();
   for (const row of rows) for (const code of row.permissions) codes.add(code);
   return [...codes].sort().map((code) => {
-    const label = permissionLabel(code);
+    const label = permissionLabels[code];
     return { value: code, label: label ? `${code}（${label}）` : code };
   });
 }

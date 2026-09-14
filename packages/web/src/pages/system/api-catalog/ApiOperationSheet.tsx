@@ -1,12 +1,15 @@
 import { Button, Descriptions, SideSheet, Tag, Typography } from '@douyinfe/semi-ui';
 import { ExternalLink } from 'lucide-react';
-import { SECURITY_SCHEME_LABELS } from '@zenith/shared/permission-catalog';
+import { SECURITY_SCHEME_LABELS } from '@zenith/shared/permission-catalog-core';
 import { EMPTY_PLACEHOLDER } from '@/utils/table-columns';
-import { MethodTag } from './ApiCatalogTable';
-import { describeAccess, domainLabel, permissionLabel, rowsByPermission, type CatalogRow } from './catalog-model';
+import { MethodTag, type PermissionLabels } from './ApiCatalogTable';
+import { describeAccess, type CatalogRow } from './catalog-model';
 
 interface ApiOperationSheetProps {
   readonly row: CatalogRow | null;
+  readonly permissionLabels: PermissionLabels;
+  /** 权限码 → 引用它的接口（页面按目录构建一次） */
+  readonly byPermission: ReadonlyMap<string, readonly CatalogRow[]>;
   readonly onClose: () => void;
   readonly onOpen: (row: CatalogRow) => void;
 }
@@ -14,9 +17,9 @@ interface ApiOperationSheetProps {
 const DOCS_URL = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/api/docs`;
 
 /** 单个接口的完整声明 + 引用同一权限码的其他接口（配角色时看一眼这个码放开了哪些接口） */
-export default function ApiOperationSheet({ row, onClose, onOpen }: ApiOperationSheetProps) {
+export default function ApiOperationSheet({ row, permissionLabels, byPermission, onClose, onOpen }: ApiOperationSheetProps) {
   const related = row
-    ? [...new Map(row.permissions.flatMap((code) => rowsByPermission().get(code) ?? []).filter((r) => r.key !== row.key).map((r) => [r.key, r])).values()]
+    ? [...new Map(row.permissions.flatMap((code) => byPermission.get(code) ?? []).filter((r) => r.key !== row.key).map((r) => [r.key, r])).values()]
     : [];
   return (
     <SideSheet
@@ -36,7 +39,7 @@ export default function ApiOperationSheet({ row, onClose, onOpen }: ApiOperation
           <Descriptions
             align="left"
             data={[
-              { key: '模块', value: domainLabel(row.domain) },
+              { key: '模块', value: row.domainLabel },
               { key: '契约组', value: <Typography.Text code>{row.basePath}</Typography.Text> },
               { key: '操作名', value: <Typography.Text code>{row.name}</Typography.Text> },
               { key: '请求地址', value: <Typography.Text copyable style={{ fontFamily: 'var(--semi-font-family-mono, monospace)' }}>{row.fullPath}</Typography.Text> },
@@ -51,7 +54,7 @@ export default function ApiOperationSheet({ row, onClose, onOpen }: ApiOperation
                       {row.permissions.map((code) => (
                         <span key={code} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                           <Typography.Text code>{code}</Typography.Text>
-                          <Typography.Text type="tertiary" size="small">{permissionLabel(code) ?? '未在注册表登记'}</Typography.Text>
+                          <Typography.Text type="tertiary" size="small">{permissionLabels[code] ?? '未在注册表登记'}</Typography.Text>
                         </span>
                       ))}
                       {row.permissions.length > 1 && <Typography.Text type="tertiary" size="small">任一权限码即可调用</Typography.Text>}
