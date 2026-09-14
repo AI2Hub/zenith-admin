@@ -32,10 +32,20 @@ export const workflowInstanceKeys = {
   /** 全部实例详情的公共前缀（同时覆盖审批面板「实例 + 定义」组合查询，见 workflow-shared） */
   details: contractKey(workflowInstanceContract.detail),
   detail: (id: number) => contractKey(workflowInstanceContract.detail, { params: { id } }),
+  /** 发起工作台概览计数 */
+  workbenchSummary: contractKey(workflowInstanceContract.workbenchSummary),
 };
 
 export function useMyWorkflowInstances(params: WorkflowInstanceListParams) {
   return useApiQuery(workflowInstanceContract.list, { query: params }, { placeholderData: keepPreviousData });
+}
+
+/**
+ * 发起工作台概览：待我审批（含超时）/ 待我协办 / 抄送未读 / 退回 / 草稿 / 审批中。
+ * 任务与实例变化经 WebSocket 与动作成功后的失效链路即时回源；60s 轮询兜底（与移动审批端角标同量级）。
+ */
+export function useWorkflowWorkbenchSummary() {
+  return useApiQuery(workflowInstanceContract.workbenchSummary, { staleTime: 30_000, refetchInterval: 60_000, requestOptions: { silent: true } });
 }
 
 export function useHandledWorkflowInstances(params: WorkflowInstanceKeywordListParams) {
@@ -68,6 +78,7 @@ export function invalidateAfterInstanceChange(qc: QueryClient, instanceId?: numb
   invalidate(contractKey(workflowInstanceContract.pendingMine));
   invalidate(contractKey(workflowInstanceContract.pendingMineCount));
   invalidate(contractKey(workflowInstanceContract.ccUnreadCount));
+  invalidate(workflowInstanceKeys.workbenchSummary);
   invalidate(contractKey(workflowTaskContract.myConsults));
   invalidate(instanceId === undefined ? workflowInstanceKeys.details : workflowInstanceKeys.detail(instanceId));
   invalidate(contractKey(workflowInstanceContract.monitor));
@@ -222,10 +233,11 @@ export function useForwardWorkflowCc() {
 
 export function useMarkWorkflowCcRead() {
   return useApiMutation(workflowInstanceContract.ccRead, {
-    // 只改我这条抄送的已读标记：抄送列表（未读样式）与未读计数回源
+    // 只改我这条抄送的已读标记：抄送列表（未读样式）、未读计数与工作台概览回源
     invalidate: (qc) => {
       void qc.invalidateQueries({ queryKey: workflowInstanceKeys.ccLists });
       void qc.invalidateQueries({ queryKey: contractKey(workflowInstanceContract.ccUnreadCount) });
+      void qc.invalidateQueries({ queryKey: workflowInstanceKeys.workbenchSummary });
     },
   });
 }

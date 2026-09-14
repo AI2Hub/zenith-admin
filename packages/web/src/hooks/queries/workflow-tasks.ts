@@ -31,13 +31,14 @@ export function useMyWorkflowConsults(enabled = true) {
 }
 
 /**
- * 待办侧查询：待办列表、待办计数、我的协办。任务被创建 / 完成 / 改派（含 WebSocket 推送）时回源；
+ * 待办侧查询：待办列表、待办计数、我的协办、发起工作台概览。任务被创建 / 完成 / 改派（含 WebSocket 推送）时回源；
  * 不碰实例列表与监控，那些由 invalidateAfterTaskAction 在动作成功后处理。
  */
 export function invalidateWorkflowPendingViews(qc: QueryClient): void {
   void qc.invalidateQueries({ queryKey: workflowTaskKeys.pendingLists });
   void qc.invalidateQueries({ queryKey: workflowTaskKeys.pendingCount });
   void qc.invalidateQueries({ queryKey: workflowTaskKeys.consultsMine });
+  void qc.invalidateQueries({ queryKey: workflowInstanceKeys.workbenchSummary });
 }
 
 /**
@@ -89,10 +90,11 @@ function removeSucceededFromPendingCaches(qc: QueryClient, res: WorkflowBatchAct
   });
 }
 
-/** 协办不改变实例 / 任务状态：只有实例详情里的协办意见与被邀请人的「我的协办」变化（任务所属实例未知，按详情前缀失效） */
+/** 协办不改变实例 / 任务状态：只有实例详情里的协办意见、被邀请人的「我的协办」与工作台「待我协办」计数变化（任务所属实例未知，按详情前缀失效） */
 const invalidateConsults = (qc: QueryClient) => {
   void qc.invalidateQueries({ queryKey: workflowInstanceKeys.details });
   void qc.invalidateQueries({ queryKey: workflowTaskKeys.consultsMine });
+  void qc.invalidateQueries({ queryKey: workflowInstanceKeys.workbenchSummary });
 };
 
 export function useConsultWorkflowTask() {

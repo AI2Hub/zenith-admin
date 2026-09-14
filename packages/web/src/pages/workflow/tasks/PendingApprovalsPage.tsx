@@ -55,15 +55,15 @@ export default function PendingApprovalsPage() {
     handleSearch, applySearch, handleReset,
   } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: workflowTaskKeys.pendingLists });
   const [sheet, setSheet] = useState<SheetState | null>(null);
-  // 通知深链：/workflow/pending?instanceId=&taskId= 自动弹出对应审批详情（消费后清掉参数）
+  // 深链：/workflow/pending?instanceId=&taskId= 自动弹出对应审批详情；?consults=1 打开「我的协办」抽屉（发起工作台概览卡片）——消费后清掉参数
   const [urlParams, setUrlParams] = useSearchParams();
   useEffect(() => {
     const instanceId = Number(urlParams.get('instanceId'));
     const taskId = Number(urlParams.get('taskId'));
-    if (instanceId > 0 && taskId > 0) {
-      setSheet({ instanceId, taskId, action: null });
-      setUrlParams({}, { replace: true });
-    }
+    const openConsults = urlParams.get('consults') === '1';
+    if (instanceId > 0 && taskId > 0) setSheet({ instanceId, taskId, action: null });
+    if (openConsults) setMyConsultsVisible(true);
+    if ((instanceId > 0 && taskId > 0) || openConsults) setUrlParams({}, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const { renderPhraseBar, phraseManageModal } = useQuickPhrases();

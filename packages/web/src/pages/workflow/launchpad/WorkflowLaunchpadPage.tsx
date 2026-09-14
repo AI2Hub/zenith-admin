@@ -7,6 +7,7 @@ import { ListSearchToolbar } from '@/components/list-page';
 import { KeywordInput } from '@/components/search-filters';
 import WorkflowLaunchForm, { type WorkflowLaunchFormHandle } from '@/components/workflow/WorkflowLaunchForm';
 import WorkflowSideSheet from '@/components/workflow/WorkflowSideSheet';
+import WorkbenchSummary from './WorkbenchSummary';
 import { useWorkflowCategories } from '@/hooks/useWorkflowCategories';
 import { useListSearch } from '@/hooks/useListSearch';
 import { usePermission } from '@/hooks/usePermission';
@@ -187,6 +188,7 @@ export default function WorkflowLaunchpadPage() {
 
   return (
     <div className="page-container">
+      <WorkbenchSummary />
       <ListSearchToolbar
         keyword={<KeywordInput placeholder="搜索流程名称 / 说明" {...bindKeyword('keyword')} width={240} />}
         onSearch={handleSearch}

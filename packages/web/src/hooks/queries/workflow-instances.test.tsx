@@ -19,6 +19,7 @@ import {
   useMyWorkflowInstances,
   useUpdateWorkflowDraft,
   useWithdrawWorkflowInstance,
+  useWorkflowWorkbenchSummary,
   workflowInstanceKeys,
 } from './workflow-instances';
 import { usePendingWorkflowTasks, workflowTaskKeys } from './workflow-tasks';
@@ -28,10 +29,12 @@ const MY_URL = workflowInstanceContract.list.fullPath;
 const HANDLED_URL = workflowInstanceContract.handledMine.fullPath;
 const CC_URL = workflowInstanceContract.ccMine.fullPath;
 const PENDING_URL = workflowInstanceContract.pendingMine.fullPath;
+const SUMMARY_URL = workflowInstanceContract.workbenchSummary.fullPath;
 const DETAIL_URL = urlOf(workflowInstanceContract.detail, { params: { id: 7 } });
 const LIST_PARAMS = { page: 1, pageSize: 10 };
 
 const emptyPage = { list: [], total: 0, page: 1, pageSize: 10 };
+const emptySummary = { pending: 0, pendingOverdue: 0, consultsPending: 0, ccUnread: 0, myReturned: 0, myDrafts: 0, myRunning: 0 };
 
 beforeEach(() => {
   recorder.reset();
@@ -40,6 +43,7 @@ beforeEach(() => {
     .on('GET', HANDLED_URL, emptyPage)
     .on('GET', CC_URL, emptyPage)
     .on('GET', PENDING_URL, emptyPage)
+    .on('GET', SUMMARY_URL, emptySummary)
     .on('GET', DETAIL_URL, { id: 7, status: 'draft' })
     .on('POST', urlOf(workflowInstanceContract.withdraw, { params: { id: 7 } }), { id: 7, status: 'withdrawn' })
     .on('PUT', urlOf(workflowInstanceContract.updateDraft, { params: { id: 7 } }), { id: 7, status: 'draft' })
@@ -52,6 +56,7 @@ function renderLists(qc: ReturnType<typeof createTestQueryClient>) {
     handled: useHandledWorkflowInstances(LIST_PARAMS),
     cc: useCcWorkflowInstances(LIST_PARAMS),
     pending: usePendingWorkflowTasks(LIST_PARAMS),
+    summary: useWorkflowWorkbenchSummary(),
     detail: useWorkflowInstanceDetail(7),
     withdraw: useWithdrawWorkflowInstance(),
     updateDraft: useUpdateWorkflowDraft(),
@@ -61,13 +66,13 @@ function renderLists(qc: ReturnType<typeof createTestQueryClient>) {
 
 async function settled(result: ReturnType<typeof renderLists>['result']) {
   await waitFor(() => {
-    const { my, handled, cc, pending, detail } = result.current;
-    expect(my.isSuccess && handled.isSuccess && cc.isSuccess && pending.isSuccess && detail.isSuccess).toBe(true);
+    const { my, handled, cc, pending, summary, detail } = result.current;
+    expect(my.isSuccess && handled.isSuccess && cc.isSuccess && pending.isSuccess && summary.isSuccess && detail.isSuccess).toBe(true);
   });
 }
 
 describe('workflow instance mutation cache', () => {
-  it('withdraw refetches my applications, handled, pending lists and the instance detail', async () => {
+  it('withdraw refetches my applications, handled, pending lists, the workbench summary and the instance detail', async () => {
     const qc = createTestQueryClient();
     const { result } = renderLists(qc);
     await settled(result);
@@ -78,6 +83,7 @@ describe('workflow instance mutation cache', () => {
       expect(recorder.countOf('GET', MY_URL)).toBe(1);
       expect(recorder.countOf('GET', HANDLED_URL)).toBe(1);
       expect(recorder.countOf('GET', PENDING_URL)).toBe(1);
+      expect(recorder.countOf('GET', SUMMARY_URL)).toBe(1);
       expect(recorder.countOf('GET', DETAIL_URL)).toBe(1);
     });
   });
@@ -95,18 +101,25 @@ describe('workflow instance mutation cache', () => {
     });
     expect(recorder.countOf('GET', PENDING_URL)).toBe(0);
     expect(recorder.countOf('GET', HANDLED_URL)).toBe(0);
+    // 改草稿标题不改变任何计数：工作台概览保持 fresh
+    expect(recorder.countOf('GET', SUMMARY_URL)).toBe(0);
+    expect(isFresh(qc, workflowInstanceKeys.workbenchSummary)).toBe(true);
     expect(isFresh(qc, workflowTaskKeys.pendingList(LIST_PARAMS))).toBe(true);
     expect(isFresh(qc, workflowInstanceKeys.handled(LIST_PARAMS))).toBe(true);
   });
 
-  it('marking a cc read only refetches the cc list', async () => {
+  it('marking a cc read only refetches the cc list and the workbench summary', async () => {
     const qc = createTestQueryClient();
     const { result } = renderLists(qc);
     await settled(result);
 
     recorder.resetCalls();
     await result.current.ccRead.mutateAsync({ params: { ccTaskId: 3 } });
-    await waitFor(() => expect(recorder.countOf('GET', CC_URL)).toBe(1));
+    await waitFor(() => {
+      expect(recorder.countOf('GET', CC_URL)).toBe(1);
+      // 抄送未读数是概览的一项
+      expect(recorder.countOf('GET', SUMMARY_URL)).toBe(1);
+    });
     expect(recorder.countOf('GET', MY_URL)).toBe(0);
     expect(recorder.countOf('GET', PENDING_URL)).toBe(0);
     expect(recorder.countOf('GET', DETAIL_URL)).toBe(0);

@@ -293,14 +293,14 @@ export default function MyApplicationsPage() {
     setDetailVisible(true);
   };
 
-  // 通知深链：/workflow/applications?instanceId= 自动弹出实例详情（消费后清掉参数）
+  // 深链：/workflow/applications?instanceId= 自动弹出实例详情；?status= 带筛选进入（发起工作台概览卡片）——消费后清掉参数
   const [urlParams, setUrlParams] = useSearchParams();
   useEffect(() => {
     const instanceId = Number(urlParams.get('instanceId'));
-    if (instanceId > 0) {
-      openDetail(instanceId);
-      setUrlParams({}, { replace: true });
-    }
+    const status = enumValueOf(WORKFLOW_INSTANCE_STATUSES, urlParams.get('status'));
+    if (instanceId > 0) openDetail(instanceId);
+    if (status) applySearch({ ...submittedParams, status });
+    if (instanceId > 0 || status) setUrlParams({}, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
