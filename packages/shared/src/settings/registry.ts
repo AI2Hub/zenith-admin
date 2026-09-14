@@ -4,6 +4,7 @@ import type { SettingsModuleDef } from './module-def';
 import { aiSettingsModule } from './modules/ai';
 import { authSettingsModule } from './modules/auth';
 import { driveSettingsModule } from './modules/drive';
+import { errorTrackingSettingsModule } from './modules/error-tracking';
 import { filesSettingsModule } from './modules/files';
 import { identitySecuritySettingsModule } from './modules/identity-security';
 import { ipAccessSettingsModule } from './modules/ip-access';
@@ -33,6 +34,7 @@ export const SETTINGS_MODULES = {
   ipAccess: ipAccessSettingsModule,
   drive: driveSettingsModule,
   wiki: wikiSettingsModule,
+  errorTracking: errorTrackingSettingsModule,
 } as const satisfies Record<string, SettingsModuleDef>;
 
 export type SettingsModuleKey = keyof typeof SETTINGS_MODULES;
@@ -57,6 +59,7 @@ export const SETTINGS_MODULE_PATHS = {
   ipAccess: '/ip-access',
   drive: '/drive',
   wiki: '/wiki',
+  errorTracking: '/error-tracking',
 } as const satisfies Record<SettingsModuleKey, `/${string}`>;
 
 export const SETTINGS_MODULE_KEYS = Object.keys(SETTINGS_MODULES) as SettingsModuleKey[];

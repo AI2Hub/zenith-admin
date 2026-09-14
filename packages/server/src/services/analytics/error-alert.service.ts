@@ -5,7 +5,7 @@ import { db } from '../../db';
 import { errorAlertRules, errorAlertLogs, errorEvents, errorGroups } from '../../db/schema';
 import type { ErrorAlertRuleRow, ErrorAlertLogRow } from '../../db/schema';
 import { frontendErrorContract, errorAlertLogSchema } from '@zenith/shared/analytics';
-import type { CreateErrorAlertRuleInput, UpdateErrorAlertRuleInput, FrontendErrorType, ErrorLevel } from '@zenith/shared/analytics';
+import type { CreateErrorAlertRuleInput, UpdateErrorAlertRuleInput, ErrorType, ErrorLevel, AnalyticsEventSource } from '@zenith/shared/analytics';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { buildWhere, nullableEq } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
@@ -18,6 +18,7 @@ export function mapRule(row: ErrorAlertRuleRow) {
   return {
     id: row.id,
     name: row.name,
+    source: row.source,
     errorType: row.errorType,
     level: row.level,
     condition: row.condition,
@@ -62,6 +63,7 @@ export async function createAlertRule(input: CreateErrorAlertRuleInput) {
     .values({
       tenantId: currentCreateTenantId(),
       name: input.name,
+      source: input.source ?? null,
       errorType: input.errorType ?? null,
       level: input.level ?? null,
       condition: input.condition ?? 'threshold',
@@ -88,6 +90,7 @@ export async function updateAlertRule(id: number, input: UpdateErrorAlertRuleInp
     .update(errorAlertRules)
     .set({
       ...(input.name !== undefined ? { name: input.name } : {}),
+      ...(input.source !== undefined ? { source: input.source } : {}),
       ...(input.errorType !== undefined ? { errorType: input.errorType } : {}),
       ...(input.level !== undefined ? { level: input.level } : {}),
       ...(input.condition !== undefined ? { condition: input.condition } : {}),
@@ -109,9 +112,10 @@ export async function deleteAlertRule(id: number) {
 }
 
 // ─── 告警评估（cron 定时保底 + 错误上报实时联动）─────────────────────────────
-/** 规则作用域（错误类型 / 级别 / 租户归属：null → IS NULL），事件表与分组表共用同一组列名 */
+/** 规则作用域（来源 / 错误类型 / 级别 / 租户归属：null → IS NULL），事件表与分组表共用同一组列名 */
 function ruleScopeConditions(rule: ErrorAlertRuleRow, table: typeof errorEvents | typeof errorGroups) {
   return [
+    rule.source ? eq(table.source, rule.source) : undefined,
     rule.errorType ? eq(table.errorType, rule.errorType) : undefined,
     rule.level ? eq(table.level, rule.level) : undefined,
     nullableEq(table.tenantId, rule.tenantId),
@@ -215,20 +219,22 @@ export async function evaluateAlerts(): Promise<{ evaluated: number; triggered: 
 }
 
 /**
- * 错误上报实时联动：仅评估与该错误（类型/等级/租户）匹配的启用规则，
+ * 错误落库实时联动：仅评估与该错误（来源 / 类型 / 等级 / 租户）匹配的启用规则，
  * new_error 条件直接由 isNewGroup 短路，threshold/spike 复用窗口计数。
- * 由 reportError 异步调用（best-effort），cron 仍作保底。
+ * 由前端上报 reportError 与服务端采集器 flush 异步调用（best-effort），cron 仍作保底。
  */
 export async function evaluateAlertsForError(input: {
   tenantId: number | null;
-  errorType: FrontendErrorType;
+  source: AnalyticsEventSource;
+  errorType: ErrorType;
   level: ErrorLevel;
   isNewGroup: boolean;
 }): Promise<void> {
   const rules = await db.select().from(errorAlertRules).where(eq(errorAlertRules.enabled, true));
   const now = Date.now();
   const matched = rules.filter((rule) =>
-    (rule.errorType == null || rule.errorType === input.errorType)
+    (rule.source == null || rule.source === input.source)
+    && (rule.errorType == null || rule.errorType === input.errorType)
     && (rule.level == null || rule.level === input.level)
     && (rule.tenantId ?? null) === (input.tenantId ?? null));
 

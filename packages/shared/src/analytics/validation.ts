@@ -34,6 +34,7 @@ import {
   ERROR_BREADCRUMB_TYPES,
   ERROR_LEVELS,
   ERROR_STATUSES,
+  ERROR_TYPES,
   FRONTEND_ERROR_TYPES,
   REPLAY_MODES,
   REPLAY_TRIGGER_TYPES,
@@ -139,6 +140,8 @@ export const reportFrontendErrorSchema = z.object({
   environment: z.enum(ANALYTICS_ENVIRONMENTS).optional(),
   /** 报错时刻活跃的回放会话 ID（SDK 注入） */
   replayId: z.uuid().optional(),
+  /** 接口错误对应的失败响应 `X-Request-Id`，与服务端异常事件按同一列互查 */
+  traceId: z.string().min(1).max(64).optional(),
 });
 
 export type ReportFrontendErrorInput = z.infer<typeof reportFrontendErrorSchema>;
@@ -153,7 +156,9 @@ export const updateErrorGroupSchema = z.object({
 
 const errorAlertRuleBaseSchema = z.object({
   name: z.string().min(1).max(128),
-  errorType: z.enum(FRONTEND_ERROR_TYPES).nullable().optional(),
+  /** 只对某一来源生效：`server` = 服务端异常日志，`web_admin` / `web_member` = 前端；null = 全部来源 */
+  source: z.enum(ANALYTICS_EVENT_SOURCES).nullable().optional(),
+  errorType: z.enum(ERROR_TYPES).nullable().optional(),
   level: z.enum(ERROR_LEVELS).nullable().optional(),
   condition: z.enum(ERROR_ALERT_CONDITIONS).default('threshold'),
   thresholdCount: z.number().int().min(1).max(100_000).default(10),

@@ -23,6 +23,7 @@ const MESSAGES = [
 let mockGroups: ErrorGroup[] = Array.from({ length: 48 }, (_, i) => ({
   id: 2000 - i,
   fingerprint: `fp${(1000 + i).toString(16)}`,
+  source: 'web_admin' as const,
   errorType: TYPES[i % TYPES.length],
   level: LEVELS[i % LEVELS.length],
   message: MESSAGES[i % MESSAGES.length],
@@ -78,6 +79,16 @@ function buildEvents(groupId: number, n: number): ErrorEvent[] {
     environment: 'production' as const,
     memberId: null,
     replayId: i === 0 ? '11111111-1111-4111-8111-111111111111' : null,
+    traceId: g.errorType === 'http_error' ? `req-${groupId}-${i}` : null,
+    route: null,
+    errorName: null,
+    errorCode: null,
+    jobType: null,
+    jobId: null,
+    processRole: null,
+    hostname: null,
+    pid: null,
+    affectedTenantId: null,
     createdAt: mockDateTimeOffset(-i * 3600000),
   }));
 }
@@ -89,8 +100,8 @@ let mockSourceMaps: SourceMapItem[] = [
 let nextSmId = 3;
 
 let mockAlerts: ErrorAlertRule[] = [
-  { id: 1, name: '致命错误即时告警', errorType: null, level: 'fatal', condition: 'new_error', thresholdCount: 1, windowMinutes: 5, channels: ['email', 'webhook'], webhookUrl: 'https://hooks.example.com/x', recipients: ['ops@example.com'], enabled: true, lastTriggeredAt: mockDateTimeOffset(-3600000), createdAt: mockDateTimeOffset(-10 * 86400000), updatedAt: mockDateTime() },
-  { id: 2, name: '错误激增告警', errorType: null, level: null, condition: 'spike', thresholdCount: 50, windowMinutes: 30, channels: ['inapp'], webhookUrl: null, recipients: [], enabled: true, lastTriggeredAt: null, createdAt: mockDateTimeOffset(-8 * 86400000), updatedAt: mockDateTime() },
+  { id: 1, name: '致命错误即时告警', source: null, errorType: null, level: 'fatal', condition: 'new_error', thresholdCount: 1, windowMinutes: 5, channels: ['email', 'webhook'], webhookUrl: 'https://hooks.example.com/x', recipients: ['ops@example.com'], enabled: true, lastTriggeredAt: mockDateTimeOffset(-3600000), createdAt: mockDateTimeOffset(-10 * 86400000), updatedAt: mockDateTime() },
+  { id: 2, name: '错误激增告警', source: null, errorType: null, level: null, condition: 'spike', thresholdCount: 50, windowMinutes: 30, channels: ['inapp'], webhookUrl: null, recipients: [], enabled: true, lastTriggeredAt: null, createdAt: mockDateTimeOffset(-8 * 86400000), updatedAt: mockDateTime() },
 ];
 let nextAlertId = 3;
 
@@ -183,7 +194,7 @@ export const frontendErrorsHandlers = [
 
   mock(frontendErrorContract.alerts, ({ ok, paginate }) => ok(paginate(mockAlerts))),
   mock(frontendErrorContract.createAlert, ({ body, ok }) => {
-    const item: ErrorAlertRule = { id: nextAlertId++, name: body.name, errorType: body.errorType ?? null, level: body.level ?? null, condition: body.condition, thresholdCount: body.thresholdCount, windowMinutes: body.windowMinutes, channels: body.channels, webhookUrl: body.webhookUrl ?? null, recipients: body.recipients, enabled: body.enabled, lastTriggeredAt: null, createdAt: mockDateTime(), updatedAt: mockDateTime() };
+    const item: ErrorAlertRule = { id: nextAlertId++, name: body.name, source: body.source ?? null, errorType: body.errorType ?? null, level: body.level ?? null, condition: body.condition, thresholdCount: body.thresholdCount, windowMinutes: body.windowMinutes, channels: body.channels, webhookUrl: body.webhookUrl ?? null, recipients: body.recipients, enabled: body.enabled, lastTriggeredAt: null, createdAt: mockDateTime(), updatedAt: mockDateTime() };
     mockAlerts.unshift(item);
     return ok(item, '创建成功');
   }),

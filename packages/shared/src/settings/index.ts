@@ -12,6 +12,7 @@ export * from './module-def';
 export * from './modules/ai';
 export * from './modules/auth';
 export * from './modules/drive';
+export * from './modules/error-tracking';
 export * from './modules/files';
 export * from './modules/identity-security';
 export * from './modules/ip-access';

@@ -277,8 +277,13 @@ export type AnalyticsSettingsRow = typeof analyticsSettings.$inferSelect;
 export type NewAnalyticsSettings = typeof analyticsSettings.$inferInsert;
 
 // ─── 前端错误监控（Issue 模型：error_groups + error_events）────────────────────
-export const frontendErrorTypeEnum = pgEnum('frontend_error_type', [
+/**
+ * 错误类型：前端（SDK 上报）+ 服务端（进程内采集）共用一个枚举，取值以 `@zenith/shared/analytics` 的 `ERROR_TYPES` 为准。
+ * PG 枚举名沿用 frontend_error_type：新增取值只需 ADD VALUE；重命名类型 drizzle-kit 会生成 DROP + CREATE，不值得为名字手写迁移。
+ */
+export const errorTypeEnum = pgEnum('frontend_error_type', [
   'js_error', 'promise_rejection', 'resource_error', 'console_error', 'http_error', 'white_screen', 'crash',
+  'server_exception', 'job_failure', 'cron_failure', 'event_failure', 'process_crash', 'logged_error',
 ]);
 
 export const errorLevelEnum = pgEnum('error_level', ['fatal', 'error', 'warning', 'info']);
@@ -292,7 +297,9 @@ export const errorGroups = pgTable('error_groups', {
   id: idColumn(),
   tenantId: tenantIdColumn(),
   fingerprint: varchar({ length: 64 }).notNull(),
-  errorType: frontendErrorTypeEnum().notNull(),
+  // 来源：浏览器端（web_admin / web_member）或服务端异常（server）；分组不跨来源，插入时确定、冲突不更新
+  source: analyticsEventSourceEnum().notNull().default('web_admin'),
+  errorType: errorTypeEnum().notNull(),
   level: errorLevelEnum().notNull().default('error'),
   message: text().notNull(),
   status: errorStatusEnum().notNull().default('unresolved'),
@@ -316,6 +323,8 @@ export const errorGroups = pgTable('error_groups', {
   index('error_groups_last_seen_idx').on(t.lastSeenAt),
   index('error_groups_tenant_idx').on(t.tenantId),
   index('error_groups_assignee_idx').on(t.assigneeId),
+// 异常日志页 / 前端错误页各自只看一种来源，列表按来源 + 最近发生排序
+index('error_groups_source_last_seen_idx').on(t.source, t.lastSeenAt),
 ]);
 
 export type ErrorGroupRow = typeof errorGroups.$inferSelect;
@@ -328,7 +337,7 @@ export const errorEvents = pgTable('error_events', {
   tenantId: tenantIdColumn(),
   groupId: integer().notNull().references((): AnyPgColumn => errorGroups.id, { onDelete: 'cascade' }),
   fingerprint: varchar({ length: 64 }).notNull(),
-  errorType: frontendErrorTypeEnum().notNull(),
+  errorType: errorTypeEnum().notNull(),
   level: errorLevelEnum().notNull().default('error'),
   message: text().notNull(),
   stack: text(),
@@ -357,6 +366,21 @@ export const errorEvents = pgTable('error_events', {
   memberId: integer().references((): AnyPgColumn => members.id, { onDelete: 'set null' }),
   // 报错时刻活跃的回放会话 ID（SDK 注入）：精确关联回放现场，无需时间窗模糊匹配
   replayId: varchar({ length: 36 }),
+  // ─── 链路与服务端上下文（lib/error-tracking 采集；前端事件除 traceId 外为 null）───
+  // 请求 / 链路 ID（= X-Request-Id）：服务端异常必带，前端接口错误读到响应头时带上，两侧按它互查
+  traceId: varchar({ length: 64 }),
+  // 匹配到的路由模板（/api/users/{id}），原始 URL 仍在 httpUrl；作业类异常为 null
+  route: varchar({ length: 256 }),
+  errorName: varchar({ length: 128 }),
+  errorCode: varchar({ length: 64 }),
+  // 任务类型 / 定时作业 key / 事件名 + 实例 ID
+  jobType: varchar({ length: 64 }),
+  jobId: varchar({ length: 64 }),
+  processRole: varchar({ length: 16 }),
+  hostname: varchar({ length: 128 }),
+  pid: integer(),
+  // 服务端异常本身归平台（tenantId 为 null），发生时请求所属租户单独记，供受影响租户分布
+  affectedTenantId: integer(),
   createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index('error_events_group_idx').on(t.groupId),
@@ -368,6 +392,8 @@ export const errorEvents = pgTable('error_events', {
   index('error_events_group_created_idx').on(t.groupId, t.createdAt),
   // 回放详情反查关联错误
   index('error_events_replay_idx').on(t.replayId),
+  // 按链路 ID 互查（异常日志 ↔ 前端接口错误 ↔ 链路追踪）；只索引带值的行
+  index('error_events_trace_idx').on(t.traceId).where(sql`${t.traceId} IS NOT NULL`),
 ]);
 
 export type ErrorEventRow = typeof errorEvents.$inferSelect;
@@ -392,7 +418,9 @@ export const errorAlertRules = pgTable('error_alert_rules', {
   id: idColumn(),
   tenantId: tenantIdColumn(),
   name: varchar({ length: 128 }).notNull(),
-  errorType: frontendErrorTypeEnum(),
+  // 只对某一来源生效（server = 服务端异常日志）；null = 全部来源
+  source: analyticsEventSourceEnum(),
+  errorType: errorTypeEnum(),
   level: errorLevelEnum(),
   condition: errorAlertConditionEnum().notNull().default('threshold'),
   thresholdCount: integer().notNull().default(10),

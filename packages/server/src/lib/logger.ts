@@ -14,7 +14,8 @@
  *  - 请求级子 logger：`logger.child({ requestId })` 原生可用
  *
  * warn / error / fatal 在 logMethod hook 写入点计入 log-metrics 计数器
- * （监控告警的 logErrorPerMin / logWarnPerMin；hook 仅在级别启用时触发）。
+ * （监控告警的 logErrorPerMin / logWarnPerMin；hook 仅在级别启用时触发）；
+ * error / fatal 携带 Error 对象时另转交异常采集兜底网（`setLoggedErrorSink`，由 lib/error-tracking 启动时注册）。
  */
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -56,9 +57,39 @@ export type AppLogger = Omit<Logger, LevelMethod> & Record<LevelMethod, AppLogFn
 
 const WARN = levels.values.warn;
 const ERROR = levels.values.error;
+const FATAL = levels.values.fatal;
 
 /** 消息含 printf 插值符时走 pino 原生插值，不做参数归一 */
 const PRINTF_TOKEN_RE = /%[sdjoO]/;
+
+export interface LoggedErrorRecord {
+  readonly err: Error;
+  /** 与 Error 一同写入的日志消息（场景说明） */
+  readonly message: string | undefined;
+  readonly level: 'error' | 'fatal';
+}
+
+/**
+ * error / fatal 写入点的兜底网：携带 Error 对象的日志调用被转交给异常采集（lib/error-tracking），
+ * 使全库「已捕获但只打日志」的失败也进入异常日志。由采集器启动时注册，logger 自身不依赖它；
+ * sink 内部只能用 warn 及以下级别写日志，否则会递归。
+ */
+type LoggedErrorSink = (record: LoggedErrorRecord) => void;
+let loggedErrorSink: LoggedErrorSink | undefined;
+
+export function setLoggedErrorSink(sink: LoggedErrorSink | undefined): void {
+  loggedErrorSink = sink;
+}
+
+function pickLoggedError(first: unknown, second: unknown): { err: Error; message: string | undefined } | null {
+  if (typeof first === 'string') return second instanceof Error ? { err: second, message: first } : null;
+  if (first instanceof Error) return { err: first, message: typeof second === 'string' ? second : undefined };
+  if (typeof first === 'object' && first !== null) {
+    const err = (first as { err?: unknown }).err ?? (first as { error?: unknown }).error;
+    if (err instanceof Error) return { err, message: typeof second === 'string' ? second : undefined };
+  }
+  return null;
+}
 
 /** 带本地时区偏移的 ISO 8601 时间戳（如 2026-08-28T22:25:41.649+08:00），人读机读两便 */
 function localIsoTime(): string {
@@ -74,7 +105,8 @@ function localIsoTime(): string {
 /**
  * logMethod hook：
  * 1. warn 及以上写入点计数（fatal 归入 error 桶）
- * 2. 将「消息在前」的两参调用翻转为 pino 原生的 `(mergingObject, message)`
+ * 2. error 及以上且携带 Error 对象时转交异常采集兜底网（已注册 sink 时）
+ * 3. 将「消息在前」的两参调用翻转为 pino 原生的 `(mergingObject, message)`
  *    （官方文档 hooks.logMethod 示例即参数翻转用法）
  */
 function logMethod(this: Logger, args: Parameters<LogFn>, method: LogFn, level: number): void {
@@ -82,6 +114,14 @@ function logMethod(this: Logger, args: Parameters<LogFn>, method: LogFn, level: 
   else if (level >= WARN) recordLogLevel('warn');
 
   const [first, second, ...rest] = args as unknown[];
+  if (level >= ERROR && loggedErrorSink) {
+    const picked = pickLoggedError(first, second);
+    if (picked) {
+      try {
+        loggedErrorSink({ err: picked.err, message: picked.message, level: level >= FATAL ? 'fatal' : 'error' });
+      } catch { /* 兜底网自身失败不影响写日志 */ }
+    }
+  }
   if (typeof first === 'string' && second !== undefined && rest.length === 0 && !PRINTF_TOKEN_RE.test(first)) {
     const merge = second instanceof Error
       ? { err: second }

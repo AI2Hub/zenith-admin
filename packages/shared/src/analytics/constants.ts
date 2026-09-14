@@ -583,7 +583,8 @@ export const ANALYTICS_SEMANTIC_EVENT_LABELS: Record<AnalyticsSemanticEventName,
   'shortlink.link.clicked': '短链点击',
 };
 
-// ─── 前端错误监控（Issue 模型）───────────────────────────────────────────────
+// ─── 错误监控（Issue 模型：前端 + 服务端共用一套分组 / 事件 / 告警）────────────
+/** 浏览器侧错误类型（SDK 上报接受的取值） */
 export const FRONTEND_ERROR_TYPES = [
   'js_error', 'promise_rejection', 'resource_error', 'console_error', 'http_error', 'white_screen', 'crash',
 ] as const;
@@ -602,6 +603,46 @@ export const FRONTEND_ERROR_TYPE_LABELS: Record<FrontendErrorType, string> = {
 
 export const FRONTEND_ERROR_TYPE_OPTIONS: Array<{ value: FrontendErrorType; label: string }> =
   createLabelOptions(FRONTEND_ERROR_TYPES, FRONTEND_ERROR_TYPE_LABELS);
+
+/**
+ * 服务端异常类型（进程内 `captureException()` 采集，不接受客户端上报）：
+ * - server_exception：HTTP 处理链未捕获异常 / ≥500 响应
+ * - job_failure：任务中心作业执行失败（每次尝试一条，最终失败 level=error，可重试失败 level=warning）
+ * - cron_failure：定时作业失败
+ * - event_failure：领域事件订阅者处理失败
+ * - process_crash：uncaughtException / unhandledRejection（由重启后的进程读崩溃哨兵补录）
+ * - logged_error：`logger.error / fatal` 携带 Error 对象的写入点（兜底网，覆盖已捕获但只打日志的失败）
+ */
+export const SERVER_ERROR_TYPES = [
+  'server_exception', 'job_failure', 'cron_failure', 'event_failure', 'process_crash', 'logged_error',
+] as const;
+
+export type ServerErrorType = (typeof SERVER_ERROR_TYPES)[number];
+
+export const SERVER_ERROR_TYPE_LABELS: Record<ServerErrorType, string> = {
+  server_exception: '接口异常',
+  job_failure: '任务失败',
+  cron_failure: '定时作业失败',
+  event_failure: '事件处理失败',
+  process_crash: '进程崩溃',
+  logged_error: '日志错误',
+};
+
+export const SERVER_ERROR_TYPE_OPTIONS: Array<{ value: ServerErrorType; label: string }> =
+  createLabelOptions(SERVER_ERROR_TYPES, SERVER_ERROR_TYPE_LABELS);
+
+/** 全部错误类型（DB 枚举 `error_type` 与契约实体取值） */
+export const ERROR_TYPES = [...FRONTEND_ERROR_TYPES, ...SERVER_ERROR_TYPES] as const;
+
+export type ErrorType = (typeof ERROR_TYPES)[number];
+
+export const ERROR_TYPE_LABELS: Record<ErrorType, string> = { ...FRONTEND_ERROR_TYPE_LABELS, ...SERVER_ERROR_TYPE_LABELS };
+
+export const ERROR_TYPE_OPTIONS: Array<{ value: ErrorType; label: string }> = createLabelOptions(ERROR_TYPES, ERROR_TYPE_LABELS);
+
+export function isServerErrorType(type: string): type is ServerErrorType {
+  return (SERVER_ERROR_TYPES as readonly string[]).includes(type);
+}
 
 export const ERROR_LEVELS = ['fatal', 'error', 'warning', 'info'] as const;
 

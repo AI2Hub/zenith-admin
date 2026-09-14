@@ -129,6 +129,7 @@ const workflow = moduleOps('workflow');
 const ipAccess = moduleOps('ipAccess');
 const drive = moduleOps('drive');
 const wiki = moduleOps('wiki');
+const errorTracking = moduleOps('errorTracking');
 
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
@@ -150,6 +151,7 @@ export const settingsContract = defineContract('/api/settings', {
   getIpAccess: ipAccess.get, updateIpAccess: ipAccess.update,
   getDrive: drive.get, updateDrive: drive.update,
   getWiki: wiki.get, updateWiki: wiki.update,
+  getErrorTracking: errorTracking.get, updateErrorTracking: errorTracking.update,
 }, { tags: ['Settings'] });
 
 export type SettingsContract = typeof settingsContract;

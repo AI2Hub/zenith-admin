@@ -1,8 +1,8 @@
-import { and, eq, gte, desc, inArray, sql, countDistinct } from 'drizzle-orm';
+import { and, eq, gte, desc, inArray, ne, sql, countDistinct } from 'drizzle-orm';
 import { db } from '../../db';
 import { requireFirstRow, requireRow } from '../../lib/db-assert';
 import { buildListResult, listRows } from '../../lib/list-query';
-import { errorGroups, errorEvents, errorGroupIdentities, sourceMaps, users } from '../../db/schema';
+import { errorGroups, errorEvents, sourceMaps, users } from '../../db/schema';
 import type { ErrorGroupRow, ErrorEventRow } from '../../db/schema';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { frontendErrorContract } from '@zenith/shared/analytics';
@@ -13,6 +13,7 @@ import { tenantScope, getCreateTenantId } from '../../lib/tenant';
 import { buildWhere, keywordCondition, withPagination } from '../../lib/where-helpers';
 import { APP_TIME_ZONE, formatDate, formatDateTime, formatNullableDateTime, formatTimestamps, parseDateRangeStart } from '../../lib/datetime';
 import { parseClientEnv, computeErrorFingerprint, startOfDaysAgo, clampDays, resolveIngestPlatformFields } from '../../lib/analytics-helpers';
+import { recordErrorEvent } from '../../lib/error-tracking/store';
 import { clearSymbolicateCache, symbolicateStack } from '../../lib/source-map-symbolicate';
 import { evaluateAlertsForError } from './error-alert.service';
 import { isSiteOriginAllowed, resolveSiteByKey } from './analytics-sites.service';
@@ -34,6 +35,7 @@ export function mapGroup(row: ErrorGroupRow) {
   return {
     id: row.id,
     fingerprint: row.fingerprint,
+    source: row.source,
     errorType: row.errorType,
     level: row.level,
     message: row.message,
@@ -83,11 +85,29 @@ export function mapEvent(row: ErrorEventRow) {
     environment: row.environment,
     memberId: row.memberId,
     replayId: row.replayId,
+    traceId: row.traceId,
+    route: row.route,
+    errorName: row.errorName,
+    errorCode: row.errorCode,
+    jobType: row.jobType,
+    jobId: row.jobId,
+    processRole: row.processRole,
+    hostname: row.hostname,
+    pid: row.pid,
+    affectedTenantId: row.affectedTenantId,
     createdAt: formatDateTime(row.createdAt),
   };
 }
 
 const DAY_MS = 86_400_000;
+
+/**
+ * 本模块只管浏览器端错误：服务端异常（source = 'server'）归平台「异常日志」，从列表 / 概览 / 详情 / 批量处理 / 清理里全部排除，
+ * 租户管理员即使持有 monitor:error:* 也看不到服务端堆栈。
+ */
+const browserGroups = () => ne(errorGroups.source, 'server');
+const browserEvents = () => ne(errorEvents.source, 'server');
+
 const affectedIdentity = sql<string>`
   CASE
     WHEN ${errorEvents.userId} IS NOT NULL THEN 'u:' || ${errorEvents.userId}::text
@@ -124,6 +144,7 @@ export async function reportError(input: {
   appId?: string;
   environment?: AnalyticsEnvironment;
   replayId?: string;
+  traceId?: string;
 }, reqCtx: ErrorReqCtx): Promise<void> {
   const user = currentUserOrNull();
   // 管理员 / 会员身份互斥：单次请求只会经过其中一种认证中间件
@@ -149,37 +170,33 @@ export async function reportError(input: {
   const fingerprint = computeErrorFingerprint({ tenantId, errorType: input.errorType, message: input.message, sourceUrl: input.sourceUrl, stack: input.stack, environment: platform.environment });
   const now = new Date();
   const displayName = user?.username ?? member?.identifier ?? null;
+  const identity = user?.userId != null
+    ? `u:${user.userId}`
+    : member?.memberId != null
+      ? `m:${member.memberId}`
+      : input.sessionId
+        ? `a:${input.sessionId}`
+        : null;
 
-  const group = await db.transaction(async (tx) => {
-    const [upserted] = await tx
-      .insert(errorGroups)
-      .values({ tenantId, fingerprint, errorType: input.errorType, level, message, release: input.release ?? null, environment: platform.environment, count: 1, firstSeenAt: now, lastSeenAt: now })
-      .onConflictDoUpdate({
-        target: errorGroups.fingerprint,
-        set: {
-          count: sql`${errorGroups.count} + 1`,
-          lastSeenAt: now,
-          message,
-          release: input.release ?? sql`${errorGroups.release}`,
-          status: sql`CASE WHEN ${errorGroups.status} = 'resolved' THEN 'unresolved'::error_status ELSE ${errorGroups.status} END`,
-          resolvedAt: sql`CASE WHEN ${errorGroups.status} = 'resolved' THEN NULL ELSE ${errorGroups.resolvedAt} END`,
-        },
-      })
-      .returning();
-
-    await tx.insert(errorEvents).values({
-      tenantId,
-      groupId: upserted.id,
-      fingerprint,
-      errorType: input.errorType,
-      level,
-      message,
+  // 分组 upsert / 事件行 / 影响面身份去重与服务端异常采集共用同一段落库内核
+  const recorded = await recordErrorEvent({
+    tenantId,
+    fingerprint,
+    source: platform.source,
+    appId: platform.appId,
+    environment: platform.environment,
+    errorType: input.errorType,
+    level,
+    message,
+    release: input.release ?? null,
+    occurredAt: now,
+    identity,
+    event: {
       stack: input.stack ?? null,
       sourceUrl: input.sourceUrl ?? null,
       lineNo: input.lineNo ?? null,
       colNo: input.colNo ?? null,
       pageUrl: input.pageUrl ?? null,
-      release: input.release ?? null,
       userAgent: reqCtx.ua.slice(0, 512),
       browser: env.browser,
       browserVersion: env.browserVersion,
@@ -193,39 +210,15 @@ export async function reportError(input: {
       httpStatus: input.httpStatus ?? null,
       httpMethod: input.httpMethod ?? null,
       httpUrl: input.httpUrl ?? null,
-      source: platform.source,
-      appId: platform.appId,
-      environment: platform.environment,
       memberId: member?.memberId ?? null,
       replayId: input.replayId ?? null,
-    });
-
-    // 影响用户数 O(1) 增量维护：身份首次出现在该分组时 +1（替代旧的详情页 COUNT(DISTINCT) 懒回写）
-    const identity = user?.userId != null
-      ? `u:${user.userId}`
-      : member?.memberId != null
-        ? `m:${member.memberId}`
-        : input.sessionId
-          ? `a:${input.sessionId}`
-          : null;
-    if (identity) {
-      const inserted = await tx
-        .insert(errorGroupIdentities)
-        .values({ groupId: upserted.id, identity: identity.slice(0, 80) })
-        .onConflictDoNothing()
-        .returning({ groupId: errorGroupIdentities.groupId });
-      if (inserted.length > 0) {
-        await tx
-          .update(errorGroups)
-          .set({ affectedUsers: sql`${errorGroups.affectedUsers} + 1` })
-          .where(eq(errorGroups.id, upserted.id));
-      }
-    }
-    return upserted;
+      // 前端接口错误在能读到响应头 X-Request-Id 时带上，与服务端异常事件按同一列互查
+      traceId: input.traceId ?? null,
+    },
   });
 
-  // 实时告警联动（best-effort，不阻塞上报响应）；count===1 表示本次新建分组
-  void evaluateAlertsForError({ tenantId, errorType: input.errorType, level, isNewGroup: group.count === 1 })
+  // 实时告警联动（best-effort，不阻塞上报响应）
+  void evaluateAlertsForError({ tenantId, source: platform.source, errorType: input.errorType, level, isNewGroup: recorded.isNewGroup })
     .catch(() => { /* cron 保底，评估失败不影响上报 */ });
 
   // 回放会话错误计数回填（best-effort：回放会话可能尚未创建，首分片稍后才到）
@@ -244,6 +237,7 @@ export async function listGroups(q: QueryOutputOf<typeof frontendErrorContract.g
     q.assigneeId ? eq(errorGroups.assigneeId, q.assigneeId) : undefined,
     keywordCondition(q.keyword, [errorGroups.message]),
     q.environment ? eq(errorGroups.environment, q.environment) : undefined,
+    browserGroups(),
     tenantScope(errorGroups),
   );
 
@@ -281,7 +275,7 @@ export async function listGroups(q: QueryOutputOf<typeof frontendErrorContract.g
 }
 
 export async function ensureGroupExists(id: number) {
-  return requireFirstRow(db.select().from(errorGroups).where(buildWhere(eq(errorGroups.id, id), tenantScope(errorGroups))).limit(1), '错误分组不存在');
+  return requireFirstRow(db.select().from(errorGroups).where(buildWhere(eq(errorGroups.id, id), browserGroups(), tenantScope(errorGroups))).limit(1), '错误分组不存在');
 }
 
 // ─── 分组详情（趋势 / 分布 / 最近事件 / 堆栈还原）────────────────────────────
@@ -386,14 +380,14 @@ export async function updateGroup(id: number, input: UpdateErrorGroupInput) {
 
 export async function batchUpdateGroupStatus(ids: number[], status: 'unresolved' | 'resolved' | 'ignored' | 'muted') {
   if (ids.length === 0) return 0;
-  const where = buildWhere(inArray(errorGroups.id, ids), tenantScope(errorGroups));
+  const where = buildWhere(inArray(errorGroups.id, ids), browserGroups(), tenantScope(errorGroups));
   const res = await db.update(errorGroups).set({ status, resolvedAt: status === 'resolved' ? new Date() : null }).where(where);
   return (res as unknown as { rowCount?: number }).rowCount ?? 0;
 }
 
 export async function deleteGroups(ids: number[]) {
   if (ids.length === 0) return 0;
-  const where = buildWhere(inArray(errorGroups.id, ids), tenantScope(errorGroups));
+  const where = buildWhere(inArray(errorGroups.id, ids), browserGroups(), tenantScope(errorGroups));
   const res = await db.delete(errorGroups).where(where);
   return (res as unknown as { rowCount?: number }).rowCount ?? 0;
 }
@@ -403,8 +397,8 @@ export async function getErrorOverview(daysRaw: unknown) {
   const days = clampDays(daysRaw, 30);
   const start = startOfDaysAgo(days);
   const todayStart = parseDateRangeStart(formatDate(new Date())) ?? new Date();
-  const gScope = tenantScope(errorGroups);
-  const eScope = tenantScope(errorEvents);
+  const gScope = buildWhere(browserGroups(), tenantScope(errorGroups));
+  const eScope = buildWhere(browserEvents(), tenantScope(errorEvents));
   const recentGroups = buildWhere(gte(errorGroups.lastSeenAt, start), gScope);
 
   const [totals, byType, byLevel, trendRows, affected, topIssues, newToday] = await Promise.all([
@@ -447,7 +441,7 @@ export async function getErrorOverview(daysRaw: unknown) {
 // ─── 事件列表 ─────────────────────────────────────────────────────────────────
 export async function listErrorEvents(q: QueryOutputOf<typeof frontendErrorContract.events>) {
   const { page, pageSize } = q;
-  const where = buildWhere(q.groupId ? eq(errorEvents.groupId, q.groupId) : undefined, tenantScope(errorEvents));
+  const where = buildWhere(q.groupId ? eq(errorEvents.groupId, q.groupId) : undefined, browserEvents(), tenantScope(errorEvents));
   return listRows({
     page,
     pageSize,
@@ -464,7 +458,7 @@ export async function cleanErrors(days: number): Promise<number> {
     await db.delete(errorGroups).where(buildWhere(sql`${errorGroups.lastSeenAt} < NOW() - (${days} * INTERVAL '1 day') AND NOT EXISTS (SELECT 1 FROM error_events ee WHERE ee.group_id = ${errorGroups.id})`, tenantScope(errorGroups)));
     return (res as unknown as { rowCount?: number }).rowCount ?? 0;
   }
-  const res = await db.delete(errorGroups).where(tenantScope(errorGroups));
+  const res = await db.delete(errorGroups).where(buildWhere(browserGroups(), tenantScope(errorGroups)));
   return (res as unknown as { rowCount?: number }).rowCount ?? 0;
 }
 

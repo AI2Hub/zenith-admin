@@ -6,7 +6,7 @@ import {
   ANALYTICS_ENVIRONMENTS,
   ANALYTICS_EVENT_SOURCES,
   ERROR_LEVELS,
-  FRONTEND_ERROR_TYPES,
+  ERROR_TYPES,
   REPLAY_MODES,
   REPLAY_STATUSES,
   REPLAY_TRIGGER_TYPES,
@@ -68,7 +68,7 @@ export const replaySessionDetailSchema = replaySessionSchema.extend({
   errors: z.array(z.object({
     id: z.int(),
     groupId: z.int(),
-    errorType: z.enum(FRONTEND_ERROR_TYPES),
+    errorType: z.enum(ERROR_TYPES),
     level: z.enum(ERROR_LEVELS),
     message: z.string(),
     createdAt: z.string(),

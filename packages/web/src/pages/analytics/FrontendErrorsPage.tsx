@@ -47,7 +47,7 @@ import {
   StatGrid,
 } from '@/components/charts';
 import AppModal from '@/components/AppModal';
-import type { ErrorAlertChannel, ErrorAlertCondition, ErrorAlertLog, ErrorAlertRule, ErrorBreadcrumb, ErrorEvent, ErrorGroup, ErrorLevel, ErrorStatus, FrontendErrorType, SourceMapItem, AnalyticsEnvironment } from '@zenith/shared/analytics';
+import type { ErrorAlertChannel, ErrorAlertCondition, ErrorAlertLog, ErrorAlertRule, ErrorBreadcrumb, ErrorEvent, ErrorGroup, ErrorLevel, ErrorStatus, ErrorType, FrontendErrorType, SourceMapItem, AnalyticsEnvironment } from '@zenith/shared/analytics';
 import {
   ANALYTICS_ENVIRONMENT_OPTIONS,
   ERROR_ALERT_CHANNELS,
@@ -58,7 +58,7 @@ import {
   ERROR_LEVEL_OPTIONS,
   ERROR_STATUS_LABELS,
   ERROR_STATUS_OPTIONS,
-  FRONTEND_ERROR_TYPE_LABELS,
+  ERROR_TYPE_LABELS,
   FRONTEND_ERROR_TYPE_OPTIONS,
   SOURCE_MAP_MAX_BYTES,
 } from '@zenith/shared/analytics';
@@ -98,7 +98,8 @@ import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 const { Text, Title, Paragraph } = Typography;
 
-const ERROR_TYPE_COLORS: Record<FrontendErrorType, TagColor> = {
+// 前端页只出现浏览器端类型；服务端类型在异常日志页着色，这里兜底 grey
+const ERROR_TYPE_COLORS: Partial<Record<ErrorType, TagColor>> = {
   js_error: 'red',
   promise_rejection: 'orange',
   resource_error: 'amber',
@@ -153,7 +154,7 @@ interface SourceMapUploadForm {
 
 interface AlertFormState {
   name: string;
-  errorType: FrontendErrorType | null;
+  errorType: ErrorType | null;
   level: ErrorLevel | null;
   condition: ErrorAlertCondition;
   thresholdCount: number;
@@ -248,8 +249,8 @@ function TextBlock({ children, maxHeight = 280 }: { readonly children: ReactNode
   );
 }
 
-function TypeTag({ type }: { readonly type: FrontendErrorType }) {
-  return <Tag color={ERROR_TYPE_COLORS[type] ?? 'grey'}>{FRONTEND_ERROR_TYPE_LABELS[type] ?? type}</Tag>;
+function TypeTag({ type }: { readonly type: ErrorType }) {
+  return <Tag color={ERROR_TYPE_COLORS[type] ?? 'grey'}>{ERROR_TYPE_LABELS[type] ?? type}</Tag>;
 }
 
 function LevelTag({ level }: { readonly level: ErrorLevel }) {
@@ -260,7 +261,7 @@ function StatusTag({ status }: { readonly status: ErrorStatus }) {
   return <Tag color={STATUS_COLORS[status] ?? 'grey'}>{ERROR_STATUS_LABELS[status] ?? status}</Tag>;
 }
 
-function TypeIcon({ type }: { readonly type: FrontendErrorType }) {
+function TypeIcon({ type }: { readonly type: ErrorType }) {
   const common = { size: 15, style: { verticalAlign: 'middle' } };
   if (type === 'white_screen') return <AlertTriangle {...common} />;
   if (type === 'http_error') return <Zap {...common} />;
@@ -866,7 +867,7 @@ export default function FrontendErrorsPage() {
   ], []);
 
   const overviewTypeData = (overview?.byType ?? []).map((item) => ({
-    name: FRONTEND_ERROR_TYPE_LABELS[item.errorType] ?? item.errorType,
+    name: ERROR_TYPE_LABELS[item.errorType] ?? item.errorType,
     value: item.occurrences,
     groups: item.groups,
   }));
@@ -1261,7 +1262,7 @@ export default function FrontendErrorsPage() {
               <Descriptions
                 align="plain"
                 data={[
-                  { key: '类型', value: FRONTEND_ERROR_TYPE_LABELS[eventDetail.errorType] ?? eventDetail.errorType },
+                  { key: '类型', value: ERROR_TYPE_LABELS[eventDetail.errorType] ?? eventDetail.errorType },
                   { key: '级别', value: ERROR_LEVEL_LABELS[eventDetail.level] ?? eventDetail.level },
                   { key: '用户', value: eventDetail.username || '匿名' },
                   { key: '浏览器/系统', value: `${eventDetail.browser || '未知'} ${eventDetail.browserVersion || ''} / ${eventDetail.os || '未知'}` },
@@ -1357,7 +1358,7 @@ export default function FrontendErrorsPage() {
                   value={alertForm.errorType ?? undefined}
                   optionList={typeOptions}
                   style={{ width: '100%' }}
-                  onChange={(value) => setAlertForm((prev) => ({ ...prev, errorType: (value as FrontendErrorType | undefined) ?? null }))}
+                  onChange={(value) => setAlertForm((prev) => ({ ...prev, errorType: (value as ErrorType | undefined) ?? null }))}
                 />
               </Form.Slot>
             </Col>

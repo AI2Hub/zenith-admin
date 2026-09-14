@@ -8,6 +8,7 @@ import {
   ERROR_ALERT_CONDITIONS,
   ERROR_LEVELS,
   ERROR_STATUSES,
+  ERROR_TYPES,
   FRONTEND_ERROR_TYPES,
 } from '../constants';
 import {
@@ -23,11 +24,12 @@ import { OPEN_APP_ENVIRONMENT_OPTIONS } from '../../open-platform/constants';
 
 // ─── 实体 ────────────────────────────────────────────────────────────────────
 
-/** 错误分组（Issue） */
+/** 错误分组（Issue）：前端错误与服务端异常共用，`source` 区分来源 */
 export const errorGroupSchema = z.object({
   id: z.int(),
   fingerprint: z.string(),
-  errorType: z.enum(FRONTEND_ERROR_TYPES),
+  source: z.enum(ANALYTICS_EVENT_SOURCES).meta({ description: '来源：web_admin / web_member 为浏览器端，server 为服务端异常' }),
+  errorType: z.enum(ERROR_TYPES),
   level: z.enum(ERROR_LEVELS),
   message: z.string(),
   status: z.enum(ERROR_STATUSES),
@@ -51,7 +53,7 @@ export const errorEventSchema = z.object({
   id: z.int(),
   groupId: z.int(),
   fingerprint: z.string(),
-  errorType: z.enum(FRONTEND_ERROR_TYPES),
+  errorType: z.enum(ERROR_TYPES),
   level: z.enum(ERROR_LEVELS),
   message: z.string(),
   stack: z.string().nullable(),
@@ -78,6 +80,17 @@ export const errorEventSchema = z.object({
   environment: z.enum(ANALYTICS_ENVIRONMENTS),
   memberId: z.int().nullable().meta({ description: '会员身份（前台错误上报），与 userId（后台管理员）互斥' }),
   replayId: z.string().nullable().meta({ description: '报错时刻活跃的回放会话 ID（SDK 注入）' }),
+  // ─── 链路与服务端上下文（前端事件除 traceId 外为 null）───
+  traceId: z.string().nullable().meta({ description: '请求 / 链路 ID（= X-Request-Id）；服务端异常必带，前端接口错误在能读到响应头时带上，用于两侧互查' }),
+  route: z.string().nullable().meta({ description: '匹配到的路由模板，如 /api/users/{id}' }),
+  errorName: z.string().nullable().meta({ description: '异常类名：TypeError / PostgresError / ZodError…' }),
+  errorCode: z.string().nullable().meta({ description: '异常代码：PG SQLSTATE（23505）、Node 系统错误码（ECONNREFUSED）等' }),
+  jobType: z.string().nullable().meta({ description: '任务类型 / 定时作业 key / 事件名' }),
+  jobId: z.string().nullable().meta({ description: '任务 / 作业 / 事件实例 ID' }),
+  processRole: z.string().nullable().meta({ description: '进程角色：api / worker / all' }),
+  hostname: z.string().nullable(),
+  pid: z.int().nullable(),
+  affectedTenantId: z.int().nullable().meta({ description: '服务端异常发生时请求所属的租户（事件本身归平台）' }),
   createdAt: z.string(),
 }).meta({ id: 'ErrorEvent' });
 
@@ -101,7 +114,7 @@ export const errorOverviewSchema = z.object({
   totalOccurrences: z.int(),
   affectedUsers: z.int(),
   newToday: z.int(),
-  byType: z.array(z.object({ errorType: z.enum(FRONTEND_ERROR_TYPES), groups: z.int(), occurrences: z.int() })),
+  byType: z.array(z.object({ errorType: z.enum(ERROR_TYPES), groups: z.int(), occurrences: z.int() })),
   byLevel: z.array(z.object({ level: z.enum(ERROR_LEVELS), groups: z.int(), occurrences: z.int() })),
   trend: z.array(z.object({ date: z.string(), occurrences: z.int(), groups: z.int() })),
   topIssues: z.array(errorGroupSchema),
@@ -112,7 +125,8 @@ export type ErrorOverview = z.infer<typeof errorOverviewSchema>;
 export const errorAlertRuleSchema = z.object({
   id: z.int(),
   name: z.string(),
-  errorType: z.enum(FRONTEND_ERROR_TYPES).nullable(),
+  source: z.enum(ANALYTICS_EVENT_SOURCES).nullable().meta({ description: '只对该来源生效；null = 全部来源' }),
+  errorType: z.enum(ERROR_TYPES).nullable(),
   level: z.enum(ERROR_LEVELS).nullable(),
   condition: z.enum(ERROR_ALERT_CONDITIONS),
   thresholdCount: z.int(),
