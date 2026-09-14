@@ -10,6 +10,7 @@ import { dictsHandlers } from './dicts';
 import { settingsHandlers } from './settings';
 import { identitySecurityHandlers } from './identity-security';
 import { impersonationHandlers } from './impersonation';
+import { permissionMatrixHandlers } from './permission-matrix';
 import { identityProvidersHandlers } from './identity-providers';
 import { directorySyncHandlers } from './directory-sync';
 import { announcementsHandlers } from './announcements';
@@ -157,6 +158,7 @@ export const handlers = [
   ...settingsHandlers,
   ...identitySecurityHandlers,
   ...impersonationHandlers,
+  ...permissionMatrixHandlers,
   ...identityProvidersHandlers,
   ...directorySyncHandlers,
   ...announcementsHandlers,
