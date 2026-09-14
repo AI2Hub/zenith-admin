@@ -1,4 +1,5 @@
 import {
+  apiCatalogContract,
   apiTokenContract,
   authContract,
   departmentContract,
@@ -22,6 +23,7 @@ import {
   userGroupContract,
 } from '@zenith/shared/identity';
 import { defineRouteDomain } from '../_kit';
+import apiCatalogRoutes from './api-catalog';
 import apiTokensRoutes from './api-tokens';
 import authRoutes from './auth';
 import departmentsRoutes from './departments';
@@ -56,6 +58,7 @@ export default defineRouteDomain({
     [menuContract.basePath, menusRoutes],
     [roleContract.basePath, rolesRoutes],
     [permissionMatrixContract.basePath, permissionMatrixRoutes],
+    [apiCatalogContract.basePath, apiCatalogRoutes],
     [loginLogContract.basePath, loginLogsRoutes],
     [identitySecurityContract.basePath, identitySecurityRoutes],
     [impersonationContract.basePath, impersonationRoutes],
