@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
 import { KeyRound, Lock, ShieldCheck, Globe, Fingerprint, Layers } from 'lucide-react';
 import { StatCard, StatGrid } from '@/components/charts/StatCard';
+import { useListSearch } from '@/hooks/useListSearch';
 import { usePinyinReady } from '@/hooks/usePinyinReady';
-import { ApiCatalogFilterBar, ApiCatalogTable } from './ApiCatalogTable';
+import { ApiCatalogSearchBar, ApiCatalogTable } from './ApiCatalogTable';
 import ApiOperationSheet from './ApiOperationSheet';
 import {
   EMPTY_FILTERS,
@@ -14,45 +15,44 @@ import {
   type CatalogRow,
 } from './catalog-model';
 
-/** 统计卡即筛选：点「需权限码」等于把访问要求 / 认证方式筛到对应值，再点一次取消 */
-type StatKey = 'permission' | 'authenticated' | 'platform' | 'public' | 'otherCredential';
+/** 目录是静态代码派生的数据，没有服务端 query；listKey 只用于满足 useListSearch 的失效契约与「记住筛选条件」偏好 */
+const CATALOG_LIST_KEY = ['api-catalog', 'catalog'] as const;
 
-const STAT_FILTERS: Record<StatKey, Partial<CatalogFilters>> = {
-  permission: { accessKind: 'permission', security: 'bearer' },
-  authenticated: { accessKind: 'authenticated', security: 'bearer' },
-  platform: { accessKind: 'platform', security: 'bearer' },
-  public: { security: 'none', accessKind: undefined },
-  otherCredential: { security: undefined, accessKind: undefined },
+/** 统计卡即筛选：点「需权限码」等于把认证方式 / 访问要求提交为对应值，再点一次取消 */
+type StatKey = 'permission' | 'authenticated' | 'platform' | 'public' | 'otherCredential';
+type StatFilter = Pick<CatalogFilters, 'security' | 'accessKind' | 'otherCredential'>;
+
+const STAT_FILTERS: Record<StatKey, StatFilter> = {
+  permission: { security: 'bearer', accessKind: 'permission', otherCredential: undefined },
+  authenticated: { security: 'bearer', accessKind: 'authenticated', otherCredential: undefined },
+  platform: { security: 'bearer', accessKind: 'platform', otherCredential: undefined },
+  public: { security: 'none', accessKind: undefined, otherCredential: undefined },
+  otherCredential: { security: undefined, accessKind: undefined, otherCredential: true },
 };
+const CLEARED_STAT_FILTER: StatFilter = { security: undefined, accessKind: undefined, otherCredential: undefined };
+
+function activeStatOf(filters: CatalogFilters): StatKey | null {
+  return (Object.keys(STAT_FILTERS) as StatKey[]).find((key) => {
+    const spec = STAT_FILTERS[key];
+    return filters.security === spec.security && filters.accessKind === spec.accessKind && filters.otherCredential === spec.otherCredential;
+  }) ?? null;
+}
 
 export default function CatalogTab() {
-  const [filters, setFilters] = useState<CatalogFilters>(EMPTY_FILTERS);
-  const [activeStat, setActiveStat] = useState<StatKey | null>(null);
   const [selected, setSelected] = useState<CatalogRow | null>(null);
-  // 词典就绪后重渲染：已输入的关键字补上拼音命中（过滤逐次渲染重算，候选 ~2,400 行仍是毫秒级）
+  // 词典就绪后重渲染：已提交的关键字补上拼音命中（过滤逐次渲染重算，~2,400 行仍是毫秒级）
   usePinyinReady();
+  const search = useListSearch<CatalogFilters>({ defaults: EMPTY_FILTERS, listKey: CATALOG_LIST_KEY });
+  const { submittedParams, applySearch, page, pageSize, buildPagination } = search;
 
   const rows = catalogRows();
   const stats = useMemo(() => summarizeCatalog(rows), [rows]);
-  const filtered = rows.filter((row) => {
-    if (activeStat === 'otherCredential' && (row.security === 'bearer' || row.security === 'none')) return false;
-    return matchesCatalogFilters(row, filters);
-  });
+  const filtered = rows.filter((row) => matchesCatalogFilters(row, submittedParams));
+  const pageRows = filtered.slice((page - 1) * pageSize, page * pageSize);
 
-  const patch = (next: Partial<CatalogFilters>) => {
-    setFilters((prev) => ({ ...prev, ...next }));
-    // 手动改了认证 / 访问要求下拉，统计卡的选中态不再代表当前筛选
-    if ('security' in next || 'accessKind' in next) setActiveStat(null);
-  };
-  const reset = () => { setFilters(EMPTY_FILTERS); setActiveStat(null); };
+  const activeStat = activeStatOf(submittedParams);
   const toggleStat = (key: StatKey) => {
-    if (activeStat === key) {
-      setActiveStat(null);
-      setFilters((prev) => ({ ...prev, security: undefined, accessKind: undefined }));
-      return;
-    }
-    setActiveStat(key);
-    setFilters((prev) => ({ ...prev, ...STAT_FILTERS[key] }));
+    applySearch({ ...submittedParams, ...(activeStat === key ? CLEARED_STAT_FILTER : STAT_FILTERS[key]) });
   };
 
   return (
@@ -66,15 +66,17 @@ export default function CatalogTab() {
         <StatCard title="其他凭证" value={stats.otherCredential} sub="会员令牌 / 设备签名 / 开放网关" icon={<Fingerprint size={16} />} onClick={() => toggleStat('otherCredential')} active={activeStat === 'otherCredential'} />
       </StatGrid>
 
-      <ApiCatalogFilterBar
+      <ApiCatalogSearchBar
         rows={rows}
-        filters={filters}
-        onChange={patch}
-        onReset={reset}
-        extra={<span style={{ color: 'var(--semi-color-text-2)', fontSize: 13 }}>{hasActiveFilter(filters) || activeStat ? `匹配 ${filtered.length} / ${rows.length} 个接口` : `共 ${rows.length} 个接口，由契约声明实时派生`}</span>}
+        search={search}
+        extra={(
+          <span style={{ color: 'var(--semi-color-text-2)', fontSize: 13 }}>
+            {hasActiveFilter(submittedParams) ? `匹配 ${filtered.length} / ${rows.length} 个接口` : `共 ${rows.length} 个接口，由契约声明实时派生`}
+          </span>
+        )}
       />
 
-      <ApiCatalogTable rows={filtered} onOpen={setSelected} heightOffset={400} />
+      <ApiCatalogTable rows={pageRows} pagination={buildPagination(filtered.length)} onOpen={setSelected} />
       <ApiOperationSheet row={selected} onClose={() => setSelected(null)} onOpen={setSelected} />
     </>
   );

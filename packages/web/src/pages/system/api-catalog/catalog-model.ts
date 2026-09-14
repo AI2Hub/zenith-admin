@@ -103,6 +103,8 @@ export interface CatalogFilters {
   permission: string | undefined;
   audit: 'yes' | 'no' | undefined;
   feature: string | undefined;
+  /** 「其他凭证」统计卡：只看会员令牌 / 设备签名 / 开放网关 */
+  otherCredential: true | undefined;
 }
 
 export const EMPTY_FILTERS: CatalogFilters = {
@@ -114,7 +116,15 @@ export const EMPTY_FILTERS: CatalogFilters = {
   permission: undefined,
   audit: undefined,
   feature: undefined,
+  otherCredential: undefined,
 };
+
+/** 权限矩阵的筛选：目录筛选 + 判定结果 */
+export interface MatrixFilters extends CatalogFilters {
+  verdict: OperationVerdict | undefined;
+}
+
+export const EMPTY_MATRIX_FILTERS: MatrixFilters = { ...EMPTY_FILTERS, verdict: undefined };
 
 export function hasActiveFilter(filters: CatalogFilters): boolean {
   return Object.values(filters).some((value) => value !== undefined && value !== '');
@@ -132,6 +142,7 @@ function matchesKeyword(row: CatalogRow, keyword: string): boolean {
 }
 
 export function matchesCatalogFilters(row: CatalogRow, filters: CatalogFilters): boolean {
+  if (filters.otherCredential && (row.security === 'bearer' || row.security === 'none')) return false;
   if (filters.domain !== undefined && row.domain !== filters.domain) return false;
   if (filters.method !== undefined && row.method !== filters.method) return false;
   if (filters.security !== undefined && row.security !== filters.security) return false;
