@@ -10,7 +10,7 @@ export * from './login-logs';
 export * from './menus';
 export * from './oauth';
 export * from './oauth-config';
-export * from './permission-matrix';
+export * from './api-catalog';
 export * from './positions';
 export * from './roles';
 export * from './scope-members';
