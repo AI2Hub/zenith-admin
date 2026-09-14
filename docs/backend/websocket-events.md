@@ -26,12 +26,12 @@ Sec-WebSocket-Protocol: zenith-auth, eyJ...
 
 | 类型 | payload | 说明 |
 | --- | --- | --- |
-| `announcement:new` | `Announcement`（`@zenith/shared/messaging`） | 新公告 |
+| `announcement:new` | `Announcement`（`@zenith/shared/messaging`） | 新公告。壳层把它作为未读头插进「最近公告」缓存并未读 +1；`updated` / `deleted` / `read` / `read-all` 同样按 id 局部更新缓存，均不触发请求 |
 | `announcement:updated` | `Announcement` | 公告更新 |
 | `announcement:deleted` | `{ id: number }` | 公告删除 |
 | `announcement:read` | `{ id: number }` | 公告已读 |
 | `announcement:read-all` | `{}` | 公告全部已读 |
-| `in-app-message:new` | `InAppMessage`（`@zenith/shared/messaging`） | 新站内信 |
+| `in-app-message:new` | `InAppMessage`（`@zenith/shared/messaging`） | 新站内信。载荷即收件人自己的真实行（`id` / `createdAt` 来自 `insert … returning`），客户端直接写入铃铛缓存并未读 +1，不回源；群发按收件人各推一份（`scheduleSendPerUser`，跨进程仍是一封 `perUser` 信封）。断线重连后客户端一次性重拉铃铛列表 / 未读数 / 最近公告 |
 | `in-app-message:read` | `{ id: number }` | 站内信已读 |
 | `in-app-message:read-all` | `{}` | 站内信全部已读 |
 | `in-app-message:deleted` | `{ id: number }` | 站内信删除 |

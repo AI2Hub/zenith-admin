@@ -10,7 +10,7 @@ import { requireFirstRow } from '../../lib/db-assert';
 import { buildListResult } from '../../lib/list-query';
 import { currentUser } from '../../lib/context';
 import { renderTemplate } from '../../lib/sms-sender';
-import { scheduleSendToUsers } from '../../lib/ws-manager';
+import { scheduleSendPerUser, scheduleSendToUsers } from '../../lib/ws-manager';
 import { ensureInAppTemplateExists } from './in-app-templates.service';
 import type { SendInAppInput, InAppMessageType, inAppMessageContract } from '@zenith/shared/messaging';
 import type { QueryOutputOf } from '@zenith/shared/core';
@@ -310,16 +310,19 @@ export async function sendInApp(input: SendInAppInput) {
     isRead: false,
     tenantId,
   }));
-  await db.insert(inAppMessages).values(rows);
-  scheduleSendToUsers(
-    recipients.map((r) => ({ userId: r.id })),
-    {
+  // 取回真实行：推送载荷带 id / createdAt，客户端直接写入铃铛缓存而不必回源
+  // （此前载荷 id 为 0，每个在线收件人都要重拉列表 + 未读数，群发即惊群）
+  const inserted = await db.insert(inAppMessages).values(rows)
+    .returning({ id: inAppMessages.id, userId: inAppMessages.userId, createdAt: inAppMessages.createdAt });
+  scheduleSendPerUser(inserted.map((row) => ({
+    userId: row.userId,
+    message: {
       type: 'in-app-message:new',
       payload: {
-        id: 0,
+        id: row.id,
         templateId,
         templateName: null,
-        userId: 0,
+        userId: row.userId,
         username: null,
         title,
         content,
@@ -330,9 +333,9 @@ export async function sendInApp(input: SendInAppInput) {
         senderId: me.userId,
         senderName: null,
         link: null,
-        createdAt: formatDateTime(new Date()),
+        createdAt: formatDateTime(row.createdAt),
       },
     },
-  );
+  })));
   return { sentCount: rows.length };
 }

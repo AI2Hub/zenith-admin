@@ -30,6 +30,8 @@ export type DeviceDeliveryAck =
 export type WsFanoutEnvelope =
   | { kind: 'user'; target: number; message: WsMessage }
   | { kind: 'users'; targets: number[]; message: WsMessage }
+  /** 同一批推送、每个收件人各自一份载荷（站内信群发：每人的消息 id / 未读数不同）；跨进程仍只发一封信封 */
+  | { kind: 'perUser'; entries: Array<{ target: number; message: WsMessage }> }
   | { kind: 'token'; target: string; message: WsMessage }
   | { kind: 'broadcast'; message: WsMessage }
   | { kind: 'closeToken'; target: string; reason: string }

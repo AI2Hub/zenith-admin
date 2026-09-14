@@ -1,9 +1,9 @@
-import { useCallback, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
+import { useCallback, useEffect, useRef, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
 import { Notification } from '@douyinfe/semi-ui';
 import type { NavigateFunction } from 'react-router-dom';
 import type { InAppMessage } from '@zenith/shared/messaging';
 import type { WsMessage } from '@zenith/shared/platform';
-import { useWebSocket } from '@/hooks/useWebSocket';
+import { subscribeWsStatus, useWebSocket } from '@/hooks/useWebSocket';
 import { useOptionalPreferences } from '@/hooks/usePreferences';
 import { reloadTrackerConfig } from '@/utils/tracker';
 import { playNotificationSound } from '@/utils/notification-sound';
@@ -11,10 +11,16 @@ import { showDesktopNotification } from '@/utils/desktop-notification';
 import { updateMessageReadIfUnread, markAllMessagesRead, removeMessageById } from './utils';
 
 // ─── WebSocket ──────────────────────────────────────────────────────────────
+type AnnouncementWsMessage = Extract<WsMessage, { type: `announcement:${string}` }>;
+
 export function useLayoutWs({
   onLogout,
   clearLockPassword,
   fetchInAppMessages,
+  prependInAppMessage,
+  refreshInboxLists,
+  applyAnnouncementEvent,
+  refetchAfterReconnect,
   setInAppMessages,
   setUnreadCount,
   setChatUnreadCount,
@@ -25,7 +31,13 @@ export function useLayoutWs({
 }: {
   onLogout: () => void;
   clearLockPassword: () => void;
+  /** 兜底回源：仅用于不带真实 id 的旧载荷 */
   fetchInAppMessages: () => void;
+  /** 推送的新消息直接写入铃铛缓存；返回 false 表示重复投递 */
+  prependInAppMessage: (message: InAppMessage) => boolean;
+  refreshInboxLists: () => void;
+  applyAnnouncementEvent: (msg: AnnouncementWsMessage) => void;
+  refetchAfterReconnect: () => void;
   setInAppMessages: Dispatch<SetStateAction<InAppMessage[]>>;
   setUnreadCount: Dispatch<SetStateAction<number>>;
   setChatUnreadCount: Dispatch<SetStateAction<number>>;
@@ -50,25 +62,35 @@ export function useLayoutWs({
     Notification.info({ title, content: body, duration: 5, position: 'topRight' });
   }, [soundEnabled, soundStyle, desktopEnabled, navigate]);
 
+  // 断线重连后补拉：期间的推送不会重放；首次连接不算（挂载时的查询刚拉过）
+  const hadDisconnectRef = useRef(false);
+  useEffect(() => subscribeWsStatus((connected) => {
+    if (!connected) {
+      hadDisconnectRef.current = true;
+      return;
+    }
+    if (!hadDisconnectRef.current) return;
+    hadDisconnectRef.current = false;
+    refetchAfterReconnect();
+  }), [refetchAfterReconnect]);
+
   const handleWsMessage = useCallback((msg: WsMessage) => {
     if (msg.type === 'in-app-message:new') {
-      const messageKey = `${msg.payload.title}:${msg.payload.createdAt}`;
-      const now = Date.now();
-
-      for (const [key, timestamp] of recentInAppMessageRef.current) {
-        if (now - timestamp > 60_000) {
-          recentInAppMessageRef.current.delete(key);
+      if (msg.payload.id > 0) {
+        // 服务端载荷即真实行：直接写缓存，按 id 去重（多标签页 / 多进程重复投递不重复提示）
+        if (!prependInAppMessage(msg.payload)) return;
+        refreshInboxLists();
+      } else {
+        // 旧载荷不带 id：按 标题:时间 去重后回源
+        const messageKey = `${msg.payload.title}:${msg.payload.createdAt}`;
+        const now = Date.now();
+        for (const [key, timestamp] of recentInAppMessageRef.current) {
+          if (now - timestamp > 60_000) recentInAppMessageRef.current.delete(key);
         }
+        if (recentInAppMessageRef.current.has(messageKey)) return;
+        recentInAppMessageRef.current.set(messageKey, now);
+        fetchInAppMessages();
       }
-
-      if (recentInAppMessageRef.current.has(messageKey)) {
-        return;
-      }
-
-      recentInAppMessageRef.current.set(messageKey, now);
-
-      // 重新拉一次以获取带有实际 id 的记录
-      fetchInAppMessages();
 
       notifyArrival('新消息', msg.payload.title, 'in-app-message', '/inbox');
     } else if (msg.type === 'in-app-message:read') {
@@ -90,6 +112,8 @@ export function useLayoutWs({
       msg.type === 'announcement:read' ||
       msg.type === 'announcement:read-all'
     ) {
+      // 壳层缓存直接写入（不回源）；收件箱 / 管理页仍靠事件按需重拉自己的列表
+      applyAnnouncementEvent(msg);
       globalThis.dispatchEvent(new CustomEvent('announcement:refresh', { detail: msg }));
       if (msg.type === 'announcement:new') {
         notifyArrival('新公告', msg.payload.title, 'announcement', '/announcements');
@@ -113,7 +137,7 @@ export function useLayoutWs({
       const effectiveTenantId = viewingTenantId !== null ? viewingTenantId : userTenantId;
       if (msg.payload.tenantId === effectiveTenantId) reloadTrackerConfig();
     }
-  }, [onLogout, fetchInAppMessages, clearLockPassword, userTenantId, viewingTenantId, setInAppMessages, setUnreadCount, setChatUnreadCount, recentInAppMessageRef, notifyArrival]);
+  }, [onLogout, fetchInAppMessages, prependInAppMessage, refreshInboxLists, applyAnnouncementEvent, clearLockPassword, userTenantId, viewingTenantId, setInAppMessages, setUnreadCount, setChatUnreadCount, recentInAppMessageRef, notifyArrival]);
 
   const { disconnect: disconnectWs } = useWebSocket(handleWsMessage);
 

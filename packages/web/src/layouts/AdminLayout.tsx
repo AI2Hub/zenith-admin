@@ -298,6 +298,7 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
     selectedMessage, setSelectedMessage,
     recentInAppMessageRef,
     fetchRecentAnnouncements, markAnnouncementAsRead, fetchInAppMessages,
+    prependInAppMessage, refreshInboxLists, applyAnnouncementEvent, refetchAfterReconnect,
   } = useInAppNotifications();
 
   // ─── 聊天未读数 ────────────────────────────────────────────────────────────
@@ -311,6 +312,10 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
     onLogout,
     clearLockPassword,
     fetchInAppMessages,
+    prependInAppMessage,
+    refreshInboxLists,
+    applyAnnouncementEvent,
+    refetchAfterReconnect,
     setInAppMessages,
     setUnreadCount,
     setChatUnreadCount,

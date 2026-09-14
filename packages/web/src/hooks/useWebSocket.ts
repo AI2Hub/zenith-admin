@@ -165,6 +165,16 @@ export function sendWsMessage(msg: WsMessage) {
 }
 
 /**
+ * 订阅连接状态变化（`true` = 已连接），返回取消订阅函数。
+ * 供断线重连后补拉推送驱动的缓存（未读数 / 铃铛列表）——断线期间的 WS 消息不会重放。
+ * Demo 模式无 WebSocket，不会触发。
+ */
+export function subscribeWsStatus(listener: StatusListener): () => void {
+  statusListeners.add(listener);
+  return () => { statusListeners.delete(listener); };
+}
+
+/**
  * Generic WebSocket hook with auto-reconnect and exponential backoff.
  * Reuses one shared connection per page and fans out messages to subscribers.
  */

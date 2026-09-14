@@ -20,6 +20,15 @@ export const removeMessageById = (id: number) => (prev: InAppMessage[]) =>
 export const markAnnouncementRead = (id: number) => (prev: (Announcement & { isRead: boolean })[]) =>
   prev.map((a) => (a.id === id ? { ...a, isRead: true } : a));
 
+/**
+ * WebSocket 推送的新消息写入铃铛列表：按 id 去重（多标签页 / 多进程重复投递），头插并裁到首页大小。
+ * 返回 null 表示已存在、无需改动（调用方据此决定是否累加未读数）。
+ */
+export function prependUnique<T extends { id: number }>(prev: T[], item: T, limit: number): T[] | null {
+  if (prev.some((m) => m.id === item.id)) return null;
+  return [item, ...prev].slice(0, limit);
+}
+
 export interface TabClosableFlags {
   hasClosableLeft: boolean;
   hasClosableRight: boolean;

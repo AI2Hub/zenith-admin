@@ -9,7 +9,8 @@ export type InAppMessageListParams = NonNullable<QueryOf<typeof inAppMessageCont
 export type SendInAppValues = NonNullable<BodyOf<typeof inAppMessageContract.send>>;
 
 /** 顶栏铃铛固定取我的站内信首页 10 条 */
-const MINE_QUERY = { page: 1, pageSize: 10 } as const;
+export const MINE_PAGE_SIZE = 10;
+const MINE_QUERY = { page: 1, pageSize: MINE_PAGE_SIZE } as const;
 
 /** 发送弹窗的模板下拉源：启用模板取前 100 条 */
 const ENABLED_TEMPLATES_QUERY = { page: 1, pageSize: 100, status: 'enabled' } as const;

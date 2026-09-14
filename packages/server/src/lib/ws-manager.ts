@@ -159,6 +159,7 @@ function closeSockets(sockets: Set<WSContext> | undefined, reason: string) {
 
 onWsFanout('user', (e) => deliverToUser(e.target, e.message));
 onWsFanout('users', (e) => { for (const userId of e.targets) deliverToUser(userId, e.message); });
+onWsFanout('perUser', (e) => { for (const entry of e.entries) deliverToUser(entry.target, entry.message); });
 onWsFanout('token', (e) => deliverToToken(e.target, e.message));
 onWsFanout('broadcast', (e) => deliverBroadcast(e.message));
 onWsFanout('closeToken', (e) => closeSockets(tokenSockets.get(e.target), e.reason));
@@ -208,6 +209,19 @@ export function scheduleSendToUsers(members: { userId: number }[], message: WsMe
     const targets = [...new Set(members.map((m) => m.userId))];
     for (const userId of targets) deliverToUser(userId, message);
     publishWsFanout({ kind: 'users', targets, message });
+  });
+}
+
+/**
+ * 一批推送、每个收件人一份专属载荷（站内信群发：每人的消息 id / 未读数不同）。
+ * 与 scheduleSendToUsers 同样延后到下一个 I/O tick，跨进程只发一封信封而不是每人一封。
+ */
+export function scheduleSendPerUser(entries: Array<{ userId: number; message: WsMessage }>): void {
+  if (entries.length === 0) return;
+  setImmediate(() => {
+    const wire = entries.map((e) => ({ target: e.userId, message: e.message }));
+    for (const entry of wire) deliverToUser(entry.target, entry.message);
+    publishWsFanout({ kind: 'perUser', entries: wire });
   });
 }
 

@@ -239,6 +239,25 @@ describe('跨进程 fan-out', () => {
     expect(new Set(envelopes.map((e) => e.from)).size).toBe(1);
   });
 
+  it('scheduleSendPerUser：每人一份载荷本地投递，跨进程仍只发一封 perUser 信封', async () => {
+    const a = fakeWs();
+    const b = fakeWs();
+    m.registerConnection(1, 'ta', a.ws);
+    m.registerConnection(2, 'tb', b.ws);
+    const forA = { type: 'in-app-message:read', payload: { id: 11 } } as const;
+    const forB = { type: 'in-app-message:read', payload: { id: 22 } } as const;
+
+    m.scheduleSendPerUser([{ userId: 1, message: forA }, { userId: 2, message: forB }, { userId: 3, message: forB }]);
+    expect(a.send).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(0);
+
+    expect(a.send.mock.calls.map(([raw]) => JSON.parse(raw as string))).toEqual([forA]);
+    expect(b.send.mock.calls.map(([raw]) => JSON.parse(raw as string))).toEqual([forB]);
+    const envelopes = await publishedEnvelopes();
+    expect(envelopes.map((e) => e.kind)).toEqual(['perUser']);
+    expect(envelopes[0]).toMatchObject({ entries: [{ target: 1, message: forA }, { target: 2, message: forB }, { target: 3, message: forB }] });
+  });
+
   it('本进程没有连接时 presence 变更仍以本地增量发布给其他进程', async () => {
     const a = fakeWs();
     m.registerConnection(1, 'ta', a.ws);
