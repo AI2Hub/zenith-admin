@@ -7,6 +7,8 @@ import {
   APP_ARCHES,
   APP_ARTIFACT_KINDS,
   APP_FILE_ARTIFACT_KINDS,
+  APP_KIND_OPTIONS,
+  APP_KINDS,
   APP_PLATFORMS,
   APP_RELEASE_CHANNELS,
   APP_RELEASE_STATUSES,
@@ -30,6 +32,7 @@ export const clientAppSchema = z.object({
   appKey: z.string().meta({ description: '客户端侧标识，创建后不可修改', example: 'zenith-desktop' }),
   name: z.string(),
   description: z.string().nullable(),
+  kind: z.enum(APP_KINDS).meta({ description: 'client 客户端应用（设备拉取升级）/ service 服务端应用（部署包推送到运维主机）' }),
   status: entityStatusSchema,
   releaseCount: z.int().optional().meta({ description: '列表冗余：版本总数' }),
   latestVersion: z.string().nullable().optional().meta({ description: '列表冗余：最新已发布版本号' }),
@@ -164,6 +167,7 @@ export type AppPublicReleaseInfo = z.infer<typeof appPublicReleaseInfoSchema>;
 
 export const clientAppListQuery = paginationQuery.extend({
   keyword: keywordQuery(undefined, { max: 256 }),
+  kind: queryEnum(APP_KINDS, { description: '应用类型；空 = 全部', options: APP_KIND_OPTIONS }),
   status: entityStatusQuery,
 });
 

@@ -6,16 +6,18 @@
  * app_release_events 是追加型日志（检查 / 下载 / 安装回执），供升级看板统计。
  */
 import { pgTable, pgEnum, varchar, text, integer, smallint, bigint, boolean, timestamp, unique, index, uuid, uniqueIndex } from 'drizzle-orm/pg-core';
+import { APP_ARCHES, APP_ARTIFACT_KINDS, APP_KINDS, APP_PLATFORMS, APP_RELEASE_CHANNELS, APP_RELEASE_STATUSES } from '@zenith/shared/ops';
 import { pushProviderEnum, timestampColumns, idColumn, statusColumn } from './common';
 import { auditColumns } from './core';
 import { managedFiles } from './files';
 
 // ─── 枚举（三端同步：pgEnum / shared constants / Zod enum）──────────────────
-export const appReleaseChannelEnum = pgEnum('app_release_channel', ['stable', 'beta', 'internal']);
-export const appReleaseStatusEnum = pgEnum('app_release_status', ['draft', 'published', 'revoked']);
-export const appPlatformEnum = pgEnum('app_platform', ['windows', 'macos', 'linux', 'android', 'ios', 'web']);
-export const appArchEnum = pgEnum('app_arch', ['x64', 'arm64', 'universal']);
-export const appArtifactKindEnum = pgEnum('app_artifact_kind', ['installer', 'hotupdate', 'metadata', 'external']);
+export const appKindEnum = pgEnum('app_kind', APP_KINDS);
+export const appReleaseChannelEnum = pgEnum('app_release_channel', APP_RELEASE_CHANNELS);
+export const appReleaseStatusEnum = pgEnum('app_release_status', APP_RELEASE_STATUSES);
+export const appPlatformEnum = pgEnum('app_platform', APP_PLATFORMS);
+export const appArchEnum = pgEnum('app_arch', APP_ARCHES);
+export const appArtifactKindEnum = pgEnum('app_artifact_kind', APP_ARTIFACT_KINDS);
 export const appReleaseEventTypeEnum = pgEnum('app_release_event_type', ['check', 'download', 'install_success', 'install_fail']);
 
 // ─── 应用 ────────────────────────────────────────────────────────────────────
@@ -25,6 +27,8 @@ export const clientApps = pgTable('client_apps', {
   appKey: varchar({ length: 64 }).notNull().unique('client_apps_app_key_unique'),
   name: varchar({ length: 100 }).notNull(),
   description: text(),
+  /** client = 客户端应用（设备拉取升级）；service = 服务端应用（部署包由「应用部署」推送到运维主机） */
+  kind: appKindEnum().notNull().default('client'),
   status: statusColumn(),
   ...auditColumns(),
   ...timestampColumns(),

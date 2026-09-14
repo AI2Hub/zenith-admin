@@ -88,9 +88,9 @@ export const SEED_MENUS_SETTINGS: Menu[] = [
   { id: 2570, parentId: 2440, title: '防火墙管理', name: 'SystemFirewall', path: '/system/firewall', component: 'system/firewall/FirewallPage', icon: 'Shield', type: 'menu', sort: 11, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 2580, parentId: 2440, title: 'Nginx 站点', name: 'SystemNginxSites', path: '/system/nginx-sites', component: 'system/nginx-sites/NginxSitesPage', icon: 'Globe', type: 'menu', sort: 12, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 2590, parentId: 2440, title: 'SSL 证书', name: 'SystemSslCertificates', path: '/system/ssl-certificates', component: 'system/ssl-certificates/SslCertificatesPage', icon: 'Lock', type: 'menu', sort: 13, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
-
-  // ─── 应用版本管理（2670 段，客户端在线升级）
-  { id: 2670, parentId: 2000, title: '应用版本', name: 'SystemAppReleases', path: '/system/app-releases', component: 'system/app-releases/AppReleasesPage', icon: 'Rocket', type: 'menu', sort: 14, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  // ─── 应用交付（同在系统运维目录：应用版本 = 应用 / 版本 / 制品；应用部署 = 目标 / 记录 / 备份，两页深链互跳）
+  { id: 2670, parentId: 2440, title: '应用版本', name: 'SystemAppReleases', path: '/system/app-releases', component: 'system/app-releases/AppReleasesPage', icon: 'Rocket', type: 'menu', sort: 15, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 2770, parentId: 2440, title: '应用部署', name: 'SystemDeploy', path: '/system/deploy', component: 'system/deploy/DeployPage', icon: 'CloudUpload', type: 'menu', sort: 16, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
 
   // ─── 智能助手（3000 段）
 ];

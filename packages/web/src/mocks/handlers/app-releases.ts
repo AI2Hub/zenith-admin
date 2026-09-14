@@ -73,6 +73,7 @@ export const appReleasesHandlers = [
   mock(clientAppContract.list, ({ query, ok, paginate }) => {
     let list = mockClientApps.map(decorateApp);
     if (query.keyword) list = filterByKeyword(list, query.keyword, [(a) => a.name, (a) => a.appKey]);
+    if (query.kind) list = list.filter((a) => a.kind === query.kind);
     if (query.status) list = list.filter((a) => a.status === query.status);
     return ok(paginate(list));
   }),
@@ -87,6 +88,7 @@ export const appReleasesHandlers = [
       appKey: body.appKey,
       name: body.name,
       description: body.description ?? '',
+      kind: body.kind,
       status: body.status,
       createdAt: now,
       updatedAt: now,

@@ -55,6 +55,7 @@ import { cmsWidgetsHandlers } from './cms-widgets';
 import { wikiHandlers } from './wiki';
 import { driveHandlers } from './drive';
 import { appReleasesHandlers } from './app-releases';
+import { deployHandlers } from './deploy';
 import { pushHandlers } from './push';
 import { broadcastHandlers } from './broadcasts';
 import { shortLinksHandlers } from './short-links';
@@ -289,6 +290,7 @@ export const handlers = [
   ...wikiHandlers,
   ...driveHandlers,
   ...appReleasesHandlers,
+  ...deployHandlers,
   ...pushHandlers,
   ...broadcastHandlers,
   ...shortLinksHandlers,

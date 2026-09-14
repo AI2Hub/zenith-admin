@@ -288,7 +288,23 @@ export const TERMINAL_END_REASON_LABELS: Record<TerminalEndReason, string> = {
   start_failed: '启动失败',
 };
 
-// ─── 应用版本管理（在线升级）──────────────────────────────────────────────────
+// ─── 应用版本管理（在线升级 / 服务端发布）────────────────────────────────────
+
+/**
+ * 应用类型：client = 客户端应用（桌面 / 移动 / Web 热更，设备拉取升级）；
+ * service = 服务端应用（部署包推送到运维主机，见「应用部署」）。
+ * 两者共用应用 → 版本 → 制品模型与制品上传；渠道 / 灰度 / 强制升级 / 设备统计只对 client 有意义。
+ */
+export const APP_KINDS = ['client', 'service'] as const;
+export type AppKind = (typeof APP_KINDS)[number];
+
+export const APP_KIND_LABELS: Record<AppKind, string> = {
+  client: '客户端应用',
+  service: '服务端应用',
+};
+
+export const APP_KIND_OPTIONS: Array<{ value: AppKind; label: string }> =
+  createLabelOptions(APP_KINDS, APP_KIND_LABELS);
 
 /** 发布渠道 */
 export const APP_RELEASE_CHANNELS = ['stable', 'beta', 'internal'] as const;
@@ -316,8 +332,8 @@ export const APP_RELEASE_STATUS_LABELS: Record<AppReleaseStatus, string> = {
 export const APP_RELEASE_STATUS_OPTIONS: Array<{ value: AppReleaseStatus; label: string }> =
   createLabelOptions(APP_RELEASE_STATUSES, APP_RELEASE_STATUS_LABELS);
 
-/** 客户端平台 */
-export const APP_PLATFORMS = ['windows', 'macos', 'linux', 'android', 'ios', 'web'] as const;
+/** 客户端平台；server = 服务端部署包（应用部署推送到运维主机） */
+export const APP_PLATFORMS = ['windows', 'macos', 'linux', 'android', 'ios', 'web', 'server'] as const;
 export type AppPlatform = (typeof APP_PLATFORMS)[number];
 
 export const APP_PLATFORM_LABELS: Record<AppPlatform, string> = {
@@ -327,6 +343,7 @@ export const APP_PLATFORM_LABELS: Record<AppPlatform, string> = {
   android: 'Android',
   ios: 'iOS',
   web: 'Web',
+  server: '服务端',
 };
 
 export const APP_PLATFORM_OPTIONS: Array<{ value: AppPlatform; label: string }> =
@@ -349,8 +366,9 @@ export const APP_ARCH_OPTIONS: Array<{ value: AppArch; label: string }> =
  * 制品类型。
  * installer=完整安装包 hotupdate=Web 资源热更包 metadata=electron-updater
  * 元数据（latest.yml / blockmap）external=外部链接（App Store / TestFlight）
+ * archive=服务端部署包（tar.gz / zip / 单文件 jar 等，由「应用部署」推送到主机）
  */
-export const APP_ARTIFACT_KINDS = ['installer', 'hotupdate', 'metadata', 'external'] as const;
+export const APP_ARTIFACT_KINDS = ['installer', 'hotupdate', 'metadata', 'external', 'archive'] as const;
 export type AppArtifactKind = (typeof APP_ARTIFACT_KINDS)[number];
 
 export const APP_ARTIFACT_KIND_LABELS: Record<AppArtifactKind, string> = {
@@ -358,13 +376,14 @@ export const APP_ARTIFACT_KIND_LABELS: Record<AppArtifactKind, string> = {
   hotupdate: '热更新包',
   metadata: '元数据',
   external: '外部链接',
+  archive: '部署包',
 };
 
 export const APP_ARTIFACT_KIND_OPTIONS: Array<{ value: AppArtifactKind; label: string }> =
   createLabelOptions(APP_ARTIFACT_KINDS, APP_ARTIFACT_KIND_LABELS);
 
 /** 走文件上传的制品类型（external 走外链录入，不上传文件） */
-export const APP_FILE_ARTIFACT_KINDS = ['installer', 'hotupdate', 'metadata'] as const;
+export const APP_FILE_ARTIFACT_KINDS = ['installer', 'hotupdate', 'metadata', 'archive'] as const;
 export type AppFileArtifactKind = (typeof APP_FILE_ARTIFACT_KINDS)[number];
 
 /** 升级事件类型（check 由服务端记录，install_* 由客户端回执上报） */
@@ -408,3 +427,123 @@ export const OPS_HOST_STATUS_LABELS: Record<OpsHostStatus, string> = {
   online: '在线',
   offline: '离线',
 };
+
+// ─── 应用部署（服务端应用推送到运维主机）─────────────────────────────────────
+
+/** 重启方式：systemd 单元 / 自定义脚本（在 current/ 下执行）/ 无需重启（静态资源） */
+export const DEPLOY_RESTART_MODES = ['systemd', 'script', 'none'] as const;
+export type DeployRestartMode = (typeof DEPLOY_RESTART_MODES)[number];
+
+export const DEPLOY_RESTART_MODE_LABELS: Record<DeployRestartMode, string> = {
+  systemd: 'systemd 服务',
+  script: '自定义脚本',
+  none: '无需重启',
+};
+
+export const DEPLOY_RESTART_MODE_OPTIONS: Array<{ value: DeployRestartMode; label: string }> =
+  createLabelOptions(DEPLOY_RESTART_MODES, DEPLOY_RESTART_MODE_LABELS);
+
+/** 健康检查方式（在目标主机上执行：http 用 curl、tcp 探端口、command 自定义命令退出码） */
+export const DEPLOY_HEALTH_CHECK_TYPES = ['none', 'http', 'tcp', 'command'] as const;
+export type DeployHealthCheckType = (typeof DEPLOY_HEALTH_CHECK_TYPES)[number];
+
+export const DEPLOY_HEALTH_CHECK_TYPE_LABELS: Record<DeployHealthCheckType, string> = {
+  none: '不检查',
+  http: 'HTTP 探活',
+  tcp: 'TCP 端口',
+  command: '自定义命令',
+};
+
+export const DEPLOY_HEALTH_CHECK_TYPE_OPTIONS: Array<{ value: DeployHealthCheckType; label: string }> =
+  createLabelOptions(DEPLOY_HEALTH_CHECK_TYPES, DEPLOY_HEALTH_CHECK_TYPE_LABELS);
+
+/** 多主机推进策略：rolling 逐台串行（默认）/ parallel 受 maxParallel 限制的并行 */
+export const DEPLOY_STRATEGIES = ['rolling', 'parallel'] as const;
+export type DeployStrategy = (typeof DEPLOY_STRATEGIES)[number];
+
+export const DEPLOY_STRATEGY_LABELS: Record<DeployStrategy, string> = {
+  rolling: '滚动（逐台）',
+  parallel: '并行',
+};
+
+export const DEPLOY_STRATEGY_OPTIONS: Array<{ value: DeployStrategy; label: string }> =
+  createLabelOptions(DEPLOY_STRATEGIES, DEPLOY_STRATEGY_LABELS);
+
+/** 一次 run 的类型：deploy 部署新版本 / rollback 切回主机上已有的 release / restart 只重启 */
+export const DEPLOY_RUN_KINDS = ['deploy', 'rollback', 'restart'] as const;
+export type DeployRunKind = (typeof DEPLOY_RUN_KINDS)[number];
+
+export const DEPLOY_RUN_KIND_LABELS: Record<DeployRunKind, string> = {
+  deploy: '部署',
+  rollback: '回滚',
+  restart: '重启',
+};
+
+export const DEPLOY_RUN_KIND_OPTIONS: Array<{ value: DeployRunKind; label: string }> =
+  createLabelOptions(DEPLOY_RUN_KINDS, DEPLOY_RUN_KIND_LABELS);
+
+/** run 状态：partial = 部分主机失败（含已自动回滚的主机） */
+export const DEPLOY_RUN_STATUSES = ['pending', 'running', 'succeeded', 'partial', 'failed', 'cancelled'] as const;
+export type DeployRunStatus = (typeof DEPLOY_RUN_STATUSES)[number];
+
+export const DEPLOY_RUN_STATUS_LABELS: Record<DeployRunStatus, string> = {
+  pending: '排队中',
+  running: '进行中',
+  succeeded: '成功',
+  partial: '部分失败',
+  failed: '失败',
+  cancelled: '已取消',
+};
+
+export const DEPLOY_RUN_STATUS_OPTIONS: Array<{ value: DeployRunStatus; label: string }> =
+  createLabelOptions(DEPLOY_RUN_STATUSES, DEPLOY_RUN_STATUS_LABELS);
+
+export const DEPLOY_RUN_TERMINAL_STATUSES: readonly DeployRunStatus[] = ['succeeded', 'partial', 'failed', 'cancelled'];
+
+export function isDeployRunTerminal(status: DeployRunStatus): boolean {
+  return DEPLOY_RUN_TERMINAL_STATUSES.includes(status);
+}
+
+/** 单台主机在一次 run 中的状态：rolled_back = 健康检查失败后已自动切回上一版；skipped = 因失败即停未执行 */
+export const DEPLOY_HOST_STATUSES = ['pending', 'running', 'succeeded', 'failed', 'rolled_back', 'skipped', 'cancelled'] as const;
+export type DeployHostStatus = (typeof DEPLOY_HOST_STATUSES)[number];
+
+export const DEPLOY_HOST_STATUS_LABELS: Record<DeployHostStatus, string> = {
+  pending: '等待',
+  running: '执行中',
+  succeeded: '成功',
+  failed: '失败',
+  rolled_back: '已自动回滚',
+  skipped: '已跳过',
+  cancelled: '已取消',
+};
+
+/** 部署流水线步骤（每台主机按序执行；rollback / restart 只走其中一部分） */
+export const DEPLOY_STEPS = ['preflight', 'upload', 'unpack', 'before_switch', 'switch', 'restart', 'health_check', 'prune'] as const;
+export type DeployStep = (typeof DEPLOY_STEPS)[number];
+
+export const DEPLOY_STEP_LABELS: Record<DeployStep, string> = {
+  preflight: '预检',
+  upload: '上传制品',
+  unpack: '解包',
+  before_switch: '切换前钩子',
+  switch: '切换版本',
+  restart: '重启',
+  health_check: '健康检查',
+  prune: '清理旧版本',
+};
+
+export const DEPLOY_LOG_LEVELS = ['info', 'warn', 'error'] as const;
+export type DeployLogLevel = (typeof DEPLOY_LOG_LEVELS)[number];
+
+/** 主机上 release 目录名：`yyyyMMddHHmmss-<版本>`，同一次 run 在所有主机上同名 */
+export const DEPLOY_RELEASE_NAME_RE = /^\d{14}-[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
+
+/** shared/ 下跨版本持久化的相对路径：不含 `..`、不以 / 开头 */
+export const DEPLOY_SHARED_PATH_RE = /^(?!\.\.(\/|$))(?!.*\/\.\.(\/|$))[A-Za-z0-9._][A-Za-z0-9._\/-]{0,127}$/;
+
+/** 环境变量名 */
+export const DEPLOY_ENV_NAME_RE = /^[A-Z_][A-Z0-9_]{0,63}$/;
+
+/** 部署根目录禁止落在这些系统目录之内（或等于它们） */
+export const DEPLOY_FORBIDDEN_ROOTS = ['/', '/bin', '/boot', '/dev', '/etc', '/lib', '/lib64', '/proc', '/root', '/run', '/sbin', '/sys', '/usr', '/var/lib', '/var/run'] as const;

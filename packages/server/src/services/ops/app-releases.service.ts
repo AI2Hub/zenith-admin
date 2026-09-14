@@ -98,6 +98,7 @@ function buildClientAppWhere(q: ClientAppListFilter & { id?: number }) {
   return buildWhere(
     q.id !== undefined ? eq(clientApps.id, q.id) : undefined,
     keywordCondition(q.keyword, [clientApps.appKey, clientApps.name, clientApps.description]),
+    q.kind ? eq(clientApps.kind, q.kind) : undefined,
     q.status ? eq(clientApps.status, q.status) : undefined,
   );
 }

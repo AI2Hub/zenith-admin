@@ -49,4 +49,7 @@ export const OPS_PERMISSIONS = definePermissions({
   'system:app-release:update': { label: '编辑版本', menu: 'SystemAppReleases' },
   'system:app-release:delete': { label: '删除版本', menu: 'SystemAppReleases' },
   'system:app-release:publish': { label: '发布/撤回', menu: 'SystemAppReleases' },
+  'system:deploy:list': { label: '查询', menu: 'SystemDeploy' },
+  'system:deploy:manage': { label: '管理目标', menu: 'SystemDeploy' },
+  'system:deploy:execute': { label: '部署/回滚', menu: 'SystemDeploy' },
 });

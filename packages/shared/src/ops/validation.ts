@@ -2,8 +2,17 @@ import * as z from 'zod';
 import { httpUrl, partialForUpdate } from '../core/validation';
 import {
   APP_ARCHES,
+  APP_KINDS,
   DB_ADMIN_MAINTENANCE_ACTIONS,
   DB_BACKUP_TYPES,
+  DEPLOY_ENV_NAME_RE,
+  DEPLOY_FORBIDDEN_ROOTS,
+  DEPLOY_HEALTH_CHECK_TYPES,
+  DEPLOY_RELEASE_NAME_RE,
+  DEPLOY_RESTART_MODES,
+  DEPLOY_SHARED_PATH_RE,
+  DEPLOY_STRATEGIES,
+  type DeployRestartMode,
   FIREWALL_DIRECTIONS,
   FIREWALL_PROTOCOLS,
   FIREWALL_RULE_TYPES,
@@ -298,11 +307,12 @@ export const createClientAppSchema = z.object({
     .regex(/^[a-z0-9][a-z0-9-]*$/, 'appKey 仅允许小写字母、数字与连字符'),
   name: z.string().min(1, '名称不能为空').max(100),
   description: z.string().max(500).optional(),
+  kind: z.enum(APP_KINDS).default('client'),
   status: entityStatusSchema.default('enabled'),
 });
 
-/** appKey 是客户端侧标识，创建后不可修改（改了会导致在网客户端失联） */
-export const updateClientAppSchema = partialForUpdate(createClientAppSchema).omit({ appKey: true });
+/** appKey 是客户端侧标识，创建后不可修改（改了会导致在网客户端失联）；kind 决定版本 / 制品语义，创建后不可切换 */
+export const updateClientAppSchema = partialForUpdate(createClientAppSchema).omit({ appKey: true, kind: true });
 
 export type CreateClientAppInput = z.infer<typeof createClientAppSchema>;
 export type UpdateClientAppInput = z.infer<typeof updateClientAppSchema>;
@@ -405,3 +415,123 @@ export const updateOpsHostSchema = partialForUpdate(createOpsHostSchema);
 export type CreateOpsHostInput = z.infer<typeof createOpsHostSchema>;
 
 export type UpdateOpsHostInput = z.infer<typeof updateOpsHostSchema>;
+
+// ─── 应用部署 ────────────────────────────────────────────────────────────────
+
+/** 部署根目录：绝对路径、无 `..` 段、不落在系统目录内；release / shared / current 都在它下面 */
+export const deployPathSchema = z
+  .string()
+  .min(2, '部署目录不能为空')
+  .max(255)
+  .regex(/^\/[^\0\s]*[^\0\s/]$/, '部署目录必须是不含空白、不以 / 结尾的绝对路径')
+  .refine((p) => !p.split('/').includes('..'), '部署目录不能包含 ..')
+  .refine(
+    (p) => !DEPLOY_FORBIDDEN_ROOTS.some((root) => p === root || (root !== '/' && p.startsWith(`${root}/`))),
+    '部署目录不能位于系统目录内',
+  );
+
+export const deployHealthCheckSchema = z.object({
+  type: z.enum(DEPLOY_HEALTH_CHECK_TYPES).default('none'),
+  /** http：在目标主机上 curl 的地址（可用 127.0.0.1） */
+  url: httpUrl('必须是合法的 http(s) URL').max(500).nullable().optional(),
+  /** tcp：本机端口 */
+  port: z.number().int().min(1).max(65535).nullable().optional(),
+  /** command：在 current/ 下执行，退出码 0 = 健康 */
+  command: z.string().max(1000).nullable().optional(),
+  timeoutSeconds: z.number().int().min(1).max(300).default(10),
+  retries: z.number().int().min(0).max(60).default(10),
+  intervalSeconds: z.number().int().min(1).max(60).default(3),
+}).superRefine((v, ctx) => {
+  if (v.type === 'http' && !v.url) ctx.addIssue({ code: 'custom', path: ['url'], message: 'HTTP 探活需要填写地址' });
+  if (v.type === 'tcp' && !v.port) ctx.addIssue({ code: 'custom', path: ['port'], message: 'TCP 探活需要填写端口' });
+  if (v.type === 'command' && !v.command?.trim()) ctx.addIssue({ code: 'custom', path: ['command'], message: '自定义命令不能为空' });
+});
+
+export type DeployHealthCheckInput = z.infer<typeof deployHealthCheckSchema>;
+
+/** 钩子 / 重启脚本：在目标主机上以 bash 执行，工作目录为对应 release 目录；只存服务端，编辑需 system:deploy:manage */
+export const deployScriptsSchema = z.object({
+  beforeSwitch: z.string().max(8000).nullable().optional(),
+  restart: z.string().max(8000).nullable().optional(),
+});
+
+export type DeployScriptsInput = z.infer<typeof deployScriptsSchema>;
+
+export const deployEnvSchema = z
+  .record(z.string().regex(DEPLOY_ENV_NAME_RE, '环境变量名须为大写字母 / 数字 / 下划线'), z.string().max(2000))
+  .refine((env) => Object.keys(env).length <= 50, '环境变量最多 50 个');
+
+const deployTargetBaseSchema = z.object({
+  appId: z.number().int().positive(),
+  name: z.string().min(1, '名称不能为空').max(64),
+  description: z.string().max(500).optional(),
+  hostIds: z.array(z.number().int().positive()).min(1, '至少选择一台主机').max(50)
+    .refine((ids) => new Set(ids).size === ids.length, '主机不能重复'),
+  deployPath: deployPathSchema,
+  sharedPaths: z.array(z.string().regex(DEPLOY_SHARED_PATH_RE, '共享路径须为相对路径且不含 ..')).max(20).default([]),
+  keepReleases: z.number().int().min(1).max(50).default(5),
+  restartMode: z.enum(DEPLOY_RESTART_MODES).default('systemd'),
+  serviceName: z.string().max(128).regex(/^[A-Za-z0-9@._:-]+$/, 'systemd 单元名不合法').nullable().optional(),
+  scripts: deployScriptsSchema.default({}),
+  healthCheck: deployHealthCheckSchema.default({ type: 'none', timeoutSeconds: 10, retries: 10, intervalSeconds: 3 }),
+  env: deployEnvSchema.default({}),
+  autoRollback: z.boolean().default(true),
+  strategy: z.enum(DEPLOY_STRATEGIES).default('rolling'),
+  maxParallel: z.number().int().min(1).max(20).default(2),
+  stopOnFailure: z.boolean().default(true),
+  enabled: z.boolean().default(true),
+  remark: z.string().max(500).optional(),
+});
+
+/** 重启方式与其配套字段的联动校验；更新接口是局部提交，由服务端合并后用同一函数校验 */
+export function validateDeployRestartConfig(v: { restartMode: DeployRestartMode; serviceName?: string | null; scripts: { restart?: string | null } }): string | null {
+  if (v.restartMode === 'systemd' && !v.serviceName) return '请填写 systemd 单元名';
+  if (v.restartMode === 'script' && !v.scripts.restart?.trim()) return '请填写重启脚本';
+  return null;
+}
+
+export const createDeployTargetSchema = deployTargetBaseSchema.superRefine((v, ctx) => {
+  const error = validateDeployRestartConfig(v);
+  if (error) ctx.addIssue({ code: 'custom', path: [v.restartMode === 'systemd' ? 'serviceName' : 'scripts'], message: error });
+});
+
+/** 所属应用创建后不可更换 */
+export const updateDeployTargetSchema = partialForUpdate(deployTargetBaseSchema).omit({ appId: true });
+
+export type CreateDeployTargetInput = z.infer<typeof createDeployTargetSchema>;
+export type UpdateDeployTargetInput = z.infer<typeof updateDeployTargetSchema>;
+
+const deployHostIdsSchema = z.array(z.number().int().positive()).min(1).max(50)
+  .refine((ids) => new Set(ids).size === ids.length, '主机不能重复')
+  .optional()
+  .describe('只对目标中的部分主机执行；缺省为目标的全部启用主机');
+
+/**
+ * 发起一次 run：
+ * deploy = 把某个已发布版本的部署包推到目标；rollback = 各主机切回同名 release（同一次部署在所有主机上同名）；restart = 只重启
+ */
+export const createDeployRunSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('deploy'),
+    targetId: z.number().int().positive(),
+    releaseId: z.number().int().positive().describe('应用版本 ID（须为 published，且含 server 平台的部署包制品）'),
+    artifactId: z.number().int().positive().optional().describe('版本下有多个 server 制品时指定；缺省取唯一的那个'),
+    hostIds: deployHostIdsSchema,
+    remark: z.string().max(500).optional(),
+  }),
+  z.object({
+    kind: z.literal('rollback'),
+    targetId: z.number().int().positive(),
+    releaseName: z.string().regex(DEPLOY_RELEASE_NAME_RE, 'release 名不合法'),
+    hostIds: deployHostIdsSchema,
+    remark: z.string().max(500).optional(),
+  }),
+  z.object({
+    kind: z.literal('restart'),
+    targetId: z.number().int().positive(),
+    hostIds: deployHostIdsSchema,
+    remark: z.string().max(500).optional(),
+  }),
+]);
+
+export type CreateDeployRunInput = z.infer<typeof createDeployRunSchema>;

@@ -1,5 +1,6 @@
 export * from './app-releases';
 export * from './db-admin';
+export * from './deploy';
 export * from './docker';
 export * from './firewall';
 export * from './host-files';

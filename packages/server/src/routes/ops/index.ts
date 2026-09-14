@@ -6,6 +6,9 @@ import {
   clientAppContract,
   clientDeviceContract,
   dbAdminContract,
+  deployReleaseContract,
+  deployRunContract,
+  deployTargetContract,
   dockerContract,
   firewallContract,
   hostFileContract,
@@ -40,6 +43,7 @@ import {
 import publicAppReleasesRoutes from './public-app-releases';
 import { adminPushDevicesRouter } from './push-devices';
 import dbAdminRoutes from './db-admin';
+import { deployReleasesRouter, deployRunsRouter, deployTargetsRouter } from './deploy';
 import dockerRoutes from './docker';
 import firewallRoutes from './firewall';
 import hostFilesRoutes from './host-files';
@@ -94,6 +98,10 @@ export default defineRouteDomain({
     [appArtifactContract.basePath, appArtifactsRouter],
     [clientDeviceContract.basePath, clientDevicesRouter],
     [appReleaseStatsContract.basePath, appReleaseStatsRouter],
+    // 应用部署（服务端应用推送到运维主机）：目标 / 记录 / 发布目录
+    [deployTargetContract.basePath, deployTargetsRouter, { feature: 'ops' }],
+    [deployRunContract.basePath, deployRunsRouter, { feature: 'ops' }],
+    [deployReleaseContract.basePath, deployReleasesRouter, { feature: 'ops' }],
     // 公开面（客户端检查更新 / 制品分发）不声明 feature：在网客户端必须始终可达
     [publicAppReleaseContract.basePath, publicAppReleasesRoutes],
     // 设备推送绑定（管理端 App，登录态即可）

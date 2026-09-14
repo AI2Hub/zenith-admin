@@ -43,7 +43,7 @@ import {
 } from './app-releases';
 
 const APP: ClientApp = {
-  id: 1, appKey: 'zenith-desktop', name: 'Zenith 桌面端', description: null,
+  id: 1, appKey: 'zenith-desktop', name: 'Zenith 桌面端', description: null, kind: 'client',
   status: 'enabled', releaseCount: 1, latestVersion: '1.85.0',
   createdAt: '2026-07-31 10:00:00', updatedAt: '2026-07-31 10:00:00',
 };
