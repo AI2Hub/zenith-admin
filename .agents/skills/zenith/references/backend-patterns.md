@@ -120,7 +120,7 @@ await db.insert(xxxs).values({ ...data, tenantId: getCreateTenantId(currentUser(
 写操作**前**注入变更前快照，`guard` 会在 `next()` 后从 `{ code: 0, data: ... }` 响应体自动提取变更后快照：
 
 ```ts
-import { guard, setAuditBeforeData } from '../../middleware/guard';
+import { setAuditBeforeData } from '../../middleware/guard';
 
 const before = await ensureXxxExists(id);
 // 有敏感字段时先排除

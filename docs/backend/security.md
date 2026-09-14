@@ -51,7 +51,7 @@ JWT 签名有效不等于主体仍然有效：认证中间件（`middleware/auth
 
 后台登录令牌操作的访问要求声明在契约操作的 `access` 上（`packages/shared/src/{域}/contracts/`）：权限码
 （数组 = 任一即可）、`platformOnly`（仅平台超管）或 `'authenticated'`（登录即可）；写操作的审计声明在 `audit`，
-License 门控在 `feature`。`defineContractRoute` 据此装配 `authMiddleware → platformAdminOnly → guard()`，路由文件不再手写门禁，
+License 门控在 `feature`。`defineContractRoute` 据此装配 `authMiddleware → platformAdminOnly → guard()`，路由文件只写 handler，
 `app.contract.test.ts` 逐端点对账契约与运行时。`guard()` 负责：
 
 - 校验权限码；

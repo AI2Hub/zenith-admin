@@ -173,10 +173,10 @@ describe('认证契约：声明与运行时行为必须一致', () => {
 describe('权限契约：契约 access 与运行时门禁必须一致', () => {
   /**
    * 后台登录令牌（bearer）操作的门禁由 `defineContractRoute` 按契约 `access` / `audit` / `feature` 装配，
-   * 路由文件不再手写 `authMiddleware` / `guard()` / `platformAdminOnly()`。这里沿 `app.routes` 读回
+   * 路由文件不手写 `authMiddleware` / `guard()` / `platformAdminOnly()`。这里沿 `app.routes` 读回
    * 中间件的自描述标记（`lib/route-facts.ts`），逐端点对照契约：
    *  - 权限码集合、平台超管限定、审计声明、功能门控与契约完全一致
-   *  - 门禁链上认证 / 平台 / 权限守卫各至多一条——多出来的就是路由里重新手写的门禁
+   *  - 门禁链上认证 / 平台 / 权限守卫各至多一条——多出来的就是路由里手写的门禁
    * 权限矩阵、Demo Mock 与前端按钮都从契约读取访问要求，这条断言保证它们读到的与线上生效的是同一份。
    */
   it('每个后台登录令牌操作生效的门禁等于契约声明', () => {
@@ -197,7 +197,7 @@ describe('权限契约：契约 access 与运行时门禁必须一致', () => {
       if (fact.platformOnly !== accessPlatformOnly(op.access)) problems.push(`platformOnly ${String(fact.platformOnly)} ≠ 契约 ${String(accessPlatformOnly(op.access))}`);
       if ((fact.audit?.description ?? null) !== (op.audit?.description ?? null)) problems.push(`审计 ${String(fact.audit?.description)} ≠ 契约 ${String(op.audit?.description)}`);
       if ((fact.feature ?? null) !== (op.feature ?? null)) problems.push(`feature ${String(fact.feature)} ≠ 契约 ${String(op.feature)}`);
-      if (fact.gateCounts.auth > 1 || fact.gateCounts.platform > 1 || fact.gateCounts.guard > 1) problems.push(`门禁重复挂载 ${JSON.stringify(fact.gateCounts)}（路由里不要再手写 authMiddleware / guard / platformAdminOnly）`);
+      if (fact.gateCounts.auth > 1 || fact.gateCounts.platform > 1 || fact.gateCounts.guard > 1) problems.push(`门禁重复挂载 ${JSON.stringify(fact.gateCounts)}（路由里不得手写 authMiddleware / guard / platformAdminOnly）`);
       if (problems.length) mismatches.push(`${key}: ${problems.join('；')}`);
     }
     expect(checked).toBeGreaterThan(2000);

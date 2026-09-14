@@ -51,8 +51,10 @@
 
 **新增 API 端点**
 
-1. 在契约中添加操作 `op.xxx(...)`（Step 4）
-2. 在路由文件中 `defineContractRoute(xxxContract.op, { middleware, handler })`，并注册进 `router.openapiRoutes([...])`（Step 6）
+1. 在契约中添加操作 `op.xxx(...)`（Step 4）：后台登录令牌操作必须声明 `access`（权限码 / `'authenticated'` / `platformOnly`），
+   写操作声明 `audit`；新权限码先在 `shared/src/{业务域}/permissions.ts` 登记
+2. 在路由文件中 `defineContractRoute(xxxContract.op, { handler })`（认证 / 权限 / 审计按契约自动装配，不写门禁中间件），
+   加进 `mountCrud(...)` 的附加路由数组或 `router.openapiRoutes([...])`（Step 6）
 3. 在 service 中添加对应业务函数（Step 5）
 4. 刷新 `/api/docs` 验证新接口出现
 5. 在 `hooks/queries/xxxs.ts` 中用 `useApiQuery` / `useApiMutation(op, { invalidate })` 暴露，失效策略按

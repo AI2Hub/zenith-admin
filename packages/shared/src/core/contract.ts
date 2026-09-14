@@ -130,7 +130,7 @@ export interface OperationConfig<
    * `public: true`、非 bearer 的 `security` 或契约组 `security` 非 bearer 时不得声明
    */
   readonly access?: OperationAccess;
-  /** 写操作审计：字符串即 description；服务端据此在门禁里记操作日志，路由无需再传 `audit` */
+  /** 写操作审计：字符串即 description；服务端据此在门禁里记操作日志 */
   readonly audit?: string | OperationAudit;
   /** 所属可授权功能（License 门控），覆盖契约组的 `feature` */
   readonly feature?: string;

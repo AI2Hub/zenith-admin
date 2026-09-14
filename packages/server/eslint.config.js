@@ -188,8 +188,8 @@ export default tseslint.config(
       ],
     },
   },
-  // 路由门禁收口：后台登录令牌操作的认证 / 权限 / 平台超管限定 / 审计全部由契约 access 驱动，
-  // defineContractRoute 自动装配；路由文件不得再手写这三个中间件（app.contract.test 的「权限契约」在运行时二次对账）。
+  // 路由门禁：后台登录令牌操作的认证 / 权限 / 平台超管限定 / 审计全部由契约 access 驱动，
+  // defineContractRoute 自动装配；路由文件不得手写这三个中间件（app.contract.test 的「权限契约」在运行时二次对账）。
   {
     files: ['src/routes/**/*.ts'],
     ignores: [
@@ -210,7 +210,7 @@ export default tseslint.config(
             {
               group: ['**/middleware/guard'],
               importNames: ['guard'],
-              message: '权限 / 审计 / 功能门控由契约 access / audit / feature 自动装配，路由里不再手写 guard()。',
+              message: '权限 / 审计 / 功能门控由契约 access / audit / feature 自动装配，路由里不手写 guard()。',
             },
             {
               group: ['**/middleware/platform-admin'],

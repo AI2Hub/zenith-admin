@@ -71,5 +71,5 @@ Service、导出定义和后台任务应优先复用这些工具，避免手写 
 1. 新增带租户归属的表时使用 `tenantId` 字段并引用 `tenants.id`。
 2. 列表、详情、更新、删除必须通过租户条件过滤。
 3. 创建数据时使用 `getCreateTenantId()` 或 `currentCreateTenantId()`。
-4. 平台管理接口使用 `platformAdminOnly()`。
+4. 平台管理接口在契约操作上声明 `access: { platformOnly: true }`（仅多租户模式下限定用 `'multi-tenant'`），`defineContractRoute` 据此装配 `platformAdminOnly()`。
 5. 套餐控制菜单可见性时使用 feature key，不引入菜单 ID 白名单模型。
