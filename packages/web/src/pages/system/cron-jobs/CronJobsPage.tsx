@@ -4,7 +4,7 @@ import { ScrollText, HelpCircle } from 'lucide-react';
 import { cronJobContract, type CreateCronJobInput, type CronJob, type CronJobLog, type CronRunTrigger } from '@zenith/shared/platform';
 import { CRON_RUN_STATUS_LABELS, CRON_RUN_TRIGGER_LABELS, cronSecondsIgnored, toMinuteCron } from '@zenith/shared/platform';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { formatDateTime } from '@/utils/date';
+import DateTimeText from '@/components/DateTimeText';
 import { usePermission } from '@/hooks/usePermission';
 import { CronExpressionParser } from 'cron-parser';
 import dayjs from 'dayjs';
@@ -315,7 +315,7 @@ export default function CronJobsPage() {
             </Tag>
             {record.lastRunAt && (
               <span style={{ fontSize: 12, color: 'var(--semi-color-text-2)', whiteSpace: 'nowrap' }}>
-                {formatDateTime(record.lastRunAt)}
+                <DateTimeText value={record.lastRunAt} />
               </span>
             )}
           </Space>

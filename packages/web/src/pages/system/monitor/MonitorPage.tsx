@@ -5,6 +5,7 @@ import { Button, Descriptions, Skeleton, Tabs, TabPane, Toast, Typography, Selec
 import { LineChart, chartOptions, makeLineSpec, useChartPalette } from '@/components/charts';
 import { RefreshCw, Cpu, HardDrive, Database, Server, MemoryStick, Layers, Activity, Network, Wifi, History, Thermometer, ListTree, Download, Copy as CopyIcon, ExternalLink } from 'lucide-react';
 import { formatDateTime } from '@/utils/date';
+import DateTimeText from '@/components/DateTimeText';
 import { formatSecondsHuman } from '@/utils/format';
 import { request } from '@/utils/request';
 import { readSseStream } from '@/utils/streaming';
@@ -633,7 +634,7 @@ export default function MonitorPage() {
         <tbody>
           {items.map((e) => (
             <tr key={e.id}>
-              <td>{formatDateTime(new Date(e.timestamp * 1000))}</td>
+              <td><DateTimeText value={e.timestamp * 1000} mode="absolute" /></td>
               <td>{e.durationMs.toFixed(2)} ms</td>
               <td className="monitor-slow-query">{renderCopyableCell(e.command)}</td>
             </tr>
@@ -1324,7 +1325,7 @@ export default function MonitorPage() {
             </Tag>
           )}
           {lastUpdated && (
-            <Text type="tertiary" size="small">最后更新：{formatDateTime(lastUpdated)}</Text>
+            <Text type="tertiary" size="small">最后更新：<DateTimeText value={lastUpdated} /></Text>
           )}
           <Select
             value={refreshInterval}

@@ -11,7 +11,8 @@ import { useAuth } from '@/hooks/useAuth';
 // 首页主体（欢迎区/统计概览/公告）先渲染，图表 chunk 就绪后补齐
 const DashboardChartsRow = lazy(() => import('./DashboardCharts'));
 
-import { formatDateTime, stripHtml } from '@/utils/date';
+import { stripHtml } from '@/utils/date';
+import DateTimeText from '@/components/DateTimeText';
 import { EMPTY_PLACEHOLDER } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
@@ -162,7 +163,7 @@ export default function DashboardPage() {
                   <span className="notice-summary">{stripHtml(n.content || '', 200)}</span>
                   <span className="notice-item-footer">
                     <Text type="tertiary" size="small">
-                      {n.createByName ?? EMPTY_PLACEHOLDER} · {formatDateTime(n.publishTime)}
+                      {n.createByName ?? EMPTY_PLACEHOLDER} · <DateTimeText value={n.publishTime} />
                     </Text>
                   </span>
                 </button>

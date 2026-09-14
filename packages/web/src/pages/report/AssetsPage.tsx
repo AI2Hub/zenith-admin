@@ -31,7 +31,8 @@ import {
 import { flattenReportFolders, useReportFolderTree } from '@/hooks/queries/report-folders';
 import { ReportFolderFilter, ReportOwnerFilter } from './report-filters';
 import { useReportOwnerFolderOptions } from './report-lookups';
-import { formatDateTime, formatDateTimeForApi, formatDateTimeRangeValuesForApi } from '@/utils/date';
+import { formatDateTimeForApi, formatDateTimeRangeValuesForApi } from '@/utils/date';
+import DateTimeText from '@/components/DateTimeText';
 import { dateTimeColumn, EMPTY_PLACEHOLDER, renderEllipsis, renderEnabledStatusTag } from '@/utils/table-columns';
 import { normalizeTemplateApplyValues, parseJsonObject } from './report-platform-utils';
 import { REPORT_RESOURCE_TYPE_OPTIONS } from './report-platform-options';
@@ -359,7 +360,7 @@ export default function AssetsPage() {
           <Space vertical align="start">
             <Typography.Title heading={4}>{usageQuery.data.views} 次查看 · {usageQuery.data.queries} 次查询</Typography.Title>
             <Typography.Text>导出 {usageQuery.data.exports} 次，独立用户 {usageQuery.data.uniqueUsers} 人</Typography.Text>
-            <Typography.Text>最后使用：{usageQuery.data.lastUsedAt ? formatDateTime(usageQuery.data.lastUsedAt) : '从未使用'}</Typography.Text>
+            <Typography.Text>最后使用：<DateTimeText value={usageQuery.data.lastUsedAt} empty="从未使用" /></Typography.Text>
             {usageQuery.data.deprecated && <Banner type="warning" description={usageQuery.data.deprecationNotice?.message ?? '该资产已弃用'} />}
           </Space>
         )}

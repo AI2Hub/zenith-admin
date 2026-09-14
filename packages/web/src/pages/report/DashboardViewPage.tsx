@@ -7,7 +7,7 @@ import { ArrowLeft, RotateCcw, PencilRuler, Maximize, Image, MessageSquare, Send
 import { toPng } from 'html-to-image';
 import './report-grid.css';
 import './report-screen.css';
-import { formatDateTime } from '@/utils/date';
+import DateTimeText from '@/components/DateTimeText';
 import { openExternalUrl } from '@/utils/safe-url';
 import { usePermission } from '@/hooks/usePermission';
 import { ScreenCanvas } from './widgets/ScreenCanvas';
@@ -365,7 +365,7 @@ export default function DashboardViewPage() {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <Typography.Text strong>{comment.userName || `用户 ${comment.userId}`}</Typography.Text>
-                        <Typography.Text type="tertiary" size="small">{formatDateTime(comment.createdAt)}</Typography.Text>
+                        <Typography.Text type="tertiary" size="small"><DateTimeText value={comment.createdAt} /></Typography.Text>
                         {comment.resolvedAt ? <Tag color="green" size="small">已解决</Tag> : null}
                         <div style={{ flex: 1 }} />
                         {comment.canResolve ? (
@@ -397,7 +397,7 @@ export default function DashboardViewPage() {
                           <div style={{ flex: 1 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                               <Typography.Text strong>{reply.userName || `用户 ${reply.userId}`}</Typography.Text>
-                              <Typography.Text type="tertiary" size="small">{formatDateTime(reply.createdAt)}</Typography.Text>
+                              <Typography.Text type="tertiary" size="small"><DateTimeText value={reply.createdAt} /></Typography.Text>
                               {reply.resolvedAt ? <Tag color="green" size="small">已解决</Tag> : null}
                               <div style={{ flex: 1 }} />
                               {reply.canResolve ? <Button theme="borderless" size="small" onClick={() => void toggleResolve(reply.id, !reply.resolvedAt)}>{reply.resolvedAt ? '重开' : '解决'}</Button> : null}

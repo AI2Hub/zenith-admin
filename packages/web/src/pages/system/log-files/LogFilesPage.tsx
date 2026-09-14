@@ -8,7 +8,7 @@ import { NavListPanel, NavListItem, NavListItemActions } from '@/components/NavL
 import { LogWorkbench } from '@/components/log-workbench/LogWorkbench';
 import type { LogLevel } from '@/components/log-workbench/log-search';
 import { request } from '@/utils/request';
-import { formatDateTime } from '@/utils/date';
+import DateTimeText from '@/components/DateTimeText';
 import { usePermission } from '@/hooks/usePermission';
 import { useUrlSelectionState } from '@/hooks/useUrlSelectionState';
 import type { LogFile } from '@zenith/shared/ops';
@@ -189,7 +189,7 @@ export default function LogFilesPage() {
                         {file.isGzip ? 'gz' : 'log'}
                       </span>
                       <span>{formatBytes(file.size)}</span>
-                      <span>{formatDateTime(file.modifiedAt)}</span>
+                      <span><DateTimeText value={file.modifiedAt} /></span>
                     </>
                   }
                   extra={

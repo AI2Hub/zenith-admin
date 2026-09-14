@@ -8,7 +8,7 @@ import type { TagColor } from '@douyinfe/semi-ui/lib/es/tag';
 import { ANNOUNCEMENT_PRIORITIES, ANNOUNCEMENT_PRIORITY_LABELS } from '@zenith/shared/messaging';
 import { enumValueOf } from '@zenith/shared/core';
 import { CheckCheck } from 'lucide-react';
-import { formatDateTime } from '@/utils/date';
+import DateTimeText from '@/components/DateTimeText';
 import { RefreshButton } from '@/components/toolbar-controls';
 import { emptyIllustration } from '@/components/EmptyIllustration';
 import AnnouncementDetailModal from '@/components/AnnouncementDetailModal';
@@ -170,7 +170,7 @@ export default function AnnouncementsPage() {
                           {priorityLabel(item.priority)}
                         </Tag>
                         <Typography.Text style={{ fontSize: 12, color: 'var(--semi-color-text-3)', marginLeft: 'auto', flexShrink: 0 }}>
-                          发布于 {formatDateTime(item.publishTime ?? item.createdAt)}
+                          发布于 <DateTimeText value={item.publishTime ?? item.createdAt} />
                         </Typography.Text>
                       </div>
                       {preview && (

@@ -7,7 +7,7 @@ import {
 import { usePagination } from '@/hooks/usePagination';
 import { CheckCheck, ChevronLeft, ChevronRight } from 'lucide-react';
 import { IN_APP_MESSAGE_TYPE_LABELS, type InAppMessage } from '@zenith/shared/messaging';
-import { formatDateTime } from '@/utils/date';
+import DateTimeText from '@/components/DateTimeText';
 import { BatchDeleteButton, RefreshButton } from '@/components/toolbar-controls';
 import { emptyIllustration } from '@/components/EmptyIllustration';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -195,7 +195,7 @@ export default function InboxPage() {
                         {IN_APP_MESSAGE_TYPE_LABELS[item.type] ?? item.type}
                       </Tag>
                       <Text style={{ fontSize: 12, color: 'var(--semi-color-text-3)', marginLeft: 'auto', flexShrink: 0 }}>
-                        {item.senderName ?? '系统'} · {formatDateTime(item.createdAt)}
+                        {item.senderName ?? '系统'} · <DateTimeText value={item.createdAt} />
                       </Text>
                     </div>
                     {item.content && (
@@ -294,7 +294,7 @@ export default function InboxPage() {
           {selectedMessage && (
             <div>
               <div style={{ marginBottom: 12, color: 'var(--semi-color-text-3)', fontSize: 12 }}>
-                {selectedMessage.senderName ?? '系统'} · {formatDateTime(selectedMessage.createdAt)}
+                {selectedMessage.senderName ?? '系统'} · <DateTimeText value={selectedMessage.createdAt} />
               </div>
               <div style={{ lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
                 {selectedMessage.content}

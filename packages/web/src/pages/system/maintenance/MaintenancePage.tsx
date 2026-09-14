@@ -16,14 +16,15 @@ import { listTableProps } from '@/components/list-page';
 import PageLoading from '@/components/PageLoading';
 import { usePermission } from '@/hooks/usePermission';
 import { usePagination } from '@/hooks/usePagination';
-import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
+import { formatDateTimeForApi } from '@/utils/date';
+import DateTimeText from '@/components/DateTimeText';
 import { formatSecondsHuman } from '@/utils/format';
 import {
   useMaintenanceLogs,
   useMaintenanceStatus,
   useUpdateMaintenanceStatus,
 } from '@/hooks/queries/maintenance';
-import { EMPTY_PLACEHOLDER, dateTimeColumn } from '@/utils/table-columns';
+import { dateTimeColumn } from '@/utils/table-columns';
 import { confirmDangerAsync } from '@/utils/confirm';
 
 const { Title, Text } = Typography;
@@ -190,7 +191,7 @@ export default function MaintenancePage() {
           )}
           <div>
             <Text type="secondary" size="small">最后更新</Text>
-            <div style={{ marginTop: 4 }}><Text>{status ? formatDateTime(status.updatedAt) : EMPTY_PLACEHOLDER}</Text></div>
+            <div style={{ marginTop: 4 }}><Text><DateTimeText value={status?.updatedAt} /></Text></div>
           </div>
         </div>
       </div>

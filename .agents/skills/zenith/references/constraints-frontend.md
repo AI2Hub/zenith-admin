@@ -202,7 +202,8 @@
   空值统一 `EMPTY_PLACEHOLDER`；只有需要 `link` / `strong` / `type` / `onClick` 等附加属性时才保留内联 `Typography.Text`）
 - **时间 / 日期列**：一律用 `utils/table-columns` 的 `dateTimeColumn(title, dataIndex, options?)`
   （日期时间，宽 180）或 `dateColumn(...)`（纯日期，宽 120）创建，`createdAt` / `updatedAt`
-  直接用预置的 `createdAtColumn` / `updatedAtColumn`。工厂已内建格式化与空值兜底，
+  直接用预置的 `createdAtColumn` / `updatedAtColumn`。工厂已内建格式化、空值兜底与「时间显示方式」偏好
+  （日期时间列跟随绝对 / 相对形态，纯日期列恒为绝对），
   **禁止**再手写 `width` 与 `render: (v) => formatDateTime(v)` / `v ? formatDateTime(v) : '-'`。
   语义化空值（「永久」「不限」「未发布」）传 `empty`；unix 秒时间戳传 `unit: 'second'`；
   紧凑表格的字号 / 弱化色传 `className`（`table-cell-compact` / `table-cell-muted`），
@@ -211,7 +212,14 @@
   哪怕标题是「最近活跃」「下次执行」这类业务措辞。
   时间列不承载副文案与装饰：图标 / 等宽字体一律去掉，「清理 N 行」这类附加信息拆成独立列。
   只有时间**区间**（一格渲染起止两个值）与真正的复合列可保留自定义 `render`，
-  此时 `width` 也必须取 `DATE_TIME_COLUMN_WIDTH`
+  此时 `width` 也必须取 `DATE_TIME_COLUMN_WIDTH`，复合单元格内的时间值仍经 `DateTimeText` 渲染
+- **时间元信息展示**（表格之外）：消息 / 公告 / 评论 / 通知条目、审批流转记录、会话 / 版本 / 文件列表的时间戳，
+  以及「最后更新」「上次使用」这类跟随数据刷新的时刻，一律 `<DateTimeText value={x} empty? />`
+  （`components/DateTimeText.tsx`：跟随「时间显示方式」偏好，相对形态悬停显示精确时刻、按共享节拍刷新，空值占位内建）。
+  时间本身是查看对象的位置——详情 `Descriptions` 的时间字段、表单值、诊断 / 财务事件时间线——保持精确时刻：
+  对象属性与拼接文本继续 `formatDateTime()`，JSX 子节点里传 `<DateTimeText mode="absolute" />`。
+  `formatDateTime()` 只承担数据语义（导出 / 文件名、请求参数、拼接文本）；
+  ESLint 封禁 JSX 子节点里裸 `{formatDateTime(…)}` / `{x ? formatDateTime(x) : …}`
 - **可复制列**：列值需要一键复制时一律用 `utils/table-columns` 的
   `copyableNoColumn(title, dataIndex, options?)`（省略 tooltip + 恒定复制按钮 + 空值 `—` 已内建），
   **禁止**在列 `render` 里手写 `<Typography.Text copyable …>` 或自拼「文本 + 复制按钮」，

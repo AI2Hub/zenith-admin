@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button, Card, Tag, Typography } from '@douyinfe/semi-ui';
 import { Eye, RefreshCcw, Users, Zap } from 'lucide-react';
 import { AreaChart, chartOptions, makeAreaSpec, useChartPalette, StatCard, StatGrid } from '@/components/charts';
-import { formatDateTime } from '@/utils/date';
+import DateTimeText from '@/components/DateTimeText';
 import { renderEllipsis } from '@/utils/table-columns';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { analyticsKeys, useAnalyticsRealtime } from '@/hooks/queries/analytics';
@@ -68,7 +68,7 @@ export default function AnalyticsRealtimeTab() {
                 <Tag color="green">{event.eventType}</Tag>
                 {renderEllipsis(event.eventName || event.pagePath)}
                 <Typography.Text type="tertiary">{event.username || '匿名访客'}</Typography.Text>
-                <Typography.Text type="tertiary">{formatDateTime(event.createdAt)}</Typography.Text>
+                <Typography.Text type="tertiary"><DateTimeText value={event.createdAt} /></Typography.Text>
               </div>
             ))}
           </div>

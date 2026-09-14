@@ -3,7 +3,7 @@ import type { ComponentProps } from 'react';
 import { Button, Select, Tag, Form, Pagination, Toast, TreeSelect, JsonViewer, Row, Col, Space, Switch } from '@douyinfe/semi-ui';
 import { Plus, BookOpen, ChevronsDownUp, ChevronsUpDown, RefreshCw, Pencil, Trash2 } from 'lucide-react';
 import type { CreateDictInput, CreateDictItemInput, Dict, DictItem } from '@zenith/shared/platform';
-import { formatDateTime } from '@/utils/date';
+import DateTimeText from '@/components/DateTimeText';
 import ExportButton from '@/components/ExportButton';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { useListSearch } from '@/hooks/useListSearch';
@@ -326,8 +326,8 @@ export default function DictsPage() {
         primary={dict.name}
         secondary={dict.code}
         meta={dict.status === 'disabled'
-          ? <span style={{ flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><span>{formatDateTime(dict.createdAt)}</span><Tag size="small" color="grey">停用</Tag></span>
-          : formatDateTime(dict.createdAt)
+          ? <span style={{ flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><span><DateTimeText value={dict.createdAt} /></span><Tag size="small" color="grey">停用</Tag></span>
+          : <DateTimeText value={dict.createdAt} />
         }
         style={dict.status === 'disabled' ? { opacity: 0.55 } : undefined}
         extra={

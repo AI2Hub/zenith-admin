@@ -1,6 +1,6 @@
 import { Button, Empty, Spin, Typography, List as SemiList } from '@douyinfe/semi-ui';
 import { Download, Eye, X } from 'lucide-react';
-import { formatDateTime } from '@/utils/date';
+import DateTimeText from '@/components/DateTimeText';
 import { canPreviewFile, getFileTypeIcon } from '@/utils/file-utils';
 import type { ChatMessage } from '@zenith/shared/chat';
 import type { Setter } from '../types';
@@ -165,7 +165,7 @@ export function MediaPanel({
                                       />
                                     )}
                                     <Text type="secondary" style={{ fontSize: 11 }}>{preview?.siteName ?? item.senderName}</Text>
-                                    <Text type="tertiary" style={{ fontSize: 11, marginLeft: 'auto' }}>{formatDateTime(item.createdAt)}</Text>
+                                    <Text type="tertiary" style={{ fontSize: 11, marginLeft: 'auto' }}><DateTimeText value={item.createdAt} /></Text>
                                   </div>
                                 </div>
                               </a>

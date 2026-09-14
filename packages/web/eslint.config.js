@@ -213,6 +213,11 @@ export default [
           selector: String.raw`Property[key.name="boxShadow"] Literal[value=/rgba\(\s*0\s*,\s*0\s*,\s*0/]`,
           message: '自写黑色阴影暗色模式下不可见，请使用 var(--semi-shadow-elevated)；刻意的强调投影请加 eslint-disable 注释并注明理由。',
         },
+        {
+          // JSX 子节点里直写 {formatDateTime(x)} / {x ? formatDateTime(x) : '—'}：时间元信息应跟随「时间显示方式」偏好
+          selector: ':matches(JSXElement > JSXExpressionContainer > CallExpression[callee.name="formatDateTime"], JSXElement > JSXExpressionContainer > ConditionalExpression > CallExpression[callee.name="formatDateTime"])',
+          message: '展示时间请用 @/components/DateTimeText（跟随「时间显示方式」偏好，相对形态悬停显示精确时刻，空值占位内建）；详情字段等需固定精确时刻的位置传 mode="absolute"。formatDateTime() 只用于数据语义（导出文件名、拼接文本、表单值）。',
+        },
       ],
     },
   },

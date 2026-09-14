@@ -4,7 +4,7 @@ import AppModal from '@/components/AppModal';
 import type { TagColor } from '@douyinfe/semi-ui/lib/es/tag';
 import { BookOpen, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Announcement, AnnouncementAttachment } from '@zenith/shared/messaging';
-import { formatDateTime } from '@/utils/date';
+import DateTimeText from '@/components/DateTimeText';
 import FileAttachment from '@/components/FileAttachment';
 import { useDictItems } from '@/hooks/useDictItems';
 
@@ -122,7 +122,7 @@ export default function AnnouncementDetailModal({
             <Space spacing={4}>
               <Clock size={12} strokeWidth={1.5} style={{ color: 'var(--semi-color-text-2)', flexShrink: 0 }} />
               <Text type="tertiary" size="small">
-                {formatDateTime(announcement.publishTime ?? announcement.createdAt)}
+                <DateTimeText value={announcement.publishTime ?? announcement.createdAt} />
               </Text>
             </Space>
             {announcement.isRead !== undefined && (

@@ -5,7 +5,7 @@ import { Sparkles } from 'lucide-react';
 import { aiPublicContract } from '@zenith/shared/ai';
 import type { AiSharedConversation } from '@zenith/shared/ai';
 import { api } from '@/lib/contract-query';
-import { formatDateTime } from '@/utils/date';
+import DateTimeText from '@/components/DateTimeText';
 
 const { Text, Title } = Typography;
 
@@ -47,7 +47,7 @@ export default function PublicAiChatPage() {
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <Sparkles size={28} color="var(--semi-color-primary)" />
           <Title heading={3} style={{ margin: '8px 0 4px' }}>{data.title}</Title>
-          <Text type="tertiary" size="small">AI 对话分享（只读） · 分享于 {formatDateTime(data.sharedAt)}</Text>
+          <Text type="tertiary" size="small">AI 对话分享（只读） · 分享于 <DateTimeText value={data.sharedAt} /></Text>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {data.messages.map((m) => {
@@ -66,7 +66,7 @@ export default function PublicAiChatPage() {
                   <Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 4 }}>
                     {isUser ? '用户' : 'AI 助手'}
                     {m.model && <Tag size="small" color="blue" style={{ marginLeft: 6 }}>{m.model}</Tag>}
-                    <span style={{ marginLeft: 8 }}>{formatDateTime(m.createdAt)}</span>
+                    <span style={{ marginLeft: 8 }}><DateTimeText value={m.createdAt} /></span>
                   </Text>
                   {m.reasoning && (
                     <details style={{ marginBottom: 8, fontSize: 12, color: 'var(--semi-color-text-2)' }}>

@@ -13,7 +13,7 @@ import { BarChart3, CheckCheck, MessageSquareText, RotateCcw, Search, Send, Sett
 import type { ChannelConversationStatus, ChannelMessage } from '@zenith/shared/messaging';
 import type { WsMessage } from '@zenith/shared/platform';
 import { CHANNEL_CONVERSATION_STATUS_LABELS } from '@zenith/shared/messaging';
-import { formatDateTime } from '@/utils/date';
+import DateTimeText from '@/components/DateTimeText';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { UserAvatar } from '@/components/UserAvatar';
 import { ChannelQuickReplyDrawer } from './ChannelQuickReplyDrawer';
@@ -371,7 +371,7 @@ export default function ChannelCustomerServicePage() {
                     return (
                       <div key={m.id} style={{ display: 'flex', flexDirection: 'column', alignItems: isOut ? 'flex-end' : 'flex-start', marginBottom: 14 }}>
                         <Text type="tertiary" size="small" style={{ marginBottom: 2 }}>
-                          {isOut ? (m.senderUserName ? `${m.senderUserName}（客服）` : '自动回复') : (m.senderUserName ?? '用户')} · {formatDateTime(m.createdAt)}
+                          {isOut ? (m.senderUserName ? `${m.senderUserName}（客服）` : '自动回复') : (m.senderUserName ?? '用户')} · <DateTimeText value={m.createdAt} />
                         </Text>
                         <div style={{
                           maxWidth: '70%', padding: '8px 12px', borderRadius: 'var(--semi-border-radius-medium)', whiteSpace: 'pre-wrap', wordBreak: 'break-word',

@@ -4,7 +4,8 @@ import { Copy, Plus, Trash2, RotateCcw } from 'lucide-react';
 import dayjs from 'dayjs';
 import { QRCodeSVG } from 'qrcode.react';
 import AppModal from '@/components/AppModal';
-import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
+import { formatDateTimeForApi } from '@/utils/date';
+import DateTimeText from '@/components/DateTimeText';
 import { copyTextWithToast } from '@/utils/clipboard';
 import type { ReportDashboardShare } from '@zenith/shared/report';
 import {
@@ -97,7 +98,7 @@ export function ShareModal({ visible, dashboardId, onClose }: Readonly<{ visible
                   {!s.enabled && <Tag size="small" color="grey">已停用</Tag>}
                 </Space>
                 <Typography.Text type="tertiary" size="small">
-                  创建于 {formatDateTime(s.createdAt)}{s.expireAt ? ` · 过期 ${s.expireAt}` : ' · 永久有效'}
+                  创建于 <DateTimeText value={s.createdAt} />{s.expireAt ? ` · 过期 ${s.expireAt}` : ' · 永久有效'}
                   {s.maxAccessCount ? ` · 上限 ${s.maxAccessCount} 次` : ''}{` · 访问 ${s.accessCount ?? 0} 次`}{s.lastAccessAt ? `（最近 ${s.lastAccessAt}）` : ''}
                 </Typography.Text>
                 <Space>
@@ -151,7 +152,7 @@ export function VersionModal({ visible, dashboardId, onClose, onRestored }: Read
       {versions.length === 0 ? <Empty description="还没有版本快照" style={{ padding: '12px 0' }} /> : (
         <List dataSource={versions} loading={versionsQuery.isFetching} renderItem={(v) => (
           <List.Item
-          main={<Space vertical align="start"><Typography.Text strong>v{v.version}</Typography.Text><Typography.Text type="tertiary" size="small">{formatDateTime(v.createdAt)} · {v.source}{v.remark ? ` · ${v.remark}` : ''}</Typography.Text></Space>}
+          main={<Space vertical align="start"><Typography.Text strong>v{v.version}</Typography.Text><Typography.Text type="tertiary" size="small"><DateTimeText value={v.createdAt} /> · {v.source}{v.remark ? ` · ${v.remark}` : ''}</Typography.Text></Space>}
           extra={<Space><Button size="small" onClick={() => setPendingVersionId(v.id)}>查看差异</Button><Button size="small" icon={<RotateCcw size={13} />} loading={restoreMutation.isPending && restoreMutation.variables?.params.versionId === v.id} onClick={() => restore(v.id)}>恢复</Button></Space>}
           />
         )} />

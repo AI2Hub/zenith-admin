@@ -2,7 +2,7 @@ import { Button, Typography } from '@douyinfe/semi-ui';
 import { Bookmark, Search } from 'lucide-react';
 import { AppModal } from '@/components/AppModal';
 import { UserAvatar } from '@/components/UserAvatar';
-import { formatDateTime } from '@/utils/date';
+import DateTimeText from '@/components/DateTimeText';
 import type { ChatConversation, ChatMessage, ChatMessageExtra } from '@zenith/shared/chat';
 import type { Setter } from '../types';
 import { MessageContent } from './MessageContent';
@@ -65,7 +65,7 @@ export function FavoriteMessageModal({
               <UserAvatar name={favPreviewMsg.senderName ?? '未知'} avatar={favPreviewMsg.senderAvatar} size={32} />
               <div>
                 <Text strong style={{ fontSize: 13, display: 'block' }}>{favPreviewMsg.senderName ?? '未知'}</Text>
-                <Text type="tertiary" style={{ fontSize: 11 }}>{formatDateTime(favPreviewMsg.createdAt)}</Text>
+                <Text type="tertiary" style={{ fontSize: 11 }}><DateTimeText value={favPreviewMsg.createdAt} /></Text>
               </div>
             </div>
             <div style={{ background: 'var(--semi-color-fill-0)', borderRadius: 'var(--semi-border-radius-medium)', padding: 12 }}>

@@ -41,7 +41,7 @@ import AppModal from '@/components/AppModal';
 import { EditFormModal } from '@/components/EditFormModal';
 import MarkdownPreviewPanel from '@/components/MarkdownPreviewPanel';
 import { WidgetRenderer } from './widgets/WidgetRenderer';
-import { formatDateTime } from '@/utils/date';
+import DateTimeText from '@/components/DateTimeText';
 import { useListSearch } from '@/hooks/useListSearch';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -331,7 +331,7 @@ export default function ChatBiPage() {
             icon={<Database size={15} />}
             primary={session.title}
             secondary={REPORT_CHATBI_SESSION_STATUS_LABELS[session.status]}
-            meta={session.lastMessageAt ? formatDateTime(session.lastMessageAt) : formatDateTime(session.createdAt)}
+            meta={<DateTimeText value={session.lastMessageAt ?? session.createdAt} />}
             extra={(
               <Dropdown
                 trigger="click"
@@ -455,7 +455,7 @@ export default function ChatBiPage() {
                 ) : (
                   <div className="chatbi-message__plain">{message.content}</div>
                 )}
-                <div className="chatbi-message__time">{formatDateTime(message.createdAt)}</div>
+                <div className="chatbi-message__time"><DateTimeText value={message.createdAt} /></div>
               </div>
             </div>
           ))}

@@ -12,6 +12,7 @@ import { PresetAvatarPickerModal } from '@/components/PresetAvatarPickerModal';
 import { UserAvatar } from '@/components/UserAvatar';
 import { OAuthProviderIcon } from '@/components/OAuthProviderIcon';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
+import DateTimeText from '@/components/DateTimeText';
 import type { PasswordRules as PasswordPolicy } from '@zenith/shared/settings';
 import { useMySettings } from '@/hooks/queries/settings';
 import { PasswordStrengthMeter } from '@/components/PasswordStrengthMeter';
@@ -90,8 +91,8 @@ function SessionList({
               {session.isCurrent && <Tag color="blue" size="small">当前设备</Tag>}
               <Text type="tertiary" size="small" className="session-list-meta">
                 {session.os} · {session.location ? `${session.location}（${session.ip}）` : `IP: ${session.ip}`}
-                {' · '}登录 {formatDateTime(session.loginAt)}
-                {' · '}活跃 {formatDateTime(session.lastActiveAt)}
+                {' · '}登录 <DateTimeText value={session.loginAt} />
+                {' · '}活跃 <DateTimeText value={session.lastActiveAt} />
               </Text>
             </div>
           )}
@@ -544,7 +545,7 @@ export default function ProfilePage({ user }: ProfilePageProps) {
                             <Tag color={factor.status === 'enabled' ? 'green' : 'grey'} size="small">
                               {factor.status === 'enabled' ? '已启用' : factor.status === 'pending' ? '待验证' : '已停用'}
                             </Tag>
-                            {factor.lastUsedAt && <Text type="tertiary" size="small">上次使用 {formatDateTime(factor.lastUsedAt)}</Text>}
+                            {factor.lastUsedAt && <Text type="tertiary" size="small">上次使用 <DateTimeText value={factor.lastUsedAt} /></Text>}
                           </div>
                         )}
                         extra={factor.status === 'enabled' ? (

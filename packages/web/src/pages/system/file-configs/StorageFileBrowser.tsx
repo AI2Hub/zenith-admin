@@ -13,10 +13,9 @@ import {
 import { Folder, ChevronLeft, ChevronRight, LayoutGrid, List as ListIcon } from 'lucide-react';
 import type { FileStorageConfig, FolderEntry, ManagedFile } from '@zenith/shared/platform';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { formatDateTime } from '@/utils/date';
+import DateTimeText from '@/components/DateTimeText';
 import { getFileFullUrl } from '@/utils/file-utils';
 import { buildManagedFileActions } from '@/utils/managed-file-actions';
-import { renderEllipsis } from '@/utils/table-columns';
 import { copyTextWithToast } from '@/utils/clipboard';
 import { usePermission } from '@/hooks/usePermission';
 import { usePagination } from '@/hooks/usePagination';
@@ -162,7 +161,7 @@ export default function StorageFileBrowser({ config, onClose }: Readonly<Storage
       width: 180,
       render: (_: unknown, record: ManagedFile | FolderEntry) => {
         if (!('id' in record)) return <span className="table-cell-placeholder">—</span>;
-        return renderEllipsis(formatDateTime(record.createdAt));
+        return <DateTimeText value={record.createdAt} />;
       },
     },
     createOperationColumn<ManagedFile | FolderEntry>({

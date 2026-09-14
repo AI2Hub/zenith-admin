@@ -12,7 +12,7 @@ import ExportButton from '@/components/ExportButton';
 import AppModal from '@/components/AppModal';
 import { request } from '@/utils/request';
 import { readSseStream } from '@/utils/streaming';
-import { formatDateTime } from '@/utils/date';
+import DateTimeText from '@/components/DateTimeText';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import { PROCESS_KILL_SIGNAL_OPTIONS, PROCESS_KILL_SIGNALS, PROCESS_PRIORITY_CLASS_OPTIONS, PROCESS_PRIORITY_CLASSES, matchesProcessFilter, type ProcessInfo, type ProcessKillSignal, type ProcessListResponse, type SetProcessPriorityInput } from '@zenith/shared/ops';
@@ -371,7 +371,7 @@ export default function ProcessesPage() {
               <Typography.Text type="tertiary" size="small">{hostId == null ? sseIndicator.text : '5 秒轮询'}</Typography.Text>
               {lastUpdated && (
                 <Typography.Text type="tertiary" size="small">
-                  · {formatDateTime(lastUpdated)}
+                  · <DateTimeText value={lastUpdated} />
                 </Typography.Text>
               )}
             </div>

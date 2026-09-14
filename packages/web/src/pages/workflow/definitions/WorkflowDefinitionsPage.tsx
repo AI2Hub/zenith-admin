@@ -8,7 +8,7 @@ import { importWorkflowDefinitionSchema, workflowDefinitionContract, WORKFLOW_DE
 import { enumValueOf } from '@zenith/shared/core';
 import { api } from '@/lib/contract-query';
 import { downloadBlob } from '@/utils/download';
-import { formatDateTime } from '@/utils/date';
+import DateTimeText from '@/components/DateTimeText';
 import { usePermission } from '@/hooks/usePermission';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
@@ -620,7 +620,7 @@ export default function WorkflowDefinitionsPage() {
                   <div key={key}>
                     <div style={{ fontWeight: 600, marginBottom: 4 }}>{side.label}</div>
                     <div style={{ color: 'var(--semi-color-text-2)', marginBottom: 8 }}>
-                      {side.publishedAt ? formatDateTime(side.publishedAt) : '未发布'}
+                      <DateTimeText value={side.publishedAt} empty="未发布" />
                     </div>
                     <pre
                       style={{

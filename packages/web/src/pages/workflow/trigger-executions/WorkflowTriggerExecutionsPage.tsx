@@ -5,7 +5,7 @@
 import { useState } from 'react';
 import { InputNumber, SideSheet, Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { formatDateTime } from '@/utils/date';
+import DateTimeText from '@/components/DateTimeText';
 import { EMPTY_PLACEHOLDER, createdAtColumn } from '@/utils/table-columns';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -176,7 +176,7 @@ export default function WorkflowTriggerExecutionsPage() {
             <Row label="请求方法">{detail.requestMethod ?? EMPTY_PLACEHOLDER}</Row>
             <Row label="响应码">{detail.responseStatus ?? EMPTY_PLACEHOLDER}</Row>
             <Row label="耗时">{detail.durationMs == null ? EMPTY_PLACEHOLDER : `${detail.durationMs} ms`}</Row>
-            <Row label="创建时间">{formatDateTime(detail.createdAt)}</Row>
+            <Row label="创建时间"><DateTimeText value={detail.createdAt} mode="absolute" /></Row>
             <CodeBlock label="请求体" content={detail.requestBody} />
             <CodeBlock label="响应体" content={detail.responseBody} />
             {detail.errorMessage && (

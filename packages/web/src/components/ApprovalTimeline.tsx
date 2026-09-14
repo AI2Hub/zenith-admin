@@ -8,7 +8,8 @@ import { WORKFLOW_INSTANCE_STATUS_LABELS, workflowExternalCallbackContract } fro
 import { Bot, CheckCircle2, Clock, CornerUpLeft, Flag, Mail, RotateCcw, XCircle, ExternalLink, Copy, Forward, UserCog, Send, type LucideIcon } from 'lucide-react';
 import type { WorkflowTask, WorkflowInstanceStatus } from '@zenith/shared/workflow';
 import type { FlowNodeBrief } from '@/components/workflow/workflow-runtime';
-import { formatDateTime, formatDurationBetween } from '@/utils/date';
+import { formatDurationBetween } from '@/utils/date';
+import DateTimeText from '@/components/DateTimeText';
 import { copyTextWithToast } from '@/utils/clipboard';
 import { urlOf } from '@/lib/contract-query';
 
@@ -121,7 +122,7 @@ export default function ApprovalTimeline({ tasks, flowNodes, initiator, instance
             <Typography.Text size="small" type="tertiary">{initiator.name ?? '发起人'}</Typography.Text>
             {initiator.submittedAt && (
               <Typography.Text size="small" type="quaternary" style={{ marginLeft: 'auto' }}>
-                {formatDateTime(initiator.submittedAt)}
+                <DateTimeText value={initiator.submittedAt} />
               </Typography.Text>
             )}
           </div>
@@ -244,7 +245,7 @@ export default function ApprovalTimeline({ tasks, flowNodes, initiator, instance
               </Typography.Text>
               {task.actionAt && (
                 <Typography.Text size="small" type="quaternary" style={{ marginLeft: 'auto' }}>
-                  {formatDateTime(task.actionAt)}
+                  <DateTimeText value={task.actionAt} />
                 </Typography.Text>
               )}
             </div>
@@ -353,7 +354,7 @@ export default function ApprovalTimeline({ tasks, flowNodes, initiator, instance
             <Tag color={finish.color} size="small">{finish.text}</Tag>
             {finishedAt && (
               <Typography.Text size="small" type="quaternary" style={{ marginLeft: 'auto' }}>
-                {formatDateTime(finishedAt)}
+                <DateTimeText value={finishedAt} />
               </Typography.Text>
             )}
           </div>

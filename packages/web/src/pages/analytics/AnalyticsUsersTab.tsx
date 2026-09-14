@@ -4,8 +4,8 @@ import { Avatar, Empty, Select, SideSheet, Spin, Tag, Typography } from '@douyin
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { DataBar } from '@/components/data-viz/DataBar';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
-import { formatDateTime } from '@/utils/date';
-import { dateTimeColumn, EMPTY_PLACEHOLDER } from '@/utils/table-columns';
+import DateTimeText from '@/components/DateTimeText';
+import { dateTimeColumn } from '@/utils/table-columns';
 import { usePagination } from '@/hooks/usePagination';
 import { useAnalyticsUserStats, useAnalyticsUserTimeline } from '@/hooks/queries/analytics';
 import type { AnalyticsUserStats } from '@zenith/shared/analytics';
@@ -107,12 +107,12 @@ export default function AnalyticsUsersTab() {
               <div>
                 <Typography.Title heading={5} style={{ margin: 0 }}>{timeline.username || `用户 #${timeline.userId}`}</Typography.Title>
                 <Typography.Text type="tertiary">
-                  共 {numberText(timeline.totalEvents)} 次行为 · {timeline.firstSeenAt ? formatDateTime(timeline.firstSeenAt) : EMPTY_PLACEHOLDER} 至 {timeline.lastSeenAt ? formatDateTime(timeline.lastSeenAt) : EMPTY_PLACEHOLDER}
+                  共 {numberText(timeline.totalEvents)} 次行为 · <DateTimeText value={timeline.firstSeenAt} /> 至 <DateTimeText value={timeline.lastSeenAt} />
                 </Typography.Text>
               </div>
               {timeline.items.map((item) => (
                 <div key={item.id} style={{ display: 'grid', gridTemplateColumns: '120px minmax(0, 1fr)', gap: 12, position: 'relative' }}>
-                  <Typography.Text type="tertiary" size="small">{formatDateTime(item.createdAt)}</Typography.Text>
+                  <Typography.Text type="tertiary" size="small"><DateTimeText value={item.createdAt} /></Typography.Text>
                   <div>
                     <Tag color="blue">{item.eventType}</Tag>
                     <Typography.Text strong style={{ marginLeft: 8 }}>{item.eventName || item.elementLabel || item.pageTitle || item.pagePath}</Typography.Text>

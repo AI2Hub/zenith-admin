@@ -6,7 +6,7 @@ import type { WorkflowTask } from '@zenith/shared/workflow';
 import type { FlowNode, FlowProcess } from '@/pages/workflow/designer/types';
 import { ADDABLE_NODE_TYPES } from '@/pages/workflow/designer/constants';
 import { UserAvatar } from '@/components/UserAvatar';
-import { formatDateTime } from '@/utils/date';
+import DateTimeText from '@/components/DateTimeText';
 import { buildNodeRuntimeMap, NODE_RT_STATUS_COLOR, approverActionLabel, nodeStatusDisplay } from './workflow-runtime';
 
 interface Props {
@@ -87,7 +87,7 @@ export default function WorkflowNodeListView({ flowData, tasks = [], initiator }
                     <Typography.Text size="small" type="tertiary">{initiator?.name || '未指定'}</Typography.Text>
                     {initiator?.submittedAt ? (
                       <Typography.Text size="small" type="quaternary" style={{ marginLeft: 'auto' }}>
-                        {formatDateTime(initiator.submittedAt)}
+                        <DateTimeText value={initiator.submittedAt} />
                       </Typography.Text>
                     ) : null}
                   </div>
@@ -110,7 +110,7 @@ export default function WorkflowNodeListView({ flowData, tasks = [], initiator }
                         )}
                         {a.actionAt && (
                           <Typography.Text size="small" type="quaternary" style={{ marginLeft: 'auto' }}>
-                            {formatDateTime(a.actionAt)}
+                            <DateTimeText value={a.actionAt} />
                           </Typography.Text>
                         )}
                       </div>

@@ -8,7 +8,7 @@ import { Popconfirm, Tooltip } from '@douyinfe/semi-ui';
 import type { FlowNode, AssigneeType, ApproveMethod, ApprovalType, FieldPermission, NodeRuntimeInfo, NodeHealthInfo } from '../types';
 import { NODE_COLOR_MAP, ADDABLE_NODE_TYPES, ASSIGNEE_TYPE_OPTIONS, APPROVE_METHOD_OPTIONS, APPROVAL_TYPE_OPTIONS, RUNTIME_STATUS_HEADER_COLOR } from '../constants';
 import { UserAvatar } from '@/components/UserAvatar';
-import { formatDateTime } from '@/utils/date';
+import DateTimeText from '@/components/DateTimeText';
 import NodeHealthBadge from './NodeHealthBadge';
 import { NODE_RT_STATUS_LABEL } from '@/components/workflow/workflow-runtime';
 
@@ -321,7 +321,7 @@ export default function NodeCard({
                       )}
                     </div>
                     {a.actionAt && (
-                      <span className="fd-node-card__rt-time">{formatDateTime(a.actionAt)}</span>
+                      <span className="fd-node-card__rt-time"><DateTimeText value={a.actionAt} /></span>
                     )}
                     {a.comment && (
                       <span className="fd-node-card__rt-comment" title={a.comment}>{a.comment}</span>

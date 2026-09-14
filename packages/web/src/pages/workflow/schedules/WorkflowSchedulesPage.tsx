@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Form, Space, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { workflowScheduleContract, type WorkflowSchedule } from '@zenith/shared/workflow';
-import { formatDateTime } from '@/utils/date';
+import DateTimeText from '@/components/DateTimeText';
 import { CronBuilderPopover } from '@/components/CronBuilderPopover';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { FormTimezoneSelect } from '@/components/FormTimezoneSelect';
@@ -20,7 +20,7 @@ import { CreateButton } from '@/components/toolbar-controls';
 import { ListSearchToolbar, useCrudOperationColumn } from '@/components/list-page';
 import { useEditModal } from '@/hooks/useEditModal';
 import { abortSubmit } from '@/lib/abort-submit';
-import { dateTimeColumn, EMPTY_PLACEHOLDER, enabledStatusColumn } from '@/utils/table-columns';
+import { dateTimeColumn, enabledStatusColumn } from '@/utils/table-columns';
 import { DEFAULT_TIMEZONE } from '@/utils/timezones';
 import { FilterSelect } from '@/components/search-filters';
 import { useListPage } from '@/hooks/useListPage';
@@ -205,7 +205,7 @@ export default function WorkflowSchedulesPage() {
       width: 220,
       render: (_value: string | null, record) => (
         <Space spacing={6}>
-          <span>{record.lastRunAt ? formatDateTime(record.lastRunAt) : EMPTY_PLACEHOLDER}</span>
+          <span><DateTimeText value={record.lastRunAt} /></span>
           {renderLastRunStatus(record.lastRunStatus, record.lastRunMessage)}
         </Space>
       ),

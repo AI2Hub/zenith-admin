@@ -16,7 +16,7 @@ import { validateFormSchema, countErrors, normalizeImportedFields, type FormIssu
 import { flattenAllFields } from '../designer/form-tree';
 import { diffFormFields } from '../designer/form-diff';
 import { loadFormDraft, clearFormDraft, useFormDraftAutosave, type FormDraftPayload } from '../designer/use-draft-autosave';
-import { formatDateTime } from '@/utils/date';
+import DateTimeText from '@/components/DateTimeText';
 import AppModal from '@/components/AppModal';
 import FormDesigner, { type FormHistoryControls } from '../designer/components/FormDesigner';
 import FormTemplateGallery from '../designer/components/FormTemplateGallery';
@@ -557,7 +557,7 @@ export default function WorkflowFormInlineEditor({
           closeIcon={null}
           description={(
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-              <span>检测到 {formatDateTime(pendingDraft.savedAt)} 的未保存本地草稿（{flattenAllFields(pendingDraft.fields).length} 个字段）。</span>
+              <span>检测到 <DateTimeText value={pendingDraft.savedAt} /> 的未保存本地草稿（{flattenAllFields(pendingDraft.fields).length} 个字段）。</span>
               <Button size="small" type="primary" onClick={restoreDraft}>恢复草稿</Button>
               <Button size="small" type="tertiary" onClick={discardDraft}>丢弃</Button>
             </div>

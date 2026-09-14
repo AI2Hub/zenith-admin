@@ -19,6 +19,7 @@ import { ApiError } from '@/lib/query';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermission } from '@/hooks/usePermission';
 import { formatDateTime, formatDurationBetween } from '@/utils/date';
+import DateTimeText from '@/components/DateTimeText';
 import { dateTimeColumn, renderEllipsis, EMPTY_PLACEHOLDER } from '@/utils/table-columns';
 import ApprovalTimeline from '@/components/ApprovalTimeline';
 import FileAttachment from '@/components/FileAttachment';
@@ -198,7 +199,7 @@ function InstanceComments({ instance }: Readonly<{ instance: WorkflowInstance }>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Typography.Text strong>{c.userName ?? `用户#${c.userId}`}</Typography.Text>
-                  <Typography.Text type="tertiary" size="small">{formatDateTime(c.createdAt)}</Typography.Text>
+                  <Typography.Text type="tertiary" size="small"><DateTimeText value={c.createdAt} /></Typography.Text>
                   {instance.allowComment !== false && (
                     <Button theme="borderless" size="small" icon={<Reply size={12} />} onClick={() => setReplyTo(c)}>回复</Button>
                   )}
@@ -431,7 +432,7 @@ export default function WorkflowInstanceDetailPanel({
         <span>·</span>
         <span>{instance.initiatorName ?? '—'}</span>
         <span>·</span>
-        <span>{formatDateTime(instance.createdAt)}</span>
+        <span><DateTimeText value={instance.createdAt} /></span>
         {activeNodeNames.length > 0 && (
           <>
             <span>·</span>
@@ -549,7 +550,7 @@ export default function WorkflowInstanceDetailPanel({
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
                       {ci ? <Tag color={ci.color} size="small">{ci.text}</Tag> : <Tag size="small">{c.status}</Tag>}
                       <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 320 }}>{c.title}</Typography.Text>
-                      <Typography.Text type="tertiary" size="small">#{c.id} · {formatDateTime(c.createdAt)}</Typography.Text>
+                      <Typography.Text type="tertiary" size="small">#{c.id} · <DateTimeText value={c.createdAt} /></Typography.Text>
                     </div>
                     <Button
                       theme="borderless"

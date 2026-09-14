@@ -3,7 +3,7 @@ import { Badge, Button, Empty, List, Popover, Typography } from '@douyinfe/semi-
 import { Bell, Megaphone } from 'lucide-react';
 import type { NavigateFunction } from 'react-router-dom';
 import type { InAppMessage, Announcement } from '@zenith/shared/messaging';
-import { formatDateTime } from '@/utils/date';
+import DateTimeText from '@/components/DateTimeText';
 import { emptyIllustration } from '@/components/EmptyIllustration';
 
 interface NotificationItem {
@@ -22,8 +22,8 @@ interface NotificationPopoverProps<T extends NotificationItem> {
   items: T[];
   /** 列表项摘要文本（公告为去 HTML 后的正文，站内信为原文） */
   summaryOf: (item: T) => string;
-  /** 列表项时间（已格式化） */
-  timeOf: (item: T) => string;
+  /** 列表项时间（原始值，由 DateTimeText 按偏好渲染） */
+  timeOf: (item: T) => string | null | undefined;
   /** 点击列表项：标记已读、跳转 / 打开详情由调用方决定；弹层会先关闭 */
   onItemClick: (item: T) => void;
   /** 「查看全部」跳转路径 */
@@ -91,7 +91,7 @@ function NotificationPopover<T extends NotificationItem>({
                         {summaryOf(item)}
                       </div>
                       <Typography.Text style={{ fontSize: 11, color: 'var(--semi-color-text-3)' }}>
-                        {timeOf(item)}
+                        <DateTimeText value={timeOf(item)} />
                       </Typography.Text>
                     </div>
                   }
@@ -147,7 +147,7 @@ export function AnnouncementPopover({
       emptyText="暂无公告"
       items={recentAnnouncements}
       summaryOf={(item) => item.content.replace(/<[^>]*>/g, '')}
-      timeOf={(item) => formatDateTime(item.publishTime ?? item.createdAt)}
+      timeOf={(item) => item.publishTime ?? item.createdAt}
       onItemClick={(item) => {
         if (!item.isRead) markAnnouncementAsRead(item.id);
         setSelectedAnnouncement(item);
@@ -191,7 +191,7 @@ export function MessagePopover({
       emptyText="暂无消息"
       items={inAppMessages}
       summaryOf={(item) => item.content}
-      timeOf={(item) => formatDateTime(item.createdAt)}
+      timeOf={(item) => item.createdAt}
       onItemClick={(item) => {
         if (!item.isRead) markAsRead(item.id);
         // 带深链的消息（如待办提醒）直接跳转对应页面并自动弹出详情

@@ -2,7 +2,7 @@ import { Input, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
 import { AppModal } from '@/components/AppModal';
 import type { InAppMessage } from '@zenith/shared/messaging';
 import type { UserPreferences } from '@/hooks/usePreferences';
-import { formatDateTime } from '@/utils/date';
+import DateTimeText from '@/components/DateTimeText';
 
 // 导入偏好 Modal（原样迁移自 AdminLayout）
 export function ImportPreferencesModal({
@@ -144,7 +144,7 @@ export function MessageDetailModal({
       {selectedMessage && (
         <div>
           <div style={{ marginBottom: 12, color: 'var(--semi-color-text-3)', fontSize: 12 }}>
-            {selectedMessage.senderName ?? '系统'} · {formatDateTime(selectedMessage.createdAt)}
+            {selectedMessage.senderName ?? '系统'} · <DateTimeText value={selectedMessage.createdAt} />
           </div>
           <div style={{ lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
             {selectedMessage.content}

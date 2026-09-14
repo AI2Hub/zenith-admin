@@ -6,7 +6,7 @@ import { useAsyncTaskAction } from '@/hooks/queries/async-tasks';
 import { useMyAsyncTasks } from '@/hooks/useAsyncTasks';
 import AsyncTaskProgress from '@/components/AsyncTaskProgress';
 import { emptyIllustration } from '@/components/EmptyIllustration';
-import { formatDateTime } from '@/utils/date';
+import DateTimeText from '@/components/DateTimeText';
 
 const statusTagMap = {
   pending: { color: 'blue', label: '排队中' },
@@ -96,7 +96,7 @@ export default function TaskTray() {
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <Typography.Text type="tertiary" size="small">
-                      {formatDateTime(task.createdAt)}
+                      <DateTimeText value={task.createdAt} />
                     </Typography.Text>
                     {ACTIVE_STATUSES.has(task.status) && !task.cancelRequested && (
                       <Button
