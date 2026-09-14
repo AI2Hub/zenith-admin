@@ -23,6 +23,7 @@ export {
   listMyCc,
   countMyCcUnread,
   countPendingMine,
+  getWorkbenchSummary,
   listRelationOptions,
   listMyHandled,
   listAllInstances,

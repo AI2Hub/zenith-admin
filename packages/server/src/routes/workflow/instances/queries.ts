@@ -3,7 +3,7 @@ import { workflowInstanceContract, workflowTaskContract } from '@zenith/shared/w
 import { defineContractRoute } from '../../../lib/contract-route';
 import { inlineOrAttachmentDisposition } from '../../../lib/content-disposition';
 import { okBody } from '../../../lib/openapi-schemas';
-import { listMyInstances, listPendingMine, listAllInstances, listMyCc, listMyHandled, getInstanceDetail, countMyCcUnread, countPendingMine, listRelationOptions, listAllTasks } from '../../../services/workflow/workflow-instances.service';
+import { listMyInstances, listPendingMine, listAllInstances, listMyCc, listMyHandled, getInstanceDetail, countMyCcUnread, countPendingMine, getWorkbenchSummary, listRelationOptions, listAllTasks } from '../../../services/workflow/workflow-instances.service';
 import { renderWorkflowInstancePdf, loadPrintVerifyView } from '../../../services/workflow/workflow-print.service';
 import { renderPrintVerifyPage } from './print-verify-page';
 import { getWorkflowAnalytics, listOverdueTasks } from '../../../services/workflow/workflow-analytics.service';
@@ -44,6 +44,10 @@ export const handledMineRoute = defineContractRoute(workflowInstanceContract.han
 
 export const ccUnreadCountRoute = defineContractRoute(workflowInstanceContract.ccUnreadCount, {
   handler: async (c) => c.json(okBody({ count: await countMyCcUnread() }), 200),
+});
+
+export const workbenchSummaryRoute = defineContractRoute(workflowInstanceContract.workbenchSummary, {
+  handler: async (c) => c.json(okBody(await getWorkbenchSummary()), 200),
 });
 
 export const relationOptionsRoute = defineContractRoute(workflowInstanceContract.relationOptions, {

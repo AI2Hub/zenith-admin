@@ -1,4 +1,4 @@
-import { workflowInstanceContract, workflowTaskContract } from '@zenith/shared/workflow';
+import { workflowInstanceContract, workflowTaskContract, WORKFLOW_INSTANCE_STATUSES, type WorkflowWorkbenchSummary } from '@zenith/shared/workflow';
 import type { QueryOutputOf } from '@zenith/shared/core';
 // ─── 实例/待办/已办/抄送列表查询与详情（拆分自 workflow-instances.service.ts）───
 import { formatDateTime, formatNullableDateTime } from '../../../lib/datetime';
@@ -7,13 +7,13 @@ import { alias } from 'drizzle-orm/pg-core';
 import { keywordCondition, withPagination, dateRangeConditions, buildWhere } from '../../../lib/where-helpers';
 import { db } from '../../../db';
 import { pageOffset } from '../../../lib/pagination';
-import { workflowInstances, workflowTasks, workflowDefinitions, workflowCategories, users } from '../../../db/schema';
+import { workflowInstances, workflowTasks, workflowTaskConsults, workflowDefinitions, workflowCategories, users } from '../../../db/schema';
 import { tenantCondition } from '../../../lib/tenant';
 import { getDataScopeCondition } from '../../../lib/data-scope';
 import type { WorkflowFieldPermission, WorkflowFlowData, WorkflowFormField } from '@zenith/shared/workflow';
 import { buildWorkflowSummaryItems, findNextApproverSelectNodes, resolveNodeFieldPermissions } from '@zenith/shared/workflow';
 import { HTTPException } from 'hono/http-exception';
-import { currentUser } from '../../../lib/context';
+import { currentUser, hasPermission } from '../../../lib/context';
 import { isSuperAdmin, getUserPermissions } from '../../../lib/permissions';
 import { predictRemainingPath } from '../../../lib/workflow-engine';
 import { buildStarterContext } from '../workflow-assignee-resolver.service';
@@ -258,6 +258,67 @@ export async function countPendingMine(): Promise<number> {
     .innerJoin(workflowInstances, eq(workflowTasks.instanceId, workflowInstances.id))
     .where(pendingMineWhere(user));
   return Number(total);
+}
+
+/** 我发起的实例按状态计数（草稿 / 退回 / 审批中等，与 listMyInstances 的 status 筛选同源） */
+async function countMyInstancesByStatus(user: ReturnType<typeof currentUser>, status: (typeof WORKFLOW_INSTANCE_STATUSES)[number]): Promise<number> {
+  return db.$count(workflowInstances, buildWhere(
+    eq(workflowInstances.initiatorId, user.userId),
+    eq(workflowInstances.status, status),
+    tenantCondition(workflowInstances, user),
+  ));
+}
+
+/** 待我协办：consultee = 我且尚未回复（与 listMyConsults?status=pending 同源） */
+async function countMyPendingConsults(user: ReturnType<typeof currentUser>): Promise<number> {
+  return db.$count(workflowTaskConsults, buildWhere(
+    eq(workflowTaskConsults.consulteeId, user.userId),
+    eq(workflowTaskConsults.status, 'pending'),
+    tenantCondition(workflowTaskConsults, user),
+  ));
+}
+
+/**
+ * 待我审批中已超时的任务数：超时阈值在节点配置（定义快照）里，无法下推到 SQL，
+ * 取我的待办任务 + 所属实例快照后按 computeTaskSla 逐条求值（个人待办规模小）。
+ */
+async function countMyOverduePending(user: ReturnType<typeof currentUser>): Promise<number> {
+  const rows = await db
+    .select({ nodeKey: workflowTasks.nodeKey, createdAt: workflowTasks.createdAt, snapshot: workflowInstances.definitionSnapshot })
+    .from(workflowTasks)
+    .innerJoin(workflowInstances, eq(workflowTasks.instanceId, workflowInstances.id))
+    .where(pendingMineWhere(user));
+  let overdue = 0;
+  for (const row of rows) {
+    const flow = row.snapshot?.flowData ?? undefined;
+    const node = flow?.nodes.find((n) => n.data.key === row.nodeKey)?.data;
+    if (computeTaskSla(node?.timeout, row.createdAt).slaLevel === 'overdue') overdue += 1;
+  }
+  return overdue;
+}
+
+/**
+ * 发起工作台概览：七项计数一次返回。每项与其对应列表 / 角标接口同源，
+ * 并按该列表的权限门控——缺权限的项返回 null，前端据此不渲染卡片。
+ */
+export async function getWorkbenchSummary(): Promise<WorkflowWorkbenchSummary> {
+  const user = currentUser();
+  const [canHandle, canList, canCreate] = await Promise.all([
+    hasPermission('workflow:task:handle'),
+    hasPermission('workflow:instance:list'),
+    hasPermission('workflow:instance:create'),
+  ]);
+  const gated = <T>(allowed: boolean, load: () => Promise<T>): Promise<T | null> => (allowed ? load() : Promise.resolve(null));
+  const [pending, pendingOverdue, consultsPending, ccUnread, myReturned, myDrafts, myRunning] = await Promise.all([
+    gated(canHandle, countPendingMine),
+    gated(canHandle, () => countMyOverduePending(user)),
+    gated(canHandle, () => countMyPendingConsults(user)),
+    gated(canList, countMyCcUnread),
+    gated(canCreate, () => countMyInstancesByStatus(user, 'returned')),
+    gated(canCreate, () => countMyInstancesByStatus(user, 'draft')),
+    gated(canList, () => countMyInstancesByStatus(user, 'running')),
+  ]);
+  return { pending, pendingOverdue, consultsPending, ccUnread, myReturned, myDrafts, myRunning };
 }
 
 /** T2-2 关联审批单候选：当前用户可见（本人发起或参与）的非草稿实例，供 relation 字段检索 */
