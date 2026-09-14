@@ -4,8 +4,17 @@ import { useDebouncer } from '@tanstack/react-pacer';
 import { PREFERENCES_KEY } from '@zenith/shared/core';
 import { authContract } from '@zenith/shared/identity';
 import { api } from '@/lib/contract-query';
+import { applyWeekStart } from '@/lib/week-start';
 import { defaultPreferences, isLoadingStyle, PreferencesContext } from './usePreferences';
 import type { UserPreferences } from './usePreferences';
+
+/**
+ * 必须先于子树渲染生效的偏好（React 在 createElement 时解析 class defaultProps，
+ * 放进 useEffect 会让本轮已渲染的选择器停在旧值）。写状态之前同步调用。
+ */
+function applyPreRenderPreferences(prefs: UserPreferences) {
+  applyWeekStart(prefs.weekStart);
+}
 
 function mergePreferences(raw: unknown): UserPreferences {
   const source = raw && typeof raw === 'object' && !Array.isArray(raw)
@@ -39,12 +48,17 @@ function savePreferences(prefs: UserPreferences) {
 }
 
 export function PreferencesProvider({ children }: Readonly<{ children: ReactNode }>) {
-  const [prefs, setPrefs] = useState<UserPreferences>(loadPreferences);
+  const [prefs, setPrefs] = useState<UserPreferences>(() => {
+    const initial = loadPreferences();
+    applyPreRenderPreferences(initial);
+    return initial;
+  });
   const [ready, setReady] = useState(false);
   const prefsRef = useRef(prefs);
 
   const applyLocalPreferences = useCallback((next: UserPreferences, persist = true) => {
     prefsRef.current = next;
+    applyPreRenderPreferences(next);
     setPrefs(next);
     if (persist) savePreferences(next);
   }, []);
