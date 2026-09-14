@@ -121,6 +121,7 @@ import { userPermissionsHandlers } from './user-permissions';
 import { maintenanceHandlers } from './maintenance';
 import { analyticsHandlers } from './analytics';
 import { frontendErrorsHandlers } from './frontend-errors';
+import { exceptionLogHandlers } from './exception-logs';
 import { sessionReplaysHandlers } from './session-replays';
 import { paymentHandlers } from './payment';
 import { paymentExtHandlers } from './payment-ext';
@@ -251,6 +252,7 @@ export const handlers = [
   ...maintenanceHandlers,
   ...analyticsHandlers,
   ...frontendErrorsHandlers,
+  ...exceptionLogHandlers,
   ...sessionReplaysHandlers,
   ...paymentHandlers,
   ...paymentExtHandlers,

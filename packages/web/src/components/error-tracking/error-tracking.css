@@ -1,0 +1,22 @@
+/* 错误监控 / 异常日志共用展示原子 */
+
+.error-tracking-code-block {
+  margin: 0;
+  padding: 12px;
+  overflow: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--semi-color-text-0);
+  word-break: break-word;
+  white-space: pre-wrap;
+  background: var(--semi-color-fill-0);
+  border: 1px solid var(--semi-color-border);
+  border-radius: var(--semi-border-radius-medium);
+}
+
+.error-tracking-channel-tags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}

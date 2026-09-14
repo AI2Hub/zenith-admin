@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { confirmAndDelete, deleteAction, ListSearchToolbar, listTableProps, useRowSelection } from '@/components/list-page';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -19,8 +19,6 @@ import {
   SideSheet,
   Descriptions,
   Switch,
-  InputNumber,
-  TagInput,
   SplitButtonGroup,
   Dropdown,
   Upload,
@@ -28,12 +26,9 @@ import {
   Timeline,
   Empty,
   Space,
-  Row,
-  Col,
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { TagColor } from '@douyinfe/semi-ui/lib/es/tag/interface';
-import { AlertCircle, AlertTriangle, Bell, Bug, CheckCircle2, ChevronDown, FileCode, MessageSquare, RefreshCcw, Trash2, Zap } from 'lucide-react';
+import { AlertTriangle, Bell, Bug, CheckCircle2, ChevronDown, FileCode, MessageSquare, RefreshCcw, Trash2, Zap } from 'lucide-react';
 import {
   BarChart,
   LineChart,
@@ -47,13 +42,22 @@ import {
   StatGrid,
 } from '@/components/charts';
 import AppModal from '@/components/AppModal';
-import type { ErrorAlertChannel, ErrorAlertCondition, ErrorAlertLog, ErrorAlertRule, ErrorBreadcrumb, ErrorEvent, ErrorGroup, ErrorLevel, ErrorStatus, ErrorType, FrontendErrorType, SourceMapItem, AnalyticsEnvironment } from '@zenith/shared/analytics';
+import {
+  CodeBlock as TextBlock,
+  ErrorAlertRuleModal,
+  ErrorLevelTag as LevelTag,
+  ErrorStatusTag as StatusTag,
+  ErrorTypeIcon as TypeIcon,
+  ErrorTypeTag as TypeTag,
+  TrendSparkline,
+  errorAlertLogColumns,
+  errorAlertRuleColumns,
+  safeJson,
+  type ErrorAlertRuleValues,
+} from '@/components/error-tracking';
+import type { ErrorAlertLog, ErrorAlertRule, ErrorBreadcrumb, ErrorEvent, ErrorGroup, ErrorLevel, ErrorStatus, FrontendErrorType, SourceMapItem, AnalyticsEnvironment } from '@zenith/shared/analytics';
 import {
   ANALYTICS_ENVIRONMENT_OPTIONS,
-  ERROR_ALERT_CHANNELS,
-  ERROR_ALERT_CONDITION_LABELS,
-  ERROR_ALERT_CONDITION_OPTIONS,
-  ERROR_ALERT_CHANNEL_LABELS,
   ERROR_LEVEL_LABELS,
   ERROR_LEVEL_OPTIONS,
   ERROR_STATUS_LABELS,
@@ -62,8 +66,6 @@ import {
   FRONTEND_ERROR_TYPE_OPTIONS,
   SOURCE_MAP_MAX_BYTES,
 } from '@zenith/shared/analytics';
-import { enumValueOf } from '@zenith/shared/core';
-import { NOTIFY_CHANNEL_OPTIONS } from '@zenith/shared/messaging';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePagination } from '@/hooks/usePagination';
@@ -98,37 +100,6 @@ import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 const { Text, Title, Paragraph } = Typography;
 
-// 前端页只出现浏览器端类型；服务端类型在异常日志页着色，这里兜底 grey
-const ERROR_TYPE_COLORS: Partial<Record<ErrorType, TagColor>> = {
-  js_error: 'red',
-  promise_rejection: 'orange',
-  resource_error: 'amber',
-  console_error: 'grey',
-  http_error: 'violet',
-  white_screen: 'pink',
-  crash: 'red',
-};
-
-const LEVEL_COLORS: Record<ErrorLevel, TagColor> = {
-  fatal: 'red',
-  error: 'orange',
-  warning: 'amber',
-  info: 'blue',
-};
-
-const STATUS_COLORS: Record<ErrorStatus, TagColor> = {
-  unresolved: 'red',
-  resolved: 'green',
-  ignored: 'grey',
-  muted: 'blue',
-};
-
-const CHANNEL_COLORS: Record<ErrorAlertChannel, TagColor> = {
-  email: 'blue',
-  webhook: 'violet',
-  inapp: 'green',
-};
-
 const CHART_COLORS = ['#f93920', '#ff8800', '#f5b70a', '#6a5af9', '#00b42a', '#14c9c9', '#8a38f5'];
 
 interface IssueFilters {
@@ -152,19 +123,6 @@ interface SourceMapUploadForm {
   content: string;
 }
 
-interface AlertFormState {
-  name: string;
-  errorType: ErrorType | null;
-  level: ErrorLevel | null;
-  condition: ErrorAlertCondition;
-  thresholdCount: number;
-  windowMinutes: number;
-  channels: ErrorAlertChannel[];
-  webhookUrl: string;
-  recipients: string[];
-  enabled: boolean;
-}
-
 type TabKey = 'overview' | 'issues' | 'events' | 'sourcemaps' | 'alerts' | 'alertlogs';
 
 const ERROR_TABS: readonly TabKey[] = ['overview', 'issues', 'events', 'sourcemaps', 'alerts', 'alertlogs'];
@@ -172,103 +130,16 @@ const ERROR_TABS: readonly TabKey[] = ['overview', 'issues', 'events', 'sourcema
 const defaultIssueFilters: IssueFilters = { status: undefined, errorType: undefined, level: undefined, keyword: '', environment: undefined };
 const EMPTY_ADMIN_USERS: { id: number; nickname?: string | null; username: string }[] = [];
 
-const defaultAlertForm: AlertFormState = {
-  name: '',
-  errorType: null,
-  level: null,
-  condition: 'threshold',
-  thresholdCount: 10,
-  windowMinutes: 60,
-  channels: ['inapp'],
-  webhookUrl: '',
-  recipients: [],
-  enabled: true,
-};
-
 const defaultSourceMapUpload: SourceMapUploadForm = {
   release: (import.meta.env.VITE_APP_VERSION as string) || '',
   fileName: '',
   content: '',
 };
 
-/** 告警渠道取值收窄到契约枚举（列表实体与下拉控件的值都是宽 string） */
-function toAlertChannels(values: readonly unknown[]): ErrorAlertChannel[] {
-  return values.flatMap((value) => {
-    const channel = enumValueOf(ERROR_ALERT_CHANNELS, value);
-    return channel ? [channel] : [];
-  });
-}
-
-function alertChannelMeta(channel: string): { label: string; color: TagColor } {
-  const value = enumValueOf(ERROR_ALERT_CHANNELS, channel);
-  return value
-    ? { label: ERROR_ALERT_CHANNEL_LABELS[value], color: CHANNEL_COLORS[value] }
-    : { label: channel, color: 'grey' };
-}
-
-function safeJson(value: unknown) {
-  if (value === null || value === undefined) return '暂无';
-  try {
-    return JSON.stringify(value, null, 2);
-  } catch {
-    return String(value);
-  }
-}
-
 function toNumberOrNull(value: unknown): number | null {
   if (value === null || value === undefined || value === '') return null;
   const next = Number(value);
   return Number.isFinite(next) ? next : null;
-}
-
-function toStringArray(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
-}
-
-function TextBlock({ children, maxHeight = 280 }: { readonly children: ReactNode; readonly maxHeight?: number }) {
-  return (
-    <pre
-      style={{
-        background: 'var(--semi-color-fill-0)',
-        border: '1px solid var(--semi-color-border)',
-        borderRadius: 'var(--semi-border-radius-medium)',
-        color: 'var(--semi-color-text-0)',
-        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-        fontSize: 12,
-        lineHeight: 1.6,
-        margin: 0,
-        maxHeight,
-        overflow: 'auto',
-        padding: 12,
-        whiteSpace: 'pre-wrap',
-        wordBreak: 'break-word',
-      }}
-    >
-      {children}
-    </pre>
-  );
-}
-
-function TypeTag({ type }: { readonly type: ErrorType }) {
-  return <Tag color={ERROR_TYPE_COLORS[type] ?? 'grey'}>{ERROR_TYPE_LABELS[type] ?? type}</Tag>;
-}
-
-function LevelTag({ level }: { readonly level: ErrorLevel }) {
-  return <Tag color={LEVEL_COLORS[level] ?? 'grey'}>{ERROR_LEVEL_LABELS[level] ?? level}</Tag>;
-}
-
-function StatusTag({ status }: { readonly status: ErrorStatus }) {
-  return <Tag color={STATUS_COLORS[status] ?? 'grey'}>{ERROR_STATUS_LABELS[status] ?? status}</Tag>;
-}
-
-function TypeIcon({ type }: { readonly type: ErrorType }) {
-  const common = { size: 15, style: { verticalAlign: 'middle' } };
-  if (type === 'white_screen') return <AlertTriangle {...common} />;
-  if (type === 'http_error') return <Zap {...common} />;
-  if (type === 'resource_error') return <FileCode {...common} />;
-  if (type === 'console_error') return <MessageSquare {...common} />;
-  if (type === 'crash') return <AlertCircle {...common} />;
-  return <Bug {...common} />;
 }
 
 function SmallDistribution({ data }: { readonly data: { name: string; value: number }[] }) {
@@ -303,9 +174,6 @@ function BreadcrumbTimeline({ breadcrumbs }: { readonly breadcrumbs: ErrorBreadc
     </Timeline>
   );
 }
-
-const TIMELINE_SPARK_W = 96;
-const TIMELINE_SPARK_H = 26;
 
 /** 从事件 context 提取服务端链路 ID（SDK 在 http_error 上报时写入） */
 function extractRequestId(context: unknown): string | null {
@@ -346,23 +214,6 @@ function ReplayJumpButton({ replayId }: Readonly<{ replayId: string | null }>) {
     >
       查看会话回放
     </Button>
-  );
-}
-
-/** 表格内嵌迷你趋势曲线（近 7 日发生次数） */
-function TrendSparkline({ data }: Readonly<{ data?: number[] }>) {
-  if (!data || data.length < 2 || data.every((v) => v === 0)) {
-    return <Text type="tertiary" size="small">–</Text>;
-  }
-  const max = Math.max(...data, 1);
-  const stepX = TIMELINE_SPARK_W / (data.length - 1);
-  const points = data.map((v, i) => `${(i * stepX).toFixed(1)},${(TIMELINE_SPARK_H - 3 - (v / max) * (TIMELINE_SPARK_H - 6)).toFixed(1)}`).join(' ');
-  const rising = data[data.length - 1] > data[0];
-  const color = rising ? 'var(--semi-color-danger)' : 'var(--semi-color-success)';
-  return (
-    <svg width={TIMELINE_SPARK_W} height={TIMELINE_SPARK_H} aria-label="近 7 日趋势">
-      <polyline points={points} fill="none" stroke={color} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
-    </svg>
   );
 }
 
@@ -408,7 +259,6 @@ export default function FrontendErrorsPage() {
 
   const [alertModalVisible, setAlertModalVisible] = useState(false);
   const [editingAlert, setEditingAlert] = useState<ErrorAlertRule | null>(null);
-  const [alertForm, setAlertForm] = useState<AlertFormState>(defaultAlertForm);
   const {
     page: alertPage,
     pageSize: alertPageSize,
@@ -578,43 +428,14 @@ export default function FrontendErrorsPage() {
 
   const openAlertModal = useCallback((rule?: ErrorAlertRule) => {
     setEditingAlert(rule ?? null);
-    setAlertForm(rule ? {
-      name: rule.name,
-      errorType: rule.errorType,
-      level: rule.level,
-      condition: rule.condition,
-      thresholdCount: rule.thresholdCount,
-      windowMinutes: rule.windowMinutes,
-      channels: toAlertChannels(rule.channels),
-      webhookUrl: rule.webhookUrl ?? '',
-      recipients: rule.recipients,
-      enabled: rule.enabled,
-    } : defaultAlertForm);
     setAlertModalVisible(true);
   }, []);
 
-  const saveAlert = useCallback(async () => {
-    if (!alertForm.name.trim()) {
-      Toast.warning('请输入规则名称');
-      return;
-    }
-    const body = {
-      name: alertForm.name.trim(),
-      errorType: alertForm.errorType,
-      level: alertForm.level,
-      condition: alertForm.condition,
-      thresholdCount: alertForm.thresholdCount,
-      windowMinutes: alertForm.windowMinutes,
-      channels: alertForm.channels,
-      webhookUrl: alertForm.webhookUrl.trim() || null,
-      recipients: alertForm.recipients,
-      enabled: alertForm.enabled,
-    };
-    await saveAlertMutation.mutateAsync({ id: editingAlert?.id, values: body });
+  const saveAlert = useCallback(async (values: ErrorAlertRuleValues) => {
+    await saveAlertMutation.mutateAsync({ id: editingAlert?.id, values });
     Toast.success(editingAlert ? '更新成功' : '创建成功');
     setAlertModalVisible(false);
-  }, [alertForm, editingAlert, saveAlertMutation]);
-
+  }, [editingAlert, saveAlertMutation]);
   const toggleAlert = useCallback(async (rule: ErrorAlertRule, enabled: boolean) => {
     await saveAlertMutation.mutateAsync({ id: rule.id, values: { enabled } });
     Toast.success(enabled ? '已启用' : '已停用');
@@ -788,84 +609,17 @@ export default function FrontendErrorsPage() {
     }),
   ], [deleteSourceMapMutation]);
 
-  const alertColumns = useMemo<ColumnProps<ErrorAlertRule>[]>(() => [
-    { title: '名称', dataIndex: 'name', minWidth: 180 },
-    { title: '条件', dataIndex: 'condition', width: 100, render: (_value, record) => ERROR_ALERT_CONDITION_LABELS[record.condition] },
-    { title: '阈值', dataIndex: 'thresholdCount', width: 90, align: 'right' },
-    { title: '窗口', dataIndex: 'windowMinutes', width: 110, align: 'right', render: (value) => `${value} 分钟` },
-    { title: '类型', dataIndex: 'errorType', width: 130, render: (_value, record) => record.errorType ? <TypeTag type={record.errorType} /> : <Tag color="grey">全部</Tag> },
-    { title: '级别', dataIndex: 'level', width: 110, render: (_value, record) => record.level ? <LevelTag level={record.level} /> : <Tag color="grey">全部</Tag> },
-    {
-      title: '渠道',
-      dataIndex: 'channels',
-      width: 180,
-      render: (_value, record) => (
-        <Space spacing={4} wrap>
-          {record.channels.length > 0 ? record.channels.map((channel) => (
-            <Tag key={channel} color={alertChannelMeta(channel).color}>{alertChannelMeta(channel).label}</Tag>
-          )) : <Text type="tertiary">未配置</Text>}
-        </Space>
-      ),
+  const alertColumns = useMemo<ColumnProps<ErrorAlertRule>[]>(() => errorAlertRuleColumns({
+    onEdit: (rule) => openAlertModal(rule),
+    onTest: async (rule) => {
+      await testAlertMutation.mutateAsync({ params: { id: rule.id } });
+      Toast.success('测试消息已发送，请检查通知渠道');
     },
-    dateTimeColumn('最近触发', 'lastTriggeredAt'),
-    {
-      title: '启用',
-      dataIndex: 'enabled',
-      width: 90,
-      fixed: 'right',
-      render: (_value, record) => <Switch size="small" checked={record.enabled} onChange={(checked) => void toggleAlert(record, checked)} />,
-    },
-    createOperationColumn<ErrorAlertRule>({
-      width: 210,
-      desktopInlineKeys: ['edit', 'test', 'delete'],
-      actions: (record) => [
-        {
-          key: 'edit',
-          label: '编辑',
-          onClick: () => openAlertModal(record),
-        },
-        {
-          key: 'test',
-          label: '测试',
-          onClick: () => {
-            void testAlertMutation.mutateAsync({ params: { id: record.id } }).then(() => Toast.success('测试消息已发送，请检查通知渠道'));
-          },
-        },
-        deleteAction({
-          title: '确定删除该告警规则？',
-          run: () => deleteAlertMutation.mutateAsync({ params: { id: record.id } }),
-        }),
-      ],
-    }),
-  ], [deleteAlertMutation, openAlertModal, testAlertMutation, toggleAlert]);
+    onToggle: toggleAlert,
+    onDelete: (rule) => deleteAlertMutation.mutateAsync({ params: { id: rule.id } }),
+  }), [deleteAlertMutation, openAlertModal, testAlertMutation, toggleAlert]);
 
-  const alertLogColumns = useMemo<ColumnProps<ErrorAlertLog>[]>(() => [
-    dateTimeColumn('触发时间', 'createdAt'),
-    { title: '规则', dataIndex: 'ruleName', width: 180 },
-    { title: '条件', dataIndex: 'condition', width: 100, render: (_value, record) => ERROR_ALERT_CONDITION_LABELS[record.condition] },
-    { title: '详情', dataIndex: 'detail' },
-    {
-      title: '渠道',
-      dataIndex: 'channels',
-      width: 180,
-      render: (_value, record) => (
-        <Space spacing={4} wrap>
-          {record.channels.length > 0 ? record.channels.map((channel) => (
-            <Tag key={channel} color={alertChannelMeta(channel).color}>{alertChannelMeta(channel).label}</Tag>
-          )) : <Text type="tertiary">未配置</Text>}
-        </Space>
-      ),
-    },
-    {
-      title: '来源',
-      dataIndex: 'source',
-      width: 100,
-      render: (_value, record) => (
-        <Tag color={record.source === 'realtime' ? 'orange' : 'blue'}>{record.source === 'realtime' ? '实时触发' : '定时评估'}</Tag>
-      ),
-    },
-  ], []);
-
+  const alertLogColumns = useMemo<ColumnProps<ErrorAlertLog>[]>(() => errorAlertLogColumns(), []);
   const overviewTypeData = (overview?.byType ?? []).map((item) => ({
     name: ERROR_TYPE_LABELS[item.errorType] ?? item.errorType,
     value: item.occurrences,
@@ -1327,115 +1081,13 @@ export default function FrontendErrorsPage() {
         </Form>
       </AppModal>
 
-      <AppModal
-        title={editingAlert ? '编辑告警规则' : '新增告警规则'}
+      <ErrorAlertRuleModal
         visible={alertModalVisible}
+        rule={editingAlert}
+        typeOptions={typeOptions}
+        saving={saveAlertMutation.isPending}
         onCancel={() => setAlertModalVisible(false)}
-        onOk={() => void saveAlert()}
-        confirmLoading={saveAlertMutation.isPending}
-        width={660}
-        closeOnEsc
-      >
-        <Form labelPosition="left" labelWidth={80}>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Slot label="名称">
-                <Input value={alertForm.name} placeholder="请输入规则名称" maxLength={128} onChange={(value) => setAlertForm((prev) => ({ ...prev, name: value }))} />
-              </Form.Slot>
-            </Col>
-            <Col span={12}>
-              <Form.Slot label="启用">
-                <Switch checked={alertForm.enabled} onChange={(checked) => setAlertForm((prev) => ({ ...prev, enabled: checked }))} />
-              </Form.Slot>
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Slot label="类型">
-                <Select
-                  showClear
-                  placeholder="全部"
-                  value={alertForm.errorType ?? undefined}
-                  optionList={typeOptions}
-                  style={{ width: '100%' }}
-                  onChange={(value) => setAlertForm((prev) => ({ ...prev, errorType: (value as ErrorType | undefined) ?? null }))}
-                />
-              </Form.Slot>
-            </Col>
-            <Col span={12}>
-              <Form.Slot label="级别">
-                <Select
-                  showClear
-                  placeholder="全部"
-                  value={alertForm.level ?? undefined}
-                  optionList={levelOptions}
-                  style={{ width: '100%' }}
-                  onChange={(value) => setAlertForm((prev) => ({ ...prev, level: (value as ErrorLevel | undefined) ?? null }))}
-                />
-              </Form.Slot>
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Slot label="条件">
-                <Select
-                  value={alertForm.condition}
-                  style={{ width: '100%' }}
-                  optionList={ERROR_ALERT_CONDITION_OPTIONS}
-                  onChange={(value) => setAlertForm((prev) => ({ ...prev, condition: value as ErrorAlertCondition }))}
-                />
-              </Form.Slot>
-            </Col>
-            {/* new_error 只判断「窗口内是否出现新分组」，不读阈值；一直摆着会让人以为调它有用 */}
-            {alertForm.condition !== 'new_error' && (
-              <Col span={12}>
-                <Form.Slot label="阈值">
-                  <InputNumber min={1} max={100000} value={alertForm.thresholdCount} onChange={(value) => setAlertForm((prev) => ({ ...prev, thresholdCount: Number(value) || 1 }))} style={{ width: '100%' }} />
-                </Form.Slot>
-              </Col>
-            )}
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Slot label="窗口">
-                <InputNumber min={1} max={10080} value={alertForm.windowMinutes} suffix="分钟" onChange={(value) => setAlertForm((prev) => ({ ...prev, windowMinutes: Number(value) || 1 }))} style={{ width: '100%' }} />
-              </Form.Slot>
-            </Col>
-            <Col span={12}>
-              <Form.Slot label="渠道">
-                <Select
-                  multiple
-                  maxTagCount={2}
-                  value={alertForm.channels}
-                  style={{ width: '100%' }}
-                  optionList={[...NOTIFY_CHANNEL_OPTIONS]}
-                  onChange={(value) => setAlertForm((prev) => ({ ...prev, channels: toAlertChannels(toStringArray(value)) }))}
-                />
-              </Form.Slot>
-            </Col>
-          </Row>
-          {/*
-            Webhook 与收件人按所选渠道显示：服务端在启用时强校验
-            （含 webhook 渠道 → URL 必填；含邮件/站内信 → 收件人必填，见 validateAlertDelivery）。
-            无条件铺开这两项，既看不出哪个是必填，填了不相关的那个也不会生效。
-            切换渠道不清空已填值——重新勾回来时还在，比丢掉用户输入更可取。
-          */}
-          {alertForm.channels.includes('webhook') && (
-            <Form.Slot label="Webhook">
-              <Input value={alertForm.webhookUrl} placeholder="https://example.com/webhook" onChange={(value) => setAlertForm((prev) => ({ ...prev, webhookUrl: value }))} />
-            </Form.Slot>
-          )}
-          {(alertForm.channels.includes('email') || alertForm.channels.includes('inapp')) && (
-            <Form.Slot label="收件人">
-              <TagInput
-                value={alertForm.recipients}
-                placeholder="输入邮箱后回车"
-                onChange={(value) => setAlertForm((prev) => ({ ...prev, recipients: value }))}
-              />
-            </Form.Slot>
-          )}
-        </Form>
-      </AppModal>
-    </div>
+        onSubmit={saveAlert}
+      />    </div>
   );
 }
