@@ -6,6 +6,8 @@ import { useMemo, useState, useEffect } from 'react';
 import { Input } from '@douyinfe/semi-ui';
 import { Search } from 'lucide-react';
 import type { WorkflowFormField } from '@zenith/shared/workflow';
+import { usePinyinReady } from '@/hooks/usePinyinReady';
+import { textMatches } from '@/utils/pinyin';
 import { FORM_FIELD_TYPES } from '../form-types';
 import { flattenAllFields } from '../form-tree';
 import { CONDITION_FIELD_TYPES } from './field-config/helpers';
@@ -33,6 +35,8 @@ export default function FieldConfigPanel({
 
   const [activeSection, setActiveSection] = useState<'basic' | 'validation' | 'visibility'>('basic');
   const [configQuery, setConfigQuery] = useState('');
+  // 配置项搜索支持拼音；词典就绪即重渲染补齐命中（searchHits 每次渲染重算）
+  usePinyinReady();
   const fieldInfo = FORM_FIELD_TYPES.find(t => t.type === field.type);
   const flatFields = useMemo(() => flattenAllFields(allFields), [allFields]);
 
@@ -76,7 +80,7 @@ export default function FieldConfigPanel({
     { label: '显隐规则 / 条件必填 / 条件只读', keywords: '显隐 隐藏 条件 必填 只读 联动', tab: 'visibility' },
   ];
   const searchHits = configQuery.trim()
-    ? searchIndex.filter((it) => (it.label + it.keywords).toLowerCase().includes(configQuery.trim().toLowerCase()))
+    ? searchIndex.filter((it) => textMatches(`${it.label} ${it.keywords}`, configQuery))
     : [];
 
   return (

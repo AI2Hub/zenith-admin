@@ -1,10 +1,12 @@
 /**
  * 左侧控件面板 — 点击添加字段到表单
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Input, Typography, Popconfirm } from '@douyinfe/semi-ui';
 import { Search, BookmarkPlus, X } from 'lucide-react';
 import type { WorkflowFormField } from '@zenith/shared/workflow';
+import { usePinyinReady } from '@/hooks/usePinyinReady';
+import { textMatches } from '@/utils/pinyin';
 import { FORM_FIELD_TYPE_GROUPS, type FormFieldTypeInfo } from '../form-types';
 import { loadFieldTemplates, removeFieldTemplate, FIELD_TEMPLATES_CHANGED_EVENT, type FieldTemplateEntry } from '../form-field-templates';
 
@@ -17,6 +19,8 @@ interface FieldPaletteProps {
 export default function FieldPalette({ onAddField, onAddTemplateField }: Readonly<FieldPaletteProps>) {
   const [keyword, setKeyword] = useState('');
   const [myTemplates, setMyTemplates] = useState<FieldTemplateEntry[]>(() => loadFieldTemplates());
+  // 拼音词典就绪时重渲染一次：已输入的关键字补上拼音命中
+  usePinyinReady();
 
   // 「存为我的模板」后同步刷新
   useEffect(() => {
@@ -25,25 +29,25 @@ export default function FieldPalette({ onAddField, onAddTemplateField }: Readonl
     return () => window.removeEventListener(FIELD_TEMPLATES_CHANGED_EVENT, refresh);
   }, []);
 
-  const normalizedKeyword = keyword.trim().toLowerCase();
-  const groups = useMemo(() => {
-    if (!normalizedKeyword) return FORM_FIELD_TYPE_GROUPS;
-    return FORM_FIELD_TYPE_GROUPS
+  const normalizedKeyword = keyword.trim();
+  // 与顶部菜单搜索、偏好设置同口径：子串 + 拼音（首字母 / 全拼）。
+  // 候选不过几十项，逐次渲染重算即可；词典就绪（usePinyinReady 触发的重渲染）自然补上拼音命中。
+  const groups = !normalizedKeyword
+    ? FORM_FIELD_TYPE_GROUPS
+    : FORM_FIELD_TYPE_GROUPS
       .map((group) => ({
         ...group,
         types: group.types.filter((info) =>
-          info.label.toLowerCase().includes(normalizedKeyword)
-          || info.type.toLowerCase().includes(normalizedKeyword)
-          || (info.description ?? '').toLowerCase().includes(normalizedKeyword),
+          textMatches(info.label, normalizedKeyword)
+          || textMatches(info.type, normalizedKeyword)
+          || textMatches(info.description ?? '', normalizedKeyword),
         ),
       }))
       .filter((group) => group.types.length > 0);
-  }, [normalizedKeyword]);
 
-  const visibleTemplates = useMemo(() => {
-    if (!normalizedKeyword) return myTemplates;
-    return myTemplates.filter((t) => t.name.toLowerCase().includes(normalizedKeyword));
-  }, [myTemplates, normalizedKeyword]);
+  const visibleTemplates = !normalizedKeyword
+    ? myTemplates
+    : myTemplates.filter((t) => textMatches(t.name, normalizedKeyword));
 
   return (
     <div className="fd-form-palette">

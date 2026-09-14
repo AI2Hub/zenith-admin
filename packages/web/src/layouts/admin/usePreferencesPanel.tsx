@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { Toast } from '@douyinfe/semi-ui';
-import { pinyinMatch } from '@/utils/pinyin';
+import { textMatches } from '@/utils/pinyin';
 import { copyTextWithToast } from '@/utils/clipboard';
 import { sanitizeImportedPreferences, type UserPreferences } from '@/hooks/usePreferences';
 
@@ -14,12 +14,7 @@ export function usePreferencesPanel(
 
   const matchesPref = useCallback((keywords: string[]): boolean => {
     if (!prefsSearch.trim()) return true;
-    const q = prefsSearch.trim();
-    const lower = q.toLowerCase();
-    return keywords.some((kw) =>
-      kw.toLowerCase().includes(lower) ||
-      pinyinMatch(kw, q, { precision: 'start' }) !== null,
-    );
+    return keywords.some((kw) => textMatches(kw, prefsSearch));
   }, [prefsSearch]);
 
   // 偏好面板分区标题：搜索时隐藏（搜索结果为扁平列表）

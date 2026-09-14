@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Modal } from '@douyinfe/semi-ui';
-import { pinyinMatch } from '@/utils/pinyin';
+import { textMatches } from '@/utils/pinyin';
 import { Search, Clock, Hash } from 'lucide-react';
 import { renderLucideIcon } from '@/utils/icons';
 import { useOptionalPreferences } from '@/hooks/usePreferences';
@@ -39,18 +39,8 @@ export default function MenuCommandPalette({ menus, recentMenus, onClearRecents,
   const results = useCallback(
     (q: string): FlatMenuItem[] => {
       if (!q.trim()) return [];
-      const lower = q.toLowerCase();
       return menus
-        .filter((m) => {
-          const textMatch =
-            m.title.toLowerCase().includes(lower) ||
-            m.breadcrumb.some((b) => b.toLowerCase().includes(lower));
-          if (textMatch) return true;
-          return (
-            pinyinMatch(m.title, q, { precision: 'start' }) !== null ||
-            m.breadcrumb.some((b) => pinyinMatch(b, q, { precision: 'start' }) !== null)
-          );
-        })
+        .filter((m) => textMatches(m.title, q) || m.breadcrumb.some((b) => textMatches(b, q)))
         .slice(0, 10);
     },
     [menus]
