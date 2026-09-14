@@ -4,6 +4,65 @@
 
 ---
 
+## v2.36.0 - 2026-09-14
+
+**门禁声明进契约，接口目录随之派生；偏好设置与工作台补齐日常体验**。后台登录令牌操作的访问要求（权限码 / 登录即可 / 仅平台超管）、审计与功能门控此前在路由文件里逐端点手写，本版把它们全部迁到契约操作的 `access` / `audit` / `feature` 上（2,172 个操作，迁移前后 2,429 个端点的门禁事实逐端点一致），`defineContractRoute` 据此装配中间件链，路由只剩 handler；权限码注册表成为唯一真相，种子按钮由注册表生成。在此基础上新增「接口目录」页：全部契约操作的地址 / 方法 / 认证 / 权限码 / 审计 / 功能门控，并可按角色或用户查看每个接口能否调用——不落任何新表，目录由服务端从契约派生下发。同时交付管理员模拟登录、偏好设置 7 个新选项、发起工作台概览卡、表单设计器拼音搜索，以及一轮服务端热路径与前端分包 / 重渲染优化。
+
+### 升级注意
+
+- **数据库迁移 4 个**，升级后执行 `npm run db:migrate`：`0014`（模拟登录 `impersonation_sessions` 表、操作日志实际操作人列）、`0015`（热路径索引：调度任务运行记录 `(task_name, started_at, id)` 复合索引替换单列索引、`user_events (app_id, created_at)`）、`0016`（`user_api_tokens` 挂 `cache_invalidate` 触发器，API Token 主体副本跨实例失效）、`0017`（内置菜单 1110 / 按钮 1111 改写为「接口目录」`/system/api-catalog`，权限码 `system:api-catalog:view`）。
+- 契约（构造期收紧）：`security: 'bearer'` 的操作**必须**声明 `access`，公开 / 非登录令牌操作**不得**声明；6 个会员前台契约组整组改为 `security: 'member-bearer'`（OpenAPI 注册 `MemberBearerAuth`），接口形态不变。
+- 服务端行为变化：AI 会话列表 `limit` / `offset` 在契约上给默认值，缺省不再返回全部会话；模拟登录期间只读 / 账号安全类 / 个人偏好写请求统一拒绝；API Token 鉴权结果进 5 秒 TTL 缓存（令牌 / 用户 / 租户变更经同一失效链路即时清空）。
+- 公共 API（仅影响自定义代码）：路由文件不再引入 `authMiddleware` / `guard` / `readGuard` / `writeGuard` / `platformAdminOnly`（ESLint 禁止），`mountCrud` 去掉 `permission` / `label` / `module` / `audit` / `feature` 选项，`defineContractRoute` 去掉路由级 `audit` 覆盖；`Permission` 类型改由 `PERMISSION_REGISTRY_BY_DOMAIN` 推导，各域 `declare module` 声明合并删除；服务端 `hasPermission` / 前端 `hasPermission` 与 `permission` 属性参数为 `Permission` 类型，引用不存在的权限码现在是编译错误。
+- 前端纪律（ESLint 守卫，命中的旧写法需迁移）：JSX 子节点里的 `{formatDateTime(...)}` 改用 `DateTimeText`（跟随「时间显示方式」偏好）；业务模块禁止 import `@zenith/shared/contracts` / `permissions` / `permission-catalog` 聚合模块；`@/components/charts` 桶文件只在画图的页面引用，统计卡按文件路径导入。
+- 偏好设置新增 7 个键，导入旧版偏好文件时缺失键取默认值。
+
+### Added
+
+#### 服务端（server）
+
+- 管理员模拟登录：`/api/impersonation` start / end / records，以目标身份签发短时 access token（不签发 refresh、不可续签，令牌带 impersonation 声明），中间件校验操作者活性与记录未结束；本人密码二次验证、目标范围 / 超管 / 自身校验、登录日志 `impersonate` 事件、通知被模拟用户、强制结束经 WS 踢出；身份安全设置新增 impersonation 策略（开关 / 时长上限 / 可操作模式 / 通知）。
+- 契约驱动门禁：`defineContractRoute` 按契约 `access` 装配 `preAuth → authMiddleware → platformAdminOnly → guard(权限 / 审计 / 功能门控)`；`lib/route-facts.ts` 中间件自描述标记 + `app.contract.test`「权限契约」逐端点对账契约 ↔ 运行时（重复挂载即失败）；`contract-route-access.test` 锁定装配顺序。
+- `GET /api/api-catalog`：接口目录（`@zenith/shared/permission-catalog` 的 `buildApiCatalog()` 生成，进程内缓存）；`GET /api/permission-matrix/roles` / `GET /api/permission-matrix/users/{id}`：角色 / 用户生效的权限码集合（租户范围、启用菜单、套餐功能过滤、平台超管标记）。
+- `GET /api/workflows/instances/workbench-summary`：发起工作台概览计数（待我审批 / 协办 / 抄送未读 / 退回 / 草稿 / 审批中），按权限置空无权项。
+
+#### 契约（shared）
+
+- `OperationConfig` 新增 `access`（`'authenticated'` | `{ permission, platformOnly }` | `{ platformOnly }`）、`audit`、`feature`；`defineContract` 支持 `auditModule` / `feature` 组级缺省与组级 `security: 'member-bearer'`。
+- 各域 `permissions.ts`（`definePermissions`）聚合为 `PERMISSION_REGISTRY_BY_DOMAIN` / `ALL_PERMISSIONS`；`expandPermissionButtons()` 由注册表生成种子按钮（id 与历史一致）；`permissions.test` / `permission-registry.test`（唯一性、归属、注册表 ⟷ 服务端引用双向一致）、`contract-access.test`（未声明 access 的操作数基线只准缩小）。
+- `contracts.ts`：`CONTRACTS_BY_DOMAIN` / `listAllOperations()` / `CONTRACT_DOMAIN_LABELS`，按域收集全部契约组。
+- `permission-catalog.ts`：`listApiCatalog()` / `listPermissionCatalog()` / `operationsByPermission()` / `buildApiCatalog()`；叶子模块 `permission-catalog-core.ts`：`judgeOperation()`（与门禁链同口径）、`accessKindOf()`、凭证与判定常量。
+- 契约：`apiCatalogContract`、`permissionMatrixContract`、`workflowInstanceContract.workbenchSummary`；`impersonationContract`。
+
+#### 前端（web）
+
+- 「系统管理 → 接口目录」：模块 / 方法 / 地址 / 名称 / 认证 / 访问要求 / 审计 / 功能门控，统计卡即筛选，关键字支持拼音，标准「查询 / 重置」+ 分页；选择角色或用户后叠加「可调用 / 无权限 / 仅平台超管」判定（默认只列可调用接口，非登录令牌接口显示「不适用」）；详情抽屉带权限码中文名、引用同一权限码的其他接口与 API 文档入口。
+- 模拟登录：用户管理「模拟登录」弹窗、常驻横幅与倒计时、强制水印、结束 / 到期 / 401 / 被踢统一回切操作者账号；模拟登录记录页、操作日志实际操作人标注与筛选、登录日志事件标签、在线用户标记。
+- 偏好设置新增 7 项：界面缩放、界面字体、时间显示方式（绝对 / 相对，日期时间列与消息流 / 时间线经新组件 `DateTimeText` 跟随）、一周起始日（默认周一，同步到全部 `DatePicker`）、站内信 / 公告浏览器桌面通知、切回窗口时自动刷新数据、记住列表筛选条件（会话内）。
+- 发起工作台顶部「我的审批概览」卡片，点击深链到对应列表（`?status=` / `?consults=1`）。
+- 表单设计器控件与配置项搜索支持拼音（`utils/pinyin.ts` 的 `textMatches()` 与 `usePinyinReady`，顶部菜单搜索与偏好搜索改用同一实现）。
+- 守卫：`charts-barrel-imports.test.ts`（轻量导出不走图表桶文件）、ESLint 禁止 JSX 子节点 `{formatDateTime(...)}` 与业务模块 import `@zenith/shared` 聚合模块。
+
+### Changed
+
+- 270 个路由文件删除手写门禁，2,172 个后台登录令牌操作在契约上声明 `access` / `audit` / `feature`；工厂契约随之内聚（`memberPreviewOp` 带权限码、`defineAppWebhookContract` 带 view / manage 权限与审计 module、settings 契约取模块定义的读写权限与 feature）。
+- 种子分片只保留目录 / 菜单节点，按钮由注册表生成，收敛 4 个同页同码的重复按钮并统一标题；「接口权限矩阵」菜单改名「接口目录」。
+- 46 处日期时间展示改经 `DateTimeText` 渲染；界面缩放改为下拉框。
+- 服务端热路径：AI 会话关键词搜索改为关联 EXISTS（200 万条消息实测 779ms → 5ms）、对话导出只投影所需列、调度任务面板 2N 次查询改为一条 `unnest × LATERAL`（11 万行 1.5ms）、埋点站点今日用量走 index-only 扫描、API Token 鉴权进 TtlCache。
+- 前端分包：无图表页面不再静态拖进 vchart（IotAlarmsPage 637 → 20 KB gz 等 4 页）、IoT 地图 maplibre 与设备详情抽屉改为懒加载边界（1,219 → 3 KB gz）、Wiki 审批 Markdown 预览懒加载；接口目录页只依赖 `permission-catalog-core` 叶子模块。
+- 前端重渲染：聊天左栏行 memo 化 + 草稿保存 300ms 防抖、网盘目录表列与行回调稳定引用、报表可视化建模器派生集合 `useMemo`。
+- 表单库「标识」列加宽至 220 并省略显示。
+- 两批死样式清理：13 个样式文件 62 个无引用类（80 条规则、-574 行）；BEM 修饰类 17 条规则 130 行、CMS 默认主题旧投票样式、未读取的 `--tabsbar-shadow`。
+- 门禁相关注释与文档（`security.md` / `audit-log-changes.md` / `multi-tenant.md` / skill 参考）统一为现行规则表述。
+
+### Fixed
+
+- 权限码类型化暴露的问题：菜单树接口空权限码、邮件 / 短信 / 站内信页面引用不存在的权限码、文件配置页操作列前缀不匹配。
+- IoT 地图页 `import('maplibre-gl')` 因 CSS 静态引入而形同虚设，2 MB JS 随页面静态加载。
+- 偏好设置「标签页动画」选项缺 `key` 的 React 警告；「界面缩放」按钮组在抽屉宽度下换行。
+
+---
+
 ## v2.35.0 - 2026-09-13
 
 **契约派生第三轮：把「派生不到」的地方逐个解掉，并给两条纪律装上静态守卫**。上一版把标准 CRUD 派生到四端后，剩下的是三类「结构性剩余」：服务返回形态与工厂类型不匹配的路由、逐函数手写的租户隔离、契约字段缺筛选语义导致的映射模式页面。本版把 `mountCrud` 的服务类型改为逐操作对照契约响应（列表行 / 详情实体 / 创建结果可以是不同 schema），此前判为「漂移」的 17 个路由文件全部直接派生，**接口形态零变化**（OpenAPI 全文档 0 差异）；新增两条只准缩小的登记表守卫：标准操作路由必须 `mountCrud`（`routes/_crud-explicit.ts` + `crud-coverage.test.ts`）、按请求 id 访问带租户列的表必须叠租户条件（`services/_tenant-isolation-baseline.ts` + `tenant-isolation.test.ts`），并修掉扫出的 7 处真实跨租户引用；契约 list query 的筛选语义补齐到 496 / 503，`useListPage` 新增操作模式，列表页第二波派生。jscpd（同参数）：812 克隆 / 5,699 行（0.97%）→ 796 / 5,618（0.95%）；结构性指标：显式标准操作路由块 260 → 128、`mountCrud` 134 → 170、`toQuery` 页面 69 → 31、契约 / 操作模式页 39 → 73、`mockResource` 契约组 26 → 59、路由层 29,632 → 25,934 行。
