@@ -1,9 +1,13 @@
-import { permissionMatrixContract, type RolePermissionSet, type UserPermissionSet } from '@zenith/shared/identity';
+import { apiCatalogContract, permissionMatrixContract, type ApiCatalog, type RolePermissionSet, type UserPermissionSet } from '@zenith/shared/identity';
+import { buildApiCatalog } from '@zenith/shared/permission-catalog';
 import { SEED_MENUS } from '@zenith/shared/seed';
 import { mock } from '@/mocks/utils/contract';
 import { requireItem } from '@/mocks/utils/crud';
 import { mockRoles } from '@/mocks/data/roles';
 import { mockUsers } from '@/mocks/data/users';
+
+/** Demo 模式与服务端同源：直接从契约派生目录（mocks 只进 Demo 构建，不影响生产分包） */
+let cachedCatalog: ApiCatalog | null = null;
 
 /** 角色绑定的启用按钮菜单 → 权限码（与服务端 permissionsOfMenus 同口径，Demo 不区分套餐） */
 function permissionsOfMenuIds(menuIds: readonly number[]): string[] {
@@ -28,6 +32,7 @@ function toRoleSet(role: typeof mockRoles[number]): RolePermissionSet {
 }
 
 export const permissionMatrixHandlers = [
+  mock(apiCatalogContract.list, ({ ok }) => ok(cachedCatalog ??= buildApiCatalog())),
   mock(permissionMatrixContract.roles, ({ ok }) => ok(mockRoles.map(toRoleSet))),
   mock(permissionMatrixContract.user, ({ params, ok }) => {
     const user = requireItem(mockUsers, params.id, '用户不存在', { status: 404 });

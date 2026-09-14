@@ -51,21 +51,25 @@ describe('接口权限目录（契约 access 派生）', () => {
   });
 
   it('判定口径与服务端门禁链一致', () => {
-    const byPermission = { access: { permission: ['a:x', 'a:y'] as never }, permissions: ['a:x', 'a:y'] as never, platformOnly: false as const };
+    const byPermission = { accessKind: 'permission' as const, permissions: ['a:x', 'a:y'], platformOnly: false as const };
     expect(judgeOperation(byPermission, { permissions: ['a:y'], superAdmin: false }, { multiTenant: false })).toBe('allowed');
     expect(judgeOperation(byPermission, { permissions: new Set(['b:z']), superAdmin: false }, { multiTenant: false })).toBe('denied');
     expect(judgeOperation(byPermission, { permissions: ['*'], superAdmin: false }, { multiTenant: false })).toBe('allowed');
     expect(judgeOperation(byPermission, { permissions: [], superAdmin: true }, { multiTenant: true })).toBe('allowed');
 
-    const authenticated = { access: 'authenticated' as const, permissions: [] as const, platformOnly: false as const };
+    const authenticated = { accessKind: 'authenticated' as const, permissions: [], platformOnly: false as const };
     expect(judgeOperation(authenticated, { permissions: [], superAdmin: false }, { multiTenant: true })).toBe('allowed');
 
-    const platform = { access: { platformOnly: true as const }, permissions: [] as const, platformOnly: true as const };
+    const platform = { accessKind: 'platform' as const, permissions: [], platformOnly: true as const };
     expect(judgeOperation(platform, { permissions: ['*'], superAdmin: false }, { multiTenant: false })).toBe('platform-only');
     expect(judgeOperation(platform, { permissions: [], superAdmin: true }, { multiTenant: false })).toBe('allowed');
 
-    const multiTenantOnly = { access: { permission: 'a:x' as never, platformOnly: 'multi-tenant' as const }, permissions: ['a:x'] as never, platformOnly: 'multi-tenant' as const };
+    const multiTenantOnly = { accessKind: 'permission' as const, permissions: ['a:x'], platformOnly: 'multi-tenant' as const };
     expect(judgeOperation(multiTenantOnly, { permissions: ['a:x'], superAdmin: false }, { multiTenant: true })).toBe('platform-only');
     expect(judgeOperation(multiTenantOnly, { permissions: ['a:x'], superAdmin: false }, { multiTenant: false })).toBe('allowed');
+
+    // 目录条目本身即判定输入
+    const fromCatalog = catalog.find((entry) => entry.accessKind === 'permission' && entry.platformOnly === false)!;
+    expect(judgeOperation(fromCatalog, { permissions: fromCatalog.permissions, superAdmin: false }, { multiTenant: true })).toBe('allowed');
   });
 });

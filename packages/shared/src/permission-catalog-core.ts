@@ -46,9 +46,9 @@ export type OperationVerdict =
 
 export const OPERATION_VERDICTS = ['allowed', 'denied', 'platform-only'] as const satisfies readonly OperationVerdict[];
 
-/** 判定所需的最小输入（目录条目的子集） */
+/** 判定所需的最小输入：目录条目（共享侧派生或服务端下发）的子集 */
 export interface JudgeableOperation {
-  readonly access: OperationAccess;
+  readonly accessKind: AccessKind;
   readonly permissions: readonly string[];
   readonly platformOnly: false | true | 'multi-tenant';
 }
@@ -65,7 +65,7 @@ export function judgeOperation(
   if (subject.superAdmin) return 'allowed';
   const platformLimited = entry.platformOnly === true || (entry.platformOnly === 'multi-tenant' && options.multiTenant);
   if (platformLimited) return 'platform-only';
-  if (entry.access === 'authenticated' || entry.permissions.length === 0) return 'allowed';
+  if (entry.accessKind !== 'permission' || entry.permissions.length === 0) return 'allowed';
   const owned = subject.permissions instanceof Set ? subject.permissions : new Set(subject.permissions);
   if (owned.has('*')) return 'allowed';
   return entry.permissions.some((code) => owned.has(code)) ? 'allowed' : 'denied';
