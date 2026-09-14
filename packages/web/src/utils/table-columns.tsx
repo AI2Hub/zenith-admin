@@ -3,6 +3,7 @@
  *
  * 提供常用的预置列对象和 render 辅助函数，避免在每个页面重复手写。
  */
+/* eslint-disable react-refresh/only-export-components -- 纯工具模块（列工厂 / render 辅助 / 常量再导出），不导出组件 */
 import { Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps, Data } from '@douyinfe/semi-ui/lib/es/table';
 import { Check } from 'lucide-react';
