@@ -4,16 +4,16 @@
   "entries": {
     "index.html": {
       "maxCriticalFiles": 8,
-      "maxCriticalGzKB": 520,
+      "maxCriticalGzKB": 325,
       "maxCriticalCssFiles": 4,
       "routes": {
         "AdminLayout": {
-          "maxFiles": 40,
-          "maxGzKB": 450
+          "maxFiles": 44,
+          "maxGzKB": 660
         },
         "DashboardPage": {
           "maxFiles": 30,
-          "maxGzKB": 420
+          "maxGzKB": 680
         }
       },
       "authenticatedFirstScreen": {

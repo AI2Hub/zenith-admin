@@ -56,6 +56,7 @@ lucide 图标全表（615 KB / 153 KB gz）在任何口径下都是运行时按�
 | 关键路径层 | `initial-vendor` / `initial-app` | 入口静态闭包内的全部第三方 / 应用模块（tags `$initial`） | 入口 |
 | 壳层 | `vendor-semi-markdown` | Semi aiChatDialogue / aiChatInput / chat / markdownRender / codeHighlight / jsonViewer + prismjs | 使用它的页面 |
 | 壳层 | `vendor-semi-media` | Semi lottie / videoPlayer / audioPlayer | 使用它的页面 |
+| 壳层 | `vendor-semi-form` | Semi Form（BaseForm 静态引入全部字段控件）+ 只经 Form 使用的 Cascader / TreeSelect / Upload(+Cropper) / TagInput / AutoComplete / Transfer；`form/label`、Slider 与 semi-foundation 的 `form/*` 因被核心反向引用（`input/inputGroup`、`image/previewFooter`）留在 `vendor-semi` | 使用表单的页面 |
 | 壳层 | `vendor-semi` | 其余全部 Semi（semi-ui / semi-foundation / semi-icons / semi-animation） | 登录后 |
 | 壳层 | `vendor-common` | 被 ≥ 10 个模块共享的 node_modules | 登录后 |
 | 壳层 | `app-shared` | 被 ≥ 10 个模块共享的 `hooks/` `lib/` `utils/` `providers/` `config/` + `@zenith/shared` + analytics-sdk 源码 | 登录后 |
@@ -102,7 +103,12 @@ lucide 图标全表（615 KB / 153 KB gz）在任何口径下都是运行时按�
   /me 返回 → AdminRouteLoader 只等 useCurrentUserMenuTree → 注册动态路由 → 仪表盘
 ```
 
-- 登录页静态进入关键路径：匿名首屏 5 个请求；Semi Form 家族因此在 `initial-vendor` 中，已登录用户无论如何都需要它。
+- 登录页静态进入关键路径：匿名首屏 5 个请求。代价是登录页的静态闭包直接决定匿名首屏体积——Semi `Form`（`BaseForm` 静态引入全部
+  字段控件，含 DatePicker → date-fns、Upload → Cropper，minified ≈ 770 KB / 210 KB gz）、`Tabs`、`Modal` 都不能出现在它的闭包里：
+  登录 / 注册 / MFA 表单用 `pages/login/login-form.ts` + `LoginField` 的受控实现，找回密码与目录登录弹窗 `lazy()`，
+  `PreferencesProvider` 的一周起始日偏好经 `lib/week-start.ts` 动态 `import()` DatePicker。`bundle-budget.json` 的
+  `index.html.maxCriticalGzKB` 守住这一点；壳层增量（AdminLayout / DashboardPage）因此承接了原本在关键路径里的 Semi 核心控件，
+  认证首屏合计不变。
 - 完整菜单树（`GET /api/menus`，1,100+ 行）只由 catch-all 的 `NotFoundOrForbidden` 在命中时自行拉取，不在启动链路上。
 - 行为采集 SDK 由 `lib/tracker-boot.ts` 在 idle 时初始化，不阻塞首屏。
 - MSW 只在 `VITE_DEMO_MODE=true` 时经入口的 `await import('./mocks')` 进入产物。
@@ -141,21 +147,25 @@ nginx 侧的 `gzip_static`、HTML `no-cache`、静态资源一年 immutable 与 
 
 ### 产物（静态口径）
 
-| 指标 | 基线 | 当前 |
-| --- | --- | --- |
-| 后台 critical JS | 85 个 / 368.7 KB gz | 5 个 / 469.8 KB gz |
-| 后台 critical CSS | 14 个 / 20.6 KB gz | 2 个 / 53.4 KB gz |
-| 后台 modulepreload 提示 | 84 | 0 |
-| 登录页 incremental | 91 个 / 255.4 KB gz | 0（静态在关键路径内） |
-| 匿名首屏合计（critical + 登录页） | 176 个 / 624.1 KB gz | 5 个 / 469.8 KB gz |
-| incremental(AdminLayout) | 154 个 / 379.1 KB gz | 29 个 / 402.2 KB gz |
-| incremental(DashboardPage) | 79 个 / 165.7 KB gz | 16 个 / 370.2 KB gz |
-| 认证首屏（并集） | 278 个 / 843.0 KB gz | 44 个 / 896.2 KB gz |
-| 会员端 critical | 94 个 / 329.9 KB gz | 5 个 / 237.5 KB gz |
-| 审批端 critical | 55 个 / 258.3 KB gz | 5 个 / 191.6 KB gz |
-| 注册表动态入口 | 544 | 276 |
-| JS chunk 总数（其中 < 4 KB） | 1,711（922） | 904（438） |
-| dist JS 总量 | 38.5 MB | 53.1 MB |
+「登录页轻量化」列为登录页移除 Semi Form / Tabs / Modal 并拆出 `vendor-semi-form` 后的实测（`npm run analyze:bundle`），
+关键路径 −41%，认证首屏合计持平：原先随登录页进入关键路径的 Semi 核心控件（DatePicker + date-fns、Select …）
+改由壳层增量承接。
+
+| 指标 | 基线 | 当前 | 登录页轻量化 |
+| --- | --- | --- | --- |
+| 后台 critical JS | 85 个 / 368.7 KB gz | 5 个 / 469.8 KB gz | 5 个 / 293.6 KB gz |
+| 后台 critical CSS | 14 个 / 20.6 KB gz | 2 个 / 53.4 KB gz | 2 个 / 22.6 KB gz |
+| 后台 modulepreload 提示 | 84 | 0 | 0 |
+| 登录页 incremental | 91 个 / 255.4 KB gz | 0（静态在关键路径内） | 0（静态在关键路径内） |
+| 匿名首屏合计（critical + 登录页） | 176 个 / 624.1 KB gz | 5 个 / 469.8 KB gz | 5 个 / 293.6 KB gz |
+| incremental(AdminLayout) | 154 个 / 379.1 KB gz | 29 个 / 402.2 KB gz | 40 个 / 597.5 KB gz |
+| incremental(DashboardPage) | 79 个 / 165.7 KB gz | 16 个 / 370.2 KB gz | 26 个 / 618.7 KB gz |
+| 认证首屏（并集） | 278 个 / 843.0 KB gz | 44 个 / 896.2 KB gz | 56 个 / 968.7 KB gz |
+| 会员端 critical | 94 个 / 329.9 KB gz | 5 个 / 237.5 KB gz | 5 个 / 254.9 KB gz |
+| 审批端 critical | 55 个 / 258.3 KB gz | 5 个 / 191.6 KB gz | 5 个 / 202.5 KB gz |
+| 注册表动态入口 | 544 | 276 | 276 |
+| JS chunk 总数（其中 < 4 KB） | 1,711（922） | 904（438） | 967（502） |
+| dist JS 总量 | 38.5 MB | 53.1 MB | 53.9 MB |
 
 认证首屏的 gz 体积 +6%（Semi 核心整包、公共层一次装载）换来文件数 −84%。dist JS 总量中约 4 MB 是会员 / 审批入口各自的按需 chunk
 （分入口构建的固定成本，单个用户只下载自己入口的部分）；发布 zip 约 33 MB（不含预压缩副本）。

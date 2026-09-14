@@ -11,10 +11,11 @@ import type { UserPreferences } from './usePreferences';
 
 /**
  * 必须先于子树渲染生效的偏好（React 在 createElement 时解析 class defaultProps，
- * 放进 useEffect 会让本轮已渲染的选择器停在旧值）。写状态之前同步调用。
+ * 放进 useEffect 会让本轮已渲染的选择器停在旧值）。写状态之前同步调用；
+ * DatePicker 模块尚未加载时由 applyWeekStart 在其加载完成、任何选择器渲染之前写入。
  */
 function applyPreRenderPreferences(prefs: UserPreferences) {
-  applyWeekStart(prefs.weekStart);
+  void applyWeekStart(prefs.weekStart);
 }
 
 function mergePreferences(raw: unknown): UserPreferences {

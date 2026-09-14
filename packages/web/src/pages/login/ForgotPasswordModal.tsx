@@ -1,24 +1,49 @@
-import { useRef, useState } from 'react';
-import { Form, Toast } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import AppModal from '@/components/AppModal';
+import { useState, type FormEvent } from 'react';
+import { Toast } from '@douyinfe/semi-ui';
 import { Mail } from 'lucide-react';
+import AppModal from '@/components/AppModal';
+import { ModalFooter } from '@/components/ModalFooter';
 import { useForgotPassword } from '@/hooks/queries/auth-public';
-import { abortSubmit } from '@/lib/abort-submit';
+import { EMAIL_PATTERN, useLoginForm } from './login-form';
+import { LoginField } from './LoginField';
 
 interface ForgotPasswordModalProps {
   visible: boolean;
   onClose: () => void;
 }
 
+interface ForgotPasswordValues extends Record<string, string> {
+  email: string;
+}
+
+const INITIAL: ForgotPasswordValues = { email: '' };
+const RULES = {
+  email: [
+    { required: true, message: '请输入邮箱地址' },
+    { pattern: EMAIL_PATTERN, message: '邮箱格式不正确' },
+  ],
+};
+
+/** 找回密码弹窗：点击「忘记密码」后才加载；表单用登录页的受控字段实现，不引入 Semi Form */
 export default function ForgotPasswordModal({ visible, onClose }: Readonly<ForgotPasswordModalProps>) {
   const [sent, setSent] = useState(false);
-  // useEditModal 例外：认证流程（找回密码）
-  const formApi = useRef<FormApi | null>(null);
+  const form = useLoginForm<ForgotPasswordValues>(INITIAL, RULES);
   const forgotPasswordMutation = useForgotPassword();
   const loading = forgotPasswordMutation.isPending;
 
-  const handleSubmit = async (values: { email: string }) => {
+  const handleClose = () => {
+    setSent(false);
+    form.reset();
+    onClose();
+  };
+
+  const submit = async () => {
+    if (sent) {
+      handleClose();
+      return;
+    }
+    const values = form.validate();
+    if (!values || loading) return;
     try {
       await forgotPasswordMutation.mutateAsync({ body: { email: values.email } });
       setSent(true);
@@ -27,25 +52,9 @@ export default function ForgotPasswordModal({ visible, onClose }: Readonly<Forgo
     }
   };
 
-  const handleClose = () => {
-    setSent(false);
-    formApi.current = null;
-    onClose();
-  };
-
-  const handleOk = async () => {
-    if (sent) {
-      handleClose();
-      return;
-    }
-    if (!formApi.current) return;
-    let values: { email: string };
-    try {
-      values = await formApi.current.validate() as { email: string };
-    } catch {
-      abortSubmit('validation');
-    }
-    await handleSubmit(values);
+  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    void submit();
   };
 
   return (
@@ -53,11 +62,11 @@ export default function ForgotPasswordModal({ visible, onClose }: Readonly<Forgo
       title="找回密码"
       visible={visible}
       onCancel={handleClose}
-      onOk={handleOk}
-      okText={sent ? '我知道了' : '发送重置链接'}
-      cancelText="取消"
-      hasCancel={!sent}
-      okButtonProps={{ loading }}
+      // 发送成功后只保留「我知道了」（Modal 自带页脚）；表单态由 <form> 自己的页脚提交，支持回车
+      footer={sent ? undefined : null}
+      onOk={handleClose}
+      okText="我知道了"
+      hasCancel={false}
       width={400}
     >
       {sent ? (
@@ -69,27 +78,24 @@ export default function ForgotPasswordModal({ visible, onClose }: Readonly<Forgo
           </p>
         </div>
       ) : (
-        <Form<{ email: string }>
-          key={visible ? 'forgot-password-open' : 'forgot-password-closed'}
-          getFormApi={(api) => { formApi.current = api; }}
-          labelPosition="left"
-          labelWidth={72}
-        >
+        <form className="login-form" onSubmit={handleSubmit} noValidate>
           <p style={{ color: 'var(--semi-color-text-2)', fontSize: 13, marginBottom: 16 }}>
             请输入注册时使用的邮箱地址，我们将向该邮箱发送密码重置链接。
           </p>
-          <Form.Input
-            field="email"
+          <LoginField
+            {...form.field('email')}
+            id="forgot-password-email"
             label="邮箱地址"
+            labelPosition="left"
             placeholder="请输入邮箱"
             prefix={<Mail size={14} />}
             size="large"
-            rules={[
-              { required: true, message: '请输入邮箱地址' },
-              { type: 'email', message: '邮箱格式不正确' },
-            ]}
+            type="email"
+            autoComplete="email"
+            autoFocus
           />
-        </Form>
+          <ModalFooter onCancel={handleClose} onOk={submit} okText="发送重置链接" loading={loading} />
+        </form>
       )}
     </AppModal>
   );

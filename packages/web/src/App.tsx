@@ -26,8 +26,10 @@ import RouteSuspense from '@/layouts/RouteSuspense';
 // 登录页与公开页（支付链接、公开报表、OAuth 授权）不应预载它
 const AdminLayout = React.lazy(() => import('@/layouts/AdminLayout'));
 
-// 登录页静态引入：未登录首屏只需关键路径本身，不再多一轮 chunk 下载；
-// 它依赖的 Semi 表单控件登录后几乎每页都要用，放进入口闭包不产生额外代价
+// 登录页静态引入：未登录首屏只需关键路径本身，不再多一轮 chunk 下载。
+// 代价是它的静态闭包直接决定匿名首屏体积：Semi Form（含 BaseForm）会静态拖入全部字段控件（≈770 KB / 210 KB gz），
+// 因此登录页只能用 Input / Button 等轻量控件（pages/login/login-form.tsx），弹窗按需 lazy；
+// `bundle-budget.json` 的 index.html 关键路径预算守住这一点。
 import LoginPage from '@/pages/login/LoginPage';
 const ResetPasswordPage = React.lazy(() => import('@/pages/reset-password/ResetPasswordPage'));
 const DashboardPage = React.lazy(() => import('@/pages/dashboard/DashboardPage'));

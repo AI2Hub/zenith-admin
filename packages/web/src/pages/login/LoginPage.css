@@ -208,27 +208,98 @@
 
 /* ===== 表单细节 ===== */
 
-/* 校验错误提示绝对定位，不参与布局流：
-   预留固定下边距，避免出错时卡片高度变化引发页面抖动 */
-.login-card .semi-form-field {
+/* 登录页不用 Semi Form（见 login-form.tsx），字段容器 / 错误提示为自绘结构。
+   校验错误提示绝对定位，不参与布局流：预留固定下边距，避免出错时卡片高度变化引发页面抖动 */
+.login-form {
+  margin-top: 12px;
+}
+
+.login-field {
   position: relative;
   margin-bottom: 24px;
   overflow: visible;
 }
 
-.login-card .semi-form-field-main {
+.login-field-main {
   position: relative;
+  flex: 1;
+  min-width: 0;
 }
 
-.login-card .semi-form-field-error-message {
+.login-field-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--semi-color-text-0);
+}
+
+/* 左置 label（弹窗表单）：对齐原 Semi Form labelPosition="left" labelWidth={72} */
+.login-field-inline {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.login-field-inline .login-field-label {
+  flex-shrink: 0;
+  width: 72px;
+  margin-bottom: 0;
+}
+
+.login-field-error {
   position: absolute;
   top: 100%;
   left: 2px;
-  margin: 0;
   padding-top: 2px;
   font-size: 12px;
   line-height: 1.5;
-  min-height: 0;
+  color: var(--semi-color-danger);
+}
+
+/* 登录 / 注册切换：替代 Semi Tabs（line 型），只保留下划线与主色 */
+.login-tabs {
+  display: flex;
+  gap: 24px;
+  border-bottom: 1px solid var(--semi-color-border);
+  margin-bottom: 8px;
+}
+
+.login-tab {
+  position: relative;
+  padding: 6px 2px 10px;
+  border: 0;
+  background: transparent;
+  font-size: 15px;
+  color: var(--semi-color-text-2);
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.login-tab:hover {
+  color: var(--semi-color-text-0);
+}
+
+.login-tab-active {
+  color: var(--semi-color-primary);
+  font-weight: 600;
+}
+
+.login-tab-active::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--semi-color-primary);
+}
+
+.login-tab:focus-visible {
+  outline: 2px solid var(--semi-color-primary);
+  outline-offset: 2px;
+  border-radius: var(--semi-border-radius-small);
 }
 
 /* 输入框融入卡片：透明而非复制卡片底色——Semi Input 默认 background 为
@@ -278,10 +349,6 @@
 
 .login-card .semi-input-wrapper.semi-input-wrapper-error.semi-input-wrapper-focus {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--semi-color-danger) 10%, transparent);
-}
-
-.login-card .semi-tabs-bar-line .semi-tabs-tab {
-  font-size: 15px;
 }
 
 .login-card .semi-button.semi-button-primary {

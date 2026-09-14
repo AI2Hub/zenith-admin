@@ -1,7 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Form, Button, Toast, Typography, Tabs, TabPane, Divider, Spin } from '@douyinfe/semi-ui';
-import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
+import { Button, Checkbox, Divider, PinCode, Spin, Toast, Typography } from '@douyinfe/semi-ui';
 import { User, Lock, Mail, AtSign, Building2, ShieldCheck, BriefcaseBusiness, Check, ChevronRight } from 'lucide-react';
 import dayjs from 'dayjs';
 import { MAX_STORED_ACCOUNTS, REFRESH_TOKEN_KEY, TOKEN_KEY } from '@zenith/shared/core';
@@ -17,13 +16,19 @@ import { rememberOAuthPending } from '@/lib/oauth-pending';
 import { useAuth, type LoginOptions } from '@/hooks/useAuth';
 import { UserAvatar } from '@/components/UserAvatar';
 import AppLogo from '@/components/AppLogo';
-import AppModal from '@/components/AppModal';
 import { OAuthProviderIcon } from '@/components/OAuthProviderIcon';
-import ForgotPasswordModal from './ForgotPasswordModal';
 import { useEnterpriseProviders, useOAuthProviders, usePublicCaptcha } from '@/hooks/queries/auth-public';
 import { usePublicSettings } from '@/hooks/queries/settings';
 import { useDebouncedValue } from '@tanstack/react-pacer';
+import { useLoginForm, type FieldRules } from './login-form';
+import { LoginField } from './LoginField';
+import type { DirectoryLoginValues } from './DirectoryLoginModal';
 import './LoginPage.css';
+
+// 登录页静态打包在关键路径里（见 App.tsx），因此这里只能用轻量控件：
+// Semi Form / Tabs / Modal 都不进本文件的静态闭包，弹窗按需加载。
+const ForgotPasswordModal = lazy(() => import('./ForgotPasswordModal'));
+const DirectoryLoginModal = lazy(() => import('./DirectoryLoginModal'));
 
 const { Title, Text } = Typography;
 
@@ -32,6 +37,31 @@ interface LoginPageProps {
   onVerifyMfa: (challengeId: string, code: string, rememberDevice: boolean, options?: LoginOptions) => Promise<{ code: number; message: string; retryAfterSeconds?: number; data: LoginResponse }>;
   onRegister: (data: { username: string; nickname: string; email: string; password: string }, options?: LoginOptions) => Promise<{ code: number; message: string; retryAfterSeconds?: number }>;
 }
+
+interface LoginFormValues extends Record<string, string> {
+  tenantCode: string;
+  username: string;
+  password: string;
+  captchaCode: string;
+}
+
+interface RegisterFormValues extends Record<string, string> {
+  username: string;
+  nickname: string;
+  email: string;
+  password: string;
+}
+
+const REGISTER_RULES: FieldRules<RegisterFormValues> = {
+  username: [{ required: true, message: '请输入用户名' }],
+  nickname: [{ required: true, message: '请输入昵称' }],
+  email: [{ required: true, message: '请输入邮箱' }],
+  password: [{ required: true, message: '请输入密码' }],
+};
+
+const EMPTY_REGISTER: RegisterFormValues = { username: '', nickname: '', email: '', password: '' };
+
+const PRIMARY_BUTTON_STYLE = { marginTop: 8, borderRadius: 'var(--semi-border-radius-medium)', height: 42 } as const;
 
 function isMfaChallenge(data: LoginResult): data is MfaLoginChallenge {
   return 'mfaRequired' in data && data.mfaRequired;
@@ -51,7 +81,7 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
   const { status: authStatus, parkedAccounts, canAddAccount, switchAccount } = useAuth();
   const [resumingId, setResumingId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
-  const [tab, setTab] = useState('login');
+  const [tab, setTab] = useState<'login' | 'register'>('login');
   const [retrySeconds, setRetrySeconds] = useState(0);
 
   // 登录成功后的统一跳转：落地首页时打标记，供 HomeEntry 按偏好 homePath 二次跳转
@@ -83,34 +113,57 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
   const isDemoMode = import.meta.env.VITE_DEMO_MODE === 'true';
 
   const captchaQuery = usePublicCaptcha();
+  // 弹窗首次打开才挂载：Modal 与弹窗表单不进登录页首屏
   const [forgotPasswordVisible, setForgotPasswordVisible] = useState(false);
+  const [forgotPasswordMounted, setForgotPasswordMounted] = useState(false);
   const [mfaChallenge, setMfaChallenge] = useState<MfaLoginChallenge | null>(mfaHandoff?.mfaChallenge ?? null);
-  const [tenantCode, setTenantCode] = useState('');
-  const [debouncedTenantCode] = useDebouncedValue(tenantCode, { wait: 250 });
+  const [mfaCode, setMfaCode] = useState('');
+  const [mfaError, setMfaError] = useState<string | undefined>();
+  const [rememberDevice, setRememberDevice] = useState(true);
   const [directoryProvider, setDirectoryProvider] = useState<TenantIdentityProviderSummary | null>(null);
+  const [directoryMounted, setDirectoryMounted] = useState(false);
   const [directoryLoginLoading, setDirectoryLoginLoading] = useState(false);
-  // useEditModal 例外：认证流程（企业目录账号登录）
-  const directoryFormApi = useRef<FormApi | null>(null);
 
+  const captchaEnabled = captchaQuery.data?.enabled ?? false;
+  const captchaId = captchaQuery.data?.captchaId ?? '';
+  const captchaSvg = captchaQuery.data?.svg ?? '';
+  const fetchCaptcha = () => { void captchaQuery.refetch(); };
+
+  const loginRules = useMemo<FieldRules<LoginFormValues>>(() => ({
+    username: [{ required: true, message: '请输入用户名/手机号' }],
+    password: [{ required: true, message: '请输入密码' }],
+    captchaCode: captchaEnabled ? [{ required: true, message: '请输入验证码' }] : [],
+  }), [captchaEnabled]);
+  const loginInitial = useMemo<LoginFormValues>(
+    () => ({ tenantCode: '', username: prefillUsername, password: '', captchaCode: '' }),
+    [prefillUsername],
+  );
+  const loginForm = useLoginForm<LoginFormValues>(loginInitial, loginRules);
+  const registerForm = useLoginForm<RegisterFormValues>(EMPTY_REGISTER, REGISTER_RULES);
+
+  const [debouncedTenantCode] = useDebouncedValue(loginForm.values.tenantCode, { wait: 250 });
   const enterpriseProvidersQuery = useEnterpriseProviders(debouncedTenantCode);
   // 匿名设置投影（注册 / 找回密码开关）：多租户下随租户编码解析租户级值
   const publicSettingsQuery = usePublicSettings(debouncedTenantCode);
   const oauthProvidersQuery = useOAuthProviders();
-  const captchaEnabled = captchaQuery.data?.enabled ?? false;
-  const captchaId = captchaQuery.data?.captchaId ?? '';
-  const captchaSvg = captchaQuery.data?.svg ?? '';
   const allowRegistration = publicSettingsQuery.data?.auth.allowRegistration ?? false;
   const forgotPasswordEnabled = publicSettingsQuery.data?.auth.forgotPasswordEnabled ?? false;
   const enterpriseProviders = enterpriseProvidersQuery.data?.providers ?? [];
   // 加载中 / 后端不可达 / 未启用任何提供方 → 空数组 → 不渲染「其他方式登录」
   const oauthProviders = oauthProvidersQuery.data ?? [];
-  const fetchCaptcha = () => { void captchaQuery.refetch(); };
 
-  const handleLogin = async (values: Record<string, string>) => {
+  const handleLogin = async (values: LoginFormValues) => {
     if (retrySeconds > 0) return;
     setLoading(true);
     try {
-      const res = await onLogin(values.username, values.password, captchaId, values.captchaCode, values.tenantCode, loginOptions);
+      const res = await onLogin(
+        values.username,
+        values.password,
+        captchaId,
+        captchaEnabled ? values.captchaCode : undefined,
+        config.multiTenantMode && values.tenantCode ? values.tenantCode : undefined,
+        loginOptions,
+      );
       if (res.code === 0) {
         if (isMfaChallenge(res.data)) {
           setMfaChallenge(res.data);
@@ -130,11 +183,21 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
     }
   };
 
-  const handleMfaVerify = async (values: Record<string, string | boolean>) => {
+  const handleLoginSubmit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const values = loginForm.validate();
+    if (values) void handleLogin(values);
+  };
+
+  const handleMfaVerify = async () => {
     if (!mfaChallenge || retrySeconds > 0) return;
+    if (!mfaCode.trim()) {
+      setMfaError('请输入动态验证码');
+      return;
+    }
     setLoading(true);
     try {
-      const res = await onVerifyMfa(mfaChallenge.challengeId, String(values.code ?? ''), Boolean(values.rememberDevice), loginOptions);
+      const res = await onVerifyMfa(mfaChallenge.challengeId, mfaCode, rememberDevice, loginOptions);
       if (res.code === 0) {
         if (addAccountMode) return;
         navigateAfterLogin(redirectTo);
@@ -144,6 +207,18 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleMfaSubmit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    void handleMfaVerify();
+  };
+
+  const leaveMfa = () => {
+    setMfaChallenge(null);
+    setMfaCode('');
+    setMfaError(undefined);
+    if (captchaEnabled) fetchCaptcha();
   };
 
   const handleRegister = async (values: RegisterInput) => {
@@ -165,6 +240,12 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
     }
   };
 
+  const handleRegisterSubmit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const values = registerForm.validate();
+    if (values) void handleRegister(values);
+  };
+
   /** 登录页快捷入口：一键回到某个仍在登录状态的停靠账号 */
   const handleResumeAccount = async (userId: number) => {
     if (resumingId !== null) return;
@@ -178,51 +259,56 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
     }
   };
 
+  const openForgotPassword = () => {
+    setForgotPasswordMounted(true);
+    setForgotPasswordVisible(true);
+  };
+
   const renderLoginForm = () => (
-    <Form onSubmit={handleLogin} initValues={prefillUsername ? { username: prefillUsername } : undefined} style={{ marginTop: 12 }}>
+    <form className="login-form" onSubmit={handleLoginSubmit} noValidate>
       {config.multiTenantMode && (
-        <Form.Input
-          field="tenantCode"
+        <LoginField
+          {...loginForm.field('tenantCode')}
+          id="login-tenant-code"
           label="租户编码"
           placeholder="留空则登录平台管理员"
           prefix={<Building2 />}
           size="large"
-          onChange={setTenantCode}
+          autoComplete="organization"
         />
       )}
-      <Form.Input
-        field="username"
-        noLabel
+      <LoginField
+        {...loginForm.field('username')}
+        id="login-username"
         placeholder="请输入用户名/手机号"
         prefix={<User />}
-        rules={[{ required: true, message: '请输入用户名/手机号' }]}
         size="large"
+        autoComplete="username"
       />
-      <Form.Input
-        field="password"
-        noLabel
+      <LoginField
+        {...loginForm.field('password')}
+        id="login-password"
         type="password"
         placeholder="请输入密码"
         prefix={<Lock />}
-        rules={[{ required: true, message: '请输入密码' }]}
         size="large"
+        autoComplete="current-password"
       />
       {captchaEnabled && (
         <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
           <div style={{ flex: 1 }}>
-            <Form.Input
-              field="captchaCode"
-              noLabel
+            <LoginField
+              {...loginForm.field('captchaCode')}
+              id="login-captcha"
               placeholder="请输入验证码"
-              rules={[{ required: true, message: '请输入验证码' }]}
               size="large"
+              autoComplete="one-time-code"
             />
           </div>
           <button
             type="button"
             style={{
               cursor: 'pointer',
-              marginTop: 28,
               flexShrink: 0,
               borderRadius: 'var(--semi-border-radius-small)',
               overflow: 'hidden',
@@ -246,23 +332,128 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
         disabled={retrySeconds > 0 || (addAccountMode && !canAddAccount)}
         block
         size="large"
-        style={{ marginTop: 8, borderRadius: 'var(--semi-border-radius-medium)', height: 42 }}
+        style={PRIMARY_BUTTON_STYLE}
       >
         {retrySeconds > 0 ? `${retrySeconds}s 后可重试` : '登录'}
       </Button>
       {forgotPasswordEnabled && (
         <div style={{ textAlign: 'right', marginTop: 8 }}>
-          <Button
-            type="tertiary"
-            theme="borderless"
-            size="small"
-            onClick={() => setForgotPasswordVisible(true)}
-          >
+          <Button type="tertiary" theme="borderless" size="small" onClick={openForgotPassword}>
             忘记密码？
           </Button>
         </div>
       )}
-    </Form>
+    </form>
+  );
+
+  const renderRegisterForm = () => (
+    <form className="login-form" onSubmit={handleRegisterSubmit} noValidate>
+      <LoginField
+        {...registerForm.field('username')}
+        id="register-username"
+        placeholder="用户名（3~32 个字符）"
+        prefix={<User />}
+        size="large"
+        autoComplete="username"
+      />
+      <LoginField
+        {...registerForm.field('nickname')}
+        id="register-nickname"
+        placeholder="昵称"
+        prefix={<AtSign />}
+        size="large"
+        autoComplete="nickname"
+      />
+      <LoginField
+        {...registerForm.field('email')}
+        id="register-email"
+        type="email"
+        placeholder="邮箱"
+        prefix={<Mail />}
+        size="large"
+        autoComplete="email"
+      />
+      <LoginField
+        {...registerForm.field('password')}
+        id="register-password"
+        type="password"
+        placeholder="密码（至少6个字符）"
+        prefix={<Lock />}
+        size="large"
+        autoComplete="new-password"
+      />
+      <Button
+        htmlType="submit"
+        type="primary"
+        theme="solid"
+        loading={loading}
+        disabled={retrySeconds > 0}
+        block
+        size="large"
+        style={PRIMARY_BUTTON_STYLE}
+      >
+        {retrySeconds > 0 ? `${retrySeconds}s 后可重试` : '注册'}
+      </Button>
+    </form>
+  );
+
+  const renderMfaForm = () => (
+    <form className="login-form" onSubmit={handleMfaSubmit} noValidate>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+        <div style={{
+          width: 36,
+          height: 36,
+          borderRadius: 'var(--semi-border-radius-medium)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: 'var(--semi-color-primary)',
+          background: 'var(--semi-color-primary-light-default)',
+        }}>
+          <ShieldCheck size={18} />
+        </div>
+        <div>
+          <Text strong>需要二次验证</Text>
+          <Text type="tertiary" size="small" style={{ display: 'block' }}>
+            {mfaChallenge?.reason || '请输入身份验证器中的 6 位动态码'}
+          </Text>
+        </div>
+      </div>
+      <div className="login-field">
+        <div className="login-field-main">
+          <PinCode
+            count={6}
+            size="large"
+            value={mfaCode}
+            autoFocus
+            onChange={(value) => {
+              setMfaCode(value);
+              if (mfaError) setMfaError(undefined);
+            }}
+          />
+          {mfaError ? <div className="login-field-error" role="alert">{mfaError}</div> : null}
+        </div>
+      </div>
+      <div className="login-field">
+        <Checkbox checked={rememberDevice} onChange={(e) => setRememberDevice(Boolean(e.target.checked))}>
+          信任此设备，减少二次验证
+        </Checkbox>
+      </div>
+      <Button
+        htmlType="submit"
+        type="primary"
+        theme="solid"
+        loading={loading}
+        block
+        size="large"
+        style={PRIMARY_BUTTON_STYLE}
+      >
+        验证并登录
+      </Button>
+      <Button type="tertiary" theme="borderless" block style={{ marginTop: 8 }} onClick={leaveMfa}>
+        返回账号密码登录
+      </Button>
+    </form>
   );
 
   let formSubtitle = '请输入您的账号信息以登录工作台';
@@ -280,6 +471,7 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
 
   const handleEnterpriseLogin = async (provider: TenantIdentityProviderSummary) => {
     if (provider.type === 'ldap' || provider.type === 'ad') {
+      setDirectoryMounted(true);
       setDirectoryProvider(provider);
       return;
     }
@@ -291,7 +483,7 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
     }
   };
 
-  const handleDirectoryLogin = async (values: Record<string, string>) => {
+  const handleDirectoryLogin = async (values: DirectoryLoginValues) => {
     if (!directoryProvider) return;
     setDirectoryLoginLoading(true);
     try {
@@ -307,7 +499,6 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
       if (isMfaChallenge(loginResult)) {
         setMfaChallenge(loginResult);
         setDirectoryProvider(null);
-        directoryFormApi.current = null;
         return;
       }
       localStorage.setItem(TOKEN_KEY, loginResult.token.accessToken);
@@ -319,22 +510,6 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
     } finally {
       setDirectoryLoginLoading(false);
     }
-  };
-
-  const closeDirectoryLogin = () => {
-    setDirectoryProvider(null);
-    directoryFormApi.current = null;
-  };
-
-  const handleDirectoryLoginOk = async () => {
-    if (!directoryFormApi.current) return;
-    let values: Record<string, string>;
-    try {
-      values = await directoryFormApi.current.validate() as Record<string, string>;
-    } catch {
-      return;
-    }
-    await handleDirectoryLogin(values);
   };
 
   if (mfaChallenge) {
@@ -419,128 +594,41 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
           )}
           {mfaChallenge ? (
             <div style={{ marginBottom: 20 }}>
-              <Form onSubmit={handleMfaVerify} initValues={{ rememberDevice: true }} style={{ marginTop: 12 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-                  <div style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 'var(--semi-border-radius-medium)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: 'var(--semi-color-primary)',
-                    background: 'var(--semi-color-primary-light-default)',
-                  }}>
-                    <ShieldCheck size={18} />
-                  </div>
-                  <div>
-                    <Text strong>需要二次验证</Text>
-                    <Text type="tertiary" size="small" style={{ display: 'block' }}>
-                      {mfaChallenge?.reason || '请输入身份验证器中的 6 位动态码'}
-                    </Text>
-                  </div>
-                </div>
-                <Form.PinCode
-                  field="code"
-                  noLabel
-                  count={6}
-                  rules={[{ required: true, message: '请输入动态验证码' }]}
-                  size="large"
-                />
-                <Form.Checkbox field="rememberDevice" noLabel>
-                  信任此设备，减少二次验证
-                </Form.Checkbox>
-                <Button
-                  htmlType="submit"
-                  type="primary"
-                  theme="solid"
-                  loading={loading}
-                  block
-                  size="large"
-                  style={{ marginTop: 8, borderRadius: 'var(--semi-border-radius-medium)', height: 42 }}
-                >
-                  验证并登录
-                </Button>
-                <Button
-                  type="tertiary"
-                  theme="borderless"
-                  block
-                  style={{ marginTop: 8 }}
-                  onClick={() => {
-                    setMfaChallenge(null);
-                    if (captchaEnabled) fetchCaptcha();
-                  }}
-                >
-                  返回账号密码登录
-                </Button>
-              </Form>
+              {renderMfaForm()}
             </div>
           ) : isDemoMode || !allowRegistration ? (
             <div style={{ marginBottom: 20 }}>
               {renderLoginForm()}
             </div>
           ) : (
-            <Tabs collapsible="auto" type="line" activeKey={tab} onChange={setTab} style={{ marginBottom: 20 }}>
-              <TabPane tab="登录" itemKey="login">
-                {renderLoginForm()}
-              </TabPane>
-              <TabPane tab="注册" itemKey="register">
-                <Form onSubmit={handleRegister} style={{ marginTop: 12 }}>
-                  <Form.Input
-                    field="username"
-                    noLabel
-                    placeholder="用户名（3~32 个字符）"
-                    prefix={<User />}
-                    rules={[{ required: true, message: '请输入用户名' }]}
-                    size="large"
-                  />
-                  <Form.Input
-                    field="nickname"
-                    noLabel
-                    placeholder="昵称"
-                    prefix={<AtSign />}
-                    rules={[{ required: true, message: '请输入昵称' }]}
-                    size="large"
-                  />
-                  <Form.Input
-                    field="email"
-                    noLabel
-                    placeholder="邮箱"
-                    prefix={<Mail />}
-                    rules={[{ required: true, type: 'string', message: '请输入邮箱' }]}
-                    size="large"
-                  />
-                  <Form.Input
-                    field="password"
-                    noLabel
-                    type="password"
-                    placeholder="密码（至少6个字符）"
-                    prefix={<Lock />}
-                    rules={[{ required: true, message: '请输入密码' }]}
-                    size="large"
-                  />
-                  <Button
-                    htmlType="submit"
-                    type="primary"
-                    theme="solid"
-                    loading={loading}
-                    disabled={retrySeconds > 0}
-                    block
-                    size="large"
-                    style={{ marginTop: 8, borderRadius: 'var(--semi-border-radius-medium)', height: 42 }}
+            <div style={{ marginBottom: 20 }}>
+              <div className="login-tabs" role="tablist" aria-label="登录或注册">
+                {([['login', '登录'], ['register', '注册']] as const).map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    role="tab"
+                    id={`login-tab-${key}`}
+                    aria-selected={tab === key}
+                    aria-controls={`login-panel-${key}`}
+                    className={`login-tab${tab === key ? ' login-tab-active' : ''}`}
+                    onClick={() => setTab(key)}
                   >
-                    {retrySeconds > 0 ? `${retrySeconds}s 后可重试` : '注册'}
-                  </Button>
-                </Form>
-              </TabPane>
-            </Tabs>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <div id={`login-panel-${tab}`} role="tabpanel" aria-labelledby={`login-tab-${tab}`}>
+                {tab === 'login' ? renderLoginForm() : renderRegisterForm()}
+              </div>
+            </div>
           )}
           {addAccountMode && authStatus === 'authenticated' && !mfaChallenge && (
             <Button theme="borderless" type="tertiary" block style={{ marginTop: -8, marginBottom: 12 }} onClick={() => navigate('/')}>
               取消添加，返回工作台
             </Button>
           )}
-          {/* OAuth 第三方登录 */}
+          {/* 企业身份源登录（LDAP / AD / 企业 SSO） */}
           {!mfaChallenge && enterpriseProviders.length > 0 && (
             <div className="login-enterprise">
               <Divider />
@@ -595,45 +683,24 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
       <footer className="login-footer">
         © {dayjs().year()} {config.appTitle} · 高效 · 稳定 · 安全
       </footer>
-      <ForgotPasswordModal
-        visible={forgotPasswordVisible}
-        onClose={() => setForgotPasswordVisible(false)}
-      />
-      <AppModal
-        title={directoryProvider ? `${directoryProvider.name} 登录` : '目录账号登录'}
-        visible={!!directoryProvider}
-        onCancel={closeDirectoryLogin}
-        onOk={handleDirectoryLoginOk}
-        okText="登录"
-        cancelText="取消"
-        okButtonProps={{ loading: directoryLoginLoading }}
-        closeOnEsc
-      >
-        <Form
-          key={directoryProvider?.id ?? 'directory-login'}
-          getFormApi={(api) => { directoryFormApi.current = api; }}
-          labelPosition="left"
-          labelWidth={72}
-        >
-          <Form.Input
-            field="username"
-            label="账号"
-            placeholder="目录账号 / 邮箱"
-            prefix={<User />}
-            rules={[{ required: true, message: '请输入目录账号' }]}
-            size="large"
+      {forgotPasswordMounted && (
+        <Suspense fallback={null}>
+          <ForgotPasswordModal
+            visible={forgotPasswordVisible}
+            onClose={() => setForgotPasswordVisible(false)}
           />
-          <Form.Input
-            field="password"
-            label="密码"
-            type="password"
-            placeholder="目录密码"
-            prefix={<Lock />}
-            rules={[{ required: true, message: '请输入目录密码' }]}
-            size="large"
+        </Suspense>
+      )}
+      {directoryMounted && (
+        <Suspense fallback={null}>
+          <DirectoryLoginModal
+            provider={directoryProvider}
+            loading={directoryLoginLoading}
+            onCancel={() => setDirectoryProvider(null)}
+            onSubmit={handleDirectoryLogin}
           />
-        </Form>
-      </AppModal>
+        </Suspense>
+      )}
     </div>
   );
 }

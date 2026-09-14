@@ -260,6 +260,13 @@ export default defineConfig(({ mode }) => {
               { name: 'vendor-semi-markdown', test: /node_modules[\\/](?:@douyinfe[\\/](?:semi-ui|semi-foundation)[\\/]lib[\\/]es[\\/](?:aiChatDialogue|aiChatInput|chat|markdownRender|codeHighlight|jsonViewer)|prismjs)[\\/]/, priority: 15 },
               // 媒体播放器与 markdown 族分开：文件预览只用播放器，不应连带 MDX 解析器
               { name: 'vendor-semi-media', test: /node_modules[\\/]@douyinfe[\\/](?:semi-ui|semi-foundation)[\\/]lib[\\/]es[\\/](?:lottie|videoPlayer|audioPlayer)[\\/]/, priority: 15 },
+              // 表单家族单独成 chunk（≈700KB / 190KB gz）：Semi Form 的 BaseForm 静态引入全部字段控件，加上只经 Form 使用的
+              // 重控件 Cascader / TreeSelect / Upload(+Cropper) / TagInput / AutoComplete / Transfer。核心对它们仅有的反向依赖是
+              // input/inputGroup → form/label（因此 form/label 与 semi-foundation 的 form/* 留在核心）与 image/previewFooter → slider
+              // （因此 Slider 留在核心），其余全部单向依赖核心、不会成环。DatePicker / TimePicker / InputNumber / Rating / PinCode
+              // 被壳层（search-filters、FeedbackWidget）或登录页直接使用，留在核心。登录页不用 Form（见 App.tsx），
+              // 这一族因此只在打开带表单的页面时加载。
+              { name: 'vendor-semi-form', test: /node_modules[\\/]@douyinfe[\\/](?:semi-ui[\\/]lib[\\/]es[\\/](?:form[\\/](?!label\.js)|(?:cascader|treeSelect|upload|cropper|tagInput|autoComplete|transfer)[\\/])|semi-foundation[\\/]lib[\\/]es[\\/](?:cascader|treeSelect|upload|cropper|tagInput|autoComplete|transfer)[\\/])/, priority: 15 },
               { name: 'vendor-semi', test: /node_modules[\\/]@douyinfe[\\/](?:semi-ui|semi-foundation|semi-icons|semi-animation)[\\/]/, priority: 14 },
               { name: 'vendor-common', test: /node_modules/, priority: 10, minShareCount: 10 },
               { name: 'app-shared', test: APP_SHARED_LOGIC, priority: 8, minShareCount: 10 },
