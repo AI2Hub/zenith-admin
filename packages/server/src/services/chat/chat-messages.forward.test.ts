@@ -119,10 +119,11 @@ describe('forwardMessages —— 逐条转发', () => {
   it('某个目标会话被禁言：该会话不写入、错误上抛，其它会话仍完成', async () => {
     stubSelects([{ conversationId: 20 }, { conversationId: 30 }], [{ userId: 1 }]);
     const values = stubInsertReturning();
-    // 会话间并行启动顺序即数组顺序：第一次成员查询对应会话 20，第二次对应会话 30（个人禁言中）
+    // 会话间并行启动顺序即数组顺序：第一次成员查询对应会话 20，第二次对应会话 30（个人禁言中）。
+    // 禁言截止必须相对真实当前时间（服务用 new Date() 比较），写成固定时刻会在过期后静默变绿 / 变红
     mocks.query.chatConversationMembers.findFirst
       .mockResolvedValueOnce({ role: 'member', mutedUntil: null })
-      .mockResolvedValueOnce({ role: 'member', mutedUntil: at(3600) });
+      .mockResolvedValueOnce({ role: 'member', mutedUntil: new Date(Date.now() + 3_600_000) });
 
     await expect(forwardMessages({ messageIds: [1], targetConversationIds: [20, 30], mode: 'items' })).rejects.toThrow(HTTPException);
     expect(values).toHaveBeenCalledTimes(1);
