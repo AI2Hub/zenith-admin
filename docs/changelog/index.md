@@ -4,6 +4,58 @@
 
 ---
 
+## v2.37.0 - 2026-09-14
+
+**服务端异常进异常日志，与前端错误监控共用一套 Issue 模型**。此前服务端 5xx / 任务失败 / 定时作业失败 / 事件订阅者失败只散落在进程日志里，靠人翻日志查看器；本版把它们作为错误监控 Issue 模型的第二个来源接入——同一指纹归为一个分组，承载处理状态 / 级别 / 指派 / 备注 / 告警规则 / 数据保留，不新增任何表。「系统设置 → 系统监控 → 异常日志」看服务端（Issue / 事件 / 告警规则 / 告警历史），「数据分析 → 错误监控」继续看浏览器端；一次失败请求在两侧留下的记录用 `X-Request-Id` 串起来双向互查。采集器以「记录异常不能成为第二个故障」为前提设计：同步 O(1) 归一化入队、有界缓冲、单指纹 / 全局令牌桶（超出只累加次数）、连续落库失败熔断、Error 对象符号标记防重，`logger.error / fatal` 携带 Error 的写入点自动兜底采集。同时带上一轮服务端热路径与前端首屏优化。
+
+### 升级注意
+
+- **数据库迁移 3 个**，升级后执行 `npm run db:migrate`：`0018`（站内信 / 会员通知未读数局部索引）、`0019`（`frontend_error_type` 枚举新增 6 个服务端类型；`error_groups.source`；`error_events` 新增 `trace_id` / `route` / `error_name` / `error_code` / `job_type` / `job_id` / `process_role` / `hostname` / `pid` / `affected_tenant_id` 与 trace 局部索引；`error_alert_rules.source`）、`0020`（内置菜单：新建「系统监控」目录 2750，服务监控 2080 / 链路追踪 2720 / 日志文件 2150 搬入其中并补齐角色 / 用户对新目录的授权；「审计日志」只保留登录 / 操作 / 模拟登录记录）；随后 `npm run db:seed` 写入新页「异常日志」（2760）与权限按钮。
+- 菜单 IA：「服务监控」从「系统设置」根下移入新目录「系统监控」，「链路追踪」「日志文件」从「审计日志」移入「系统监控」；已手工调整过这些行的环境不受迁移影响（按 id + 旧父级定位）。
+- 权限：新增 `system:exception-log:list` / `system:exception-log:manage`；异常日志全部接口 `platformOnly: 'multi-tenant'`，多租户部署下仅平台超管可见（服务端堆栈与请求快照是平台运维数据）；前端错误监控的全部查询 / 处理 / 清理恒定排除 `source = 'server'`。
+- 运行时设置新增模块 `errorTracking`（`/api/settings/error-tracking`）：采集开关、`logger.error` 兜底开关、单 Issue / 全局每分钟闸值、请求快照（记录请求体 / 截断长度 / 追加脱敏字段）、忽略正则；通用设置页可编辑，热更新。
+- 服务端行为变化：500 响应体新增 `requestId` 字段（`ErrorResponse` schema 同步），用户可凭号报障；任务中心每次尝试失败、pg-boss 调度失败、三条事件总线 handler 失败、崩溃哨兵补投都会写入异常日志；告警规则新增 `source` 维度，`ops.error.alert` 通知事件标签改为「错误监控告警（前端错误 / 服务端异常）」。
+- 公共 API（仅影响自定义代码）：`FRONTEND_ERROR_TYPES` 之外新增 `SERVER_ERROR_TYPES`，`ERROR_TYPES` 为并集，`ErrorGroup` / `ErrorEvent` / `ErrorAlertRule` 实体 `errorType` 改为 `ErrorType`；`ErrorGroup` 新增 `source`，`ErrorEvent` 新增链路 / 服务端上下文字段；`frontendErrorContract.events` 支持 `?traceId=`；SDK `reportError` 选项新增 `traceId`；`lib/error-tracking` 导出 `captureException()` 供需要结构化上下文的失败路径显式采集（`logger.error` 已被兜底网覆盖，业务代码不必重复上报）；数据保留策略 `error_events` 同时覆盖前端与服务端事件。
+- 依赖：移除 `@iconify/react`，图标改为构建期生成的静态资产。
+
+### Added
+
+#### 服务端（server）
+
+- `lib/error-tracking`：归一化（任意 thrown 值 → 名称 / 消息 / 代码 / 含 cause 链与 AggregateError 的堆栈，PG / 系统错误细节）、服务端指纹（`environment | errorType | errorName | 归一化消息 | 前 3 个应用内帧`，去行列号，支持显式覆盖）、请求快照脱敏（请求头白名单、请求体脱敏 + 字节截断、query / params 打码）、共享落库内核 `recordErrorEvent(Within/Batch)`（前端上报与服务端采集同一段）、采集器 `captureException()` / `captureRequestException()`（有界缓冲 → 定时批量落库、令牌桶限流、熔断、防重、内建过滤、设置异步刷新）、`onErrorRecorded` 监听器。
+- 采集点：`app.onError`（非 `HTTPException` 与 ≥500）、任务中心 runner（每次尝试；可重试 `warning` / 终态 `error`，带提交时 traceId 与创建人）、pg-boss 系统调度 / 业务定时任务、三条事件总线、崩溃哨兵补投（`process_crash` / `fatal`）、`logger.error / fatal` 兜底网（`setLoggedErrorSink`）；进程入口统一启停，优雅停机 flush 缓冲。
+- `exceptionLogContract`（`/api/exception-logs`）：概览、采集器运行状态、分组列表 / 详情（趋势、路由-作业 / 主机 / 受影响租户分布、最近事件）/ 处理 / 批量状态 / 批量删除、事件列表（链路 ID / 路由 / 作业 / 主机 / 类型 / 级别 / 时间区间）/ 详情、服务端告警规则 CRUD / 试发 / 触发历史。
+- 前端错误事件列表 `?traceId=` 精确筛选，与服务端异常事件按同一列互查。
+
+#### 契约（shared）
+
+- 错误类型拆为 `FRONTEND_ERROR_TYPES` + `SERVER_ERROR_TYPES`（`server_exception` / `job_failure` / `cron_failure` / `event_failure` / `process_crash` / `logged_error`），`ERROR_TYPES` 并集与标签 / 选项；`isServerErrorType()`。
+- `ErrorGroup.source`；`ErrorEvent` 新增 `traceId` / `route` / `errorName` / `errorCode` / `jobType` / `jobId` / `processRole` / `hostname` / `pid` / `affectedTenantId`；告警规则 `source` 维度；前端上报 `traceId`。
+- 运行时设置模块 `errorTracking`；权限码 `system:exception-log:list` / `manage`；菜单种子「系统监控」目录与「异常日志」页。
+
+#### 前端（web）
+
+- 「系统监控 → 异常日志」：Issue Tab（统计卡即筛选、采集器熔断 / 关闭横幅、状态 / 类型 / 级别 / 环境 / 最近发生区间 / 关键字筛选、批量标记 / 忽略 / 删除、详情抽屉：处理表单 / 最新堆栈 / 14 日趋势 / 三类分布 / 最近事件）、事件 Tab（链路 ID 前缀 / 路由 / 作业 / 主机筛选，详情抽屉：定位信息 / cause 链堆栈 / 脱敏请求快照 / 作业上下文 / 异常细节，链路 ID 复制 + 跳链路追踪 + 查看前端现场）、告警规则 / 告警历史 Tab；`?tab=` / `?issue=` / `?traceId=` 深链。
+- `components/error-tracking`：错误监控与异常日志共用的 Issue 原子（类型 / 级别 / 状态标签与颜色表、类型图标、迷你趋势、代码块、告警渠道标签）、告警规则编辑弹窗、告警规则 / 历史列工厂；错误监控页改为导入共享实现。
+- 错误监控 → 事件详情新增「查看服务端异常」跳转，事件 Tab 支持 `?traceId=` 定位；服务监控总览新增「异常日志（24h）」指标块（未处理 Issue / 今日新增），点击进入异常日志。
+- Demo 模式：异常日志七类服务端异常样例、事件（含请求快照 / 作业上下文）、告警规则与历史。
+
+#### 采集 SDK（analytics-sdk）
+
+- `http_error` 上报把失败响应的 `X-Request-Id` 提升为一等字段 `traceId`（保留 `context.requestId`）。
+
+### Changed
+
+- 性能（服务端）：登录 / 操作日志统计面板加 60s 进程内缓存；回放分片终包 gzip 改走线程池；字典标签批量取（`listDictItemsByCodes`）；用户导出（xlsx / csv）改为每批 1000 行边查边写流；聊天转发按目标会话批量写入（`sendMessagesBulk`，`mapWithConcurrency(4)`），替代逐条 `sendMessage`；文件管理器新建 / 复制 / 改名 / 移动去掉请求路径上的 `existsSync`（断连网络盘不再卡住事件循环）；站内信 / 公告推送直接写入壳层缓存并按收件人推送真实行，消除群发惊群，WebSocket 重连后一次性补拉。
+- 性能（前端）：登录 / 注册 / MFA 表单剥离 Semi Form 家族，找回密码 / 目录账号登录弹窗懒加载，匿名首屏关键路径 497 → 294 KB gz；文件类型 / 品牌图标改为构建期生成的静态资产（`scripts/gen-iconify-assets.mjs`），移除 `@iconify/react` 与第三方图标源请求。
+- 异常事件 / 最近事件表：HTTP 与主机列加宽并省略显示，不再换行。
+
+### Docs
+
+- 新增 `docs/backend/error-tracking.md`（采集点、采集器保障、指纹规则、脱敏、隔离、设置、告警 / 保留、关联排障）；skill constraints「进程级错误兜底与异常采集」（业务代码不重复上报、预期失败抛 4xx、新失败路径接 `captureException`）。
+
+---
+
 ## v2.36.0 - 2026-09-14
 
 **门禁声明进契约，接口目录随之派生；偏好设置与工作台补齐日常体验**。后台登录令牌操作的访问要求（权限码 / 登录即可 / 仅平台超管）、审计与功能门控此前在路由文件里逐端点手写，本版把它们全部迁到契约操作的 `access` / `audit` / `feature` 上（2,172 个操作，迁移前后 2,429 个端点的门禁事实逐端点一致），`defineContractRoute` 据此装配中间件链，路由只剩 handler；权限码注册表成为唯一真相，种子按钮由注册表生成。在此基础上新增「接口目录」页：全部契约操作的地址 / 方法 / 认证 / 权限码 / 审计 / 功能门控，并可按角色或用户查看每个接口能否调用——不落任何新表，目录由服务端从契约派生下发。同时交付管理员模拟登录、偏好设置 7 个新选项、发起工作台概览卡、表单设计器拼音搜索，以及一轮服务端热路径与前端分包 / 重渲染优化。
