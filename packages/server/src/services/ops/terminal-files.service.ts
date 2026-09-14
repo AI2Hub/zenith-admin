@@ -188,12 +188,32 @@ export interface TerminalShellListing {
   defaultShell: string;
 }
 
+/** 仅用于启动期 / 本机系统路径的 shell 探测；请求路径上的文件操作一律走异步 API（见 pathExists 与各操作的原子写法） */
 function existsSyncSafe(p: string): boolean {
   try {
     return existsSync(p);
   } catch {
     return false;
   }
+}
+
+/**
+ * 异步存在性探测。请求路径上禁止 existsSync：目标落在断连的网络映射盘时同步探测会把事件循环卡住数秒
+ * （盘符探测已为此改成异步 + 超时），期间所有请求一起停摆。能用原子操作（mkdir / wx / cp errorOnExist）
+ * 表达「不存在才创建」的地方直接用原子操作，连探测都省掉，同时消除先查后建的竞态。
+ */
+async function pathExists(p: string): Promise<boolean> {
+  try {
+    await fs.access(p);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function isErrno(err: unknown, ...codes: string[]): boolean {
+  const code = (err as NodeJS.ErrnoException | undefined)?.code;
+  return typeof code === 'string' && codes.includes(code);
 }
 
 /**
@@ -354,12 +374,14 @@ export async function writeTextFile(
 export async function createEntry(targetPath: string, type: 'file' | 'dir'): Promise<TerminalFileEntry> {
   if (!targetPath?.trim()) throw new HTTPException(400, { message: '缺少路径' });
   const resolved = path.resolve(targetPath);
-  if (existsSyncSafe(resolved)) throw new HTTPException(400, { message: '同名文件或目录已存在' });
-  if (type === 'dir') {
-    await fs.mkdir(resolved, { recursive: true });
-  } else {
-    await fs.mkdir(path.dirname(resolved), { recursive: true });
-    await fs.writeFile(resolved, '', { flag: 'wx' });
+  // 「不存在才创建」由原子操作保证：非递归 mkdir / wx 独占写在目标已存在时抛 EEXIST，无需先探测
+  await fs.mkdir(path.dirname(resolved), { recursive: true });
+  try {
+    if (type === 'dir') await fs.mkdir(resolved);
+    else await fs.writeFile(resolved, '', { flag: 'wx' });
+  } catch (err) {
+    if (isErrno(err, 'EEXIST')) throw new HTTPException(400, { message: '同名文件或目录已存在' });
+    throw err;
   }
   const s = await fs.stat(resolved);
   return { name: path.basename(resolved), path: resolved, type, size: s.size, mtime: formatDateTime(s.mtime) };
@@ -390,7 +412,8 @@ export async function renameEntry(from: string, to: string): Promise<TerminalFil
   } catch {
     throw new HTTPException(404, { message: '源路径不存在' });
   }
-  if (existsSyncSafe(dst)) throw new HTTPException(400, { message: '目标已存在' });
+  // rename 会覆盖已存在的文件，没有原子的「不存在才改名」，保留一次异步探测
+  if (await pathExists(dst)) throw new HTTPException(400, { message: '目标已存在' });
   await fs.mkdir(path.dirname(dst), { recursive: true });
   await fs.rename(src, dst);
   const s = await fs.stat(dst);
@@ -458,7 +481,7 @@ export async function moveEntry(from: string, to: string): Promise<TerminalFileE
   const dst = path.resolve(to);
   if (src === dst) return buildEntry(src);
   try { await fs.stat(src); } catch { throw new HTTPException(404, { message: '源路径不存在' }); }
-  if (existsSyncSafe(dst)) throw new HTTPException(400, { message: '目标路径已存在' });
+  if (await pathExists(dst)) throw new HTTPException(400, { message: '目标路径已存在' });
   await fs.mkdir(path.dirname(dst), { recursive: true });
   try {
     await fs.rename(src, dst);
@@ -482,8 +505,13 @@ export async function copyEntry(from: string, to: string): Promise<TerminalFileE
   const src = path.resolve(from);
   const dst = path.resolve(to);
   try { await fs.stat(src); } catch { throw new HTTPException(404, { message: '源路径不存在' }); }
-  if (existsSyncSafe(dst)) throw new HTTPException(400, { message: '目标路径已存在' });
-  await fs.cp(src, dst, { recursive: true });
+  // cp 自带「目标已存在即失败」：不覆盖、不探测
+  try {
+    await fs.cp(src, dst, { recursive: true, force: false, errorOnExist: true });
+  } catch (err) {
+    if (isErrno(err, 'ERR_FS_CP_EEXIST')) throw new HTTPException(400, { message: '目标路径已存在' });
+    throw err;
+  }
   return buildEntry(dst);
 }
 
