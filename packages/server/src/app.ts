@@ -31,7 +31,8 @@ import type { Logger } from 'pino';
 import { config } from './config';
 import logger from './lib/logger';
 import { htmlSecurityHeadersMiddleware } from './lib/html-security-headers';
-import { errBody } from './lib/openapi-schemas';
+import { errBody, internalErrorBody } from './lib/openapi-schemas';
+import { captureRequestException } from './lib/error-tracking/reporter';
 import { CONTRACT_SECURITY_SCHEMES } from './lib/contract-route';
 import { OAuth2Error, oauth2ErrorBody } from './lib/oauth2-error';
 import { registerZenithMetrics } from './lib/prometheus-metrics';
@@ -299,17 +300,19 @@ export function createApp() {
 
   app.notFound((c) => c.json(errBody('接口不存在', 404), 404));
 
-  // 全局未捕获异常处理—统一返回标准错误格式
+  // 全局未捕获异常处理—统一返回标准错误格式；≥500 进异常日志（含脱敏请求快照），响应体回传 requestId 便于凭号定位
   app.onError((err, c) => {
     // OAuth2 协议端点必须返回 RFC 6749 格式，标准客户端库才能正确解析错误语义
     if (err instanceof OAuth2Error) {
       return c.json(oauth2ErrorBody(err), err.status);
     }
     if (err instanceof HTTPException) {
+      if (err.status >= 500) void captureRequestException(err, c, { status: err.status });
       return c.json(errBody(err.message, err.status), err.status);
     }
+    void captureRequestException(err, c, { status: 500 });
     logger.error('[Unhandled Error]', err);
-    return c.json(errBody('服务器内部错误', 500), 500);
+    return c.json(internalErrorBody(c.get('requestId')), 500);
   });
 
   return { app, buildOpenApiDocJson };

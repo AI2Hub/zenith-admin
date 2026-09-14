@@ -9,6 +9,7 @@ export { pickHeaders, scrubBody, snapshotRequest } from './scrub';
 export { bumpErrorGroupCounts, recordErrorEvent, recordErrorEventBatch, recordErrorEventWithin } from './store';
 export {
   captureException,
+  captureRequestException,
   currentErrorTrackingSettings,
   errorReporterStats,
   flushErrorReporter,

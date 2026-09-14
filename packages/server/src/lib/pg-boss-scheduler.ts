@@ -23,6 +23,7 @@ import { createPgDumpBackup, createDrizzleExportBackup } from './db-backup';
 import { formatFileTimestamp, formatDateTime } from './datetime';
 import { config } from '../config';
 import { PROCESS_HOSTNAME, PROCESS_ID, PROCESS_PID } from './process-identity';
+import { captureException } from './error-tracking/reporter';
 import { dispatchAlertChannels } from './alert-dispatch';
 import type { SystemSchedulerAlertChannel } from '@zenith/shared/chat';
 import type { CronRunStatus, CronRunTrigger, ProcessRole, SystemSchedulerTaskBase, SystemSchedulerTaskType, SystemSchedulerRunStatus, SystemSchedulerTriggerType } from '@zenith/shared/platform';
@@ -627,6 +628,12 @@ async function executeSystemTask(
     const endedAt = new Date();
     const durationMs = endedAt.getTime() - startedAt.getTime();
     const errorMessage = limitText(err instanceof Error ? err.message : String(err));
+    // 系统调度任务失败进异常日志（任务中心作业已在 runner 内以 job_failure 采集并打标，这里不会重复）
+    captureException(err, {
+      kind: 'cron_failure',
+      job: { type: task.name, id: runId, final: true },
+      extra: { title: task.title, module: task.module, taskType: task.taskType, triggerType, durationMs },
+    });
     await db.update(systemSchedulerRuns).set({
       status: 'failed',
       endedAt,
@@ -924,6 +931,11 @@ async function runCronJob(job: CronJobWithMetadata): Promise<void> {
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
     const status = err instanceof CronRunTimeoutError ? 'timeout' : 'fail';
+    captureException(err, {
+      kind: 'cron_failure',
+      job: { type: `cron:${handlerName}`, id: logRow.id, final: true },
+      extra: { jobId, jobName, handlerName, status, executionCount },
+    });
     await settleCronRun(logRow.id, jobId, startedAt, status, errorMessage);
     if (status === 'timeout') {
       execution.then(

@@ -13,6 +13,7 @@ import { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
 import type { WorkflowEvent, WorkflowEventType, WorkflowInstanceEventPayload, WorkflowNodeEventPayload, WorkflowTaskEventPayload } from '@zenith/shared/workflow';
 import logger from './logger';
+import { captureException } from './error-tracking/reporter';
 import { formatDateTime } from './datetime';
 import { enqueueJob } from './workflow-jobs/engine';
 import { currentTraceId } from './context';
@@ -95,6 +96,7 @@ class WorkflowEventBus {
       try {
         await (h as EventHandler)(full);
       } catch (err) {
+        captureException(err, { kind: 'event_failure', job: { type: full.type, id: full.eventId, final: true } });
         logger.error('[workflow-event-bus] in-process handler error', { type: full.type, eventId: full.eventId, err });
       }
     }));

@@ -10,6 +10,7 @@
  * - 运行时设置（开关 / 闸值 / 脱敏 / 忽略规则）异步刷新，读不到时沿用上一份，绝不因设置不可读而丢异常
  */
 import { HTTPException } from 'hono/http-exception';
+import type { Context } from 'hono';
 import type { AnalyticsEnvironment, ErrorLevel, ServerErrorType } from '@zenith/shared/analytics';
 import { resolveSettings, type ErrorTrackingSettings } from '@zenith/shared/settings';
 import { config } from '../../config';
@@ -22,8 +23,9 @@ import { getSettings } from '../settings';
 import { currentTraceId } from '../trace-context';
 import { computeServerFingerprint } from './fingerprint';
 import { normalizeThrown } from './normalize';
+import { snapshotRequest } from './scrub';
 import { bumpErrorGroupCounts, recordErrorEventBatch } from './store';
-import type { CaptureContext, ErrorEventInput, ErrorGroupBump, RecordedError } from './types';
+import type { CaptureContext, ErrorEventInput, ErrorGroupBump, RecordedError, RequestSnapshot } from './types';
 
 const CAPTURED = Symbol.for('zenith.error-tracking.captured');
 
@@ -265,9 +267,29 @@ function buildInput(cause: unknown, ctx: CaptureContext): ErrorEventInput {
  * 同一个 Error 对象重复传入只记一次（`markCaptured`），显式采集与 logger 兜底网因此不会重复。
  */
 export function captureException(cause: unknown, ctx: CaptureContext = {}): void {
+  if (isCaptured(cause)) return;
+  markCaptured(cause);
+  captureMarked(cause, ctx);
+}
+
+/**
+ * HTTP 处理链的采集入口：先同步打标（随后的 `logger.error` 兜底网不会抢先记一条无上下文的事件），
+ * 再异步构建脱敏请求快照后入队。
+ */
+export async function captureRequestException(cause: unknown, c: Context, options: { status: number; extra?: Record<string, unknown> } ): Promise<void> {
+  if (isCaptured(cause)) return;
+  markCaptured(cause);
+  let request: RequestSnapshot | undefined;
   try {
-    if (isCaptured(cause)) return;
-    markCaptured(cause);
+    const { captureBody, bodyMaxBytes, redactKeys } = state.settings.request;
+    request = await snapshotRequest(c, { status: options.status, captureBody, bodyMaxBytes, extraKeys: redactKeys });
+  } catch { /* 快照失败不影响采集 */ }
+  captureMarked(cause, { kind: 'server_exception', request, extra: options.extra });
+}
+
+/** 已打标的异常进入过滤 / 限流 / 缓冲 */
+function captureMarked(cause: unknown, ctx: CaptureContext): void {
+  try {
     if (!state.settings.enabled) return;
     if (ctx.kind === 'logged_error' && !state.settings.captureLoggedErrors) return;
     if (shouldSkip(cause, ctx)) return;

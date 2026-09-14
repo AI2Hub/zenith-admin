@@ -11,6 +11,7 @@
 import { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
 import logger from './logger';
+import { captureException } from './error-tracking/reporter';
 import { formatDateTime } from './datetime';
 
 export interface OpenPlatformEvent {
@@ -68,6 +69,7 @@ class OpenEventBus {
     for (const handler of this.emitter.listeners(ANY)) {
       queueMicrotask(() => {
         void Promise.resolve((handler as Handler)(full)).catch((err) => {
+          captureException(err, { kind: 'event_failure', job: { type: full.type, id: full.eventId, final: true } });
           logger.error('[open-event-bus] handler error', { type: full.type, err });
         });
       });

@@ -13,6 +13,8 @@ import { validateAlertDelivery } from '../../lib/alert-validation';
 import { dispatchAlertChannels } from '../../lib/alert-dispatch';
 import type { PaginationQuery, QueryOutputOf } from '@zenith/shared/core';
 import { pickEntity } from '../../lib/entity-map';
+import { onErrorRecorded } from '../../lib/error-tracking/reporter';
+import logger from '../../lib/logger';
 
 export function mapRule(row: ErrorAlertRuleRow) {
   return {
@@ -248,6 +250,17 @@ export async function evaluateAlertsForError(input: {
     const { hit, detail } = await evaluateRule(rule, now);
     if (hit) await tryTriggerAlert(rule, detail, 'realtime');
   }));
+}
+
+/**
+ * 服务端异常落库后的实时告警评估：由进程入口注册到采集器的落库监听（lib 不反向依赖 service）。
+ * 与前端上报路径同一套规则与去抖；评估失败只记 warn（cron 保底）。
+ */
+export function registerErrorAlertListener(): () => void {
+  return onErrorRecorded((input, recorded) => {
+    void evaluateAlertsForError({ tenantId: input.tenantId, source: input.source, errorType: input.errorType, level: input.level, isNewGroup: recorded.isNewGroup })
+      .catch((err) => logger.warn('[error-alert] 服务端异常实时告警评估失败', { err: err instanceof Error ? err.message : String(err) }));
+  });
 }
 
 /**

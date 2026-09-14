@@ -26,6 +26,7 @@ import { registerEventSubscribers } from './bootstrap/subscribers';
 import { declareBackgroundJobs } from './bootstrap/workers';
 import { assertRuntimeRoles, assertRuntimeSecrets, config } from './config';
 import { closeDb } from './db';
+import { startErrorReporter, stopErrorReporter } from './lib/error-tracking/reporter';
 import { startInvalidationBus } from './lib/invalidation-bus';
 import logger from './lib/logger';
 import { metricsSampler } from './lib/metrics-sampler';
@@ -33,6 +34,7 @@ import { logPdfFontStatus } from './lib/pdf-font';
 import { stopAllJobs } from './lib/pg-boss-scheduler';
 import { closeRedis } from './lib/redis';
 import { initTelemetry, shutdownTelemetry } from './lib/telemetry';
+import { registerErrorAlertListener } from './services/analytics/error-alert.service';
 import { registerOpenWebhookSubscriber } from './services/open-platform/app-webhooks.service';
 
 // 密钥不合规（非开发环境缺失 JWT_SECRET / FIELD_ENCRYPTION_KEY 或仍是默认值）时在开始监听前终止
@@ -69,6 +71,11 @@ logPdfFontStatus(logger);
 // 跨实例缓存失效总线（PG LISTEN/NOTIFY）：只能在进程入口启动一次；失败进入降级、定时重试，不阻断服务。
 // 两种角色都需要——worker 的设置 / 脱敏策略 / 鉴权缓存同样要跟随变更
 void startInvalidationBus();
+
+// 异常日志采集器（所有角色）：接管 logger.error / fatal 兜底网并定时批量落库；
+// 落库后的告警评估由 analytics 域注册监听，lib 不反向依赖 service
+startErrorReporter();
+registerErrorAlertListener();
 
 // ─── 按角色启动 ─────────────────────────────────────────────────────────────
 let apiRole: ApiRoleHandle | null = null;
@@ -109,6 +116,8 @@ async function shutdown(signal: NodeJS.Signals) {
     // 固定丢失最后一批未导出的 span。放在清理链前部：监听已关闭、span 已完整，且导出走
     // 独立 HTTP 出口，不依赖后续 DB/Redis；未启用 OTel 时为 no-op
     await withTimeout('shutdownTelemetry', shutdownTelemetry(), 5_000);
+    // 异常日志缓冲写完（带 3s 上限）：停机瞬间的失败最值得留下
+    await stopErrorReporter(3_000);
     // pg-boss：worker 等在飞作业收尾（预算 = 硬闸留出 10s 给后续步骤，并传入 pg-boss 的 graceful timeout），
     // api 的 send-only 实例没有在飞作业，即时关闭
     const drainBudgetMs = Math.max(config.shutdownGraceMs - 10_000, 5_000);

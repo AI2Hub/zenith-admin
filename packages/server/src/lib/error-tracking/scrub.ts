@@ -53,23 +53,26 @@ export function scrubBody(body: unknown, options: { maxBytes: number; extraKeys:
   return `${Buffer.from(text, 'utf8').subarray(0, options.maxBytes).toString('utf8')}…(truncated ${bytes - options.maxBytes} bytes)`;
 }
 
-/** hono 校验器缓存的已解析请求体（避免二次读流）；未经校验则在流未消费时按文本读取 */
+/** hono 校验器 / handler 已读过的请求体缓存（`bodyCache` 里存的是各读取方法的 Promise），避免二次读流；未读过则在流未消费时按文本读取 */
 async function readRequestBody(c: Context, maxBytes: number): Promise<unknown> {
+  const type = c.req.header('content-type') ?? '';
+  const parseText = (text: string): unknown => {
+    const cut = text.slice(0, Math.max(maxBytes * 2, 1024));
+    if (!type.includes('json')) return cut;
+    try { return JSON.parse(cut); } catch { return cut; }
+  };
   const cache = (c.req as unknown as { bodyCache?: Record<string, unknown> }).bodyCache;
   if (cache) {
-    if (cache.json !== undefined) return cache.json;
-    if (cache.text !== undefined) return cache.text;
-    if (cache.formData instanceof FormData) return Object.fromEntries([...cache.formData.entries()].map(([k, v]) => [k, typeof v === 'string' ? v : `[file ${v.name}]`]));
+    if (cache.json !== undefined) return await (cache.json as Promise<unknown> | unknown);
+    if (cache.text !== undefined) return parseText(String(await (cache.text as Promise<string> | string)));
+    if (cache.formData !== undefined) {
+      const form = await (cache.formData as Promise<FormData> | FormData);
+      return Object.fromEntries([...form.entries()].map(([k, v]) => [k, typeof v === 'string' ? v : `[file ${v.name}]`]));
+    }
   }
   if (c.req.raw.bodyUsed) return undefined;
-  const type = c.req.header('content-type') ?? '';
   if (!/json|x-www-form-urlencoded|text\//.test(type)) return undefined;
-  const text = await c.req.raw.clone().text();
-  const cut = text.slice(0, Math.max(maxBytes * 2, 1024));
-  if (type.includes('json')) {
-    try { return JSON.parse(cut); } catch { return cut; }
-  }
-  return cut;
+  return parseText(await c.req.raw.clone().text());
 }
 
 function redactRecord(record: Record<string, string> | null, extraKeys: readonly string[]): Record<string, string> | null {

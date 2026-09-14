@@ -14,6 +14,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { formatDateTime } from '../../lib/datetime';
 import { crashSentinelDir, type CrashRecord } from '../../lib/fatal-handlers';
+import { captureException } from '../../lib/error-tracking/reporter';
 import logger from '../../lib/logger';
 import { notify } from '../messaging/notification-outbox.service';
 import { listEnabledPlatformSuperAdmins } from '../identity/platform-admins.service';
@@ -73,7 +74,20 @@ export async function replayCrashSentinelsOnStartup(): Promise<void> {
         continue;
       }
 
-      // 结构化留痕：进主日志（ops 日志查看器可检索，并计入 logErrorPerMin 指标）
+      // 结构化留痕：进主日志（ops 日志查看器可检索，并计入 logErrorPerMin 指标），
+      // 并以 process_crash 进异常日志——重建一个带原始堆栈的 Error，让崩溃与其它异常同一套分组 / 状态 / 告警
+      const crashError = new Error(record.message ?? '未知错误');
+      crashError.name = record.kind ?? 'ProcessCrash';
+      crashError.stack = record.stack ?? `${crashError.name}: ${crashError.message}`;
+      captureException(crashError, {
+        kind: 'process_crash',
+        fingerprint: ['process_crash', record.kind ?? 'unknown', (record.message ?? '').slice(0, 200)],
+        traceId: null,
+        userId: null,
+        tenantId: null,
+        occurredAt: record.crashedAt ? new Date(record.crashedAt) : undefined,
+        extra: { sentinel: name, crashedPid: record.pid ?? null, uptimeSec: record.uptimeSec ?? null, nodeVersion: record.nodeVersion ?? null },
+      });
       logger.error('[crash-report] 检测到上一次进程异常崩溃', { sentinel: name, ...record });
 
       if (recipients.length > 0 && index >= notifyFrom) {

@@ -11,6 +11,7 @@ import type { AsyncTaskRow } from '../../db/schema';
 import type { DbTransaction } from '../../db/types';
 import { ensureLocalNodeQueue, isQueueNotFoundError, registerLocalNodeQueueWorker, registerSystemQueueWorker, isSchedulerNodeAlive, nodeQueueName, sendSystemJob, sendSystemJobAfter } from '../pg-boss-scheduler';
 import { PROCESS_ID } from '../process-identity';
+import { captureException } from '../error-tracking/reporter';
 import { currentUser, runWithCurrentUser, currentTraceId, runWithTraceId, currentParentRef, runWithParentRef } from '../context';
 import { exactTenantCondition, getCreateTenantId } from '../tenant';
 import { buildWhere, nullableEq } from '../where-helpers';
@@ -278,8 +279,9 @@ export async function runAsyncTask(taskId: number): Promise<string> {
     },
   };
 
+  let creator: JwtPayload | null = null;
   try {
-    const creator = await getCreatorPayload(claimed);
+    creator = await getCreatorPayload(claimed);
     // 恢复提交时的链路作用域并登记因果父节点：handler 内的日志/作业/事件/通知继续同链且挂到本任务下
     const runHandler = () => runWithParentRef(`task:${claimed.id}`, () => (creator
       ? runWithCurrentUser(creator, () => handler.run(ctx))
@@ -324,6 +326,16 @@ export async function runAsyncTask(taskId: number): Promise<string> {
     const [currentRow] = await db.select({ cancelRequested: asyncTasks.cancelRequested })
       .from(asyncTasks).where(eq(asyncTasks.id, taskId)).limit(1);
     const canRetry = claimed.attempts < claimed.maxAttempts && !(currentRow?.cancelRequested ?? false);
+    // 每次尝试都进异常日志：可重试失败记 warning，终态失败记 error；catch 已在 handler 的链路 / 身份作用域之外，显式补上
+    captureException(err, {
+      kind: 'job_failure',
+      job: { type: claimed.taskType, id: taskId, attempt: claimed.attempts, maxAttempts: claimed.maxAttempts, final: !canRetry },
+      traceId: claimed.traceId ?? null,
+      userId: creator?.userId ?? claimed.createdBy ?? null,
+      username: creator?.username ?? null,
+      tenantId: creator?.tenantId ?? claimed.tenantId ?? null,
+      extra: { title: claimed.title },
+    });
     if (canRetry) {
       const delayMs = retryDelayFor(claimed.attempts, claimed.retryDelayMs);
       const nextRunAt = new Date(Date.now() + delayMs);

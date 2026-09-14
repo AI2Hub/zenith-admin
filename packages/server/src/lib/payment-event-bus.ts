@@ -13,6 +13,7 @@ import { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
 import type { PaymentChannel, PaymentMethod } from '@zenith/shared/payment';
 import logger from './logger';
+import { captureException } from './error-tracking/reporter';
 import { formatDateTime } from './datetime';
 
 export type PaymentEventType =
@@ -87,10 +88,12 @@ class PaymentEventBus {
           const ret = (h as PaymentEventHandler)(full);
           if (ret instanceof Promise) {
             ret.catch((err) => {
+              captureException(err, { kind: 'event_failure', job: { type: full.type, id: full.eventId, final: true } });
               logger.error('[payment-event-bus] async handler error', { type: full.type, err });
             });
           }
         } catch (err) {
+          captureException(err, { kind: 'event_failure', job: { type: full.type, id: full.eventId, final: true } });
           logger.error('[payment-event-bus] sync handler error', { type: full.type, err });
         }
       }
