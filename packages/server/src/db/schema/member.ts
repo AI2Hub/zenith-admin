@@ -429,6 +429,8 @@ export const memberNotifications = pgTable('member_notifications', {
 }, (t) => [
   index('member_notifications_member_idx').on(t.memberId, t.createdAt),
   index('member_notifications_biz_idx').on(t.type, t.bizId),
+  // 会员端每 60s 轮询未读数 count(member_id = ? AND read_at IS NULL)：局部索引只含未读行，避免逐条回表过滤 read_at
+  index('member_notifications_member_unread_idx').on(t.memberId).where(sql`${t.readAt} is null`),
   uniqueIndex('member_notifications_member_type_biz_uq')
     .on(t.memberId, t.type, t.bizId)
     .where(sql`${t.bizId} is not null and ${t.type} = 'cms_content_published'`),

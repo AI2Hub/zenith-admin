@@ -1,0 +1,2 @@
+CREATE INDEX "in_app_messages_user_unread_idx" ON "in_app_messages" USING btree ("user_id") WHERE "in_app_messages"."is_read" = false;--> statement-breakpoint
+CREATE INDEX "member_notifications_member_unread_idx" ON "member_notifications" USING btree ("member_id") WHERE "member_notifications"."read_at" is null;

@@ -305,6 +305,9 @@ export const inAppMessages = pgTable('in_app_messages', {
   unique('in_app_messages_dedupe_key_unique').on(t.dedupeKey),
   index('in_app_messages_user_created_idx').on(t.userId, t.createdAt),
   index('in_app_messages_created_at_idx').on(t.createdAt),
+  // 铃铛未读数 count(user_id = ? AND is_read = false) 是每条推送 / 每次登录都会命中的查询：
+  // 局部索引只含未读行，从扫描该用户 365 天全部收件记录降为 O(未读数)
+  index('in_app_messages_user_unread_idx').on(t.userId).where(sql`${t.isRead} = false`),
 ]);
 
 export type InAppMessageRow = typeof inAppMessages.$inferSelect;

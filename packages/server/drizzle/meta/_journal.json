@@ -127,6 +127,13 @@
       "when": 1789368065564,
       "tag": "0017_api_catalog_menu_rename",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1789380240339,
+      "tag": "0018_perf_unread_partial_indexes",
+      "breakpoints": true
     }
   ]
 }
