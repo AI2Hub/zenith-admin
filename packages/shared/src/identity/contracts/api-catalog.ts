@@ -50,7 +50,7 @@ export type ApiCatalog = z.infer<typeof apiCatalogSchema>;
  * 目录只随发布变化，客户端可长期缓存。
  */
 export const apiCatalogContract = defineContract('/api/api-catalog', {
-  list: op.get('/', {
+  get: op.get('/', {
     access: { permission: 'system:api-catalog:view' },
     response: apiCatalogSchema,
     summary: '接口目录：全部契约操作的地址 / 方法 / 认证 / 权限码 / 审计 / 功能门控',

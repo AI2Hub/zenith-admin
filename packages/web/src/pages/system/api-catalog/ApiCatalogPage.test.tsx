@@ -61,7 +61,7 @@ function renderPage() {
 
 beforeEach(() => {
   recorder.reset();
-  recorder.on('GET', apiCatalogContract.list.fullPath, catalog);
+  recorder.on('GET', apiCatalogContract.get.fullPath, catalog);
   recorder.on('GET', permissionMatrixContract.roles.fullPath, [
     { id: 1, name: '超级管理员', code: 'super_admin', status: 'enabled', tenantId: null, superAdmin: true, permissions: [] },
     { id: 2, name: '只读', code: 'viewer', status: 'enabled', tenantId: null, superAdmin: false, permissions: ['system:user:list'] },
@@ -91,7 +91,7 @@ describe('ApiCatalogPage', () => {
   it('loads the catalog from the server, narrows by stat card, and filters only after 查询 is clicked', async () => {
     const { container } = renderPage();
     expect(await screen.findByText('共 6 个接口，由契约声明派生')).toBeTruthy();
-    expect(recorder.countOf('GET', apiCatalogContract.list.fullPath)).toBe(1);
+    expect(recorder.countOf('GET', apiCatalogContract.get.fullPath)).toBe(1);
 
     // 统计卡即筛选：立即提交
     fireEvent.click(screen.getByRole('button', { name: /公开接口/ }));

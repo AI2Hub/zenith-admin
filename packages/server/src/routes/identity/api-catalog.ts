@@ -6,10 +6,10 @@ import { getApiCatalog } from '../../services/identity/api-catalog.service';
 
 const apiCatalogRouter = new OpenAPIHono({ defaultHook: validationHook });
 
-const listRoute = defineContractRoute(apiCatalogContract.list, {
+const getRoute = defineContractRoute(apiCatalogContract.get, {
   handler: (c) => c.json(okBody(getApiCatalog()), 200),
 });
 
-apiCatalogRouter.openapiRoutes([listRoute] as const);
+apiCatalogRouter.openapiRoutes([getRoute] as const);
 
 export default apiCatalogRouter;

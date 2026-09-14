@@ -32,7 +32,7 @@ function toRoleSet(role: typeof mockRoles[number]): RolePermissionSet {
 }
 
 export const permissionMatrixHandlers = [
-  mock(apiCatalogContract.list, ({ ok }) => ok(cachedCatalog ??= buildApiCatalog())),
+  mock(apiCatalogContract.get, ({ ok }) => ok(cachedCatalog ??= buildApiCatalog())),
   mock(permissionMatrixContract.roles, ({ ok }) => ok(mockRoles.map(toRoleSet))),
   mock(permissionMatrixContract.user, ({ params, ok }) => {
     const user = requireItem(mockUsers, params.id, '用户不存在', { status: 404 });

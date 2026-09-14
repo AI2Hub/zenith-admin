@@ -3,7 +3,7 @@ import { contractKey, useApiQuery } from '@/lib/contract-query';
 import { LOOKUP_STALE_TIME } from '@/lib/query';
 
 export const apiCatalogKeys = {
-  list: contractKey(apiCatalogContract.list),
+  catalog: contractKey(apiCatalogContract.get),
 };
 
 /**
@@ -11,7 +11,7 @@ export const apiCatalogKeys = {
  * 目录只随发布变化，进程内视为不过期；页面「查询」按标准列表语义回源，刷新即拿到新版本。
  */
 export function useApiCatalog() {
-  return useApiQuery(apiCatalogContract.list, { staleTime: Infinity });
+  return useApiQuery(apiCatalogContract.get, { staleTime: Infinity });
 }
 
 /**
