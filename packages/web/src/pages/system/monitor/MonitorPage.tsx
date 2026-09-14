@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { Button, Descriptions, Skeleton, Tabs, TabPane, Toast, Typography, Select, Tag, Table, RadioGroup, Tooltip } from '@douyinfe/semi-ui';
 import { LineChart, chartOptions, makeLineSpec, useChartPalette } from '@/components/charts';
-import { RefreshCw, Cpu, HardDrive, Database, Server, MemoryStick, Layers, Activity, Network, Wifi, History, Thermometer, ListTree, Download, Copy as CopyIcon, ExternalLink } from 'lucide-react';
+import { RefreshCw, Cpu, HardDrive, Database, Server, MemoryStick, Layers, Activity, Network, Wifi, History, Thermometer, ListTree, Download, Copy as CopyIcon, ExternalLink, Bug } from 'lucide-react';
 import { formatDateTime } from '@/utils/date';
 import DateTimeText from '@/components/DateTimeText';
 import { formatSecondsHuman } from '@/utils/format';
@@ -11,6 +11,8 @@ import { request } from '@/utils/request';
 import { readSseStream } from '@/utils/streaming';
 import { TABLE_PAGE_SIZE_OPTIONS, usePagination } from '@/hooks/usePagination';
 import { useMonitorHistory, useMonitorSnapshot } from '@/hooks/queries/monitor';
+import { useExceptionOverview } from '@/hooks/queries/exception-logs';
+import { usePermission } from '@/hooks/usePermission';
 import { MetricMeter, type MetricMeterTone } from '@/components/data-viz/MetricMeter';
 import './MonitorPage.css';
 import { EMPTY_PLACEHOLDER, dateTimeColumn } from '@/utils/table-columns';
@@ -126,6 +128,10 @@ type MonitorTab = typeof MONITOR_TABS[number];
 export default function MonitorPage() {
   const palette = useChartPalette();
   const navigate = useNavigate();
+  // 异常日志 24h 概览：只对持有查看权限的用户请求（多租户下租户管理员没有该接口）
+  const { hasPermission } = usePermission();
+  const exceptionOverviewQuery = useExceptionOverview(1, hasPermission('system:exception-log:list'));
+  const exceptionOverview = exceptionOverviewQuery.data ?? null;
   const prefsRef = useRef(loadPrefs());
   const [data, setData] = useState<MonitorData | null>(null);
   const [series, setSeries] = useState<TimeseriesPoint[]>([]);
@@ -803,6 +809,21 @@ export default function MonitorPage() {
                     <Text type="tertiary" size="small">累计连接 {formatNumber(wsMetrics.totalConnects)}</Text>
                   </div>
                 </div>
+              )}
+              {exceptionOverview && (
+                <button
+                  type="button"
+                  className="monitor-overview-metric monitor-overview-metric--plain monitor-overview-metric--link"
+                  onClick={() => navigate('/system/exception-logs')}
+                  aria-label="查看异常日志"
+                >
+                  <div className="monitor-overview-metric__header"><Bug size={15} /><Text strong>异常日志（24h）</Text></div>
+                  <div className={`monitor-overview-metric__value${exceptionOverview.occurrences24h > 0 ? ' monitor-overview-metric__value--warn' : ''}`}>{formatNumber(exceptionOverview.occurrences24h)}</div>
+                  <div className="monitor-overview-metric__info">
+                    <Text type="tertiary" size="small">未处理 Issue {formatNumber(exceptionOverview.unresolved)}</Text>
+                    <Text type="tertiary" size="small">今日新增 {formatNumber(exceptionOverview.newToday)}</Text>
+                  </div>
+                </button>
               )}
             </div>
 

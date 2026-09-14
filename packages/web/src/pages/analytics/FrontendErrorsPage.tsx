@@ -4,6 +4,7 @@ import { confirmAndDelete, deleteAction, ListSearchToolbar, listTableProps, useR
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import {
+  Banner,
   Tabs,
   TabPane,
   Card,
@@ -71,6 +72,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePagination } from '@/hooks/usePagination';
 import { useListSearch } from '@/hooks/useListSearch';
 import { usePermission } from '@/hooks/usePermission';
+import { useListDeepLink } from '@/hooks/useListDeepLink';
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import { formatDateTime } from '@/utils/date';
 import {
@@ -175,28 +177,34 @@ function BreadcrumbTimeline({ breadcrumbs }: { readonly breadcrumbs: ErrorBreadc
   );
 }
 
-/** 从事件 context 提取服务端链路 ID（SDK 在 http_error 上报时写入） */
-function extractRequestId(context: unknown): string | null {
+/** 从事件提取服务端链路 ID：一等字段 traceId（新 SDK）优先，回退 context.requestId（旧 SDK 上报） */
+function extractRequestId(event: Pick<ErrorEvent, 'traceId' | 'context'>): string | null {
+  if (event.traceId && event.traceId.length >= 8) return event.traceId;
+  const context = event.context;
   if (!context || typeof context !== 'object') return null;
   const rid = (context as Record<string, unknown>).requestId;
   return typeof rid === 'string' && rid.length >= 8 ? rid : null;
 }
 
-/** 「查看服务端链路」跳转按钮（事件 context 携带 requestId 时展示） */
-function TraceJumpButton({ context }: Readonly<{ context: unknown }>) {
+/** 「查看服务端链路 / 服务端异常」跳转按钮（事件携带链路 ID 时展示；两边各按权限门控） */
+function TraceJumpButton({ event }: Readonly<{ event: Pick<ErrorEvent, 'traceId' | 'context'> }>) {
   const navigate = useNavigate();
   const { hasPermission } = usePermission();
-  const requestId = extractRequestId(context);
-  if (!requestId || !hasPermission('system:trace:view')) return null;
+  const requestId = extractRequestId(event);
+  if (!requestId) return null;
   return (
-    <Button
-      size="small"
-      theme="borderless"
-      type="primary"
-      onClick={() => navigate(`/system/trace?traceId=${encodeURIComponent(requestId)}`)}
-    >
-      查看服务端链路
-    </Button>
+    <>
+      {hasPermission('system:trace:view') && (
+        <Button size="small" theme="borderless" type="primary" onClick={() => navigate(`/system/trace?traceId=${encodeURIComponent(requestId)}`)}>
+          查看服务端链路
+        </Button>
+      )}
+      {hasPermission('system:exception-log:list') && (
+        <Button size="small" theme="borderless" type="primary" onClick={() => navigate(`/system/exception-logs?tab=events&traceId=${encodeURIComponent(requestId)}`)}>
+          查看服务端异常
+        </Button>
+      )}
+    </>
   );
 }
 
@@ -243,8 +251,16 @@ export default function FrontendErrorsPage() {
   const {
     page: eventPage,
     pageSize: eventPageSize,
+    setPage: setEventPage,
     buildPagination: buildEventPagination,
   } = usePagination(20);
+  // 事件按链路 ID 定位（服务端异常日志「查看前端现场」跳过来时通过 ?traceId= 带入，消费即焚）
+  const [eventTraceId, setEventTraceId] = useState<string | undefined>(undefined);
+  useListDeepLink(['traceId'], ({ traceId }) => {
+    setEventTraceId(traceId);
+    setEventPage(1);
+    setActiveTab('events');
+  });
 
   const [uploadVisible, setUploadVisible] = useState(false);
   const [uploadForm, setUploadForm] = useState<SourceMapUploadForm>(defaultSourceMapUpload);
@@ -291,7 +307,8 @@ export default function FrontendErrorsPage() {
   const detail = detailQuery.data ?? null;
   const adminUsersQuery = useFrontendAdminUsers(detailVisible);
   const adminUsers = adminUsersQuery.data?.list ?? EMPTY_ADMIN_USERS;
-  const eventsQuery = useFrontendErrorEvents({ page: eventPage, pageSize: eventPageSize }, activeTab === 'events');
+  const eventFilterQuery = useFilterQuery({ traceId: eventTraceId });
+  const eventsQuery = useFrontendErrorEvents({ page: eventPage, pageSize: eventPageSize, ...eventFilterQuery }, activeTab === 'events');
   // 已提交筛选 → 契约查询参数：只映射一次
   const sourceMapFilterQuery = useFilterQuery({ release: submittedSourceRelease.trim() });
   const sourceMapsQuery = useFrontendSourceMaps({ page: sourceMapPage, pageSize: sourceMapPageSize, ...sourceMapFilterQuery }, activeTab === 'sourcemaps');
@@ -844,6 +861,15 @@ export default function FrontendErrorsPage() {
         </TabPane>
 
         <TabPane tab="错误事件" itemKey="events">
+          {eventTraceId && (
+            <Banner
+              fullMode={false}
+              type="info"
+              bordered
+              closeIcon={null}
+              description={<Space spacing={8}><span>正在按链路 ID <Text code>{eventTraceId}</Text> 定位事件</span><Button size="small" theme="borderless" onClick={() => { setEventTraceId(undefined); setEventPage(1); }}>清除</Button></Space>}
+            />
+          )}
           <ConfigurableTable<ErrorEvent>
             columns={eventColumns}
             style={{ width: '100%' }}
@@ -989,7 +1015,7 @@ export default function FrontendErrorsPage() {
                           { key: '会话', value: event.sessionId || EMPTY_PLACEHOLDER },
                         ]}
                       />
-                      <Title heading={6} style={{ margin: '12px 0 8px' }}>Context <TraceJumpButton context={event.context} /><ReplayJumpButton replayId={event.replayId} /></Title>
+                      <Title heading={6} style={{ margin: '12px 0 8px' }}>Context <TraceJumpButton event={event} /><ReplayJumpButton replayId={event.replayId} /></Title>
                       <TextBlock maxHeight={180}>{safeJson(event.context)}</TextBlock>
                       <Title heading={6} style={{ margin: '12px 0 8px' }}>Breadcrumbs</Title>
                       <BreadcrumbTimeline breadcrumbs={event.breadcrumbs} />
@@ -1030,7 +1056,7 @@ export default function FrontendErrorsPage() {
               <TextBlock>{eventDetail.stack || '暂无堆栈'}</TextBlock>
               <Title heading={6}>Breadcrumbs</Title>
               <BreadcrumbTimeline breadcrumbs={eventDetail.breadcrumbs} />
-              <Title heading={6}>Context <TraceJumpButton context={eventDetail.context} /><ReplayJumpButton replayId={eventDetail.replayId} /></Title>
+              <Title heading={6}>Context <TraceJumpButton event={eventDetail} /><ReplayJumpButton replayId={eventDetail.replayId} /></Title>
               <TextBlock>{safeJson(eventDetail.context)}</TextBlock>
             </Space>
           </div>

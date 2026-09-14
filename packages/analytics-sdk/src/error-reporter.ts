@@ -51,6 +51,8 @@ export interface ReportErrorOptions {
   httpStatus?: number;
   httpMethod?: string;
   httpUrl?: string;
+  /** 失败响应的 X-Request-Id：与服务端异常日志按同一列互查 */
+  traceId?: string;
 }
 
 /** 应用版本（用于 source map 还原与版本回归）。 */
@@ -106,6 +108,7 @@ export function reportError(errorType: FrontendErrorType, message: string, optio
       httpStatus: options?.httpStatus,
       httpMethod: options?.httpMethod,
       httpUrl: options?.httpUrl,
+      traceId: options?.traceId?.slice(0, 64),
       // 强制覆盖平台字段：调用方不可伪造 source/appId/environment
       source: runtime.source,
       appId: runtime.appId,

@@ -10,6 +10,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { DateRangeFilter, FilterSelect, KeywordInput } from '@/components/search-filters';
 import { exceptionLogKeys, useExceptionEvents } from '@/hooks/queries/exception-logs';
 import { useFilterQuery } from '@/hooks/useFilterQuery';
+import { useListDeepLink } from '@/hooks/useListDeepLink';
 import { useListSearch } from '@/hooks/useListSearch';
 import { formatDateTimeRangeForApi } from '@/utils/date';
 import { EMPTY_PLACEHOLDER, copyableNoColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
@@ -31,7 +32,9 @@ const DEFAULT_FILTERS: EventFilters = { traceId: '', route: '', jobType: '', hos
 
 export function ExceptionEventsTab({ active }: Readonly<{ active: boolean }>) {
   const search = useListSearch<EventFilters>({ defaults: DEFAULT_FILTERS, listKey: exceptionLogKeys.eventsLists, pageSize: 20 });
-  const { bind, bindKeyword, submittedParams, page, pageSize, buildPagination, handleSearch, handleReset } = search;
+  const { bind, bindKeyword, submittedParams, page, pageSize, buildPagination, handleSearch, handleReset, applySearch } = search;
+  // ?traceId= 深链：前端错误监控 / 链路追踪跳过来时按链路 ID 定位（消费即焚）
+  useListDeepLink(['traceId'], ({ traceId }) => applySearch({ ...DEFAULT_FILTERS, traceId }));
   const filterQuery = useFilterQuery({
     traceId: submittedParams.traceId.trim(),
     route: submittedParams.route.trim(),

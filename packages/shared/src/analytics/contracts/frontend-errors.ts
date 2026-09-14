@@ -185,6 +185,7 @@ export const errorGroupBatchStatusQuery = z.object({
 
 export const errorEventListQuery = paginationQuery.extend({
   groupId: idQuery(),
+  traceId: keywordQuery('链路 ID', { max: 64, description: '按失败响应的 X-Request-Id 精确匹配，与服务端异常日志互查' }),
 });
 
 export const errorCleanQuery = z.object({

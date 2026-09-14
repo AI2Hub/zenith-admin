@@ -441,7 +441,12 @@ export async function getErrorOverview(daysRaw: unknown) {
 // ─── 事件列表 ─────────────────────────────────────────────────────────────────
 export async function listErrorEvents(q: QueryOutputOf<typeof frontendErrorContract.events>) {
   const { page, pageSize } = q;
-  const where = buildWhere(q.groupId ? eq(errorEvents.groupId, q.groupId) : undefined, browserEvents(), tenantScope(errorEvents));
+  const where = buildWhere(
+    q.groupId ? eq(errorEvents.groupId, q.groupId) : undefined,
+    q.traceId ? eq(errorEvents.traceId, q.traceId.trim()) : undefined,
+    browserEvents(),
+    tenantScope(errorEvents),
+  );
   return listRows({
     page,
     pageSize,

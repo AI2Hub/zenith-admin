@@ -20,16 +20,21 @@ function contextOf(event: ErrorEvent): EventContext {
   return (event.context ?? {}) as EventContext;
 }
 
-/** 链路跳转：日志查看器按 reqId 检索、链路追踪按 traceId 聚合（权限各自门控） */
+/** 链路跳转：日志查看器按 reqId 检索、链路追踪按 traceId 聚合、前端错误现场按同一 traceId 定位（权限各自门控） */
 export function TraceActions({ traceId }: Readonly<{ traceId: string | null }>) {
   const navigate = useNavigate();
   const { hasPermission } = usePermission();
   if (!traceId) return null;
   return (
-    <Space spacing={4}>
+    <Space spacing={4} wrap>
       {hasPermission('system:trace:view') && (
         <Button size="small" theme="borderless" type="primary" onClick={() => navigate(`/system/trace?traceId=${encodeURIComponent(traceId)}`)}>
           查看链路
+        </Button>
+      )}
+      {hasPermission('monitor:error:list') && (
+        <Button size="small" theme="borderless" type="primary" onClick={() => navigate(`/analytics/errors?tab=events&traceId=${encodeURIComponent(traceId)}`)}>
+          查看前端现场
         </Button>
       )}
       <Text copyable={{ content: traceId }} size="small" type="tertiary">{traceId}</Text>

@@ -170,6 +170,31 @@
   color: var(--semi-color-danger);
 }
 
+/* 可点击的指标块（异常日志入口）：外观与普通指标块一致，只在悬停时提示可点 */
+.monitor-overview-metric--link {
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+  border-radius: var(--semi-border-radius-medium);
+}
+
+.monitor-overview-metric--link:hover {
+  background: var(--semi-color-fill-0);
+}
+
+.monitor-overview-metric--link:focus-visible {
+  outline: 2px solid var(--semi-color-primary);
+  outline-offset: 2px;
+}
+
+.monitor-overview-metric__value--warn {
+  color: var(--semi-color-warning);
+}
+
 /* ===== 趋势折线图 ===== */
 /* 图表面板：与 .zx-panel 同一套语言——顶部一条细线起头 + 标题，
    不画背景、边框、圆角和阴影。 */

@@ -703,7 +703,8 @@ class Tracker {
       if ((status >= 500 || failed) && this.config.trackErrors) {
         reportError('http_error', `${method} ${url} ${failed ? '请求失败' : status}`, {
           level: 'error', httpStatus: status || undefined, httpMethod: method, httpUrl: url,
-          // 服务端链路 ID：错误详情可一键跳转链路追踪查看服务端时间线
+          // 服务端链路 ID：既作一等字段 traceId（与服务端异常事件互查），也保留 context.requestId 供链路追踪跳转
+          traceId: requestId ?? undefined,
           context: requestId ? { requestId } : undefined,
         });
       }
