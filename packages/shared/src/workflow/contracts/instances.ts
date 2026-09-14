@@ -279,6 +279,23 @@ export type WorkflowSelectableUser = z.infer<typeof workflowSelectableUserSchema
 
 export const workflowCountSchema = z.object({ count: z.int() }).meta({ id: 'WorkflowCount' });
 
+/**
+ * 发起工作台概览：当前用户各项待处理计数。每项按其对应列表的权限门控——
+ * 缺该权限时返回 null（前端不渲染该卡片），口径与对应列表 / 角标接口同源。
+ */
+const workbenchCount = (description: string) => z.int().nullable().meta({ description });
+export const workflowWorkbenchSummarySchema = z.object({
+  pending: workbenchCount('待我审批（同 pending-mine/count 口径；需 workflow:task:handle）'),
+  pendingOverdue: workbenchCount('待我审批中已超时的任务数（需 workflow:task:handle）'),
+  consultsPending: workbenchCount('待我协办（需 workflow:task:handle）'),
+  ccUnread: workbenchCount('抄送未读（需 workflow:instance:list）'),
+  myReturned: workbenchCount('我发起且被退回待修改的申请（需 workflow:instance:create）'),
+  myDrafts: workbenchCount('我的草稿（需 workflow:instance:create）'),
+  myRunning: workbenchCount('我发起且审批中的申请（需 workflow:instance:list）'),
+}).meta({ id: 'WorkflowWorkbenchSummary' });
+
+export type WorkflowWorkbenchSummary = z.infer<typeof workflowWorkbenchSummarySchema>;
+
 // ─── 数据分析 ────────────────────────────────────────────────────────────────
 
 export const workflowAnalyticsStatusCountSchema = z.object({
@@ -468,6 +485,7 @@ export const workflowInstanceContract = defineContract('/api/workflows', {
   ccMine: op.get('/instances/cc-mine', { access: { permission: 'workflow:instance:list' }, query: workflowKeywordPageQuery, response: paginated(workflowInstanceSchema), summary: '抄送我的列表' }),
   handledMine: op.get('/instances/handled-mine', { access: { permission: 'workflow:task:handle' }, query: workflowKeywordPageQuery, response: paginated(workflowInstanceSchema), summary: '我已办列表' }),
   ccUnreadCount: op.get('/instances/cc-mine/unread-count', { access: { permission: 'workflow:instance:list' }, response: workflowCountSchema, summary: '抄送未读数' }),
+  workbenchSummary: op.get('/instances/workbench-summary', { access: { permission: ['workflow:task:handle', 'workflow:instance:list', 'workflow:instance:create'] }, response: workflowWorkbenchSummarySchema, summary: '发起工作台概览：待我审批 / 协办 / 抄送未读 / 退回 / 草稿 / 审批中计数' }),
   relationOptions: op.get('/instances/relation-options', { access: { permission: 'workflow:instance:list' }, query: workflowRelationOptionsQuery, response: z.array(workflowRelationOptionSchema), summary: '关联审批单候选' }),
   analytics: op.get('/instances/analytics', { access: { permission: 'workflow:instance:monitor' }, query: workflowAnalyticsQuery, response: workflowAnalyticsSchema, summary: '流程数据分析' }),
   overdue: op.get('/instances/overdue', { access: { permission: 'workflow:instance:monitor' }, query: workflowOverdueQuery, response: paginated(workflowOverdueTaskSchema), summary: '超时待办预警列表' }),
