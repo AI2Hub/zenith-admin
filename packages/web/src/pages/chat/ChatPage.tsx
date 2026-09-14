@@ -6,6 +6,7 @@ import type { VirtuosoHandle } from 'react-virtuoso';
 
 import { BadgeCheck } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { useEventCallback } from '@/hooks/useEventCallback';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
 import { chatContract } from '@zenith/shared/chat';
 import { api } from '@/lib/contract-query';
@@ -397,15 +398,20 @@ export default function ChatPage({
     setPendingNewMsgCount, setReadStates, setTypingUsers,
   });
 
-  // 草稿自动保存（input 变化时持久化）
+  // 草稿自动保存：击键 300ms 防抖后再持久化。同步读写 localStorage + setDraftsMap 若跟着每次击键跑，
+  // 每个字符都要多一次整页渲染；切换会话时 handleSelectConv 会同步保存，不依赖这里
+  const [debouncedDraftInput] = useDebouncedValue(input, { wait: 300 });
   useEffect(() => {
-    if (activeConvId) saveDraft(activeConvId, input);
+    if (activeConvId) saveDraft(activeConvId, debouncedDraftInput);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [input]);
+  }, [debouncedDraftInput]);
 
-  const { archivedConvs, archivedUnread, showArchiveToggle, leftListItems, totalUnread } = computeLeftListModel({
-    conversations, channels, convSearch, showArchived,
-  });
+  const { archivedConvs, archivedUnread, showArchiveToggle, leftListItems, totalUnread } = useMemo(
+    () => computeLeftListModel({ conversations, channels, convSearch, showArchived }),
+    [conversations, channels, convSearch, showArchived],
+  );
+  // 列表行 memo 依赖稳定回调：handleSelectConv 闭包含 input（保存草稿用），每次击键都会换引用
+  const selectConvFromList = useEventCallback(handleSelectConv);
 
   /** 打开全局搜索结果：拉取上下文并跳转（原全局搜索列表 onClick 内联逻辑原样搬出） */
   const onOpenSearchResult = async (item: ChatMessageSearchItem) => {
@@ -531,7 +537,7 @@ export default function ChatPage({
             leftListItems={leftListItems}
             listRowProps={{
               activeChannelId, setActiveChannelId, setActiveConvId, setChannels, channelAvatarNode,
-              groupAvatarMap, onlineUserIds, activeConvId, failedMessages, draftsMap, handleSelectConv,
+              groupAvatarMap, onlineUserIds, activeConvId, failedMessages, draftsMap, handleSelectConv: selectConvFromList,
               setLeftPaneContextMenu,
             }}
             favoriteMessages={favoriteMessages}

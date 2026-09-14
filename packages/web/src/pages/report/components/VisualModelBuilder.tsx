@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useQueries } from '@tanstack/react-query';
 import { Button, Input, InputNumber, Select, Space, Toast, Typography } from '@douyinfe/semi-ui';
 import { Wand2 } from 'lucide-react';
@@ -14,8 +14,11 @@ const OP_OPTIONS = [
     .map((value) => ({ value, label: BASIC_COMPARISON_OPERATOR_SYMBOLS[value] })),
   { value: 'like', label: '包含' },
 ];
+const JOIN_TYPE_OPTIONS = [{ value: 'left', label: 'LEFT' }, { value: 'inner', label: 'INNER' }];
+const ORDER_OPTIONS = [{ value: 'desc', label: '降序' }, { value: 'asc', label: '升序' }];
 
 const EMPTY_MODEL: ReportVisualModel = { table: '', alias: '', joins: [], dimensions: [], metrics: [], filters: [], orderBy: null, limit: 100 };
+const EMPTY_COLUMNS: ReportMetaColumn[] = [];
 
 interface Props {
   initial?: ReportVisualModel | null;
@@ -26,19 +29,27 @@ interface Props {
 export function VisualModelBuilder({ initial, onGenerate }: Readonly<Props>) {
   const [model, setModel] = useState<ReportVisualModel>(initial ?? EMPTY_MODEL);
   const tablesQuery = useReportMetaTables();
-  const tables = tablesQuery.data ?? [];
+  const tableOptions = useMemo(() => (tablesQuery.data ?? []).map((t) => ({ value: t, label: t })), [tablesQuery.data]);
   const tableNames = useMemo(
     () => Array.from(new Set([model.table, ...(model.joins ?? []).map((join) => join.table)].filter(Boolean))),
     [model.joins, model.table],
   );
-  const columnQueries = useQueries({
+  // 每张表一份列元数据（主表 + JOIN 表，通常 1-4 张，lookup 级缓存）；combine 收成按表名索引的普通对象，
+  // 只在某张表的数据变化时换引用，别名 / 筛选值等输入的每次击键不再重建下游的选项数组
+  const combineColumns = useCallback(
+    (results: Array<{ data?: ReportMetaColumn[]; isFetching: boolean }>) => ({
+      columnsByTable: Object.fromEntries(tableNames.map((table, index) => [table, results[index]?.data ?? EMPTY_COLUMNS])) as Record<string, ReportMetaColumn[]>,
+      loading: results.some((query) => query.isFetching),
+    }),
+    [tableNames],
+  );
+  const { columnsByTable, loading: columnsLoading } = useQueries({
     queries: tableNames.map((table) => apiQueryOptions(reportMetaContract.columns, { params: { table } }, {
       enabled: !!table,
       staleTime: LOOKUP_STALE_TIME,
     })),
+    combine: combineColumns,
   });
-  const tableColumnsMap = new Map<string, ReportMetaColumn[]>();
-  tableNames.forEach((table, index) => { tableColumnsMap.set(table, columnQueries[index]?.data ?? []); });
   const aliasEntries = useMemo(() => {
     const baseAlias = (model.alias?.trim() || model.table || '').trim();
     return [
@@ -50,17 +61,19 @@ export function VisualModelBuilder({ initial, onGenerate }: Readonly<Props>) {
     ];
   }, [model.alias, model.joins, model.table]);
   const aliasTableMap = useMemo(() => new Map(aliasEntries.map((entry) => [entry.alias, entry.table])), [aliasEntries]);
-  const columnOptions = aliasEntries.flatMap((entry) => (tableColumnsMap.get(entry.table) ?? []).map((c) => ({
+  const aliasOptions = useMemo(() => aliasEntries.map((entry) => ({ value: entry.alias, label: entry.label })), [aliasEntries]);
+  // 字段选项可达数百项且同时喂给维度 / 每个指标 / 每个筛选的 Select：引用稳定时 Semi Select 才会跳过各自的选项重算
+  const columnOptions = useMemo(() => aliasEntries.flatMap((entry) => (columnsByTable[entry.table] ?? EMPTY_COLUMNS).map((c) => ({
     value: `${entry.alias}.${c.name}`,
     label: `${entry.alias}.${c.name}（${c.type}）`,
-  })));
-  const orderFieldOptions = [
+  }))), [aliasEntries, columnsByTable]);
+  const orderFieldOptions = useMemo(() => [
     ...model.dimensions.map((d) => ({ value: d, label: d })),
     ...model.metrics.filter((m) => m.field || m.aggregate === 'count').map((m) => {
       const alias = visualMetricAlias(m);
       return { value: alias, label: `${alias}（指标）` };
     }),
-  ];
+  ], [model.dimensions, model.metrics]);
 
   function patch(p: Partial<ReportVisualModel>) {
     setModel((prev) => ({ ...prev, ...p }));
@@ -90,12 +103,12 @@ export function VisualModelBuilder({ initial, onGenerate }: Readonly<Props>) {
     <Space vertical align="start" spacing={8} style={{ width: '100%', marginTop: 8, padding: 12, border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)' }}>
       <Space wrap>
         <Select filter placeholder="选择数据表" value={model.table || undefined} style={{ width: 240 }}
-          optionList={tables.map((t) => ({ value: t, label: t }))} loading={tablesQuery.isFetching}
+          optionList={tableOptions} loading={tablesQuery.isFetching}
           onChange={(v) => setModel({ ...EMPTY_MODEL, table: String(v ?? ''), alias: String(v ?? ''), limit: model.limit })} />
         <Input placeholder="主表别名（可选）" value={model.alias ?? ''} style={{ width: 180 }} showClear
           onChange={(v) => patch({ alias: v || model.table })} />
         <Select multiple filter placeholder="维度（分组列）" value={model.dimensions} style={{ minWidth: 260 }} maxTagCount={3}
-          optionList={columnOptions} disabled={!model.table} loading={columnQueries.some((query) => query.isFetching)}
+          optionList={columnOptions} disabled={!model.table} loading={columnsLoading}
           onChange={(v) => patch({ dimensions: (v as string[]) ?? [] })} />
       </Space>
 
@@ -115,20 +128,20 @@ export function VisualModelBuilder({ initial, onGenerate }: Readonly<Props>) {
       {(model.joins ?? []).map((join, index) => {
         const joinAlias = join.alias?.trim() || join.table || '';
         const sourceTable = aliasTableMap.get(join.sourceAlias?.trim() || aliasEntries[0]?.alias || '');
-        const sourceColumns = sourceTable ? (tableColumnsMap.get(sourceTable) ?? []) : [];
-        const targetColumns = join.table ? (tableColumnsMap.get(join.table) ?? []) : [];
+        const sourceColumns = sourceTable ? (columnsByTable[sourceTable] ?? EMPTY_COLUMNS) : EMPTY_COLUMNS;
+        const targetColumns = join.table ? (columnsByTable[join.table] ?? EMPTY_COLUMNS) : EMPTY_COLUMNS;
         return (
           <Space key={`${join.table}-${index}`} wrap>
             <Select value={join.type} style={{ width: 90 }}
-              optionList={[{ value: 'left', label: 'LEFT' }, { value: 'inner', label: 'INNER' }]}
+              optionList={JOIN_TYPE_OPTIONS}
               onChange={(value) => patchJoin(index, { type: value as ReportVisualJoin['type'] })} />
             <Select filter placeholder="关联表" value={join.table || undefined} style={{ width: 180 }}
-              optionList={tables.map((t) => ({ value: t, label: t }))} loading={tablesQuery.isFetching}
+              optionList={tableOptions} loading={tablesQuery.isFetching}
               onChange={(value) => patchJoin(index, { table: String(value ?? ''), alias: String(value ?? ''), targetField: '' })} />
             <Input placeholder="别名" value={join.alias ?? ''} style={{ width: 120 }} showClear
               onChange={(value) => patchJoin(index, { alias: value || join.table })} />
             <Select filter placeholder="来源别名" value={join.sourceAlias || undefined} style={{ width: 140 }}
-              optionList={aliasEntries.map((entry) => ({ value: entry.alias, label: entry.label }))}
+              optionList={aliasOptions}
               onChange={(value) => patchJoin(index, { sourceAlias: String(value ?? '') })} />
             <Select filter placeholder="来源字段" value={join.sourceField || undefined} style={{ width: 180 }}
               optionList={sourceColumns.map((column) => ({ value: column.name, label: `${column.name}（${column.type}）` }))}
@@ -178,7 +191,7 @@ export function VisualModelBuilder({ initial, onGenerate }: Readonly<Props>) {
           optionList={orderFieldOptions}
           onChange={(v) => patch({ orderBy: v ? { field: String(v), order: model.orderBy?.order ?? 'desc' } : null })} />
         <Select value={model.orderBy?.order ?? 'desc'} style={{ width: 90 }} disabled={!model.orderBy?.field}
-          optionList={[{ value: 'desc', label: '降序' }, { value: 'asc', label: '升序' }]}
+          optionList={ORDER_OPTIONS}
           onChange={(v) => patch({ orderBy: model.orderBy?.field ? { field: model.orderBy.field, order: v as 'asc' | 'desc' } : null })} />
         <InputNumber prefix="LIMIT" value={model.limit ?? 100} min={1} max={5000} style={{ width: 140 }}
           onChange={(v) => patch({ limit: typeof v === 'number' ? v : null })} />

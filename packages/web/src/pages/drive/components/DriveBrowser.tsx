@@ -14,6 +14,7 @@ import { createOperationColumn, type ResponsiveTableAction } from '@/components/
 import { useFilePreview } from '@/hooks/useFilePreview';
 import { useAuth } from '@/hooks/useAuth';
 import { useEditModal } from '@/hooks/useEditModal';
+import { useEventCallback } from '@/hooks/useEventCallback';
 import { useListSearch } from '@/hooks/useListSearch';
 import { usePermission } from '@/hooks/usePermission';
 import { batchDownloadDriveNodes, deleteDriveNodesVariables, driveKeys, useCopyDriveNodes, useCreateDriveFolder, useDeleteDriveNodes, useDriveDir, useDrivePreviewWatermark, useDriveTags, useLockDriveNode, useMoveDriveNodes, useRenameDriveNode, useStarDriveNode, useUnlockDriveNode, useUnstarDriveNode } from '@/hooks/queries/drive';
@@ -115,14 +116,16 @@ export function DriveBrowser({ spaceId, folderId, onNavigate, onOpenDetail, onUp
 
   const preview = useFilePreview(() => list.filter((n) => n.type === 'file' && n.url).map(nodeToManagedFile));
 
-  const openNode = useCallback((node: DriveNode) => {
+  // 仅在点击 / 双击 / 操作项里调用（不在渲染期），用 useEventCallback 拿稳定引用：
+  // useFilePreview 每次渲染都返回新的 handlePreview，否则 openNode → nodeActions → columns 链式失效
+  const openNode = useEventCallback((node: DriveNode) => {
     if (node.type === 'folder') { onNavigate(node.id); return; }
     if (canPreviewFile(node.mimeType, node.name) && node.url) {
       void preview.handlePreview(nodeToManagedFile(node));
     } else {
       onOpenDetail(node.id);
     }
-  }, [onNavigate, onOpenDetail, preview]);
+  });
 
   const downloadOne = useCallback(async (node: DriveNode) => {
     if (node.type === 'folder') {
@@ -139,15 +142,16 @@ export function DriveBrowser({ spaceId, folderId, onNavigate, onOpenDetail, onUp
     if (result?.mode === 'task') Toast.info('文件较多，已转为后台打包，完成后会通知你');
   }, [selectedIds]);
 
-  const deleteNodes = (nodes: DriveNode[]) => {
+  const { mutateAsync: removeNodes } = remove;
+  const deleteNodes = useCallback((nodes: DriveNode[]) => {
     confirmAndDelete({
       title: nodes.length === 1 ? `删除「${nodes[0].name}」？` : `删除选中的 ${nodes.length} 个项目？`,
       content: '将移入回收站，可在保留期内还原。',
-      run: () => remove.mutateAsync(deleteDriveNodesVariables(nodes)),
+      run: () => removeNodes(deleteDriveNodesVariables(nodes)),
       successMessage: '已移入回收站',
       onDeleted: () => setSelectedIds([]),
     });
-  };
+  }, [removeNodes]);
 
   const handlePickerOk = async (target: FolderTarget) => {
     if (!picker) return;
@@ -168,25 +172,34 @@ export function DriveBrowser({ spaceId, folderId, onNavigate, onOpenDetail, onUp
     setSelectedIds([]);
   };
 
-  const nodeActions = (node: DriveNode): ResponsiveTableAction[] => {
+  // 操作项在渲染期由操作列调用，不能走 useEventCallback（其 ref 在 layout effect 才更新）；显式依赖保证权限 / 回调变化时重算。
+  // useMutation 的返回对象每次渲染都是新的，依赖只能取其稳定的 mutate
+  const { mutate: starMutate } = star;
+  const { mutate: unstarMutate } = unstar;
+  const { mutate: lockMutate } = lock;
+  const { mutate: unlockMutate } = unlock;
+  const { openEdit: openRenameModal } = nameModal;
+  const nodeActions = useCallback((node: DriveNode): ResponsiveTableAction[] => {
     const previewable = node.type === 'file' && canPreviewFile(node.mimeType, node.name);
     const nodeCanEdit = canEdit && roleAtLeast(node.myRole, 'editor');
     return [
       ...(previewable ? [{ key: 'preview', label: '预览', onClick: () => openNode(node) }] : []),
       ...(canDownload && roleAtLeast(node.myRole, 'downloader') ? [{ key: 'download', label: '下载', onClick: () => void downloadOne(node) }] : []),
       { key: 'detail', label: '详情', onClick: () => onOpenDetail(node.id) },
-      { key: 'star', label: node.isStarred ? '取消收藏' : '收藏', onClick: () => (node.isStarred ? unstar : star).mutate({ params: { id: node.id }, node }) },
+      { key: 'star', label: node.isStarred ? '取消收藏' : '收藏', onClick: () => (node.isStarred ? unstarMutate : starMutate)({ params: { id: node.id }, node }) },
       ...(nodeCanEdit ? [
-        { key: 'rename', label: '重命名', onClick: () => nameModal.openEdit(node), dividerBefore: true },
+        { key: 'rename', label: '重命名', onClick: () => openRenameModal(node), dividerBefore: true },
         { key: 'move', label: '移动到', onClick: () => setPicker({ mode: 'move', nodes: [node] }) },
         { key: 'copy', label: '复制到', onClick: () => setPicker({ mode: 'copy', nodes: [node] }) },
       ] : []),
-      ...(nodeCanEdit && node.type === 'file' ? [{ key: 'lock', label: node.lockedBy ? '解除锁定' : '签出锁定', onClick: () => (node.lockedBy ? unlock.mutate({ params: { id: node.id } }) : lock.mutate({ params: { id: node.id }, body: {} })) }] : []),
+      ...(nodeCanEdit && node.type === 'file' ? [{ key: 'lock', label: node.lockedBy ? '解除锁定' : '签出锁定', onClick: () => (node.lockedBy ? unlockMutate({ params: { id: node.id } }) : lockMutate({ params: { id: node.id }, body: {} })) }] : []),
       ...(canDelete && roleAtLeast(node.myRole, 'editor') ? [{ key: 'delete', label: '删除', danger: true, dividerBefore: true, onClick: () => deleteNodes([node]) }] : []),
     ];
-  };
+  }, [canDelete, canDownload, canEdit, deleteNodes, downloadOne, lockMutate, onOpenDetail, openNode, openRenameModal, starMutate, unlockMutate, unstarMutate]);
 
-  const columns: ColumnProps<DriveNode>[] = [
+  // columns 引用一变，Semi Table 每一行（BaseRow 浅比较 props）都会重渲染：
+  // 搜索框每次击键、拖拽悬停、选中变化都不该让 50 行重绘
+  const columns = useMemo<ColumnProps<DriveNode>[]>(() => [
     {
       title: '名称', dataIndex: 'name', minWidth: 260, ellipsis: { showTitle: false },
       render: (_: unknown, node: DriveNode) => (
@@ -203,7 +216,12 @@ export function DriveBrowser({ spaceId, folderId, onNavigate, onOpenDetail, onUp
     dateTimeColumn('修改时间', 'updatedAt'),
     // 「我的角色」在目录内几乎恒定，改到头部展示；节点级差异在详情抽屉查看，让名称列拿到更多宽度
     createOperationColumn<DriveNode>({ width: 180, desktopInlineKeys: ['preview', 'download'], actions: nodeActions }),
-  ];
+  ], [nodeActions, openNode]);
+
+  const onRow = useCallback((record?: DriveNode) => ({
+    onContextMenu: (e: React.MouseEvent) => { if (!record) return; e.preventDefault(); setCtx({ node: record, point: { x: e.clientX, y: e.clientY } }); },
+    onDoubleClick: () => { if (record) openNode(record); },
+  }), [openNode]);
 
   const onDrop = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -306,10 +324,7 @@ export function DriveBrowser({ spaceId, folderId, onNavigate, onOpenDetail, onUp
               pagination: buildPagination,
               rowSelection: { selectedRowKeys: selectedIds, onChange: (keys) => setSelectedIds((keys ?? []).map(Number)) },
             })}
-            onRow={(record) => ({
-              onContextMenu: (e: React.MouseEvent) => { if (!record) return; e.preventDefault(); setCtx({ node: record, point: { x: e.clientX, y: e.clientY } }); },
-              onDoubleClick: () => { if (record) openNode(record); },
-            })}
+            onRow={onRow}
             empty={dirQuery.isPending ? <span /> : <Empty description={submittedParams.keyword ? '没有匹配的项目' : (canUpload ? '空文件夹，拖拽文件到此处即可上传' : '空文件夹')} />}
           />
         ) : (

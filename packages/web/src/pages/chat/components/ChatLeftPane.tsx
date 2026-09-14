@@ -1,4 +1,4 @@
-import type { ComponentProps } from 'react';
+import { useMemo, type ComponentProps } from 'react';
 import { Badge, Button, Empty, Input, Spin, Tooltip, Typography, List as SemiList } from '@douyinfe/semi-ui';
 import { Bookmark, Compass, ExternalLink, MessageSquarePlus, Search, X } from 'lucide-react';
 import type { ChatConversation, ChatMessage } from '@zenith/shared/chat';
@@ -8,14 +8,15 @@ import type { LeftListItem, LeftPaneContextMenuState, LeftPaneMode, Setter } fro
 import { NewChatPanel } from './NewChatPanel';
 import { ArchiveToggle } from './ArchiveToggle';
 import { LeftListRow } from './LeftListRow';
+import { toLeftListRowProps, type LeftListContext } from './left-list-row-props';
 import { FavoriteListRow } from './FavoriteListRow';
 import { GlobalSearchPane } from './GlobalSearchPane';
 import { LeftPaneContextMenu } from './LeftPaneContextMenu';
 
 const { Title } = Typography;
 
-/** 会话 / 频道行的透传属性（LeftListRow 除 item 外的全部入参） */
-export type LeftListRowProps = Omit<ComponentProps<typeof LeftListRow>, 'item'>;
+/** 会话 / 频道行的列表级透传属性（每行入参由 toLeftListRowProps 裁出） */
+export type LeftListRowProps = LeftListContext;
 /** 全局搜索面板的透传属性（视图模式由本组件注入） */
 export type GlobalSearchProps = Omit<ComponentProps<typeof GlobalSearchPane>, 'leftPaneMode'>;
 /** 右键菜单的透传属性（菜单状态与 setter 由本组件注入） */
@@ -65,6 +66,8 @@ export function ChatLeftPane({
   favoriteMessages, conversations, setFavPreviewMsg, setFavPreviewVisible,
   globalSearch, leftPaneContextMenu, setLeftPaneContextMenu, contextMenuProps,
 }: Readonly<ChatLeftPaneProps>) {
+  // 发送失败的会话集合只按 failedMessages 聚合一次，行内不再 O(n) 扫描
+  const failedConvIds = useMemo(() => new Set(listRowProps.failedMessages.map((m) => m.convId)), [listRowProps.failedMessages]);
   return (
     <>
       <MasterDetailLayout.Header
@@ -188,8 +191,7 @@ export function ChatLeftPane({
               renderItem={(item: LeftListItem) => (
                 <LeftListRow
                   key={item.kind === 'channel' ? `channel-${item.channel.id}` : item.conv.id}
-                  item={item}
-                  {...listRowProps}
+                  {...toLeftListRowProps(item, listRowProps, failedConvIds)}
                 />
               )}
             />
