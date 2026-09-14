@@ -1,7 +1,7 @@
 /** 文件属性 SideSheet：基础元数据 + 目录大小按需计算 + 文件校验和（MD5/SHA1/SHA256） */
 import React, { useEffect, useState } from 'react';
 import { Button, Input, SideSheet, Space, Tag, Typography } from '@douyinfe/semi-ui';
-import { Icon } from '@iconify/react';
+import { FileTypeIcon } from '@/components/FileTypeIcon';
 import { useTerminalChecksum, useTerminalDirSize } from '@/hooks/queries/terminal-files';
 import { getFileIcon, getFolderIcon } from '@/utils/fileIcons';
 import { copyTextWithToast } from '@/utils/clipboard';
@@ -45,11 +45,7 @@ export default function FmPropsSheet({ entry, onClose, initialChecksumAlgo }: Re
       title={
         entry ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Icon
-              icon={entry.type === 'dir' ? getFolderIcon(entry.name, false) : getFileIcon(entry.name)}
-              width={18}
-              height={18}
-            />
+            <FileTypeIcon icon={entry.type === 'dir' ? getFolderIcon(entry.name, false) : getFileIcon(entry.name)} size={18} />
             <Typography.Text strong ellipsis={{ showTooltip: true }} style={{ maxWidth: 200 }}>
               {entry.name}
             </Typography.Text>

@@ -25,6 +25,16 @@ const sharedAggregateImportRestrictions = [
   { name: '@zenith/shared/permission-catalog', message: SHARED_AGGREGATE_MESSAGE },
 ];
 
+// ── 图标纪律：@iconify/react 在运行时向公网 Iconify API 拉图标数据（内网 / 离线 / Demo 下空白，登录页还多一个第三方源）。
+//    文件类型 / 文件夹 / shell 图标走 components/FileTypeIcon（构建期生成的 SVG 资产），单色品牌图标走 components/icons/MonoIcon；
+//    新增图标字面量后运行 `npm run icons:iconify`。其余图标一律 lucide-react ──
+const iconifyRuntimeRestrictions = [
+  {
+    name: '@iconify/react',
+    message: '禁止运行时拉取 Iconify 图标：文件类型图标用 @/components/FileTypeIcon，单色图标用 @/components/icons/MonoIcon（npm run icons:iconify 生成数据），其余用 lucide-react。',
+  },
+];
+
 // ── 平台 API 纪律：内网以 http://ip 访问时不是安全上下文，navigator.clipboard 为 undefined，
 //    读写统一走 @/utils/clipboard（写文本可回退 execCommand，读文本 / 写图片由调用方降级）──
 const clipboardRestrictions = [
@@ -183,7 +193,7 @@ export default [
       ],
       // @zenith/shared 已按业务域拆分：根入口会把全部 18 个域拉进依赖图与前端产物，
       // 使「改 CMS 类型」这类局部改动波及所有消费方，故禁止直接引用根入口与已废弃的旧巨石路径。
-      'no-restricted-imports': ['error', { paths: sharedRootImportRestrictions }],
+      'no-restricted-imports': ['error', { paths: [...sharedRootImportRestrictions, ...iconifyRuntimeRestrictions] }],
       // 同名规则在后续 files 更窄的配置块中会被整体覆盖而非合并，Token 纪律块需再带一份 clipboardRestrictions
       'no-restricted-syntax': ['error', ...clipboardRestrictions],
     },
@@ -193,7 +203,7 @@ export default [
     files: ['src/**/*.ts', 'src/**/*.tsx'],
     ignores: ['src/mocks/**', 'src/**/*.test.ts', 'src/**/*.test.tsx'],
     rules: {
-      'no-restricted-imports': ['error', { paths: [...sharedRootImportRestrictions, ...sharedAggregateImportRestrictions] }],
+      'no-restricted-imports': ['error', { paths: [...sharedRootImportRestrictions, ...sharedAggregateImportRestrictions, ...iconifyRuntimeRestrictions] }],
     },
   },
   {
@@ -257,6 +267,7 @@ export default [
             },
             { name: '@zenith/shared', message: "请改用域子路径 '@zenith/shared/<domain>'。" },
             ...sharedAggregateImportRestrictions,
+            ...iconifyRuntimeRestrictions,
           ],
         },
       ],

@@ -1,5 +1,5 @@
 /** 侧栏：Windows 盘符切换 + 收藏夹 + 当前目录子文件夹速览 */
-import { Icon } from '@iconify/react';
+import { FileTypeIcon } from '@/components/FileTypeIcon';
 import { Button } from '@douyinfe/semi-ui';
 import { Star, X } from 'lucide-react';
 import { getFolderIcon } from '@/utils/fileIcons';
@@ -70,7 +70,7 @@ export default function FmSidebar({ rootInfo, currentPath, sidebarDirs, bookmark
             className={`fm-sidebar__dir-item${d.path === currentPath ? ' fm-sidebar__dir-item--active' : ''}`}
             onClick={() => onNavigate(d.path)}
           >
-            <Icon icon={getFolderIcon(d.name, false)} width={14} height={14} style={{ flexShrink: 0 }} />
+            <FileTypeIcon icon={getFolderIcon(d.name, false)} size={14} />
             <span>{d.name}</span>
           </button>
         ))}

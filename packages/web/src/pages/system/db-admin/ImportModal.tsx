@@ -4,7 +4,7 @@ import {
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Upload as UploadIcon } from 'lucide-react';
-import { Icon } from '@iconify/react';
+import { FileTypeIcon } from '@/components/FileTypeIcon';
 import { getFileIcon } from '@/utils/fileIcons';
 import { AppModal } from '@/components/AppModal';
 import { useDbAdminImportRows } from '@/hooks/queries/db-admin';
@@ -209,7 +209,7 @@ export function ImportModal(props: Readonly<Props>) {
         {fileName && rawRows.length > 0 && (
           <>
             <Space>
-              <Icon icon={getFileIcon(fileName)} width={14} height={14} style={{ flexShrink: 0 }} />
+              <FileTypeIcon icon={getFileIcon(fileName)} size={14} />
               <Text strong>{fileName}</Text>
               <Text type="tertiary" size="small">{rawRows.length} 行 · 已映射 {mappedCount} / {headers.length} 列</Text>
             </Space>

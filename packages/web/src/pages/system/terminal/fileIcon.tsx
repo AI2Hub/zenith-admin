@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Icon } from '@iconify/react';
+import { FileTypeIcon } from '@/components/FileTypeIcon';
 import { File, Folder } from 'lucide-react';
 import { getFileIcon } from '@/utils/fileIcons';
 
@@ -10,6 +10,6 @@ import { getFileIcon } from '@/utils/fileIcons';
 export function fileIcon(name: string, type: string, size = 14): ReactNode {
   if (type === 'dir') return <Folder size={size} style={{ color: 'var(--semi-color-warning)', flexShrink: 0 }} />;
   const iconId = getFileIcon(name);
-  if (iconId) return <Icon icon={iconId} width={size} height={size} style={{ flexShrink: 0 }} />;
+  if (iconId) return <FileTypeIcon icon={iconId} size={size} />;
   return <File size={size} style={{ color: 'var(--semi-color-text-3)', flexShrink: 0 }} />;
 }

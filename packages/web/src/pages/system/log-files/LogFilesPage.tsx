@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Button, Dropdown, Toast, Typography } from '@douyinfe/semi-ui';
-import { Icon } from '@iconify/react';
+import { FileTypeIcon } from '@/components/FileTypeIcon';
 import { Download, FileText, RefreshCw, Trash2 } from 'lucide-react';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
 import { NavListPanel, NavListItem, NavListItemActions } from '@/components/NavListPanel';
@@ -173,7 +173,7 @@ export default function LogFilesPage() {
                   key={file.name}
                   active={active}
                   onClick={() => selectFile(file)}
-                  icon={<Icon icon="vscode-icons:file-type-log" width={13} height={13} />}
+                  icon={<FileTypeIcon icon="vscode-icons:file-type-log" size={13} />}
                   primary={file.name}
                   meta={
                     <>
@@ -211,7 +211,7 @@ export default function LogFilesPage() {
               source={source}
               title={(
                 <>
-                  <Icon icon="vscode-icons:file-type-log" width={14} height={14} style={{ flexShrink: 0 }} />
+                  <FileTypeIcon icon="vscode-icons:file-type-log" size={14} />
                   <Typography.Text style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 600 }}>
                     {selected.name}
                   </Typography.Text>

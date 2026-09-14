@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { TerminalPanelButton, TerminalTabIcon } from './TerminalTabChrome';
 import type { PaneLeaf } from './paneTree';
 
-vi.mock('@iconify/react', () => ({ Icon: ({ icon, width, height }: { icon: string; width: number; height: number }) => <svg data-testid="iconify" data-icon={icon} width={width} height={height} /> }));
+vi.mock('@/components/FileTypeIcon', () => ({ FileTypeIcon: ({ icon, size }: { icon: string; size: number }) => <svg data-testid="iconify" data-icon={icon} width={size} height={size} /> }));
 vi.mock('@/utils/fileIcons', () => ({ getFileIcon: (name: string) => `file:${name}`, getShellIcon: (shell?: string) => `shell:${shell ?? 'default'}` }));
 vi.mock('@douyinfe/semi-ui', () => ({
   Button: ({ icon, type, onClick }: { icon?: ReactNode; type?: string; onClick?: () => void }) => <button type="button" data-button-type={type} onClick={onClick}>{icon}</button>,

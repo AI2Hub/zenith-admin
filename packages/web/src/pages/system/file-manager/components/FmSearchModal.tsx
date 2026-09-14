@@ -1,6 +1,6 @@
 /** 深度搜索结果弹窗：递归搜索当前目录，支持「前往」定位（文件高亮所在目录） */
 import { Banner, Button, Modal, Typography } from '@douyinfe/semi-ui';
-import { Icon } from '@iconify/react';
+import { FileTypeIcon } from '@/components/FileTypeIcon';
 import { getFileIcon, getFolderIcon } from '@/utils/fileIcons';
 import { searchResultTitle } from '../fs-utils';
 import type { FsEntry } from '../types';
@@ -46,7 +46,7 @@ export default function FmSearchModal({ visible, dir, keyword, searching, result
           <div key={r.path} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 4px', borderBottom: '1px solid var(--semi-color-fill-1)' }}>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 5 }}>
-                <Icon icon={r.type === 'dir' ? getFolderIcon(r.name, false) : getFileIcon(r.name)} width={14} height={14} style={{ flexShrink: 0 }} />
+                <FileTypeIcon icon={r.type === 'dir' ? getFolderIcon(r.name, false) : getFileIcon(r.name)} size={14} />
                 {r.name}
               </div>
               <Typography.Text type="tertiary" size="small" ellipsis={{ showTooltip: true }} style={{ maxWidth: 420, display: 'block' }}>{r.path}</Typography.Text>

@@ -197,6 +197,10 @@ export default defineConfig(({ mode }) => {
       ...(buildTarget ? { target: buildTarget } : {}),
       chunkSizeWarningLimit: 900,
       assetsDir: entry ? ENTRY_INPUTS[entry].assetsDir : 'assets',
+      // 文件类型图标（src/assets/file-icons/*.svg，构建期生成）绝不内联：它们经 import.meta.glob('?url') 被 FileTypeIcon
+      // 全量引用，默认 4KB 以下内联成 data URL 会把 215 个图标（≈700KB raw）塞进 app-shared 并随壳层加载；
+      // 保持独立文件后模块里只剩 URL 字符串，图标本体按可见类型逐个下载、走 immutable 缓存
+      assetsInlineLimit: (filePath: string) => (/[\\/]assets[\\/]file-icons[\\/]/.test(filePath) ? false : undefined),
       // 多入口分多次构建写入同一 dist：只有第一个入口清空目录，由 scripts/build.mjs 控制顺序
       emptyOutDir: entry === null || entry === FIRST_ENTRY,
       rollupOptions: {

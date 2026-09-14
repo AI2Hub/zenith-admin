@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Button, Typography, Space, Dropdown, Tooltip } from '@douyinfe/semi-ui';
 import { Plus, TerminalSquare, ChevronDown, ChevronLeft, ChevronRight, X, Settings, Server } from 'lucide-react';
-import { Icon } from '@iconify/react';
+import { FileTypeIcon } from '@/components/FileTypeIcon';
 import FileExplorer from './FileExplorer';
 import TerminalSettings from './TerminalSettings';
 import PaneTreeView from './PaneTreeView';
@@ -543,7 +543,7 @@ export default function TerminalPage() {
         shells.map((sh) => (
           <Dropdown.Item
             key={sh.id}
-            icon={<Icon icon={getShellIcon(sh.id)} width={14} height={14} />}
+            icon={<FileTypeIcon icon={getShellIcon(sh.id)} size={14} />}
             onClick={() => addTerminal(sh.id)}
           >
             {sh.label}

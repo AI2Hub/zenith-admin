@@ -2,7 +2,7 @@
 import React from 'react';
 import { Tag } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Icon } from '@iconify/react';
+import { FileTypeIcon } from '@/components/FileTypeIcon';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { FileNameCell } from '@/components/FileNameCell';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -51,7 +51,7 @@ export default function FmListView({
         return (
           <FileNameCell
             name={v}
-            icon={<Icon icon={iconId} width={16} height={16} />}
+            icon={<FileTypeIcon icon={iconId} size={16} />}
             onClick={r.type === 'dir' ? () => void actions.navigateTo(r.path) : undefined}
           />
         );

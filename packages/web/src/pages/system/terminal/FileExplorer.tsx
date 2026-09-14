@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Tree, Button, Upload, Toast, Typography, Tooltip, Dropdown, Input, Collapse, Progress } from '@douyinfe/semi-ui';
-import { Icon } from '@iconify/react';
+import { FileTypeIcon } from '@/components/FileTypeIcon';
 import {
   Upload as UploadIcon,
   RotateCcw,
@@ -500,7 +500,7 @@ export default function FileExplorer({ active, onOpenFile, onOpenTerminalAt }: F
           } : {}),
         }}
       >
-        <Icon icon={iconId} width={16} height={16} style={{ flexShrink: 0 }} />
+        <FileTypeIcon icon={iconId} size={16} />
         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {label}
           {fav ? ' ★' : ''}

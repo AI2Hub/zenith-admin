@@ -114,6 +114,11 @@ lucide 图标全表（615 KB / 153 KB gz）在任何口径下都是运行时按�
 - MSW 只在 `VITE_DEMO_MODE=true` 时经入口的 `await import('./mocks')` 进入产物。
 - 按名称渲染图标统一走 `components/DynamicIcon.tsx`（`DynamicIcon`）或 `utils/icons.tsx`（`renderLucideIcon`）：图标名来自数据（菜单、工作流模板、表单配置…），
   静态摇树无法覆盖，因此全表作为独立 chunk 在启动时并行预热，之后任意位置按名渲染都不再产生网络请求；页面里静态已知的图标继续按名具名 `import`。
+- 文件类型 / 文件夹 / shell 图标（`utils/fileIcons.ts` 的 vscode-icons id）不再由 `@iconify/react` 在运行时向公网 Iconify API 拉取（内网 / 离线 / Demo 下空白）：
+  `scripts/gen-iconify-assets.mjs` 在构建期从 `@iconify-json/*` 抽成 `src/assets/file-icons/*.svg`（含文件夹 `-opened` 展开态）与
+  `components/icons/generated/mono-icons.ts`（单色品牌 / codicon 图标，`currentColor` 需内联），`components/FileTypeIcon` 只 eager 引入 URL、
+  图标本体按可见类型逐个下载并走 immutable 缓存；`vite.config.ts` 对该目录关闭 `assetsInlineLimit`，否则 4KB 以下的 SVG 会内联成 data URL 塞进 `app-shared`（+70 KB gz）。
+  守卫测试 `components/icons/iconify-assets.test.ts` 保证生成物与源码引用、安装的图标集版本一致；ESLint 禁止 `@iconify/react`。
 - `@douyinfe/semi-illustrations`（130 KB）一律 `lazy(() => import(...))` + `Suspense`；偏好设置面板正文 `layouts/admin/PreferencesSheetBody.tsx` 在 SideSheet 首次打开时才加载。
 
 ## 页面注册表

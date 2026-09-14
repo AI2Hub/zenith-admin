@@ -7,7 +7,7 @@ import type { PDFViewerRef, PluginRegistry } from '@embedpdf/react-pdf-viewer';
 import pdfiumWasmUrl from '@embedpdf/pdfium/pdfium.wasm?url';
 import { Button, Select, Typography } from '@douyinfe/semi-ui';
 import { Maximize2, Minimize2, X } from 'lucide-react';
-import { Icon } from '@iconify/react';
+import { FileTypeIcon } from '@/components/FileTypeIcon';
 import { useThemeController } from '@/providers/theme-controller';
 
 const { Text } = Typography;
@@ -173,7 +173,7 @@ export function PDFPreviewPanel({ file, onClose, fullscreen, onToggleFullscreen,
           flexShrink: 0,
         }}
       >
-        <Icon icon="vscode-icons:file-type-pdf2" width={15} height={15} style={{ flexShrink: 0 }} />
+        <FileTypeIcon icon="vscode-icons:file-type-pdf2" size={15} />
         <Text
           ellipsis={{ showTooltip: true }}
           style={{ flex: 1, fontSize: 13, fontWeight: 500, minWidth: 0 }}

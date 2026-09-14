@@ -4,7 +4,7 @@
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { Tooltip } from '@douyinfe/semi-ui';
-import { Icon } from '@iconify/react';
+import { FileTypeIcon } from '@/components/FileTypeIcon';
 import { getFileIcon, getFolderIcon } from '@/utils/fileIcons';
 import { EMPTY_PLACEHOLDER } from '@/utils/table-columns';
 import type { FsEntry } from '../types';
@@ -33,7 +33,7 @@ function FsGridCard({ entry, selected, cut, onSelect, onOpen, onContextMenu }: R
       onKeyDown={(e) => { if (e.key === 'Enter') onOpen(); }}
     >
       <div className="fm-grid-card__icon">
-        <Icon icon={iconId} width={36} height={36} />
+        <FileTypeIcon icon={iconId} size={36} />
       </div>
       <Tooltip content={entry.name} position="bottom">
         <div className="fm-grid-card__name">{entry.name}</div>

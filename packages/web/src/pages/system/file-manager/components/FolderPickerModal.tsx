@@ -1,7 +1,8 @@
 /** 文件夹选择器（移动/复制目标）：面包屑 + 子文件夹下钻 + Windows 盘符切换 */
 import { useEffect, useState } from 'react';
 import { Breadcrumb, Button, Spin, Typography } from '@douyinfe/semi-ui';
-import { Icon } from '@iconify/react';
+import { ArrowUp } from 'lucide-react';
+import { FileTypeIcon } from '@/components/FileTypeIcon';
 import AppModal from '@/components/AppModal';
 import { getFolderIcon } from '@/utils/fileIcons';
 import { useTerminalPickerList } from '@/hooks/queries/terminal-files';
@@ -82,7 +83,7 @@ export default function FolderPickerModal({ visible, title, initialPath, drives 
                 onClick={() => void loadPickerDir(pickerParent)}
                 style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '7px 14px', background: 'none', border: 'none', borderBottom: '1px solid var(--semi-color-border)', cursor: 'pointer', color: 'var(--semi-color-text-2)', font: 'inherit', fontSize: 13 }}
               >
-                <Icon icon="mdi:arrow-up" width={15} height={15} />
+                <ArrowUp size={15} />
                 <span>上级目录</span>
               </button>
             )}
@@ -117,7 +118,7 @@ export default function FolderPickerModal({ visible, title, initialPath, drives 
                   onClick={() => void loadPickerDir(f.path)}
                   style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 14px', background: 'none', border: 'none', borderBottom: '1px solid var(--semi-color-fill-0)', cursor: 'pointer', color: 'var(--semi-color-text-0)', font: 'inherit', fontSize: 13 }}
                 >
-                  <Icon icon={getFolderIcon(f.name, false)} width={16} height={16} />
+                  <FileTypeIcon icon={getFolderIcon(f.name, false)} size={16} />
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'left' }}>{f.name}</span>
                 </button>
               ))

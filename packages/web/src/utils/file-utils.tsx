@@ -1,4 +1,4 @@
-import { Icon } from '@iconify/react';
+import { FileTypeIcon } from '@/components/FileTypeIcon';
 import { escapeRegExp } from '@zenith/shared/core';
 import { drivePublicShareContract } from '@zenith/shared/drive';
 import { fileContract } from '@zenith/shared/platform';
@@ -74,13 +74,7 @@ export function getFileTypeIcon(mimeType?: string | null, iconSize = 15, fileNam
   }
   if (!iconId && mimeType) iconId = getIconIdForMime(mimeType);
   return (
-    <Icon
-      icon={iconId ?? 'vscode-icons:default-file'}
-      width={iconSize}
-      height={iconSize}
-      style={{ flexShrink: 0 }}
-      aria-hidden
-    />
+    <FileTypeIcon icon={iconId ?? 'vscode-icons:default-file'} size={iconSize} />
   );
 }
 

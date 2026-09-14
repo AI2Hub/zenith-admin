@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react';
 import { Button, Tooltip } from '@douyinfe/semi-ui';
 import { Package, PanelLeft, Server } from 'lucide-react';
-import { Icon } from '@iconify/react';
+import { FileTypeIcon } from '@/components/FileTypeIcon';
 import { getFileIcon, getShellIcon } from '@/utils/fileIcons';
 import type { PaneLeaf } from './paneTree';
 
@@ -29,6 +29,6 @@ export function TerminalPanelButton({ panel, activePanel, onToggle, tooltipPosit
 
 export function TerminalTabIcon({ leaf, size }: { leaf: PaneLeaf; size: number }) {
   return leaf.kind === 'editor'
-    ? <Icon icon={getFileIcon(leaf.title)} width={size} height={size} />
-    : <Icon icon={getShellIcon(leaf.shell)} width={size} height={size} />;
+    ? <FileTypeIcon icon={getFileIcon(leaf.title)} size={size} />
+    : <FileTypeIcon icon={getShellIcon(leaf.shell)} size={size} />;
 }
