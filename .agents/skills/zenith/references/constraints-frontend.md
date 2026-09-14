@@ -441,6 +441,11 @@ chunk 分层机理、度量脚本与预算数字见 [docs/frontend/bundle-perfor
   `lazy(() => import('@douyinfe/semi-illustrations')…)` + `Suspense` 样板
 - **Demo Mock 只在 Demo 模式进入产物**：`src/mocks/` 只能经入口文件的 `if (import.meta.env.VITE_DEMO_MODE === 'true') await import('./mocks')`
   引入，任何业务模块**禁止**静态 `import` `mocks/**`
+- **业务模块禁止 import `@zenith/shared` 的聚合模块**：`@zenith/shared/contracts`、`@zenith/shared/permissions`、
+  `@zenith/shared/permission-catalog` 这类把全部域收拢在一起的入口，任何一处静态 import 就会把 100 余个域契约模块拆进产物并让
+  `app-shared` 膨胀。页面 / hooks 只 import 所需的域子路径（`@zenith/shared/identity`）或叶子模块
+  （`@zenith/shared/permission-catalog-core`）；需要「全部契约派生」的数据（接口目录）由服务端接口下发。
+  `src/mocks/**` 例外——Demo 构建才进产物
 - **启动链路的新增网络请求必须并行**：认证后壳层所需的数据（当前用户菜单树、个人设置等）通过 `lib/shell-prefetch.ts`
   与 `/api/auth/me` 并行预取，**禁止**再往 `AdminRouteLoader` 首载 gate 里串行新增查询；
   只在错误 / 兜底路径使用的数据（如完整菜单树）由对应组件自行拉取
