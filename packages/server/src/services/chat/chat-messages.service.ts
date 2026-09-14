@@ -13,6 +13,7 @@ import { chatContract, type ForwardMessagesInput, type ChatMessage, type ChatMes
 import { notHiddenFor, rowSender, mapChatMessage, fetchUserBrief, listConversationMemberIds, ensureConversationMember, ensureMessageAccessible, touchConversation, requireGroupMember } from './chat-shared';
 import { aggregateReactions } from './chat-reactions.service';
 import { buildWhere, dateRangeConditions, keywordCondition, withPagination } from '../../lib/where-helpers';
+import { mapWithConcurrency } from '../../lib/concurrency';
 
 function parseMessageTypes(types: string | undefined): ChatMessage['type'][] {
   return types ? (types.split(',').filter(Boolean) as ChatMessage['type'][]) : [];
@@ -476,18 +477,21 @@ export async function getMessageContext(
 /** 服务端内部发送入参：允许 system / card 等用户不可主动发送的类型（如网盘文件卡片） */
 export type InternalSendChatMessageInput = Omit<SendChatMessageInput, 'type'> & { type?: ChatMessageType };
 
-export async function sendMessage(conversationId: number, input: InternalSendChatMessageInput): Promise<ChatMessage> {
-  const me = currentUser();
+type SenderBrief = NonNullable<Awaited<ReturnType<typeof fetchUserBrief>>>;
 
-  // 鉴权 & 发送者信息并行查询
-  const [member, sender, conv] = await Promise.all([
+/**
+ * 发送前置校验：成员资格 + 禁言（个人禁言优先，全员禁言豁免群主 / 管理员）。
+ * 发送者展示信息与会话的三次查询并行；转发到多个会话时发送者信息可复用，经 `sender` 传入省一次查询。
+ */
+async function loadSendContext(conversationId: number, userId: number, sender?: SenderBrief | null) {
+  const [member, resolvedSender, conv] = await Promise.all([
     db.query.chatConversationMembers.findFirst({
       where: and(
         eq(chatConversationMembers.conversationId, conversationId),
-        eq(chatConversationMembers.userId, me.userId),
+        eq(chatConversationMembers.userId, userId),
       ),
     }),
-    fetchUserBrief(me.userId),
+    sender === undefined ? fetchUserBrief(userId) : Promise.resolve(sender),
     db.query.chatConversations.findFirst({
       where: eq(chatConversations.id, conversationId),
       columns: { id: true, muteAll: true },
@@ -495,22 +499,52 @@ export async function sendMessage(conversationId: number, input: InternalSendCha
   ]);
   const sendMember = requireRow(member, '无权向该会话发送消息', 403);
 
-  // 禁言校验：个人禁言优先，全员禁言豁免群主/管理员
   if (sendMember.mutedUntil && sendMember.mutedUntil > new Date()) {
     throw new HTTPException(403, { message: '你已被禁言，暂时无法发言' });
   }
   if (conv?.muteAll && sendMember.role === 'member') {
     throw new HTTPException(403, { message: '全员禁言中，仅群主和管理员可发言' });
   }
+  return { sender: resolvedSender ?? null };
+}
 
-  const [row] = await db.insert(chatMessages).values({
+function toMessageRow(conversationId: number, senderId: number, input: InternalSendChatMessageInput) {
+  return {
     conversationId,
-    senderId: me.userId,
+    senderId,
     type: input.type ?? 'text',
     content: input.content,
     replyToId: input.replyToId ?? null,
     extra: input.extra ?? null,
-  }).returning();
+  };
+}
+
+/**
+ * 同一会话内批量发送（逐条转发）：一次前置校验、一次 insert、一次会话触碰、一次成员列表，
+ * 替代逐条 sendMessage 的 ≈4 轮 DB 往返 × N。插入顺序即数组顺序（id 递增），会话内保序。
+ * WS 仍逐条推送 chat:message，客户端协议不变。
+ */
+async function sendMessagesBulk(conversationId: number, inputs: InternalSendChatMessageInput[], sender?: SenderBrief | null): Promise<ChatMessage[]> {
+  if (inputs.length === 0) return [];
+  const me = currentUser();
+  const ctx = await loadSendContext(conversationId, me.userId, sender);
+
+  const rows = await db.insert(chatMessages)
+    .values(inputs.map((input) => toMessageRow(conversationId, me.userId, input)))
+    .returning();
+  await touchConversation(conversationId);
+
+  const messages = rows.map((row) => mapChatMessage(row, ctx.sender, [], null));
+  const members = await listConversationMemberIds(conversationId);
+  for (const msg of messages) scheduleSendToUsers(members, { type: 'chat:message', payload: msg });
+  return messages;
+}
+
+export async function sendMessage(conversationId: number, input: InternalSendChatMessageInput): Promise<ChatMessage> {
+  const me = currentUser();
+  const { sender } = await loadSendContext(conversationId, me.userId);
+
+  const [row] = await db.insert(chatMessages).values(toMessageRow(conversationId, me.userId, input)).returning();
 
   await touchConversation(conversationId);
 
@@ -530,6 +564,9 @@ export async function sendMessage(conversationId: number, input: InternalSendCha
 }
 
 // ─── 转发消息 ─────────────────────────────────────────────────────────────────
+
+/** 转发到多个会话时的并行上限：每个会话 4 轮 DB 往返，上限内不会挤占连接池 */
+const FORWARD_CONVERSATION_CONCURRENCY = 4;
 
 export async function forwardMessages(input: ForwardMessagesInput): Promise<void> {
   const me = currentUser();
@@ -585,8 +622,9 @@ export async function forwardMessages(input: ForwardMessagesInput): Promise<void
     }
   }
 
+  // 每个目标会话要写入的消息：合并转发 = 单条 forward 聚合消息；逐条转发 = 逐条拷贝（跳过撤回 / 系统 / 聚合 / 卡片）
+  let items: InternalSendChatMessageInput[];
   if (input.mode === 'merge') {
-    // 合并转发：生成 forwardedMessages 列表，发送单条 forward 类型消息
     const forwardedItems: ChatForwardedItem[] = ordered
       .filter((m) => !m.isRecalled && m.type !== 'system')
       .map((m) => ({
@@ -607,33 +645,35 @@ export async function forwardMessages(input: ForwardMessagesInput): Promise<void
       })
       .join('\n');
 
-    for (const targetConvId of input.targetConversationIds) {
-      await sendMessage(targetConvId, {
-        content: previewText,
-        type: 'forward',
-        extra: {
-          forwardedMessages: forwardedItems,
-          forwardSourceConvName: sourceConvName,
-        },
-      });
-    }
+    items = [{
+      content: previewText,
+      type: 'forward',
+      extra: { forwardedMessages: forwardedItems, forwardSourceConvName: sourceConvName },
+    }];
   } else {
-    // 逐条转发：每条消息单独发送（跳过撤回、系统、转发聚合类型）
-    for (const targetConvId of input.targetConversationIds) {
-      for (const m of ordered) {
-        if (m.isRecalled) continue;
-        if (m.type === 'system' || m.type === 'forward' || m.type === 'card') continue;
+    items = ordered
+      .filter((m) => !m.isRecalled && m.type !== 'system' && m.type !== 'forward' && m.type !== 'card')
+      .map((m) => {
         const originalExtra = (m.extra as ChatMessageExtra | null) ?? null;
         const extra: ChatMessageExtra = {};
         if (originalExtra?.asset) extra.asset = originalExtra.asset;
-        await sendMessage(targetConvId, {
-          content: m.content,
-          type: m.type,
-          extra: Object.keys(extra).length > 0 ? extra : null,
-        });
-      }
-    }
+        return { content: m.content, type: m.type, extra: Object.keys(extra).length > 0 ? extra : null };
+      });
   }
+  if (items.length === 0) return;
+
+  // 契约上限 100 条 × 20 会话：会话内一次批量写入保序，会话间有界并行；发送者展示信息只查一次
+  const sender = await fetchUserBrief(me.userId);
+  const outcomes = await mapWithConcurrency(input.targetConversationIds, FORWARD_CONVERSATION_CONCURRENCY, async (targetConvId) => {
+    try {
+      await sendMessagesBulk(targetConvId, items, sender ?? null);
+      return null;
+    } catch (err) {
+      return err;
+    }
+  });
+  const failure = outcomes.find((err) => err !== null);
+  if (failure) throw failure;
 }
 
 // ─── 删除消息（仅对自己） ─────────────────────────────────────────────────────
