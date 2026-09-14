@@ -79,8 +79,8 @@ export const aiConversationListQuery = z.object({
   archived: queryBool('是否查看已归档对话'),
   keyword: z.string().max(100).optional().meta({ description: '搜索关键词（匹配标题或消息内容）' }),
   tag: z.string().max(20).optional().meta({ description: '按标签过滤' }),
-  limit: z.coerce.number().int().min(1).max(100).optional().meta({ description: '返回条数上限（分页加载）' }),
-  offset: z.coerce.number().int().min(0).optional().meta({ description: '偏移量（分页加载）' }),
+  limit: z.coerce.number().int().min(1).max(100).default(100).meta({ description: '返回条数上限（分页加载）；缺省取上限，不再返回全部会话' }),
+  offset: z.coerce.number().int().min(0).default(0).meta({ description: '偏移量（分页加载）' }),
 });
 
 export const aiConversationExportQuery = z.object({

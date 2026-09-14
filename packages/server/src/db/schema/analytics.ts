@@ -101,6 +101,8 @@ export const userEvents = pgTable('user_events', {
   index('user_events_tenant_created_name_idx').on(t.tenantId, t.createdAt, t.eventName),
   // 多端来源趋势拆分查询路径
   index('user_events_source_created_idx').on(t.source, t.createdAt),
+  // 按应用统计当日事件量（埋点站点列表 todayUsage）：只扫目标 app 的当日区间，不再走 created_at 单列索引后逐行过滤 app_id
+  index('user_events_app_created_idx').on(t.appId, t.createdAt),
   // Web Vitals 性能统计（perf 事件占比小，部分索引降低维护成本）
   index('user_events_perf_metric_idx').on(t.metricName, t.createdAt).where(sql`${t.eventType} = 'perf'`),
   // 自定义属性过滤（漏斗步骤 / 分群圈选 / 事件分析工作台）：默认 jsonb_ops 操作符类，

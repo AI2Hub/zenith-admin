@@ -5,7 +5,7 @@ import { isTokenBlacklisted, touchSession, registerSession } from '../lib/sessio
 import { checkSessionLiveness, clientFingerprint } from '../lib/session-liveness';
 import { db } from '../db';
 import { impersonationSessions, tenants, userApiTokens, users } from '../db/schema';
-import { and, eq, gt, isNull, lt, or } from 'drizzle-orm';
+import { and, eq, isNull, lt, or } from 'drizzle-orm';
 import { config } from '../config';
 import { errBody } from '../lib/openapi-schemas';
 import logger from '../lib/logger';
@@ -118,18 +118,70 @@ async function loadTenantRow(tenantId: number): Promise<TenantLivenessRow | null
   return row ?? null;
 }
 
+// ─── API Token 主体副本 ──────────────────────────────────────────────────────
+/**
+ * `zat_` 令牌鉴权此前每请求都重新做 token → user → tenant → user_roles → roles 的关联查询，是 JWT 路径缓存后
+ * 全局中间件链上仅剩的每请求 PG 查询；脚本 / 集成调用方高频且突发，同样会把同一条查询排进连接池几十次。
+ *
+ * - 副本只放令牌行本身与所属用户的角色码（tokenHash 键）；用户 / 租户活性复用上面的 subjectRows +
+ *   checkSubjectLiveness，禁用 / 移出租户 / 租户停用的即时性与 JWT 路径完全一致（同一失效链路）；
+ * - 令牌创建 / 删除 / 过期改写经 user_api_tokens 触发器广播（迁移 0016），副本无 id 反向索引，收到即整段清空；
+ *   角色变更走管理端更新用户时同事务写 users 行 → users 广播，只改 user_roles 的路径在 TTL 内收敛；
+ * - 缓存的是原始行：expiresAt 到点在请求时求值，不受 TTL 影响；不存在的 hash 也缓存为 null，防伪造令牌反复回源。
+ */
+interface ApiTokenRow {
+  id: number;
+  userId: number;
+  expiresAt: Date | null;
+  lastUsedAt: Date | null;
+  /** 所属用户当前启用角色的 code */
+  roles: string[];
+}
+
+const apiTokenRows = new TtlCache<string, ApiTokenRow | null>(SUBJECT_CACHE_TTL_MS, { staleWhileRevalidate: false });
+
+async function loadApiTokenRow(tokenHash: string): Promise<ApiTokenRow | null> {
+  const row = await db.query.userApiTokens.findFirst({
+    where: eq(userApiTokens.tokenHash, tokenHash),
+    columns: { id: true, userId: true, expiresAt: true, lastUsedAt: true },
+    with: {
+      user: {
+        columns: {},
+        with: {
+          userRoles: {
+            columns: {},
+            with: { role: { columns: { code: true, status: true } } },
+          },
+        },
+      },
+    },
+  });
+  if (!row) return null;
+  return {
+    id: row.id,
+    userId: row.userId,
+    expiresAt: row.expiresAt,
+    lastUsedAt: row.lastUsedAt,
+    roles: row.user.userRoles.filter(({ role }) => role.status === 'enabled').map(({ role }) => role.code),
+  };
+}
+
 /** 清空全部主体副本（监听重建 / 测试） */
 export function resetAdminSubjectCache(): void {
   subjectRows.clear();
   tenantRows.clear();
   impersonationRows.clear();
+  apiTokenRows.clear();
 }
 
 onInvalidate('users', (message) => {
   const userId = Number(message.key);
   if (Number.isInteger(userId) && userId > 0) subjectRows.delete(userId);
   else subjectRows.clear();
+  // 令牌副本内嵌角色码、按 hash 键无用户反向索引；用户行改动即整段清空（TTL 本就只有 5s，代价可忽略）
+  apiTokenRows.clear();
 });
+onInvalidate('user_api_tokens', () => apiTokenRows.clear());
 // 用户副本按 userId 键、没有租户反向索引；租户行改动极少，整段清空即可
 onInvalidate('tenants', resetAdminSubjectCache);
 onInvalidationReset(resetAdminSubjectCache);
@@ -192,73 +244,40 @@ export async function checkAdminJwtSubject(payload: JwtPayload): Promise<AdminJw
   };
 }
 
+/** 最近使用时间按 5 分钟节流回写：副本内先行推进，TTL 内的后续命中不再重复发起同一条 UPDATE */
+function touchApiTokenLastUsed(token: ApiTokenRow): void {
+  const now = new Date();
+  const cutoff = new Date(now.getTime() - API_TOKEN_LAST_USED_THROTTLE_MS);
+  if (token.lastUsedAt && token.lastUsedAt >= cutoff) return;
+  token.lastUsedAt = now;
+  db.update(userApiTokens)
+    .set({ lastUsedAt: now })
+    .where(and(
+      eq(userApiTokens.id, token.id),
+      or(isNull(userApiTokens.lastUsedAt), lt(userApiTokens.lastUsedAt, cutoff)),
+    ))
+    .catch((err) => logger.warn('[Auth] API token last-used update failed:', err));
+}
+
 async function authenticateApiToken(rawToken: string): Promise<JwtPayload | null> {
   const tokenHash = createHash('sha256').update(rawToken).digest('hex');
-  const row = await db.query.userApiTokens.findFirst({
-    where: and(
-      eq(userApiTokens.tokenHash, tokenHash),
-      or(isNull(userApiTokens.expiresAt), gt(userApiTokens.expiresAt, new Date())),
-    ),
-    columns: {
-      id: true,
-      lastUsedAt: true,
-    },
-    with: {
-      user: {
-        columns: {
-          id: true,
-          username: true,
-          tenantId: true,
-          status: true,
-        },
-        with: {
-          tenant: {
-            columns: {
-              status: true,
-              expireAt: true,
-            },
-          },
-          userRoles: {
-            columns: {},
-            with: {
-              role: {
-                columns: {
-                  code: true,
-                  status: true,
-                },
-              },
-            },
-          },
-        },
-      },
-    },
-  });
+  const token = await apiTokenRows.get(tokenHash, () => loadApiTokenRow(tokenHash));
+  if (!token) return null;
+  if (token.expiresAt && token.expiresAt <= new Date()) return null;
 
-  if (!row || row.user.status !== 'enabled') return null;
-  if (row.user.tenantId !== null) {
-    if (!row.user.tenant || !isTenantActive(row.user.tenant)) return null;
-  }
+  // 用户 / 租户活性与 JWT 路径同口径、同副本、同失效链路；API Token 没有租户声明，不做声明比对
+  const subject = await subjectRows.get(token.userId, () => loadSubjectRow(token.userId));
+  const verdict = checkSubjectLiveness(subject);
+  if (!verdict.ok) return null;
 
-  const cutoff = new Date(Date.now() - API_TOKEN_LAST_USED_THROTTLE_MS);
-  if (!row.lastUsedAt || row.lastUsedAt < cutoff) {
-    db.update(userApiTokens)
-      .set({ lastUsedAt: new Date() })
-      .where(and(
-        eq(userApiTokens.id, row.id),
-        or(isNull(userApiTokens.lastUsedAt), lt(userApiTokens.lastUsedAt, cutoff)),
-      ))
-      .catch((err) => logger.warn('[Auth] API token last-used update failed:', err));
-  }
-
+  touchApiTokenLastUsed(token);
   return {
-    userId: row.user.id,
-    username: row.user.username,
-    roles: row.user.userRoles
-      .filter(({ role }) => role.status === 'enabled')
-      .map(({ role }) => role.code),
-    tenantId: row.user.tenantId ?? null,
+    userId: verdict.row.id,
+    username: verdict.row.username,
+    roles: token.roles,
+    tenantId: verdict.tenantId,
     authType: 'apiToken',
-    apiTokenId: row.id,
+    apiTokenId: token.id,
   };
 }
 

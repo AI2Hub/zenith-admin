@@ -48,6 +48,7 @@ vi.mock('../../db', () => {
     transaction: vi.fn(async (callback: (tx: typeof db) => unknown) => callback(db)),
     query: {
       users: { findFirst: vi.fn(), findMany: vi.fn() },
+      userApiTokens: { findFirst: vi.fn() },
     },
   };
   return { db };
@@ -505,6 +506,142 @@ describe('authMiddleware - 主体校验缓存', () => {
     resetAdminSubjectCache();
     await probe(app, token);
     expect(dbMock.select).toHaveBeenCalledTimes(2);
+  });
+});
+
+/**
+ * API Token（zat_ 前缀）路径的主体副本：令牌行 + 角色码按 hash 键缓存，
+ * 用户 / 租户活性复用 JWT 路径的 subjectRows（同一失效链路）。
+ */
+describe('authMiddleware - API Token 主体副本', () => {
+  const findApiToken = vi.mocked(db.query.userApiTokens.findFirst);
+  const RAW_TOKEN = 'zat_0123456789abcdef0123456789abcdef0123456789abcdef';
+
+  function apiTokenRow(overrides: Record<string, unknown> = {}) {
+    return {
+      id: 42,
+      userId: 1,
+      expiresAt: null,
+      lastUsedAt: new Date(),
+      user: { userRoles: [{ role: { code: 'ops', status: 'enabled' } }, { role: { code: 'legacy', status: 'disabled' } }] },
+      ...overrides,
+    };
+  }
+
+  function buildProbeApp() {
+    const app = new Hono();
+    app.use('*', contextStorage());
+    app.use('/probe', authMiddleware);
+    app.get('/probe', (c) => c.json({ user: c.get('user') }, 200));
+    return app;
+  }
+
+  async function probe(app: Hono, raw = RAW_TOKEN) {
+    return app.request('/probe', { headers: { Authorization: `Bearer ${raw}` } });
+  }
+
+  beforeEach(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    findApiToken.mockResolvedValue(apiTokenRow() as any);
+  });
+
+  it('同一令牌连续请求只回源一次；角色码只保留启用角色，主体行走 subjectRows', async () => {
+    const app = buildProbeApp();
+
+    const first = await probe(app);
+    expect(first.status).toBe(200);
+    expect((await first.json()).user).toMatchObject({ userId: 1, username: 'admin', roles: ['ops'], tenantId: null, authType: 'apiToken', apiTokenId: 42 });
+
+    expect((await probe(app)).status).toBe(200);
+    expect((await probe(app)).status).toBe(200);
+    expect(findApiToken).toHaveBeenCalledTimes(1);
+    // 用户 / 租户权威行：一次 select（subjectRows），令牌行本身不再关联 users / tenants
+    expect(dbMock.select).toHaveBeenCalledTimes(1);
+  });
+
+  it('并发冷加载单飞：同一令牌的并发请求共用一条查询', async () => {
+    const app = buildProbeApp();
+    const responses = await Promise.all(Array.from({ length: 8 }, () => probe(app)));
+    expect(responses.every((r) => r.status === 200)).toBe(true);
+    expect(findApiToken).toHaveBeenCalledTimes(1);
+    expect(dbMock.select).toHaveBeenCalledTimes(1);
+  });
+
+  it('不存在的令牌同样缓存为空，伪造令牌不会反复回源', async () => {
+    const app = buildProbeApp();
+    findApiToken.mockResolvedValue(undefined);
+    expect((await probe(app, 'zat_forged')).status).toBe(401);
+    expect((await probe(app, 'zat_forged')).status).toBe(401);
+    expect(findApiToken).toHaveBeenCalledTimes(1);
+    expect(dbMock.select).not.toHaveBeenCalled();
+  });
+
+  it('缓存的是原始行：expiresAt 到点后即使命中缓存也拒绝', async () => {
+    const app = buildProbeApp();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    findApiToken.mockResolvedValue(apiTokenRow({ expiresAt: new Date(Date.now() + 200) }) as any);
+    expect((await probe(app)).status).toBe(200);
+
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    const denied = await probe(app);
+    expect(denied.status).toBe(401);
+    expect((await denied.json()).message).toBe('API Token 无效或已过期');
+    expect(findApiToken).toHaveBeenCalledTimes(1);
+  });
+
+  it('user_api_tokens 触发器广播 → 令牌副本清空，删除后的令牌下一请求即拒绝', async () => {
+    const app = buildProbeApp();
+    expect((await probe(app)).status).toBe(200);
+
+    findApiToken.mockResolvedValue(undefined);
+    dispatchInvalidation({ topic: 'user_api_tokens', key: '42' });
+
+    expect((await probe(app)).status).toBe(401);
+    expect(findApiToken).toHaveBeenCalledTimes(2);
+  });
+
+  it('users 触发器广播 → 用户禁用与角色变更对 API Token 立即生效', async () => {
+    const app = buildProbeApp();
+    expect((await probe(app)).status).toBe(200);
+
+    // 角色被回收：令牌副本随 users 广播清空并重读角色
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    findApiToken.mockResolvedValue(apiTokenRow({ user: { userRoles: [] } }) as any);
+    dispatchInvalidation({ topic: 'users', key: '1' });
+    const downgraded = await probe(app);
+    expect(downgraded.status).toBe(200);
+    expect((await downgraded.json()).user.roles).toEqual([]);
+
+    // 账号禁用：主体行与 JWT 路径同一副本、同一判定
+    dbMock.select.mockReturnValueOnce(createChain([activeAdminSubject({ status: 'disabled' })]));
+    dispatchInvalidation({ topic: 'users', key: '1' });
+    const denied = await probe(app);
+    expect(denied.status).toBe(401);
+    expect((await denied.json()).message).toBe('API Token 无效或已过期');
+  });
+
+  it('所属租户停用 → 拒绝（tenants 广播清空全部副本）', async () => {
+    const app = buildProbeApp();
+    dbMock.select.mockReturnValueOnce(createChain([activeAdminSubject({ tenantId: 9, tenantStatus: 'enabled' })]));
+    const ok = await probe(app);
+    expect(ok.status).toBe(200);
+    expect((await ok.json()).user.tenantId).toBe(9);
+
+    dbMock.select.mockReturnValueOnce(createChain([activeAdminSubject({ tenantId: 9, tenantStatus: 'disabled' })]));
+    dispatchInvalidation({ topic: 'tenants', key: '9' });
+    expect((await probe(app)).status).toBe(401);
+  });
+
+  it('最近使用时间按 5 分钟节流回写，TTL 内的后续命中不再重复发起 UPDATE', async () => {
+    const app = buildProbeApp();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    findApiToken.mockResolvedValue(apiTokenRow({ lastUsedAt: null }) as any);
+    dbMock.update.mockReturnValue(createChain([]));
+
+    await probe(app);
+    await probe(app);
+    await probe(app);
+    expect(dbMock.update).toHaveBeenCalledTimes(1);
   });
 });
 

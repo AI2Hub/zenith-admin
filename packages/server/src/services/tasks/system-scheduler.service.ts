@@ -3,7 +3,7 @@ import type { QueryOutputOf } from '@zenith/shared/core';
 import { systemSchedulerContract } from '@zenith/shared/platform';
 import { buildListResult, listRows } from '../../lib/list-query';
 import { requireRow } from '../../lib/db-assert';
-import { and, desc, eq, isNotNull, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, sql, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { CronExpressionParser } from 'cron-parser';
 import { db } from '../../db';
@@ -119,6 +119,23 @@ export async function listSystemSchedulerTasks() {
     ...scheduler.systemQueueWorkers,
   ];
   const taskNames = registeredTasks.map((task) => task.name);
+  // 每任务一行「最近一次」：unnest(任务名) × LATERAL limit 1 —— 一条语句内对每个任务做一次
+  // system_scheduler_runs_task_started_idx 倒扫探测（loose index scan），替代按任务逐个 limit(1) 的 2N 次并行查询
+  // （40+ 个注册任务会瞬时占满 20 连接的池）。DISTINCT ON 在 PG 里没有 loose index scan，会退化成全表排序，不可用
+  const latestRunPerTask = (extra?: SQL) => {
+    const latest = db
+      .select({ id: systemSchedulerRuns.id })
+      .from(systemSchedulerRuns)
+      .where(buildWhere(eq(systemSchedulerRuns.taskName, sql`t.name`), extra))
+      .orderBy(desc(systemSchedulerRuns.startedAt), desc(systemSchedulerRuns.id))
+      .limit(1)
+      .as('latest');
+    const latestIds = db
+      .select({ id: latest.id })
+      .from(sql`unnest(array[${sql.join(taskNames.map((name) => sql`${name}`), sql`, `)}]::varchar[]) as t(name)`)
+      .crossJoinLateral(latest);
+    return db.select().from(systemSchedulerRuns).where(inArray(systemSchedulerRuns.id, latestIds));
+  };
   const [statsRows, configRows, latestRows, latestAlertRows, queueMetrics] = await Promise.all([
     db.select({
       taskName: systemSchedulerRuns.taskName,
@@ -128,27 +145,15 @@ export async function listSystemSchedulerTasks() {
       alertCount: sql<number>`cast(count(*) filter (where ${systemSchedulerRuns.alertMessage} is not null) as int)`,
     }).from(systemSchedulerRuns).groupBy(systemSchedulerRuns.taskName),
     db.select().from(systemSchedulerTaskConfigs),
-    Promise.all(registeredTasks.map((task) =>
-      db.select()
-        .from(systemSchedulerRuns)
-        .where(eq(systemSchedulerRuns.taskName, task.name))
-        .orderBy(desc(systemSchedulerRuns.startedAt), desc(systemSchedulerRuns.id))
-        .limit(1),
-    )),
-    Promise.all(registeredTasks.map((task) =>
-      db.select()
-        .from(systemSchedulerRuns)
-        .where(and(eq(systemSchedulerRuns.taskName, task.name), isNotNull(systemSchedulerRuns.alertMessage)))
-        .orderBy(desc(systemSchedulerRuns.startedAt), desc(systemSchedulerRuns.id))
-        .limit(1),
-    )),
+    latestRunPerTask(),
+    latestRunPerTask(isNotNull(systemSchedulerRuns.alertMessage)),
     getSystemQueueMetrics(taskNames),
   ]);
 
   const statsMap = new Map(statsRows.map((row) => [row.taskName, row]));
   const configMap = new Map(configRows.map((row) => [row.taskName, row]));
-  const latestMap = new Map(latestRows.flat().map((row) => [row.taskName, row]));
-  const latestAlertMap = new Map(latestAlertRows.flat().map((row) => [row.taskName, row]));
+  const latestMap = new Map(latestRows.map((row) => [row.taskName, row]));
+  const latestAlertMap = new Map(latestAlertRows.map((row) => [row.taskName, row]));
   const wipMap = new Map(scheduler.wip.map((item) => [item.name, item.count]));
 
   return registeredTasks

@@ -142,7 +142,9 @@ export const systemSchedulerRuns = pgTable('system_scheduler_runs', {
   alertAckNote: text(),
   createdAt: timestamp({ withTimezone: true }).defaultNow().notNull(),
 }, (t) => [
-  index('system_scheduler_runs_task_idx').on(t.taskName),
+  // 「某任务最近 N 次运行」是本表的主访问路径（任务面板 latest / latestAlert、连续失败判定、按数量保留清理的窗口排名），
+  // 前缀 task_name 同时覆盖等值过滤，无需再保留单列索引
+  index('system_scheduler_runs_task_started_idx').on(t.taskName, t.startedAt, t.id),
   index('system_scheduler_runs_status_idx').on(t.status),
   index('system_scheduler_runs_started_at_idx').on(t.startedAt),
   index('system_scheduler_runs_triggered_by_idx').on(t.triggeredBy),

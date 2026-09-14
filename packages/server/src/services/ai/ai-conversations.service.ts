@@ -1,4 +1,4 @@
-import { eq, desc, and, or, inArray, isNotNull, gt, lte, sql, arrayContains } from 'drizzle-orm';
+import { eq, desc, and, or, exists, inArray, isNotNull, gt, lte, sql, arrayContains } from 'drizzle-orm';
 import { buildListResult } from '../../lib/list-query';
 import { requireRow } from '../../lib/db-assert';
 import { db } from '../../db';
@@ -111,33 +111,39 @@ export async function switchConversationBranch(conversationId: number, msgId: nu
   return leafId;
 }
 
-export async function listConversations(opts: { archived?: boolean; keyword?: string; tag?: string; limit?: number; offset?: number } = {}) {
-  const user = currentUser();
-  const archived = opts.archived ?? false;
-  const keyword = opts.keyword?.trim();
-  const tag = opts.tag?.trim();
-
-  // 命中条件：对话标题匹配，或对话内存在内容匹配的消息
-  const matchedConvIds = db
-    .select({ id: aiMessages.conversationId })
-    .from(aiMessages)
-    .where(keywordCondition(keyword, [aiMessages.content], 'ilike'));
-  const where = buildWhere(
-    eq(aiConversations.userId, user.userId),
+/** 会话列表的过滤条件（与 currentUser 解耦，便于对生成的 SQL 形状做断言） */
+export function conversationListWhere(userId: number, q: Pick<QueryOutputOf<typeof aiConversationContract.list>, 'archived' | 'keyword' | 'tag'>) {
+  const archived = q.archived ?? false;
+  const tag = q.tag?.trim();
+  // 命中条件：对话标题匹配，或对话内存在内容匹配的消息。
+  // 消息侧必须写成关联到当前会话的 EXISTS：处在 OR 里的非关联 IN (SELECT conversation_id FROM ai_messages WHERE content ILIKE …)
+  // 无法转成 semi-join，只能对全表消息做一次 ILIKE 扫描再哈希；关联写法让规划器可以按会话走 ai_messages_conversation_idx 逐个探测，
+  // 代价只与当前用户自己的消息量相关（200 万条消息实测 779ms → 5ms）
+  const messageMatch = keywordCondition(q.keyword, [aiMessages.content], 'ilike');
+  const hasMatchingMessage = messageMatch
+    ? exists(
+      db.select({ one: sql`1` })
+        .from(aiMessages)
+        .where(and(eq(aiMessages.conversationId, aiConversations.id), messageMatch)),
+    )
+    : undefined;
+  return buildWhere(
+    eq(aiConversations.userId, userId),
     eq(aiConversations.isArchived, archived),
     tag ? arrayContains(aiConversations.tags, [tag]) : undefined,
-    keyword ? or(keywordCondition(keyword, [aiConversations.title], 'ilike'), inArray(aiConversations.id, matchedConvIds)) : undefined,
+    hasMatchingMessage ? or(keywordCondition(q.keyword, [aiConversations.title], 'ilike'), hasMatchingMessage) : undefined,
   );
+}
 
-  let query = db
+export async function listConversations(q: QueryOutputOf<typeof aiConversationContract.list>) {
+  const user = currentUser();
+  const rows = await db
     .select()
     .from(aiConversations)
-    .where(where)
+    .where(conversationListWhere(user.userId, q))
     .orderBy(desc(aiConversations.isPinned), desc(aiConversations.updatedAt))
-    .$dynamic();
-  if (opts.limit !== undefined) query = query.limit(opts.limit);
-  if (opts.offset) query = query.offset(opts.offset);
-  const rows = await query;
+    .limit(q.limit)
+    .offset(q.offset);
   return rows.map(mapConversation);
 }
 
@@ -186,6 +192,8 @@ export async function deleteConversation(id: number) {
 
 export async function listMessages(conversationId: number) {
   await ensureConversationOwner(conversationId);
+  // 刻意返回全部分支的完整消息树：前端以本地镜像切换分支、即时重算展示路径（pages/ai/chat/hooks/useMessageTree），
+  // 不能只给激活路径或分页；大字段已在写入侧裁剪（kbReferences 200 字 / 工具结果 2000 字）
   const rows = await db
     .select()
     .from(aiMessages)
@@ -253,11 +261,19 @@ export async function updateConversationTags(id: number, tags: string[]) {
 /** 导出对话为 Markdown / JSON（仅会话所有者；仅导出当前激活分支路径） */
 export async function exportConversation(id: number, format: 'md' | 'json') {
   const conv = await ensureConversationOwner(id);
+  // 只取导出用到的列：全行还带 reasoning / trace / toolCalls / kbReferences 等大列，全部分支的历史一起拉会白读数倍数据
   const allRows = await db
-    .select()
+    .select({
+      id: aiMessages.id,
+      parentId: aiMessages.parentId,
+      role: aiMessages.role,
+      content: aiMessages.content,
+      model: aiMessages.model,
+      createdAt: aiMessages.createdAt,
+    })
     .from(aiMessages)
     .where(eq(aiMessages.conversationId, id))
-    .orderBy(aiMessages.createdAt);
+    .orderBy(aiMessages.createdAt, aiMessages.id);
   const pathIds = new Set(
     resolveActivePath(
       allRows.map((r) => ({ id: r.id, parentId: r.parentId, role: r.role, content: '', createdAt: r.createdAt })),

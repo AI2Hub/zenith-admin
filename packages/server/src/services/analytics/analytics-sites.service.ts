@@ -9,7 +9,7 @@ import type { CreateAnalyticsSiteInput, UpdateAnalyticsSiteInput } from '@zenith
 import { db } from '../../db';
 import { analyticsSites, userEvents } from '../../db/schema';
 import type { AnalyticsSiteRow } from '../../db/schema';
-import { formatDate, formatTimestamps, parseDateRangeStart } from '../../lib/datetime';
+import { formatTimestamps, startOfToday } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { pageOffset } from '../../lib/pagination';
 import { currentCreateTenantId, tenantScope } from '../../lib/tenant';
@@ -96,9 +96,10 @@ export async function listSites(q: QueryOutputOf<typeof analyticsSiteContract.si
     rows: async () => {
       const list = await db.query.analyticsSites.findMany({ where, with: { tenant: true }, orderBy: [desc(analyticsSites.id)], limit: pageSize, offset: pageOffset(page, pageSize) });
       // 今日用量按 appId 实时统计（含登录态事件）：Redis 配额计数器只覆盖带配额的匿名站点，
-      // 默认站点（admin/member，无 siteKey 采集路径）在计数器里恒为 0，直接查事件表才是真实用量
+      // 默认站点（admin/member，无 siteKey 采集路径）在计数器里恒为 0，直接查事件表才是真实用量。
+      // 走 user_events_app_created_idx：只扫这些 app 的当日区间，代价与目标 app 的当日事件量成正比
       const appIds = [...new Set(list.map((site) => site.appId))];
-      const todayStart = parseDateRangeStart(formatDate(new Date())) ?? new Date();
+      const todayStart = startOfToday();
       const usageRows = appIds.length > 0
         ? await db
           .select({ appId: userEvents.appId, n: sql<number>`COUNT(*)::int` })
