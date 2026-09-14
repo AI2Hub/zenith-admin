@@ -11,7 +11,8 @@
 import { and, eq, desc, or, sql, inArray, lt, gte } from 'drizzle-orm';
 import { requireRow } from '../../lib/db-assert';
 import { listRows } from '../../lib/list-query';
-import { gzipSync } from 'node:zlib';
+import { gzip as gzipCallback } from 'node:zlib';
+import { promisify } from 'node:util';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { replaySessions, replaySegments, replayClickPoints, replayAccessLogs, errorEvents, analyticsSettings, userEvents } from '../../db/schema';
@@ -30,6 +31,7 @@ import { pickEntity } from '../../lib/entity-map';
 
 /** 单分片 gz 上限（防滥用；rrweb 10s 分片 gz 后通常 <200KB） */
 export const REPLAY_SEGMENT_MAX_BYTES = 2 * 1024 * 1024;
+const gzipAsync = promisify(gzipCallback);
 /** 单会话分片数上限（10s/片 ≈ 100 分钟） */
 const REPLAY_MAX_SEGMENTS = 600;
 /** recording 会话无活动超时（服务端收尾判定） */
@@ -73,8 +75,10 @@ export async function ingestReplaySegment(meta: ReplaySegmentUploadMetaInput, da
   if (data.byteLength === 0) throw new HTTPException(400, { message: '分片数据为空' });
   if (data.byteLength > REPLAY_SEGMENT_MAX_BYTES) throw new HTTPException(400, { message: '分片超出大小上限' });
   if (meta.toTs < meta.fromTs) throw new HTTPException(400, { message: '分片时间范围非法' });
-  // 终包（pagehide）为规避页面冻结发原始 JSON：按 gzip magic 检测，存储侧统一为 gz
-  if (!(data[0] === 0x1f && data[1] === 0x8b)) data = gzipSync(data);
+  // 终包（pagehide）为规避页面冻结发原始 JSON：按 gzip magic 检测，存储侧统一为 gz。
+  // 压缩走线程池而不是 gzipSync：正常终包受 keepalive 64KB 上限约束只有 ~1ms，但请求体上限是 2MB，
+  // 恶意 / 异常客户端发满 2MB 原始 JSON 时同步压缩会卡住全部并发请求数十毫秒
+  if (!(data[0] === 0x1f && data[1] === 0x8b)) data = await gzipAsync(data);
 
   const user = currentUserOrNull();
   const member = user ? undefined : currentMemberOrNull();

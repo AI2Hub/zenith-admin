@@ -3,8 +3,10 @@ import { desc, eq, and, or, gte, lt, lte, count, sql, inArray, type SQL } from '
 import { buildWhere, dateRangeConditions, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { db } from '../../db';
 import { loginLogs } from '../../db/schema';
-import { tenantCondition } from '../../lib/tenant';
+import { getTenantScopeId, tenantCondition } from '../../lib/tenant';
 import { currentUser } from '../../lib/context';
+import { TtlCache } from '../../lib/ttl-cache';
+import type { JwtPayload } from '../../middleware/auth';
 import { formatDateTime, resolveStatsWindow } from '../../lib/datetime';
 import { getNicknameMap, findUsernamesByNickname } from '../../lib/user-nicknames';
 import type { QueryOutputOf } from '@zenith/shared/core';
@@ -44,8 +46,20 @@ export async function listLoginLogs(q: QueryOutputOf<typeof loginLogContract.lis
   });
 }
 
+/**
+ * 登录统计面板一次要跑 ~20 条全时间窗聚合（保留期内的 login_logs 全表扫描）：
+ * 60s 进程内缓存（单飞 + 过期先用旧值后台刷新），按可见租户范围 × 天数分键；面板刷新 / 多管理员同时打开不再重复扫表。
+ */
+const STATS_CACHE_TTL_MS = 60_000;
+const loginStatsCache = new TtlCache<string, Awaited<ReturnType<typeof computeLoginLogStats>>>(STATS_CACHE_TTL_MS);
+
 export async function loginLogStats(daysRaw?: number) {
   const user = currentUser();
+  const { days } = resolveStatsWindow(daysRaw);
+  return loginStatsCache.get(`${String(getTenantScopeId(user))}:${days}`, () => computeLoginLogStats(user, daysRaw));
+}
+
+async function computeLoginLogStats(user: JwtPayload, daysRaw?: number) {
   const { startDate, startDateLabel, prevStartDate } = resolveStatsWindow(daysRaw);
   const tc = tenantCondition(loginLogs, user);
   const baseWhere = buildWhere(gte(loginLogs.createdAt, startDate), eq(loginLogs.eventType, 'login'), tc);

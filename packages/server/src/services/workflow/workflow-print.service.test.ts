@@ -8,7 +8,7 @@ import type { WorkflowInstance } from '@zenith/shared/workflow';
 const mocks = vi.hoisted(() => ({
   getInstanceDetail: vi.fn(),
   loadEntityPrintTemplate: vi.fn(),
-  listDictItemsByCode: vi.fn(),
+  listDictItemsByCodes: vi.fn(),
   loadWorkflowUserDisplays: vi.fn(),
   resolveMaskDecisions: vi.fn(),
   definitionRow: { printTemplateId: null as number | null, flowData: null as unknown },
@@ -17,7 +17,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('./instances/queries', () => ({ getInstanceDetail: mocks.getInstanceDetail }));
 vi.mock('../report/report-print.service', () => ({ loadEntityPrintTemplate: mocks.loadEntityPrintTemplate }));
-vi.mock('../platform/dicts.service', () => ({ listDictItemsByCode: mocks.listDictItemsByCode }));
+vi.mock('../platform/dicts.service', () => ({ listDictItemsByCodes: mocks.listDictItemsByCodes }));
 vi.mock('./workflow-user-helpers', () => ({ loadWorkflowUserDisplays: mocks.loadWorkflowUserDisplays }));
 vi.mock('../../lib/data-mask/policies', () => ({ resolveMaskDecisions: mocks.resolveMaskDecisions }));
 vi.mock('../../lib/context', () => ({ currentUser: () => ({ userId: 9, username: 'printer', roles: [], tenantId: null }) }));
@@ -66,7 +66,7 @@ const instance: WorkflowInstance = {
 beforeEach(() => {
   mocks.getInstanceDetail.mockReset().mockResolvedValue(instance);
   mocks.loadEntityPrintTemplate.mockReset();
-  mocks.listDictItemsByCode.mockReset().mockResolvedValue([]);
+  mocks.listDictItemsByCodes.mockReset().mockResolvedValue(new Map());
   mocks.loadWorkflowUserDisplays.mockReset().mockImplementation(async (ids: number[]) => new Map(ids.map((id) => [id, { name: id === 9 ? '打印员' : `用户${id}`, avatar: null }])));
   mocks.findFirstUser.mockReset().mockResolvedValue({ id: 1, department: { name: '销售部' } });
   mocks.resolveMaskDecisions.mockReset().mockResolvedValue([]);

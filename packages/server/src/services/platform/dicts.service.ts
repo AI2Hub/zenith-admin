@@ -1,4 +1,4 @@
-import { eq, asc, desc, and } from 'drizzle-orm';
+import { eq, asc, desc, and, inArray } from 'drizzle-orm';
 import { dictContract, dictSchema } from '@zenith/shared/platform';
 import { keywordCondition, dateRangeConditions } from '../../lib/where-helpers';
 import { db } from '../../db';
@@ -57,6 +57,27 @@ export async function listDictItemsByCode(code: string) {
   );
   const items = await db.select().from(dictItems).where(eq(dictItems.dictId, dict.id)).orderBy(asc(dictItems.sort));
   return items.map(mapDictItem);
+}
+
+/**
+ * 按编码批量取字典项（审批单打印 / 渲染时一张表单引用多个字典）：两条查询取回全部，替代每个编码两次往返。
+ * 不存在 / 越租户的编码在结果里没有对应键，调用方自行决定退回原值展示。
+ */
+export async function listDictItemsByCodes(codes: string[]) {
+  const result = new Map<string, ReturnType<typeof mapDictItem>[]>();
+  const uniqueCodes = [...new Set(codes)];
+  if (uniqueCodes.length === 0) return result;
+  const user = currentUser();
+  const dictRows = await db.select({ id: dicts.id, code: dicts.code }).from(dicts)
+    .where(and(inArray(dicts.code, uniqueCodes), tenantCondition(dicts, user)));
+  if (dictRows.length === 0) return result;
+  const codeById = new Map(dictRows.map((row) => [row.id, row.code]));
+  const items = await db.select().from(dictItems)
+    .where(inArray(dictItems.dictId, [...codeById.keys()]))
+    .orderBy(asc(dictItems.dictId), asc(dictItems.sort), asc(dictItems.id));
+  for (const row of dictRows) result.set(row.code, []);
+  for (const item of items) result.get(codeById.get(item.dictId)!)?.push(mapDictItem(item));
+  return result;
 }
 
 export async function createDictItem(dictId: number, data: Omit<typeof dictItems.$inferInsert, 'dictId'>) {

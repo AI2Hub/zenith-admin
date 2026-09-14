@@ -42,7 +42,7 @@ import type { JwtPayload } from '../../middleware/auth';
 import { retainManagedFiles } from '../files/file-gc.service';
 import { getRestrictedFileForRead, saveGeneratedManagedFile } from '../files/files.service';
 import { loadEntityPrintTemplate } from '../report/report-print.service';
-import { listDictItemsByCode } from '../platform/dicts.service';
+import { listDictItemsByCodes } from '../platform/dicts.service';
 import { getInstanceDetail } from './instances/queries';
 import { loadDefinitionPrintConfig } from './workflow-print-config';
 import { loadWorkflowUserDisplays } from './workflow-user-helpers';
@@ -137,16 +137,13 @@ async function loadPrintLookups(fields: WorkflowFormField[], formData: WorkflowI
     ids.relationIds.length
       ? db.select({ id: workflowInstances.id, title: workflowInstances.title }).from(workflowInstances).where(inArray(workflowInstances.id, ids.relationIds))
       : Promise.resolve([]),
-    Promise.all(ids.dictCodes.map(async (code) => {
-      // 字典被删除 / 越租户时退回原值展示，不让一个字典拖垮整张审批单
-      const items = await listDictItemsByCode(code).catch(() => []);
-      return [code, new Map(items.map((item) => [item.value, item.label]))] as const;
-    })),
+    // 一张表单引用的全部字典两条查询取回；被删除 / 越租户的编码不在结果里，渲染时退回原值展示
+    listDictItemsByCodes(ids.dictCodes),
   ]);
   for (const [id, display] of userDisplays) lookups.userNames.set(id, display.name);
   for (const row of deptRows) lookups.deptNames.set(row.id, row.name);
   for (const row of relationRows) lookups.relationTitles.set(row.id, row.title);
-  for (const [code, labels] of dictEntries) lookups.dictLabels.set(code, labels);
+  for (const [code, items] of dictEntries) lookups.dictLabels.set(code, new Map(items.map((item) => [item.value, item.label])));
   return lookups;
 }
 

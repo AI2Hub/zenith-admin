@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('./instances/queries', () => ({ getInstanceDetail: vi.fn() }));
 vi.mock('../report/report-print.service', () => ({ loadEntityPrintTemplate: vi.fn() }));
-vi.mock('../platform/dicts.service', () => ({ listDictItemsByCode: vi.fn() }));
+vi.mock('../platform/dicts.service', () => ({ listDictItemsByCodes: vi.fn(async () => new Map()) }));
 vi.mock('./workflow-user-helpers', () => ({ loadWorkflowUserDisplays: vi.fn() }));
 vi.mock('../../lib/context', () => ({ currentUser: () => ({ userId: 9, username: 'x', roles: [], tenantId: null }) }));
 vi.mock('../../db', () => ({ db: {} }));

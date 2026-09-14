@@ -17,7 +17,7 @@ import { buildWhere, dateRangeConditions, keywordCondition } from '../../lib/whe
 import { validatePassword } from '@zenith/shared/settings';
 import { getSettings } from '../../lib/settings';
 import { unlockUser as unlockUserSession, batchCheckLoginLock, getOnlineSessions, forceLogoutAllByUsers } from '../../lib/session-manager';
-import { streamToExcel, streamToCsv, formatDateTimeForExcel } from '../../lib/excel-export';
+import { batchIterable, streamToExcel, streamToCsv, formatDateTimeForExcel, type ExcelColumn } from '../../lib/excel-export';
 import { clearUserPermissionCache } from '../../lib/permissions';
 import type { JwtPayload } from '../../middleware/auth';
 import type { AlertRecipientUser, User } from '@zenith/shared/identity';
@@ -542,56 +542,42 @@ export async function unlockUserById(id: number) {
   await unlockUserSession(u.username);
 }
 
+const USER_EXPORT_COLUMNS: ExcelColumn[] = [
+  { header: 'ID', key: 'id', width: 8 },
+  { header: '用户名', key: 'username', width: 16 },
+  { header: '昵称', key: 'nickname', width: 16 },
+  { header: '邮箱', key: 'email', width: 24 },
+  { header: '部门', key: 'departmentName', width: 16 },
+  { header: '状态', key: 'status', width: 10, transform: (v) => (v === 'enabled' ? '启用' : '禁用') },
+  { header: '创建时间', key: 'createdAt', width: 22 },
+];
+
+/** 导出行按 id 分批取（每批 1000）边查边写流，不再把全部用户 + 部门关联一次性加载进内存 */
+function userExportRows() {
+  const tc = tenantCondition(users, currentUser());
+  return batchIterable(async (limit, offset) => {
+    const rows = await db.query.users.findMany({
+      where: tc,
+      with: { department: { columns: { name: true } } },
+      orderBy: users.id,
+      limit,
+      offset,
+    });
+    return rows.map((u) => ({
+      id: u.id, username: u.username, nickname: u.nickname, email: u.email,
+      departmentName: u.department?.name ?? '', status: u.status,
+      createdAt: formatDateTimeForExcel(u.createdAt),
+    }));
+  }, 1000);
+}
+
 export async function exportUsers(): Promise<{ stream: ReadableStream; filename: string }> {
-  const user = currentUser();
-  const tc = tenantCondition(users, user);
-  const rawList = await db.query.users.findMany({
-    where: tc, with: { department: { columns: { name: true } } }, orderBy: users.id,
-  });
-  const list = rawList.map((u) => ({
-    id: u.id, username: u.username, nickname: u.nickname, email: u.email,
-    departmentName: u.department?.name ?? '', status: u.status,
-    createdAt: formatDateTimeForExcel(u.createdAt),
-  }));
-  const stream = await streamToExcel(
-    [
-      { header: 'ID', key: 'id', width: 8 },
-      { header: '用户名', key: 'username', width: 16 },
-      { header: '昵称', key: 'nickname', width: 16 },
-      { header: '邮箱', key: 'email', width: 24 },
-      { header: '部门', key: 'departmentName', width: 16 },
-      { header: '状态', key: 'status', width: 10, transform: (v) => (v === 'enabled' ? '启用' : '禁用') },
-      { header: '创建时间', key: 'createdAt', width: 22 },
-    ],
-    list,
-    '用户列表',
-  );
+  const stream = await streamToExcel(USER_EXPORT_COLUMNS, userExportRows(), '用户列表');
   return { stream, filename: 'users.xlsx' };
 }
 
 export async function exportUsersAsCsv(): Promise<{ stream: ReadableStream; filename: string }> {
-  const user = currentUser();
-  const tc = tenantCondition(users, user);
-  const rawList = await db.query.users.findMany({
-    where: tc, with: { department: { columns: { name: true } } }, orderBy: users.id,
-  });
-  const list = rawList.map((u) => ({
-    id: u.id, username: u.username, nickname: u.nickname, email: u.email,
-    departmentName: u.department?.name ?? '', status: u.status,
-    createdAt: formatDateTimeForExcel(u.createdAt),
-  }));
-  const stream = streamToCsv(
-    [
-      { header: 'ID', key: 'id', width: 8 },
-      { header: '用户名', key: 'username', width: 16 },
-      { header: '昵称', key: 'nickname', width: 16 },
-      { header: '邮筱', key: 'email', width: 24 },
-      { header: '部门', key: 'departmentName', width: 16 },
-      { header: '状态', key: 'status', width: 10, transform: (v) => (v === 'enabled' ? '启用' : '禁用') },
-      { header: '创建时间', key: 'createdAt', width: 22 },
-    ],
-    list,
-  );
+  const stream = streamToCsv(USER_EXPORT_COLUMNS, userExportRows());
   return { stream, filename: 'users.csv' };
 }
 
