@@ -4,6 +4,8 @@ import type { SessionClientKind, SessionRevokeReason } from '../identity/constan
 import type { Announcement, ChannelMessage, InAppMessage } from '../messaging/contracts';
 import type { MpMessageDirection, MpMessageType } from '../mp/constants';
 import type { MpKfSession } from '../mp/contracts';
+import type { DeployHostStatus, DeployRunStatus } from '../ops/constants';
+import type { DeployRunLog } from '../ops/contracts/deploy';
 import type { AsyncTask } from '../tasks/contracts';
 import type { WorkflowInstanceStatus } from '../workflow/types';
 
@@ -29,6 +31,20 @@ export interface SessionForceLogoutPayload {
   by?: { client: SessionClientKind; ip: string; location: string | null; browser: string; os: string; at: string };
 }
 
+/** 部署 run 或其某台主机状态变化（推给发起人）：前端据此重拉 run 详情；日志经 deploy:log 成批推送 */
+export interface DeployRunUpdatedPayload {
+  runId: number;
+  status: DeployRunStatus;
+  hostId?: number;
+  hostStatus?: DeployHostStatus;
+}
+
+/** 部署日志增量（约 500ms 攒一批）；非发起人按 seq 轮询 logs 接口拿同一份 */
+export interface DeployLogBatchPayload {
+  runId: number;
+  logs: DeployRunLog[];
+}
+
 export type WsMessage =
   | { type: 'announcement:new'; payload: Announcement }
   | { type: 'announcement:updated'; payload: Announcement }
@@ -40,6 +56,8 @@ export type WsMessage =
   | { type: 'in-app-message:read-all'; payload: Record<string, never> }
   | { type: 'in-app-message:deleted'; payload: { id: number } }
   | { type: 'session:force-logout'; payload: SessionForceLogoutPayload }
+  | { type: 'deploy:run-updated'; payload: DeployRunUpdatedPayload }
+  | { type: 'deploy:log'; payload: DeployLogBatchPayload }
   | { type: 'chat:message'; payload: ChatMessage }
   | { type: 'chat:recall'; payload: { conversationId: number; messageId: number } }
   | { type: 'chat:read'; payload: { conversationId: number; userId: number; readAt: string } }

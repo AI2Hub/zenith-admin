@@ -172,6 +172,8 @@ export const deployReleases = pgTable('deploy_releases', {
   runId: integer().references(() => deployRuns.id, { onDelete: 'set null' }),
   /** 镜像主机上 current 软链的指向；每个 (target, host) 至多一个 */
   isCurrent: boolean().notNull().default(false),
+  /** 最近一次成为 current 的时间（部署 / 回滚切换时刻；回滚回来会刷新） */
+  currentSince: timestamp(),
   sizeBytes: bigint({ mode: 'number' }),
   /** 已从主机清理（保留策略 / 手动删除 / 对账发现缺失） */
   removedAt: timestamp(),

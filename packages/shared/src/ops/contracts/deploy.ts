@@ -23,7 +23,7 @@ import {
   DEPLOY_STEPS,
   DEPLOY_STRATEGIES,
 } from '../constants';
-import { createDeployTargetSchema, updateDeployTargetSchema } from '../validation';
+import { createDeployRunSchema, createDeployTargetSchema, updateDeployTargetSchema } from '../validation';
 
 // ─── 实体 ────────────────────────────────────────────────────────────────────
 
@@ -264,14 +264,19 @@ export const deployTargetContract = defineContract('/api/deploy/targets', {
   create: op.post('/', { access: { permission: 'system:deploy:manage' }, audit: '新增部署目标', body: createDeployTargetSchema, response: deployTargetSchema, summary: '新增部署目标' }),
   update: op.put('/{id}', { access: { permission: 'system:deploy:manage' }, audit: '更新部署目标', params: idParam, body: updateDeployTargetSchema, response: deployTargetSchema, summary: '更新部署目标' }),
   remove: op.delete('/{id}', { access: { permission: 'system:deploy:manage' }, audit: '删除部署目标', params: idParam, summary: '删除部署目标（不触碰主机上的文件）' }),
+  sync: op.post('/{id}/sync', { access: { permission: 'system:deploy:execute' }, audit: '对账部署目标', params: idParam, response: deployTargetSyncResultSchema, summary: '与主机对账：读取 current 指向与 releases 目录，修正登记表' }),
 }, { auditModule: '应用部署', tags: ['Deploy'] });
 
 export const deployRunContract = defineContract('/api/deploy/runs', {
   list: op.get('/', { access: { permission: 'system:deploy:list' }, query: deployRunListQuery, response: paginated(deployRunSchema), summary: '部署记录列表' }),
   detail: op.get('/{id}', { access: { permission: 'system:deploy:list' }, params: idParam, response: deployRunSchema, summary: '部署记录详情（含各主机状态与配置快照）' }),
   logs: op.get('/{id}/logs', { access: { permission: 'system:deploy:list' }, params: idParam, query: deployRunLogQuery, response: z.array(deployRunLogSchema), summary: '部署日志（按 seq 增量）' }),
+  create: op.post('/', { access: { permission: 'system:deploy:execute' }, audit: '发起部署', body: createDeployRunSchema, response: deployRunSchema, summary: '发起部署 / 回滚 / 重启（异步，任务中心执行）' }),
+  retry: op.post('/{id}/retry', { access: { permission: 'system:deploy:execute' }, audit: '重试失败主机', params: idParam, response: deployRunSchema, summary: '对该 run 中失败 / 回滚 / 跳过的主机再发起一次同参数 run' }),
+  cancel: op.post('/{id}/cancel', { access: { permission: 'system:deploy:execute' }, audit: '取消部署', params: idParam, response: deployRunSchema, summary: '请求取消（当前主机的步骤完成后停止，已切换的主机不回退）' }),
 }, { auditModule: '应用部署', tags: ['Deploy'] });
 
 export const deployReleaseContract = defineContract('/api/deploy/releases', {
   list: op.get('/', { access: { permission: 'system:deploy:list' }, query: deployReleaseListQuery, response: paginated(deployReleaseSchema), summary: '主机上的 release 目录（还原点）' }),
+  remove: op.delete('/{id}', { access: { permission: 'system:deploy:manage' }, audit: '删除主机上的 release', params: idParam, summary: '删除主机上的 release 目录（current 不可删）' }),
 }, { auditModule: '应用部署', tags: ['Deploy'] });

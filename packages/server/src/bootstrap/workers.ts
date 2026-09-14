@@ -32,6 +32,8 @@ export async function declareBackgroundJobs(): Promise<boolean> {
     registerDirectorySyncTaskHandlers(); // 通讯录同步 / 差异预览
     const { registerTerminalFileTaskHandlers } = await import('../services/ops/terminal-file-tasks');
     registerTerminalFileTaskHandlers(); // 文件压缩 / 解压（节点亲和：只在提交它的进程执行）
+    const { registerDeployTaskHandlers } = await import('../services/ops/deploy-engine.service');
+    registerDeployTaskHandlers(); // 应用部署：制品推送到主机并切换版本（含回滚 / 重启）
     registerCmsTaskHandlers(); // CMS 全站静态化 / 检索索引重建 / 死链检测
     const { registerBroadcastTaskHandlers } = await import('../services/messaging/broadcast-tasks');
     registerBroadcastTaskHandlers(); // 运营群发分批派发

@@ -162,6 +162,13 @@
       "when": 1789451429629,
       "tag": "0022_personal_signatures",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1789427752138,
+      "tag": "0024_deploy_releases_current_since",
+      "breakpoints": true
     }
   ]
 }

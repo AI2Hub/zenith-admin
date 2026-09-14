@@ -81,6 +81,7 @@ async function loadTargetExtras(targetIds: number[]): Promise<Map<number, Omit<T
         version: deployReleases.version,
         releaseName: deployReleases.releaseName,
         createdAt: deployReleases.createdAt,
+        currentSince: deployReleases.currentSince,
       })
       .from(deployReleases)
       .where(and(inArray(deployReleases.targetId, targetIds), eq(deployReleases.isCurrent, true))),
@@ -110,7 +111,7 @@ async function loadTargetExtras(targetIds: number[]): Promise<Map<number, Omit<T
       hostEnabled: h.hostEnabled,
       currentVersion: current?.version ?? null,
       currentReleaseName: current?.releaseName ?? null,
-      currentSince: current ? formatDateTime(current.createdAt) : null,
+      currentSince: current ? formatDateTime(current.currentSince ?? current.createdAt) : null,
     });
   }
   for (const r of lastRuns) {

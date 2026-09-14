@@ -376,6 +376,17 @@ export const NOTIFICATION_EVENTS = defineNotificationEvents({
     title: 'SSL 证书到期提醒',
     content: '{{detail}}，请及时更换证书。',
   },
+  'ops.deploy.finished': {
+    group: 'ops',
+    label: '应用部署结束（成功 / 部分失败 / 失败）',
+    severity: 'important',
+    defaultChannels: ['inapp'],
+    availableChannels: ['inapp', 'email', 'webhook', 'chat'],
+    // 一次 run 一条，发给发起人；失败即时可见，成功也留痕（部署是需要回看的运维动作）
+    vars: eventVars<{ appName: string; targetName: string; kindLabel: string; version: string; statusLabel: string; summary: string; subject: string }>(),
+    title: '[部署] {{appName}} · {{targetName}} {{kindLabel}}{{statusLabel}}',
+    content: '{{subject}} → {{targetName}}：{{summary}}',
+  },
   'ops.scheduler.job_failed': {
     group: 'ops',
     label: '定时任务执行失败',
