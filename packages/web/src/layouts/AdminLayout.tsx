@@ -11,6 +11,7 @@ import type { ThemeMode } from '@/hooks/useTheme';
 import { usePreferences, useRouteAnimation, type NavLayout } from '@/hooks/usePreferences';
 import { getThemeColorVars } from '@/lib/theme-color';
 import { applyBorderRadius } from '@/lib/border-radius';
+import { applyFontFamily, applyUiScale } from '@/lib/typography';
 import { useThemeController } from '@/providers/theme-controller';
 import { useTabsStore, type TabItem } from '@/hooks/useTabsStore';
 import { useEventCallback } from '@/hooks/useEventCallback';
@@ -154,6 +155,14 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
   useEffect(() => {
     applyBorderRadius(preferences.borderRadius ?? 'medium');
   }, [preferences.borderRadius]);
+
+  // ─── 界面缩放 / 字体 ────────────────────────────────────────────────────────
+  useEffect(() => {
+    applyUiScale(preferences.uiScale);
+  }, [preferences.uiScale]);
+  useEffect(() => {
+    applyFontFamily(preferences.fontFamily);
+  }, [preferences.fontFamily]);
 
   const reduceMotion = preferences.reduceMotion ?? false;
   const routeAnimation = useRouteAnimation();

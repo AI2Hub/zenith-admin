@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
 import { Button, ColorPicker, InputNumber, Popover, Radio, RadioGroup, Select, Switch, Tooltip } from '@douyinfe/semi-ui';
 import { Check, ClipboardPaste, Copy, Info, Palette } from 'lucide-react';
-import { LOADING_STYLE_OPTIONS, DARK_SURFACE_TONE_OPTIONS } from '@/hooks/usePreferences';
-import type { NavLayout, TableSizePreference, RouteAnimation, BorderRadiusPreference, TabStyle, DarkSurfaceTone, UserPreferences } from '@/hooks/usePreferences';
+import { LOADING_STYLE_OPTIONS, DARK_SURFACE_TONE_OPTIONS, UI_SCALE_OPTIONS, FONT_FAMILY_OPTIONS } from '@/hooks/usePreferences';
+import type { NavLayout, TableSizePreference, RouteAnimation, BorderRadiusPreference, TabStyle, DarkSurfaceTone, UserPreferences, UiScale, FontFamilyPreference } from '@/hooks/usePreferences';
 import type { ThemeMode } from '@/hooks/useTheme';
 import { THEME_COLOR_PRESETS } from '@/lib/theme-color';
 import { confirmDanger } from '@/utils/confirm';
@@ -254,6 +254,43 @@ export function PrefsAppearanceSection({
           <Radio value="medium">默认</Radio>
           <Radio value="large">大</Radio>
         </RadioGroup>
+      </div>
+      )}
+
+      {/* ── 界面缩放 ── */}
+      {matchesPref(['界面缩放', '缩放', '字号', '字体大小', '放大', '缩小', '外观', '无障碍']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          界面缩放
+          <Tooltip content="整体放大或缩小界面（含文字、控件与弹层），适合高分屏或需要更大字号的场景" position="right">
+            <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+          </Tooltip>
+        </span>
+        <RadioGroup
+          type="button"
+          value={preferences.uiScale ?? 100}
+          onChange={(e) => setPreferences({ uiScale: e.target.value as UiScale })}
+        >
+          {UI_SCALE_OPTIONS.map((option) => <Radio key={option.value} value={option.value}>{option.label}</Radio>)}
+        </RadioGroup>
+      </div>
+      )}
+
+      {/* ── 界面字体 ── */}
+      {matchesPref(['字体', '界面字体', 'Inter', '思源', '等宽', '外观']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          界面字体
+          <Tooltip content="只使用系统已安装的字体，未安装时按预设回退到系统默认字体" position="right">
+            <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+          </Tooltip>
+        </span>
+        <Select
+          value={preferences.fontFamily ?? 'system'}
+          optionList={FONT_FAMILY_OPTIONS.map((option) => ({ value: option.value, label: option.label }))}
+          onChange={(v) => setPreferences({ fontFamily: v as FontFamilyPreference })}
+          style={{ width: 140 }}
+        />
       </div>
       )}
 
