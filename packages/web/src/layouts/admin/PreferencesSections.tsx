@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Button, ColorPicker, InputNumber, Popover, Radio, RadioGroup, Select, Switch, Tooltip } from '@douyinfe/semi-ui';
 import { Check, ClipboardPaste, Copy, Info, Palette } from 'lucide-react';
 import { LOADING_STYLE_OPTIONS, DARK_SURFACE_TONE_OPTIONS, UI_SCALE_OPTIONS, FONT_FAMILY_OPTIONS } from '@/hooks/usePreferences';
+import { clearAllListFilterSnapshots } from '@/lib/list-filter-memory';
 import type { NavLayout, TableSizePreference, RouteAnimation, BorderRadiusPreference, TabStyle, DarkSurfaceTone, UserPreferences, UiScale, FontFamilyPreference, WeekStart } from '@/hooks/usePreferences';
 import type { ThemeMode } from '@/hooks/useTheme';
 import { THEME_COLOR_PRESETS } from '@/lib/theme-color';
@@ -855,6 +856,25 @@ export function PrefsTableSection({
             <Switch checked={preferences.showTableColumnSettings ?? true} onChange={(v) => setPreferences({ showTableColumnSettings: v })} />
           </div>
         </div>
+      </div>
+      )}
+
+      {/* ── 记住筛选条件 ── */}
+      {matchesPref(['筛选', '筛选条件', '记住', '搜索条件', '恢复', '查询条件', '表格']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          记住列表筛选条件
+          <Tooltip content="离开列表页再回来时恢复上次查询的筛选条件（分页回到第 1 页）；关闭浏览器即清除" position="right">
+            <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+          </Tooltip>
+        </span>
+        <Switch
+          checked={preferences.rememberListFilters ?? false}
+          onChange={(v) => {
+            if (!v) clearAllListFilterSnapshots();
+            setPreferences({ rememberListFilters: v });
+          }}
+        />
       </div>
       )}
     </>

@@ -6,13 +6,14 @@
  * 此前这段样板由每个列表页手抄，91 个页面里有 5 个漏了 invalidateQueries，
  * 表现为「点查询没反应」且不报错。契约焊进 hook 后，调用方漏不掉。
  */
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ReactNode } from 'react';
 import { act, renderHook } from '@testing-library/react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { createTestQueryClient, isInvalidated } from '@/test-utils/query-harness';
 import { PreferencesContext, defaultPreferences } from '@/hooks/usePreferences';
 import type { PreferencesContextValue } from '@/hooks/usePreferences';
+import { readListFilterSnapshot, writeListFilterSnapshot } from '@/lib/list-filter-memory';
 import { useListSearch } from './useListSearch';
 
 interface SearchParams {
@@ -23,14 +24,14 @@ const defaults: SearchParams = { keyword: '', status: '' };
 const listKey = ['tags', 'list'] as const;
 const otherKey = ['groups', 'list'] as const;
 
-function setup(options?: Partial<Parameters<typeof useListSearch<SearchParams>>[0]>) {
+function setup(options?: Partial<Parameters<typeof useListSearch<SearchParams>>[0]>, prefOverrides?: Partial<typeof defaultPreferences>) {
   const client = createTestQueryClient();
   // 预置两条已存在的列表缓存，用于观察是否被失效
   client.setQueryData([...listKey, { page: 1 }], { list: [], total: 0 });
   client.setQueryData([...otherKey, { page: 1 }], { list: [], total: 0 });
 
   const preferences = {
-    preferences: defaultPreferences,
+    preferences: { ...defaultPreferences, ...prefOverrides },
     updatePreferences: vi.fn(),
     resetPreferences: vi.fn(),
   } as unknown as PreferencesContextValue;
@@ -264,5 +265,50 @@ describe('bind / bindKeyword 受控控件绑定', () => {
     act(() => { result.current.bindKeyword('keyword').onSearch(); });
     expect(result.current.submittedParams.keyword).toBe('abc');
     expect(isInvalidated(client, [...listKey, { page: 1 }])).toBe(true);
+  });
+});
+
+describe('偏好「记住列表筛选条件」', () => {
+  beforeEach(() => { sessionStorage.clear(); });
+
+  it('关闭时既不读也不写快照（默认行为不变）', () => {
+    writeListFilterSnapshot(listKey, { keyword: 'stale', status: 'enabled' });
+    const { result } = setup();
+    expect(result.current.submittedParams).toEqual(defaults);
+
+    act(() => { result.current.setField('keyword')('abc'); });
+    act(() => { result.current.handleSearch(); });
+    expect(readListFilterSnapshot(listKey)).toEqual({ keyword: 'stale', status: 'enabled' });
+  });
+
+  it('开启时查询写入快照，重新挂载以快照替代 defaults 作为初始条件', () => {
+    const first = setup(undefined, { rememberListFilters: true });
+    act(() => { first.result.current.setField('keyword')('abc'); });
+    act(() => { first.result.current.setField('status')('enabled'); });
+    act(() => { first.result.current.handleSearch(); });
+    expect(readListFilterSnapshot(listKey)).toEqual({ keyword: 'abc', status: 'enabled' });
+    first.unmount();
+
+    const second = setup(undefined, { rememberListFilters: true });
+    expect(second.result.current.draftParams).toEqual({ keyword: 'abc', status: 'enabled' });
+    expect(second.result.current.submittedParams).toEqual({ keyword: 'abc', status: 'enabled' });
+    // 只记条件不记页码
+    expect(second.result.current.page).toBe(1);
+  });
+
+  it('applySearch 同样写入，重置清除快照并回到 defaults', () => {
+    const { result } = setup(undefined, { rememberListFilters: true });
+    act(() => { result.current.applySearch({ keyword: 'x', status: 'disabled' }); });
+    expect(readListFilterSnapshot(listKey)).toEqual({ keyword: 'x', status: 'disabled' });
+
+    act(() => { result.current.handleReset(); });
+    expect(readListFilterSnapshot(listKey)).toBeUndefined();
+    expect(result.current.submittedParams).toEqual(defaults);
+  });
+
+  it('快照缺少的字段回落到 defaults（契约新增筛选字段后旧快照仍可用）', () => {
+    writeListFilterSnapshot(listKey, { keyword: 'partial' });
+    const { result } = setup(undefined, { rememberListFilters: true });
+    expect(result.current.submittedParams).toEqual({ keyword: 'partial', status: '' });
   });
 });

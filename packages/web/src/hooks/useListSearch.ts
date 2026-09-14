@@ -2,6 +2,8 @@ import { useCallback, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { QueryKey } from '@tanstack/react-query';
 import { usePagination, type UsePaginationReturn } from '@/hooks/usePagination';
+import { useOptionalPreferences } from '@/hooks/usePreferences';
+import { clearListFilterSnapshot, readListFilterSnapshot, writeListFilterSnapshot } from '@/lib/list-filter-memory';
 
 export interface UseListSearchOptions<T> {
   /**
@@ -111,8 +113,25 @@ export function useListSearch<T>({
   const pagination = usePagination({ pageSize: overridePageSize, pageSizeOpts, resetKey });
   const { setPage } = pagination;
 
-  const [draftParams, setDraftParams] = useState<T>(defaults);
-  const [submittedParams, setSubmittedParams] = useState<T>(defaults);
+  // 偏好「记住列表筛选条件」：首次挂载用会话内上次提交的条件替代 defaults；查询写入、重置清除。
+  // 偏好与 listKey 经 ref 读取：不进 callback 依赖，避免 listKey 字面量每次渲染换引用
+  const remember = useOptionalPreferences()?.preferences.rememberListFilters ?? false;
+  const memoryRef = useRef({ remember, listKey });
+  memoryRef.current = { remember, listKey };
+  const [initialParams] = useState<T>(() => {
+    const base = typeof defaults === 'function' ? (defaults as () => T)() : defaults;
+    if (!remember) return base;
+    const snapshot = readListFilterSnapshot<Partial<T>>(listKey);
+    return snapshot ? { ...base, ...snapshot } : base;
+  });
+  const rememberSubmitted = useCallback((params: T) => {
+    if (memoryRef.current.remember) writeListFilterSnapshot(memoryRef.current.listKey, params);
+  }, []);
+  const forgetSubmitted = useCallback(() => {
+    clearListFilterSnapshot(memoryRef.current.listKey);
+  }, []);
+  const [draftParams, setDraftParams] = useState<T>(initialParams);
+  const [submittedParams, setSubmittedParams] = useState<T>(initialParams);
 
   // setDraftParams 本身稳定，按 key 缓存后 setField('x') 每次渲染都返回同一函数
   const fieldSetters = useRef(new Map<keyof T, (value: unknown) => void>());
@@ -137,16 +156,18 @@ export function useListSearch<T>({
     setPage(1);
     setDraftParams(params);
     setSubmittedParams(params);
+    rememberSubmitted(params);
     invalidate();
     onSearch?.();
-  }, [setPage, invalidate, onSearch]);
+  }, [setPage, invalidate, onSearch, rememberSubmitted]);
 
   const handleSearch = useCallback(() => {
     setPage(1);
     setSubmittedParams(draftParams);
+    rememberSubmitted(draftParams);
     invalidate();
     onSearch?.();
-  }, [setPage, draftParams, invalidate, onSearch]);
+  }, [setPage, draftParams, invalidate, onSearch, rememberSubmitted]);
 
   const handleReset = useCallback(() => {
     // defaults 为函数时每次重置都重新求值，保证「最近 7 天」这类相对区间是最新的
@@ -154,9 +175,10 @@ export function useListSearch<T>({
     setPage(1);
     setDraftParams(next);
     setSubmittedParams(next);
+    forgetSubmitted();
     invalidate();
     onReset?.();
-  }, [setPage, invalidate, onReset, defaults]);
+  }, [setPage, invalidate, onReset, defaults, forgetSubmitted]);
 
   const bind = useCallback(<K extends keyof T, R>(key: K, parse?: (raw: R) => T[K]) => {
     const setter = setField(key);
