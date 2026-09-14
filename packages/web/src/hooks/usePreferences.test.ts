@@ -58,3 +58,28 @@ describe('notification sound preference', () => {
     expect(sanitizeImportedPreferences({ notificationSoundStyle: 'siren' })).toBeNull();
   });
 });
+
+describe('display & behaviour preferences', () => {
+  it('defaults preserve the pre-existing behaviour except the Monday week start', () => {
+    expect(defaultPreferences.uiScale).toBe(100);
+    expect(defaultPreferences.fontFamily).toBe('system');
+    expect(defaultPreferences.timeDisplay).toBe('absolute');
+    expect(defaultPreferences.weekStart).toBe('monday');
+    expect(defaultPreferences.desktopNotification).toBe(false);
+    expect(defaultPreferences.refetchOnFocus).toBe(false);
+    expect(defaultPreferences.rememberListFilters).toBe(false);
+  });
+
+  it('accepts known enum values and rejects unknown ones when importing preferences', () => {
+    expect(sanitizeImportedPreferences({ uiScale: 110, fontFamily: 'mono', timeDisplay: 'relative', weekStart: 'sunday' })).toEqual({
+      uiScale: 110,
+      fontFamily: 'mono',
+      timeDisplay: 'relative',
+      weekStart: 'sunday',
+    });
+    expect(sanitizeImportedPreferences({ uiScale: 95 })).toBeNull();
+    expect(sanitizeImportedPreferences({ fontFamily: 'comic-sans' })).toBeNull();
+    expect(sanitizeImportedPreferences({ timeDisplay: 'iso' })).toBeNull();
+    expect(sanitizeImportedPreferences({ weekStart: 'saturday' })).toBeNull();
+  });
+});

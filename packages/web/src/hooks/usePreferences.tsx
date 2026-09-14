@@ -27,6 +27,29 @@ export function isLoadingStyle(value: unknown): value is LoadingStyle {
   return typeof value === 'string' && LOADING_STYLES.includes(value as LoadingStyle);
 }
 
+/** 界面缩放百分比（作用于 body 的 CSS zoom，Semi 组件字号为固定像素值，只能整体缩放） */
+export const UI_SCALES = [90, 100, 110, 120] as const;
+export type UiScale = (typeof UI_SCALES)[number];
+export const UI_SCALE_OPTIONS: readonly { value: UiScale; label: string }[] = UI_SCALES.map((value) => ({ value, label: `${value}%` }));
+
+/** 界面字体预设：只使用系统已安装字体栈，不引入 webfont 文件 */
+export const FONT_FAMILIES = ['system', 'inter', 'noto-sans-sc', 'mono'] as const;
+export type FontFamilyPreference = (typeof FONT_FAMILIES)[number];
+export const FONT_FAMILY_OPTIONS: readonly { value: FontFamilyPreference; label: string }[] = [
+  { value: 'system', label: '系统默认' },
+  { value: 'inter', label: 'Inter' },
+  { value: 'noto-sans-sc', label: '思源黑体' },
+  { value: 'mono', label: '等宽字体' },
+];
+
+/** 时间元信息展示方式：absolute = YYYY-MM-DD HH:mm:ss；relative = 「3 分钟前」（悬停显示绝对时间） */
+export const TIME_DISPLAYS = ['absolute', 'relative'] as const;
+export type TimeDisplay = (typeof TIME_DISPLAYS)[number];
+
+/** 日期选择器 / 日历的一周起始日 */
+export const WEEK_STARTS = ['monday', 'sunday'] as const;
+export type WeekStart = (typeof WEEK_STARTS)[number];
+
 /** 深色底色档位：bg-1 = Semi「次下层」（#232429，默认）/ bg-0 = Semi「最下层」（#16161a，更深） */
 export const DARK_SURFACE_TONES = ['bg-1', 'bg-0'] as const;
 export type DarkSurfaceTone = (typeof DARK_SURFACE_TONES)[number];
@@ -188,6 +211,20 @@ export interface UserPreferences {
   notificationSound: boolean;
   /** 提示音音色 */
   notificationSoundStyle: NotificationSoundStyle;
+  /** 页签隐藏时，站内信 / 公告实时到达弹系统桌面通知（需浏览器授权；聊天有独立开关） */
+  desktopNotification: boolean;
+  /** 界面缩放百分比，100 = 原始大小 */
+  uiScale: UiScale;
+  /** 界面字体预设 */
+  fontFamily: FontFamilyPreference;
+  /** 列表 / 消息流 / 时间线里时间元信息的展示方式 */
+  timeDisplay: TimeDisplay;
+  /** 日期选择器与日历的一周起始日 */
+  weekStart: WeekStart;
+  /** 切回浏览器窗口 / 页签时自动重取已过期的服务端数据 */
+  refetchOnFocus: boolean;
+  /** 记住列表页筛选条件：离开再回来恢复上次已提交的筛选（关闭浏览器即清） */
+  rememberListFilters: boolean;
   /** Web 终端个性化配置（主题/字体/默认 shell/文件夹收藏） */
   terminal: TerminalPreferences;
 }
@@ -252,6 +289,13 @@ export const defaultPreferences: UserPreferences = {
   showTabSwitcher: true,
   notificationSound: false,
   notificationSoundStyle: DEFAULT_NOTIFICATION_SOUND_STYLE,
+  desktopNotification: false,
+  uiScale: 100,
+  fontFamily: 'system',
+  timeDisplay: 'absolute',
+  weekStart: 'monday',
+  refetchOnFocus: false,
+  rememberListFilters: false,
   terminal: {
     defaultShell: '',
     themeDark: 'catppuccin-mocha',
@@ -285,7 +329,7 @@ export interface PreferencesContextValue {
 }
 
 /** 枚举型偏好的合法值白名单（导入校验用），须与各 union type 保持一致 */
-const PREF_ENUM_VALUES: Partial<Record<keyof UserPreferences, readonly string[]>> = {
+const PREF_ENUM_VALUES: Partial<Record<keyof UserPreferences, readonly (string | number)[]>> = {
   navLayout: ['vertical', 'horizontal', 'mixed', 'double'],
   tabStyle: ['line', 'pill', 'card', 'chrome'],
   tabAnimation: ['none', 'fade', 'slide', 'scale'],
@@ -303,6 +347,10 @@ const PREF_ENUM_VALUES: Partial<Record<keyof UserPreferences, readonly string[]>
   darkHeaderTone: DARK_SURFACE_TONES,
   darkContentTone: DARK_SURFACE_TONES,
   notificationSoundStyle: NOTIFICATION_SOUND_STYLES,
+  uiScale: UI_SCALES,
+  fontFamily: FONT_FAMILIES,
+  timeDisplay: TIME_DISPLAYS,
+  weekStart: WEEK_STARTS,
 };
 
 /**
@@ -325,7 +373,7 @@ export function sanitizeImportedPreferences(raw: unknown): Partial<UserPreferenc
     }
     if (typeof val !== typeof defVal) continue;
     const allowed = PREF_ENUM_VALUES[key];
-    if (allowed && !allowed.includes(val as string)) continue;
+    if (allowed && !allowed.includes(val as string | number)) continue;
     result[key] = val;
   }
   return Object.keys(result).length > 0 ? (result as Partial<UserPreferences>) : null;
