@@ -120,6 +120,13 @@
       "when": 1789355198757,
       "tag": "0016_api_token_cache_invalidate",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1789368065564,
+      "tag": "0017_api_catalog_menu_rename",
+      "breakpoints": true
     }
   ]
 }
