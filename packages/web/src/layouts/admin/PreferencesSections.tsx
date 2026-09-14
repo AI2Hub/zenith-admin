@@ -3,7 +3,7 @@ import { Button, ColorPicker, InputNumber, Popover, Radio, RadioGroup, Select, S
 import { Check, ClipboardPaste, Copy, Info, Palette } from 'lucide-react';
 import { LOADING_STYLE_OPTIONS, DARK_SURFACE_TONE_OPTIONS, UI_SCALE_OPTIONS, FONT_FAMILY_OPTIONS } from '@/hooks/usePreferences';
 import { clearAllListFilterSnapshots } from '@/lib/list-filter-memory';
-import type { NavLayout, TableSizePreference, RouteAnimation, BorderRadiusPreference, TabStyle, DarkSurfaceTone, UserPreferences, UiScale, FontFamilyPreference, WeekStart } from '@/hooks/usePreferences';
+import type { NavLayout, TableSizePreference, RouteAnimation, BorderRadiusPreference, TabStyle, DarkSurfaceTone, UserPreferences, UiScale, FontFamilyPreference, WeekStart, TimeDisplay } from '@/hooks/usePreferences';
 import type { ThemeMode } from '@/hooks/useTheme';
 import { THEME_COLOR_PRESETS } from '@/lib/theme-color';
 import { confirmDanger } from '@/utils/confirm';
@@ -643,6 +643,26 @@ export function PrefsGeneralSection({
           onChange={(v) => setPreferences({ homePath: (v as string) || '/' })}
           optionList={homePathOptions}
         />
+      </div>
+      )}
+
+      {/* ── 时间显示方式 ── */}
+      {matchesPref(['时间显示', '相对时间', '绝对时间', '分钟前', '时间格式', '时间戳']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          时间显示方式
+          <Tooltip content="列表、消息与时间线里的时间：绝对时间显示完整日期时刻；相对时间显示「3 分钟前」，悬停查看精确时刻。详情页字段始终为绝对时间" position="right">
+            <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+          </Tooltip>
+        </span>
+        <RadioGroup
+          type="button"
+          value={preferences.timeDisplay ?? 'absolute'}
+          onChange={(e) => setPreferences({ timeDisplay: e.target.value as TimeDisplay })}
+        >
+          <Radio value="absolute">绝对</Radio>
+          <Radio value="relative">相对</Radio>
+        </RadioGroup>
       </div>
       )}
 

@@ -7,10 +7,11 @@ import { Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps, Data } from '@douyinfe/semi-ui/lib/es/table';
 import { Check } from 'lucide-react';
 import { COMMON_STATUS_LABELS } from '@zenith/shared/core';
-import { formatDate, formatDateTime } from './date';
+import DateTimeText from '@/components/DateTimeText';
+import { formatDate } from './date';
+import { EMPTY_PLACEHOLDER } from './empty-placeholder';
 
-/** 空值统一占位符，禁止再使用 '-' / '–' 等变体 */
-export const EMPTY_PLACEHOLDER = '—';
+export { EMPTY_PLACEHOLDER };
 
 /** 日期时间列（YYYY-MM-DD HH:mm:ss）统一宽度 */
 export const DATE_TIME_COLUMN_WIDTH = 180;
@@ -147,7 +148,7 @@ type TimeColumnOptions<RecordType extends Data> = Omit<
 };
 
 function createTimeColumn<RecordType extends Data>(
-  format: (value: DateColumnValue) => string,
+  format: ((value: DateColumnValue) => string) | 'date-time',
   defaultWidth: number,
   title: string,
   dataIndex: string,
@@ -164,13 +165,14 @@ function createTimeColumn<RecordType extends Data>(
       const input = (unit === 'second' && typeof value === 'number'
         ? value * 1000
         : value) as DateColumnValue;
-      return format(input);
+      // 日期时间列跟随「时间显示方式」偏好（绝对 / 相对）；纯日期列没有相对语义，保持绝对
+      return format === 'date-time' ? <DateTimeText value={input} empty={empty} /> : format(input);
     },
   };
 }
 
 /**
- * 日期时间列（统一宽度 180，格式化为 YYYY-MM-DD HH:mm:ss，空值显示 '—'）
+ * 日期时间列（统一宽度 180，默认 YYYY-MM-DD HH:mm:ss，偏好为相对时间时显示「3 分钟前」并悬停给出精确时刻，空值显示 '—'）
  *
  * @example
  * dateTimeColumn('支付时间', 'paidAt')
@@ -182,7 +184,7 @@ export function dateTimeColumn<RecordType extends Data = Data>(
   dataIndex: string,
   options?: TimeColumnOptions<RecordType>,
 ): ColumnProps<RecordType> {
-  return createTimeColumn(formatDateTime, DATE_TIME_COLUMN_WIDTH, title, dataIndex, options);
+  return createTimeColumn('date-time', DATE_TIME_COLUMN_WIDTH, title, dataIndex, options);
 }
 
 /**
