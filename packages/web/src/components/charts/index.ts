@@ -6,6 +6,10 @@
  *
  * 主题（亮/暗、主题色）在本模块首次加载时通过 initVChartSemiTheme 接入（见下方副作用），
  * 配色通过 useChartPalette() 读取 Semi CSS 变量，随主题切换自动刷新。
+ *
+ * ⚠ 只用统计卡而不画图的页面，从 '@/components/charts/StatCard' 直接导入 StatCard / StatGrid：
+ * 本桶文件带主题注册副作用，无论页面实际用到哪几个导出，import 它就会把 ~2MB 的 vchart 静态拖进该页面 chunk
+ * （charts-barrel-imports.test.ts 守住）。EmptyChart / ChartCard 同理可按文件路径直接导入。
  */
 // 主题初始化与图表组件同目录：放在 lib/ 会被「应用公共层」分包捕获，把 ~2MB 的 vchart 静态拖进后台布局
 import { setupVChartSemiTheme } from './vchart-theme';

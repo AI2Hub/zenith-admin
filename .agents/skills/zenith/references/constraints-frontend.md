@@ -426,6 +426,12 @@ chunk 分层机理、度量脚本与预算数字见 [docs/frontend/bundle-perfor
   `@formily/*`、`html2canvas`、`jspdf`、`xlsx`、`three`、`echarts`、`@mastra/*`、`react-markdown`、`prismjs` 等重库，
   就会把整库拖进 `AdminLayout` 关键路径。重库只能在页面 / 功能组件内使用，或经 `lazy(() => import())` 边界隔离；
   图表主题这类「配置 + 重库」放在 `components/charts/`，不放 `lib/`
+- **重库的 JS 与 CSS 必须在同一个懒加载边界内**：`HEAVY_LIBRARIES` 中任一库的样式表（`maplibre-gl/dist/maplibre-gl.css` 等）
+  与它的 JS 同属 `vendor-<lib>` 分组，页面里「JS 动态 `import()` + CSS 静态 `import`」会让整个 JS chunk 变成页面的静态依赖，
+  动态 import 形同虚设；**禁止**这种拆分——把 JS 与 CSS 一起静态 import 进一个由页面 `lazy()` 的子组件（`pages/iot/IotDeviceMap.tsx`）
+- **只用统计卡不画图的页面禁止 import 图表桶文件**：`@/components/charts` 顶层执行 vchart 主题注册副作用，import 它就把 vchart
+  静态拖进该页面 chunk；`StatCard` / `StatGrid` / `EmptyChart` / `ChartCard` 按文件路径导入（`@/components/charts/StatCard`），
+  `components/charts/charts-barrel-imports.test.ts` 守住
 - **图标只走 `utils/icons.tsx` 的投递策略**：按名称渲染图标（菜单树、工作流模板、表单配置等任何来自数据的图标名）一律用
   `components/DynamicIcon.tsx` 的 `DynamicIcon` 或 `utils/icons.tsx` 的 `renderLucideIcon`，**禁止**在业务代码 `import * as icons from 'lucide-react'`
   或引入 `lucide-react/dynamicIconImports` 自建映射；静态已知的图标继续按名具名 `import { X } from 'lucide-react'`

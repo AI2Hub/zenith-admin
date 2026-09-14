@@ -8,7 +8,7 @@ import { CreateButton } from '@/components/toolbar-controls';
 import AppModal from '@/components/AppModal';
 import UserSelect from '@/components/UserSelect';
 import { EMPTY_PLACEHOLDER, createdAtColumn, dateTimeColumn, renderEllipsis, enabledStatusColumn } from '@/utils/table-columns';
-import { StatCard, StatGrid } from '@/components/charts';
+import { StatCard, StatGrid } from '@/components/charts/StatCard';
 import { formatDateForApi } from '@/utils/date';
 import { useEditModal } from '@/hooks/useEditModal';
 import { usePermission } from '@/hooks/usePermission';

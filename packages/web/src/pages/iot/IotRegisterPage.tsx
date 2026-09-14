@@ -7,7 +7,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { FilterSelect } from '@/components/search-filters';
 import { CreateButton } from '@/components/toolbar-controls';
 import AppModal from '@/components/AppModal';
-import { StatCard, StatGrid } from '@/components/charts';
+import { StatCard, StatGrid } from '@/components/charts/StatCard';
 import { EMPTY_PLACEHOLDER, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { deleteAction, ListSearchToolbar } from '@/components/list-page';

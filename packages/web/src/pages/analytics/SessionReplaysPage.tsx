@@ -22,7 +22,7 @@ import { confirmDelete } from '@/utils/confirm';
 import { exportReplayHtml } from '@/utils/replay-export';
 import { useListSearch } from '@/hooks/useListSearch';
 import { usePermission } from '@/hooks/usePermission';
-import { StatCard, StatGrid } from '@/components/charts';
+import { StatCard, StatGrid } from '@/components/charts/StatCard';
 import { replayKeys, useBatchDeleteReplays, useReplayDetail, useReplayList, useReplayStorageStats } from '@/hooks/queries/session-replays';
 import { formatBytes } from '@zenith/shared/core';
 import { ListSearchToolbar, listTableProps, useRowSelection } from '@/components/list-page';

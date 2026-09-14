@@ -82,6 +82,8 @@ lucide 图标全表（615 KB / 153 KB gz）在任何口径下都是运行时按�
 | 把 Semi 按组件拆散或与 semi-foundation 分开 | 跨 chunk 环 → TDZ（`reading 'PREFIX'`）白屏 |
 | 把 prismjs 与 Semi codeHighlight 分开 | 语言组件依赖 core 先设置全局 `Prism`，跨 chunk 后求值顺序丢失（`Prism is not defined`） |
 | 含组件的 commons 组 | 组件的重型依赖随之进入壳层（见「公共层只收纯逻辑」） |
+| 重库只动态 `import()` JS、却在同一页面静态 `import` 它的 CSS | CSS 模块按 `HEAVY_LIBRARIES` 规则与 JS 同进 `vendor-<lib>`，对 CSS 的静态边即对整个 JS chunk 的静态边，动态 import 形同虚设（IotMapPage 曾因此静态多带 2 MB maplibre）；JS 与 CSS 放进同一个 `lazy()` 子组件 |
+| 只用 `StatCard` 的页面 import `@/components/charts` 桶文件 | 桶文件顶层的 vchart 主题注册副作用让 ~600 KB gz 的 vendor-visactor 成为无图表页面的静态依赖（IoT 告警 / 注册、会话回放曾各多带 617 KB gz）；轻量导出按文件路径导入，`charts-barrel-imports.test.ts` 守住 |
 | 三入口共建 | `$initial` 取并集，关键路径无法收敛 |
 
 ## 启动链路

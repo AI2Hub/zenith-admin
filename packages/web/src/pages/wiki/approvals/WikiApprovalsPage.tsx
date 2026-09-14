@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Button, Modal, Space, Tabs, Tag, TextArea, Timeline, Toast, Typography } from '@douyinfe/semi-ui';
+import { lazy, Suspense, useState } from 'react';
+import { Button, Modal, Space, Spin, Tabs, Tag, TextArea, Timeline, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Check, X } from 'lucide-react';
 import type { WikiDoc, WikiReviewRecord } from '@zenith/shared/wiki';
@@ -9,7 +9,6 @@ import { ListSearchToolbar, listTableProps } from '@/components/list-page';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { KeywordInput } from '@/components/search-filters';
 import AppModal from '@/components/AppModal';
-import MarkdownPreviewPanel from '@/components/MarkdownPreviewPanel';
 import { EMPTY_PLACEHOLDER, renderEllipsis, updatedAtColumn, dateTimeColumn } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { useListSearch } from '@/hooks/useListSearch';
@@ -23,6 +22,9 @@ import { WIKI_DOC_STATUS_TAG_COLOR } from '../wiki-tag-colors';
 import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 const { Text } = Typography;
+
+// Markdown 渲染（react-markdown + highlight.js）只在「预览」弹窗里用到：与 FilePreviewModal 同样按需加载，列表页 chunk 不带它
+const MarkdownPreviewPanel = lazy(() => import('@/components/MarkdownPreviewPanel'));
 
 interface SearchParams {
   keyword: string;
@@ -160,7 +162,15 @@ function PendingPane() {
         ) : null}
       >
         <div style={{ height: '60vh', overflow: 'hidden', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)' }}>
-          <MarkdownPreviewPanel content={previewQuery.data?.content ?? ''} />
+          <Suspense
+            fallback={(
+              <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Spin size="large" tip="加载预览组件..." />
+              </div>
+            )}
+          >
+            <MarkdownPreviewPanel content={previewQuery.data?.content ?? ''} />
+          </Suspense>
         </div>
       </AppModal>
 
