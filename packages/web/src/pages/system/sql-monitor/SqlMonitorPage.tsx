@@ -51,7 +51,7 @@ import {
   useSqlMonitorSessionAction,
 } from '@/hooks/queries/sql-monitor';
 import { confirmDanger } from '@/utils/confirm';
-import { EMPTY_PLACEHOLDER, renderEllipsis } from '@/utils/table-columns';
+import { EMPTY_PLACEHOLDER, renderCodeEllipsis } from '@/utils/table-columns';
 import DateTimeText from '@/components/DateTimeText';
 import { SQL_MONITOR_QUERY_SORT_OPTIONS, type SqlMonitorQuery, type SqlMonitorSession, type SqlMonitorLock, type SqlMonitorHistoryPoint, type MonitorHistoryRange } from '@zenith/shared/platform';
 import './SqlMonitorPage.css';
@@ -168,7 +168,7 @@ function QueryTable({
       title: 'Query ID',
       dataIndex: 'queryId',
       width: 190,
-      render: (value: string) => renderEllipsis(value, { code: true }),
+      render: (value: string) => renderCodeEllipsis(value),
     },
     { key: 'calls', title: '调用次数', dataIndex: 'calls', width: 110, align: 'right', render: (value: number) => formatNumber(value) },
     { key: 'totalMs', title: '总耗时', dataIndex: 'totalMs', width: 110, align: 'right', render: (value: number) => formatMs(value) },
