@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from 'react';
+import { memo, useCallback, useMemo, type ReactNode } from 'react';
 import { Tag, Tooltip, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { PaginationProps } from '@douyinfe/semi-ui/lib/es/pagination';
@@ -125,7 +125,12 @@ export interface ApiCatalogTableProps {
   readonly verdictOf?: (row: CatalogRow) => OperationVerdict | null;
 }
 
-export function ApiCatalogTable({ rows, permissionLabels, pagination, loading, onOpen, verdictOf }: ApiCatalogTableProps) {
+/**
+ * 目录表格。memo：页面因输入草稿 / 开关详情抽屉重渲染时不跟着重渲染——
+ * 调用方须传稳定引用（`pageRows` / `pagination` / `verdictOf` 均已 memo，`onOpen` 为 setState）
+ */
+export const ApiCatalogTable = memo(function ApiCatalogTable({ rows, permissionLabels, pagination, loading, onOpen, verdictOf }: ApiCatalogTableProps) {
+  const onRow = useCallback((row?: CatalogRow) => ({ onClick: () => { if (row) onOpen(row); }, style: { cursor: 'pointer' } }), [onOpen]);
   const columns = useMemo<ColumnProps<CatalogRow>[]>(() => [
     { title: '模块', dataIndex: 'domainLabel', width: 110 },
     { title: '方法', dataIndex: 'method', width: 90, render: (method: CatalogRow['method']) => <MethodTag method={method} /> },
@@ -170,7 +175,7 @@ export function ApiCatalogTable({ rows, permissionLabels, pagination, loading, o
       pagination={pagination}
       loading={loading}
       empty="没有符合条件的接口"
-      onRow={(row) => ({ onClick: () => { if (row) onOpen(row); }, style: { cursor: 'pointer' } })}
+      onRow={onRow}
     />
   );
-}
+});

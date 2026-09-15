@@ -20,7 +20,7 @@
  *   onReset={handleReset}
  * />
  */
-import type { ReactNode } from 'react';
+import { memo, type ReactNode } from 'react';
 import { DatePicker, Input, InputNumber, Select } from '@douyinfe/semi-ui';
 import type { InputProps } from '@douyinfe/semi-ui/lib/es/input';
 import type { InputNumberProps } from '@douyinfe/semi-ui/lib/es/inputNumber';
@@ -88,8 +88,11 @@ export type FilterSelectProps<V extends string | number = string> = FilterSelect
 /**
  * 单选枚举筛选下拉：占位描述空值含义，清除按钮回到「不过滤」，宽度固定。
  * 列表页搜索栏里所有「全部 X」形态的筛选都用它，不再逐页手写 `showClear` / `style={{ width }}` / 「全部」哨兵选项。
+ *
+ * memo：关键字每敲一个字整个搜索栏都会随草稿重渲染，7–8 个 Semi Select 跟着重渲染是主要开销；
+ * `bind()` 给出的 `value` 是原值、`onChange` 是稳定 setter，选项常量 / memo 数组引用不变即可整体跳过。
  */
-export function FilterSelect<V extends string | number = string>({
+function FilterSelectInner<V extends string | number = string>({
   items,
   groups,
   value,
@@ -122,6 +125,8 @@ export function FilterSelect<V extends string | number = string>({
   }
   return <Select {...shared} optionList={[...items]} />;
 }
+
+export const FilterSelect = memo(FilterSelectInner) as typeof FilterSelectInner;
 
 export type StatusSelectProps<V extends string = string> = Omit<FilterSelectBaseProps<V>, 'placeholder'> & FilterSelectSource<V>;
 

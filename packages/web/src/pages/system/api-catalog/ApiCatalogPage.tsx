@@ -63,8 +63,8 @@ export default function ApiCatalogPage() {
   const [roleId, setRoleId] = useState<number | null>(null);
   const [userId, setUserId] = useState<number | null>(null);
   const [selected, setSelected] = useState<CatalogRow | null>(null);
-  // 词典就绪后重渲染：已提交的关键字补上拼音命中（过滤逐次渲染重算，~2,400 行仍是毫秒级）
-  usePinyinReady();
+  // 词典就绪进过滤 memo 的依赖：已提交的关键字补上拼音命中
+  const pinyinReady = usePinyinReady();
 
   const catalogQuery = useApiCatalog();
   const rows = useMemo(() => toCatalogRows(catalogQuery.data), [catalogQuery.data]);
@@ -112,9 +112,15 @@ export default function ApiCatalogPage() {
   }, [verdicts]);
 
   const verdictFilter = verdictOf ? submittedParams.verdict : undefined;
-  const filtered = rows.filter((row) =>
-    matchesCatalogFilters(row, submittedParams) && (verdictFilter === undefined || verdictOf?.(row) === verdictFilter));
-  const pageRows = filtered.slice((page - 1) * pageSize, page * pageSize);
+  // 关键字过滤带拼音匹配，2,400 行一遍 ~60–90 ms：只在条件 / 数据 / 词典就绪时重算，
+  // 输入草稿、翻页、开关详情抽屉这类无关渲染不再触发；pinyinReady 仅作为重算信号
+  const filtered = useMemo(() => rows.filter((row) =>
+    matchesCatalogFilters(row, submittedParams) && (verdictFilter === undefined || verdictOf?.(row) === verdictFilter)),
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  [rows, submittedParams, verdictFilter, verdictOf, pinyinReady]);
+  const pageRows = useMemo(() => filtered.slice((page - 1) * pageSize, page * pageSize), [filtered, page, pageSize]);
+  // 表格已 memo：分页配置按 total / 页码稳定引用，避免每次渲染新对象把它拖下水
+  const pagination = useMemo(() => buildPagination(filtered.length), [buildPagination, filtered.length]);
 
   const activeStat = activeStatOf(submittedParams);
   const toggleStat = (key: StatKey) => {
@@ -215,7 +221,7 @@ export default function ApiCatalogPage() {
       <ApiCatalogTable
         rows={pageRows}
         permissionLabels={permissionLabels}
-        pagination={buildPagination(filtered.length)}
+        pagination={pagination}
         loading={loading}
         onOpen={setSelected}
         verdictOf={verdictOf}
