@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Modal } from '@douyinfe/semi-ui';
 import type { ModalReactProps } from '@douyinfe/semi-ui/lib/es/modal';
-import { Maximize2, Minimize2, X } from 'lucide-react';
+import { Maximize, Minimize, X } from 'lucide-react';
 import './AppModal.css';
 
 export interface AppModalProps extends Omit<ModalReactProps, 'header' | 'closable' | 'closeIcon' | 'fullScreen'> {
@@ -59,7 +59,7 @@ export function AppModal({
             aria-label={fullscreen ? '还原' : '全屏'}
             onClick={handleToggle}
           >
-            {fullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+            {fullscreen ? <Minimize size={15} /> : <Maximize size={15} />}
           </button>
         )}
         <button
