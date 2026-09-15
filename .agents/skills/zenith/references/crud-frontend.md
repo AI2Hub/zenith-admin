@@ -248,6 +248,7 @@ export default function XxxPage() {
 | 选项 | 用途 |
 | --- | --- |
 | `extraKeys` | 一个页面同时驱动多个列表时，一并失效它们的 key |
+| `refetchOnSearch: false` | 关闭「查询 / 重置」的回源：仅用于一次取全量、只在客户端过滤、随发布才变化的静态数据集（接口目录这类 `staleTime: Infinity` 的查询），查询只重新过滤不重新下载；`listKey` 仍用作「记住筛选条件」的标识 |
 | `pageSize` / `pageSizeOpts` | 覆盖默认页大小（默认取用户偏好）/ 每页条数候选 |
 | `resetKey` | 外部作用域（当前站点 / 公众号…）变化时回到第 1 页 |
 | `onSearch` / `onReset` | 查询 / 重置后的额外副作用，如清空已选中的行 |

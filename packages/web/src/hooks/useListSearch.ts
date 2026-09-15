@@ -16,6 +16,12 @@ export interface UseListSearchOptions<T> {
   readonly listKey: QueryKey;
   /** 同一页面还驱动了其它列表时，在此追加它们的 key */
   readonly extraKeys?: readonly QueryKey[];
+  /**
+   * 「查询 / 重置」是否让 `listKey` / `extraKeys` 失效并重新请求（默认 `true`——本系统的「查询」兼具刷新语义）。
+   * 一次取全量、只在客户端过滤、且随发布才变化的数据集（接口目录这类 `staleTime: Infinity` 的查询）传 `false`：
+   * 查询只重新过滤已缓存的数据，不再重新下载；`listKey` 仍用作「记住列表筛选条件」的标识。
+   */
+  readonly refetchOnSearch?: boolean;
   /** 覆盖默认页大小（默认取用户偏好） */
   readonly pageSize?: number;
   /** 覆盖每页条数选项；见 `usePagination` 的同名选项 */
@@ -103,6 +109,7 @@ export function useListSearch<T>({
   defaults,
   listKey,
   extraKeys,
+  refetchOnSearch = true,
   pageSize: overridePageSize,
   pageSizeOpts,
   resetKey,
@@ -145,12 +152,13 @@ export function useListSearch<T>({
   }, []);
 
   const invalidate = useCallback(() => {
+    if (!refetchOnSearch) return;
     for (const queryKey of [listKey, ...(extraKeys ?? [])]) {
       void queryClient.invalidateQueries({ queryKey });
     }
     // key 通常是页面里的字面量数组，每次渲染引用都不同，按值快照做依赖
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [queryClient, JSON.stringify(listKey), JSON.stringify(extraKeys)]);
+  }, [queryClient, refetchOnSearch, JSON.stringify(listKey), JSON.stringify(extraKeys)]);
 
   const applySearch = useCallback((params: T) => {
     setPage(1);

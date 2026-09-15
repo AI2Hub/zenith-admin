@@ -79,6 +79,20 @@ describe('查询 / 重置必回源（核心契约）', () => {
     act(() => { result.current.handleSearch(); });
     expect(isInvalidated(client, [...otherKey, { page: 1 }])).toBe(false);
   });
+
+  it('refetchOnSearch: false 显式关闭回源：静态数据集只重新过滤，查询 / 重置都不失效缓存', () => {
+    const { result, client } = setup({ refetchOnSearch: false, extraKeys: [otherKey] });
+    act(() => { result.current.setField('keyword')('a'); });
+    act(() => { result.current.handleSearch(); });
+    expect(result.current.submittedParams.keyword).toBe('a');
+    expect(isInvalidated(client, [...listKey, { page: 1 }])).toBe(false);
+    expect(isInvalidated(client, [...otherKey, { page: 1 }])).toBe(false);
+
+    act(() => { result.current.applySearch({ keyword: 'b', status: '' }); });
+    act(() => { result.current.handleReset(); });
+    expect(result.current.submittedParams).toEqual(defaults);
+    expect(isInvalidated(client, [...listKey, { page: 1 }])).toBe(false);
+  });
 });
 
 describe('draft / submitted 双状态', () => {

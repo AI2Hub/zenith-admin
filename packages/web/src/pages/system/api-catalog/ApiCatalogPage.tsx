@@ -84,8 +84,13 @@ export default function ApiCatalogPage() {
     return { permissions: new Set(subjectSummary.permissions), superAdmin: subjectSummary.superAdmin };
   }, [subjectSummary]);
 
-  // 主体切换回到第 1 页，筛选条件保留
-  const search = useListSearch<CatalogFilters>({ defaults: EMPTY_FILTERS, listKey: apiCatalogKeys.catalog, resetKey: [subjectKind, roleId, userId] });
+  // 主体切换回到第 1 页，筛选条件保留；目录随发布静态可知（staleTime: Infinity），查询 / 重置只重新过滤、不重新下载
+  const search = useListSearch<CatalogFilters>({
+    defaults: EMPTY_FILTERS,
+    listKey: apiCatalogKeys.catalog,
+    refetchOnSearch: false,
+    resetKey: [subjectKind, roleId, userId],
+  });
   const { submittedParams, applySearch, page, pageSize, buildPagination } = search;
 
   // 判定只对后台登录令牌操作有意义；公开 / 会员 / 设备 / 网关接口不经权限码门禁 → null（表内显示「不适用」）
