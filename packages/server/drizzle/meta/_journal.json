@@ -5,36 +5,15 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1789471731218,
-      "tag": "0000_baseline_v238_deploy",
+      "when": 1789506676018,
+      "tag": "0000_baseline",
       "breakpoints": true
     },
     {
       "idx": 1,
       "version": "7",
-      "when": 1789471732218,
+      "when": 1789506698973,
       "tag": "0001_extensions",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1789482586930,
-      "tag": "0002_sql_query_samples",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1789484804591,
-      "tag": "0003_sql_monitor_extension",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1789485306850,
-      "tag": "0004_move_sql_sampling_to_system_scheduler",
       "breakpoints": true
     }
   ]

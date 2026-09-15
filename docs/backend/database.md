@@ -50,7 +50,7 @@ npm run db:seed
 
 `packages/server/drizzle/` 包含 `0000_baseline.sql`、`0001_extensions.sql` 和后续增量迁移，执行顺序由 `drizzle/meta/_journal.json` 管理。全新数据库执行 `npm run db:migrate` 会按该顺序建库。
 
-`0001_extensions.sql` 收口维护 Drizzle schema 无法表达的手写 DDL，当前六项：
+`0001_extensions.sql` 收口维护 Drizzle schema 无法表达的手写 DDL，当前七项：
 
 - 条件启用 pgvector：`CREATE EXTENSION IF NOT EXISTS vector`（扩展可用才建，否则静默跳过；扩展创建与条件 DDL 均超出 Drizzle 表达范围）。它服务于 Mastra PgVector——知识库向量存放在 `mastra` schema（索引 `kb_{kbId}`），`ai_kb_chunks` 只存分块文本，业务表上没有任何 `vector` 列；无 pgvector 的部署除知识库向量化外照常工作。
 - `iot_telemetry` 的 RANGE 日分区建表与初始分区（见下文「分区表」）。
@@ -58,17 +58,14 @@ npm run db:seed
 - 跨实例缓存失效广播：通用触发器函数 `notify_cache_invalidate()`（以表名为 topic、可选以某列为 key 向 `cache_invalidate` 频道 `pg_notify`）与 `system_settings` 上的触发器；服务端 `lib/invalidation-bus.ts` 监听该频道，见[运行时设置](./settings.md)。新增需跨实例失效的进程内缓存只需再挂一个触发器。
 - `data_mask_policies` 上的同类触发器（数据脱敏策略的进程内缓存跨实例失效）。
 - 只读执行角色 `zenith_readonly`（NOLOGIN，仅 SELECT），供用户手写 SQL 在事务内 `SET LOCAL ROLE` 切换；无 CREATEROLE 权限的部署跳过创建并告警，服务端降级为白名单 + READ ONLY，见[数据平台 · 安全边界](../ops/data-platform.md#安全边界)。
+- 条件启用 `pg_stat_statements`：扩展可用时创建数据库扩展；PostgreSQL 仍必须在启动配置中预加载 `pg_stat_statements`，否则 SQL 监控保留降级提示。
 
 分区表在基线中先按普通表生成，`0001_extensions.sql` 再删除重建为分区表——其中列 / 外键 / 索引与 `0000_baseline.sql` 对应表的定义逐字一致，schema 改动这三张表后必须同步更新 `0001_extensions.sql`。
 
 `pg_trgm` 扩展在 `0000_baseline.sql` 顶部创建；trigram 索引（含 `async_tasks.payload/result` 的「表达式 + gin_trgm_ops」形态）已全部收进 schema DSL，由 `drizzle-kit generate` 随基线生成。
 
 后续新增无法表达的 DDL 时，用 `drizzle-kit generate --custom` 建独立迁移；重建基线时将其内容并回 `0001_extensions.sql`。
-当前需要并回的增量手写 DDL：`0005_auth_subject_cache_invalidate.sql`——`users` / `tenants` 上的 `notify_cache_invalidate('id')` 触发器，
-供认证中间件的主体权威行副本跨实例失效，见[安全体系 · 认证令牌](./security.md#认证令牌)；
-`0010_member_subject_cache_invalidate.sql`——`members` 上的同类触发器，供会员认证中间件的主体副本失效，见[会员体系](../member/index.md)；
-`0013_tenant_package_cache_invalidate.sql`——`tenant_packages` / `tenant_package_features` 上的同类触发器（key = 套餐 id），
-供套餐功能集副本失效，见[多租户指南 · 套餐与菜单](./multi-tenant.md#套餐与菜单)。
+历史增量中的认证主体、会员主体和租户套餐缓存失效触发器已经并入当前 `0001_extensions.sql`；后续重建基线时继续将这类无法由 schema 表达的 DDL 收口到该文件。
 
 ### 重建基线
 
@@ -77,7 +74,7 @@ npm run db:seed
 
 1. 删除 `packages/server/drizzle/` 下全部文件；`npx drizzle-kit generate --name baseline` 生成 `0000_baseline.sql` 与快照。
 2. 在 `0000_baseline.sql` 顶部补回 `CREATE EXTENSION IF NOT EXISTS pg_trgm;--> statement-breakpoint` 及其注释。
-3. `npx drizzle-kit generate --custom --name extensions` 生成空的 `0001_extensions.sql`，写入上述六项手写 DDL；
+3. `npx drizzle-kit generate --custom --name extensions` 生成空的 `0001_extensions.sql`，写入上述七项手写 DDL；
    分区表的建表 / 外键 / 索引语句从新基线中原样拷贝再加 `PARTITION BY`；增量迁移里新增的手写 DDL（触发器等）一并并入，
    数据回填类语句（`UPDATE` / 菜单修正）对全新库无意义，不保留。
 4. 全新库跑 `npm run db:migrate && npm run db:seed`，再执行一次 `drizzle-kit generate` 确认输出 `No schema changes`。
