@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type SubmitEvent } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Button, Checkbox, Divider, PinCode, Spin, Toast, Typography } from '@douyinfe/semi-ui';
 import { User, Lock, Mail, AtSign, Building2, ShieldCheck, ShieldAlert, BriefcaseBusiness, Check, ChevronRight } from 'lucide-react';
@@ -21,7 +21,7 @@ import { useEnterpriseProviders, useOAuthProviders, usePublicCaptcha } from '@/h
 import { usePublicSettings } from '@/hooks/queries/settings';
 import { useDebouncedValue } from '@tanstack/react-pacer';
 import { useLoginForm, type FieldRules } from './login-form';
-import { LoginField } from './LoginField';
+import { LoginField, LoginFormError } from './LoginField';
 import type { DirectoryLoginValues } from './DirectoryLoginModal';
 import './LoginPage.css';
 
@@ -61,6 +61,12 @@ const REGISTER_RULES: FieldRules<RegisterFormValues> = {
 };
 
 const EMPTY_REGISTER: RegisterFormValues = { username: '', nickname: '', email: '', password: '' };
+
+/** 被动下线横幅标题：按机读原因取文案，其余统一为强制下线 */
+const INVALIDATED_TITLES: Record<string, string> = {
+  'concurrent-login': '已在其他设备登录',
+  'password-changed': '密码已修改',
+};
 
 const PRIMARY_BUTTON_STYLE = { marginTop: 8, borderRadius: 'var(--semi-border-radius-medium)', height: 42 } as const;
 
@@ -186,7 +192,8 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
       if (res.code === 429 && res.retryAfterSeconds) {
         setRetrySeconds(res.retryAfterSeconds);
       }
-      Toast.error(res.message);
+      // 登录失败原因行内展示在字段下方（不再顶部 Toast），用户再次输入即清除
+      loginForm.setFormError(res.message);
       if (captchaEnabled) fetchCaptcha();
     } finally {
       setLoading(false);
@@ -220,15 +227,15 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
         navigateAfterLogin(redirectTo);
         return;
       }
-      // 票据过期 / 已被消费：关闭弹层回到表单重新登录
-      Toast.error(res.message);
+      // 票据过期 / 已被消费：关闭弹层回到表单重新登录，原因行内展示在表单里
+      loginForm.setFormError(res.message);
       setSessionConflict(null);
     } finally {
       setConflictResolving(false);
     }
   };
 
-  const handleLoginSubmit = (e: FormEvent<HTMLFormElement>) => {
+  const handleLoginSubmit = (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     const values = loginForm.validate();
     if (values) void handleLogin(values);
@@ -248,13 +255,13 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
         navigateAfterLogin(redirectTo);
         return;
       }
-      Toast.error(res.message);
+      setMfaError(res.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleMfaSubmit = (e: FormEvent<HTMLFormElement>) => {
+  const handleMfaSubmit = (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     void handleMfaVerify();
   };
@@ -279,13 +286,13 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
       if (res.code === 429 && res.retryAfterSeconds) {
         setRetrySeconds(res.retryAfterSeconds);
       }
-      Toast.error(res.message);
+      registerForm.setFormError(res.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleRegisterSubmit = (e: FormEvent<HTMLFormElement>) => {
+  const handleRegisterSubmit = (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     const values = registerForm.validate();
     if (values) void handleRegister(values);
@@ -369,6 +376,7 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
           </button>
         </div>
       )}
+      <LoginFormError message={loginForm.formError} />
       <Button
         htmlType="submit"
         type="primary"
@@ -427,6 +435,7 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
         size="large"
         autoComplete="new-password"
       />
+      <LoginFormError message={registerForm.formError} />
       <Button
         htmlType="submit"
         type="primary"
@@ -528,8 +537,9 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
     }
   };
 
-  const handleDirectoryLogin = async (values: DirectoryLoginValues) => {
-    if (!directoryProvider) return;
+  /** 返回错误文案由弹窗行内展示；成功返回 null */
+  const handleDirectoryLogin = async (values: DirectoryLoginValues): Promise<string | null> => {
+    if (!directoryProvider) return null;
     setDirectoryLoginLoading(true);
     try {
       const { loginResult, redirectTo: nextRedirect } = await api(enterpriseAuthContract.ldapLogin, {
@@ -544,30 +554,66 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
       if (isMfaChallenge(loginResult) || isSessionConflict(loginResult)) {
         handleLoginResult(loginResult);
         setDirectoryProvider(null);
-        return;
+        return null;
       }
       localStorage.setItem(TOKEN_KEY, loginResult.token.accessToken);
       localStorage.setItem(REFRESH_TOKEN_KEY, loginResult.token.refreshToken);
       setDirectoryProvider(null);
       navigateAfterLogin(nextRedirect || redirectTo);
+      return null;
     } catch (err) {
-      Toast.error(err instanceof Error ? err.message : '登录失败');
+      return err instanceof Error ? err.message : '登录失败';
     } finally {
       setDirectoryLoginLoading(false);
     }
   };
 
+  let formTitle = '欢迎回来';
   if (mfaChallenge) {
+    formTitle = '安全验证';
     formSubtitle = '请完成多因素认证以进入工作台';
   } else if (addAccountMode) {
+    formTitle = '添加账号';
     formSubtitle = canAddAccount
       ? '登录另一个账号，成功后可在右上角账号菜单中随时切换'
       : `最多同时保持 ${MAX_STORED_ACCOUNTS} 个账号登录，请先在账号切换器中退出一个账号`;
   } else if (isDemoMode) {
     formSubtitle = '当前为演示模式，仅开放预置账号登录，页面数据为模拟环境。';
   } else if (tab !== 'login') {
+    formTitle = '创建账号';
     formSubtitle = '注册新账号加入我们';
   }
+
+  const invalidatedTitle = INVALIDATED_TITLES[invalidated?.reason ?? ''] ?? '会话已被强制下线';
+
+  /** 卡片主体：MFA 验证表单 / 仅登录（演示模式或未开放注册）/ 登录·注册切换 */
+  const renderCardBody = () => {
+    if (mfaChallenge) return <div style={{ marginBottom: 20 }}>{renderMfaForm()}</div>;
+    if (isDemoMode || !allowRegistration) return <div style={{ marginBottom: 20 }}>{renderLoginForm()}</div>;
+    return (
+      <div style={{ marginBottom: 20 }}>
+        <div className="login-tabs" role="tablist" aria-label="登录或注册">
+          {([['login', '登录'], ['register', '注册']] as const).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              id={`login-tab-${key}`}
+              aria-selected={tab === key}
+              aria-controls={`login-panel-${key}`}
+              className={`login-tab${tab === key ? ' login-tab-active' : ''}`}
+              onClick={() => setTab(key)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div id={`login-panel-${tab}`} role="tabpanel" aria-labelledby={`login-tab-${tab}`}>
+          {tab === 'login' ? renderLoginForm() : renderRegisterForm()}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="login-page">
@@ -604,7 +650,7 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
         <div className="login-card">
           <div className="login-form-header">
             <Title heading={3} style={{ marginBottom: 8, fontWeight: 600 }}>
-              {mfaChallenge ? '安全验证' : addAccountMode ? '添加账号' : (isDemoMode || tab === 'login' ? '欢迎回来' : '创建账号')}
+              {formTitle}
             </Title>
             <Text type="tertiary" style={{ fontSize: 14, display: 'block', marginBottom: 24 }}>
               {formSubtitle}
@@ -643,7 +689,7 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
               <ShieldAlert size={18} className="login-alert-icon" aria-hidden />
               <div className="login-alert-body">
                 <div className="login-alert-title">
-                  {invalidated.reason === 'concurrent-login' ? '已在其他设备登录' : invalidated.reason === 'password-changed' ? '密码已修改' : '会话已被强制下线'}
+                  {invalidatedTitle}
                 </div>
                 <div className="login-alert-text">{invalidated.message}</div>
                 {invalidated.reason === 'concurrent-login' && forgotPasswordEnabled && (
@@ -653,37 +699,7 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
               <button type="button" className="login-alert-close" aria-label="关闭提示" onClick={() => setInvalidated(null)}>×</button>
             </div>
           )}
-          {mfaChallenge ? (
-            <div style={{ marginBottom: 20 }}>
-              {renderMfaForm()}
-            </div>
-          ) : isDemoMode || !allowRegistration ? (
-            <div style={{ marginBottom: 20 }}>
-              {renderLoginForm()}
-            </div>
-          ) : (
-            <div style={{ marginBottom: 20 }}>
-              <div className="login-tabs" role="tablist" aria-label="登录或注册">
-                {([['login', '登录'], ['register', '注册']] as const).map(([key, label]) => (
-                  <button
-                    key={key}
-                    type="button"
-                    role="tab"
-                    id={`login-tab-${key}`}
-                    aria-selected={tab === key}
-                    aria-controls={`login-panel-${key}`}
-                    className={`login-tab${tab === key ? ' login-tab-active' : ''}`}
-                    onClick={() => setTab(key)}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-              <div id={`login-panel-${tab}`} role="tabpanel" aria-labelledby={`login-tab-${tab}`}>
-                {tab === 'login' ? renderLoginForm() : renderRegisterForm()}
-              </div>
-            </div>
-          )}
+          {renderCardBody()}
           {addAccountMode && authStatus === 'authenticated' && !mfaChallenge && (
             <Button theme="borderless" type="tertiary" block style={{ marginTop: -8, marginBottom: 12 }} onClick={() => navigate('/')}>
               取消添加，返回工作台

@@ -1,10 +1,10 @@
-import { useState, type FormEvent } from 'react';
+import { useState, type SubmitEvent } from 'react';
 import { User, Lock } from 'lucide-react';
 import type { TenantIdentityProviderSummary } from '@zenith/shared/identity';
 import AppModal from '@/components/AppModal';
 import { ModalFooter } from '@/components/ModalFooter';
-import { useLoginForm } from './login-form';
-import { LoginField } from './LoginField';
+import { useLoginForm, type FieldRules } from './login-form';
+import { LoginField, LoginFormError } from './LoginField';
 
 export interface DirectoryLoginValues extends Record<string, string> {
   username: string;
@@ -15,11 +15,12 @@ interface DirectoryLoginModalProps {
   provider: TenantIdentityProviderSummary | null;
   loading: boolean;
   onCancel: () => void;
-  onSubmit: (values: DirectoryLoginValues) => Promise<void>;
+  /** 返回错误文案时行内展示在表单里；成功返回 null */
+  onSubmit: (values: DirectoryLoginValues) => Promise<string | null>;
 }
 
 const INITIAL: DirectoryLoginValues = { username: '', password: '' };
-const RULES = {
+const RULES: FieldRules<DirectoryLoginValues> = {
   username: [{ required: true, message: '请输入目录账号' }],
   password: [{ required: true, message: '请输入目录密码' }],
 };
@@ -51,13 +52,14 @@ function DirectoryLoginForm({ loading, onCancel, onSubmit }: Readonly<Omit<Direc
     if (!values || busy) return;
     setSubmitting(true);
     try {
-      await onSubmit(values);
+      const message = await onSubmit(values);
+      if (message) form.setFormError(message);
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     void submit();
   };
@@ -86,6 +88,7 @@ function DirectoryLoginForm({ loading, onCancel, onSubmit }: Readonly<Omit<Direc
         size="large"
         autoComplete="current-password"
       />
+      <LoginFormError message={form.formError} />
       <ModalFooter onCancel={onCancel} onOk={submit} okText="登录" loading={busy} />
     </form>
   );

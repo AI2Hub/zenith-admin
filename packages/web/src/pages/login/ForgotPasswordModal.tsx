@@ -1,11 +1,10 @@
-import { useState, type FormEvent } from 'react';
-import { Toast } from '@douyinfe/semi-ui';
+import { useState, type SubmitEvent } from 'react';
 import { Mail } from 'lucide-react';
 import AppModal from '@/components/AppModal';
 import { ModalFooter } from '@/components/ModalFooter';
 import { useForgotPassword } from '@/hooks/queries/auth-public';
-import { EMAIL_PATTERN, useLoginForm } from './login-form';
-import { LoginField } from './LoginField';
+import { isEmail, useLoginForm, type FieldRules } from './login-form';
+import { LoginField, LoginFormError } from './LoginField';
 
 interface ForgotPasswordModalProps {
   visible: boolean;
@@ -17,10 +16,10 @@ interface ForgotPasswordValues extends Record<string, string> {
 }
 
 const INITIAL: ForgotPasswordValues = { email: '' };
-const RULES = {
+const RULES: FieldRules<ForgotPasswordValues> = {
   email: [
     { required: true, message: '请输入邮箱地址' },
-    { pattern: EMAIL_PATTERN, message: '邮箱格式不正确' },
+    { validator: (value) => (value && !isEmail(value) ? '邮箱格式不正确' : undefined), message: '邮箱格式不正确' },
   ],
 };
 
@@ -48,11 +47,11 @@ export default function ForgotPasswordModal({ visible, onClose }: Readonly<Forgo
       await forgotPasswordMutation.mutateAsync({ body: { email: values.email } });
       setSent(true);
     } catch (err) {
-      Toast.error(err instanceof Error ? err.message : '发送失败，请稍后重试');
+      form.setFormError(err instanceof Error ? err.message : '发送失败，请稍后重试');
     }
   };
 
-  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     void submit();
   };
@@ -94,6 +93,7 @@ export default function ForgotPasswordModal({ visible, onClose }: Readonly<Forgo
             autoComplete="email"
             autoFocus
           />
+          <LoginFormError message={form.formError} />
           <ModalFooter onCancel={handleClose} onOk={submit} okText="发送重置链接" loading={loading} />
         </form>
       )}

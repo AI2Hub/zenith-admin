@@ -24,3 +24,9 @@ export function LoginField({ error, label, labelPosition = 'top', id, className,
     </div>
   );
 }
+
+/** 表单级错误（服务端返回的登录失败原因等）：与字段错误同风格的一行红字，紧贴最后一个字段，替代顶部 Toast */
+export function LoginFormError({ message }: Readonly<{ message: string | null | undefined }>) {
+  if (!message) return null;
+  return <div className="login-form-error" role="alert">{message}</div>;
+}

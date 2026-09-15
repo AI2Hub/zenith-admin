@@ -257,6 +257,14 @@
   color: var(--semi-color-danger);
 }
 
+/* 表单级错误（登录失败原因等）：与字段错误同一套红字风格，紧贴最后一个字段、位于提交按钮之上；无底色 / 边框 / 图标 */
+.login-form-error {
+  margin: -6px 2px 14px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--semi-color-danger);
+}
+
 /* 登录 / 注册切换：替代 Semi Tabs（line 型），只保留下划线与主色 */
 .login-tabs {
   display: flex;
