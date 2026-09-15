@@ -1,4 +1,4 @@
-import { useRef, useState, useMemo } from 'react';
+import { lazy, Suspense, useRef, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, Input, Tag, Toast, Tooltip, Modal, Tabs, TabPane, Tree, TreeSelect, Typography, Dropdown, Form, SplitButtonGroup } from '@douyinfe/semi-ui';
@@ -20,7 +20,7 @@ import {
   useCmsContentPersistentLock,
 } from '@/hooks/queries/cms';
 import { CMS_CONTENT_STATUS_LABELS, CMS_CONTENT_TYPE_LABELS, CMS_CONTENT_TYPE_OPTIONS } from '@zenith/shared/cms';
-import type { CmsChannel, CmsContent, CmsContentStatus, CmsContentType } from '@zenith/shared/cms';
+import type { CmsChannel, CmsContentListItem, CmsContentStatus, CmsContentType } from '@zenith/shared/cms';
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { CmsWidgetSourceRefsSheet, type CmsWidgetSourceTarget } from './CmsWidgetSourceRefsSheet';
 import { CreateButton } from '@/components/toolbar-controls';
@@ -40,6 +40,7 @@ const STATUS_COLORS: Record<CmsContentStatus, 'grey' | 'orange' | 'green' | 'red
   offline: 'violet',
   rejected: 'red',
 };
+const CmsContentWorkflowSheet = lazy(() => import('./CmsContentWorkflowSheet'));
 
 type TabKey = 'all' | 'pending' | 'published' | 'archived' | 'recycle';
 
@@ -69,6 +70,7 @@ export default function ContentsPage() {
     onReset: () => { setChannelId(undefined); setContentType(undefined); setSelectedIds([]); },
   });
   const [widgetSourceTarget, setWidgetSourceTarget] = useState<CmsWidgetSourceTarget | null>(null);
+  const [workflowTarget, setWorkflowTarget] = useState<CmsContentListItem | null>(null);
   // 窄屏单栏模式下的栏目树显隐（MasterDetailLayout 响应式）
   const [showChannelTree, setShowChannelTree] = useState(false);
   const [isLayoutNarrow, setIsLayoutNarrow] = useState(false);
@@ -121,7 +123,7 @@ export default function ContentsPage() {
   const [distributeModalVisible, setDistributeModalVisible] = useState(false);
   const [distributeTargetSiteId, setDistributeTargetSiteId] = useState<number | undefined>(undefined);
   // 复制到其他栏目（同站）：选中待复制内容与目标栏目
-  const [copyTarget, setCopyTarget] = useState<CmsContent | null>(null);
+  const [copyTarget, setCopyTarget] = useState<CmsContentListItem | null>(null);
   const [copyChannelId, setCopyChannelId] = useState<number | undefined>(undefined);
   const distributeTargetTreeQuery = useCmsChannelTree(distributeTargetSiteId);
 
@@ -136,7 +138,7 @@ export default function ContentsPage() {
     Toast.success(successMsg);
   }
 
-  function handleReject(record: CmsContent) {
+  function handleReject(record: CmsContentListItem) {
     let reason = '';
     Modal.confirm({
       title: `驳回「${record.title}」`,
@@ -155,7 +157,7 @@ export default function ContentsPage() {
     });
   }
 
-  function handlePersistentLock(record: CmsContent) {
+  function handlePersistentLock(record: CmsContentListItem) {
     if (record.lockedAt) {
       Modal.confirm({
         title: `解除「${record.title}」的持久锁？`,
@@ -237,7 +239,7 @@ export default function ContentsPage() {
   }
 
   /** 行级标记快捷切换（置顶/推荐/热门/原创，复用 batch-flags 单条调用） */
-  async function handleRowFlag(record: CmsContent, flag: 'isTop' | 'isRecommend' | 'isHot' | 'isOriginal', label: string) {
+  async function handleRowFlag(record: CmsContentListItem, flag: 'isTop' | 'isRecommend' | 'isHot' | 'isOriginal', label: string) {
     const next = !record[flag];
     await batchOpsMutation.mutateAsync({ action: 'batch-flags', body: { ids: [record.id], [flag]: next } });
     Toast.success(`「${record.title}」${next ? '已' : '已取消'}${label}`);
@@ -270,7 +272,7 @@ export default function ContentsPage() {
     Toast.success('分发成功（已在目标站点草稿箱创建独立快照）');
   }
 
-  function previewContent(record: CmsContent) {
+  function previewContent(record: CmsContentListItem) {
     if (!record.previewUrl) {
       Toast.warning('当前内容暂无可用的预览地址');
       return;
@@ -278,7 +280,7 @@ export default function ContentsPage() {
     window.open(record.previewUrl, '_blank');
   }
 
-  const columns: ColumnProps<CmsContent>[] = [
+  const columns: ColumnProps<CmsContentListItem>[] = [
     {
       title: '标题',
       dataIndex: 'title',
@@ -361,11 +363,12 @@ export default function ContentsPage() {
         </span>
       ),
     },
-    createOperationColumn<CmsContent>({
-      // 回收站 / 已归档 Tab 只有两个内联动作 + 更多，默认 Tab 草稿态为 编辑 / 预览 / 提交审核 + 更多
-      width: activeTab === 'recycle' || activeTab === 'archived' ? 210 : 260,
-      desktopInlineKeys: activeTab === 'recycle' ? ['restore', 'purge'] : activeTab === 'archived' ? ['unarchive', 'preview'] : ['edit', 'preview', 'submit', 'publish', 'offline'],
-      actions: (record) => record.lockedAt
+    createOperationColumn<CmsContentListItem>({
+      // 审批信息与业务编辑并列，发布/前台预览等次要操作收在更多菜单。
+      width: activeTab === 'recycle' ? 210 : 290,
+      desktopInlineKeys: activeTab === 'recycle' ? ['restore', 'purge'] : activeTab === 'archived' ? ['workflow', 'unarchive', 'preview'] : ['edit', 'workflow', 'submit', 'offline'],
+      actions: (record) => {
+        const contentActions = record.lockedAt
         ? [
             ...(record.status === 'published' ? [{ key: 'preview', label: '预览', onClick: () => previewContent(record) }] : []),
             ...(hasPermission('cms:content:lock') ? [{
@@ -489,7 +492,12 @@ export default function ContentsPage() {
               },
             }] : []),
             ...(hasPermission('cms:content:lock') ? [{ key: 'lock', label: '锁定', onClick: () => handlePersistentLock(record) }] : []),
-          ],
+          ];
+        return activeTab === 'recycle' ? contentActions : [
+          { key: 'workflow', label: '查看审批', onClick: () => setWorkflowTarget(record) },
+          ...contentActions,
+        ];
+      },
     }),
   ];
 
@@ -808,6 +816,12 @@ export default function ContentsPage() {
         target={widgetSourceTarget}
         onClose={() => setWidgetSourceTarget(null)}
       />
+      {workflowTarget ? (
+        <Suspense fallback={null}>
+          <CmsContentWorkflowSheet key={workflowTarget.id} contentId={workflowTarget.id}
+            title={workflowTarget.title} onClose={() => setWorkflowTarget(null)} />
+        </Suspense>
+      ) : null}
     </div>
   );
 }

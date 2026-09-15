@@ -3,7 +3,7 @@ import { HashRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { Spin } from '@douyinfe/semi-ui';
 import { TOKEN_KEY } from '@zenith/shared/core';
-import { approvalQueryClient } from './lib/queries';
+import { approvalQueryClient } from './lib/query-client';
 
 // 页面级懒加载：入口只带路由壳，TaskDetail/LaunchForm 携带的全能表单渲染器
 // （富文本、附件、地区选择等重依赖）不再进入首屏预载

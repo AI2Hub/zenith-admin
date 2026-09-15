@@ -289,6 +289,8 @@ const operationColumn = createOperationColumn<User>({
 | `workflow/WorkflowPriorityTag` | 流程优先级 Tag |
 | `workflow/WorkflowProcessLayout` | 流程处理页布局 |
 | `workflow/WorkflowSideSheet` | 工作流侧边抽屉 |
+| `workflow/BusinessWorkflowPanel` | 业务表单与流程信息的组合面板，接收业务内容、预览、运行上下文和审批轮次，复用普通流程两栏布局；接法见[业务模块接入工作流](../workflow/business-integration.md) |
+| `workflow/WorkflowApprovalChain` | `WorkflowApprovalChainPanel` 导出的审批链纯展示组件，业务预览使用同一呈现，不负责请求 |
 | `workflow/WorkflowSLATag` | SLA / 超时展示 Tag |
 | `workflow/WorkflowSummaryLine` | 流程摘要行 |
 | `workflow/workflow-task-columns.tsx` | 任务表格列工厂：任务编号、节点、类型、状态、处理人、意见、耗时等 |

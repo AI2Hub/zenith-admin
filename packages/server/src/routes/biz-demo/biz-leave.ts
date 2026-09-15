@@ -7,6 +7,8 @@ import {
   listBizLeaves,
   getBizLeave,
   getBizLeaveDetail,
+  previewBizLeaveWorkflow,
+  getBizLeaveWorkflowContext,
   createBizLeave,
   updateBizLeave,
   deleteBizLeave,
@@ -18,7 +20,13 @@ import { mountCrud } from '../_crud';
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
 const detailRoute = defineContractRoute(bizLeaveContract.approvalDetail, {
-  handler: async (c) => c.json(okBody(await getBizLeaveDetail(c.req.valid('param').id)), 200),
+  handler: async (c) => c.json(okBody(await getBizLeaveDetail(c.req.valid('param').id, c.req.valid('query').instanceId)), 200),
+});
+const workflowPreviewRoute = defineContractRoute(bizLeaveContract.workflowPreview, {
+  handler: async (c) => c.json(okBody(await previewBizLeaveWorkflow(c.req.valid('json'))), 200),
+});
+const workflowContextRoute = defineContractRoute(bizLeaveContract.workflowContext, {
+  handler: async (c) => c.json(okBody(await getBizLeaveWorkflowContext(c.req.valid('param').id, c.req.valid('query').instanceId)), 200),
 });
 const submitRoute = defineContractRoute(bizLeaveContract.submit, {
   middleware: [idempotencyGuard({ ttlSeconds: 10 })],
@@ -38,7 +46,7 @@ mountCrud(router, bizLeaveContract,
     remove: deleteBizLeave,
   },
   { messages: { remove: '已删除' } },
-  [detailRoute, submitRoute, reopenRoute],
+  [workflowPreviewRoute, workflowContextRoute, detailRoute, submitRoute, reopenRoute],
 );
 
 export default router;

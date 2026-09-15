@@ -178,7 +178,7 @@ export function buildInstanceFormSnapshot(
  * 公开回调路由以这些 secret 做 HMAC 验签，若随详情 DTO 下发，任一参与人即可伪造回调
  * 批准/拒绝/恢复流程。仅作用于 DTO 输出，DB 中的快照原文不受影响（作业/回调验签仍可用）。
  */
-function sanitizeSnapshotFlowData(flowData: WorkflowFlowData | null): WorkflowFlowData | null {
+export function sanitizeSnapshotFlowData(flowData: WorkflowFlowData | null): WorkflowFlowData | null {
   if (!flowData?.nodes?.length) return flowData;
   return {
     ...flowData,

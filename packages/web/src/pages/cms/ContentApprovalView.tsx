@@ -4,25 +4,29 @@
  * 审批人在流程详情里看到的内容数据：按 bizId 从 CMS 内容接口拉取，
  * 内容数据始终留在 cms_contents 表，流程仅存路由变量。
  */
-import { Descriptions, Spin, Empty, Typography, Tag } from '@douyinfe/semi-ui';
+import { Descriptions, Spin, Empty, Typography } from '@douyinfe/semi-ui';
 import { FileCheck } from 'lucide-react';
 import type { WorkflowBusinessFormProps } from '@/components/workflow/BusinessFormHost';
-import { useCmsContentDetail } from '@/hooks/queries/cms';
-import { CMS_CONTENT_STATUS_LABELS } from '@zenith/shared/cms';
+import { useCmsContentApprovalDetail } from '@/hooks/queries/cms';
+import { CMS_CONTENT_STATUS_LABELS, type CmsContent } from '@zenith/shared/cms';
 import { EMPTY_PLACEHOLDER } from '@/utils/table-columns';
 
-export default function ContentApprovalView({ bizId }: Readonly<WorkflowBusinessFormProps>) {
-  const detailQuery = useCmsContentDetail(bizId ? Number(bizId) : undefined);
+export default function ContentApprovalView({ bizId, instanceId }: Readonly<WorkflowBusinessFormProps>) {
+  const detailQuery = useCmsContentApprovalDetail(bizId ? Number(bizId) : undefined, instanceId);
   const data = detailQuery.data ?? null;
 
-  if (detailQuery.isFetching) return <div style={{ textAlign: 'center', padding: 24 }}><Spin /></div>;
+  if (detailQuery.isLoading) return <div style={{ textAlign: 'center', padding: 24 }}><Spin /></div>;
   if (!data) return <Empty title="无法加载内容详情" style={{ padding: 24 }} />;
 
+  return <ContentApprovalDetails content={data} />;
+}
+
+/** 纯业务内容：业务入口与工作流入口共享展示，各自使用所属权限的数据接口。 */
+export function ContentApprovalDetails({ content: data }: Readonly<{ content: CmsContent }>) {
   return (
     <div>
       <Typography.Title heading={6} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
         <FileCheck size={16} /> 内容审核
-        <Tag size="small" style={{ marginLeft: 4 }}>CMS 内容数据</Tag>
       </Typography.Title>
       <Descriptions
         row

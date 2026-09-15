@@ -393,7 +393,7 @@ export const SEED_WORKFLOW_TEMPLATES: SeedWorkflowTemplate[] = [
   },
 ];
 
-// ─── 流程定义（业务接入示例：请假审批，formType=external）────────────────────────
+// ─── 业务系统主导流程（业务表单内预览流程、提交后查看运行信息）─────────────────
 export interface SeedWorkflowDefinition {
   id: number;
   name: string;
@@ -407,24 +407,27 @@ export interface SeedWorkflowDefinition {
   tenantId: number | null;
 }
 
-// 由「请假管理」业务模块通过 startWorkflowForBiz 发起并关联；审批人查看 LeaveApprovalView。
-// 不指定显式 id（避免 serial 序列冲突），biz-leave 服务按名称查找该已发布定义。
+// 业务模块通过 startWorkflowForBiz 发起并关联；viewComponent 只渲染业务数据，
+// 流程预览与运行信息由公共流程容器承载。DB 初始化显式写入 id，Demo 按自身 ID 空间派生。
 export const SEED_WORKFLOW_DEFINITIONS: SeedWorkflowDefinition[] = [
   {
     id: 1,
     name: '请假审批',
-    description: '业务接入示例：由「请假管理」业务模块发起并关联的审批流程（formType=external）',
+    description: '由「请假管理」保存业务数据并发起审批；请假表单内预览审批节点，提交后展示当前流程、审批记录与流程图',
     initiatorScopeType: 'all',
     flowData: buildLinearFlow(
       [{ key: 'approve_admin', name: '管理员审批', props: { assigneeType: 'user', assigneeIds: [1] } }],
-      TEMPLATE_SETTINGS,
+      { ...TEMPLATE_SETTINGS, allowResubmit: false, notifyInitiator: true, summaryFields: ['leaveType', 'days'] },
     ),
     formType: 'external',
     customForm: {
       createComponent: '',
       viewComponent: 'biz/leave/LeaveApprovalView',
       icon: 'CalendarClock',
-      variables: [{ key: 'days', label: '请假天数', type: 'number' }],
+      variables: [
+        { key: 'days', label: '请假天数', type: 'number' },
+        { key: 'leaveType', label: '请假类型', type: 'string' },
+      ],
     },
     status: 'published',
     version: 1,
@@ -433,11 +436,11 @@ export const SEED_WORKFLOW_DEFINITIONS: SeedWorkflowDefinition[] = [
   {
     id: 2,
     name: 'CMS 内容审核',
-    description: 'CMS 站点开启工作流审核模式后，内容提交审核时自动发起本流程；审批通过自动发布并刷新静态页，驳回回写驳回状态',
+    description: 'CMS 工作流审核模式下，在内容表单内预览与查看审批流程；提交审核发起本流程，通过后自动发布并刷新静态页，驳回回写业务状态',
     initiatorScopeType: 'all',
     flowData: buildLinearFlow(
       [{ key: 'approve_editor', name: '主编审核', props: { assigneeType: 'user', assigneeIds: [1] } }],
-      TEMPLATE_SETTINGS,
+      { ...TEMPLATE_SETTINGS, allowResubmit: false, notifyInitiator: true, summaryFields: ['siteName', 'channelName', 'contentTitle'] },
     ),
     formType: 'external',
     customForm: {

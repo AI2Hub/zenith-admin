@@ -35,9 +35,20 @@ import { lockCmsContent, unlockCmsContent } from '../../services/cms/cms-content
 import { describeCmsLink } from '../../services/cms/cms-link.service';
 import { ensureCmsSiteExists, assertSiteAccess } from '../../services/cms/cms-sites.service';
 import { mountCrud } from '../_crud';
+import { previewCmsContentWorkflow, getCmsContentWorkflowContext } from '../../services/cms/cms-workflow.service';
+import { getCmsContentForApproval } from '../../services/cms/cms-contents-query.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
+const workflowPreviewRoute = defineContractRoute(cmsContentContract.workflowPreview, {
+  handler: async (c) => c.json(okBody(await previewCmsContentWorkflow(c.req.valid('json'))), 200),
+});
+const workflowContextRoute = defineContractRoute(cmsContentContract.workflowContext, {
+  handler: async (c) => c.json(okBody(await getCmsContentWorkflowContext(c.req.valid('param').id, c.req.valid('query').instanceId)), 200),
+});
+const approvalDetailRoute = defineContractRoute(cmsContentContract.approvalDetail, {
+  handler: async (c) => c.json(okBody(await getCmsContentForApproval(c.req.valid('param').id, c.req.valid('query').instanceId)), 200),
+});
 const checkTitleRoute = defineContractRoute(cmsContentContract.checkTitle, {
   handler: async (c) => {
     const { siteId, title, excludeId } = c.req.valid('query');
@@ -280,6 +291,7 @@ mountCrud(router, cmsContentContract,
   ],
 );
 router.openapiRoutes([
+  workflowPreviewRoute, workflowContextRoute, approvalDetailRoute,
   editLockAcquireRoute, editLockReleaseRoute, previewLinkRoute,
   batchMoveRoute, batchFlagsRoute, batchTagRoute, batchStatusRoute, duplicateRoute, distributeRoute,
   archiveRoute, unarchiveRoute, opLogsRoute, checkTextRoute,

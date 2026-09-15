@@ -1,4 +1,7 @@
 import type { WorkflowDefinition, WorkflowDefinitionVersion, WorkflowInstance, WorkflowTask, WorkflowFormField, WorkflowInstanceFormSnapshot } from '@zenith/shared/workflow';
+import { SEED_WORKFLOW_DEFINITIONS, SEED_DATE } from '@zenith/shared/seed';
+import { nextIdFrom } from '@/mocks/utils/handlers';
+import { mockUsers } from './users';
 import { mockWorkflowForms } from './workflow-forms';
 
 /** 流程定义版本的派生字段：表单字段数组 */
@@ -59,15 +62,23 @@ const EXPENSE_FLOW_DATA = {
   settings: { allowWithdraw: true, allowResubmit: true, notifyInitiator: true, allowComment: true, summaryFields: ['expenseType', 'amount', 'occurDate'] },
 };
 
-const BIZ_LEAVE_CUSTOM_FORM = {
-  createComponent: '',
-  viewComponent: 'biz/leave/LeaveApprovalView',
-  icon: 'CalendarClock',
-  variables: [
-    { key: 'days', label: '请假天数', type: 'number' as const },
-    { key: 'leaveType', label: '请假类型', type: 'string' as const },
-  ],
-};
+// External 定义与 DB seed 同源；1–6 是其它 Demo 定义，业务定义使用后续 ID。
+const mockBusinessDefinitions: WorkflowDefinition[] = SEED_WORKFLOW_DEFINITIONS.map((seed, index) => ({
+  ...structuredClone(seed),
+  id: 7 + index,
+  categoryId: null,
+  initiatorScopeIds: null,
+  flowData: structuredClone(seed.flowData) as unknown as WorkflowDefinition['flowData'],
+  formId: null,
+  formFields: null,
+  tenantId: 1,
+  createdBy: 1,
+  createdByName: '张三',
+  createdAt: SEED_DATE,
+  updatedAt: SEED_DATE,
+}));
+const bizLeaveDefinition = mockBusinessDefinitions.find((definition) => definition.name === '请假审批')!;
+const BIZ_LEAVE_CUSTOM_FORM = bizLeaveDefinition.customForm;
 
 export const mockWorkflowDefinitions: WorkflowDefinition[] = [
   {
@@ -268,26 +279,7 @@ export const mockWorkflowDefinitions: WorkflowDefinition[] = [
     createdAt: '2026-03-25 09:00:00',
     updatedAt: '2026-03-25 09:00:00',
   },
-  {
-    id: 7,
-    name: '请假审批',
-    description: '业务接入示例：由「请假管理」业务模块发起并关联的审批流程（formType=external）',
-    categoryId: null,
-    initiatorScopeType: 'all',
-    initiatorScopeIds: null,
-    flowData: LEAVE_FLOW_DATA,
-    formId: null,
-    formFields: null,
-    formType: 'external',
-    customForm: BIZ_LEAVE_CUSTOM_FORM,
-    status: 'published',
-    version: 1,
-    tenantId: 1,
-    createdBy: 1,
-    createdByName: '张三',
-    createdAt: '2026-06-01 09:00:00',
-    updatedAt: '2026-06-01 09:00:00',
-  },
+  ...mockBusinessDefinitions,
 ];
 
 // ─── 流程任务 ──────────────────────────────────────────────────────────────
@@ -386,8 +378,8 @@ export const mockWorkflowTasks: WorkflowTask[] = [
   {
     id: 900101,
     instanceId: 9001,
-    nodeKey: 'approve_1',
-    nodeName: '直属主管审批',
+    nodeKey: 'approve_admin',
+    nodeName: '管理员审批',
     nodeType: 'approve',
     assigneeId: 1,
     assigneeName: '张三',
@@ -400,8 +392,8 @@ export const mockWorkflowTasks: WorkflowTask[] = [
   {
     id: 900201,
     instanceId: 9002,
-    nodeKey: 'approve_1',
-    nodeName: '直属主管审批',
+    nodeKey: 'approve_admin',
+    nodeName: '管理员审批',
     nodeType: 'approve',
     assigneeId: 1,
     assigneeName: '张三',
@@ -604,22 +596,7 @@ export const mockWorkflowInstances: WorkflowInstance[] = [
     title: '年假申请 - 管理员 - 2026-06-20',
     formData: { days: 3, leaveType: 'annual' },
     formSnapshot: { formType: 'external', formId: null, formName: null, fields: [], settings: null, customForm: BIZ_LEAVE_CUSTOM_FORM },
-    definitionSnapshot: {
-      id: 7,
-      name: '请假审批',
-      description: '业务接入示例：由「请假管理」业务模块发起并关联的审批流程（formType=external）',
-      categoryId: null,
-      flowData: LEAVE_FLOW_DATA,
-      formId: null,
-      formName: null,
-      formFields: [],
-      formSettings: null,
-      formType: 'external',
-      customForm: BIZ_LEAVE_CUSTOM_FORM,
-      status: 'published',
-      version: 1,
-      tenantId: 1,
-    },
+    definitionSnapshot: structuredClone(bizLeaveDefinition),
     status: 'approved',
     currentNodeKey: null,
     initiatorId: 1,
@@ -639,24 +616,9 @@ export const mockWorkflowInstances: WorkflowInstance[] = [
     title: '病假申请 - 管理员 - 2026-06-22',
     formData: { days: 1, leaveType: 'sick' },
     formSnapshot: { formType: 'external', formId: null, formName: null, fields: [], settings: null, customForm: BIZ_LEAVE_CUSTOM_FORM },
-    definitionSnapshot: {
-      id: 7,
-      name: '请假审批',
-      description: '业务接入示例：由「请假管理」业务模块发起并关联的审批流程（formType=external）',
-      categoryId: null,
-      flowData: LEAVE_FLOW_DATA,
-      formId: null,
-      formName: null,
-      formFields: [],
-      formSettings: null,
-      formType: 'external',
-      customForm: BIZ_LEAVE_CUSTOM_FORM,
-      status: 'published',
-      version: 1,
-      tenantId: 1,
-    },
+    definitionSnapshot: structuredClone(bizLeaveDefinition),
     status: 'running',
-    currentNodeKey: 'approve_1',
+    currentNodeKey: 'approve_admin',
     initiatorId: 1,
     initiatorName: '管理员',
     initiatorAvatar: null,
@@ -670,9 +632,9 @@ export const mockWorkflowInstances: WorkflowInstance[] = [
 ];
 
 // 下一个 ID（用于创建新实例）
-let nextInstanceId = mockWorkflowInstances.length + 1;
-let nextTaskId = mockWorkflowTasks.length + 1;
-let nextDefinitionId = mockWorkflowDefinitions.length + 1;
+let nextInstanceId = nextIdFrom(mockWorkflowInstances);
+let nextTaskId = nextIdFrom(mockWorkflowTasks);
+let nextDefinitionId = nextIdFrom(mockWorkflowDefinitions);
 
 export function getNextInstanceId() { return nextInstanceId++; }
 export function getNextTaskId() { return nextTaskId++; }
@@ -691,8 +653,10 @@ export function buildFirstApproveTask(def: Pick<WorkflowDefinition, 'flowData'>,
     nodeKey: firstApproveNode.data.key,
     nodeName: firstApproveNode.data.label,
     nodeType: 'approve',
-    assigneeId: firstApproveNode.data.assigneeId ?? null,
-    assigneeName: firstApproveNode.data.assigneeName ?? null,
+    assigneeId: firstApproveNode.data.assigneeId ?? firstApproveNode.data.assigneeIds?.[0] ?? null,
+    assigneeName: firstApproveNode.data.assigneeName
+      ?? mockUsers.find((user) => user.id === (firstApproveNode.data.assigneeId ?? firstApproveNode.data.assigneeIds?.[0]))?.nickname
+      ?? null,
     assigneeAvatar: null,
     status: 'pending',
     comment: null,

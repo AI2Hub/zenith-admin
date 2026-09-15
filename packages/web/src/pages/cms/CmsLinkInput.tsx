@@ -6,7 +6,7 @@ import { ChevronDown, Home, Link2 } from 'lucide-react';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { listTableProps } from '@/components/list-page';
 import { buildCmsEntityLink, buildCmsChannelCodeLink, parseCmsLink, CMS_CONTENT_STATUS_LABELS } from '@zenith/shared/cms';
-import type { CmsChannel, CmsContent } from '@zenith/shared/cms';
+import type { CmsChannel, CmsContentListItem } from '@zenith/shared/cms';
 import { cmsContentKeys, useAllCmsSites, useCmsChannelTree, useCmsContentList, useCmsLinkTarget } from '@/hooks/queries/cms';
 import { useIsMobile } from '@/hooks/useMediaQuery';
 import { useListSearch } from '@/hooks/useListSearch';
@@ -30,7 +30,7 @@ function ContentPickerModal({ siteId, visible, onCancel, onSelect, excludeId }: 
   siteId: number | undefined;
   visible: boolean;
   onCancel: () => void;
-  onSelect: (content: CmsContent) => void;
+  onSelect: (content: CmsContentListItem) => void;
   excludeId?: number;
 }>) {
   // 选择器弹窗固定 10 条 / 页；关键词经「查询」提交，点栏目树则立即应用（applySearch）
@@ -61,16 +61,16 @@ function ContentPickerModal({ siteId, visible, onCancel, onSelect, excludeId }: 
     children: channelsToTree(treeQuery.data ?? []),
   }], [siteName, treeQuery.data]);
 
-  const columns: ColumnProps<CmsContent>[] = [
+  const columns: ColumnProps<CmsContentListItem>[] = [
     { title: '标题', dataIndex: 'title', ellipsis: true },
     {
       title: '状态', dataIndex: 'status', width: 80,
-      render: (v: CmsContent['status']) => CMS_CONTENT_STATUS_LABELS[v],
+      render: (v: CmsContentListItem['status']) => CMS_CONTENT_STATUS_LABELS[v],
     },
     dateTimeColumn('发布时间', 'publishedAt'),
     {
       title: '操作', width: 68, fixed: 'right',
-      render: (_: unknown, record: CmsContent) => (
+      render: (_: unknown, record: CmsContentListItem) => (
         <Button theme="borderless" size="small" onClick={() => onSelect(record)}>选择</Button>
       ),
     },

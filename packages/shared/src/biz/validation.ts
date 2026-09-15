@@ -14,6 +14,10 @@ export const createBizLeaveSchema = z.object({
 });
 
 export const updateBizLeaveSchema = partialForUpdate(createBizLeaveSchema);
+export const previewBizLeaveWorkflowSchema = z.object({
+  days: createBizLeaveSchema.shape.days.optional(),
+  leaveType: bizLeaveTypeSchema.optional(),
+});
 
 export type CreateBizLeaveInput = z.infer<typeof createBizLeaveSchema>;
 

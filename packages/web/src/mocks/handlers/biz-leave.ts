@@ -1,17 +1,10 @@
 import { bizLeaveContract } from '@zenith/shared/biz';
 import type { BizLeave } from '@zenith/shared/biz';
-import type { WorkflowInstance, WorkflowTask } from '@zenith/shared/workflow';
 import { mock } from '@/mocks/utils/contract';
 import { removeByIds, requireItem } from '@/mocks/utils/crud';
 import { badRequest } from '@/mocks/utils/handlers';
 import { mockBizLeaves, getNextLeaveId } from '@/mocks/data/biz-leave';
-import {
-  buildFirstApproveTask,
-  getNextInstanceId,
-  mockWorkflowDefinitions,
-  mockWorkflowInstances,
-  mockWorkflowTasks,
-} from '@/mocks/data/workflow';
+import { getMockBusinessContext, previewMockBusinessWorkflow, requireMockBusinessInstance, resolveMockBusinessDefinition, startMockBusinessWorkflow, syncMockWorkflowBusinessResult } from '@/mocks/utils/workflow-business';
 import { mockDateTime } from '@/mocks/utils/date';
 import { filterByKeyword } from '@/mocks/utils/filter';
 
@@ -25,63 +18,36 @@ export const bizLeaveHandlers = [
     return ok(paginate(list));
   }),
 
-  // 审批查看详情（供工作流参与者）
-  mock(bizLeaveContract.approvalDetail, ({ params, ok }) => {
+  mock(bizLeaveContract.workflowPreview, ({ ok }) => ok(previewMockBusinessWorkflow(resolveMockBusinessDefinition('请假审批')))),
+
+  mock(bizLeaveContract.workflowContext, ({ params, query, ok }) => {
+    const leave = requireItem(mockBizLeaves, params.id, '请假单不存在', { status: 404 });
+    return ok(getMockBusinessContext('biz_leave', leave.id, leave.status === 'draft' ? null : leave.workflowInstanceId, query.instanceId));
+  }),
+
+  // 审批查看详情：指定轮次必须关联当前业务记录。
+  mock(bizLeaveContract.approvalDetail, ({ params, query, ok }) => {
+    requireMockBusinessInstance('biz_leave', params.id, query.instanceId);
     const leave = requireItem(mockBizLeaves, params.id, '请假单不存在');
     return ok(leave);
   }),
 
-  // 提交审批：发起并关联工作流（mock 简化：置 pending + 关联一个实例 id）
+  // 提交审批：保存业务关联，创建同源流程快照与待办任务。
   mock(bizLeaveContract.submit, ({ params, ok }) => {
     const leave = requireItem(mockBizLeaves, params.id, '请假单不存在');
     if (leave.status !== 'draft') return badRequest('该请假单已提交，无法重复提交');
-    const def = mockWorkflowDefinitions.find((item) => item.name === '请假审批' && item.formType === 'external' && item.status === 'published');
-    if (!def) return badRequest('未找到已发布的「请假审批」业务系统主导流程定义');
-    const now = mockDateTime();
-    const instanceId = getNextInstanceId();
-    const firstTask = buildFirstApproveTask(def, instanceId, now);
-    const tasks: WorkflowTask[] = firstTask ? [firstTask] : [];
-    const instance: WorkflowInstance = {
-      id: instanceId,
-      definitionId: def.id,
-      definitionName: def.name,
+    const instance = startMockBusinessWorkflow({
+      definition: resolveMockBusinessDefinition('请假审批'),
+      bizType: 'biz_leave', bizId: leave.id,
       title: `请假申请 - ${leave.applicantName ?? '管理员'} - ${leave.startDate}`,
-      formData: { days: leave.days, leaveType: leave.leaveType },
-      formSnapshot: { formType: 'external', formId: null, formName: null, fields: [], settings: null, customForm: def.customForm },
-      definitionSnapshot: {
-        id: def.id,
-        name: def.name,
-        description: def.description,
-        categoryId: def.categoryId,
-        flowData: def.flowData,
-        formId: null,
-        formName: null,
-        formFields: [],
-        formSettings: null,
-        formType: 'external',
-        customForm: def.customForm,
-        status: def.status,
-        version: def.version,
-        tenantId: def.tenantId,
-      },
-      status: 'running',
-      currentNodeKey: firstTask?.nodeKey ?? null,
-      initiatorId: leave.applicantId ?? 1,
-      initiatorName: leave.applicantName ?? '管理员',
-      initiatorAvatar: null,
-      tenantId: leave.tenantId,
-      bizType: 'biz_leave',
-      bizId: String(leave.id),
-      tasks,
-      createdAt: now,
-      updatedAt: now,
-    };
-    mockWorkflowInstances.push(instance);
-    mockWorkflowTasks.push(...tasks);
+      variables: { days: leave.days, leaveType: leave.leaveType },
+      initiatorId: leave.applicantId ?? 1, initiatorName: leave.applicantName, tenantId: leave.tenantId,
+    });
     leave.status = 'pending';
-    leave.workflowInstanceId = instanceId;
-    leave.workflowStatus = 'running';
-    leave.updatedAt = now;
+    leave.workflowInstanceId = instance.id;
+    leave.workflowStatus = instance.status;
+    leave.updatedAt = instance.updatedAt;
+    syncMockWorkflowBusinessResult(instance);
     return ok(leave, '已提交审批');
   }),
 

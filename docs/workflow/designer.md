@@ -38,7 +38,7 @@
 | --- | --- |
 | `designer` 表单库设计器 | 绑定「表单库」中的可视化表单，通过内置渲染器发起、查看和审批 |
 | `custom` 自定义业务表单 | 绑定 `packages/web/src/pages` 下的 React 组件，数据存入流程实例 `formData` |
-| `external` 业务系统主导 | 业务模块自己保存业务数据，流程实例通过 `bizType + bizId` 关联业务记录 |
+| `external` 业务系统主导 | 业务模块保存数据，流程通过 `bizType + bizId` 关联；业务表单内预览审批链和查看实际流程，查看组件只渲染业务资料，见[业务接入规范](./business-integration.md) |
 
 表单字段、变量、远程数据源和自定义业务表单契约见 [表单与远程数据源](./form-design.md)。
 

@@ -20,6 +20,9 @@ export const DATE_TIME_COLUMN_WIDTH = 180;
 /** 纯日期列（YYYY-MM-DD）统一宽度 */
 export const DATE_COLUMN_WIDTH = 120;
 
+/** 两个完整日期与区间分隔符，保证日期范围单行展示。 */
+export const DATE_RANGE_COLUMN_WIDTH = 260;
+
 /**
  * 带省略 tooltip 的文本 render，空值自动显示 '—'
  *

@@ -30,6 +30,15 @@ export async function previewFlow(
   const flowData = def.flowData as WorkflowFlowData | null;
   if (!flowData?.nodes?.length) throw new HTTPException(400, { message: '流程未配置，无法预览' });
 
+  return previewFlowData(flowData, formData);
+}
+
+/** 业务预览与普通流程共享审批人解析；业务调用方先授权已发布定义。 */
+export async function previewFlowData(
+  flowData: WorkflowFlowData,
+  formData?: Record<string, unknown> | null,
+): Promise<WorkflowApproverPreviewNode[]> {
+  const user = currentUser();
   const nodeById = new Map(flowData.nodes.map((n) => [n.id, n]));
   const outEdges = new Map<string, WorkflowFlowData['edges']>();
   const inDegree = new Map<string, number>();

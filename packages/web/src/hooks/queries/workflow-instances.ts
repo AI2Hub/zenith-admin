@@ -71,6 +71,8 @@ export function useCcWorkflowInstances(params: WorkflowInstanceKeywordListParams
  * 未挂载的查询只被标脏，代价接近零；同屏挂载的都确实需要刷新。
  */
 export function invalidateAfterInstanceChange(qc: QueryClient, instanceId?: number): void {
+  // 业务域契约只在流程发生变化后加载，避免进入后台/审批端首屏的静态依赖。
+  void import('./business-workflow-cache').then(({ invalidateBusinessWorkflow }) => invalidateBusinessWorkflow(qc, instanceId));
   const invalidate = (queryKey: readonly unknown[]) => void qc.invalidateQueries({ queryKey });
   invalidate(workflowInstanceKeys.lists);
   invalidate(workflowInstanceKeys.handledLists);

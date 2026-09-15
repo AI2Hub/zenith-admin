@@ -19,6 +19,7 @@ export function useWorkflowRealtime() {
   const navigate = useNavigate();
   const handler = useCallback((msg: WsMessage) => {
     if (msg.type === 'workflow:taskCreated') {
+      void import('@/hooks/queries/business-workflow-cache').then(({ invalidateBusinessWorkflow }) => invalidateBusinessWorkflow(queryClient, msg.payload.instanceId));
       invalidateWorkflowPendingViews(queryClient);
       const { instanceId, taskId, instanceTitle, nodeName } = msg.payload;
       const notifyId = `workflow-task-${taskId}`;
@@ -48,6 +49,7 @@ export function useWorkflowRealtime() {
         position: 'topRight',
       });
     } else if (msg.type === 'workflow:taskFinished') {
+      void import('@/hooks/queries/business-workflow-cache').then(({ invalidateBusinessWorkflow }) => invalidateBusinessWorkflow(queryClient, msg.payload.instanceId));
       // 自己的任务被超时自动处理/或签抢占/管理员改派等场景，同步刷新待办
       invalidateWorkflowPendingViews(queryClient);
     } else if (msg.type === 'workflow:instanceFinished') {

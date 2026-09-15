@@ -1,0 +1,135 @@
+import { afterEach, describe, expect, it } from 'vitest';
+import type { AnyOperation } from '@zenith/shared/core';
+import { bizLeaveContract } from '@zenith/shared/biz';
+import { cmsContentContract } from '@zenith/shared/cms';
+import { SEED_WORKFLOW_DEFINITIONS } from '@zenith/shared/seed';
+import { workflowBusinessContextSchema, workflowBusinessPreviewSchema, workflowInstanceContract, workflowTaskContract } from '@zenith/shared/workflow';
+import { mockBizLeaves } from './data/biz-leave';
+import { mockCmsContents, mockCmsSites } from './data/cms';
+import { mockWorkflowDefinitions, mockWorkflowInstances, mockWorkflowTasks } from './data/workflow';
+import { bizLeaveHandlers } from './handlers/biz-leave';
+import { cmsHandlers, cmsP3Handlers, cmsP6Handlers } from './handlers/cms';
+import { cmsStage4Handlers } from './handlers/cms-stage4';
+import { workflowHandlers } from './handlers/workflow';
+
+const handlers = [...bizLeaveHandlers, ...cmsHandlers, ...cmsP3Handlers, ...cmsP6Handlers, ...cmsStage4Handlers, ...workflowHandlers];
+const stores = [mockBizLeaves, mockCmsContents, mockCmsSites, mockWorkflowDefinitions, mockWorkflowInstances, mockWorkflowTasks];
+const snapshots = stores.map((store) => structuredClone(store));
+afterEach(() => {
+  stores.forEach((store, index) => { (store as unknown[]).splice(0, store.length, ...structuredClone(snapshots[index])); });
+});
+
+async function call(operation: AnyOperation, options: { params?: Record<string, number>; query?: Record<string, number>; body?: unknown } = {}) {
+  let path = operation.fullPath;
+  for (const [key, value] of Object.entries(options.params ?? {})) path = path.replace(`{${key}}`, String(value));
+  const url = new URL(path, window.location.origin);
+  for (const [key, value] of Object.entries(options.query ?? {})) url.searchParams.set(key, String(value));
+  for (const handler of handlers) {
+    const request = new Request(url, {
+      method: operation.method.toUpperCase(), headers: { 'content-type': 'application/json' },
+      body: options.body === undefined ? undefined : JSON.stringify(options.body),
+    });
+    const result = await (handler as unknown as { run(args: unknown): Promise<{ response?: Response } | null> }).run({ request, requestId: `business-flow-${Math.random()}` });
+    if (result?.response) return { status: result.response.status, body: await result.response.json() };
+  }
+  throw new Error(`No handler matched ${operation.method} ${path}`);
+}
+
+describe('business workflow integration in Demo', () => {
+  it('derives both external definitions from shared seed and previews without saving', async () => {
+    for (const seed of SEED_WORKFLOW_DEFINITIONS) {
+      const definition = mockWorkflowDefinitions.find((item) => item.name === seed.name && item.formType === 'external');
+      expect(definition?.flowData).toEqual(seed.flowData);
+      expect(definition?.customForm).toEqual(seed.customForm);
+    }
+    const counts = [mockBizLeaves.length, mockWorkflowInstances.length, mockWorkflowTasks.length];
+    const result = await call(bizLeaveContract.workflowPreview, { body: { days: 2, leaveType: 'annual' } });
+    expect(result.status).toBe(200);
+    const preview = workflowBusinessPreviewSchema.parse(result.body.data);
+    expect(preview.definition?.name).toBe('请假审批');
+    expect(preview.nodes[0]).toMatchObject({ nodeKey: 'approve_admin', approvers: [{ id: 1 }] });
+    expect([mockBizLeaves.length, mockWorkflowInstances.length, mockWorkflowTasks.length]).toEqual(counts);
+  });
+
+  it('preserves earlier approval rounds after reopen and rejects unrelated business keys', async () => {
+    const leave = mockBizLeaves.find((item) => item.status === 'draft')!;
+    await call(bizLeaveContract.submit, { params: { id: leave.id } });
+    const previousId = leave.workflowInstanceId!;
+    const task = mockWorkflowTasks.find((item) => item.instanceId === previousId)!;
+    expect(task.assigneeId).toBe(1);
+    await call(workflowTaskContract.reject, { params: { taskId: task.id }, body: { comment: '请补充事由' } });
+    expect(leave.status).toBe('rejected');
+    await call(bizLeaveContract.reopen, { params: { id: leave.id } });
+    const reopened = workflowBusinessContextSchema.parse((await call(bizLeaveContract.workflowContext, { params: { id: leave.id } })).body.data);
+    expect(reopened.instance).toBeNull();
+    expect(reopened.previousInstances[0].id).toBe(previousId);
+    await call(bizLeaveContract.submit, { params: { id: leave.id } });
+    expect(leave.workflowInstanceId).not.toBe(previousId);
+    const context = workflowBusinessContextSchema.parse((await call(bizLeaveContract.workflowContext, { params: { id: leave.id } })).body.data);
+    expect(context.instance?.id).toBe(leave.workflowInstanceId);
+    expect(context.previousInstances.map((instance) => instance.id)).toEqual([leave.workflowInstanceId, previousId]);
+    expect((await call(bizLeaveContract.approvalDetail, { params: { id: leave.id }, query: { instanceId: previousId } })).status).toBe(200);
+    expect((await call(bizLeaveContract.approvalDetail, { params: { id: 1 }, query: { instanceId: previousId } })).status).toBe(404);
+    expect((await call(bizLeaveContract.approvalDetail, { params: { id: leave.id } })).status).toBe(400);
+  });
+
+  it('keeps simple CMS review independent and creates an instance for workflow review', async () => {
+    const content = mockCmsContents[0];
+    const site = mockCmsSites.find((item) => item.id === content.siteId)!;
+    content.status = 'draft';
+    site.settings.auditMode = 'simple';
+    const previewBody = { siteId: content.siteId, channelId: content.channelId, title: content.title };
+    expect((await call(cmsContentContract.workflowPreview, { body: previewBody })).body.data).toEqual({ definition: null, nodes: [] });
+    const before = mockWorkflowInstances.length;
+    await call(cmsContentContract.submit, { params: { id: content.id } });
+    expect(mockWorkflowInstances).toHaveLength(before);
+    content.status = 'draft';
+    site.settings.auditMode = 'workflow';
+    const preview = workflowBusinessPreviewSchema.parse((await call(cmsContentContract.workflowPreview, { body: previewBody })).body.data);
+    expect(preview.definition?.name).toBe('CMS 内容审核');
+    expect(preview.nodes[0].nodeKey).toBe('approve_editor');
+    expect((await call(cmsContentContract.submit, { params: { id: content.id } })).status).toBe(200);
+    const context = workflowBusinessContextSchema.parse((await call(cmsContentContract.workflowContext, { params: { id: content.id } })).body.data);
+    expect(context.instance?.bizType).toBe('cms_content');
+    expect(context.instance?.tasks?.[0].assigneeId).toBe(1);
+    expect((await call(cmsContentContract.publish, { params: { id: content.id } })).status).toBe(400);
+    expect((await call(cmsContentContract.reject, { params: { id: content.id }, body: { reason: '不能绕过流程' } })).status).toBe(400);
+    await call(workflowTaskContract.approve, { params: { taskId: context.instance!.tasks![0].id }, body: {} });
+    expect(content.status).toBe('published');
+    expect((await call(cmsContentContract.approvalDetail, { params: { id: content.id }, query: { instanceId: context.instance!.id } })).status).toBe(200);
+  });
+
+  it('reports unusable CMS workflow configuration without submitting content', async () => {
+    const content = mockCmsContents[0];
+    const site = mockCmsSites.find((item) => item.id === content.siteId)!;
+    content.status = 'draft';
+    site.settings.auditMode = 'workflow';
+    site.settings.auditWorkflowDefinitionId = 1; // A designer form cannot accept a business submission.
+    const before = mockWorkflowInstances.length;
+    expect((await call(cmsContentContract.workflowPreview, { body: { siteId: content.siteId, channelId: content.channelId } })).status).toBe(400);
+    expect((await call(cmsContentContract.submit, { params: { id: content.id } })).status).toBe(400);
+    const batch = await call(cmsContentContract.batchStatus, { body: { ids: [content.id], action: 'submit' } });
+    expect(batch.body.data.failed[0].reason).toContain('未找到已发布');
+    expect(content.status).toBe('draft');
+    expect(mockWorkflowInstances).toHaveLength(before);
+  });
+
+  it('creates CMS workflows for batch submission and restores preview after withdrawal', async () => {
+    const contents = mockCmsContents.slice(0, 2);
+    for (const content of contents) {
+      content.status = 'draft';
+      mockCmsSites.find((site) => site.id === content.siteId)!.settings.auditMode = 'workflow';
+    }
+    const result = await call(cmsContentContract.batchStatus, { body: { ids: contents.map((content) => content.id), action: 'submit' } });
+    expect(result.body.data.okIds).toHaveLength(2);
+    for (const content of contents) {
+      const context = workflowBusinessContextSchema.parse((await call(cmsContentContract.workflowContext, { params: { id: content.id } })).body.data);
+      expect(context.instance?.tasks).toHaveLength(1);
+      await call(workflowInstanceContract.withdraw, { params: { id: context.instance!.id } });
+      expect(content.status).toBe('draft');
+      const reopened = workflowBusinessContextSchema.parse((await call(cmsContentContract.workflowContext, { params: { id: content.id } })).body.data);
+      expect(reopened.instance).toBeNull();
+      expect(reopened.previousInstances[0].status).toBe('withdrawn');
+    }
+  });
+});

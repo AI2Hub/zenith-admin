@@ -3,19 +3,13 @@
  *
  * 与后台共用同一套工作流契约；所有调用经 `approvalRequest` 实例发出（独立会话 / 刷新 / 登录跳转语义）。
  */
-import { QueryClient, keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { BodyOf } from '@zenith/shared/core';
 import { workflowDefinitionContract, workflowInstanceContract, workflowQuickPhraseContract, workflowTaskContract, type WorkflowInstanceListItem } from '@zenith/shared/workflow';
 import { authContract, userContract } from '@zenith/shared/identity';
 import { api, urlOf } from '@/lib/contract-query';
 import { runWorkflowTaskAction, type WorkflowTaskDecisionVariables } from '@/hooks/queries/workflow-tasks';
 import { approvalRequest } from './approval-request';
-
-export const approvalQueryClient = new QueryClient({
-  defaultOptions: {
-    queries: { retry: 1, refetchOnWindowFocus: true, staleTime: 15_000 },
-  },
-});
 
 export type ApprovalTab = 'pending' | 'handled' | 'mine' | 'cc';
 

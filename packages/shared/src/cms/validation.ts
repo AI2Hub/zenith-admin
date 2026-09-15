@@ -7,6 +7,11 @@ import { entityStatusSchema } from '../core/api-schemas';
 
 // ─── CMS 内容管理 Schema ──────────────────────────────────────────────────────
 export const cmsSlugRegex = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+export const previewCmsContentWorkflowSchema = z.object({
+  siteId: z.number().int().positive(),
+  channelId: z.number().int().positive(),
+  title: z.string().max(255).optional(),
+});
 
 export const CMS_PAGE_RESERVED_PATH_PREFIXES = [
   'p', 'tag', 'interaction', 'search', 'preview', 'api', 'assets',

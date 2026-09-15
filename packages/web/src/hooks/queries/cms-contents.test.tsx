@@ -6,7 +6,7 @@
  * 收敛后按 `invalidateAfterCmsContentChange` 精确失效，断言落在实际请求与 fetching 事件上。
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import {
   ApiRecorder,
   createRequestMock,
@@ -32,6 +32,9 @@ import {
   useCmsContentList,
   useCmsContentOpLogs,
   useCmsContentVersions,
+  useCmsContentWorkflowContext,
+  useCmsContentWorkflowPreview,
+  useCmsContentApprovalDetail,
   useDuplicateCmsContent,
 } from './cms-contents';
 import { cmsDashboardKeys, useCmsDashboardStats } from './cms-stats';
@@ -49,6 +52,8 @@ beforeEach(() => {
     .on('GET', '/api/cms/contents/7', CONTENT)
     .on('GET', '/api/cms/contents/7/op-logs', [])
     .on('GET', '/api/cms/contents/7/versions', [])
+    .on('GET', '/api/cms/contents/7/workflow', { instance: null, previousInstances: [] })
+    .on('GET', '/api/cms/contents/7/approval-detail', CONTENT)
     .on('GET', '/api/cms/channels/tree', [])
     .on('GET', '/api/cms/tags/all', [{ id: 1, name: '头条' }])
     .on('GET', '/api/cms/dashboard/stats', { totals: { published: 0, draft: 1 } })
@@ -94,13 +99,20 @@ describe('useCmsContentAction —— 状态流转按真实副作用失效', () =
 
     // 编辑页同时挂着详情，操作记录与历史版本抽屉已打开
     const extra = renderHook(
-      () => ({ detail: useCmsContentDetail(7), opLogs: useCmsContentOpLogs(7), versions: useCmsContentVersions(7) }),
+      () => ({
+        detail: useCmsContentDetail(7), opLogs: useCmsContentOpLogs(7), versions: useCmsContentVersions(7),
+        workflow: useCmsContentWorkflowContext(7), previous: useCmsContentWorkflowContext(7, 12),
+        approval: useCmsContentApprovalDetail(7, 12),
+      }),
       { wrapper: createWrapper(qc) },
     );
     await waitFor(() => {
       expect(extra.result.current.detail.isSuccess).toBe(true);
       expect(extra.result.current.opLogs.isSuccess).toBe(true);
       expect(extra.result.current.versions.isSuccess).toBe(true);
+      expect(extra.result.current.workflow.isSuccess).toBe(true);
+      expect(extra.result.current.previous.isSuccess).toBe(true);
+      expect(extra.result.current.approval.isSuccess).toBe(true);
     });
 
     const fetches = observeFetches(qc);
@@ -116,6 +128,8 @@ describe('useCmsContentAction —— 状态流转按真实副作用失效', () =
     expect(fetches.countOf(cmsContentKeys.lists)).toBe(1);
     expect(fetches.countOf(cmsContentKeys.detail(7))).toBe(1);
     expect(fetches.countOf(cmsContentKeys.opLogs(7))).toBe(1);
+    expect(api.countOf('GET', '/api/cms/contents/7/workflow')).toBe(2);
+    expect(api.countOf('GET', '/api/cms/contents/7/approval-detail')).toBe(1);
     // 看板 totals / todayPublished / publishTrend 都随发布变化——收敛前根本没失效
     expect(fetches.countOf(cmsDashboardKeys.statsAll)).toBe(1);
 
@@ -128,6 +142,49 @@ describe('useCmsContentAction —— 状态流转按真实副作用失效', () =
     expect(api.countOf('GET', '/api/cms/channels/tree')).toBe(0);
 
     fetches.stop();
+  });
+});
+
+describe('CMS 业务审批查询', () => {
+  it('keeps channel-dependent previews separate and scopes approval data to the selected instance', async () => {
+    api.on('POST', '/api/cms/contents/workflow-preview', (call: { body?: unknown }) => ({
+      definition: { id: (call.body as { channelId: number }).channelId, name: '内容审核' }, nodes: [],
+    }));
+    const qc = createTestQueryClient();
+    const hook = renderHook(({ channelId, instanceId }) => ({
+      preview: useCmsContentWorkflowPreview({ siteId: SITE_ID, channelId }),
+      approval: useCmsContentApprovalDetail(7, instanceId),
+    }), { initialProps: { channelId: 3, instanceId: 12 }, wrapper: createWrapper(qc) });
+    await waitFor(() => expect(hook.result.current.preview.data?.definition?.id).toBe(3));
+    expect(api.urls('GET')).toContain('/api/cms/contents/7/approval-detail?instanceId=12');
+
+    hook.rerender({ channelId: 4, instanceId: 13 });
+    await waitFor(() => expect(hook.result.current.preview.data?.definition?.id).toBe(4));
+    expect(api.urls('GET')).toContain('/api/cms/contents/7/approval-detail?instanceId=13');
+    expect(api.urls().some((url) => url.startsWith('/api/workflow/'))).toBe(false);
+    expect(api.countOf('GET', '/api/cms/contents/7')).toBe(0);
+  });
+
+  it('refreshes a pending list until the asynchronous approval result reaches CMS, then stops polling', async () => {
+    vi.useFakeTimers();
+    let status = 'pending';
+    api.on('GET', '/api/cms/contents', () => ({ ...PAGE, list: [{ ...CONTENT, status }] }));
+    const qc = createTestQueryClient();
+    const hook = renderHook(() => useCmsContentList(LIST_PARAMS), { wrapper: createWrapper(qc) });
+    try {
+      await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+      expect(hook.result.current.data?.list[0].status).toBe('pending');
+      status = 'published';
+      await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
+      expect(hook.result.current.data?.list[0].status).toBe('published');
+      const callsAfterCompleted = api.countOf('GET', '/api/cms/contents');
+      await act(async () => { await vi.advanceTimersByTimeAsync(20_000); });
+      expect(api.countOf('GET', '/api/cms/contents')).toBe(callsAfterCompleted);
+    } finally {
+      hook.unmount();
+      qc.clear();
+      vi.useRealTimers();
+    }
   });
 });
 

@@ -1,4 +1,5 @@
 export * from './attachments';
+export * from './business';
 export * from './automations';
 export * from './callbacks';
 export * from './categories';

@@ -82,6 +82,10 @@ const FLOW_RECORD_COLUMNS: ColumnProps<WorkflowTask>[] = [
 
 interface Props {
   instance: WorkflowInstance | null;
+  /** 业务入口直接提供已授权的业务资料，避免再走审批人视角接口。 */
+  formContent?: ReactNode;
+  /** 业务流程上下文只授予查看权限，不提供评论、撤回、打印等独立操作。 */
+  readOnly?: boolean;
   definition?: WorkflowDefinition | null;
   loading?: boolean;
   extraActions?: ReactNode;
@@ -140,7 +144,7 @@ function FlowRecords({ tasks }: Readonly<{ tasks: WorkflowTask[] }>) {
 }
 
 /** 流程沟通时间线（自由评论 + @提及 + 附件 + 回复引用），自管理状态与请求 */
-function InstanceComments({ instance }: Readonly<{ instance: WorkflowInstance }>) {
+function InstanceComments({ instance, readOnly = false }: Readonly<{ instance: WorkflowInstance; readOnly?: boolean }>) {
   const [comments, setComments] = useState<WorkflowComment[]>(instance.comments ?? []);
   const [content, setContent] = useState('');
   const [mentions, setMentions] = useState<number[]>([]);
@@ -200,7 +204,7 @@ function InstanceComments({ instance }: Readonly<{ instance: WorkflowInstance }>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Typography.Text strong>{c.userName ?? `用户#${c.userId}`}</Typography.Text>
                   <Typography.Text type="tertiary" size="small"><DateTimeText value={c.createdAt} /></Typography.Text>
-                  {instance.allowComment !== false && (
+                  {!readOnly && instance.allowComment !== false && (
                     <Button theme="borderless" size="small" icon={<Reply size={12} />} onClick={() => setReplyTo(c)}>回复</Button>
                   )}
                 </div>
@@ -229,7 +233,7 @@ function InstanceComments({ instance }: Readonly<{ instance: WorkflowInstance }>
           ))}
         </div>
       )}
-      {instance.allowComment === false ? (
+      {readOnly ? null : instance.allowComment === false ? (
         <div style={{ borderTop: '1px solid var(--semi-color-border)', paddingTop: 12, color: 'var(--semi-color-text-2)', fontSize: 13 }}>
           该流程已关闭评论
         </div>
@@ -297,6 +301,7 @@ export function WorkflowDetailSkeleton() {  const placeholder = (
 export default function WorkflowInstanceDetailPanel({
   instance, definition, loading, extraActions, onOpenInstance, onRecalled,
   viewerFieldPermissions, formEditable = false, onFormApiReady,
+  formContent, readOnly = false,
 }: Readonly<Props>) {
   const { user } = useAuth();
   const { hasPermission } = usePermission();
@@ -312,7 +317,7 @@ export default function WorkflowInstanceDetailPanel({
   }
   const statusInfo = INSTANCE_STATUS_MAP[instance.status];
   // 撤回已办：当前用户在运行中实例上最近一次已通过/驳回的任务
-  const myRecallableTask = instance.status === 'running' && user
+  const myRecallableTask = !readOnly && instance.status === 'running' && user
     ? [...(instance.tasks ?? [])].reverse().find((t) => t.assigneeId === user.id && (t.status === 'approved' || t.status === 'rejected'))
     : null;
   const handleRecall = async () => {
@@ -344,6 +349,7 @@ export default function WorkflowInstanceDetailPanel({
     : (instance.currentNodeName ? [instance.currentNodeName] : []);
 
   const renderFormData = () => {
+    if (formContent !== undefined) return formContent;
     // 自定义业务表单（custom）/ 业务系统主导（external）：渲染业务页面
     // custom 且当前处理人具有可编辑字段权限时以 approve 模式渲染（组件注册 API 供提交时取值）；
     // external 业务数据归属业务系统，审批时恒为只读查看
@@ -447,7 +453,7 @@ export default function WorkflowInstanceDetailPanel({
           {instance.suspendReason ? ` 原因：${instance.suspendReason}` : ''}
         </div>
       )}
-      {(instance.parentInstanceId || extraActions || myRecallableTask || instance.archive || (instance.status !== 'draft' && hasPermission('workflow:instance:print'))) ? (
+      {(instance.parentInstanceId || extraActions || myRecallableTask || instance.archive || (!readOnly && instance.status !== 'draft' && hasPermission('workflow:instance:print'))) ? (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
           {instance.parentInstanceId ? (
             <Button
@@ -461,7 +467,7 @@ export default function WorkflowInstanceDetailPanel({
             </Button>
           ) : null}
           {/* 草稿尚无审批链与流水号，不提供打印；其余状态按打印权限提供当前快照的 PDF */}
-          {instance.status !== 'draft' && hasPermission('workflow:instance:print') ? <WorkflowPrintButton instanceId={instance.id} /> : null}
+          {!readOnly && instance.status !== 'draft' && hasPermission('workflow:instance:print') ? <WorkflowPrintButton instanceId={instance.id} /> : null}
           {instance.archive ? (
             <Tooltip content={`办结时固化的 PDF 存证 · ${formatDateTime(instance.archive.archivedAt)} · SHA-256 ${instance.archive.sha256.slice(0, 16)}…`}>
               <Tag size="small" color="green" prefixIcon={<ShieldCheck size={12} />} style={{ cursor: 'default' }}>已归档</Tag>
@@ -510,7 +516,7 @@ export default function WorkflowInstanceDetailPanel({
           ) : null}
         </TabPane>
         <TabPane tab={`沟通${instance.comments && instance.comments.length > 0 ? ` (${instance.comments.length})` : ''}`} itemKey="comments">
-          <InstanceComments key={instance.id} instance={instance} />
+          <InstanceComments key={instance.id} instance={instance} readOnly={readOnly} />
         </TabPane>
         {consults.length > 0 && (
           <TabPane tab={`协办 (${consults.length})`} itemKey="consults">

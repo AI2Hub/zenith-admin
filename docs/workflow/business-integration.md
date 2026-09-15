@@ -1,6 +1,6 @@
 # 业务模块接入工作流
 
-业务模块接入工作流适合已有独立实体、Service、列表页和状态机的业务。业务数据保存在业务表，工作流只负责审批编排，并通过 `bizType + bizId` 建立关联。
+业务模块接入工作流适合已有独立实体、Service、列表页和状态机的业务。业务数据保存在业务表，工作流负责审批编排，并通过 `bizType + bizId` 建立关联。业务表单打开时同时展示业务资料和流程信息：提交前预览审批链路，提交后查看实际审批轮次、处理人、流转记录和流程图。
 
 ## 接入模式
 
@@ -80,19 +80,47 @@ export function registerBizLeaveSubscribers() {
 
 | 配置 | 说明 |
 | --- | --- |
-| 查看组件 | 审批页和详情页渲染业务数据的 React 组件 |
+| 查看组件 | 审批页和详情页中的业务内容组件，只渲染业务数据，不创建外层抽屉或重复嵌入流程详情 |
 | 变量声明 | 条件分支和审批人解析可读取的业务变量 |
 
-审批查看组件通过实例关联的 `bizType + bizId` 拉取业务详情。业务详情接口应允许发起人、任务处理人、抄送人和监控管理员读取。
+审批查看组件通过 `bizType + bizId + instanceId` 拉取指定审批轮次对应的当前业务资料。服务端必须校验实例与业务记录的关联、租户和实例可见性；发起人、任务处理人、抄送人和监控管理员沿工作流参与者权限读取，不能借任意实例 ID 绕过业务隔离。业务自己的编辑入口继续使用业务详情权限。
 
-### 5. 前端跳转
+### 5. 在业务表单内展示流程
 
-业务列表页可展示冗余 `workflowStatus`，并跳转到内置流程详情：
+统一使用 `components/workflow/BusinessWorkflowPanel.tsx`，传入业务表单 `formContent`、预览 `preview`、实际流程上下文 `context` 和轮次选择状态。公共组件复用普通流程的 `WorkflowProcessLayout`、`WorkflowApprovalChain`、`WorkflowInstanceDetailPanel` 和流程图；业务页面负责业务表单、取数和保存/提交动作。
 
-```text
-/workflow/instance/{workflowInstanceId}
-```
+| 状态 | 展示与操作 |
+| --- | --- |
+| 新建 / 可编辑草稿 | 左侧业务表单，右侧审批链路预览，可查看流程图。预览不保存业务数据、不创建流程实例；表单变量变化后更新预览 |
+| 提交成功 | 保持当前表单容器，切换为实际实例；显示当前节点、真实处理人、状态和流转记录 |
+| 已提交 / 已结束 | 业务资料与普通流程详情共用两栏布局；「表单 / 沟通 / 流转记录」页签及按数据出现的协办、子流程信息由公共详情组件提供 |
+| 驳回 / 撤回后重提 | 业务模块控制重新编辑；当前草稿显示本次提审预览，过去轮次仍能通过「审批轮次」选择查看 |
+
+轮次选择不会改变业务记录或发起新流程。切换过去轮次时，流程记录来自所选实例冻结的定义和任务，表单区域展示**当前业务资料**，界面明确提示该区别；业务数据并未因为选择过去轮次而变成历史快照。普通流程整页深链 `/workflow/instance/{id}` 继续用于独立访问。
+
+公共流程面板不代替业务页面的保存和提交，也不向业务编辑页开放审批动作。`viewComponent` 保持内容组件，避免在普通审批详情中产生嵌套抽屉或重复审批链。
+
+### 6. 预览、流程上下文与审批资料契约
+
+接入业务在自己的契约内提供操作，前端 hooks 和 MSW 均绑定这些契约：
+
+| 操作 | 请假 | CMS 内容 |
+| --- | --- | --- |
+| `workflowPreview` | `POST /api/biz/leaves/workflow-preview`，接收 `days? / leaveType?` | `POST /api/cms/contents/workflow-preview`，接收 `siteId / channelId / title?` |
+| `workflowContext` | `GET /api/biz/leaves/{id}/workflow` | `GET /api/cms/contents/{id}/workflow` |
+| `approvalDetail` | `GET /api/biz/leaves/{id}/detail?instanceId=…` | `GET /api/cms/contents/{id}/approval-detail?instanceId=…` |
+
+`workflowPreview` 返回 `{ definition, nodes }`：定义摘要和流程图供预览使用，`nodes` 为当前可解析的审批链。CMS 简单审核模式返回 `{ definition: null, nodes: [] }`；已启用工作流但定义不可用时返回错误，不降级成简单审核。实际流转以提交时解析结果为准。
+
+`workflowContext` 返回 `{ instance, previousInstances }`，支持可选查询参数 `instanceId` 指定轮次。`previousInstances` 按新到旧包含该业务的全部审批轮次，含当前轮次；请假草稿默认 `instance=null`，其他状态使用业务关联的实例；CMS 草稿/驳回默认 `instance=null`，其他状态使用最近实例。显式选择轮次时返回该实例，且必须属于当前业务。
+
+保存、提交、重新编辑和审批结果变化后，业务详情、列表和流程上下文应一起刷新。预览失败应在流程区域显示可重试的错误，不能伪装成空审批链。
 
 ## 参考实现
 
-完整的端到端范例见内置的「请假申请」演示模块（`biz-leave`），覆盖业务保存、提交发起流程、审批结果回写业务状态、驳回/取消后「重新编辑」（`POST /api/biz/leaves/{id}/reopen` 转回草稿并重新提交发起新流程）与前端审批查看的全部环节。
+内置两条 `external` 流程统一在 `packages/shared/src/seed/workflow.ts` 定义，DB 初始化与 Demo 的流程配置、路由变量和快照同源：
+
+- **请假审批**：`LeavePage` 使用与普通流程一致的 1080 像素两栏侧边抽屉，覆盖保存草稿、原地提交切换流程详情、结果回写、驳回/取消后「重新编辑」（`POST /api/biz/leaves/{id}/reopen`）及轮次查看。路由变量为 `days / leaveType`。
+- **CMS 内容审核**：内容编辑整页保留富文本编辑器，提供「内容 / 审批流程」页签和页头流程状态，工作流模式下「保存并提交审核」成功后原地查看实际流程；列表「查看审批」使用统一两栏侧边抽屉。路由变量为 `siteName / channelName / contentTitle`，审核双轨语义见 [CMS 内容流水线](../cms/content-pipeline.md#审核双轨制)。
+
+两条种子流程均由业务模块发起，查看组件只呈现业务资料；实例内重提开关关闭，业务终态后的修改与重新提交由业务模块创建新轮次。Demo 覆盖单条/批量提审、实际任务、审批结果回写和往次记录，CMS 站点默认仍为简单审核。

@@ -711,34 +711,12 @@ async function seedRest() {
   await db.execute(sql`SELECT setval('workflow_templates_id_seq', GREATEST((SELECT MAX(id) FROM workflow_templates), 1))`);
   logger.info('  ✔ Workflow templates seeded (onConflictDoNothing)');
 
-  // ── 流程定义（业务接入示例：请假审批，external）────────────────────────────────
+  // ── 业务系统主导流程（请假审批 / CMS 内容审核，共享最新初始化定义）───────────
   await db.insert(workflowDefinitions).overridingSystemValue().values(
     SEED_WORKFLOW_DEFINITIONS.map(({ id, name, description, initiatorScopeType, flowData, formType, customForm, status, version, tenantId }) =>
       ({ id, name, description, initiatorScopeType, flowData, formType, customForm, status, version, tenantId })),
   ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('workflow_definitions_id_seq', GREATEST((SELECT MAX(id) FROM workflow_definitions), 1))`);
-  // 升级库场景：种子 id 被既有定义占用时按名称查缺补插（自增 id）
-  for (const def of SEED_WORKFLOW_DEFINITIONS) {
-    const [existing] = await db.select({ id: workflowDefinitions.id }).from(workflowDefinitions)
-      .where(and(eq(workflowDefinitions.name, def.name), eq(workflowDefinitions.formType, def.formType)))
-      .limit(1);
-    if (!existing) {
-      const { id: _seedId, ...rest } = def;
-      await db.insert(workflowDefinitions).overridingSystemValue().values(rest);
-    }
-  }
-  // 存量库修复：早期种子把 customForm.variables[].type 误写成 'text'（合法值仅 string/number/boolean/date/user/dept），
-  // 导致这些定义在设计器保存时被 Zod 拒绝。此处把非法值归一到 'string'，幂等可重复执行。
-  const VALID_CUSTOM_FORM_VARIABLE_TYPES = new Set(['string', 'number', 'boolean', 'date', 'user', 'dept']);
-  const defRows = await db.select({ id: workflowDefinitions.id, customForm: workflowDefinitions.customForm }).from(workflowDefinitions);
-  for (const row of defRows) {
-    const cf = row.customForm as { variables?: Array<{ type?: string }> } | null;
-    const vars = cf?.variables;
-    if (!Array.isArray(vars) || !vars.some((v) => !VALID_CUSTOM_FORM_VARIABLE_TYPES.has(String(v?.type)))) continue;
-    const variables = vars.map((v) => (VALID_CUSTOM_FORM_VARIABLE_TYPES.has(String(v?.type)) ? v : { ...v, type: 'string' }));
-    await db.update(workflowDefinitions).set({ customForm: { ...cf, variables } }).where(eq(workflowDefinitions.id, row.id));
-    logger.info(`  ↻ Normalized customForm variable types for workflow definition #${row.id}`);
-  }
   logger.info('  ✔ Workflow definitions seeded (onConflictDoNothing)');
 
   // ── 演示会员（手机号 13800138000 / 密码 123456）────────────────────────

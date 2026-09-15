@@ -5,7 +5,7 @@ import { eq, and, desc, inArray } from 'drizzle-orm';
 import { db } from '../../../db';
 import { releaseManagedFiles } from '../../files/file-gc.service';
 import { workflowTransaction } from '../../../lib/workflow-jobs/lease';
-import { workflowInstances, workflowTasks, workflowDefinitions, users, userRoles } from '../../../db/schema';
+import { workflowInstances, workflowTasks, workflowDefinitions, users } from '../../../db/schema';
 import { tenantCondition, getCreateTenantId } from '../../../lib/tenant';
 import { buildWhere } from '../../../lib/where-helpers';
 import { validateFlowData } from '../../../lib/workflow-engine';
@@ -27,6 +27,7 @@ import { advanceAndMaterialize, killInstanceTokens } from './materialize';
 import { buildSerialNoContext, emitInstanceEvent, emitTaskEvent, emitTasksEnteredEvents, toDefinitionSnapshot, lockInstanceExpecting, requireVisibleInstance } from './shared';
 import { bridgeReportFillWorkflowOutcome } from '../../report/report-fill-workflow-bridge.service';
 import { requireRow } from '../../../lib/db-assert';
+import { assertWorkflowInitiatorScope } from '../workflow-launch-access';
 
 /**
  * 发起表单校验（服务端强制）：设计器表单按快照 schema 做全量规则校验——
@@ -72,25 +73,7 @@ export async function createInstance(data: { definitionId: number; title: string
   const normalizedBizId = data.bizId?.trim() || null;
   const launchData = { ...data, bizType: normalizedBizType, bizId: normalizedBizId };
   assertLaunchMatchesFormType(def, launchData);
-  const scopeType = (def.initiatorScopeType ?? 'all') as 'all' | 'users' | 'departments' | 'roles';
-  const scopeIds = Array.isArray(def.initiatorScopeIds)
-    ? def.initiatorScopeIds.map(Number).filter((v) => Number.isInteger(v) && v > 0)
-    : [];
-  if (!skipScopeCheck && scopeType !== 'all') {
-    let allowed = false;
-    if (scopeType === 'users') {
-      allowed = scopeIds.includes(user.userId);
-    } else if (scopeType === 'departments') {
-      const [me] = await db.select({ departmentId: users.departmentId }).from(users).where(eq(users.id, user.userId)).limit(1);
-      allowed = me?.departmentId != null && scopeIds.includes(me.departmentId);
-    } else if (scopeType === 'roles') {
-      const roleRows = await db.select({ roleId: userRoles.roleId }).from(userRoles).where(eq(userRoles.userId, user.userId));
-      allowed = roleRows.some((r) => scopeIds.includes(r.roleId));
-    }
-    if (!allowed) {
-      throw new HTTPException(403, { message: '当前流程不在你的可发起范围内' });
-    }
-  }
+  if (!skipScopeCheck) await assertWorkflowInitiatorScope(def, user);
   const baseFlowData = def.flowData as WorkflowFlowData;
   if (!baseFlowData?.nodes?.length) throw new HTTPException(400, { message: '流程定义无效' });
   const flowData = data.asDraft

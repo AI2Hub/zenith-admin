@@ -1,3 +1,4 @@
+import { syncMockWorkflowBusinessResult } from '@/mocks/utils/workflow-business';
 import { mock } from '@/mocks/utils/contract';
 import { HttpResponse } from 'msw';
 import { requireItem, removeByIds } from '@/mocks/utils/crud';
@@ -1352,6 +1353,7 @@ function settleTask(
   const respond = (message?: string) => {
     const inst = mockWorkflowInstances.find(i => i.id === current.instanceId);
     if (!inst) return notFound('流程实例不存在');
+    syncMockWorkflowBusinessResult(inst);
     const data = withActiveNodes(inst);
     if (idemKey) approveIdempotencyCache.set(idemKey, { data, message: message ?? 'ok' });
     return ok(data, message);
@@ -2271,6 +2273,7 @@ export const workflowHandlers = [
         t.status = 'skipped';
         t.actionAt = mockDateTime();
       });
+    syncMockWorkflowBusinessResult(mockWorkflowInstances[idx]);
     return ok(mockWorkflowInstances[idx]);
   }),
 
@@ -2298,6 +2301,7 @@ export const workflowHandlers = [
         && WORKFLOW_ADVANCING_JOB_TYPES.some(type => type === job.jobType)
         && ['pending', 'running', 'paused'].includes(job.status))
       .forEach(cancelMockJob);
+    syncMockWorkflowBusinessResult(mockWorkflowInstances[idx]);
     return ok(mockWorkflowInstances[idx]);
   }),
 
@@ -2333,6 +2337,7 @@ export const workflowHandlers = [
       suspendReason: body.reason,
       updatedAt: mockDateTime(),
     };
+    syncMockWorkflowBusinessResult(mockWorkflowInstances[idx]);
     return ok(mockWorkflowInstances[idx], '已挂起，自动推进已暂停');
   }),
 
@@ -2358,6 +2363,7 @@ export const workflowHandlers = [
       suspendReason: null,
       updatedAt: mockDateTime(),
     };
+    syncMockWorkflowBusinessResult(mockWorkflowInstances[idx]);
     return ok(mockWorkflowInstances[idx], '已恢复流转');
   }),
 

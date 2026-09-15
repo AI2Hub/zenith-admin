@@ -10,6 +10,7 @@ import {
   batchTagCmsContentsSchema,
   checkCmsTextSchema,
   createCmsContentSchema,
+  previewCmsContentWorkflowSchema,
   distributeCmsContentsSchema,
   duplicateCmsContentSchema,
   lockCmsContentSchema,
@@ -17,6 +18,7 @@ import {
   updateCmsContentSchema,
 } from '../validation';
 import { cmsTagSchema } from './tags';
+import { workflowBusinessApprovalQuery, workflowBusinessContextQuery, workflowBusinessContextSchema, workflowBusinessPreviewSchema } from '../../workflow/contracts/business';
 
 // ─── 实体 ────────────────────────────────────────────────────────────────────
 
@@ -288,6 +290,9 @@ export const cmsContentContract = defineContract('/api/cms/contents', {
   list: op.get('/', { access: { permission: 'cms:content:list' }, query: cmsContentListQuery, response: paginated(cmsContentListItemSchema), summary: '内容分页列表（不含正文 / 扩展字段 / 形态数据）' }),
   checkTitle: op.get('/check-title', { access: { permission: 'cms:content:list' }, query: cmsContentTitleCheckQuery, response: cmsTitleDuplicateCheckSchema, summary: '同站标题查重（编辑辅助，不阻断保存）' }),
   linkTarget: op.get('/link-target', { access: { permission: 'cms:content:list' }, query: cmsLinkTargetQuery, response: cmsLinkTargetSchema, summary: '解析内部链接目标（编辑页回显 entity: 链接的可读名称）' }),
+  workflowPreview: op.post('/workflow-preview', { access: { permission: ['cms:content:list', 'cms:content:create', 'cms:content:update'] }, body: previewCmsContentWorkflowSchema, response: workflowBusinessPreviewSchema, summary: '内容审核链路预览（不保存）' }),
+  workflowContext: op.get('/{id}/workflow', { access: { permission: 'cms:content:list' }, params: idParam, query: workflowBusinessContextQuery, response: workflowBusinessContextSchema, summary: '内容审批流程与往次记录' }),
+  approvalDetail: op.get('/{id}/approval-detail', { access: 'authenticated', params: idParam, query: workflowBusinessApprovalQuery, response: cmsContentSchema, summary: '指定审批轮次的当前内容资料' }),
   detail: op.get('/{id}', { access: { permission: 'cms:content:list' }, params: idParam, response: cmsContentSchema, summary: '内容详情' }),
   create: op.post('/', { access: { permission: 'cms:content:create' }, audit: '创建 CMS 内容', body: createCmsContentSchema, response: cmsContentSchema, summary: '创建内容（默认草稿）' }),
   update: op.put('/{id}', { access: { permission: 'cms:content:update' }, audit: '更新 CMS 内容', params: idParam, body: updateCmsContentSchema, response: cmsContentSchema, summary: '更新内容' }),

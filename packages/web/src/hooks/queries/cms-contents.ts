@@ -1,5 +1,5 @@
 // eslint-disable-next-line no-restricted-imports -- H5 保留：手写 useQuery / useMutation 的理由见本文件对应 hook 的注释；queryKey 仍由 contractKey 生成
-import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import type { BodyOf, QueryOf } from '@zenith/shared/core';
 import { cmsContentContract, isCmsEntityLink, type CmsEditLock } from '@zenith/shared/cms';
 import { api, contractKey, createResourceQueries, useApiMutation, useApiQuery } from '@/lib/contract-query';
@@ -13,6 +13,8 @@ const resource = createResourceQueries(cmsContentContract, {
   onSaved: (qc, saved) => {
     void qc.invalidateQueries({ queryKey: cmsContentKeys.versionList(saved.id) });
     void qc.invalidateQueries({ queryKey: cmsContentKeys.opLogs(saved.id) });
+    void qc.invalidateQueries({ queryKey: cmsContentKeys.workflowContext(saved.id) });
+    void qc.invalidateQueries({ queryKey: cmsContentKeys.approvalDetail(saved.id) });
     invalidateCmsDashboardStats(qc);
   },
 });
@@ -27,13 +29,56 @@ export const cmsContentKeys = {
   versionList: (contentId: number | undefined) => contractKey(cmsContentContract.versions, { params: { id: contentId ?? 0 } }),
   versionDiffs: contractKey(cmsContentContract.versionDiff),
   linkTargets: contractKey(cmsContentContract.linkTarget),
+  workflowContexts: contractKey(cmsContentContract.workflowContext),
+  workflowContext: (contentId: number) => contractKey(cmsContentContract.workflowContext, { params: { id: contentId }, query: {} }),
+  approvalDetails: contractKey(cmsContentContract.approvalDetail),
+  approvalDetail: (contentId: number) => [...contractKey(cmsContentContract.approvalDetail), { params: { id: contentId } }],
   linkTarget: (siteId: number | undefined, link: string) =>
     contractKey(cmsContentContract.linkTarget, { query: { siteId: siteId ?? 0, link } }),
 };
 
-export const useCmsContentList = resource.useList;
+/** 内容状态由审批订阅者异步回写；仅当前页仍有待审核内容时轮询。 */
+export function useCmsContentList(query: CmsContentListParams, enabled = true) {
+  return useApiQuery(cmsContentContract.list, { query }, {
+    enabled,
+    placeholderData: keepPreviousData,
+    refetchInterval: (state) => state.state.data?.list.some((content) => content.status === 'pending') ? 10_000 : false,
+  });
+}
 export const useCmsContentDetail = resource.useDetail;
 export const useSaveCmsContent = resource.useSave;
+
+/** 审批中的业务记录持续回源，直到工作流订阅者完成 CMS 状态回写。与普通详情共用契约缓存。 */
+export function useCmsContentWorkflowRecord(contentId: number | undefined, enabled = true) {
+  return useApiQuery(cmsContentContract.detail, { params: { id: contentId ?? 0 } }, {
+    enabled: enabled && contentId !== undefined,
+    refetchInterval: (query) => query.state.data?.status === 'pending' ? 10_000 : false,
+  });
+}
+
+/** 通过 CMS 业务权限解析实际站点审核配置，预览参数参与缓存身份。 */
+export function useCmsContentWorkflowPreview(body: BodyOf<typeof cmsContentContract.workflowPreview>, enabled = true) {
+  return useApiQuery(cmsContentContract.workflowPreview, { body }, {
+    enabled: enabled && body.siteId > 0 && body.channelId > 0,
+  });
+}
+
+export function useCmsContentWorkflowContext(contentId: number | undefined, instanceId?: number, enabled = true) {
+  return useApiQuery(cmsContentContract.workflowContext, { params: { id: contentId ?? 0 }, query: { instanceId } }, {
+    enabled: enabled && contentId !== undefined,
+    refetchInterval: (query) => {
+      const status = query.state.data?.instance?.status;
+      return status === 'running' || status === 'suspended' ? 10_000 : false;
+    },
+  });
+}
+
+/** 工作流查看组件走参与者授权，业务列表/编辑器仍用业务详情接口。 */
+export function useCmsContentApprovalDetail(contentId: number | undefined, instanceId: number | null | undefined) {
+  return useApiQuery(cmsContentContract.approvalDetail, {
+    params: { id: contentId ?? 0 }, query: { instanceId: instanceId ?? 0 },
+  }, { enabled: contentId !== undefined && !!instanceId });
+}
 
 /**
  * 内容状态 / 归属 / 存在性变化（提审、发布、下线、驳回、回收、恢复、彻删、归档、批量移动 / 属性 / 打标、
@@ -52,10 +97,14 @@ export function invalidateAfterCmsContentChange(qc: QueryClient, ids?: readonly 
     for (const id of ids) {
       void qc.invalidateQueries({ queryKey: cmsContentKeys.detail(id) });
       void qc.invalidateQueries({ queryKey: cmsContentKeys.opLogs(id) });
+      void qc.invalidateQueries({ queryKey: cmsContentKeys.workflowContext(id) });
+      void qc.invalidateQueries({ queryKey: cmsContentKeys.approvalDetail(id) });
     }
   } else {
     void qc.invalidateQueries({ queryKey: cmsContentKeys.details });
     void qc.invalidateQueries({ queryKey: cmsContentKeys.opLogsAll });
+    void qc.invalidateQueries({ queryKey: cmsContentKeys.workflowContexts });
+    void qc.invalidateQueries({ queryKey: cmsContentKeys.approvalDetails });
   }
   invalidateCmsDashboardStats(qc);
   invalidateCmsPublishingViews(qc);
@@ -129,6 +178,8 @@ export function useCmsContentBatch() {
           qc.removeQueries({ queryKey: cmsContentKeys.detail(id) });
           qc.removeQueries({ queryKey: cmsContentKeys.opLogs(id) });
           qc.removeQueries({ queryKey: cmsContentKeys.versionList(id) });
+          qc.removeQueries({ queryKey: cmsContentKeys.workflowContext(id) });
+          qc.removeQueries({ queryKey: cmsContentKeys.approvalDetail(id) });
         }
       }
       invalidateAfterCmsContentChange(qc, ids);

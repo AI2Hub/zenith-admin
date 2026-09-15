@@ -436,6 +436,13 @@ footer={<ModalFooter onCancel={onClose} onOk={handleSave} loading={saving} okTex
 - 纯展示抽屉传 `footer={null}` 或不传，不放孤立的「关闭」主按钮
 - **禁止**再手写 `<div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>` + 两个 `Button` 的 footer
 
+### 业务表单中的流程信息
+
+业务系统主导审批使用 `components/workflow/BusinessWorkflowPanel.tsx` 组合业务内容与流程预览/详情；
+抽屉形态使用 `WorkflowSideSheet`，完整接入与轮次语义见
+[业务模块接入工作流](../../../../docs/workflow/business-integration.md#5-在业务表单内展示流程)。
+业务查看组件只渲染业务资料，不再包装抽屉或重复实现审批链。
+
 ---
 
 ## 表格列宽

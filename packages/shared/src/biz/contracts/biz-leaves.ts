@@ -3,7 +3,8 @@ import { idParam, keywordQuery, paginated, paginationQuery, queryEnum } from '..
 import { defineContract, op } from '../../core/contract';
 import { WORKFLOW_INSTANCE_STATUSES } from '../../workflow/constants';
 import { BIZ_LEAVE_STATUSES } from '../constants';
-import { createBizLeaveSchema, updateBizLeaveSchema } from '../validation';
+import { createBizLeaveSchema, updateBizLeaveSchema, previewBizLeaveWorkflowSchema } from '../validation';
+import { workflowBusinessApprovalQuery, workflowBusinessContextQuery, workflowBusinessContextSchema, workflowBusinessPreviewSchema } from '../../workflow/contracts/business';
 
 // ─── 实体 ────────────────────────────────────────────────────────────────────
 
@@ -37,7 +38,9 @@ export const bizLeaveListQuery = paginationQuery.extend({
 export const bizLeaveContract = defineContract('/api/biz/leaves', {
   list: op.get('/', { access: 'authenticated', query: bizLeaveListQuery, response: paginated(bizLeaveSchema), summary: '我的请假列表' }),
   detail: op.get('/{id}', { access: 'authenticated', params: idParam, response: bizLeaveSchema, summary: '请假详情' }),
-  approvalDetail: op.get('/{id}/detail', { access: 'authenticated', params: idParam, response: bizLeaveSchema, summary: '请假详情（供工作流参与者/审批人查看）' }),
+  approvalDetail: op.get('/{id}/detail', { access: 'authenticated', params: idParam, query: workflowBusinessApprovalQuery, response: bizLeaveSchema, summary: '指定审批轮次的当前请假资料' }),
+  workflowPreview: op.post('/workflow-preview', { access: 'authenticated', body: previewBizLeaveWorkflowSchema, response: workflowBusinessPreviewSchema, summary: '请假审批链路预览（不保存）' }),
+  workflowContext: op.get('/{id}/workflow', { access: 'authenticated', params: idParam, query: workflowBusinessContextQuery, response: workflowBusinessContextSchema, summary: '请假单审批流程与往次记录' }),
   create: op.post('/', { access: 'authenticated', body: createBizLeaveSchema, response: bizLeaveSchema, summary: '新建请假单（草稿）' }),
   update: op.put('/{id}', { access: 'authenticated', params: idParam, body: updateBizLeaveSchema, response: bizLeaveSchema, summary: '编辑请假单（仅草稿）' }),
   remove: op.delete('/{id}', { access: 'authenticated', params: idParam, summary: '删除请假单（仅草稿）' }),

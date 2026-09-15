@@ -15,6 +15,19 @@
   min-width: 0;
 }
 
+.cms-content-edit__workflow-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 0;
+}
+
+.cms-content-edit__workflow-pane {
+  min-height: 560px;
+}
+
 @media (--lg-up) {
   .cms-content-edit {
     height: 100%;
@@ -24,11 +37,19 @@
 
   .cms-content-edit__spin,
   .cms-content-edit__spin > .semi-spin-children,
-  .cms-content-edit__form {
+  .cms-content-edit__form,
+  .cms-content-edit__tabs,
+  .cms-content-edit__tabs > .semi-tabs-content,
+  .cms-content-edit__tabs > .semi-tabs-content > .semi-tabs-pane-active,
+  .cms-content-edit__tabs > .semi-tabs-content > .semi-tabs-pane-active > .semi-tabs-pane-motion-overlay {
     display: flex;
     flex: 1;
     flex-direction: column;
     min-height: 0;
+  }
+
+  .cms-content-edit__tabs > .semi-tabs-content {
+    overflow: hidden;
   }
 
   .cms-content-edit__cols {

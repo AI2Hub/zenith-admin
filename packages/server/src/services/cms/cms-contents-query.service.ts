@@ -20,6 +20,7 @@ import { resolveCmsContentRow, resolveCmsContentRows } from './cms-resource-refs
 import { buildCmsContentUrls } from './cms-urls';
 import { buildCmsLinkResolver, resolveCmsLink } from './cms-link.service';
 import { getEffectivelyEnabledCmsChannelIds } from './cms-channel-visibility.service';
+import { requireBusinessApprovalInstance } from '../workflow/workflow-business-context.service';
 import { cmsContentLinkColumns, cmsContentListColumns } from './cms-content-columns';
 import type { CmsContentLinkRow, CmsContentListRow } from './cms-content-columns';
 
@@ -97,8 +98,19 @@ async function ensureCmsContentOwnership(id: number): Promise<Pick<CmsContentRow
 export async function getCmsContent(id: number) {
   const current = await ensureCmsContentOwnership(id);
   await assertSiteAccess(current.siteId);
-  const site = await ensureCmsSiteExists(current.siteId);
   await assertChannelAccess(current.channelId);
+  return loadAuthorizedCmsContent(id, current.siteId);
+}
+
+/** 工作流查看入口只授权精确业务实例的参与者，不放宽普通内容接口。 */
+export async function getCmsContentForApproval(id: number, instanceId: number) {
+  await requireBusinessApprovalInstance(instanceId, 'cms_content', String(id));
+  const current = await ensureCmsContentOwnership(id);
+  return loadAuthorizedCmsContent(id, current.siteId);
+}
+
+async function loadAuthorizedCmsContent(id: number, siteId: number) {
+  const site = await ensureCmsSiteExists(siteId);
   const row = await db.query.cmsContents.findFirst({
     where: eq(cmsContents.id, id),
     with: {

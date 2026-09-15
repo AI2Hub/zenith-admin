@@ -90,15 +90,33 @@ interface Props {
 export default function WorkflowApprovalChainPanel({
   definitionId,
   getFormData,
+  reloadKey,
+  ...props
+}: Readonly<Props>) {
+  const previewQuery = useWorkflowApprovalPreview(definitionId, reloadKey, getFormData);
+  if (!definitionId) return null;
+  return <WorkflowApprovalChain {...props} nodes={previewQuery.data ?? EMPTY_NODES}
+    loading={previewQuery.isLoading} error={previewQuery.isError}
+    onRetry={() => void previewQuery.refetch()} />;
+}
+
+/** 纯展示：普通发起页与业务域预览共用，各自的权限与取数由调用方负责。 */
+export function WorkflowApprovalChain({
+  nodes,
+  loading = false,
+  error = false,
+  onRetry,
   selectable = false,
   value = {},
   onChange,
   onNodesChange,
   highlightMissing = false,
-  reloadKey,
-}: Readonly<Props>) {
-  const previewQuery = useWorkflowApprovalPreview(definitionId, reloadKey, getFormData);
-  const nodes = previewQuery.data ?? EMPTY_NODES;
+}: Readonly<Omit<Props, 'definitionId' | 'getFormData' | 'reloadKey'> & {
+  nodes: WorkflowApproverPreviewNode[];
+  loading?: boolean;
+  error?: boolean;
+  onRetry?: () => void;
+}>) {
   const selectNodes = useMemo<InitiatorApproverSelectNode[]>(
     () => nodes
       .filter((node) => node.selectionRequired)
@@ -114,8 +132,6 @@ export default function WorkflowApprovalChainPanel({
   useEffect(() => {
     onNodesChange?.(selectNodes);
   }, [onNodesChange, selectNodes]);
-
-  if (!definitionId) return null;
 
   // 发起人（开始节点）与审批节点拆分
   const startNode = nodes.find((n) => n.nodeType === 'start');
@@ -192,14 +208,14 @@ export default function WorkflowApprovalChainPanel({
 
   return (
     <div>
-      {previewQuery.isLoading && nodes.length === 0 ? (
+      {loading && nodes.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 24 }}><Spin /></div>
-      ) : previewQuery.isError ? (
+      ) : error ? (
         <div style={{ textAlign: 'center', padding: 24 }}>
           <Typography.Text type="tertiary" style={{ display: 'block', marginBottom: 8 }}>
             审批链路预测失败
           </Typography.Text>
-          <Button size="small" onClick={() => void previewQuery.refetch()}>重试</Button>
+          <Button size="small" onClick={onRetry}>重试</Button>
         </div>
       ) : flowNodes.length === 0 ? (
         <Empty description="该流程无需审批，提交后自动通过" style={{ padding: 24 }} />

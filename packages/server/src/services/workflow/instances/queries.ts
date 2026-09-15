@@ -490,6 +490,15 @@ export function sanitizeDetailFormDataForViewer(
 }
 
 export async function getInstanceDetail(id: number) {
+  return loadInstanceDetail(id);
+}
+
+/** 仅业务 Service 在完成本域对象授权后调用；实例必须匹配当前业务键。 */
+export async function getBusinessInstanceDetail(id: number, bizType: string, bizId: string) {
+  return loadInstanceDetail(id, { bizType, bizId });
+}
+
+async function loadInstanceDetail(id: number, business?: { bizType: string; bizId: string }) {
   const user = currentUser();
   const row = requireRow(await db.query.workflowInstances.findFirst({
     where: buildWhere(eq(workflowInstances.id, id), tenantCondition(workflowInstances, user)),
@@ -502,13 +511,16 @@ export async function getInstanceDetail(id: number) {
       },
     },
   }), '流程实例不存在');
+  if (business && (row.bizType !== business.bizType || row.bizId !== business.bizId)) {
+    throw new HTTPException(404, { message: '该审批实例不属于当前业务记录' });
+  }
   const isInitiator = row.initiatorId === user.userId;
   const isAssignee = row.tasks.some((t) => t.assigneeId === user.userId);
   // 流程监控管理员（workflow:instance:monitor）可查看租户可见范围内的任意实例详情，
   // 与「全局流程实例列表」权限口径一致（列表能看到却打不开详情属契约断裂）
   const isMonitor = isSuperAdmin(user)
     || (await getUserPermissions(user.userId)).includes('workflow:instance:monitor');
-  let allowed = isInitiator || isAssignee || isMonitor;
+  let allowed = !!business || isInitiator || isAssignee || isMonitor;
   if (!allowed && row.parentInstanceId) {
     // 子流程实例：若用户是任一祖先实例的发起人，允许查看（支持嵌套子流程）
     let pid: number | null = row.parentInstanceId;

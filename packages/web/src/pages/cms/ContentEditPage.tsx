@@ -2,19 +2,22 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, Form, Spin, Toast, Row, Col, Banner, SideSheet, Space, Timeline, Modal, Upload, Typography, useFormApi, Tag, Input, Tabs, TabPane } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { ArrowLeft, Save, Send, History, ImageUp, Eye, GitCompare, Images, Paperclip, SpellCheck, ScrollText } from 'lucide-react';
+import { ArrowLeft, Save, Send, History, ImageUp, Eye, GitCompare, Images, Paperclip, SpellCheck, ScrollText, Workflow } from 'lucide-react';
+import { useDebouncedCallback } from '@tanstack/react-pacer';
 import { MediaPickerModal } from '@/components/MediaPickerModal';
 import { formatDateTimeForApi } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
+import { useUrlTabState } from '@/hooks/useUrlTabState';
 import { useUploadFile } from '@/hooks/queries/files';
 import { config as appConfig } from '@/config';
 import { confirmDanger } from '@/utils/confirm';
 import {
-  useCmsContentDetail, useCmsChannelTree, useAllCmsModels, useAllCmsTags,
+  useCmsContentWorkflowRecord, useCmsChannelTree, useAllCmsModels, useAllCmsTags,
   useSaveCmsContent, useCmsContentAction, useCmsContentVersions, useRestoreCmsContentVersion,
   useCmsVersionDiff, useCmsPreviewLink, acquireCmsEditLock, releaseCmsEditLock, useCmsContentList,
   useAllCmsSites, useCmsThemeTemplates, useCmsContentOpLogs, useCmsCheckText, useUploadCmsResource,
   useCheckCmsContentTitle, useUploadCmsImage, cmsImageUploadUrl,
+  useCmsContentWorkflowPreview, useCmsContentWorkflowContext,
 } from '@/hooks/queries/cms';
 import { EMPTY_PLACEHOLDER } from '@/utils/table-columns';
 import { CMS_CONTENT_STATUS_LABELS, CMS_CONTENT_TYPE_LABELS, CMS_CONTENT_TYPES, CMS_TITLE_STYLE_COLORS } from '@zenith/shared/cms';
@@ -23,11 +26,14 @@ import { useCmsLinkPicker } from './CmsLinkInput';
 import { formatBytes } from '@zenith/shared/core';
 import { channelsToSelectTree } from './channel-tree';
 import { CmsModelFieldControl } from './model-field-renderer';
+import { ContentApprovalDetails } from './ContentApprovalView';
+import { INSTANCE_STATUS_MAP } from '@/components/workflow/workflow-runtime';
 import './ContentEditPage.css';
 
 // 富文本引擎（wangeditor）压缩后约 266 KB。静态导入会阻塞整个编辑页 chunk 的加载，
 // 且「链接」类型内容与已映射内容根本不渲染编辑器；改为懒加载后表单先出，编辑器再补。
 const RichTextEditor = lazy(() => import('@/components/RichTextEditor'));
+const BusinessWorkflowPanel = lazy(() => import('@/components/workflow/BusinessWorkflowPanel'));
 const editorLoadingFallback = (
   <div
     style={{
@@ -181,7 +187,7 @@ export default function ContentEditPage() {
     ? (contentTypeParam as CmsContentType)
     : 'article';
 
-  const detailQuery = useCmsContentDetail(id);
+  const detailQuery = useCmsContentWorkflowRecord(id);
   const detail = detailQuery.data;
   const siteId = detail?.siteId ?? siteIdParam;
 
@@ -219,6 +225,26 @@ export default function ContentEditPage() {
 
   const [body, setBody] = useState('');
   const [selectedChannelId, setSelectedChannelId] = useState<number | undefined>(channelIdParam);
+  const [activeTab, setActiveTab] = useUrlTabState(['content', 'workflow'] as const, 'content');
+  const [selectedWorkflowInstanceId, setSelectedWorkflowInstanceId] = useState<number>();
+  const [workflowTitle, setWorkflowTitle] = useState<string>();
+  const scheduleWorkflowTitle = useDebouncedCallback((title: string) => setWorkflowTitle(title), { wait: 500 });
+  const workflowContextQuery = useCmsContentWorkflowContext(id, selectedWorkflowInstanceId);
+  const workflowPreviewQuery = useCmsContentWorkflowPreview({
+    siteId: siteId ?? 0,
+    channelId: selectedChannelId ?? detail?.channelId ?? 0,
+    title: workflowTitle ?? detail?.title,
+  });
+  const workflowContext = workflowContextQuery.data;
+  const workflowPreview = workflowPreviewQuery.data;
+  // 本次提交使用当前站点的有效审核配置；往次实例只影响记录展示。
+  const workflowMode = !!workflowPreview?.definition;
+  const workflowBusy = workflowPreviewQuery.isLoading || workflowContextQuery.isLoading;
+
+  useEffect(() => {
+    setSelectedWorkflowInstanceId(undefined);
+    setWorkflowTitle(undefined);
+  }, [id]);
   // 链接字段的镜像值：仅用于回显解析出的内部链接目标名（真值仍在 Form 里）
   const [externalLink, setExternalLink] = useState('');
   const contentType: CmsContentType = detail?.contentType ?? newContentType;
@@ -389,6 +415,7 @@ export default function ContentEditPage() {
       values = (await formApi.current?.validate()) ?? {};
     } catch (err) {
       if (!opts?.silent) {
+        setActiveTab('content');
         const issues = flattenFormErrors(err);
         // 出错字段可能藏在未激活的属性面板标签页里，自动切过去
         // （link 型的外链地址在左侧主区域常驻可见，无需切换）
@@ -502,6 +529,17 @@ export default function ContentEditPage() {
     }
   }
 
+  async function handleSaveAndSubmit() {
+    const savedId = await save();
+    if (!savedId) return;
+    // 新建成功后先进入该记录，后续提审失败仍可在已保存的草稿上重试，不会重复创建。
+    if (!id) navigate(`/cms/contents/edit?id=${savedId}&siteId=${siteId}`, { replace: true });
+    await actionMutation.mutateAsync({ id: savedId, action: 'submit' });
+    setSelectedWorkflowInstanceId(undefined);
+    setActiveTab('workflow');
+    Toast.success('已保存并提交审核');
+  }
+
   async function handlePreview() {
     // 新建内容需先落库拿到 id；已存在内容有改动时先静默保存，保证「预览即所见」
     let previewId = id;
@@ -552,7 +590,7 @@ export default function ContentEditPage() {
   const diffVersion = (versionsQuery.data ?? []).find((v) => v.id === diffVersionId);
 
   return (
-    <div className="page-container cms-content-edit">
+    <div className="page-container page-tabs-page cms-content-edit">
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
         <Button icon={<ArrowLeft size={14} />} onClick={() => navigate(-1)}>返回</Button>
         <h3 style={{ margin: 0, flex: 1, minWidth: 200 }}>
@@ -561,7 +599,7 @@ export default function ContentEditPage() {
           {detail ? <span style={{ marginLeft: 12, fontSize: 13, fontWeight: 'normal', color: 'var(--semi-color-text-2)' }}>状态：{CMS_CONTENT_STATUS_LABELS[detail.status]}</span> : null}
           {autoSavedAt ? <span style={{ marginLeft: 12, fontSize: 12, fontWeight: 'normal', color: 'var(--semi-color-text-2)' }}>已自动保存 {autoSavedAt}</span> : null}
         </h3>
-        <Button icon={<Save size={14} />} loading={saveMutation.isPending} disabled={isReadOnly} onClick={() => void handleSaveDraft()}>保存</Button>
+        <Button icon={<Save size={14} />} loading={saveMutation.isPending} disabled={isReadOnly || actionMutation.isPending} onClick={() => void handleSaveDraft()}>保存</Button>
         <Button icon={<SpellCheck size={14} />} loading={checkMutation.isPending} onClick={() => void handleCheckText()}>内容检查</Button>
         <Button icon={<Eye size={14} />} loading={previewMutation.isPending || saveMutation.isPending} onClick={() => void handlePreview()}>预览</Button>
         {id ? (
@@ -570,9 +608,42 @@ export default function ContentEditPage() {
             <Button icon={<ScrollText size={14} />} onClick={() => setOpLogsVisible(true)}>操作记录</Button>
           </>
         ) : null}
-        {hasPermission('cms:content:publish') ? (
-          <Button type="primary" icon={<Send size={14} />} loading={actionMutation.isPending} disabled={isReadOnly} onClick={() => void handleSaveAndPublish()}>保存并发布</Button>
+        {workflowMode ? (
+          <Button type="primary" icon={<Send size={14} />} loading={saveMutation.isPending || actionMutation.isPending}
+            disabled={isReadOnly || workflowBusy || !!workflowPreviewQuery.error || (detail != null && detail.status !== 'draft' && detail.status !== 'rejected') || !hasPermission('cms:content:update')}
+            onClick={() => void handleSaveAndSubmit()}>保存并提交审核</Button>
+        ) : hasPermission('cms:content:publish') ? (
+          <Button type="primary" icon={<Send size={14} />} loading={actionMutation.isPending}
+            disabled={isReadOnly || saveMutation.isPending || workflowBusy || !workflowPreview || !!workflowPreviewQuery.error}
+            onClick={() => void handleSaveAndPublish()}>保存并发布</Button>
         ) : null}
+      </div>
+
+      <div className="cms-content-edit__workflow-summary">
+        <Space spacing={8} wrap>
+          <Workflow size={15} />
+          <Typography.Text strong>审批流程</Typography.Text>
+          {workflowContext?.instance ? (
+            <>
+              <Typography.Text>{workflowContext.instance.definitionName}</Typography.Text>
+              <Tag color={INSTANCE_STATUS_MAP[workflowContext.instance.status]?.color}>
+                {INSTANCE_STATUS_MAP[workflowContext.instance.status]?.text ?? workflowContext.instance.status}
+              </Tag>
+              {workflowContext.instance.currentNodeNames?.length ? (
+                <Typography.Text type="tertiary">当前节点：{workflowContext.instance.currentNodeNames.join('、')}</Typography.Text>
+              ) : null}
+            </>
+          ) : (
+            <Typography.Text type="tertiary">
+              {workflowBusy ? '正在加载审批流程…'
+                : workflowPreviewQuery.error || workflowContextQuery.error ? '审批流程加载失败'
+                : workflowPreview?.definition ? `${workflowPreview.definition.name} · 本次提审预览`
+                : !selectedChannelId ? '选择栏目后查看审批流程'
+                : '本站采用普通内容审核'}
+            </Typography.Text>
+          )}
+        </Space>
+        <Button theme="borderless" onClick={() => setActiveTab('workflow')}>查看流程</Button>
       </div>
 
       {lockHolder ? (
@@ -615,6 +686,9 @@ export default function ContentEditPage() {
         <Banner type="danger" description={`驳回原因：${detail.rejectReason}`} style={{ marginBottom: 12 }} closeIcon={null} />
       ) : null}
 
+      <Tabs collapsible="auto" className="cms-content-edit__tabs" activeKey={activeTab}
+        onChange={(tab) => setActiveTab(tab as 'content' | 'workflow')} keepDOM>
+      <TabPane tab="内容" itemKey="content">
       <Spin spinning={loading} wrapperClassName="cms-content-edit__spin">
         <Form
           key={`${detail?.id ?? 'new'}-${formEpoch}`}
@@ -626,6 +700,7 @@ export default function ContentEditPage() {
             dirtyRef.current = true;
             if (values.channelId !== selectedChannelId) setSelectedChannelId(values.channelId as number);
             setExternalLink((values.externalLink as string) ?? '');
+            scheduleWorkflowTitle(String(values.title ?? ''));
           }}
           labelPosition="top"
           className="cms-content-edit__form"
@@ -1040,6 +1115,31 @@ export default function ContentEditPage() {
           </div>
         </Form>
       </Spin>
+      </TabPane>
+      <TabPane tab="审批流程" itemKey="workflow" className="cms-content-edit__workflow-pane">
+        {activeTab === 'workflow' ? (
+          <Suspense fallback={<Spin />}>
+            <BusinessWorkflowPanel
+              preview={workflowPreview}
+              context={workflowContext}
+              selectedInstanceId={selectedWorkflowInstanceId}
+              onSelectInstance={setSelectedWorkflowInstanceId}
+              loading={workflowBusy}
+              error={workflowContextQuery.error ?? (workflowContext?.instance ? null : workflowPreviewQuery.error)}
+              onRetry={() => { if (id) void workflowContextQuery.refetch(); void workflowPreviewQuery.refetch(); }}
+              formContent={detail && workflowContext?.instance ? <ContentApprovalDetails content={detail} /> : (
+                <div>
+                  <Typography.Title heading={6}>本次提审预览</Typography.Title>
+                  <Typography.Paragraph>{workflowTitle ?? detail?.title ?? '新增内容'}</Typography.Paragraph>
+                  <Typography.Paragraph type="tertiary">审批流程根据当前站点和栏目确定。内容保存后提交审核，审批期间可在这里查看进度与处理记录。</Typography.Paragraph>
+                  <Button onClick={() => setActiveTab('content')}>返回编辑内容</Button>
+                </div>
+              )}
+            />
+          </Suspense>
+        ) : null}
+      </TabPane>
+      </Tabs>
 
       {/* 内部链接选择弹窗 */}
       {linkPicker.modals}

@@ -1,5 +1,5 @@
 import { bizLeaveContract, bizLeaveSchema } from '@zenith/shared/biz';
-import type { QueryOutputOf } from '@zenith/shared/core';
+import type { QueryOutputOf, BodyOf } from '@zenith/shared/core';
 /**
  * 业务接入示例：请假 Service
  *
@@ -14,17 +14,17 @@ import { BIZ_LEAVE_STATUSES } from '@zenith/shared/biz';
 import type { WorkflowInstanceStatus } from '@zenith/shared/workflow';
 import { WORKFLOW_ACTIVE_INSTANCE_STATUSES } from '@zenith/shared/workflow';
 import { db } from '../../db';
-import { bizLeaves, workflowInstances, workflowTasks, type BizLeaveRow } from '../../db/schema';
+import { bizLeaves, workflowInstances, type BizLeaveRow } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { formatDate, parseDateRangeStart } from '../../lib/datetime';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
-import { isSuperAdmin, getUserPermissions } from '../../lib/permissions';
 import { keywordCondition, buildWhere, withPagination } from '../../lib/where-helpers';
 import { startWorkflowForBiz, resolveBizDefinitionId } from '../../lib/workflow-biz-bridge';
 import { buildListResult } from '../../lib/list-query';
 import { requireRow } from '../../lib/db-assert';
 import { resolveUserNames } from '../../lib/user-nicknames';
 import { pickEntity } from '../../lib/entity-map';
+import { getBusinessWorkflowContext, previewBusinessWorkflow, requireBusinessApprovalInstance } from '../workflow/workflow-business-context.service';
 
 /** 业务类型标识（与订阅器、businessKey 保持一致） */
 export const BIZ_LEAVE_TYPE = 'biz_leave';
@@ -123,31 +123,26 @@ export async function getBizLeave(id: number) {
   return mapBizLeave(row, row.createdBy != null ? nameMap.get(row.createdBy) ?? null : null);
 }
 
-/**
- * 供工作流参与者（审批人等）读取请假详情：申请人本人、关联流程实例上有任务的人
- * （审批/办理/抄送任务均计入）、流程监控管理员（workflow:instance:monitor）与超管可见。
- * 与 business-integration.md 的业务详情读取契约、实例详情权限口径保持一致。
- * 用于自定义业务表单 view 组件在审批场景按 bizId 拉取业务数据。
- */
-export async function getBizLeaveDetail(id: number) {
-  const user = currentUser();
-  const [row] = await db.select().from(bizLeaves).where(eq(bizLeaves.id, id)).limit(1);
+/** 指定轮次的参与人读取当前业务资料，不用当前关联指针替代该轮权限。 */
+export async function getBizLeaveDetail(id: number, instanceId: number) {
+  await requireBusinessApprovalInstance(instanceId, BIZ_LEAVE_TYPE, String(id));
+  const [row] = await db.select().from(bizLeaves).where(buildWhere(eq(bizLeaves.id, id), tenantCondition(bizLeaves, currentUser()))).limit(1);
   requireRow(row, '请假单不存在');
-  let allowed = row.createdBy === user.userId;
-  if (!allowed && row.workflowInstanceId) {
-    const [task] = await db
-      .select({ id: workflowTasks.id })
-      .from(workflowTasks)
-      .where(and(eq(workflowTasks.instanceId, row.workflowInstanceId), eq(workflowTasks.assigneeId, user.userId)))
-      .limit(1);
-    allowed = !!task;
-  }
-  if (!allowed) {
-    allowed = isSuperAdmin(user) || (await getUserPermissions(user.userId)).includes('workflow:instance:monitor');
-  }
-  if (!allowed) throw new HTTPException(403, { message: '无权查看该请假单' });
   const nameMap = await buildApplicantNameMap([row.createdBy]);
   return mapBizLeave(row, row.createdBy != null ? nameMap.get(row.createdBy) ?? null : null);
+}
+
+export function leaveWorkflowVariables(data: BodyOf<typeof bizLeaveContract.workflowPreview>): Record<string, unknown> {
+  return { ...(data.days != null ? { days: Number(data.days) } : {}), ...(data.leaveType ? { leaveType: data.leaveType } : {}) };
+}
+
+export async function previewBizLeaveWorkflow(data: BodyOf<typeof bizLeaveContract.workflowPreview>) {
+  return previewBusinessWorkflow(await ensureLeaveDefinitionId(), leaveWorkflowVariables(data));
+}
+
+export async function getBizLeaveWorkflowContext(id: number, instanceId?: number) {
+  const leave = await getBizLeave(id);
+  return getBusinessWorkflowContext(BIZ_LEAVE_TYPE, String(id), leave.status === 'draft' ? null : leave.workflowInstanceId, instanceId);
 }
 
 export async function createBizLeave(data: { leaveType: string; startDate: string; endDate: string; days: number; reason?: string | null }) {
@@ -236,7 +231,7 @@ export async function submitBizLeave(id: number) {
       bizType: BIZ_LEAVE_TYPE,
       bizId: claimed.id,
       // 暴露给流程的路由变量：天数 / 类型，可用于条件分支与按字段指定审批人
-      variables: { days: claimed.days, leaveType: claimed.leaveType },
+      variables: leaveWorkflowVariables({ days: claimed.days, leaveType: claimed.leaveType as BodyOf<typeof bizLeaveContract.workflowPreview>['leaveType'] }),
     });
     await linkLeaveWorkflow(id, instance);
   } catch (err) {

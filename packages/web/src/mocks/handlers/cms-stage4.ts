@@ -1,3 +1,4 @@
+import { assertMockCmsManualAudit } from '@/mocks/utils/workflow-business';
 import { percentOf } from '@zenith/shared/core';
 import { http, HttpResponse } from 'msw';
 import type * as z from 'zod';
@@ -321,6 +322,7 @@ function recordAdEvent(adId: number, eventType: 'impression' | 'click', path: st
 export const cmsStage4Handlers = [
   mock(cmsContentContract.publish, ({ params, ok }) => {
     const content = requireItem(mockCmsContents, params.id, '内容不存在', { status: 404 });
+    assertMockCmsManualAudit(content);
     content.status = 'published';
     content.version += 1;
     content.updatedAt = mockDateTime();

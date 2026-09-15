@@ -1,7 +1,7 @@
 import { HttpResponse } from 'msw';
 import type * as z from 'zod';
 import { badRequest, notFound, conflict, locked } from '@/mocks/utils/handlers';
-import { mock } from '@/mocks/utils/contract';
+import { mock, MockHttpError } from '@/mocks/utils/contract';
 import { removeByIds, removeItem, requireItem, updateItem } from '@/mocks/utils/crud';
 import type {
   CmsChannel,
@@ -100,6 +100,7 @@ import { submitMockCmsWidgetSourceRefresh } from './cms-widgets';
 import { mockDateTime, mockDate } from '../utils/date';
 import { filterByKeyword } from '@/mocks/utils/filter';
 import { mockResource } from '@/mocks/utils/resource';
+import { assertMockCmsManualAudit, getMockBusinessContext, getMockCmsCurrentInstanceId, previewMockBusinessWorkflow, requireMockBusinessInstance, resolveMockCmsAuditDefinition, startMockCmsWorkflow } from '@/mocks/utils/workflow-business';
 
 type MockContent = CmsContent & { tagIds: number[]; deleted?: boolean };
 
@@ -534,6 +535,21 @@ export const cmsHandlers = [
       exists: !!channel,
     });
   }),
+  mock(cmsContentContract.workflowPreview, ({ body, ok }) => {
+    const channel = requireItem(mockCmsChannels, body.channelId, '栏目不存在', { status: 404 });
+    if (channel.siteId !== body.siteId) return badRequest('栏目不属于指定站点', { status: 400 });
+    return ok(previewMockBusinessWorkflow(resolveMockCmsAuditDefinition(body.siteId)));
+  }),
+  mock(cmsContentContract.workflowContext, ({ params, query, ok }) => {
+    const content = requireItem(mockCmsContents, params.id, '内容不存在', { status: 404 });
+    const currentId = content.status === 'draft' || content.status === 'rejected' ? null : getMockCmsCurrentInstanceId(content);
+    return ok(getMockBusinessContext('cms_content', content.id, currentId, query.instanceId));
+  }),
+  mock(cmsContentContract.approvalDetail, ({ params, query, ok }) => {
+    requireMockBusinessInstance('cms_content', params.id, query.instanceId);
+    const content = requireItem(mockCmsContents, params.id, '内容不存在', { status: 404 });
+    return ok({ ...content, channelName: mockCmsChannels.find((channel) => channel.id === content.channelId)?.name ?? null, tags: mockCmsTags.filter((tag) => content.tagIds.includes(tag.id)) });
+  }),
   mock(cmsContentContract.detail, ({ params, ok }) => {
     const content = requireItem(mockCmsContents, params.id, '内容不存在', { status: 404 });
     return ok({
@@ -613,6 +629,10 @@ export const cmsHandlers = [
     const widget = action === 'offline' ? publishedWidgetUsing('content', content.id) : null;
     if (widget) return conflict(`已发布页面部件「${widget.name}」引用了该内容`, { status: 409 });
     if (content.lockedAt) return locked(`内容已被持久锁定：${content.lockReason ?? ''}`, { status: 423 });
+    if (action === 'submit') {
+      if (content.status !== 'draft' && content.status !== 'rejected') return badRequest('当前状态不允许提交审核', { status: 400 });
+      startMockCmsWorkflow(content);
+    } else if (action === 'reject') assertMockCmsManualAudit(content);
     content.status = statusMap[action];
     content.updatedAt = mockDateTime();
     submitMockCmsWidgetSourceRefresh('content', [content.id]);
@@ -1732,7 +1752,7 @@ export const cmsP3Handlers = [
     }
     return ok(null, `已打标 ${ids.length} 条内容`);
   }),
-  mock(cmsContentContract.batchStatus, ({ body, ok }) => {
+  mock(cmsContentContract.batchStatus, async ({ body, ok }) => {
     const { ids, action } = body;
     const reason = body.reason?.trim() ?? '';
     const okIds: number[] = [];
@@ -1745,12 +1765,20 @@ export const cmsP3Handlers = [
       }
       if (action === 'submit') {
         if (content.status === 'draft' || content.status === 'rejected') {
+          try { startMockCmsWorkflow(content); } catch (error) {
+            const message = error instanceof MockHttpError
+              ? String((await error.response.clone().json() as { message: string }).message)
+              : '工作流发起失败';
+            failed.push({ id, reason: message });
+            continue;
+          }
           content.status = 'pending';
           okIds.push(id);
         } else {
           failed.push({ id, reason: `当前状态（${content.status}）不允许提交审核` });
         }
       } else if (action === 'publish') {
+        try { assertMockCmsManualAudit(content); } catch { failed.push({ id, reason: '内容正在工作流审核中，请在流程中处理' }); continue; }
         if (content.status !== 'published' && !content.archivedAt) {
           content.status = 'published';
           content.publishedAt = mockDateTime();
@@ -1759,6 +1787,7 @@ export const cmsP3Handlers = [
           failed.push({ id, reason: '内容已发布或不可发布' });
         }
       } else if (action === 'reject') {
+        try { assertMockCmsManualAudit(content); } catch { failed.push({ id, reason: '内容正在工作流审核中，请在流程中处理' }); continue; }
         if (content.status === 'pending') {
           content.status = 'rejected';
           content.rejectReason = reason || '批量驳回';
