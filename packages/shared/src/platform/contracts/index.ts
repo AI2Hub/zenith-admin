@@ -10,6 +10,7 @@ export * from './health';
 export * from './ip-access-logs';
 export * from './monitor';
 export * from './monitor-alerts';
+export * from './sql-monitor';
 export * from './operation-logs';
 export * from './rate-limit';
 export * from './regions';

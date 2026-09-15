@@ -646,6 +646,24 @@ export const MONITOR_HISTORY_RANGES = ['1h', '6h', '24h', '7d', '30d'] as const;
 
 export type MonitorHistoryRange = (typeof MONITOR_HISTORY_RANGES)[number];
 
+export const SQL_MONITOR_SESSION_ACTIONS = ['cancel', 'terminate'] as const;
+export type SqlMonitorSessionAction = (typeof SQL_MONITOR_SESSION_ACTIONS)[number];
+
+export const SQL_MONITOR_QUERY_SORTS = ['totalMs', 'meanMs', 'calls', 'rows', 'sharedBlksRead', 'tempBlksRead'] as const;
+export type SqlMonitorQuerySort = (typeof SQL_MONITOR_QUERY_SORTS)[number];
+export const SQL_MONITOR_QUERY_SORT_LABELS: Record<SqlMonitorQuerySort, string> = {
+  totalMs: '总耗时',
+  meanMs: '平均耗时',
+  calls: '调用次数',
+  rows: '返回行数',
+  sharedBlksRead: '读取块数',
+  tempBlksRead: '临时读块',
+};
+export const SQL_MONITOR_QUERY_SORT_OPTIONS = SQL_MONITOR_QUERY_SORTS.map((value) => ({
+  value,
+  label: SQL_MONITOR_QUERY_SORT_LABELS[value],
+}));
+
 /** 各时间范围的回看窗口与聚合分桶（秒）：服务端分桶查询与 Demo Mock 生成同源 */
 export const MONITOR_HISTORY_RANGE_CONFIG: Record<MonitorHistoryRange, { windowSec: number; bucketSec: number }> = {
   '1h': { windowSec: 3600, bucketSec: 60 },

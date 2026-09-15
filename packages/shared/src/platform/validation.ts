@@ -1,7 +1,7 @@
 import * as z from 'zod';
 import { partialForUpdate, validateTypedAlertDelivery, webhookUrlSchema } from '../core/validation';
-import { CRON_JOB_STATUSES, FILE_OBJECT_ACL_SUPPORT, MASK_TYPES, MONITOR_ALERT_HANDLE_STATUSES, MONITOR_ALERT_LEVELS, MONITOR_ALERT_OPERATORS, MONITOR_HISTORY_RANGES, MONITOR_METRICS, PRESIGNED_EXPIRY_DEFAULT_SECONDS, PRESIGNED_EXPIRY_MAX_SECONDS, PRESIGNED_EXPIRY_MIN_SECONDS, RATE_LIMIT_ALGORITHMS, RATE_LIMIT_KEY_TYPES, RATE_LIMIT_MODES, REGION_LEVELS, SYSTEM_SCHEDULER_ALERT_CHANNELS, UPLOAD_CHUNK_MAX_BYTES, UPLOAD_CHUNK_MIN_BYTES, USER_FEEDBACK_CATEGORIES, USER_FEEDBACK_STATUSES } from './constants';
-import { entityStatusSchema } from '../core/api-schemas';
+import { CRON_JOB_STATUSES, FILE_OBJECT_ACL_SUPPORT, MASK_TYPES, MONITOR_ALERT_HANDLE_STATUSES, MONITOR_ALERT_LEVELS, MONITOR_ALERT_OPERATORS, MONITOR_HISTORY_RANGES, MONITOR_METRICS, PRESIGNED_EXPIRY_DEFAULT_SECONDS, PRESIGNED_EXPIRY_MAX_SECONDS, PRESIGNED_EXPIRY_MIN_SECONDS, RATE_LIMIT_ALGORITHMS, RATE_LIMIT_KEY_TYPES, RATE_LIMIT_MODES, REGION_LEVELS, SQL_MONITOR_QUERY_SORTS, SQL_MONITOR_QUERY_SORT_OPTIONS, SQL_MONITOR_SESSION_ACTIONS, SYSTEM_SCHEDULER_ALERT_CHANNELS, UPLOAD_CHUNK_MAX_BYTES, UPLOAD_CHUNK_MIN_BYTES, USER_FEEDBACK_CATEGORIES, USER_FEEDBACK_STATUSES } from './constants';
+import { entityStatusSchema, keywordQuery, queryEnum } from '../core/api-schemas';
 
 // ─── 字典 Schema ──────────────────────────────────────────────────────────────
 export const createDictSchema = z.object({
@@ -401,6 +401,23 @@ export const batchHandleMonitorAlertEventsSchema = handleMonitorAlertEventSchema
 
 export const monitorHistoryQuerySchema = z.object({
   range: z.enum(MONITOR_HISTORY_RANGES).default('1h'),
+});
+
+export const sqlMonitorQueriesQuerySchema = z.object({
+  keyword: keywordQuery('SQL / Query ID', { max: 200 }),
+  sort: queryEnum(SQL_MONITOR_QUERY_SORTS, { description: '排序方式', options: SQL_MONITOR_QUERY_SORT_OPTIONS }).default('totalMs'),
+  limit: z.coerce.number().int().min(1).max(200).default(50).meta({ description: '最多返回条数' }),
+});
+
+export const sqlMonitorHistoryQuerySchema = z.object({
+  range: z.enum(MONITOR_HISTORY_RANGES).default('1h'),
+  queryId: z.string().max(64).optional().meta({ description: '精确匹配 Query ID，留空查询整体趋势' }),
+});
+
+export const sqlMonitorSessionActionSchema = z.object({
+  pid: z.number().int().positive(),
+  backendStartToken: z.string().min(1).max(64),
+  action: z.enum(SQL_MONITOR_SESSION_ACTIONS),
 });
 
 export type CreateMonitorAlertRuleInput = z.infer<typeof createMonitorAlertRuleSchema>;

@@ -16,6 +16,7 @@ export * from './modules/error-tracking';
 export * from './modules/files';
 export * from './modules/identity-security';
 export * from './modules/ip-access';
+export * from './modules/sql-monitor';
 export * from './modules/member';
 export * from './modules/payment';
 export * from './modules/rules';

@@ -13,6 +13,7 @@ import { sqlQuerySamples, systemMetricSamples } from '../../db/schema';
 import { metricsSampler } from '../../lib/metrics-sampler';
 import { formatDateTime } from '../../lib/datetime';
 import logger from '../../lib/logger';
+import { getSettings } from '../../lib/settings';
 import { getDisks, getLinuxMemInfo } from './monitor.service';
 import { getLatestEngineHealthMetrics } from '../workflow/workflow-engine-ops.service';
 import { getWorkflowJobAlertMetrics } from '../workflow/workflow-jobs.service';
@@ -127,9 +128,6 @@ export async function getCurrentMetricSnapshot(tenantId: number | null = null): 
   return { ...global, ...paymentMetrics };
 }
 
-const SQL_QUERY_SAMPLE_LIMIT = 200;
-const SQL_QUERY_TEXT_LIMIT = 2_000;
-
 type SqlQueryStatRow = {
   database_name: string;
   query_id: string;
@@ -150,6 +148,12 @@ type SqlQueryStatRow = {
  */
 export async function persistSqlQuerySamples(): Promise<number> {
   try {
+    const settings = await getSettings('sqlMonitor');
+    if (!settings.enabled) return 0;
+    const latestRows = await db.execute(sql`SELECT max(sampled_at) AS latest FROM sql_query_samples`);
+    const latest = (latestRows as unknown as Array<{ latest: Date | string | null }>)[0]?.latest;
+    if (latest && Date.now() - new Date(latest).getTime() < settings.sampleIntervalMinutes * 60_000) return 0;
+
     const rows = (await db.execute(sql`
       SELECT current_database() AS database_name,
              queryid::text AS query_id,
@@ -166,14 +170,14 @@ export async function persistSqlQuerySamples(): Promise<number> {
       WHERE dbid = (SELECT oid FROM pg_database WHERE datname = current_database())
         AND queryid IS NOT NULL
       ORDER BY total_exec_time DESC
-      LIMIT ${SQL_QUERY_SAMPLE_LIMIT}
+      LIMIT ${settings.sampleLimit}
     `)) as unknown as SqlQueryStatRow[];
     if (rows.length === 0) return 0;
 
     await db.insert(sqlQuerySamples).values(rows.map((row) => ({
       databaseName: String(row.database_name),
       queryId: String(row.query_id),
-      query: String(row.query).slice(0, SQL_QUERY_TEXT_LIMIT),
+      query: String(row.query).slice(0, settings.queryTextMaxChars),
       calls: Number(row.calls ?? 0),
       totalMs: Number(row.total_ms ?? 0),
       meanMs: Number(row.mean_ms ?? 0),

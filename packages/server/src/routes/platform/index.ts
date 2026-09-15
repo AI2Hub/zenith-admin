@@ -10,6 +10,7 @@ import {
   ipAccessLogContract,
   monitorAlertContract,
   monitorContract,
+  sqlMonitorContract,
   operationLogContract,
   rateLimitContract,
   regionContract,
@@ -33,6 +34,7 @@ import healthRoutes from './health';
 import ipAccessLogsRoutes from './ip-access-logs';
 import monitorAlertsRoutes from './monitor-alerts';
 import monitorRoutes from './monitor';
+import sqlMonitorRoutes from './sql-monitor';
 import operationLogsRoutes from './operation-logs';
 import rateLimitRoutes from './rate-limit';
 import regionsRoutes from './regions';
@@ -53,6 +55,7 @@ export default defineRouteDomain({
   mounts: () => [
     [dictContract.basePath, dictsRoutes],
     [monitorContract.basePath, monitorRoutes],
+    [sqlMonitorContract.basePath, sqlMonitorRoutes],
     [monitorAlertContract.basePath, monitorAlertsRoutes],
     [operationLogContract.basePath, operationLogsRoutes],
     [ipAccessLogContract.basePath, ipAccessLogsRoutes],

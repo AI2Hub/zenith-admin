@@ -12,6 +12,7 @@ import { memberSettingsModule } from './modules/member';
 import { paymentSettingsModule } from './modules/payment';
 import { rulesSettingsModule } from './modules/rules';
 import { terminalSettingsModule } from './modules/terminal';
+import { sqlMonitorSettingsModule } from './modules/sql-monitor';
 import { uiSettingsModule } from './modules/ui';
 import { wikiSettingsModule } from './modules/wiki';
 import { workflowSettingsModule } from './modules/workflow';
@@ -35,6 +36,7 @@ export const SETTINGS_MODULES = {
   drive: driveSettingsModule,
   wiki: wikiSettingsModule,
   errorTracking: errorTrackingSettingsModule,
+  sqlMonitor: sqlMonitorSettingsModule,
 } as const satisfies Record<string, SettingsModuleDef>;
 
 export type SettingsModuleKey = keyof typeof SETTINGS_MODULES;
@@ -60,6 +62,7 @@ export const SETTINGS_MODULE_PATHS = {
   drive: '/drive',
   wiki: '/wiki',
   errorTracking: '/error-tracking',
+  sqlMonitor: '/sql-monitor',
 } as const satisfies Record<SettingsModuleKey, `/${string}`>;
 
 export const SETTINGS_MODULE_KEYS = Object.keys(SETTINGS_MODULES) as SettingsModuleKey[];
