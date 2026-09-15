@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Banner,
@@ -199,6 +199,7 @@ export default function SqlMonitorPage() {
   const canManage = hasPermission('system:sql-monitor:manage');
   const palette = useChartPalette();
   const [activeTab, setActiveTab] = useUrlTabState(SQL_MONITOR_TABS, 'queries');
+  const queriesTabRef = useRef<HTMLDivElement>(null);
   const [refreshInterval, setRefreshInterval] = useState<RefreshInterval>(15_000);
   const [queryDraft, setQueryDraft] = useState<SqlMonitorQueriesParams>(defaultQueryParams);
   const [queryParams, setQueryParams] = useState<SqlMonitorQueriesParams>(defaultQueryParams);
@@ -238,6 +239,11 @@ export default function SqlMonitorPage() {
     })),
     [historyResponse?.points],
   );
+
+  const handleViewAllQueries = () => {
+    setActiveTab('queries');
+    requestAnimationFrame(() => queriesTabRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  };
 
   const historySpec = useMemo(() => makeLineSpec({
     data: historyChartData,
@@ -442,7 +448,7 @@ export default function SqlMonitorPage() {
             <Button size="small" theme="borderless" icon={<Archive size={14} />} onClick={() => navigate('/system/retention')}>管理保留策略</Button>
           </div>
         </Card>
-        <Card title="Top SQL" headerExtraContent={<Button size="small" theme="borderless" onClick={() => setActiveTab('queries')}>查看全部</Button>}>
+        <Card title="Top SQL" headerExtraContent={<Button size="small" theme="borderless" onClick={handleViewAllQueries}>查看全部</Button>}>
           <QueryTable
             queries={overview?.topQueries ?? []}
             loading={overviewQuery.isPending && !overview}
@@ -460,7 +466,7 @@ export default function SqlMonitorPage() {
         tabBarStyle={{ marginBottom: 12 }}
       >
         <TabPane tab="查询统计" itemKey="queries">
-          <div className="sql-monitor-tab-panel">
+          <div ref={queriesTabRef} className="sql-monitor-tab-panel">
             {queryAvailability && !queryAvailability.available && <AvailabilityBanner reason={queryAvailability.reason} />}
             <div className="sql-monitor-toolbar">
               <Space wrap spacing={8}>
