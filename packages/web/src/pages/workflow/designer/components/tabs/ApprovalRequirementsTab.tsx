@@ -1,18 +1,13 @@
 /**
  * 审批要求配置 Tab
- * 飞书风格分组布局：手写签名 + 审批意见
+ * 签名策略与审批意见分开配置。
  */
-import { Checkbox } from '@douyinfe/semi-ui';
+import { Checkbox, Select, Typography } from '@douyinfe/semi-ui';
+import { WORKFLOW_SIGNATURE_POLICY_OPTIONS } from '@zenith/shared/workflow';
 import type { OperationPermission } from '../../types';
 
 /** 操作权限分组定义 */
 const OPERATION_GROUPS = [
-  {
-    title: '手写签名',
-    items: [
-      { value: 'signature' as OperationPermission, label: '审批同意时需手写签名', desc: '' },
-    ],
-  },
   {
     title: '审批意见',
     items: [
@@ -24,11 +19,15 @@ const OPERATION_GROUPS = [
 interface ApprovalRequirementsTabProps {
   operations: OperationPermission[];
   onChange: (operations: OperationPermission[]) => void;
+  signaturePolicy: 'none' | 'reusable' | 'handwritten';
+  onSignaturePolicyChange: (policy: 'none' | 'reusable' | 'handwritten') => void;
 }
 
 export default function ApprovalRequirementsTab({
   operations,
   onChange,
+  signaturePolicy,
+  onSignaturePolicyChange,
 }: Readonly<ApprovalRequirementsTabProps>) {
 
   const addOp = (value: OperationPermission) => onChange([...operations, value]);
@@ -36,6 +35,16 @@ export default function ApprovalRequirementsTab({
 
   return (
     <div className="fd-drawer-tab-content">
+      <div className="fd-operation-group">
+        <div className="fd-operation-group__title">签名要求</div>
+        <Select value={signaturePolicy} style={{ width: '100%' }} optionList={WORKFLOW_SIGNATURE_POLICY_OPTIONS}
+          onChange={(value) => onSignaturePolicyChange(value as 'none' | 'reusable' | 'handwritten')} />
+        <Typography.Paragraph type="tertiary" size="small" style={{ marginTop: 8 }}>
+          {signaturePolicy === 'reusable' ? '审批人可确认使用个人签名，也可重新手写；支持明确确认后的批量签署。'
+            : signaturePolicy === 'handwritten' ? '每次同意均需现场重新手写，不能使用个人签名或批量同意。'
+            : '同意时无需提供签名。'}
+        </Typography.Paragraph>
+      </div>
       {OPERATION_GROUPS.map(group => (
         <div key={group.title} className="fd-operation-group">
           <div className="fd-operation-group__title">{group.title}</div>

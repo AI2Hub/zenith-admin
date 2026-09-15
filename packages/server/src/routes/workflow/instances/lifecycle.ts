@@ -1,6 +1,7 @@
+import { redactWorkflowSignatureImages } from '../../../services/workflow/instances/signature-audit';
 // ─── 实例生命周期：创建/撤回/取消/删除/草稿/重新提交 ───
 import { workflowInstanceContract } from '@zenith/shared/workflow';
-import { setAuditBeforeData } from '../../../middleware/guard';
+import { setAuditAfterData, setAuditBeforeData } from '../../../middleware/guard';
 import { idempotencyGuard } from '../../../middleware/idempotency';
 import { defineContractRoute } from '../../../lib/contract-route';
 import { okBody } from '../../../lib/openapi-schemas';
@@ -11,6 +12,7 @@ export const createInstanceRoute = defineContractRoute(workflowInstanceContract.
   handler: async (c) => {
     const body = c.req.valid('json');
     const r = await createInstance(body);
+    setAuditAfterData(c, redactWorkflowSignatureImages(r));
     return c.json(okBody(r, body.asDraft ? '草稿已保存' : '申请已提交'), 200);
   },
 });
@@ -20,7 +22,9 @@ export const withdrawRoute = defineContractRoute(workflowInstanceContract.withdr
     const { id } = c.req.valid('param');
     const before = await getWorkflowInstanceBeforeAudit(id);
     if (before) setAuditBeforeData(c, before);
-    return c.json(okBody(await withdrawInstance(id), '已撤回'), 200);
+    const after = await withdrawInstance(id);
+    setAuditAfterData(c, redactWorkflowSignatureImages(after));
+    return c.json(okBody(after, '已撤回'), 200);
   },
 });
 
@@ -29,7 +33,9 @@ export const cancelInstanceRoute = defineContractRoute(workflowInstanceContract.
     const { id } = c.req.valid('param');
     const before = await getInstanceForAdminAudit(id);
     if (before) setAuditBeforeData(c, before);
-    return c.json(okBody(await cancelInstance(id), '已取消'), 200);
+    const after = await cancelInstance(id);
+    setAuditAfterData(c, redactWorkflowSignatureImages(after));
+    return c.json(okBody(after, '已取消'), 200);
   },
 });
 
@@ -48,7 +54,9 @@ export const updateDraftRoute = defineContractRoute(workflowInstanceContract.upd
     const { id } = c.req.valid('param');
     const before = await getWorkflowInstanceBeforeAudit(id);
     if (before) setAuditBeforeData(c, before);
-    return c.json(okBody(await updateInstanceDraft(id, c.req.valid('json')), '草稿已保存'), 200);
+    const after = await updateInstanceDraft(id, c.req.valid('json'));
+    setAuditAfterData(c, redactWorkflowSignatureImages(after));
+    return c.json(okBody(after, '草稿已保存'), 200);
   },
 });
 
@@ -58,7 +66,9 @@ export const submitDraftRoute = defineContractRoute(workflowInstanceContract.sub
     const body = c.req.valid('json');
     const before = await getWorkflowInstanceBeforeAudit(id);
     if (before) setAuditBeforeData(c, before);
-    return c.json(okBody(await submitDraftInstance(id, body), '申请已提交'), 200);
+    const after = await submitDraftInstance(id, body);
+    setAuditAfterData(c, redactWorkflowSignatureImages(after));
+    return c.json(okBody(after, '申请已提交'), 200);
   },
 });
 
@@ -67,6 +77,8 @@ export const resubmitRoute = defineContractRoute(workflowInstanceContract.resubm
     const { id } = c.req.valid('param');
     const before = await getWorkflowInstanceBeforeAudit(id);
     if (before) setAuditBeforeData(c, before);
-    return c.json(okBody(await resubmitInstance(id), '已生成草稿'), 200);
+    const after = await resubmitInstance(id);
+    setAuditAfterData(c, redactWorkflowSignatureImages(after));
+    return c.json(okBody(after, '已生成草稿'), 200);
   },
 });

@@ -354,7 +354,7 @@ export function formatWorkflowPrintValue(field: WorkflowFormField, value: unknow
     case 'attachment':
     case 'image':
       return fileNames(value);
-    case 'signature': return typeof value === 'string' ? value : '';
+    case 'signature': return value && typeof value === 'object' && !Array.isArray(value) && typeof (value as Row).dataUrl === 'string' ? (value as Row).dataUrl as string : '';
     case 'richtext': return stripHtml(String(value));
     case 'detail': return Array.isArray(value) ? `共 ${value.length} 行` : '';
     default:

@@ -17,7 +17,7 @@ type TaskRow = typeof workflowTasks.$inferSelect;
 function task(over: Partial<TaskRow>): TaskRow {
   return {
     id: 1, instanceId: 10, nodeKey: 'approve1', nodeName: '审批', nodeType: 'approve', assigneeId: 7, status: 'pending',
-    comment: null, signature: null, attachments: [], actionAt: null, originalAssigneeId: null, delegatedFromId: null, delegationMode: null,
+    comment: null, signature: null, signatureEvidence: null, attachments: [], actionAt: null, originalAssigneeId: null, delegatedFromId: null, delegationMode: null,
     signType: null, approveMethod: null, approveRatio: null, externalCallbackId: null, createdAt: new Date('2026-01-01T00:00:00Z'),
     ...over,
   } as TaskRow;

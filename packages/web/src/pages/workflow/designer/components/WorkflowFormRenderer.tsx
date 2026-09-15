@@ -11,7 +11,7 @@ import { Form, Row, Col } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import type { WorkflowFormField } from '@zenith/shared/workflow';
 import { isWorkflowFieldVisible as isFieldVisible } from '@zenith/shared/workflow';
-import { ReadOnlyTextContext, ValuesContext } from './form-renderer/contexts';
+import { ReadOnlyTextContext, SignatureModeContext, ValuesContext } from './form-renderer/contexts';
 import { colSpanOf, flattenFields } from './form-renderer/field-utils';
 import { FieldRenderer } from './form-renderer/FieldRenderer';
 import { useFormLinkage } from './form-renderer/use-form-linkage';
@@ -27,6 +27,7 @@ interface RendererProps {
    * 用于详情/审批等「查看已提交数据」场景；设计器的结构预览不要开启（预览需要控件形态）。
    */
   readOnlyAsText?: boolean;
+  signatureMode?: 'workflow' | 'image';
   style?: CSSProperties;
   labelPosition?: 'top' | 'left' | 'inset';
   labelAlign?: 'left' | 'right';
@@ -34,7 +35,7 @@ interface RendererProps {
 }
 
 export default function WorkflowFormRenderer({
-  fields, initValues, getFormApi, onValueChange, readOnly, readOnlyAsText, style, labelPosition = 'top', labelAlign, labelWidth,
+  fields, initValues, getFormApi, onValueChange, readOnly, readOnlyAsText, signatureMode = 'workflow', style, labelPosition = 'top', labelAlign, labelWidth,
 }: Readonly<RendererProps>) {
   // useEditModal 例外：工作流运行时表单渲染器（字段由定义动态生成，提交由承载页负责）
   const formApiRef = useRef<FormApi | null>(null);
@@ -45,6 +46,7 @@ export default function WorkflowFormRenderer({
   });
 
   return (
+    <SignatureModeContext.Provider value={signatureMode}>
     <ValuesContext.Provider value={valuesState}>
       <ReadOnlyTextContext.Provider value={!!readOnlyAsText}>
         <Form
@@ -69,5 +71,6 @@ export default function WorkflowFormRenderer({
         </Form>
       </ReadOnlyTextContext.Provider>
     </ValuesContext.Provider>
+    </SignatureModeContext.Provider>
   );
 }

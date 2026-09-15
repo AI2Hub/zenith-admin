@@ -1,8 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { AppModal } from '@/components/AppModal';
-import { Button, Select, SideSheet, Tag, TextArea, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
+import { Button, Select, SideSheet, Spin, Tag, TextArea, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
+import type { SignatureInput } from '@zenith/shared/core';
+import type { WorkflowBatchActionResponse } from '@zenith/shared/workflow';
+import WorkflowBatchResults from '@/components/workflow/WorkflowBatchResults';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus } from 'lucide-react';
 import WorkflowSummaryLine from '@/components/workflow/WorkflowSummaryLine';
@@ -43,7 +46,9 @@ const defaultSearchParams: SearchParams = { keyword: '', definitionId: undefined
 type PendingItem = PendingWorkflowItem;
 type SheetState = { instanceId: number; taskId: number; action: 'approve' | 'reject' | null };
 /** 批量审批交互状态（模式与意见总是一起出现/重置） */
-type BatchState = { mode: 'approve' | 'reject'; comment: string } | null;
+type BatchMode = 'approve' | 'signedApprove' | 'reject';
+type BatchState = { mode: BatchMode; comment: string } | null;
+const SignatureField = lazy(() => import('@/components/signature/SignatureField'));
 /** 发起协办弹窗状态（打开时一次性初始化，关闭即整体丢弃） */
 type ConsultState = { taskId: number; userIds: number[]; question: string } | null;
 
@@ -68,9 +73,11 @@ export default function PendingApprovalsPage() {
   }, []);
   const { renderPhraseBar, phraseManageModal } = useQuickPhrases();
   const { selectedRowKeys, setSelectedRowKeys, clear: clearSelection, rowSelection } = useRowSelection<number, PendingItem>({
-    extra: { getCheckboxProps: (record: PendingItem) => ({ disabled: !!record.requiresIndividual }) },
+    extra: { getCheckboxProps: (record: PendingItem) => ({ disabled: !!record.requiresIndividual || record.pendingSignaturePolicy === 'handwritten' }) },
   });
   const [batch, setBatch] = useState<BatchState>(null);
+  const [batchSignature, setBatchSignature] = useState<SignatureInput | null>(null);
+  const [batchResult, setBatchResult] = useState<{ result: WorkflowBatchActionResponse; titles: Record<number, string>; instances: Record<number, number> } | null>(null);
   const [consult, setConsult] = useState<ConsultState>(null);
   const [myConsultsVisible, setMyConsultsVisible] = useState(false);
   const [replyDraft, setReplyDraft] = useState<Record<number, string>>({});
@@ -97,6 +104,9 @@ export default function PendingApprovalsPage() {
   const myConsults = myConsultsQuery.data?.list ?? [];
   const batchSubmitting = batchApproveMutation.isPending || batchRejectMutation.isPending;
   const submitting = consultMutation.isPending;
+  const selectedSignatureCount = (listQuery.data?.list ?? []).filter((item) => selectedRowKeys.includes(item.pendingTaskId) && item.pendingSignaturePolicy === 'reusable').length;
+  const selectedRequiresSignature = selectedSignatureCount > 0;
+  const openBatch = (mode: BatchMode) => { setBatchSignature(null); setBatch({ mode, comment: '' }); };
 
   const handleBatch = async () => {
     if (batchSubmitting || !batch) return;
@@ -104,6 +114,7 @@ export default function PendingApprovalsPage() {
     const taskIds = selectedRowKeys;
     if (taskIds.length === 0) { Toast.warning('请先选择待审批项'); return; }
     if (batch.mode === 'reject' && !batch.comment.trim()) { Toast.error('请填写驳回原因'); return; }
+    if (batch.mode === 'signedApprove' && batchSignature?.source !== 'saved') { Toast.error('请先确认本次使用的个人签名'); return; }
     try {
       const latest = await fetchPendingWorkflowTasks(listParams);
       const latestTaskIds = new Set((latest?.list ?? []).map((item) => item.pendingTaskId));
@@ -115,9 +126,21 @@ export default function PendingApprovalsPage() {
         setSelectedRowKeys((keys) => keys.filter((key) => !staleKeys.includes(key)));
         return;
       }
+      const selectedItems = latest.list.filter((item) => taskIds.includes(item.pendingTaskId));
+      if (batch.mode === 'approve' && selectedItems.some((item) => item.pendingSignaturePolicy === 'reusable')) {
+        Toast.warning('所选待办包含签名要求，请使用「使用我的签名并批量同意」');
+        return;
+      }
       const res = batch.mode === 'reject'
         ? await batchRejectMutation.mutateAsync({ body: { taskIds, comment: batch.comment.trim() } })
-        : await batchApproveMutation.mutateAsync({ body: { taskIds, comment: batch.comment.trim() || undefined } });
+        : await batchApproveMutation.mutateAsync({ body: {
+            taskIds, comment: batch.comment.trim() || undefined,
+            signature: batch.mode === 'signedApprove' && batchSignature?.source === 'saved' ? batchSignature : undefined,
+          } });
+      setBatchResult({ result: res,
+        titles: Object.fromEntries(selectedItems.map((item) => [item.pendingTaskId, item.title])),
+        instances: Object.fromEntries(selectedItems.map((item) => [item.pendingTaskId, item.id])),
+      });
       const failed = res.failed ?? 0;
       if (failed > 0) {
         const reasons = [...new Set((res.results ?? [])
@@ -128,6 +151,7 @@ export default function PendingApprovalsPage() {
         Toast.success('批量处理完成');
       }
       setBatch(null);
+      setBatchSignature(null);
       clearSelection();
     } catch (err) {
       // 409 并发冲突：任务已被他人处理/流程状态变化，刷新列表引导重试（request 层已 toast 兜底其它错误）
@@ -179,6 +203,7 @@ export default function PendingApprovalsPage() {
             {record.requiresIndividual && (
               <Tag size="small" color="amber" style={{ flexShrink: 0 }}>需单独审批</Tag>
             )}
+            {!record.requiresIndividual && record.pendingSignaturePolicy === 'reusable' && <Tag size="small" color="blue">需签名</Tag>}
           </div>
           <WorkflowSummaryLine items={record.summary} />
         </div>
@@ -262,10 +287,11 @@ export default function PendingApprovalsPage() {
             <Button type="tertiary" onClick={openMyConsults}>我的协办</Button>
             {selectedRowKeys.length > 0 ? (
               <>
-                <Button type="primary" theme="solid" icon={<Plus size={14} />} onClick={() => setBatch({ mode: 'approve', comment: '' })}>
+                <Button type="primary" theme="solid" icon={<Plus size={14} />} disabled={selectedRequiresSignature} onClick={() => openBatch('approve')}>
                   批量同意（{selectedRowKeys.length}）
                 </Button>
-                <Button type="danger" theme="solid" onClick={() => setBatch({ mode: 'reject', comment: '' })}>
+                {selectedRequiresSignature && <Button type="primary" theme="solid" onClick={() => openBatch('signedApprove')}>使用我的签名并批量同意</Button>}
+                <Button type="danger" theme="solid" onClick={() => openBatch('reject')}>
                   批量拒绝（{selectedRowKeys.length}）
                 </Button>
               </>
@@ -292,25 +318,35 @@ export default function PendingApprovalsPage() {
       />
 
       <AppModal
-        title={batch?.mode === 'approve' ? `批量同意（${selectedRowKeys.length}）` : `批量拒绝（${selectedRowKeys.length}）`}
+        title={batch?.mode === 'signedApprove' ? `使用我的签名并批量同意（${selectedRowKeys.length}）` : batch?.mode === 'approve' ? `批量同意（${selectedRowKeys.length}）` : `批量拒绝（${selectedRowKeys.length}）`}
         visible={!!batch}
-        onCancel={() => setBatch(null)}
+        onCancel={() => { if (!batchSubmitting) { setBatch(null); setBatchSignature(null); } }}
         onOk={() => void handleBatch()}
-        okButtonProps={{ loading: batchSubmitting, type: batch?.mode === 'approve' ? 'primary' : 'danger' }}
-        okText="确认"
+        okButtonProps={{ loading: batchSubmitting, type: batch?.mode === 'reject' ? 'danger' : 'primary', disabled: batch?.mode === 'signedApprove' && batchSignature?.source !== 'saved' }}
+        okText={batch?.mode === 'signedApprove' ? '使用我的签名并批量同意' : '确认'}
         style={{ width: 480 }}
       >
         <Typography.Text type="tertiary" style={{ display: 'block', marginBottom: 8 }}>
-          将对选中的 {selectedRowKeys.length} 条待办执行{batch?.mode === 'approve' ? '同意' : '拒绝'}操作（逐条处理，失败项会单独提示）。
+          将对选中的 {selectedRowKeys.length} 条待办执行{batch?.mode === 'reject' ? '拒绝' : '同意'}操作。每条任务会独立校验并展示处理结果，必须现场手写的任务请单独处理。
         </Typography.Text>
         <TextArea
           value={batch?.comment ?? ''}
           onChange={(v) => setBatch((b) => (b ? { ...b, comment: v } : b))}
-          placeholder={batch?.mode === 'approve' ? '批量审批意见（可选）' : '批量拒绝原因（必填）'}
+          placeholder={batch?.mode === 'reject' ? '批量拒绝原因（必填）' : '批量审批意见（可选）'}
           autosize={{ minRows: 2, maxRows: 4 }}
           maxCount={500}
         />
         <div style={{ marginTop: 8 }}>{renderPhraseBar((t) => setBatch((b) => (b ? { ...b, comment: b.comment ? `${b.comment} ${t}` : t } : b)))}</div>
+        {batch?.mode === 'signedApprove' && <div style={{ marginTop: 12 }}>
+          <Typography.Paragraph>其中 {selectedSignatureCount} 项使用以下个人签名，其余按节点规则同意。请确认本次批量签署。</Typography.Paragraph>
+          <Suspense fallback={<Spin size="small" />}><SignatureField policy="reusable" savedOnly autoSelectSaved value={batchSignature} onChange={setBatchSignature} /></Suspense>
+        </div>}
+      </AppModal>
+      <AppModal title="批量审批结果" visible={batchResult !== null} onCancel={() => setBatchResult(null)} footer={null} width={600}>
+        {batchResult && <WorkflowBatchResults {...batchResult} onOpenTask={(taskId) => {
+          const instanceId = batchResult.instances[taskId];
+          if (instanceId) { setBatchResult(null); setSheet({ instanceId, taskId, action: null }); }
+        }} />}
       </AppModal>
       {phraseManageModal}
 

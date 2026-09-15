@@ -11,6 +11,7 @@ import { bizLeaveHandlers } from './handlers/biz-leave';
 import { cmsHandlers, cmsP3Handlers, cmsP6Handlers } from './handlers/cms';
 import { cmsStage4Handlers } from './handlers/cms-stage4';
 import { workflowHandlers } from './handlers/workflow';
+import { mockAccessToken } from './utils/auth';
 
 const handlers = [...bizLeaveHandlers, ...cmsHandlers, ...cmsP3Handlers, ...cmsP6Handlers, ...cmsStage4Handlers, ...workflowHandlers];
 const stores = [mockBizLeaves, mockCmsContents, mockCmsSites, mockWorkflowDefinitions, mockWorkflowInstances, mockWorkflowTasks];
@@ -26,7 +27,7 @@ async function call(operation: AnyOperation, options: { params?: Record<string, 
   for (const [key, value] of Object.entries(options.query ?? {})) url.searchParams.set(key, String(value));
   for (const handler of handlers) {
     const request = new Request(url, {
-      method: operation.method.toUpperCase(), headers: { 'content-type': 'application/json' },
+      method: operation.method.toUpperCase(), headers: { 'content-type': 'application/json', authorization: `Bearer ${mockAccessToken('admin')}` },
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
     });
     const result = await (handler as unknown as { run(args: unknown): Promise<{ response?: Response } | null> }).run({ request, requestId: `business-flow-${Math.random()}` });
@@ -94,7 +95,7 @@ describe('business workflow integration in Demo', () => {
     expect(context.instance?.tasks?.[0].assigneeId).toBe(1);
     expect((await call(cmsContentContract.publish, { params: { id: content.id } })).status).toBe(400);
     expect((await call(cmsContentContract.reject, { params: { id: content.id }, body: { reason: '不能绕过流程' } })).status).toBe(400);
-    await call(workflowTaskContract.approve, { params: { taskId: context.instance!.tasks![0].id }, body: {} });
+    expect((await call(workflowTaskContract.approve, { params: { taskId: context.instance!.tasks![0].id }, body: { signature: { source: 'drawn', dataUrl: 'data:image/png;base64,c2lnbmF0dXJl' } } })).status).toBe(200);
     expect(content.status).toBe('published');
     expect((await call(cmsContentContract.approvalDetail, { params: { id: content.id }, query: { instanceId: context.instance!.id } })).status).toBe(200);
   });

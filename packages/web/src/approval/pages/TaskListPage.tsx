@@ -1,15 +1,19 @@
-import { useCallback, useState } from 'react';
+import { lazy, Suspense, useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Checkbox, Modal, Spin, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Checkbox, Modal, SideSheet, Spin, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
 import { Check, CheckCheck, CircleCheckBig, ClipboardCheck, FilePlus2, ListChecks, LogOut, Plus, Send, type LucideIcon } from 'lucide-react';
-import { TOKEN_KEY, REFRESH_TOKEN_KEY } from '@zenith/shared/core';
+import { TOKEN_KEY, REFRESH_TOKEN_KEY, type SignatureInput } from '@zenith/shared/core';
+import type { WorkflowBatchActionResponse } from '@zenith/shared/workflow';
+import { SignatureClientProvider } from '@/components/signature/SignatureClientContext';
+import WorkflowBatchResults from '@/components/workflow/WorkflowBatchResults';
+import { approvalRequest } from '../lib/approval-request';
 import { formatDateTime } from '@/utils/date';
 import { UserAvatar } from '@/components/UserAvatar';
 import WorkflowSummaryLine from '@/components/workflow/WorkflowSummaryLine';
 import WorkflowSLATag from '@/components/workflow/WorkflowSLATag';
 import WorkflowPriorityTag from '@/components/workflow/WorkflowPriorityTag';
 import {
-  useApprovalCounts, useApprovalList, useMarkCcRead, useTaskAction,
+  useApprovalCounts, useApprovalList, useBatchApprove, useMarkCcRead, useTaskAction,
   type ApprovalListItem, type ApprovalTab,
 } from '../lib/queries';
 import { useInfiniteSentinel, usePullRefresh } from '../lib/usePullRefresh';
@@ -17,6 +21,7 @@ import { INSTANCE_STATUS_MAP as STATUS_MAP } from '@/components/workflow/workflo
 import { KeywordInput } from '@/components/search-filters';
 
 type TagColor = 'amber' | 'blue' | 'green' | 'grey' | 'orange' | 'purple' | 'red';
+const SignatureField = lazy(() => import('@/components/signature/SignatureField'));
 
 const TASK_RESULT_MAP: Record<string, { text: string; color: TagColor }> = {
   approved: { text: '我已同意', color: 'green' },
@@ -49,9 +54,14 @@ interface CardProps {
   checked?: boolean;
 }
 
-/** 可极速/批量同意：无需签名、下游无自选审批人（意见必填等由服务端兜底） */
+/** 现场手写、下游自选和必填附件逐条处理；个人签名可显式确认后批量使用。 */
+function isBatchable(item: ApprovalListItem): boolean {
+  return !item.requiresIndividual && item.pendingSignaturePolicy !== 'handwritten' && item.pendingTaskId != null;
+}
+
+/** 极速同意没有签名确认步骤，只适用于无需签名的节点。 */
 function isQuickable(item: ApprovalListItem): boolean {
-  return !item.requiresIndividual && !item.pendingSignatureRequired && item.pendingTaskId != null;
+  return isBatchable(item) && (item.pendingSignaturePolicy ?? 'none') === 'none';
 }
 
 function TaskCard({ item, tab, onOpen, onQuickApprove, quickApproving, batchMode, checked }: Readonly<CardProps>) {
@@ -59,9 +69,10 @@ function TaskCard({ item, tab, onOpen, onQuickApprove, quickApproving, batchMode
   const myResult = tab === 'handled' && item.myTaskStatus ? TASK_RESULT_MAP[item.myTaskStatus] : null;
   const ccUnread = tab === 'cc' && item.ccTaskId != null && !item.ccReadAt;
   const quickable = tab === 'pending' && isQuickable(item);
+  const batchable = tab === 'pending' && isBatchable(item);
   // 极速同意：无需签名/加签选人时展示（意见必填等由服务端校验兜底，失败引导进详情）
   const canQuick = quickable && onQuickApprove != null && !batchMode;
-  const dim = batchMode && !quickable;
+  const dim = batchMode && !batchable;
 
   return (
     <div
@@ -72,7 +83,7 @@ function TaskCard({ item, tab, onOpen, onQuickApprove, quickApproving, batchMode
       onKeyDown={(e) => { if (e.key === 'Enter') onOpen(); }}
     >
       <div className="ap-card__title-row">
-        {batchMode && quickable && <Checkbox checked={checked} className="ap-card__check" aria-label="选择" />}
+        {batchMode && batchable && <Checkbox checked={checked} className="ap-card__check" aria-label="选择" />}
         {ccUnread && <span className="ap-dot" aria-label="未读" />}
         <span className="ap-card__title">{item.title}</span>
         {(item.priority === 'high' || item.priority === 'urgent') && <WorkflowPriorityTag priority={item.priority} />}
@@ -92,6 +103,8 @@ function TaskCard({ item, tab, onOpen, onQuickApprove, quickApproving, batchMode
       {tab === 'pending' && (
         <div className="ap-card__footer">
           <WorkflowSLATag level={item.slaLevel} overdueSec={item.slaOverdueSec} deadline={item.slaDeadline} />
+          {item.pendingSignaturePolicy === 'reusable' && <Tag size="small" color="blue">需签名</Tag>}
+          {item.pendingSignaturePolicy === 'handwritten' && <Tag size="small" color="amber">需现场手写</Tag>}
           <span style={{ flex: 1 }} />
           {canQuick && (
             <Button
@@ -112,6 +125,10 @@ function TaskCard({ item, tab, onOpen, onQuickApprove, quickApproving, batchMode
 }
 
 export default function TaskListPage() {
+  return <SignatureClientProvider client={approvalRequest}><TaskListContent /></SignatureClientProvider>;
+}
+
+function TaskListContent() {
   const navigate = useNavigate();
   const [tab, setTab] = useState<ApprovalTab>('pending');
   const [size, setSize] = useState(10);
@@ -125,7 +142,12 @@ export default function TaskListPage() {
   // 批量审批模式（对标钉钉批量同意）：勾选集合为 pendingTaskId
   const [batchMode, setBatchMode] = useState(false);
   const [checkedIds, setCheckedIds] = useState<Set<number>>(new Set());
-  const [batchSubmitting, setBatchSubmitting] = useState(false);
+  const batchApprove = useBatchApprove();
+  const batchSubmitting = batchApprove.isPending;
+  const [batchConfirm, setBatchConfirm] = useState<'approve' | 'signedApprove' | null>(null);
+  const [batchComment, setBatchComment] = useState('');
+  const [batchSignature, setBatchSignature] = useState<SignatureInput | null>(null);
+  const [batchResult, setBatchResult] = useState<{ result: WorkflowBatchActionResponse; titles: Record<number, string>; instances: Record<number, number> } | null>(null);
   const [ccReadingAll, setCcReadingAll] = useState(false);
 
   const data = listQuery.data;
@@ -157,8 +179,8 @@ export default function TaskListPage() {
 
   const openItem = (item: ApprovalListItem) => {
     if (batchMode) {
-      if (!isQuickable(item)) {
-        Toast.info('该条需签名或选择下一审批人，请进入详情逐条处理');
+      if (!isBatchable(item)) {
+        Toast.info('该条需现场手写、上传附件或选择下一审批人，请进入详情逐条处理');
         return;
       }
       const id = item.pendingTaskId;
@@ -211,38 +233,41 @@ export default function TaskListPage() {
   };
 
   // 批量审批：可勾选集合 / 全选 / 提交 / 退出
-  const quickableIds = tab === 'pending'
-    ? list.filter(isQuickable).map((i) => i.pendingTaskId as number)
+  const batchableIds = tab === 'pending'
+    ? list.filter(isBatchable).map((i) => i.pendingTaskId as number)
     : [];
-  const allChecked = quickableIds.length > 0 && quickableIds.every((id) => checkedIds.has(id));
+  const selectedSignatureCount = list.filter((item) => item.pendingTaskId != null && checkedIds.has(item.pendingTaskId) && item.pendingSignaturePolicy === 'reusable').length;
+  const allChecked = batchableIds.length > 0 && batchableIds.every((id) => checkedIds.has(id));
   const toggleAll = () => {
-    setCheckedIds(allChecked ? new Set() : new Set(quickableIds));
+    setCheckedIds(allChecked ? new Set() : new Set(batchableIds));
   };
   const exitBatch = () => {
     setBatchMode(false);
     setCheckedIds(new Set());
+    setBatchConfirm(null);
+    setBatchSignature(null);
   };
-  const submitBatch = () => {
+  const openBatchConfirm = () => {
+    setBatchSignature(null);
+    setBatchComment('');
+    setBatchConfirm(selectedSignatureCount > 0 ? 'signedApprove' : 'approve');
+  };
+  const submitBatch = async () => {
     const ids = [...checkedIds];
-    if (ids.length === 0) return;
-    Modal.confirm({
-      title: '批量同意',
-      content: `确认同意已勾选的 ${ids.length} 条申请？`,
-      okText: '同意',
-      onOk: async () => {
-        setBatchSubmitting(true);
-        const results = await Promise.allSettled(
-          ids.map((taskId) => quickAction.mutateAsync({ taskId, action: 'approve', body: { comment: '' } })),
-        );
-        setBatchSubmitting(false);
-        const ok = results.filter((r) => r.status === 'fulfilled').length;
-        const fail = ids.length - ok;
-        if (fail === 0) Toast.success(`已批量同意 ${ok} 条`);
-        else Toast.warning(`成功 ${ok} 条，失败 ${fail} 条，失败的请进详情处理`);
-        exitBatch();
-        void refetch();
-      },
-    });
+    if (ids.length === 0 || batchSubmitting || !batchConfirm) return;
+    if (batchConfirm === 'signedApprove' && batchSignature?.source !== 'saved') { Toast.warning('请确认本次使用的个人签名'); return; }
+    try {
+      const result = await batchApprove.mutateAsync({
+        taskIds: ids, comment: batchComment.trim() || undefined,
+        signature: batchConfirm === 'signedApprove' && batchSignature?.source === 'saved' ? batchSignature : undefined,
+      });
+      const selected = list.filter((item) => item.pendingTaskId != null && checkedIds.has(item.pendingTaskId));
+      setBatchResult({ result,
+        titles: Object.fromEntries(selected.map((item) => [item.pendingTaskId!, item.title])),
+        instances: Object.fromEntries(selected.map((item) => [item.pendingTaskId!, item.id])),
+      });
+      exitBatch();
+    } catch { /* 请求层提示失败；保留勾选和签名，允许重新确认。 */ }
   };
 
   // 抄送一键已读：标记当前已加载列表中的未读项
@@ -270,7 +295,7 @@ export default function TaskListPage() {
           onSearch={() => { setKeyword(keywordDraft.trim()); setSize(10); }}
           onClear={() => { setKeywordDraft(''); setKeyword(''); setSize(10); }}
         />
-        {tab === 'pending' && !batchMode && quickableIds.length > 0 && (
+        {tab === 'pending' && !batchMode && batchableIds.length > 0 && (
           <Button theme="borderless" icon={<ListChecks size={15} />} onClick={() => setBatchMode(true)}>批量</Button>
         )}
         {tab === 'cc' && list.some((i) => i.ccTaskId != null && !i.ccReadAt) && (
@@ -314,7 +339,7 @@ export default function TaskListPage() {
         <div className="ap-batchbar">
           <Checkbox checked={allChecked} onChange={toggleAll}>全选</Checkbox>
           <span className="ap-batchbar__count">
-            {checkedIds.size > 0 ? `已选 ${checkedIds.size} 条` : `可批量同意 ${quickableIds.length} 条`}
+            {checkedIds.size > 0 ? `已选 ${checkedIds.size} 条` : `可批量同意 ${batchableIds.length} 条`}
           </span>
           <Button theme="light" onClick={exitBatch}>退出</Button>
           <Button
@@ -322,9 +347,9 @@ export default function TaskListPage() {
             type="primary"
             disabled={checkedIds.size === 0}
             loading={batchSubmitting}
-            onClick={submitBatch}
+            onClick={openBatchConfirm}
           >
-            同意{checkedIds.size > 0 ? `（${checkedIds.size}）` : ''}
+            {selectedSignatureCount > 0 ? '签名同意' : '批量同意'}{checkedIds.size > 0 ? `（${checkedIds.size}）` : ''}
           </Button>
         </div>
       ) : (
@@ -365,6 +390,30 @@ export default function TaskListPage() {
           })}
         </nav>
       )}
+      <SideSheet placement="bottom" height="auto" title={batchConfirm === 'signedApprove' ? '使用我的签名并批量同意' : '批量同意'}
+        visible={batchConfirm !== null} onCancel={() => { if (!batchSubmitting) setBatchConfirm(null); }} className="ap-sheet">
+        <div className="ap-sheet__body">
+          <Typography.Paragraph>本次处理 {checkedIds.size} 条申请，逐条返回结果。</Typography.Paragraph>
+          <TextArea value={batchComment} onChange={setBatchComment} placeholder="批量审批意见（可选）" maxCount={500} autosize={{ minRows: 2, maxRows: 4 }} />
+          {batchConfirm === 'signedApprove' && <div style={{ marginTop: 12 }}>
+            <Typography.Paragraph>其中 {selectedSignatureCount} 项使用以下个人签名，其余按节点规则同意。</Typography.Paragraph>
+            <Suspense fallback={<Spin size="small" />}><SignatureField policy="reusable" savedOnly autoSelectSaved value={batchSignature} onChange={setBatchSignature} /></Suspense>
+          </div>}
+          <div className="ap-sheet__actions">
+            <Button block disabled={batchSubmitting} onClick={() => setBatchConfirm(null)}>取消</Button>
+            <Button block theme="solid" type="primary" loading={batchSubmitting}
+              disabled={batchConfirm === 'signedApprove' && batchSignature?.source !== 'saved'} onClick={() => void submitBatch()}>
+              {batchConfirm === 'signedApprove' ? '使用我的签名并批量同意' : '确认批量同意'}
+            </Button>
+          </div>
+        </div>
+      </SideSheet>
+      <SideSheet placement="bottom" height="80%" title="批量审批结果" visible={batchResult !== null} onCancel={() => setBatchResult(null)}>
+        {batchResult && <WorkflowBatchResults {...batchResult} onOpenTask={(taskId) => {
+          const instanceId = batchResult.instances[taskId];
+          if (instanceId) navigate(`/detail/${instanceId}/${taskId}`);
+        }} />}
+      </SideSheet>
     </div>
   );
 }

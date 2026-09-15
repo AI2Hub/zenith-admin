@@ -1,6 +1,7 @@
 // ─── 字段类型专属设置（选项来源/数字/公式/日期/文件等，拆分自 FieldConfigPanel.tsx）───
+import { useContext } from 'react';
 import { Input, InputNumber, Select, Switch, Typography, TextArea, TagInput } from '@douyinfe/semi-ui';
-import type { WorkflowFormField } from '@zenith/shared/workflow';
+import { WORKFLOW_SIGNATURE_POLICY_OPTIONS, type WorkflowFormField } from '@zenith/shared/workflow';
 import { CURRENCY_OPTIONS, DATE_FORMAT_OPTIONS, TIME_FORMAT_OPTIONS, REGION_LEVEL_OPTIONS, DATE_LIMIT_OPTIONS, toDateFnsToken } from '../../form-types';
 import type { FieldTypeFlags } from './field-type-flags';
 import { RelationDefinitionPicker, DictCodePicker } from './pickers';
@@ -9,6 +10,7 @@ import { DetailChildrenEditor } from './DetailChildrenEditor';
 import { FormulaEditor } from './FormulaEditor';
 import { CascaderOptionsEditor } from './CascaderOptionsEditor';
 import { DateRangeLinkageEditor, DataSourceSourceEditor, AutoFillEditor, CascadeEditor } from './linkage-editors';
+import { SignatureModeContext } from '../form-renderer/contexts';
 
 interface TypeSpecificSectionProps {
   field: WorkflowFormField;
@@ -21,6 +23,7 @@ interface TypeSpecificSectionProps {
 }
 
 export function TypeSpecificSection({ field, allFields, flatFields, flags, isRemoteSource, setIsRemoteSource, onChange }: Readonly<TypeSpecificSectionProps>) {
+  const signatureMode = useContext(SignatureModeContext);
   const {
     hasOptions, supportsCascade, hasChildren, isDescription, isSerialNumber, isAmountOrNumber, isAmount,
     isDate, isFileType, isRate, isFormula, isTime, isRegion, isSwitch, isSlider, isTags, isColorPicker,
@@ -29,6 +32,19 @@ export function TypeSpecificSection({ field, allFields, flatFields, flags, isRem
 
   return (
     <>
+          {field.type === 'signature' && (
+            <div className="fd-form-config__field">
+              <Typography.Text strong size="small">签名方式</Typography.Text>
+              {signatureMode === 'image' ? <Typography.Text type="tertiary" size="small">每次填写时手写签名。</Typography.Text> : (
+                <>
+                  <Select value={field.signaturePolicy ?? 'reusable'} style={{ width: '100%' }}
+                    optionList={WORKFLOW_SIGNATURE_POLICY_OPTIONS.filter((option) => option.value !== 'none')}
+                    onChange={(value) => onChange({ signaturePolicy: value as 'reusable' | 'handwritten' })} />
+                  <Typography.Text type="tertiary" size="small">允许个人签名时，填写人可确认复用；必须手写时需重新绘制。</Typography.Text>
+                </>
+              )}
+            </div>
+          )}
           {/* 级联选择：树形选项 + 任意层级开关 */}
           {isCascader && (
             <CascaderOptionsEditor field={field} onChange={onChange} />

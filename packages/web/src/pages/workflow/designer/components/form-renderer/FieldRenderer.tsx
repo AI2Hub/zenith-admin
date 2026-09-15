@@ -9,9 +9,10 @@ import remarkGfm from 'remark-gfm';
 import DOMPurify from 'dompurify';
 import { Divider, Form, Select, Typography } from '@douyinfe/semi-ui';
 import type { WorkflowFormField } from '@zenith/shared/workflow';
+import type { SignatureSnapshot } from '@zenith/shared/core';
 import { CURRENCY_OPTIONS, toDateFnsToken, dateFormatHasTime, dateFormatHasDay } from '../../form-types';
 import { rmbUpper } from '@/utils/rmb';
-import { ReadOnlyTextContext, ValuesContext } from './contexts';
+import { ReadOnlyTextContext, SignatureModeContext, ValuesContext } from './contexts';
 import {
   EMAIL_REGEX, ID_CARD_REGEX, PHONE_REGEX, URL_REGEX,
   buildDisabledDate, fieldLabelNode, getDisplayOptions, optionLabelNode, toCascaderTreeData,
@@ -19,7 +20,7 @@ import {
 import { buildDetailRules, buildFieldRules, requiredRules } from './field-rules';
 import {
   FormColorPicker, FormDataSourceSelect, FormDeptSelect, FormDictSelect, FormFileUpload, FormRating,
-  FormRegion, FormRelationSelect, FormRichText, FormSignature, FormUserSelect,
+  FormRegion, FormRelationSelect, FormRichText, FormSignature, FormImageSignature, FormUserSelect,
 } from './field-controls';
 import { FormDetailTable } from './DetailTableInput';
 import { FormMatrix } from './MatrixInput';
@@ -31,6 +32,7 @@ import { GroupLayout, RowLayout, StepsLayout, TabsLayout, type RenderField } fro
 
 export function FieldRenderer({ field, readOnly }: Readonly<{ field: WorkflowFormField; readOnly?: boolean }>) {
   const values = useContext(ValuesContext);
+  const signatureMode = useContext(SignatureModeContext);
   const readOnlyAsText = useContext(ReadOnlyTextContext);
   // 整表单只读的查看态：简单值字段直接文本化；字段级 readOnly（编辑态中的禁用字段）仍走控件禁用形态
   if (readOnly && readOnlyAsText && READONLY_TEXT_TYPES.has(field.type)) {
@@ -282,7 +284,9 @@ export function FieldRenderer({ field, readOnly }: Readonly<{ field: WorkflowFor
 
     case 'signature':
       if (disabled) {
-        const sig = (values[field.key] as string) ?? (field.defaultValue as string) ?? '';
+        const sig = signatureMode === 'image'
+          ? (values[field.key] as string | undefined) ?? (field.defaultValue as string | undefined)
+          : (values[field.key] as SignatureSnapshot | null)?.dataUrl;
         return (
           <Form.Slot label={field.label} {...extraProps}>
             {sig
@@ -291,10 +295,14 @@ export function FieldRenderer({ field, readOnly }: Readonly<{ field: WorkflowFor
           </Form.Slot>
         );
       }
+      if (signatureMode === 'image') {
+        return <FormImageSignature field={field.key} label={field.label} initValue={field.defaultValue} rules={rules} {...extraProps} />;
+      }
       return (
         <FormSignature
           field={field.key} label={field.label}
           initValue={field.defaultValue}
+          policy={field.signaturePolicy ?? 'reusable'}
           rules={rules}
           {...extraProps}
         />

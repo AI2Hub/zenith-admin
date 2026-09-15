@@ -1,3 +1,7 @@
+import { assertWorkflowFormUpdatesCurrent } from './signature-concurrency';
+import { nullableEq } from '../../../lib/where-helpers';
+import type { SignatureInput, SignatureSnapshot } from '@zenith/shared/core';
+import { resolveWorkflowFormSignatures, resolveWorkflowTaskSignature, signatureTaskValues } from './signatures';
 import { workflowTaskContract } from '@zenith/shared/workflow';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { workflowTransaction } from '../../../lib/workflow-jobs/lease';
@@ -132,7 +136,15 @@ export async function listTaskSelectableNextApprovers(
   }));
 }
 
-export async function approveTask(taskId: number, comment?: string, attachments?: Array<{ name: string; url: string; size?: number }>, selectedNextApprovers?: Record<string, number[]>, signature?: string, formUpdates?: Record<string, unknown>): Promise<ApproveResult> {
+export async function approveTask(taskId: number, comment?: string, attachments?: WorkflowTaskAttachment[], selectedNextApprovers?: Record<string, number[]>, signature?: SignatureInput, formUpdates?: Record<string, unknown>): Promise<ApproveResult> {
+  return approveUserTask(taskId, comment, attachments, selectedNextApprovers, signature, formUpdates, false);
+}
+
+export async function approveTaskInBatch(taskId: number, comment?: string, signature?: Extract<SignatureInput, { source: 'saved' }>): Promise<ApproveResult> {
+  return approveUserTask(taskId, comment, undefined, undefined, signature, undefined, true);
+}
+
+async function approveUserTask(taskId: number, comment: string | undefined, attachments: WorkflowTaskAttachment[] | undefined, selectedNextApprovers: Record<string, number[]> | undefined, signature: SignatureInput | undefined, formUpdates: Record<string, unknown> | undefined, batch: boolean): Promise<ApproveResult> {
   const { task, inst, actor } = await getOwnPendingTask(taskId);
   // 校验"操作按钮设置"：通过按钮须启用 + 附件必填（uploadMode === 'required'）
   const flowData = inst.definitionSnapshot?.flowData;
@@ -145,19 +157,20 @@ export async function approveTask(taskId: number, comment?: string, attachments?
   if (nodeCfg?.operations?.includes('opinionRequired') && !comment?.trim()) {
     throw new HTTPException(400, { message: '请填写审批意见后再提交' });
   }
-  if (nodeCfg?.operations?.includes('signature') && !signature?.trim()) {
-    throw new HTTPException(400, { message: '该节点要求手写签名，请先完成签名' });
-  }
+  const signatureSnapshot = await resolveWorkflowTaskSignature(nodeCfg, signature, batch);
+  const signedFormUpdates = await resolveWorkflowFormSignatures(inst.formSnapshot,
+    sanitizeFormUpdatesByNodePerms(resolveNodeFieldPermissions(flowData, task.nodeKey), formUpdates),
+    (inst.formData ?? {}) as Record<string, unknown>);
   // 委派任务：suggest（建议制）由代理人操作时生成回执给委托人确认；full（默认）代理人直接代批，comment 留痕
   if (task.delegatedFromId && task.delegatedFromId !== actor.userId) {
     if (task.delegationMode === 'suggest') {
-      return processDelegatedReceipt(task, inst, 'approved', comment, actor, attachments, formUpdates);
+      return processDelegatedReceipt(task, inst, 'approved', comment, actor, attachments, signedFormUpdates, signatureSnapshot);
     }
     const principalName = await findUserDisplayName(task.delegatedFromId);
     const decorated = `[代 ${principalName} 审批] ${comment ?? ''}`.trim();
-    return approveTaskCore(task, inst, decorated, actor, { selectedNextApprovers, signature, attachments, formUpdates });
+    return approveTaskCore(task, inst, decorated, actor, { selectedNextApprovers, signature: signatureSnapshot, attachments, formUpdates: signedFormUpdates });
   }
-  return approveTaskCore(task, inst, comment, actor, { selectedNextApprovers, signature, attachments, formUpdates });
+  return approveTaskCore(task, inst, comment, actor, { selectedNextApprovers, signature: signatureSnapshot, attachments, formUpdates: signedFormUpdates });
 }
 
 /** 外部审批回调：根据 callbackId 找到 waiting 任务并审批通过 */
@@ -248,7 +261,7 @@ export async function approveTaskCore(
   inst: typeof workflowInstances.$inferSelect,
   comment: string | undefined,
   actor: WorkflowEventActor,
-  options?: { selectedNextApprovers?: Record<string, number[]>; signature?: string; attachments?: Array<{ name: string; url: string; size?: number }>; formUpdates?: Record<string, unknown> },
+  options?: { selectedNextApprovers?: Record<string, number[]>; signature?: SignatureSnapshot; attachments?: Array<{ name: string; url: string; size?: number }>; formUpdates?: Record<string, unknown> },
 ): Promise<ApproveResult> {
   const taskId = task.id;
   const snapshot = inst.definitionSnapshot;
@@ -263,14 +276,15 @@ export async function approveTaskCore(
     if (!lockedInst || lockedInst.status !== 'running') {
       throw new HTTPException(409, { message: '流程实例状态已变化，请刷新后重试' });
     }
+    assertWorkflowFormUpdatesCurrent((inst.formData ?? {}) as Record<string, unknown>, (lockedInst.formData ?? {}) as Record<string, unknown>, options?.formUpdates ?? {});
     // 乐观并发保护：仅当任务仍处于读取时的状态才能推进，防止并发重复审批导致流程重复前进
     const [approvedTask] = await tx.update(workflowTasks).set({
       status: 'approved',
       comment: comment ?? null,
-      signature: options?.signature ?? null,
+      ...signatureTaskValues(options?.signature),
       attachments: options?.attachments ?? null,
       actionAt: new Date(),
-    }).where(and(eq(workflowTasks.id, taskId), eq(workflowTasks.status, task.status))).returning();
+    }).where(and(eq(workflowTasks.id, taskId), eq(workflowTasks.status, task.status), nullableEq(workflowTasks.assigneeId, task.assigneeId))).returning();
     requireRow(approvedTask, '任务已被处理，请刷新后重试', 409);
 
     // 审批人「可编辑」字段写回：按节点 fieldPermissions 白名单过滤后合并进实例 formData，
@@ -672,6 +686,7 @@ async function processDelegatedReceipt(
   actor: WorkflowEventActor,
   attachments?: Array<{ name: string; url: string; size?: number }>,
   formUpdates?: Record<string, unknown>,
+  signature?: SignatureSnapshot,
 ): Promise<ApproveResult> {
   const delegatorId = task.delegatedFromId;
   if (!delegatorId) throw new HTTPException(500, { message: '委派回执缺失原始审批人' });
@@ -683,9 +698,10 @@ async function processDelegatedReceipt(
     const [closedTask] = await tx.update(workflowTasks).set({
       status: action,
       comment: receiptComment,
+      ...signatureTaskValues(signature),
       attachments: attachments ?? null,
       actionAt: new Date(),
-    }).where(and(eq(workflowTasks.id, task.id), eq(workflowTasks.status, task.status))).returning();
+    }).where(and(eq(workflowTasks.id, task.id), eq(workflowTasks.status, task.status), nullableEq(workflowTasks.assigneeId, task.assigneeId))).returning();
     requireRow(closedTask, '任务已被处理，请刷新后重试', 409);
     // 委派人同样是节点合法处理人：其「可编辑」字段修改按同一白名单合并进实例表单
     const receiptFlow = inst.definitionSnapshot?.flowData;
@@ -697,6 +713,7 @@ async function processDelegatedReceipt(
       const [locked] = await tx.select({ formData: workflowInstances.formData })
         .from(workflowInstances).where(eq(workflowInstances.id, inst.id)).for('update').limit(1);
       const base = (locked?.formData ?? inst.formData ?? {}) as Record<string, unknown>;
+      assertWorkflowFormUpdatesCurrent((inst.formData ?? {}) as Record<string, unknown>, base, sanitizedUpdates);
       await tx.update(workflowInstances).set({ formData: { ...base, ...sanitizedUpdates } }).where(eq(workflowInstances.id, inst.id));
     }
     // 委派人已在本节点同轮持有其它活动任务（如同时被加签/会签同节点）时不再重建回执任务，

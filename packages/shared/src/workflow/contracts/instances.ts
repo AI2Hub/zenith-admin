@@ -1,3 +1,5 @@
+import { signatureSnapshotSchema } from '../../core/signatures';
+import { workflowSignaturePolicySchema } from '../validation';
 import * as z from 'zod';
 import { auditFieldsSchema, idParam, idQuery, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
@@ -18,6 +20,9 @@ import {
 import { workflowDefinitionSnapshotSchema, workflowInstanceFormSnapshotSchema } from './flow-data';
 
 // ─── 任务 ────────────────────────────────────────────────────────────────────
+
+export const workflowSignatureEvidenceSchema = signatureSnapshotSchema.omit({ dataUrl: true }).meta({ id: 'WorkflowSignatureEvidence' });
+export type WorkflowSignatureEvidence = z.infer<typeof workflowSignatureEvidenceSchema>;
 
 /** 审批动作附件 */
 export const workflowTaskAttachmentRefSchema = z.object({
@@ -54,9 +59,10 @@ export const workflowTaskSchema = z.object({
   assigneeAvatar: z.string().nullable().optional(),
   status: z.enum(WORKFLOW_TASK_STATUSES),
   comment: z.string().nullable(),
-  signature: z.string().nullable().optional().meta({ description: '手写签名（data URL / 图片地址）' }),
+  signature: z.string().nullable().optional().meta({ description: '服务端确认的当次签名 PNG data URL' }),
+  signatureEvidence: workflowSignatureEvidenceSchema.nullable().optional(),
   attachments: z.array(workflowTaskAttachmentRefSchema).optional(),
-  signatureRequired: z.boolean().optional().meta({ description: '所属节点是否要求手写签名（由节点 operations 派生）' }),
+  signaturePolicy: workflowSignaturePolicySchema.optional().meta({ description: '所属节点的签署策略' }),
   actionAt: z.string().nullable(),
   originalAssigneeId: z.int().nullable().optional().meta({ description: '任务原始处理人（创建时快照，转办 / 委派不会修改）' }),
   transfers: z.array(workflowTaskTransferSchema).nullable().optional().meta({ description: '转办明细（详情场景填充）' }),
@@ -226,7 +232,7 @@ export const workflowInstanceListItemSchema = workflowInstanceSchema.omit({
 }).extend({
   pendingTaskId: z.int().optional(),
   pendingTaskNodeType: z.string().nullable().optional(),
-  pendingSignatureRequired: z.boolean().optional(),
+  pendingSignaturePolicy: workflowSignaturePolicySchema.optional(),
   requiresIndividual: z.boolean().optional(),
   pendingDelegatedFromName: z.string().nullable().optional().meta({ description: '待办任务来自委托时的委托人姓名' }),
   pendingDelegationMode: z.enum(['full', 'suggest']).nullable().optional(),
@@ -497,15 +503,15 @@ export const workflowInstanceContract = defineContract('/api/workflows', {
   printVerify: op.get('/print-verify/{token}', { params: workflowPrintVerifyParam, kind: 'file', public: true, summary: '审批单验真页（公开 HTML，凭打印件二维码令牌）' }),
   comments: op.get('/instances/{id}/comments', { access: { permission: 'workflow:instance:list' }, params: idParam, response: z.array(workflowCommentSchema), summary: '流程评论列表' }),
   addComment: op.post('/instances/{id}/comments', { access: { permission: 'workflow:instance:list' }, audit: { description: '发表流程评论', module: '工作流管理' }, params: idParam, body: createWorkflowCommentSchema, response: workflowCommentSchema, summary: '发表流程评论' }),
-  create: op.post('/instances', { access: { permission: 'workflow:instance:create' }, audit: { description: '发起流程申请', module: '工作流管理' }, body: createWorkflowInstanceWithDraftSchema, response: workflowInstanceSchema, summary: '发起流程' }),
-  updateDraft: op.put('/instances/{id}/draft', { access: { permission: 'workflow:instance:create' }, audit: { description: '编辑流程草稿', module: '工作流管理' }, params: idParam, body: updateWorkflowInstanceSchema, response: workflowInstanceSchema, summary: '编辑草稿' }),
-  submitDraft: op.post('/instances/{id}/submit', { access: { permission: 'workflow:instance:create' }, audit: { description: '提交流程草稿', module: '工作流管理' }, params: idParam, body: submitWorkflowDraftSchema, response: workflowInstanceSchema, summary: '提交草稿' }),
-  resubmit: op.post('/instances/{id}/resubmit', { access: { permission: 'workflow:instance:create' }, audit: { description: '重新提交流程', module: '工作流管理' }, params: idParam, response: workflowInstanceSchema, summary: '重新提交（克隆为草稿）' }),
-  withdraw: op.post('/instances/{id}/withdraw', { access: { permission: 'workflow:instance:create' }, audit: { description: '撤回流程申请', module: '工作流管理' }, params: idParam, response: workflowInstanceSchema, summary: '撤回申请' }),
+  create: op.post('/instances', { access: { permission: 'workflow:instance:create' }, audit: { description: '发起流程申请', module: '工作流管理', recordBody: false, recordResponseBody: false }, body: createWorkflowInstanceWithDraftSchema, response: workflowInstanceSchema, summary: '发起流程' }),
+  updateDraft: op.put('/instances/{id}/draft', { access: { permission: 'workflow:instance:create' }, audit: { description: '编辑流程草稿', module: '工作流管理', recordBody: false, recordResponseBody: false }, params: idParam, body: updateWorkflowInstanceSchema, response: workflowInstanceSchema, summary: '编辑草稿' }),
+  submitDraft: op.post('/instances/{id}/submit', { access: { permission: 'workflow:instance:create' }, audit: { description: '提交流程草稿', module: '工作流管理', recordBody: false, recordResponseBody: false }, params: idParam, body: submitWorkflowDraftSchema, response: workflowInstanceSchema, summary: '提交草稿' }),
+  resubmit: op.post('/instances/{id}/resubmit', { access: { permission: 'workflow:instance:create' }, audit: { description: '重新提交流程', module: '工作流管理', recordResponseBody: false }, params: idParam, response: workflowInstanceSchema, summary: '重新提交（克隆为草稿）' }),
+  withdraw: op.post('/instances/{id}/withdraw', { access: { permission: 'workflow:instance:create' }, audit: { description: '撤回流程申请', module: '工作流管理', recordResponseBody: false }, params: idParam, response: workflowInstanceSchema, summary: '撤回申请' }),
   forward: op.post('/instances/{id}/forward', { access: { permission: 'workflow:instance:list' }, audit: { description: '转发抄送', module: '工作流管理' }, params: idParam, body: forwardInstanceSchema, summary: '主动抄送 / 转发' }),
-  cancel: op.post('/instances/{id}/cancel', { access: { permission: 'workflow:instance:cancel' }, audit: { description: '取消流程', module: '工作流管理' }, params: idParam, response: workflowInstanceSchema, summary: '取消流程（管理员强制终止）' }),
+  cancel: op.post('/instances/{id}/cancel', { access: { permission: 'workflow:instance:cancel' }, audit: { description: '取消流程', module: '工作流管理', recordResponseBody: false }, params: idParam, response: workflowInstanceSchema, summary: '取消流程（管理员强制终止）' }),
   remove: op.delete('/instances/{id}', { access: { permission: 'workflow:instance:delete' }, audit: { description: '删除流程实例', module: '工作流管理' }, params: idParam, summary: '删除流程实例' }),
   urges: op.get('/instances/{id}/urges', { access: { permission: 'workflow:instance:list' }, params: idParam, response: z.array(workflowTaskUrgeSchema), summary: '查询实例催办历史' }),
   urge: op.post('/instances/{id}/urge', { access: { permission: 'workflow:instance:create' }, audit: { description: '实例批量催办', module: '工作流管理' }, params: idParam, body: urgeWorkflowTaskSchema, response: z.array(workflowTaskUrgeSchema), summary: '实例批量催办' }),
-  addCc: op.post('/instances/{id}/cc/add', { access: { permission: 'workflow:instance:create' }, audit: { description: '动态补加抄送', module: '工作流管理' }, params: idParam, body: addInstanceCcSchema, response: z.array(workflowTaskSchema), summary: '运行中动态补加抄送' }),
+  addCc: op.post('/instances/{id}/cc/add', { access: { permission: 'workflow:instance:create' }, audit: { description: '动态补加抄送', module: '工作流管理', recordResponseBody: false }, params: idParam, body: addInstanceCcSchema, response: z.array(workflowTaskSchema), summary: '运行中动态补加抄送' }),
 }, { tags: ['WorkflowInstances'] });

@@ -190,13 +190,13 @@ export async function listPendingMine(query: QueryOutputOf<typeof workflowInstan
     list: rows.map((r) => {
       const flow = r.inst.definitionSnapshot?.flowData ?? undefined;
       const node = flow?.nodes.find((n) => n.data.key === r.task.nodeKey)?.data;
-      const pendingSignatureRequired = node?.operations?.includes('signature') ?? false;
+      const pendingSignaturePolicy = node?.signaturePolicy ?? 'none';
       // 紧邻下一节点为「审批人自选」的任务无法批量审批（需逐个指定下一节点审批人），列表提前标注
-      const requiresIndividual = flow ? findNextApproverSelectNodes(flow, r.task.nodeKey).length > 0 : false;
+      const requiresIndividual = pendingSignaturePolicy === 'handwritten' || node?.actionButtons?.approve?.uploadMode === 'required' || (flow ? findNextApproverSelectNodes(flow, r.task.nodeKey).length > 0 : false);
       const sla = computeTaskSla(node?.timeout, r.task.createdAt);
       const summary = resolveInstanceSummary(r.inst, flow);
       const pendingDelegatedFromName = r.task.delegatedFromId ? (delegatorNames.get(r.task.delegatedFromId) ?? `#${r.task.delegatedFromId}`) : null;
-      return { ...mapInstance(r.inst, { ...r, currentNodeKeys: activeNodeKeys.get(r.inst.id) }), pendingTaskId: r.task.id, pendingTaskNodeType: r.task.nodeType ?? null, pendingSignatureRequired, requiresIndividual, summary, pendingDelegatedFromName, pendingDelegationMode: r.task.delegationMode ?? null, ...sla };
+      return { ...mapInstance(r.inst, { ...r, currentNodeKeys: activeNodeKeys.get(r.inst.id) }), pendingTaskId: r.task.id, pendingTaskNodeType: r.task.nodeType ?? null, pendingSignaturePolicy, requiresIndividual, summary, pendingDelegatedFromName, pendingDelegationMode: r.task.delegationMode ?? null, ...sla };
     }),
     total: Number(total),
     page,
@@ -553,8 +553,8 @@ async function loadInstanceDetail(id: number, business?: { bizType: string; bizI
   const tasks = row.tasks.map((t) => {
     const cfg = snapshot?.flowData?.nodes.find((n) => n.data.key === t.nodeKey)?.data;
     const actionButtons = cfg?.actionButtons;
-    const signatureRequired = cfg?.operations?.includes('signature') ?? false;
-    return mapTask(t, t.assignee?.nickname, t.assignee?.avatar, actionButtons ?? null, signatureRequired, transfersByTask.get(t.id) ?? null);
+    const signaturePolicy = cfg?.signaturePolicy ?? 'none';
+    return mapTask(t, t.assignee?.nickname, t.assignee?.avatar, actionButtons ?? null, signaturePolicy, transfersByTask.get(t.id) ?? null);
   });
   const taskNodeKeyById = new Map(row.tasks.map((t) => [t.id, t.nodeKey]));
   const childInstances = childRows.map((c) => ({

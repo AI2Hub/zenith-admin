@@ -67,6 +67,7 @@ export default withMermaid(defineConfig({
         text: '业务模块',
         items: [
           { text: '权限与组织', link: '/iam/' },
+          { text: '个人中心与我的签名', link: '/iam/profile' },
           { text: '平台基础能力', link: '/platform/' },
           { text: '即时通讯', link: '/chat/' },
           { text: '会员中心', link: '/member/' },
@@ -157,6 +158,7 @@ export default withMermaid(defineConfig({
         collapsed: false,
         items: [
           { text: '权限与组织', link: '/iam/' },
+          { text: '个人中心与我的签名', link: '/iam/profile' },
           { text: '平台基础能力', link: '/platform/' },
           { text: '即时通讯', link: '/chat/' },
           { text: '会员中心', link: '/member/' },

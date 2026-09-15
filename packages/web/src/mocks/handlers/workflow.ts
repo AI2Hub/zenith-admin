@@ -1,4 +1,6 @@
 import { syncMockWorkflowBusinessResult } from '@/mocks/utils/workflow-business';
+import { mockTaskSignaturePolicy, resolveMockTaskSignature, resolveMockWorkflowFormSignatures } from '@/mocks/utils/workflow-signature';
+import { currentMockSession } from '@/mocks/utils/auth';
 import { mock } from '@/mocks/utils/contract';
 import { HttpResponse } from 'msw';
 import { requireItem, removeByIds } from '@/mocks/utils/crud';
@@ -988,6 +990,8 @@ function withActiveNodes<T extends WorkflowInstance>(inst: T): T {
   const settings = (def?.flowData?.settings ?? {}) as { allowWithdraw?: boolean; allowResubmit?: boolean; allowComment?: boolean };
   return {
     ...inst,
+    tasks: mockWorkflowTasks.filter((task) => task.instanceId === inst.id)
+      .map((task) => ({ ...task, signaturePolicy: mockTaskSignaturePolicy(task) })),
     currentNodeKeys,
     currentNodeNames,
     currentNodeName: currentNodeNames[0] ?? resolveCurrentNodeName(inst),
@@ -1312,6 +1316,7 @@ function createDelegationReceiptTask(current: WorkflowTask, receiptComment: stri
     originalAssigneeId: current.delegatedFromId,
     delegatedFromId: null,
     actionButtons: current.actionButtons,
+    signaturePolicy: current.signaturePolicy,
     createdAt: now,
   };
   mockWorkflowTasks.push(newTask);
@@ -1322,7 +1327,7 @@ function createDelegationReceiptTask(current: WorkflowTask, receiptComment: stri
  * 审批通过 / 驳回的公共主体：幂等回放 → 任务定位与 pending 校验 → `beforeSettle`（如可编辑字段写回）→
  * 委派回执分流（只关任务、不推进）→ 任务落终态 → `advanceInstance` 推进实例 → 回包实例最新状态并写幂等缓存。
  */
-function settleTask(
+async function settleTask(
   ctx: {
     taskId: number;
     body: { comment?: string | null; attachments?: WorkflowTask['attachments'] };
@@ -1331,12 +1336,12 @@ function settleTask(
   },
   decision: 'approved' | 'rejected',
   hooks: {
-    beforeSettle?: (current: WorkflowTask, now: string) => void;
+    beforeSettle?: (current: WorkflowTask, now: string) => void | Promise<void>;
     /** 落终态时追加的任务字段（如 approve 的 signature） */
-    taskPatch?: Partial<WorkflowTask>;
+    taskPatch?: (current: WorkflowTask) => Partial<WorkflowTask>;
     advanceInstance: (task: WorkflowTask, now: string) => void;
   },
-): Response {
+): Promise<Response> {
   const { taskId, body, request, ok } = ctx;
   const idemKey = idempotencyKeyOf(request);
   const cached = idemKey ? approveIdempotencyCache.get(idemKey) : undefined;
@@ -1348,7 +1353,8 @@ function settleTask(
   const now = mockDateTime();
   const attachments = body.attachments && body.attachments.length > 0 ? body.attachments : undefined;
   const current = mockWorkflowTasks[taskIdx];
-  hooks.beforeSettle?.(current, now);
+  const taskPatch = hooks.taskPatch?.(current);
+  await hooks.beforeSettle?.(current, now);
 
   const respond = (message?: string) => {
     const inst = mockWorkflowInstances.find(i => i.id === current.instanceId);
@@ -1362,7 +1368,7 @@ function settleTask(
   // 委派回执：仅关闭当前任务、为原委派人生成新 pending，不推进 / 不驳回流程
   if (current.delegatedFromId) {
     const receiptComment = `[委派回执] ${current.assigneeName ?? '审批人'} ${decision === 'approved' ? '建议同意' : '建议拒绝'}：${body.comment ?? ''}`;
-    mockWorkflowTasks[taskIdx] = { ...current, status: decision, comment: receiptComment, attachments, actionAt: now };
+    mockWorkflowTasks[taskIdx] = { ...current, status: decision, comment: receiptComment, attachments, ...taskPatch, actionAt: now };
     createDelegationReceiptTask(current, receiptComment, now);
     return respond('已提交委派回执，等待原审批人确认');
   }
@@ -1372,7 +1378,7 @@ function settleTask(
     status: decision,
     comment: body.comment ?? null,
     attachments,
-    ...hooks.taskPatch,
+    ...taskPatch,
     actionAt: now,
   };
   hooks.advanceInstance(mockWorkflowTasks[taskIdx], now);
@@ -1777,9 +1783,9 @@ export const workflowHandlers = [
 
     const pendingTaskIds = mockWorkflowTasks
       .filter(t => t.assigneeId === 1 && t.status === 'pending')
-      .map(t => ({ instanceId: t.instanceId, taskId: t.id, signatureRequired: t.signatureRequired ?? false }));
+      .map(t => ({ instanceId: t.instanceId, taskId: t.id, signaturePolicy: mockTaskSignaturePolicy(t) }));
 
-    let list = pendingTaskIds.flatMap(({ instanceId, taskId, signatureRequired }, idx): WorkflowPendingInstanceItem[] => {
+    let list = pendingTaskIds.flatMap(({ instanceId, taskId, signaturePolicy }, idx): WorkflowPendingInstanceItem[] => {
       const inst = mockWorkflowInstances.find(i => i.id === instanceId);
       if (!inst) return [];
       // Demo SLA：轮换演示 已超时 / 即将超时 / 充裕 / 未配置
@@ -1798,8 +1804,10 @@ export const workflowHandlers = [
       // 与服务端一致：下游紧邻节点含 approverSelect 时需逐条选人，不可极速同意
       const task = mockWorkflowTasks.find(t => t.id === taskId);
       const flowForNext = inst.definitionSnapshot?.flowData ?? def?.flowData;
-      const requiresIndividual = !!task && !!flowForNext && findNextApproverSelectNodes(flowForNext, task.nodeKey).length > 0;
-      return [{ ...toInstanceListItem(inst), pendingTaskId: taskId, pendingSignatureRequired: signatureRequired, requiresIndividual, ...sla, summary }];
+      const node = flowForNext?.nodes.find((item) => item.data.key === task?.nodeKey)?.data;
+      const requiresIndividual = signaturePolicy === 'handwritten' || node?.actionButtons?.approve?.uploadMode === 'required'
+        || (!!task && !!flowForNext && findNextApproverSelectNodes(flowForNext, task.nodeKey).length > 0);
+      return [{ ...toInstanceListItem(inst), pendingTaskId: taskId, pendingSignaturePolicy: signaturePolicy, requiresIndividual, ...sla, summary }];
     });
 
     if (keyword) list = filterByKeyword(list, keyword, [(i) => i.title]);
@@ -2156,7 +2164,8 @@ export const workflowHandlers = [
     const inst = mockWorkflowInstances.find(i => i.id === params.id);
     if (!inst) return notFound('流程实例不存在');
     const tasks = mockWorkflowTasks.filter(t => t.instanceId === inst.id)
-      .sort((a, b) => a.id - b.id);
+      .sort((a, b) => a.id - b.id)
+      .map((task) => ({ ...task, signaturePolicy: mockTaskSignaturePolicy(task) }));
     // 子流程：聚合本实例发起的子实例摘要
     const childInstances = mockWorkflowInstances
       .filter(i => i.parentInstanceId === inst.id)
@@ -2195,7 +2204,7 @@ export const workflowHandlers = [
   }),
 
   // 发起流程申请（支持保存草稿 asDraft）
-  mock(workflowInstanceContract.create, ({ body, ok }) => {
+  mock(workflowInstanceContract.create, async ({ body, ok, request }) => {
     const def = mockWorkflowDefinitions.find(d => d.id === body.definitionId);
     if (!def) return badRequest('流程定义不存在');
     if (def.status !== 'published') return badRequest('该流程未发布，无法发起申请');
@@ -2203,8 +2212,10 @@ export const workflowHandlers = [
 
     const now = mockDateTime();
     const instanceId = getNextInstanceId();
+    const initiator = currentMockSession(request)?.user ?? mockUsers.find((user) => user.id === 1)!;
     const isDraft = body.asDraft === true;
-    const formData = body.formData ?? null;
+    const formSnapshot = resolveDefinitionFormSnapshot(def);
+    const formData = body.formData == null ? null : await resolveMockWorkflowFormSignatures(request, formSnapshot?.fields ?? [], body.formData);
 
     // 业务编号：仅正式发起时生成（用内存计数器模拟按定义+周期自增）
     const serialCfg = (def.flowData?.settings as { serialNo?: WorkflowSerialNoConfig } | undefined)?.serialNo;
@@ -2224,7 +2235,7 @@ export const workflowHandlers = [
     }
 
     // 创建初始审批任务（取第一个 approve 节点）；草稿不创建任务
-    const firstTask = isDraft ? null : buildFirstApproveTask(def, instanceId, now);
+    const firstTask = isDraft ? null : buildFirstApproveTask(def, instanceId, now, initiator.id);
     const newTasks: WorkflowTask[] = firstTask ? [firstTask] : [];
 
     const newInstance: WorkflowInstance = {
@@ -2235,11 +2246,11 @@ export const workflowHandlers = [
       serialNo,
       priority: body.priority ?? 'normal',
       formData,
-      formSnapshot: resolveDefinitionFormSnapshot(def),
+      formSnapshot,
       status: isDraft ? 'draft' : 'running',
       currentNodeKey: isDraft ? null : (firstTask?.nodeKey ?? null),
-      initiatorId: 1,
-      initiatorName: '张三',
+      initiatorId: initiator.id,
+      initiatorName: initiator.nickname ?? initiator.username,
       initiatorAvatar: null,
       tenantId: 1,
       tasks: newTasks,
@@ -2488,18 +2499,19 @@ export const workflowHandlers = [
     'approved',
     {
       // 可编辑字段写回：与服务端一致，按节点 fieldPermissions 白名单过滤后合并进实例 formData
-      beforeSettle: (current, now) => {
+      beforeSettle: async (current, now) => {
         const instForUpdate = mockWorkflowInstances.find(i => i.id === current.instanceId);
         if (!body.formUpdates || !instForUpdate) return;
         const flow = instForUpdate.definitionSnapshot?.flowData
           ?? mockWorkflowDefinitions.find(d => d.id === instForUpdate.definitionId)?.flowData;
-        const sanitized = sanitizeFormUpdatesByNodePerms(resolveNodeFieldPermissions(flow, current.nodeKey), body.formUpdates);
+        const permitted = sanitizeFormUpdatesByNodePerms(resolveNodeFieldPermissions(flow, current.nodeKey), body.formUpdates);
+        const sanitized = await resolveMockWorkflowFormSignatures(request, instForUpdate.formSnapshot?.fields ?? [], permitted, instForUpdate.formData ?? {});
         if (Object.keys(sanitized).length > 0) {
           instForUpdate.formData = { ...(instForUpdate.formData ?? {}), ...sanitized };
           instForUpdate.updatedAt = now;
         }
       },
-      taskPatch: { signature: body.signature ?? null },
+      taskPatch: (current) => resolveMockTaskSignature(request, current, body.signature),
       // 无其它 pending 任务即流程完成
       advanceInstance: (task, now) => {
         const remainingPending = mockWorkflowTasks.filter(

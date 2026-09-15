@@ -80,7 +80,7 @@ const INSTANCE: WorkflowInstance = {
       { name: '空数量', qty: '', price: 0 },
     ],
     secret: 'p@ss',
-    sign: 'data:image/png;base64,iVBORw0KGgo=',
+    sign: { dataUrl: 'data:image/png;base64,iVBORw0KGgo=', source: 'drawn', signerId: 1, signerName: '张三', signedAt: '2026-09-11 09:00:00', signatureId: null, signatureVersion: null },
   },
   formSnapshot: { formType: 'designer', formId: 1, formName: '请假单', fields: FIELDS, settings: null, customForm: null },
   status: 'approved',

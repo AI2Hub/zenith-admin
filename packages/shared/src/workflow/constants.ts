@@ -38,6 +38,10 @@ export const WORKFLOW_INSTANCE_STATUS_FILTERS = WORKFLOW_INSTANCE_STATUSES;
 /** 活跃（非终态）实例状态：业务键（bizType+bizId）唯一约束仅作用于这些状态，终态后允许同一业务记录重新发起 */
 export const WORKFLOW_ACTIVE_INSTANCE_STATUSES = ['draft', 'running', 'suspended', 'returned'] as const;
 
+export const WORKFLOW_SIGNATURE_POLICIES = ['none', 'reusable', 'handwritten'] as const;
+export type WorkflowSignaturePolicy = (typeof WORKFLOW_SIGNATURE_POLICIES)[number];
+export const WORKFLOW_SIGNATURE_POLICY_OPTIONS = createLabelOptions(WORKFLOW_SIGNATURE_POLICIES, { none: '无需签名', reusable: '允许使用个人签名', handwritten: '每次手写' });
+
 export const WORKFLOW_TASK_STATUSES = ['pending', 'approved', 'rejected', 'skipped', 'waiting'] as const;
 
 /** 外部审批派发状态（task.status='waiting' 且启用 externalApproval 时） */

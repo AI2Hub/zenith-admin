@@ -1,9 +1,12 @@
+import { signatureInputSchema, signaturePolicySchema } from '../core/signatures';
 import * as z from 'zod';
 import { dateRangeBound, entityStatusSchema } from '../core/api-schemas';
 import { httpUrl, lazyRecursive, linkUrl, partialForUpdate } from '../core/validation';
 import { isHttpUrl } from '../core/url';
-import { WORKFLOW_EVENT_SIGN_MODES, WORKFLOW_EVENT_TYPES, WORKFLOW_JOB_TYPES } from './constants';
+import { WORKFLOW_SIGNATURE_POLICIES, WORKFLOW_EVENT_SIGN_MODES, WORKFLOW_EVENT_TYPES, WORKFLOW_JOB_TYPES } from './constants';
 import type { WorkflowFieldVisibilityRuleGroup, WorkflowFormCascaderNode, WorkflowFormField } from './types';
+
+export const workflowSignaturePolicySchema = z.enum(WORKFLOW_SIGNATURE_POLICIES);
 
 // ─── 工作流引擎 Schema ────────────────────────────────────────────────────────
 export const workflowConditionOperatorSchema = z.enum(['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'in', 'notIn', 'contains', 'isEmpty', 'isNotEmpty', 'between', 'withinDays', 'beforeDays']);
@@ -58,7 +61,7 @@ export const workflowSameInitiatorStrategySchema = z.enum(['selfApprove', 'autoS
 export const workflowDeduplicateStrategySchema = z.enum(['autoSkip', 'repeatApprove']);
 
 export const workflowOperationPermissionSchema = z.enum([
-  'signature', 'opinionRequired',
+  'opinionRequired',
 ]);
 
 export const workflowFieldPermissionSchema = z.enum(['read', 'edit', 'hidden']);
@@ -151,6 +154,7 @@ export const workflowNodeConfigSchema = z.looseObject({
   sameInitiatorStrategy: workflowSameInitiatorStrategySchema.optional(),
   deduplicateStrategy: workflowDeduplicateStrategySchema.optional(),
   operations: z.array(workflowOperationPermissionSchema).optional(),
+  signaturePolicy: workflowSignaturePolicySchema.default('none'),
   actionButtons: z.record(workflowActionButtonKeySchema, workflowActionButtonConfigSchema).optional(),
   fieldPermissions: z.record(z.string(), workflowFieldPermissionSchema).optional(),
   timeout: workflowTimeoutConfigSchema.optional(),
@@ -229,6 +233,7 @@ export const workflowFormFieldSchema: z.ZodType<WorkflowFormField> = lazyRecursi
       'row', 'divider', 'group', 'tabs', 'steps',
     ]),
     required: z.boolean().optional(),
+    signaturePolicy: signaturePolicySchema.optional(),
     placeholder: z.string().optional(),
     helpText: z.string().optional(),
     options: z.array(z.string()).optional(),
@@ -667,7 +672,7 @@ export const workflowTaskAttachmentsSchema = z.array(workflowTaskAttachmentSchem
 export const approveWorkflowTaskSchema = z.object({
   comment: z.string().max(500).optional(),
   /** 手写签名（data URL，节点要求签名时必填） */
-  signature: z.string().max(2_000_000).optional(),
+  signature: signatureInputSchema.optional(),
   attachments: workflowTaskAttachmentsSchema.optional(),
   /** 当紧邻的下一节点为 approverSelect 类型时，由当前审批人按节点指定审批人：{ [nodeKey]: userIds } */
   selectedNextApprovers: workflowSelectedApproversSchema.optional(),
@@ -740,6 +745,7 @@ export const updateWorkflowInstanceSchema = z.object({
 
 // ── 批量审批 ──
 export const batchApproveWorkflowTaskSchema = z.object({
+  signature: signatureInputSchema.options[1].optional(),
   taskIds: z.array(z.number().int().positive()).min(1, '请选择任务').max(200),
   comment: z.string().max(500).optional(),
 });

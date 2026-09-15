@@ -1,3 +1,4 @@
+import { redactWorkflowSignatureImages } from '../../../services/workflow/instances/signature-audit';
 // ─── 任务流转：转办/委派/加签/减签/退回 ───
 import { workflowTaskContract } from '@zenith/shared/workflow';
 import { setAuditAfterData, setAuditBeforeData } from '../../../middleware/guard';
@@ -15,7 +16,7 @@ export const transferRoute = defineContractRoute(workflowTaskContract.transfer, 
     if (before) setAuditBeforeData(c, before);
     const r = await transferTask(taskId, targetUserId, comment, attachments);
     const after = await getWorkflowTaskBeforeAudit(taskId);
-    if (after) setAuditAfterData(c, after);
+    setAuditAfterData(c, after ?? redactWorkflowSignatureImages(r));
     return c.json(okBody(r, '已转办'), 200);
   },
 });
@@ -29,7 +30,7 @@ export const delegateRoute = defineContractRoute(workflowTaskContract.delegate, 
     if (before) setAuditBeforeData(c, before);
     const r = await delegateTask(taskId, targetUserId, comment, attachments);
     const after = await getWorkflowTaskBeforeAudit(taskId);
-    if (after) setAuditAfterData(c, after);
+    setAuditAfterData(c, after ?? redactWorkflowSignatureImages(r));
     return c.json(okBody(r, '已委派'), 200);
   },
 });
@@ -43,7 +44,7 @@ export const addSignRoute = defineContractRoute(workflowTaskContract.addSign, {
     if (before) setAuditBeforeData(c, before);
     const r = await addSignTask(taskId, targetUserIds, position, comment, signMode, attachments);
     const after = await getWorkflowTaskBeforeAudit(taskId);
-    if (after) setAuditAfterData(c, after);
+    setAuditAfterData(c, after ?? redactWorkflowSignatureImages(r));
     return c.json(okBody(null, r.message), 200);
   },
 });
@@ -57,7 +58,7 @@ export const reduceSignRoute = defineContractRoute(workflowTaskContract.reduceSi
     if (before) setAuditBeforeData(c, before);
     const r = await reduceSignTask(taskId, targetTaskIds, comment);
     const after = await getWorkflowTaskBeforeAudit(taskId);
-    if (after) setAuditAfterData(c, after);
+    setAuditAfterData(c, after ?? redactWorkflowSignatureImages(r));
     return c.json(okBody(null, r.message), 200);
   },
 });
@@ -70,6 +71,7 @@ export const returnRoute = defineContractRoute(workflowTaskContract.returnTask, 
     const before = await getWorkflowTaskBeforeAudit(taskId);
     if (before) setAuditBeforeData(c, before);
     const r = await returnTask(taskId, targetNodeKeys, comment, attachments);
+    setAuditAfterData(c, redactWorkflowSignatureImages(r.instance));
     return c.json(okBody(r.instance, r.message), 200);
   },
 });

@@ -1,3 +1,4 @@
+import { redactWorkflowSignatureImages } from './signature-audit';
 // ─── 审计前置数据读取（拆分自 workflow-instances.service.ts）───
 import { eq, and } from 'drizzle-orm';
 import { db } from '../../../db';
@@ -9,7 +10,7 @@ import { findVisibleInstance } from './shared';
 
 export async function getWorkflowInstanceBeforeAudit(id: number) {
   try {
-    return await getInstanceDetail(id);
+    return redactWorkflowSignatureImages(await getInstanceDetail(id));
   } catch {
     return null;
   }
@@ -39,5 +40,5 @@ export async function getWorkflowTaskForAdminAudit(taskId: number) {
 /** 监控页管理员操作的审计前置快照（不做发起人/审批人权限校验） */
 export async function getInstanceForAdminAudit(id: number) {
   const inst = await findVisibleInstance(id);
-  return inst ? mapInstance(inst) : null;
+  return inst ? redactWorkflowSignatureImages(mapInstance(inst)) : null;
 }

@@ -248,7 +248,6 @@ export const WORKFLOW_NODE_FAILURE_ACTION_OPTIONS: Array<{
 ];
 
 export const OPERATION_PERMISSION_OPTIONS: Array<{ value: OperationPermission; label: string }> = [
-  { value: 'signature',        label: '手写签名' },
   { value: 'opinionRequired',  label: '审批意见必填' },
 ];
 

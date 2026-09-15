@@ -52,12 +52,19 @@ export function invalidateAfterTaskAction(qc: QueryClient, instanceId?: number):
   invalidateAfterInstanceChange(qc, instanceId);
 }
 
-/** H5：幂等键按选中任务集合派生进请求头（重复点击同一批任务不会重复审批），契约未声明 headers 段 */
+/** 每次明确确认生成独立意图；请求内部重试仍复用该键，换签名版本后可重新处理失败项。 */
+export function runWorkflowBatchApprove(body: BodyOf<typeof workflowTaskContract.batchApprove>, options: ApiCallOptions = {}) {
+  const headers = new Headers(options.headers);
+  if (!headers.has('X-Idempotency-Key')) headers.set('X-Idempotency-Key', `workflow-batch-approve-${crypto.randomUUID()}`);
+  return api(workflowTaskContract.batchApprove, { body }, { ...options, headers });
+}
+
+/** H5：幂等请求头按确认意图生成，契约未声明 headers 段。 */
 export function useBatchApproveWorkflowTasks() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ body }: InputOf<typeof workflowTaskContract.batchApprove>) =>
-      api(workflowTaskContract.batchApprove, { body }, { headers: { 'X-Idempotency-Key': `workflow-batch-approve-${body.taskIds.join('-')}` } }),
+      runWorkflowBatchApprove(body),
     onSuccess: (res) => {
       removeSucceededFromPendingCaches(qc, res);
       invalidateAfterTaskAction(qc);

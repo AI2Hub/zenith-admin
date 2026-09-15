@@ -8,7 +8,7 @@ import type { BodyOf } from '@zenith/shared/core';
 import { workflowDefinitionContract, workflowInstanceContract, workflowQuickPhraseContract, workflowTaskContract, type WorkflowInstanceListItem } from '@zenith/shared/workflow';
 import { authContract, userContract } from '@zenith/shared/identity';
 import { api, urlOf } from '@/lib/contract-query';
-import { runWorkflowTaskAction, type WorkflowTaskDecisionVariables } from '@/hooks/queries/workflow-tasks';
+import { runWorkflowBatchApprove, runWorkflowTaskAction, type WorkflowTaskDecisionVariables } from '@/hooks/queries/workflow-tasks';
 import { approvalRequest } from './approval-request';
 
 export type ApprovalTab = 'pending' | 'handled' | 'mine' | 'cc';
@@ -101,6 +101,15 @@ export function useTaskAction() {
   return useMutation({
     mutationFn: (vars: ApprovalTaskActionVariables) =>
       runWorkflowTaskAction(vars, { ...client, headers: { 'X-Idempotency-Key': `approval-${vars.action}-${vars.taskId}` } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: approvalKeys.all }),
+  });
+}
+
+/** 批量同意沿用审批端客户端，逐任务结果由服务端返回；共享确认意图的幂等处理。 */
+export function useBatchApprove() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: BodyOf<typeof workflowTaskContract.batchApprove>) => runWorkflowBatchApprove(body, client),
     onSuccess: () => qc.invalidateQueries({ queryKey: approvalKeys.all }),
   });
 }

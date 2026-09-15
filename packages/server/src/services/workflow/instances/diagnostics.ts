@@ -257,7 +257,7 @@ export async function getInstanceRuntimeDiagnostics(id: number): Promise<Workflo
       task.assignee?.nickname,
       task.assignee?.avatar,
       cfg?.actionButtons ?? null,
-      cfg?.operations?.includes('signature') ?? false,
+      cfg?.signaturePolicy ?? 'none',
     );
   });
   const [triggerExecRows, eventJobRows, instanceJobs, tokenRows] = await Promise.all([

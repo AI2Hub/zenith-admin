@@ -77,6 +77,30 @@ export const SEED_WORKFLOW_FORMS: WorkflowForm[] = [
     createdAt: SEED_DATE,
     updatedAt: SEED_DATE,
   },
+  {
+    id: 4, name: '个人签名复用示例表', code: 'signature_reuse_demo',
+    description: '验收签名字段复用：填写时确认使用自己的已保存签名，单据独立保留签署证据', categoryId: null,
+    schema: {
+      fields: [
+        { key: 'subject', label: '申请事项', type: 'text', required: true, maxLength: 100 },
+        { key: 'applicantSignature', label: '申请人签名', type: 'signature', required: true, signaturePolicy: 'reusable', helpText: '可本次手写，也可确认使用「我的签名」' },
+      ],
+      settings: { description: '先在个人中心保存自己的签名，再填写本表验证复用。', labelPosition: 'top' },
+    },
+    status: 'enabled', revision: 1, tenantId: 1, createdBy: 1, createdByName: '张三', createdAt: SEED_DATE, updatedAt: SEED_DATE,
+  },
+  {
+    id: 5, name: '本次手写签名示例表', code: 'signature_handwritten_demo',
+    description: '验收签名字段强制手写：即使已有个人签名，也必须为本次申请重新手写', categoryId: null,
+    schema: {
+      fields: [
+        { key: 'subject', label: '申请事项', type: 'text', required: true, maxLength: 100 },
+        { key: 'applicantSignature', label: '申请人签名', type: 'signature', required: true, signaturePolicy: 'handwritten', helpText: '本字段要求为本次申请重新手写' },
+      ],
+      settings: { description: '对比个人签名复用示例：此表要求本次重新手写。', labelPosition: 'top' },
+    },
+    status: 'enabled', revision: 1, tenantId: 1, createdBy: 1, createdByName: '张三', createdAt: SEED_DATE, updatedAt: SEED_DATE,
+  },
 ];
 
 // ─── 工作流内置模板 ─────────────────────────────────────────────────────────
@@ -111,6 +135,7 @@ const APPROVER_DEFAULT_PROPS: Record<string, unknown> = {
   rejectStrategy: 'terminate',
   emptyStrategy: 'autoApprove',
   fieldPermissions: {},
+  signaturePolicy: 'none',
 };
 
 function mapSeedNodeType(t: 'approver' | 'handler' | 'cc'): string {
@@ -157,7 +182,7 @@ function buildLinearFlow(steps: SeedFlowStep[], settings?: Record<string, unknow
   return flow;
 }
 
-const TEMPLATE_SETTINGS: Record<string, unknown> = { allowWithdraw: true, allowComment: true, serialNo: { enabled: false } };
+const TEMPLATE_SETTINGS: Record<string, unknown> = { allowWithdraw: true, allowResubmit: true, notifyInitiator: true, allowComment: true, serialNo: { enabled: false } };
 
 // ─── 表单远程数据源 初始数据 ───────────────────────────────────────────────
 export const SEED_WORKFLOW_DATA_SOURCES: WorkflowDataSource[] = [
@@ -391,6 +416,26 @@ export const SEED_WORKFLOW_TEMPLATES: SeedWorkflowTemplate[] = [
     createdAt: SEED_DATE,
     updatedAt: SEED_DATE,
   },
+  {
+    id: 9, name: '个人签名复用审批示例', code: 'tpl_signature_reuse',
+    description: '签名字段与审批节点均允许复用个人签名；审批由发起人自己处理，便于验证单条与批量签署。',
+    categoryName: '人事行政', icon: 'FileSignature', color: '#1677ff',
+    flowData: buildLinearFlow([
+      { key: 'approve_signature', name: '确认复用个人签名', props: { assigneeType: 'initiator', sameInitiatorStrategy: 'selfApprove', signaturePolicy: 'reusable' } },
+    ], TEMPLATE_SETTINGS),
+    formSchema: SEED_WORKFLOW_FORMS[3].schema as unknown as Record<string, unknown>,
+    sort: 9, builtin: true, tenantId: null, createdAt: SEED_DATE, updatedAt: SEED_DATE,
+  },
+  {
+    id: 10, name: '本次手写签名审批示例', code: 'tpl_signature_handwritten',
+    description: '签名字段与审批节点均要求本次重新手写；节点不接受批量同意，审批由发起人自己处理。',
+    categoryName: '人事行政', icon: 'PenLine', color: '#d46b08',
+    flowData: buildLinearFlow([
+      { key: 'approve_signature', name: '本次重新手写签名', props: { assigneeType: 'initiator', sameInitiatorStrategy: 'selfApprove', signaturePolicy: 'handwritten' } },
+    ], TEMPLATE_SETTINGS),
+    formSchema: SEED_WORKFLOW_FORMS[4].schema as unknown as Record<string, unknown>,
+    sort: 10, builtin: true, tenantId: null, createdAt: SEED_DATE, updatedAt: SEED_DATE,
+  },
 ];
 
 // ─── 业务系统主导流程（业务表单内预览流程、提交后查看运行信息）─────────────────
@@ -413,10 +458,10 @@ export const SEED_WORKFLOW_DEFINITIONS: SeedWorkflowDefinition[] = [
   {
     id: 1,
     name: '请假审批',
-    description: '由「请假管理」保存业务数据并发起审批；请假表单内预览审批节点，提交后展示当前流程、审批记录与流程图',
+    description: '由「请假管理」保存业务数据并发起审批；请假表单内预览审批节点，提交后展示当前流程、审批记录与流程图；管理员审批可确认复用个人签名',
     initiatorScopeType: 'all',
     flowData: buildLinearFlow(
-      [{ key: 'approve_admin', name: '管理员审批', props: { assigneeType: 'user', assigneeIds: [1] } }],
+      [{ key: 'approve_admin', name: '管理员审批', props: { assigneeType: 'user', assigneeIds: [1], sameInitiatorStrategy: 'selfApprove', signaturePolicy: 'reusable' } }],
       { ...TEMPLATE_SETTINGS, allowResubmit: false, notifyInitiator: true, summaryFields: ['leaveType', 'days'] },
     ),
     formType: 'external',
@@ -436,10 +481,10 @@ export const SEED_WORKFLOW_DEFINITIONS: SeedWorkflowDefinition[] = [
   {
     id: 2,
     name: 'CMS 内容审核',
-    description: 'CMS 工作流审核模式下，在内容表单内预览与查看审批流程；提交审核发起本流程，通过后自动发布并刷新静态页，驳回回写业务状态',
+    description: 'CMS 工作流审核模式下，在内容表单内预览与查看审批流程；提交审核发起本流程，通过后自动发布并刷新静态页，驳回回写业务状态；主编审核须本次重新手写签名',
     initiatorScopeType: 'all',
     flowData: buildLinearFlow(
-      [{ key: 'approve_editor', name: '主编审核', props: { assigneeType: 'user', assigneeIds: [1] } }],
+      [{ key: 'approve_editor', name: '主编审核', props: { assigneeType: 'user', assigneeIds: [1], sameInitiatorStrategy: 'selfApprove', signaturePolicy: 'handwritten' } }],
       { ...TEMPLATE_SETTINGS, allowResubmit: false, notifyInitiator: true, summaryFields: ['siteName', 'channelName', 'contentTitle'] },
     ),
     formType: 'external',

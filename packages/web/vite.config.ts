@@ -272,6 +272,8 @@ export default defineConfig(({ mode }) => {
               // 这一族因此只在打开带表单的页面时加载。
               { name: 'vendor-semi-form', test: /node_modules[\\/]@douyinfe[\\/](?:semi-ui[\\/]lib[\\/]es[\\/](?:form[\\/](?!label\.js)|(?:cascader|treeSelect|upload|cropper|tagInput|autoComplete|transfer)[\\/])|semi-foundation[\\/]lib[\\/]es[\\/](?:cascader|treeSelect|upload|cropper|tagInput|autoComplete|transfer)[\\/])/, priority: 15 },
               { name: 'vendor-semi', test: /node_modules[\\/]@douyinfe[\\/](?:semi-ui|semi-foundation|semi-icons|semi-animation)[\\/]/, priority: 14 },
+              // 审批端的 SVG 图标共用一个延迟加载包，避免单个图标产生独立请求。
+              ...(entry === 'approval' ? [{ name: 'vendor-approval-icons', test: /node_modules[\\/]lucide-react[\\/]/, priority: 13 }] : []),
               { name: 'vendor-common', test: /node_modules/, priority: 10, minShareCount: 10 },
               { name: 'app-shared', test: APP_SHARED_LOGIC, priority: 8, minShareCount: 10 },
               { name: 'vendor', test: /node_modules/, priority: 5, entriesAware: true, entriesAwareMergeThreshold: 0 },

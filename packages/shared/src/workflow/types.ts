@@ -1,3 +1,5 @@
+import type { SignaturePolicy } from '../core/signatures';
+import type { WorkflowSignaturePolicy } from './constants';
 import type {
   WORKFLOW_AUTOMATION_TRIGGERS,
   WORKFLOW_COMPENSATION_ACTION_STATUSES,
@@ -176,7 +178,6 @@ export type WorkflowApproverDedupMode =
  * 按钮启停/展示名/意见与附件要求的唯一事实源是 actionButtons（WorkflowActionButtonKey → WorkflowActionButtonConfig）。
  */
 export type WorkflowOperationPermission =
-  | 'signature'
   | 'opinionRequired';
 
 export type WorkflowFieldPermission = 'read' | 'edit' | 'hidden';
@@ -291,6 +292,7 @@ export interface WorkflowNodeConfig {
   sameInitiatorStrategy?: WorkflowSameInitiatorStrategy;
   deduplicateStrategy?: WorkflowDeduplicateStrategy;
   operations?: WorkflowOperationPermission[];
+  signaturePolicy?: WorkflowSignaturePolicy;
   /** 操作按钮配置：每个 key 对应一个按钮的显示/启用/上传/跳转设置 */
   actionButtons?: Partial<Record<WorkflowActionButtonKey, WorkflowActionButtonConfig>>;
   fieldPermissions?: Record<string, WorkflowFieldPermission>;
@@ -706,6 +708,8 @@ export interface WorkflowFormCascaderNode {
 
 // 表单字段配置
 export interface WorkflowFormField {
+  /** 签名字段的签署策略，默认 reusable */
+  signaturePolicy?: SignaturePolicy;
   key: string;
   label: string;
   type: WorkflowFormFieldType;

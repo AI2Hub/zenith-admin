@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-  Avatar, Banner, Button, Empty, Form, Popconfirm, SideSheet, Skeleton, Tag, TextArea, Toast, Typography,
+  Avatar, Banner, Button, Empty, Form, Popconfirm, SideSheet, Skeleton, Spin, Tag, TextArea, Toast, Typography,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { BellRing, ChevronLeft, RotateCcw, Send, Share2 } from 'lucide-react';
@@ -12,7 +12,9 @@ import { downloadBlob } from '@/utils/download';
 import ApprovalTimeline from '@/components/ApprovalTimeline';
 import FileAttachment from '@/components/FileAttachment';
 import { uploadedFileToAttachment } from '@/components/FileAttachment/utils';
-import SignaturePad from '@/components/SignaturePad';
+import type { SignatureInput } from '@zenith/shared/core';
+import { SignatureClientProvider } from '@/components/signature/SignatureClientContext';
+import { approvalRequest } from '../lib/approval-request';
 import { UserAvatar } from '@/components/UserAvatar';
 import WorkflowFormRenderer from '@/pages/workflow/designer/components/WorkflowFormRenderer';
 import BusinessFormHost from '@/components/workflow/BusinessFormHost';
@@ -36,6 +38,7 @@ import {
 import { INSTANCE_STATUS_MAP as STATUS_MAP } from '@/components/workflow/workflow-runtime';
 
 type ActionKind = 'approve' | 'reject' | 'transfer' | null;
+const SignatureField = lazy(() => import('@/components/signature/SignatureField'));
 
 function resolveBtn(
   cfg: Partial<Record<string, WorkflowActionButtonConfig>> | null | undefined,
@@ -91,6 +94,10 @@ function SharePrintButton({ instanceId, title }: Readonly<{ instanceId: number; 
 }
 
 export default function TaskDetailPage() {
+  return <SignatureClientProvider client={approvalRequest}><TaskDetailContent /></SignatureClientProvider>;
+}
+
+function TaskDetailContent() {
   const navigate = useNavigate();
   const params = useParams<{ instanceId: string; taskId?: string }>();
   const instanceId = Number(params.instanceId);
@@ -106,7 +113,7 @@ export default function TaskDetailPage() {
   const me = meQuery.data ?? null;
 
   const [action, setAction] = useState<ActionKind>(null);
-  const [signature, setSignature] = useState('');
+  const [signature, setSignature] = useState<SignatureInput | null>(null);
   const [commentDraft, setCommentDraft] = useState('');
   // 下一节点自选审批人：nodeKey -> userIds；转办接收人（单选）
   const [selectedNext, setSelectedNext] = useState<Record<string, number[]>>({});
@@ -118,7 +125,7 @@ export default function TaskDetailPage() {
   // 连续审批跳转到下一条时复用组件实例，需重置操作状态
   useEffect(() => {
     setAction(null);
-    setSignature('');
+    setSignature(null);
     setCommentDraft('');
     setSelectedNext({});
     setHighlightNextMissing(false);
@@ -179,7 +186,9 @@ export default function TaskDetailPage() {
   const btnApprove = resolveBtn(currentTask?.actionButtons ?? null, 'approve');
   const btnReject = resolveBtn(currentTask?.actionButtons ?? null, 'reject');
   const btnTransfer = resolveBtn(currentTask?.actionButtons ?? null, 'transfer');
-  const needSignature = (currentTask?.signatureRequired ?? false) || (nodeCfg?.operations?.includes('signature') ?? false);
+  const signaturePolicy = currentTask?.signaturePolicy ?? 'none';
+  const needSignature = signaturePolicy !== 'none';
+  const approveLabel = needSignature ? `签名并${btnApprove.displayName ?? '同意'}` : btnApprove.displayName ?? '同意';
   const opinionRequired = nodeCfg?.operations?.includes('opinionRequired') ?? false;
 
   const status = detail ? STATUS_MAP[detail.status] : null;
@@ -200,7 +209,7 @@ export default function TaskDetailPage() {
       Toast.info('该节点要求上传附件，请到桌面端处理');
       return;
     }
-    setSignature('');
+    setSignature(null);
     setHighlightNextMissing(false);
     setAction(kind);
   };
@@ -210,7 +219,11 @@ export default function TaskDetailPage() {
     try {
       const values = (await actionFormApi.current?.validate() ?? {}) as { comment?: string };
       if (action === 'approve' && needSignature && !signature) {
-        Toast.error('该节点要求手写签名，请先签名');
+        Toast.error('请确认本次使用的签名');
+        return;
+      }
+      if (action === 'approve' && signaturePolicy === 'handwritten' && signature?.source !== 'drawn') {
+        Toast.error('该节点要求本次重新手写签名');
         return;
       }
       let vars: ApprovalTaskActionVariables;
@@ -231,7 +244,7 @@ export default function TaskDetailPage() {
           action,
           body: {
             comment: values.comment ?? '',
-            signature: signature || undefined,
+            signature: needSignature ? signature ?? undefined : undefined,
             formUpdates: await collectFormUpdates(),
             selectedNextApprovers: Object.keys(compactNext).length > 0 ? compactNext : undefined,
           },
@@ -348,7 +361,7 @@ export default function TaskDetailPage() {
   }
 
   const hasFooter = actionable || initiatorActionable;
-  const sheetTitle = action === 'approve' ? (btnApprove.displayName ?? '同意')
+  const sheetTitle = action === 'approve' ? approveLabel
     : action === 'reject' ? (btnReject.displayName ?? '拒绝')
     : (btnTransfer.displayName ?? '转办');
 
@@ -466,7 +479,7 @@ export default function TaskDetailPage() {
             <Button theme="light" type="danger" onClick={() => openAction('reject')}>{btnReject.displayName ?? '拒绝'}</Button>
           )}
           {btnApprove.enabled && (
-            <Button theme="solid" type="primary" onClick={() => openAction('approve')}>{btnApprove.displayName ?? '同意'}</Button>
+            <Button theme="solid" type="primary" onClick={() => openAction('approve')}>{approveLabel}</Button>
           )}
         </div>
       )}
@@ -561,9 +574,12 @@ export default function TaskDetailPage() {
           )}
           {action === 'approve' && needSignature && (
             <div style={{ marginTop: 8 }}>
-              <Typography.Text type="secondary" size="small">手写签名（必填）</Typography.Text>
+              <Typography.Text type="secondary" size="small">本次签名（必填）</Typography.Text>
               <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 6, marginTop: 6, overflow: 'hidden' }}>
-                <SignaturePad value={signature} onChange={setSignature} width={Math.min(400, window.innerWidth - 64)} height={140} />
+                <Suspense fallback={<Spin size="small" />}>
+                  <SignatureField key={taskId} value={signature} onChange={setSignature}
+                    policy={signaturePolicy} autoSelectSaved={signaturePolicy === 'reusable'} />
+                </Suspense>
               </div>
             </div>
           )}
@@ -574,9 +590,10 @@ export default function TaskDetailPage() {
               theme="solid"
               type={action === 'reject' ? 'danger' : 'primary'}
               loading={actionMutation.isPending}
+              disabled={action === 'approve' && needSignature && !signature}
               onClick={() => void submitAction()}
             >
-              确认{sheetTitle}
+              {action === 'approve' && needSignature ? sheetTitle : `确认${sheetTitle}`}
             </Button>
           </div>
         </div>

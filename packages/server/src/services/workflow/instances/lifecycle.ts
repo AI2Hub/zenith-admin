@@ -1,3 +1,5 @@
+import { lockUnchangedWorkflowDraft } from './signature-concurrency';
+import { clearWorkflowFormSignatures, resolveWorkflowFormSignatures } from './signatures';
 // ─── 实例生命周期：创建/撤回/取消/删除/草稿/重新提交（拆分自 workflow-instances.service.ts）───
 import { uniquePositiveInts } from '@zenith/shared/core';
 import { randomUUID } from 'node:crypto';
@@ -82,12 +84,13 @@ export async function createInstance(data: { definitionId: number; title: string
   const definitionSnapshot = toDefinitionSnapshot(def, data.asDraft ? undefined : flowData);
   const validation = validateFlowData(flowData);
   if (!validation.valid) throw new HTTPException(400, { message: validation.errors[0] });
-  const formData: Record<string, unknown> = sanitizeFormByStartPerms(flowData, data.formData ?? {});
+  let formData: Record<string, unknown> = sanitizeFormByStartPerms(flowData, data.formData ?? {});
   const resolvedFormSnapshot = await resolveFormSnapshot(def.formId);
   const formSnapshot = buildInstanceFormSnapshot(def, resolvedFormSnapshot);
 
   const existingBizInstance = await findInstanceByBusinessKey(normalizedBizType, normalizedBizId);
   if (existingBizInstance) return mapInstance(existingBizInstance);
+  formData = await resolveWorkflowFormSignatures(formSnapshot, formData, {}, callerOverride ? { userId: user.userId, tenantId: user.tenantId ?? null } : undefined);
 
   // 草稿：仅保存表单，不进入流转、不生成业务编号、不触发事件
   if (data.asDraft) {
@@ -327,6 +330,8 @@ export async function deleteInstance(id: number) {
   });
 }
 
+const recordFormData = (value: unknown) => (value ?? {}) as Record<string, unknown>;
+
 async function loadOwnDraft(id: number) {
   const user = currentUser();
   const inst = await requireVisibleInstance(id);
@@ -339,9 +344,13 @@ export async function updateInstanceDraft(id: number, input: { title?: string; f
   if (inst.status !== 'draft' && inst.status !== 'returned') throw new HTTPException(400, { message: '仅草稿或已退回的申请可编辑' });
   const patch: Partial<typeof workflowInstances.$inferInsert> = {};
   if (input.title !== undefined) patch.title = input.title;
-  if (input.formData !== undefined) patch.formData = input.formData ?? {};
+  if (input.formData !== undefined) patch.formData = await resolveWorkflowFormSignatures(inst.formSnapshot, input.formData ?? {}, recordFormData(inst.formData));
   if (input.priority !== undefined) patch.priority = input.priority;
-  const [row] = await db.update(workflowInstances).set(patch).where(eq(workflowInstances.id, id)).returning();
+  const row = await db.transaction(async (tx) => {
+    await lockUnchangedWorkflowDraft(tx, inst);
+    const [updated] = await tx.update(workflowInstances).set(patch).where(eq(workflowInstances.id, id)).returning();
+    return requireRow(updated, '草稿状态已变化，请刷新后重试', 409);
+  });
   return mapInstance(row);
 }
 
@@ -360,10 +369,11 @@ export async function submitDraftInstance(id: number, input: { selectedInitiator
   const definitionSnapshot = toDefinitionSnapshot(def, flowData);
   const validation = validateFlowData(flowData);
   if (!validation.valid) throw new HTTPException(400, { message: validation.errors[0] });
-  const formData = sanitizeFormByStartPerms(flowData, (inst.formData ?? {}) as Record<string, unknown>);
+  let formData = sanitizeFormByStartPerms(flowData, (inst.formData ?? {}) as Record<string, unknown>);
   assertLaunchMatchesFormType(def, { bizType: inst.bizType, bizId: inst.bizId, formData: (inst.formData ?? {}) as Record<string, unknown> });
   const resolvedFormSnapshot = await resolveFormSnapshot(def.formId);
   const formSnapshot = buildInstanceFormSnapshot(def, resolvedFormSnapshot);
+  formData = await resolveWorkflowFormSignatures(formSnapshot, formData, recordFormData(inst.formData));
   const starter = await buildStarterContext(user.userId);
   if (!hasExecutableEntry(flowData, formData, starter)) {
     throw new HTTPException(400, { message: '流程定义中无可执行节点' });
@@ -372,11 +382,13 @@ export async function submitDraftInstance(id: number, input: { selectedInitiator
   const serialConfig = flowData.settings?.serialNo;
   const serialCtx = await buildSerialNoContext(serialConfig, formData);
   const instance = await workflowTransaction(async (tx) => {
+    await lockUnchangedWorkflowDraft(tx, inst);
     // returned 重提保留首次提交生成的业务编号，避免同一申请出现两个流水号
     const serialNo = inst.serialNo ?? await generateSerialNo(tx, def.id, serialConfig, serialCtx);
     await tx.update(workflowInstances).set({
       definitionSnapshot,
       formSnapshot,
+      formData,
       serialNo,
       status: 'running',
       currentNodeKey: null,
@@ -434,7 +446,7 @@ export async function resubmitInstance(id: number) {
   return createInstance({
     definitionId: inst.definitionId,
     title: inst.title,
-    formData: (inst.formData ?? {}) as Record<string, unknown>,
+    formData: clearWorkflowFormSignatures(inst.formSnapshot, recordFormData(inst.formData)),
     priority: inst.priority as import('@zenith/shared').WorkflowInstancePriority,
     asDraft: true,
   });

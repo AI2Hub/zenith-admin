@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useDebouncedValue } from '@tanstack/react-pacer';
 import { AppModal } from '@/components/AppModal';
@@ -9,6 +9,7 @@ import {
   Form,
   Select,
   Space,
+  Spin,
   SplitButtonGroup,
   Toast,
   Typography,
@@ -20,7 +21,7 @@ import { hasEditableFieldPermission, WORKFLOW_RETURN_TO_INITIATOR_KEY } from '@z
 import { resolveRejectTargetHint } from '@/utils/workflow-reject';
 import { resolveWorkflowDetailDefinition } from '@/utils/workflow-snapshot';
 import { useQuickPhrases } from '@/hooks/useQuickPhrases';
-import SignaturePad from '@/components/SignaturePad';
+import type { SignatureInput } from '@zenith/shared/core';
 import FileAttachment from '@/components/FileAttachment';
 import { uploadedFileToAttachment } from '@/components/FileAttachment/utils';
 import WorkflowInstanceDetailPanel, { WorkflowDetailSkeleton } from '@/components/workflow/WorkflowInstanceDetailPanel';
@@ -36,6 +37,7 @@ import {
 import { invalidateAfterTaskAction, useWorkflowTaskAction, type WorkflowTaskActionVariables } from '@/hooks/queries/workflow-tasks';
 
 type ApprovalInitialAction = 'approve' | 'reject' | null;
+const SignatureField = lazy(() => import('@/components/signature/SignatureField'));
 type AddSignPosition = 'before' | 'after' | 'parallel';
 type AddSignMode = 'and' | 'or';
 
@@ -129,7 +131,7 @@ export default function WorkflowApprovalDetailSheet({
   const [rejectDef, setRejectDef] = useState<WorkflowDefinition | null>(null);
   const [rejectHintLoading, setRejectHintLoading] = useState(false);
   const [actionAttachments, setActionAttachments] = useState<Record<ActionAttachmentKey, UploadedFile[]>>(() => ({ ...EMPTY_ACTION_ATTACHMENTS }));
-  const [approveSignature, setApproveSignature] = useState('');
+  const [approveSignature, setApproveSignature] = useState<SignatureInput | null>(null);
   const { userOptions, ensureLoaded: ensureUserOptions } = useWorkflowUserOptions();
   const [selectedNextApprovers, setSelectedNextApprovers] = useState<Record<string, number[]>>({});
   // 远程搜索会把候选换成另一批人：已选中者的姓名单独记住，标签不退化成「用户#id」
@@ -202,7 +204,7 @@ export default function WorkflowApprovalDetailSheet({
       setReduceSignVisible(false);
       setReturnVisible(false);
       resetActionAttachments();
-      setApproveSignature('');
+      setApproveSignature(null);
       resetNextApprovers();
       initialActionKeyRef.current = null;
     }
@@ -312,8 +314,7 @@ export default function WorkflowApprovalDetailSheet({
   const approveNeedsModal =
     btnApprove.uploadMode === 'required'
     || (currentNodeConfig?.operations?.includes('opinionRequired') ?? false)
-    || (currentNodeConfig?.operations?.includes('signature') ?? false)
-    || (currentTask?.signatureRequired ?? false)
+    || (currentTask?.signaturePolicy ?? 'none') !== 'none'
     || hasApproverSelectDownstream;
   const canQuickApprove = !approveNeedsModal && !nextApproversQuery.isFetching;
 
@@ -371,7 +372,7 @@ export default function WorkflowApprovalDetailSheet({
     initialActionKeyRef.current = key;
     if (initialAction === 'approve') {
       setAttachmentsFor('approve', []);
-      setApproveSignature('');
+      setApproveSignature(null);
       resetNextApprovers();
       setApproveVisible(true);
     } else if (initialAction === 'reject') {
@@ -397,12 +398,17 @@ export default function WorkflowApprovalDetailSheet({
   const handleApprove = async () => {
     if (taskId == null) return;
     if (submitting) return;
-    const needSignature = currentTask?.signatureRequired ?? false;
+    const policy = currentTask?.signaturePolicy ?? 'none';
+    const needSignature = policy !== 'none';
     try {
       const values = await approveFormApi.current?.validate();
       if (!ensureUploadSatisfied(btnApprove, 'approve')) return;
       if (needSignature && !approveSignature) {
-        Toast.error('该节点要求手写签名，请先签名');
+        Toast.error('请确认本次使用的签名');
+        return;
+      }
+      if (policy === 'handwritten' && approveSignature?.source !== 'drawn') {
+        Toast.error('该节点要求本次重新手写签名');
         return;
       }
       if (hasApproverSelectDownstream) {
@@ -419,7 +425,7 @@ export default function WorkflowApprovalDetailSheet({
         body: {
           comment: values?.comment ?? '',
           attachments: attachmentsPayload('approve'),
-          signature: approveSignature || undefined,
+          signature: needSignature ? approveSignature ?? undefined : undefined,
           selectedNextApprovers: hasApproverSelectDownstream ? selectedNextApprovers : undefined,
           formUpdates,
         },
@@ -427,7 +433,7 @@ export default function WorkflowApprovalDetailSheet({
       Toast.success('审批通过');
       setApproveVisible(false);
       setAttachmentsFor('approve', []);
-      setApproveSignature('');
+      setApproveSignature(null);
       resetNextApprovers();
       closeAfterAction();
     } catch {
@@ -566,7 +572,7 @@ export default function WorkflowApprovalDetailSheet({
 
   const openApproveModal = () => {
     setAttachmentsFor('approve', []);
-    setApproveSignature('');
+    setApproveSignature(null);
     resetNextApprovers();
     setApproveVisible(true);
   };
@@ -589,7 +595,9 @@ export default function WorkflowApprovalDetailSheet({
   if (btnReturn.enabled) moreActions.push({ key: 'return', label: btnReturn.displayName ?? '退回', onClick: () => setReturnVisible(true) });
 
   const isHandlerTask = currentTask?.nodeType === 'handler';
-  const approveLabel = resolveTaskActionLabel(btnApprove.displayName, 'approve', isHandlerTask);
+  const signaturePolicy = currentTask?.signaturePolicy ?? 'none';
+  const approveActionLabel = resolveTaskActionLabel(btnApprove.displayName, 'approve', isHandlerTask);
+  const approveLabel = signaturePolicy === 'none' ? approveActionLabel : `签名并${approveActionLabel}`;
   const rejectLabel = resolveTaskActionLabel(btnReject.displayName, 'reject', isHandlerTask);
   // 仅当前 pending 任务显示操作按钮（深链打开已处理任务时只读查看）
   const extraActions = taskId != null && detail?.id === instanceId && currentTask?.status === 'pending' ? (
@@ -672,10 +680,10 @@ export default function WorkflowApprovalDetailSheet({
       <AppModal
         title={approveLabel}
         visible={approveVisible}
-        onCancel={() => { setApproveVisible(false); setAttachmentsFor('approve', []); setApproveSignature(''); resetNextApprovers(); if (!detailSheetVisible) onClose(); }}
+        onCancel={() => { setApproveVisible(false); setAttachmentsFor('approve', []); setApproveSignature(null); resetNextApprovers(); if (!detailSheetVisible) onClose(); }}
         onOk={() => void handleApprove()}
-        okButtonProps={{ loading: submitting, type: 'primary' }}
-        okText="确认"
+        okButtonProps={{ loading: submitting, type: 'primary', disabled: detailLoading || !currentTask || (signaturePolicy !== 'none' && !approveSignature) }}
+        okText={signaturePolicy === 'none' ? '确认' : approveLabel}
         style={{ width: 480 }}
       >
         <Form allowEmpty getFormApi={api => { approveFormApi.current = api; }}>
@@ -688,13 +696,16 @@ export default function WorkflowApprovalDetailSheet({
         </Form>
         {renderPhraseBar((t) => appendPhrase(approveFormApi.current, t))}
         {renderAttachmentField(btnApprove, 'approve')}
-        {(currentTask?.signatureRequired ?? false) && (
+        {approveVisible && signaturePolicy !== 'none' && (
           <div style={{ marginTop: 12 }}>
             <Typography.Text strong>
-              手写签名<span style={{ color: 'var(--semi-color-danger)' }}> *</span>
+              本次签名<span style={{ color: 'var(--semi-color-danger)' }}> *</span>
             </Typography.Text>
             <div style={{ marginTop: 6 }}>
-              <SignaturePad value={approveSignature} onChange={setApproveSignature} />
+              <Suspense fallback={<Spin size="small" />}>
+                <SignatureField key={taskId} value={approveSignature} onChange={setApproveSignature}
+                  policy={signaturePolicy} autoSelectSaved={signaturePolicy === 'reusable'} />
+              </Suspense>
             </div>
           </div>
         )}

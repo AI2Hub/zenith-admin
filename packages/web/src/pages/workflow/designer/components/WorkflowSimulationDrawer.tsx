@@ -221,7 +221,8 @@ function mockValueForField(field: WorkflowFormField, users: UserOption[]): unkno
     case 'image':
       return [{ name: '测试附件.pdf', url: 'https://example.com/mock.pdf', size: 1024 }];
     case 'signature':
-      return 'data:image/png;base64,simulation-signature';
+      // 签名不能由仿真器代签；测试人须自行提供，不能制造可落库的签署凭证。
+      return undefined;
     case 'relation':
       return null;
     case 'serialNumber':

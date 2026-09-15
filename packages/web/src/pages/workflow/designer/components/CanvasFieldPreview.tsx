@@ -3,12 +3,13 @@
  * 用非 Form 版 Semi 组件按字段配置渲染真实控件外观（禁用态、pointer-events 由外层关闭），
  * 让画布布局与最终填写页一致；交互（选中/拖拽/右键）由外层卡片壳负责。
  */
-import { memo } from 'react';
+import { memo, useContext } from 'react';
 import { Input, TextArea, InputNumber, DatePicker, TimePicker, Select, Cascader, RadioGroup, Radio, CheckboxGroup, Switch, Slider, TagInput, Rating, PinCode, Typography, Button } from '@douyinfe/semi-ui';
 import type { CascaderData } from '@douyinfe/semi-ui/lib/es/cascader';
 import { Paperclip, ImageIcon, PenTool } from 'lucide-react';
 import type { WorkflowFormField } from '@zenith/shared/workflow';
 import { toDateFnsToken, dateFormatHasTime, dateFormatHasDay } from '../form-types';
+import { SignatureModeContext } from './form-renderer/contexts';
 
 function optionList(field: WorkflowFormField, max = 4) {
   const items = field.optionItems?.length
@@ -35,6 +36,7 @@ function BlockPlaceholder({ icon, text }: Readonly<{ icon: React.ReactNode; text
 
 // memo：字段对象引用不变时跳过重渲染——画布因拖放高亮 / 临时列宽等本地状态重渲染时，几十个真实 Semi 控件不再全部重跑
 function CanvasFieldPreview({ field }: Readonly<{ field: WorkflowFormField }>) {
+  const signatureMode = useContext(SignatureModeContext);
   const placeholder = field.placeholder ?? `请输入${field.label}`;
   const pickPlaceholder = field.placeholder ?? `请选择${field.label}`;
   const w = { width: '100%' } as const;
@@ -137,7 +139,7 @@ function CanvasFieldPreview({ field }: Readonly<{ field: WorkflowFormField }>) {
     case 'image':
       return <BlockPlaceholder icon={<ImageIcon size={14} />} text={`上传图片（最多 ${field.maxCount ?? 5} 张）`} />;
     case 'signature':
-      return <BlockPlaceholder icon={<PenTool size={14} />} text="手写签名区" />;
+      return <BlockPlaceholder icon={<PenTool size={14} />} text={signatureMode === 'image' || field.signaturePolicy === 'handwritten' ? '每次手写签名' : '个人签名 / 手写签名'} />;
     case 'richtext':
       return <BlockPlaceholder icon={null} text="富文本编辑器" />;
     case 'description':

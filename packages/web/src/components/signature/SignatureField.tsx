@@ -63,7 +63,7 @@ export default function SignatureField({
     <div style={{ width: '100%' }}>
       {personal.error && (
         <Banner type="warning" closeIcon={null} description={(
-          <Space spacing={8}>个人签名加载失败<Button size="small" onClick={() => void personal.refetch()}>重试</Button></Space>
+          <Space spacing={8}>个人签名加载失败：{personal.error.message}<Button size="small" onClick={() => void personal.refetch()}>重试</Button></Space>
         )} />
       )}
       {policy === 'reusable' && personal.isLoading && <Spin size="small" />}
@@ -83,6 +83,7 @@ export default function SignatureField({
       )}
       <Space spacing={8} wrap style={{ marginTop: 8 }}>
         {policy === 'reusable' && saved && <Button size="small" disabled={save.isPending} onClick={selectSaved}>使用我的签名</Button>}
+        {policy === 'reusable' && <Button size="small" loading={personal.isFetching} onClick={() => void personal.refetch()}>刷新个人签名</Button>}
         {!savedOnly && image && !drawing && <Button size="small" onClick={startDrawing}>重新手写</Button>}
         {!savedOnly && value?.source === 'drawn' && value.dataUrl && (
           <Button size="small" loading={save.isPending} onClick={() => void savePersonal()}>保存为我的签名</Button>

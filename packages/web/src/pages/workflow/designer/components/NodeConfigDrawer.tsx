@@ -532,6 +532,8 @@ export default function NodeConfigDrawer({
             <TabPane tab="审批要求" itemKey="operations">
               <ApprovalRequirementsTab
                 operations={(props.operations as OperationPermission[]) ?? DEFAULT_APPROVER_OPERATIONS}
+                signaturePolicy={(props.signaturePolicy as 'none' | 'reusable' | 'handwritten') ?? 'none'}
+                onSignaturePolicyChange={(signaturePolicy) => handlePropsChange({ signaturePolicy })}
                 onChange={(ops) => handlePropsChange({ operations: ops })}
               />
             </TabPane>

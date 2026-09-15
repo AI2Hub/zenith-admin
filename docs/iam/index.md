@@ -13,6 +13,8 @@
 | 前端页面 | `packages\web\src\pages\users`、`packages\web\src\pages\system` | 用户、组织、角色、菜单、租户、安全策略、身份源、同步源、在线会话等页面 |
 | 种子 | `packages\shared\src\seed\menus\system.ts`、`settings.ts`、`identity.ts` | 系统菜单、按钮权限、内置角色/组织/用户等初始数据 |
 
+个人资料与私有签名的操作、版本及证据规则见[个人中心与我的签名](./profile.md)。
+
 ## RBAC 与权限解析
 
 ### 数据模型

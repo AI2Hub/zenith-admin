@@ -1,3 +1,4 @@
+import type { SignatureInput } from '@zenith/shared/core';
 // ─── 批量审批与跨实例批量操作（拆分自 workflow-instances.service.ts）───
 import { eq, and, inArray } from 'drizzle-orm';
 import { db } from '../../../db';
@@ -8,7 +9,7 @@ import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../../lib/context';
 import { urgeInstance } from './cc-urge';
 import { withdrawInstance } from './lifecycle';
-import { approveTask, rejectTask } from './task-actions';
+import { approveTaskInBatch, rejectTask } from './task-actions';
 
 /** 跨实例批量执行的最大并发组数（同实例内串行，避免行锁互等） */
 const BATCH_GROUP_CONCURRENCY = 5;
@@ -54,8 +55,7 @@ async function planBatchTasks(taskIds: number[], opts: { checkApproverSelect: bo
     ]));
   }
 
-  for (const taskId of taskIds) {
-    if (groups.has(taskId) || precheckFailures.has(taskId)) continue; // 去重（重复 id 只处理一次）
+  for (const taskId of uniqueIds) {
     const task = taskById.get(taskId);
     if (!task) {
       precheckFailures.set(taskId, '任务不存在、无权操作或已处理');
@@ -118,11 +118,11 @@ async function runBatchOnTasks(
   return taskIds.map((taskId) => resultByTask.get(taskId) ?? { taskId, success: false, message: failMessage });
 }
 
-export async function batchApproveTasks(taskIds: number[], comment?: string): Promise<WorkflowBatchActionResult[]> {
+export async function batchApproveTasks(taskIds: number[], comment?: string, signature?: Extract<SignatureInput, { source: 'saved' }>): Promise<WorkflowBatchActionResult[]> {
   return runBatchOnTasks(
     taskIds,
     { checkApproverSelect: true },
-    async (taskId) => { await approveTask(taskId, comment); },
+    async (taskId) => { await approveTaskInBatch(taskId, comment, signature); },
     '处理失败',
   );
 }

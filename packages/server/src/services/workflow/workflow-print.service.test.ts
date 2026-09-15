@@ -40,7 +40,7 @@ const instance: WorkflowInstance = {
   definitionName: '报销申请',
   title: '张三的报销申请',
   serialNo: 'BX/2026-0042',
-  formData: { amount: 1280.5, reason: '客户拜访差旅', phone: '13812345678', sign: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==' },
+  formData: { amount: 1280.5, reason: '客户拜访差旅', phone: '13812345678', sign: { dataUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', source: 'drawn', signerId: 1, signerName: '张三', signedAt: '2026-09-11 09:00:00', signatureId: null, signatureVersion: null } },
   formSnapshot: {
     formType: 'designer', formId: 1, formName: '报销单', settings: null, customForm: null,
     fields: [

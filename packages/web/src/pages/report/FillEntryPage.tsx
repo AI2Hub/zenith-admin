@@ -239,6 +239,7 @@ export default function FillEntryPage() {
 
       <div className="fill-entry-form">
         <WorkflowFormRenderer
+          signatureMode="image"
           key={`${record?.id ?? template?.id}-${record?.revision ?? template?.revision}`}
           fields={schema?.fields ?? []}
           initValues={record?.data ?? {}}

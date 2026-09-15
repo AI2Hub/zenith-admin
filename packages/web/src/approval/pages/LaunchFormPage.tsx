@@ -8,6 +8,8 @@ import dayjs from 'dayjs';
 import type { WorkflowApproverPreviewNode } from '@zenith/shared/workflow';
 import { applyFieldPermissionsToFields, WORKFLOW_APPROVE_METHOD_LABELS as METHOD_LABEL } from '@zenith/shared/workflow';
 import WorkflowFormRenderer from '@/pages/workflow/designer/components/WorkflowFormRenderer';
+import { SignatureClientProvider } from '@/components/signature/SignatureClientContext';
+import { approvalRequest } from '../lib/approval-request';
 import {
   compactSelectedInitiatorApprovers,
   firstMissingInitiatorApproverNode,
@@ -139,6 +141,10 @@ function ChainSection({
 }
 
 export default function LaunchFormPage() {
+  return <SignatureClientProvider client={approvalRequest}><LaunchFormContent /></SignatureClientProvider>;
+}
+
+function LaunchFormContent() {
   const navigate = useNavigate();
   const { definitionId } = useParams<{ definitionId: string }>();
   const defsQuery = usePublishedDefinitions();

@@ -16,6 +16,7 @@ import FieldConfigPanel from './FieldConfigPanel';
 import './FormDesigner.css';
 import { confirmDelete } from '@/utils/confirm';
 import { CursorContextDropdown } from '@/components/CursorContextDropdown';
+import { SignatureModeContext } from './form-renderer/contexts';
 
 interface FormDesignerProps {
   fields: WorkflowFormField[];
@@ -35,6 +36,8 @@ interface FormDesignerProps {
    * 用于异步加载场景——服务端数据注入后重建基线，避免首次撤销把表单退回到空白挂载态。
    */
   baselineKey?: string | number | null;
+  /** 宿主领域的签名能力；报表填报固定为图片签名，不提供个人签名复用策略。 */
+  signatureMode?: 'workflow' | 'image';
 }
 
 export interface FormHistoryEntry {
@@ -262,7 +265,7 @@ const MAX_HISTORY = 100;
 const REQUIRED_EXCLUDE = new Set<WorkflowFormFieldType>(['row', 'group', 'tabs', 'steps', 'divider', 'description', 'formula', 'serialNumber']);
 const canToggleRequired = (t: WorkflowFormFieldType): boolean => !REQUIRED_EXCLUDE.has(t);
 
-export default function FormDesigner({ fields, onChange, settings, onSettingsChange, showToolbar = true, onHistoryChange, onRenameKey, baselineKey }: Readonly<FormDesignerProps>) {
+export default function FormDesigner({ fields, onChange, settings, onSettingsChange, showToolbar = true, onHistoryChange, onRenameKey, baselineKey, signatureMode = 'workflow' }: Readonly<FormDesignerProps>) {
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   // 主选中（配置面板/键盘导航目标）：最后一次选中的字段
   const selectedKey = selectedKeys.length > 0 ? selectedKeys[selectedKeys.length - 1] : null;
@@ -733,6 +736,7 @@ export default function FormDesigner({ fields, onChange, settings, onSettingsCha
   }, [selectedKey, selectedKeys, flatFields, copyToClipboard, pasteFromClipboard, handleRemove, batchRemove, scrollToField, selectOnly]);
 
   return (
+    <SignatureModeContext.Provider value={signatureMode}>
     <div className="fd-form-designer-shell">
       {/* 顶部工具栏：撤销 / 重做（由外部工具栏接管时隐藏） */}
       {showToolbar && (
@@ -958,5 +962,6 @@ export default function FormDesigner({ fields, onChange, settings, onSettingsCha
         />
       </Modal>
     </div>
+    </SignatureModeContext.Provider>
   );
 }

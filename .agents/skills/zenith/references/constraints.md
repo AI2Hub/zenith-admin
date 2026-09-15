@@ -184,6 +184,7 @@
 - **单一默认项写入**：带 `is_default` 的配置类实体（短信 / 推送 / 存储 / 支付渠道 / 公众号 / 报表环境 / 保存视图…）
   一律经 `lib/default-flag.ts` 的 `clearDefaultFlag(executor, table, scopeWhere)` / `ensureSingleDefault(executor, table, id, { scope })`
   在事务内清除范围内其它默认标记，范围条件由调用方给出；**禁止**在 service 里手写 `update(table).set({ isDefault: false })`
+- **手写签名统一解析**：签名输入/策略/快照复用 `@zenith/shared/core` 的 signatures 契约，业务事务之前调用 `services/identity/user-signatures.service.ts` 的 `resolveUserSignature`；禁止直接信任客户端签署人/时间、任意 URL 或个人模板引用，签名图片不得写入审计请求/响应或 diff，禁止只设 recordResponseBody=false 而不显式设置脱敏 afterData（guard 会从成功响应回退生成）；账号、有效租户、模拟登录与模板版本边界见[我的签名](../../../../docs/iam/profile.md)。
 - **工作流实例并发保护**：实例上的审批 / 推进 / 管理操作在事务内用 `services/workflow/instances/shared.ts` 的
   `lockInstanceExpecting(tx, id, expectedStatus, message)` 加行级锁并重校验状态；**禁止**手写 `SELECT status … FOR UPDATE` + 409 样板
 - **工作流实例可见性加载**：按 id 读取当前用户可见的实例一律用 `services/workflow/instances/shared.ts` 的

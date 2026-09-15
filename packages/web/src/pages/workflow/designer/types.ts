@@ -73,10 +73,8 @@ export type RejectStrategy =
   | 'returnStart'    // 退回发起人（流程从头开始）
   | 'returnToNode';  // 退回到指定节点
 
-/** 审批要求开关（签名/意见必填）；按钮启停的唯一事实源是 actionButtons */
-export type OperationPermission =
-  | 'signature'         // 手写签名
-  | 'opinionRequired';  // 审批意见必填
+/** 审批意见要求；签名策略由 signaturePolicy 独立定义。 */
+export type OperationPermission = 'opinionRequired';
 
 /** 表单字段权限 */
 export type FieldPermission = 'read' | 'edit' | 'hidden';
@@ -181,6 +179,7 @@ export interface ApproverNodeProps {
   catchAction?: 'toAdmin' | 'notify' | 'terminate';
   catchNotifyUserIds?: number[];
   operations: OperationPermission[];
+  signaturePolicy?: 'none' | 'reusable' | 'handwritten';
   actionButtons?: ActionButtonsConfig;
   fieldPermissions: Record<string, FieldPermission>;
   timeout?: TimeoutConfig;

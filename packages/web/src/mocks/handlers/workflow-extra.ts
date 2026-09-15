@@ -1,4 +1,6 @@
-import { mock } from '@/mocks/utils/contract';
+import { mock, MockHttpError } from '@/mocks/utils/contract';
+import { mockTaskWorkflowContext, resolveMockTaskSignature, resolveMockWorkflowFormSignatures } from '@/mocks/utils/workflow-signature';
+import { syncMockWorkflowBusinessResult } from '@/mocks/utils/workflow-business';
 import { removeByIds, requireItem } from '@/mocks/utils/crud';
 import { badRequest, fail, forbidden, notFound } from '@/mocks/utils/handlers';
 import { resolveIdempotent } from '@/mocks/utils/idempotency';
@@ -12,6 +14,7 @@ import {
   workflowScheduleContract,
   workflowTaskContract,
   workflowTemplateContract,
+  clearWorkflowFormSignaturesData,
   type WorkflowAnalytics,
   type WorkflowApproverPreviewNode,
   type WorkflowBatchActionResponse,
@@ -37,11 +40,13 @@ import {
   type WorkflowVersionNodeChange,
 } from '@zenith/shared/workflow';
 import { SEED_WORKFLOW_TEMPLATES } from '@zenith/shared/seed';
-import { mockWorkflowInstances, mockWorkflowTasks, mockWorkflowDefinitions, getNextInstanceId, getNextDefinitionId } from '@/mocks/data/workflow';
+import { buildFirstApproveTask, mockWorkflowInstances, mockWorkflowTasks, mockWorkflowDefinitions, getNextInstanceId, getNextDefinitionId } from '@/mocks/data/workflow';
 import { mockUsers } from '@/mocks/data/users';
 import { mockDateTime } from '@/mocks/utils/date';
 import { filterByKeyword } from '@/mocks/utils/filter';
 import { mockResource } from '@/mocks/utils/resource';
+import { getNextWorkflowFormId, mockWorkflowForms } from '@/mocks/data/workflow-forms';
+import { currentMockSession } from '@/mocks/utils/auth';
 
 /** 批量审批的幂等缓存：同一 X-Idempotency-Key 重复提交时原样回放首次结果 */
 const batchActionCache = new Map<string, { data: WorkflowBatchActionResponse; message: string }>();
@@ -101,19 +106,27 @@ function syncInstanceApprovedIfComplete(instanceId: number, now: string) {
     inst.status = 'approved';
     inst.currentNodeKey = null;
     inst.updatedAt = now;
+    syncMockWorkflowBusinessResult(inst);
   }
 }
 
 /** 批量任务动作骨架：逐个对 pending 任务执行 act（各动作副作用自理），汇总成功 / 失败与提示 */
-function runBatchTaskAction(taskIds: number[], act: (task: WorkflowTask, now: string) => void): { data: WorkflowBatchActionResponse; message: string } {
-  const results = taskIds.map((taskId) => {
+async function runBatchTaskAction(taskIds: number[], act: (task: WorkflowTask, now: string) => void): Promise<{ data: WorkflowBatchActionResponse; message: string }> {
+  const results = [];
+  for (const taskId of taskIds) {
     const task = mockWorkflowTasks.find((t) => t.id === taskId);
     if (task && task.status === 'pending') {
-      act(task, mockDateTime());
-      return { taskId, success: true };
+      try {
+        act(task, mockDateTime());
+        results.push({ taskId, success: true });
+      } catch (error) {
+        const body = error instanceof MockHttpError ? await error.response.json() as { message?: string } : null;
+        results.push({ taskId, success: false, message: body?.message ?? (error instanceof Error ? error.message : '任务处理失败') });
+      }
+    } else {
+      results.push({ taskId, success: false, message: '任务不存在或已处理' });
     }
-    return { taskId, success: false, message: '任务不存在或已处理' };
-  });
+  }
   const succeeded = results.filter((r) => r.success).length;
   return { data: { succeeded, failed: results.length - succeeded, results }, message: `成功 ${succeeded} 条` };
 }
@@ -253,13 +266,31 @@ function buildOverdueList(): WorkflowOverdueTask[] {
     });
 }
 
-const APPROVER_PREVIEW: WorkflowApproverPreviewNode[] = [
-  { nodeKey: '__initiator__', nodeName: '发起人', nodeType: 'start', approvers: [{ id: 1, name: '张三' }], approveMethod: null, branchLabel: null, empty: false },
-  { nodeKey: 'approve_manager', nodeName: '直属主管审批', nodeType: 'approve', approvers: [{ id: 2, name: '李四' }], approveMethod: 'or', branchLabel: null, empty: false },
-  { nodeKey: 'approve_pick', nodeName: '指定审批人', nodeType: 'approve', approvers: [], approveMethod: 'or', branchLabel: null, empty: true, selectionRequired: true, selectableApprovers: [{ id: 2, name: '李四' }, { id: 3, name: '王五' }, { id: 4, name: '赵六' }] },
-  { nodeKey: 'approve_dept_head', nodeName: '部门负责人审批', nodeType: 'approve', approvers: [{ id: 3, name: '王五' }], approveMethod: 'and', branchLabel: null, empty: false },
-  { nodeKey: 'cc_initiator', nodeName: '抄送发起人', nodeType: 'ccNode', approvers: [{ id: 1, name: '张三' }], approveMethod: null, branchLabel: null, empty: false },
-];
+/** 按实际定义展示可解析的处理人；只有真实的发起人自选节点要求填写，不额外制造审批节点。 */
+function configuredApproverPreview(definition: WorkflowDefinition, initiatorId: number): WorkflowApproverPreviewNode[] {
+  const users = mockUsers.filter((user) => user.status === 'enabled');
+  const refs = (ids: number[]) => users.filter((user) => ids.includes(user.id)).map((user) => ({ id: user.id, name: user.nickname ?? user.username }));
+  return (definition.flowData?.nodes ?? []).filter(({ data }) => ['start', 'approve', 'handler', 'ccNode', 'subProcess'].includes(data.type)).map(({ data }) => {
+    let ids = data.type === 'start' || data.assigneeType === 'initiator' ? [initiatorId]
+      : data.userIds ?? data.assigneeIds ?? (data.assigneeId == null ? [] : [data.assigneeId]);
+    if (data.assigneeType === 'role') ids = users.filter((user) => user.roles.some((role) => data.roleIds?.includes(role.id))).map((user) => user.id);
+    if (data.assigneeType === 'deptMember') ids = users.filter((user) => user.departmentId != null && data.deptMemberDeptIds?.includes(user.departmentId)).map((user) => user.id);
+    const selectionRequired = data.assigneeType === 'initiatorSelect' || data.assigneeType === 'initiatorSelectScope';
+    const scopeIds = data.selectScopeIds ?? [];
+    const candidates = users.filter((user) => {
+      if (scopeIds.length === 0) return true;
+      if (data.selectScopeType === 'role') return user.roles.some((role) => scopeIds.includes(role.id));
+      if (data.selectScopeType === 'department') return user.departmentId != null && scopeIds.includes(user.departmentId);
+      if (data.selectScopeType === 'userGroup') return false;
+      return scopeIds.includes(user.id);
+    });
+    const approvers = refs(ids);
+    return { nodeKey: data.key, nodeName: data.label, nodeType: data.type, approvers,
+      approveMethod: data.approveMethod ?? null, empty: approvers.length === 0,
+      ...(selectionRequired ? { selectionRequired: true, selectableApprovers: candidates.map((user) => ({ id: user.id, name: user.nickname ?? user.username })) } : {}),
+    };
+  });
+}
 
 export const workflowExtraHandlers = [
   // ── 数据分析（必须在 /instances/:id 之前注册）──
@@ -415,7 +446,10 @@ export const workflowExtraHandlers = [
   }),
 
   // ── 提交前审批链路预览 ──
-  mock(workflowDefinitionContract.preview, ({ ok }) => ok(APPROVER_PREVIEW)),
+  mock(workflowDefinitionContract.preview, ({ params, request, ok }) => {
+    const definition = requireItem(mockWorkflowDefinitions, params.id, '流程定义不存在');
+    return ok(configuredApproverPreview(definition, currentMockSession(request)?.user.id ?? 1));
+  }),
 
   // ── 主动抄送 / 转发 ──
   mock(workflowInstanceContract.forward, ({ body, ok }) => ok(null, `已抄送 ${body.userIds.length} 人`)),
@@ -516,7 +550,16 @@ export const workflowExtraHandlers = [
     const description: string | null = body.description !== undefined ? (body.description?.trim() || null) : (tpl.description ?? null);
     const categoryId: number | null = body.categoryId ?? null;
     const now = mockDateTime();
-    const def: WorkflowDefinition = { ...mockWorkflowDefinitions[0], id: getNextDefinitionId(), name, description, categoryId, status: 'draft', version: 1, flowData: tpl.flowData, createdAt: now, updatedAt: now };
+    const formSchema = tpl.formSchema ? structuredClone(tpl.formSchema) : null;
+    const formId = formSchema ? getNextWorkflowFormId() : null;
+    const formName = formSchema ? `${name}表单` : null;
+    if (formSchema && formId != null) {
+      mockWorkflowForms.push({ ...mockWorkflowForms[0], id: formId, name: formName!, code: `template_${tpl.id}_${formId}`, description,
+        schema: formSchema, revision: 1, status: 'enabled', usageCount: 1, createdAt: now, updatedAt: now });
+    }
+    const def: WorkflowDefinition = { ...mockWorkflowDefinitions[0], id: getNextDefinitionId(), name, description, categoryId,
+      status: 'draft', version: 1, flowData: structuredClone(tpl.flowData), formType: 'designer', customForm: null,
+      formId, formName, formFields: formSchema?.fields ?? null, formSettings: formSchema?.settings ?? null, createdAt: now, updatedAt: now };
     mockWorkflowDefinitions.push(def);
     return ok(def, '已创建');
   }),
@@ -596,18 +639,23 @@ export const workflowExtraHandlers = [
   }),
 
   // ── 草稿：编辑 / 提交 / 重新提交 ──
-  mock(workflowInstanceContract.updateDraft, ({ params, body, ok }) => {
+  mock(workflowInstanceContract.updateDraft, async ({ params, body, ok, request }) => {
     const inst = requireItem(mockWorkflowInstances, params.id, '流程实例不存在');
     if (inst.status !== 'draft') return badRequest('仅草稿可编辑');
+    const formData = body.formData === undefined ? undefined : await resolveMockWorkflowFormSignatures(request, inst.formSnapshot?.fields ?? [], body.formData ?? {}, inst.formData ?? {});
     if (body.title !== undefined) inst.title = body.title;
-    if (body.formData !== undefined) inst.formData = body.formData;
+    if (formData !== undefined) inst.formData = formData;
     inst.updatedAt = mockDateTime();
     return ok(inst, '草稿已保存');
   }),
-  mock(workflowInstanceContract.submitDraft, ({ params, ok }) => {
+  mock(workflowInstanceContract.submitDraft, async ({ params, ok, request }) => {
     const inst = requireItem(mockWorkflowInstances, params.id, '流程实例不存在');
     if (inst.status !== 'draft') return badRequest('仅草稿可提交');
-    inst.status = 'running';
+    inst.formData = await resolveMockWorkflowFormSignatures(request, inst.formSnapshot?.fields ?? [], inst.formData ?? {}, inst.formData ?? {});
+    const definition = mockWorkflowDefinitions.find((item) => item.id === inst.definitionId);
+    const firstTask = definition ? buildFirstApproveTask(definition, inst.id, mockDateTime(), inst.initiatorId ?? 1) : null;
+    if (firstTask) { mockWorkflowTasks.push(firstTask); inst.currentNodeKey = firstTask.nodeKey; inst.tasks = [firstTask]; }
+    inst.status = firstTask ? 'running' : 'approved';
     inst.updatedAt = mockDateTime();
     return ok(inst, '申请已提交');
   }),
@@ -621,6 +669,7 @@ export const workflowExtraHandlers = [
       status: 'draft',
       currentNodeKey: null,
       tasks: [],
+      formData: clearWorkflowFormSignaturesData(src.formSnapshot?.fields ?? [], src.formData ?? {}),
       createdAt: now,
       updatedAt: now,
     };
@@ -699,6 +748,11 @@ export const workflowExtraHandlers = [
       request,
       cache: batchActionCache,
       run: () => runBatchTaskAction(taskIds, (task, now) => {
+        const signature = resolveMockTaskSignature(request, task, body.signature, true);
+        if (mockTaskWorkflowContext(task).node?.operations?.includes('opinionRequired') && !comment?.trim()) {
+          throw new MockHttpError(badRequest('请填写审批意见', { status: 400 }));
+        }
+        Object.assign(task, signature);
         task.status = 'approved'; task.comment = comment ?? null; task.actionAt = now;
         syncInstanceApprovedIfComplete(task.instanceId, now);
       }),
@@ -725,6 +779,7 @@ export const workflowExtraHandlers = [
                 item.actionAt = now;
               }
             });
+          syncMockWorkflowBusinessResult(inst);
         }
       }),
     });

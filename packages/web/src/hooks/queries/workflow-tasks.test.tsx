@@ -12,7 +12,7 @@ const recorder = new ApiRecorder();
 vi.mock('@/utils/request', () => ({ request: createRequestMock(() => recorder) }));
 
 import { urlOf } from '@/lib/contract-query';
-import { invalidateAfterTaskAction, useBatchApproveWorkflowTasks, useConsultWorkflowTask, usePendingWorkflowTasks, workflowTaskKeys } from './workflow-tasks';
+import { invalidateAfterTaskAction, runWorkflowBatchApprove, useBatchApproveWorkflowTasks, useConsultWorkflowTask, usePendingWorkflowTasks, workflowTaskKeys } from './workflow-tasks';
 import { useWorkflowInstanceDetail, useWorkflowMonitorList } from './workflow-monitor';
 import { usePublishedWorkflowDefinitions, workflowDefinitionKeys } from './workflow-definitions';
 import { workflowInstanceKeys } from './workflow-instances';
@@ -34,7 +34,7 @@ beforeEach(() => {
     .on('GET', PUBLISHED_URL, [])
     .on('GET', DETAIL_1_URL, { id: 1 })
     .on('GET', DETAIL_2_URL, { id: 2 })
-    .on('POST', workflowTaskContract.batchApprove.fullPath, { total: 1, success: 1, failed: 0, results: [{ taskId: 11, success: true }] })
+    .on('POST', workflowTaskContract.batchApprove.fullPath, { succeeded: 1, failed: 0, results: [{ taskId: 11, success: true }] })
     .on('POST', urlOf(workflowTaskContract.consult, { params: { taskId: 11 } }), []);
 });
 
@@ -57,8 +57,8 @@ describe('workflow task action cache', () => {
     const fetches = observeFetches(qc);
     await result.current.approve.mutateAsync({ body: { taskIds: [11] } });
 
-    // 幂等键按任务集合派生
-    expect(recorder.calls.find((c) => c.method === 'POST')?.headers?.['x-idempotency-key']).toBe('workflow-batch-approve-11');
+    // 每次明确确认单独生成意图，弱网重试沿用该请求头。
+    expect(recorder.calls.find((c) => c.method === 'POST')?.headers?.['x-idempotency-key']).toMatch(/^workflow-batch-approve-[\da-f-]{36}$/);
     // 成功行先从缓存即时移除，再由回源校准
     const cached = getCacheEntry<{ list: Array<{ pendingTaskId: number }>; total: number }>(qc, workflowTaskKeys.pendingList(params));
     expect(cached?.list.map((it) => it.pendingTaskId)).toEqual([12]);
@@ -71,6 +71,17 @@ describe('workflow task action cache', () => {
     expect(fetches.countOf(workflowDefinitionKeys.published)).toBe(0);
     expect(isFresh(qc, workflowDefinitionKeys.published)).toBe(true);
     fetches.stop();
+  });
+
+  it('uses a new confirmation key when a personal signature version changes and sends only its reference', async () => {
+    await runWorkflowBatchApprove({ taskIds: [11], signature: { source: 'saved', signatureId: 9, version: 1 } });
+    await runWorkflowBatchApprove({ taskIds: [11], signature: { source: 'saved', signatureId: 9, version: 2 } });
+    const calls = recorder.calls.filter((call) => call.method === 'POST');
+    expect(calls[0].headers?.['x-idempotency-key']).not.toBe(calls[1].headers?.['x-idempotency-key']);
+    expect(calls.map((call) => call.body)).toEqual([
+      { taskIds: [11], signature: { source: 'saved', signatureId: 9, version: 1 } },
+      { taskIds: [11], signature: { source: 'saved', signatureId: 9, version: 2 } },
+    ]);
   });
 
   it('invalidateAfterTaskAction(instanceId) refetches that instance detail only', async () => {

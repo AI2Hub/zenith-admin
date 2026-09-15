@@ -1,3 +1,4 @@
+import { redactWorkflowSignatureImages } from '../../../services/workflow/instances/signature-audit';
 // ─── 管理员强制操作与令牌运维 ───
 import { workflowInstanceOpsContract, workflowTaskContract } from '@zenith/shared/workflow';
 import { setAuditAfterData, setAuditBeforeData } from '../../../middleware/guard';
@@ -7,11 +8,19 @@ import { okBody } from '../../../lib/openapi-schemas';
 import { skipStuckToken, replayFromToken, batchSkipStuckTokens, getInstanceForAdminAudit, getWorkflowTaskBeforeAudit, getWorkflowTaskForAdminAudit, jumpInstance, reassignTask, recallTask, suspendInstance, resumeInstance, previewHandover, handoverTasks } from '../../../services/workflow/workflow-instances.service';
 
 export const tokenSkipRoute = defineContractRoute(workflowInstanceOpsContract.skipToken, {
-  handler: async (c) => c.json(okBody(await skipStuckToken(c.req.valid('param').id, c.req.valid('json').reason), '已跳过并推进'), 200),
+  handler: async (c) => {
+    const after = await skipStuckToken(c.req.valid('param').id, c.req.valid('json').reason);
+    setAuditAfterData(c, redactWorkflowSignatureImages(after));
+    return c.json(okBody(after, '已跳过并推进'), 200);
+  },
 });
 
 export const tokenReplayRoute = defineContractRoute(workflowInstanceOpsContract.replayToken, {
-  handler: async (c) => c.json(okBody(await replayFromToken(c.req.valid('param').id, c.req.valid('json').reason), '已从该节点重放'), 200),
+  handler: async (c) => {
+    const after = await replayFromToken(c.req.valid('param').id, c.req.valid('json').reason);
+    setAuditAfterData(c, redactWorkflowSignatureImages(after));
+    return c.json(okBody(after, '已从该节点重放'), 200);
+  },
 });
 
 export const batchSkipStuckRoute = defineContractRoute(workflowInstanceOpsContract.batchSkipStuck, {
@@ -27,7 +36,9 @@ export const jumpInstanceRoute = defineContractRoute(workflowInstanceOpsContract
     const { targetNodeKey, comment } = c.req.valid('json');
     const before = await getInstanceForAdminAudit(id);
     if (before) setAuditBeforeData(c, before);
-    return c.json(okBody(await jumpInstance(id, targetNodeKey, comment), '已跳转'), 200);
+    const after = await jumpInstance(id, targetNodeKey, comment);
+    setAuditAfterData(c, redactWorkflowSignatureImages(after));
+    return c.json(okBody(after, '已跳转'), 200);
   },
 });
 
@@ -39,7 +50,7 @@ export const reassignRoute = defineContractRoute(workflowTaskContract.reassign, 
     if (before) setAuditBeforeData(c, before);
     const row = await reassignTask(taskId, targetUserId, comment);
     const after = await getWorkflowTaskForAdminAudit(taskId);
-    if (after) setAuditAfterData(c, after);
+    setAuditAfterData(c, after ?? redactWorkflowSignatureImages(row));
     return c.json(okBody(row, '已改派'), 200);
   },
 });
@@ -50,7 +61,9 @@ export const recallRoute = defineContractRoute(workflowTaskContract.recall, {
     const body = c.req.valid('json');
     const before = await getWorkflowTaskBeforeAudit(taskId);
     if (before) setAuditBeforeData(c, before);
-    return c.json(okBody(await recallTask(taskId, body.comment), '已撤回'), 200);
+    const after = await recallTask(taskId, body.comment);
+    setAuditAfterData(c, redactWorkflowSignatureImages(after));
+    return c.json(okBody(after, '已撤回'), 200);
   },
 });
 
@@ -60,7 +73,9 @@ export const suspendInstanceRoute = defineContractRoute(workflowInstanceOpsContr
     const { reason } = c.req.valid('json');
     const before = await getInstanceForAdminAudit(id);
     if (before) setAuditBeforeData(c, before);
-    return c.json(okBody(await suspendInstance(id, reason), '已挂起，自动推进已暂停'), 200);
+    const after = await suspendInstance(id, reason);
+    setAuditAfterData(c, redactWorkflowSignatureImages(after));
+    return c.json(okBody(after, '已挂起，自动推进已暂停'), 200);
   },
 });
 
@@ -69,7 +84,9 @@ export const resumeInstanceRoute = defineContractRoute(workflowInstanceOpsContra
     const { id } = c.req.valid('param');
     const before = await getInstanceForAdminAudit(id);
     if (before) setAuditBeforeData(c, before);
-    return c.json(okBody(await resumeInstance(id), '已恢复流转，计时按剩余时长续跑'), 200);
+    const after = await resumeInstance(id);
+    setAuditAfterData(c, redactWorkflowSignatureImages(after));
+    return c.json(okBody(after, '已恢复流转，计时按剩余时长续跑'), 200);
   },
 });
 

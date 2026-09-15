@@ -58,6 +58,7 @@ lucide 图标全表（615 KB / 153 KB gz）在任何口径下都是运行时按�
 | 壳层 | `vendor-semi-media` | Semi lottie / videoPlayer / audioPlayer | 使用它的页面 |
 | 壳层 | `vendor-semi-form` | Semi Form（BaseForm 静态引入全部字段控件）+ 只经 Form 使用的 Cascader / TreeSelect / Upload(+Cropper) / TagInput / AutoComplete / Transfer；`form/label`、Slider 与 semi-foundation 的 `form/*` 因被核心反向引用（`input/inputGroup`、`image/previewFooter`）留在 `vendor-semi` | 使用表单的页面 |
 | 壳层 | `vendor-semi` | 其余全部 Semi（semi-ui / semi-foundation / semi-icons / semi-animation） | 登录后 |
+| 页面层 | `vendor-approval-icons`（仅审批入口） | 不在入口静态闭包内的 lucide SVG 图标；优先级低于 `initial-vendor` | 首次使用相关页面或预热图标时 |
 | 壳层 | `vendor-common` | 被 ≥ 10 个模块共享的 node_modules | 登录后 |
 | 壳层 | `app-shared` | 被 ≥ 10 个模块共享的 `hooks/` `lib/` `utils/` `providers/` `config/` + `@zenith/shared` + analytics-sdk 源码 | 登录后 |
 | 页面层 | `vendor~A~B~…` | 其余第三方，按「消费页面集合」精确分组（`entriesAware`，不侧向合并） | 使用它的页面 |

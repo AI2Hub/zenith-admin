@@ -4,8 +4,7 @@
  */
 import { lazy, Suspense, useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
-import { Button, Rating, Select, Space, Spin, Typography, withField } from '@douyinfe/semi-ui';
-import { Eraser } from 'lucide-react';
+import { Rating, Select, Spin, Typography, withField } from '@douyinfe/semi-ui';
 import type { WorkflowRelationOption } from '@zenith/shared/workflow';
 import { workflowAttachmentContract } from '@zenith/shared/workflow';
 import FileAttachment from '@/components/FileAttachment';
@@ -19,7 +18,8 @@ import type { RichTextEditorProps } from '@/components/RichTextEditor';
 import { useWorkflowDesignerRelationOptions, useWorkflowDesignerRemoteDataSourceOptions } from '@/hooks/queries/workflow-designer';
 import { useWorkflowSelectableUsers } from '@/hooks/queries/workflow-shared';
 import { urlOf } from '@/lib/contract-query';
-import { useSignaturePad } from '@/hooks/useSignaturePad';
+import type { SignatureFieldProps } from '@/components/signature/SignatureField';
+import SignaturePad from '@/components/SignaturePad';
 
 // 富文本编辑器懒加载：wangeditor（~780KB raw）只在可编辑富文本字段真正渲染时加载，
 // 移动审批、工作流发起/审批等承载本渲染器的入口不再静态背上编辑器
@@ -161,49 +161,10 @@ function DataSourceSelect({ value, onChange, dataSourceId, placeholder, disabled
   );
 }
 
-// ─── 手写签名板 ─────────────────────────────────────────────────────
-interface SignaturePadProps {
-  value?: string;
-  onChange?: (value: string) => void;
-  disabled?: boolean;
-  width?: number;
-  height?: number;
-}
-
-function SignaturePad({ value, onChange, disabled, width = 360, height = 150 }: Readonly<SignaturePadProps>) {
-  const { canvasRef, handlePointerDown, handlePointerMove, handlePointerUp, clear } = useSignaturePad({
-    value,
-    onChange,
-    disabled,
-    echoValue: true,
-  });
-
-  return (
-    <Space vertical align="start" spacing={6}>
-      <canvas
-        ref={canvasRef}
-        width={width}
-        height={height}
-        style={{
-          border: '1px dashed var(--semi-color-border)',
-          borderRadius: 'var(--semi-border-radius-medium)',
-          background: 'var(--surface-card)',
-          touchAction: 'none',
-          cursor: disabled ? 'not-allowed' : 'crosshair',
-          maxWidth: '100%',
-        }}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerLeave={handlePointerUp}
-      />
-      {!disabled && (
-        <Button size="small" theme="borderless" icon={<Eraser size={12} />} onClick={clear} style={{ alignSelf: 'flex-start' }}>
-          清除
-        </Button>
-      )}
-    </Space>
-  );
+// 签名数据源留在独立懒加载边界内，普通表单不提前请求个人签名。
+const SignatureField = lazy(() => import('@/components/signature/SignatureField'));
+function SignatureFieldControl(props: Readonly<SignatureFieldProps>) {
+  return <Suspense fallback={<Spin size="small" />}><SignatureField {...props} /></Suspense>;
 }
 
 // Suspense 收在字段内部：编辑器 chunk 加载期间只有该字段显示占位，不打断整表单渲染
@@ -275,7 +236,8 @@ function FileUploadInput({ value, onChange, disabled, isImage, limit, accept, ma
 
 export const FormRegion = withField(RegionSelect);
 export const FormRichText = withField(RichTextEditorField);
-export const FormSignature = withField(SignaturePad);
+export const FormSignature = withField(SignatureFieldControl);
+export const FormImageSignature = withField(SignaturePad);
 export const FormUserSelect = withField(WorkflowUserSelect);
 export const FormDeptSelect = withField(DepartmentSelect);
 export const FormDictSelect = withField(DictSelect);

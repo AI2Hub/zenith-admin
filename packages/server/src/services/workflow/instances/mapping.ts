@@ -1,3 +1,4 @@
+import type { WorkflowSignaturePolicy } from '@zenith/shared/workflow';
 // ─── 实例/任务数据映射与定义快照辅助（拆分自 workflow-instances.service.ts）───
 import { formatDateTime, formatNullableDateTime, formatTimestamps } from '../../../lib/datetime';
 import { workflowInstances, workflowTasks, workflowDefinitions } from '../../../db/schema';
@@ -23,7 +24,7 @@ export function mapTask(
   assigneeName?: string | null,
   assigneeAvatar?: string | null,
   actionButtons?: Partial<Record<WorkflowActionButtonKey, WorkflowActionButtonConfig>> | null,
-  signatureRequired?: boolean,
+  signaturePolicy?: WorkflowSignaturePolicy,
   transfers?: import('@zenith/shared').WorkflowTaskTransfer[] | null,
 ) {
   return {
@@ -38,8 +39,9 @@ export function mapTask(
     status: row.status,
     comment: row.comment,
     signature: row.signature ?? null,
+    signatureEvidence: row.signatureEvidence ?? null,
     attachments: Array.isArray(row.attachments) ? row.attachments : [],
-    signatureRequired: signatureRequired ?? false,
+    signaturePolicy: signaturePolicy ?? 'none',
     actionAt: formatNullableDateTime(row.actionAt),
     originalAssigneeId: row.originalAssigneeId ?? null,
     transfers: transfers ?? null,

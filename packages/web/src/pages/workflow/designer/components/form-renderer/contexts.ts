@@ -4,3 +4,5 @@ import { createContext } from 'react';
 export const ValuesContext = createContext<Record<string, unknown>>({});
 /** 查看态文本化开关（由 WorkflowFormRenderer 的 readOnlyAsText 提供，深层字段经 context 读取） */
 export const ReadOnlyTextContext = createContext(false);
+/** 工作流使用带证据的签名协议；报表填报使用其领域约定的 PNG 图片字符串。 */
+export const SignatureModeContext = createContext<'workflow' | 'image'>('workflow');

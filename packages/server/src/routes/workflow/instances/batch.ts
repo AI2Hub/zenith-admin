@@ -10,8 +10,8 @@ export { compactAuditData } from './_batch-audit';
 export const batchApproveRoute = defineContractRoute(workflowTaskContract.batchApprove, {
   middleware: [idempotencyGuard({ ttlSeconds: 10 })],
   handler: async (c) => {
-    const { taskIds, comment } = c.req.valid('json');
-    return c.json(await runBatchWithAudit(c, taskIds, () => batchApproveTasks(taskIds, comment), getWorkflowTaskBeforeAudit), 200);
+    const { taskIds, comment, signature } = c.req.valid('json');
+    return c.json(await runBatchWithAudit(c, taskIds, () => batchApproveTasks(taskIds, comment, signature), getWorkflowTaskBeforeAudit), 200);
   },
 });
 

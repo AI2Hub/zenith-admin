@@ -644,18 +644,22 @@ export function getNextDefinitionId() { return nextDefinitionId++; }
  * Demo 发起实例时的首个待办：取流程图第一个 approve 节点生成 pending 任务；
  * 无审批节点返回 null。工作流发起与业务系统（请假）提交共用。
  */
-export function buildFirstApproveTask(def: Pick<WorkflowDefinition, 'flowData'>, instanceId: number, now: string): WorkflowTask | null {
+export function buildFirstApproveTask(def: Pick<WorkflowDefinition, 'flowData'>, instanceId: number, now: string, initiatorId = 1): WorkflowTask | null {
   const firstApproveNode = def.flowData?.nodes.find((node) => node.data.type === 'approve');
   if (!firstApproveNode) return null;
+  const assigneeId = firstApproveNode.data.assigneeType === 'initiator' ? initiatorId
+    : firstApproveNode.data.assigneeId ?? firstApproveNode.data.assigneeIds?.[0] ?? null;
   return {
     id: getNextTaskId(),
     instanceId,
     nodeKey: firstApproveNode.data.key,
     nodeName: firstApproveNode.data.label,
     nodeType: 'approve',
-    assigneeId: firstApproveNode.data.assigneeId ?? firstApproveNode.data.assigneeIds?.[0] ?? null,
+    assigneeId,
+    signaturePolicy: firstApproveNode.data.signaturePolicy ?? 'none',
+    actionButtons: firstApproveNode.data.actionButtons,
     assigneeName: firstApproveNode.data.assigneeName
-      ?? mockUsers.find((user) => user.id === (firstApproveNode.data.assigneeId ?? firstApproveNode.data.assigneeIds?.[0]))?.nickname
+      ?? mockUsers.find((user) => user.id === assigneeId)?.nickname
       ?? null,
     assigneeAvatar: null,
     status: 'pending',

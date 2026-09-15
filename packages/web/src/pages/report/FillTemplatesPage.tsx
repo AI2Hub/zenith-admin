@@ -433,6 +433,7 @@ export default function FillTemplatesPage() {
               <TabPane tab="字段设计" itemKey="designer" style={{ height: '100%' }}>
                 <div style={{ height: '100%', minHeight: 0 }}>
                   <FormDesigner
+                    signatureMode="image"
                     fields={fields}
                     onChange={setFields}
                     settings={settings}
@@ -443,6 +444,7 @@ export default function FillTemplatesPage() {
               <TabPane tab={<Space><Eye size={14} />预览</Space>} itemKey="preview" style={{ height: '100%', overflow: 'auto' }}>
                 {fields.length ? (
                   <WorkflowFormRenderer
+                    signatureMode="image"
                     fields={fields}
                     labelPosition={settings.labelPosition}
                     labelAlign={settings.labelAlign}

@@ -25,6 +25,7 @@
 
 | 场景 | 必须使用 | 禁止的手写实现 | 漏写的代价 |
 | --- | --- | --- | --- |
+| 手写签名与个人模板 | `components/signature/SignatureField` + 身份域 `personal-signature` hooks；移动审批通过 `SignatureClientProvider` 使用本入口客户端，策略见[表单签名](../../../../docs/workflow/form-design.md#签名字段) | 页面自行缓存/复用 PNG、拼接签署人/时间、以节点操作字符串代替签名策略 | 模板归属或版本丢失，跨任务自动落签，桌面/移动规则分叉 |
 | 服务端调用 | `lib/contract-query.ts`：`api(op, input)` / `useApiQuery(op, input)` / `useApiMutation(op)`，`op` 来自 `@zenith/shared/{域}` 的契约 | `request.get<T>('/api/...')` 等路径字面量与响应泛型（`api-conformance.test.ts` 对照服务端路由表守住残留字面量） | 路径写错线上 404 而 Demo 全绿；响应类型与服务端漂移 |
 | 标准 CRUD 域 hooks | `lib/contract-query.ts` 的 `createResourceQueries(xxxContract)` | 手抄 `xxxKeys` 与列表 / 详情 / 保存 / 删除 / 下拉源 | 保存后列表不变；已删记录重新打开弹窗时闪出旧数据 |
 | 非标准命名的新增 / 编辑对（`createRule` / `updateRule`、`slotCreate` / `slotUpdate`…） | `lib/contract-query.ts` 的 `useSaveMutation(createOp, updateOp, { invalidate, requestOptions })`，变量 `{ id?, values }` | 手写 `useMutation({ mutationFn: ({ id, values }) => id === undefined ? api(create, …) : api(update, …), onSuccess })` | create / update 的 requestOptions 与失效各写一份，两处漂移 |

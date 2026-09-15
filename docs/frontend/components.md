@@ -172,7 +172,8 @@ const operationColumn = createOperationColumn<User>({
 | `UserTransferSelect` | 用户穿梭选择器，支持按部门组织展示 |
 | `MemberSelect` | 会员远程搜索下拉 |
 | `RegionSelect` | 省市区 Cascader；props 包含 `value`、`onChange`、`placeholder`、`disabled`、`showClear`、`changeOnSelect`、`style`、`className` |
-| `SignaturePad` | Canvas 手写签名板，输出 PNG data URL |
+| `SignaturePad` | 底层 Canvas 手写画布，输出 PNG data URL；业务接入使用 SignatureField |
+| `SignatureField` | 统一手写、个人签名复用与快照只读展示，输入/策略见[签名字段](../workflow/form-design.md#签名字段) |
 | `JsonBlock` | JSON 内容块展示 |
 | `UserAvatar` | 用户头像展示，缺省头像按名称生成稳定色块 |
 | `UserDisplay` | 用户展示组件，组合头像、昵称/用户名等信息 |
