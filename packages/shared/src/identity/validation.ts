@@ -1,3 +1,4 @@
+import { signatureDataUrlSchema } from '../core/signatures';
 import * as z from 'zod';
 import { dateTimeStringSchema, httpUrl, partialForUpdate } from '../core/validation';
 import { tenantPackageQuotasSchema } from '../licensing/validation';
@@ -633,3 +634,6 @@ export const userGroupRulePreviewSchema = z.object({
 
 export type UserGroupRulePreviewInput = z.infer<typeof userGroupRulePreviewSchema>;
 
+
+/** 保存当前账号的 PNG 手写签名模板。 */
+export const saveMySignatureSchema = z.object({ dataUrl: signatureDataUrlSchema }).strict();

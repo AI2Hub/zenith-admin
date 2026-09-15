@@ -1,6 +1,7 @@
+import type { SignatureSnapshot } from '@zenith/shared/core';
 import { pgTable, varchar, timestamp, pgEnum, integer, bigint, boolean, unique, text, uniqueIndex, index, jsonb, smallint, real, foreignKey, uuid as pgUuid, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
-import type { WorkflowAutomationAction, WorkflowDefinitionSnapshot } from '@zenith/shared/workflow';
+import type { WorkflowAutomationAction, WorkflowDefinitionSnapshot, WorkflowInstanceFormSnapshot } from '@zenith/shared/workflow';
 import { timestampColumns, idColumn, statusColumn, sortColumn, remarkColumn } from './common';
 import { auditColumns, users, tenantIdColumn } from './core';
 import { managedFiles } from './files';
@@ -425,7 +426,7 @@ export const workflowInstances = pgTable('workflow_instances', {
   id: idColumn(),
   definitionId: integer().notNull().references(() => workflowDefinitions.id, { onDelete: 'restrict' }),
   definitionSnapshot: jsonb().$type<WorkflowDefinitionSnapshot>().notNull(), // 发起时的定义快照
-  formSnapshot: jsonb(), // 发起时的表单快照（兼容旧 WorkflowFormField[]；新数据含 fields/settings/customForm）
+  formSnapshot: jsonb().$type<WorkflowInstanceFormSnapshot>(), // 发起时冻结的表单配置与字段快照
   title: varchar({ length: 128 }).notNull(),
   /** 业务编号/流水号（按流程定义的编号规则在发起时生成，如 BX-20260620-0001） */
   serialNo: varchar({ length: 64 }),
@@ -492,6 +493,7 @@ export const workflowTasks = pgTable('workflow_tasks', {
   comment: text(),
   /** 手写签名（data URL / 图片地址，审批通过时若节点要求签名则写入） */
   signature: text(),
+  signatureEvidence: jsonb().$type<Omit<SignatureSnapshot, 'dataUrl'>>(),
   /** 审批附件（[{name,url,size}]，审批通过时上传） */
   attachments: jsonb().$type<Array<{ name: string; url: string; size?: number }>>(),
   actionAt: timestamp({ withTimezone: true }),

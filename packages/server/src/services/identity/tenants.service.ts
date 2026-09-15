@@ -1,6 +1,6 @@
 import { buildListResult } from '../../lib/list-query';
 import { requireRow } from '../../lib/db-assert';
-import { eq, and, ne, desc, count, inArray } from 'drizzle-orm';
+import { eq, and, ne, desc, count, inArray, or } from 'drizzle-orm';
 import crypto from 'node:crypto';
 import { hashPassword } from '../../lib/password';
 import { keywordCondition, buildWhere } from '../../lib/where-helpers';
@@ -8,7 +8,7 @@ import type { QueryOutputOf } from '@zenith/shared/core';
 import { tenantContract } from '@zenith/shared/identity';
 import { pageOffset } from '../../lib/pagination';
 import { db } from '../../db';
-import { tenants, users, departments, roles, positions, tenantPackageFeatures, menus, userRoles, roleMenus } from '../../db/schema';
+import { tenants, users, departments, roles, positions, tenantPackageFeatures, menus, userRoles, roleMenus, userSignatures } from '../../db/schema';
 import { reserveTenantSeats } from '../../lib/tenant-quota';
 import type { DbTransaction } from '../../db/types';
 import { HTTPException } from 'hono/http-exception';
@@ -20,6 +20,7 @@ import { validatePassword } from '@zenith/shared/settings';
 import { getSettings } from '../../lib/settings';
 import { formatNullableDateTime, formatTimestamps, parseDateTimeInput } from '../../lib/datetime';
 import { registerRevealSource } from '../../lib/data-mask/reveal';
+import { releaseIdentitySignatures } from './user-signature-lifecycle';
 
 export function mapTenant(row: typeof tenants.$inferSelect, packageName: string | null = null) {
   return {
@@ -272,8 +273,16 @@ export async function revokeTenantSessions(tenantId: number): Promise<number> {
 }
 
 export async function deleteTenant(id: number) {
-  const [row] = await db.delete(tenants).where(eq(tenants.id, id)).returning();
-  requireRow(row, '租户不存在');
+  await db.transaction(async (tx) => {
+    const [tenant] = await tx.select({ id: tenants.id }).from(tenants).where(eq(tenants.id, id)).for('update').limit(1);
+    requireRow(tenant, '租户不存在');
+    const tenantUsers = await tx.select({ id: users.id }).from(users).where(eq(users.tenantId, id)).orderBy(users.id).for('update');
+    await releaseIdentitySignatures(tx, or(
+      eq(userSignatures.tenantId, id),
+      tenantUsers.length ? inArray(userSignatures.userId, tenantUsers.map((user) => user.id)) : undefined,
+    )!, id);
+    await tx.delete(tenants).where(eq(tenants.id, id));
+  });
 }
 
 export async function getTenantBeforeAudit(id: number) {

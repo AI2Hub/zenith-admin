@@ -4,7 +4,7 @@ import { eq, and, ne, inArray, type SQL } from 'drizzle-orm';
 import { hashPassword } from '../../lib/password';
 import { db } from '../../db';
 import type { DbExecutor } from '../../db/types';
-import { users, userRoles, roles, departments, positions, userPositions, userMenus, userDeptScopes, menus } from '../../db/schema';
+import { users, userRoles, roles, departments, positions, userPositions, userMenus, userDeptScopes, userSignatures, menus } from '../../db/schema';
 import { HTTPException } from 'hono/http-exception';
 import { exactTenantCondition, tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import { reserveTenantSeats } from '../../lib/tenant-quota';
@@ -30,6 +30,7 @@ import { registerRevealSource } from '../../lib/data-mask/reveal';
 import logger from '../../lib/logger';
 import { userHasPlatformSuperRole } from './role-grant';
 import { emitIdentityRemoval } from '../../lib/identity-lifecycle';
+import { releaseIdentitySignatures } from './user-signature-lifecycle';
 
 // ─── 关联查询配置 ─────────────────────────────────────────────────────────────
 
@@ -345,9 +346,14 @@ export async function batchDeleteUsers(ids: number[]) {
   await ensureUsersManageable(validIds);
   const tc = tenantCondition(users, user);
   await ensureNoProtectedAdminInIds(validIds, '删除');
-  const deleted = await db.delete(users)
-    .where(buildWhere(inArray(users.id, validIds), tc))
-    .returning({ id: users.id });
+  const deleted = await db.transaction(async (tx) => {
+    const targets = await tx.select({ id: users.id }).from(users)
+      .where(buildWhere(inArray(users.id, validIds), tc)).orderBy(users.id).for('update');
+    if (!targets.length) return [];
+    const targetIds = targets.map((row) => row.id);
+    await releaseIdentitySignatures(tx, inArray(userSignatures.userId, targetIds));
+    return tx.delete(users).where(buildWhere(inArray(users.id, targetIds), tc)).returning({ id: users.id });
+  });
   await revokeUserSessions(deleted.map((r) => r.id));
   emitIdentityRemoval({ kind: 'user', ids: deleted.map((row) => row.id) });
   return deleted.length;
@@ -502,8 +508,13 @@ export async function deleteUser(id: number) {
   await ensureUserManageable(id);
   const tc = tenantCondition(users, user);
   await ensureNoProtectedAdminInIds([id], '删除');
-  const [deleted] = await db.delete(users).where(buildWhere(eq(users.id, id), tc)).returning();
-  requireRow(deleted, '用户不存在');
+  await db.transaction(async (tx) => {
+    const [target] = await tx.select({ id: users.id }).from(users)
+      .where(buildWhere(eq(users.id, id), tc)).for('update').limit(1);
+    requireRow(target, '用户不存在');
+    await releaseIdentitySignatures(tx, eq(userSignatures.userId, target.id));
+    await tx.delete(users).where(buildWhere(eq(users.id, target.id), tc));
+  });
   await revokeUserSessions([id]);
 }
 

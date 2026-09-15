@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Form, Button, Typography, Toast, Tag, Space, Spin, Avatar, Modal, Tabs, List as SemiList, Descriptions, Divider, PinCode, Banner } from '@douyinfe/semi-ui';
-import { UserRound, Shield, Monitor, List, Key, LogOut, Plus, Copy, CheckCircle, Smartphone, ShieldCheck, BellRing } from 'lucide-react';
+import { UserRound, Shield, Monitor, List, Key, LogOut, Plus, Copy, CheckCircle, Smartphone, ShieldCheck, BellRing, PenTool } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 
 import { OAUTH_PROVIDERS, OAUTH_PROVIDER_LABELS, SESSION_CLIENT_KIND_LABELS } from '@zenith/shared/identity';
@@ -57,11 +57,12 @@ import { rememberOAuthPending } from '@/lib/oauth-pending';
 
 import { useEditModal } from '@/hooks/useEditModal';
 import { useUrlTabState } from '@/hooks/useUrlTabState';
+import MySignatureTab from './MySignatureTab';
 import NotificationSettingsTab from './NotificationSettingsTab';
 import { EditFormModal } from '@/components/EditFormModal';
 const { Title, Text } = Typography;
 
-type SectionKey = 'profile' | 'security' | 'notifications' | 'devices' | 'login' | 'operation' | 'api-tokens' | 'authorized-apps';
+type SectionKey = 'profile' | 'signature' | 'security' | 'notifications' | 'devices' | 'login' | 'operation' | 'api-tokens' | 'authorized-apps';
 
 interface ProfilePageProps {
   readonly user: Omit<UserType, 'password'>;
@@ -136,7 +137,7 @@ function SessionList({
 }
 
 export default function ProfilePage({ user }: ProfilePageProps) {
-  const [activeSection, setActiveSection] = useUrlTabState(['profile', 'security', 'notifications', 'devices', 'login', 'operation', 'api-tokens', 'authorized-apps'] as const, 'profile');
+  const [activeSection, setActiveSection] = useUrlTabState(['profile', 'signature', 'security', 'notifications', 'devices', 'login', 'operation', 'api-tokens', 'authorized-apps'] as const, 'profile');
 
   // ─── 基本信息 ────────────────────────────────────────────────────────────────
   const { options: genderOptions } = useDictItems('user_gender');
@@ -497,6 +498,10 @@ export default function ProfilePage({ user }: ProfilePageProps) {
                     </Form.Slot>
                   </Form>
               </div>
+            </Tabs.TabPane>
+
+            <Tabs.TabPane itemKey="signature" tab={<span className="profile-tab-label"><PenTool size={14} /><span>我的签名</span></span>}>
+              {activeSection === 'signature' && <MySignatureTab />}
             </Tabs.TabPane>
 
             {/* ── 账号安全 ──────────────────────────────────────── */}

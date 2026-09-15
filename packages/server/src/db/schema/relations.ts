@@ -3,7 +3,7 @@ import { departments, menus, positions, roleDeptScopes, roleMenus, roles, tenant
 import { businessFiles, fileStorageConfigs, managedFiles, uploadChunks, uploadSessions } from './files';
 import { asyncTaskItems, asyncTasks, exportJobDownloads, exportJobs } from './tasks';
 import { cronJobLogs, cronJobs, userFeedbacks } from './system';
-import { loginRiskEvents, passwordResetTokens, userApiTokens, userMfaFactors, userOauthAccounts, userTrustedDevices } from './auth';
+import { loginRiskEvents, passwordResetTokens, userApiTokens, userSignatures, userMfaFactors, userOauthAccounts, userTrustedDevices } from './auth';
 import { identityProviderSyncLogs, tenantIdentityProviders, userIdentityAccounts } from './identity-providers';
 import { directorySyncConflicts, directorySyncDeptLinks, directorySyncRunItems, directorySyncRuns, directorySyncSources, directorySyncUserLinks } from './directory-sync';
 import { dictItems, dicts } from './dicts';
@@ -2034,4 +2034,9 @@ export const driveNodeCommentsRelations = relations(driveNodeComments, ({ one, m
 
 export const driveNodeTextsRelations = relations(driveNodeTexts, ({ one }) => ({
   node: one(driveNodes, { fields: [driveNodeTexts.nodeId], references: [driveNodes.id] }),
+}));
+
+export const userSignaturesRelations = relations(userSignatures, ({ one }) => ({
+  user: one(users, { fields: [userSignatures.userId], references: [users.id] }),
+  file: one(managedFiles, { fields: [userSignatures.fileId], references: [managedFiles.id] }),
 }));

@@ -1,4 +1,5 @@
 import * as z from 'zod';
+import { signatureDataUrlSchema } from '../../core/signatures';
 import { dateRangeQuery, idParam, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { operationLogSchema } from '../../platform/contracts/operation-logs';
@@ -15,6 +16,7 @@ import {
   switchTenantSchema,
   updateProfileSchema,
   userPreferencesInputSchema,
+  saveMySignatureSchema,
   verifyPasswordSchema,
   verifyTotpSetupSchema,
 } from '../validation';
@@ -129,6 +131,11 @@ export const userSessionSchema = z.object({
 
 export type UserSession = z.infer<typeof userSessionSchema>;
 
+export const mySignatureSchema = z.object({
+  id: z.int(), version: z.int(), dataUrl: signatureDataUrlSchema, updatedAt: z.string(),
+}).meta({ id: 'MySignature' });
+export type MySignature = z.infer<typeof mySignatureSchema>;
+
 export const userPreferencesSchema = z.record(z.string(), z.unknown()).meta({ id: 'UserPreferences' });
 
 export type UserPreferences = z.infer<typeof userPreferencesSchema>;
@@ -192,6 +199,9 @@ export const authContract = defineContract('/api/auth', {
   logout: op.post('/logout', { access: 'authenticated', summary: '退出登录' }),
   logoutByRefresh: op.post('/logout-by-refresh', { body: refreshTokenSchema, summary: '按 refresh token 退出会话（账号切换器注销停靠账号）', public: true }),
   me: op.get('/me', { access: 'authenticated', response: userProfileSchema, summary: '获取当前用户', unmasked: true }),
+  mySignature: op.get('/signature', { access: 'authenticated', response: mySignatureSchema.nullable(), summary: '我的手写签名' }),
+  saveMySignature: op.put('/signature', { access: 'authenticated', body: saveMySignatureSchema, response: mySignatureSchema, audit: { description: '保存我的手写签名', module: '个人中心', recordBody: false, recordResponseBody: false }, summary: '保存我的手写签名' }),
+  deleteMySignature: op.delete('/signature', { access: 'authenticated', audit: { description: '删除我的手写签名', module: '个人中心', recordBody: false, recordResponseBody: false }, summary: '删除我的手写签名' }),
   updateProfile: op.put('/profile', { access: 'authenticated', body: updateProfileSchema, response: userProfileSchema, summary: '修改个人资料', unmasked: true }),
   changePassword: op.put('/password', { access: 'authenticated', body: changePasswordSchema, summary: '修改密码' }),
   myLoginLogs: op.get('/my-login-logs', { access: 'authenticated', query: myLoginLogsQuery, response: paginated(loginLogSchema), summary: '我的登录记录' }),

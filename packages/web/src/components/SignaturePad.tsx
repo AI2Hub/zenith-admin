@@ -2,7 +2,7 @@ import { Button, Space } from '@douyinfe/semi-ui';
 import { Eraser } from 'lucide-react';
 import { useSignaturePad } from '@/hooks/useSignaturePad';
 
-interface Props {
+export interface SignaturePadProps {
   value?: string;
   onChange?: (dataUrl: string) => void;
   width?: number;
@@ -11,15 +11,16 @@ interface Props {
 }
 
 /** 轻量手写签名板：基于 canvas，输出 PNG data URL */
-export default function SignaturePad({ value, onChange, width = 360, height = 140, disabled }: Readonly<Props>) {
+export default function SignaturePad({ value, onChange, width = 360, height = 140, disabled }: Readonly<SignaturePadProps>) {
   const { canvasRef, handlePointerDown, handlePointerMove, handlePointerUp, clear } = useSignaturePad({
     value,
     onChange,
     disabled,
+    echoValue: true,
   });
 
   return (
-    <Space vertical align="start" spacing={6}>
+    <Space vertical align="start" spacing={6} style={{ width: '100%', maxWidth: width }}>
       <canvas
         ref={canvasRef}
         width={width}
@@ -28,12 +29,17 @@ export default function SignaturePad({ value, onChange, width = 360, height = 14
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerLeave={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        aria-label="手写签名画布"
         style={{
           border: '1px dashed var(--semi-color-border)',
           borderRadius: 'var(--semi-border-radius-medium)',
           background: '#fff',
           touchAction: 'none',
           cursor: disabled ? 'not-allowed' : 'crosshair',
+          display: 'block',
+          maxWidth: '100%',
+          height: 'auto',
         }}
       />
       <div>

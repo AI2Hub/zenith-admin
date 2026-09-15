@@ -1,7 +1,8 @@
 import { timestampColumns, idColumn } from './common';
-import { pgTable, varchar, timestamp, pgEnum, integer, boolean, unique, text, uniqueIndex, index, jsonb } from 'drizzle-orm/pg-core';
+import { pgTable, varchar, timestamp, pgEnum, integer, boolean, unique, text, uniqueIndex, index, jsonb, uuid } from 'drizzle-orm/pg-core';
 import { OAUTH_PROVIDERS, IMPERSONATION_END_REASONS } from '@zenith/shared/identity';
 import { auditColumns, users, tenantIdColumn } from './core';
+import { managedFiles } from './files';
 
 export const mfaFactorTypeEnum = pgEnum('mfa_factor_type', ['totp', 'passkey', 'recovery_code']);
 
@@ -225,3 +226,15 @@ export const rateLimitRules = pgTable('rate_limit_rules', {
 export type RateLimitRuleRow = typeof rateLimitRules.$inferSelect;
 
 export type NewRateLimitRule = typeof rateLimitRules.$inferInsert;
+
+/** 每个账号在当前租户范围内的签名模板；历史签署证据由业务单据独立保存。 */
+export const userSignatures = pgTable('user_signatures', {
+  id: idColumn(),
+  userId: integer().notNull().references(() => users.id, { onDelete: 'cascade' }),
+  tenantId: tenantIdColumn(),
+  fileId: uuid().notNull().references(() => managedFiles.id, { onDelete: 'restrict' }),
+  version: integer().notNull().default(1),
+  ...auditColumns(),
+  ...timestampColumns(),
+}, (t) => [unique('user_signatures_user_tenant_unique').on(t.userId, t.tenantId).nullsNotDistinct()]);
+export type UserSignatureRow = typeof userSignatures.$inferSelect;

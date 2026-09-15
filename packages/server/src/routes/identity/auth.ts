@@ -24,6 +24,8 @@ import {
   verifyTotpSetup,
 } from '../../services/identity/identity-security.service';
 
+import { signatureRoutes } from './signatures';
+
 const auth = new OpenAPIHono({ defaultHook: validationHook });
 
 const captchaRoute = defineContractRoute(authContract.captcha, {
@@ -232,6 +234,6 @@ const deleteTrustedDeviceRoute = defineContractRoute(authContract.removeTrustedD
 });
 
 // /my-sessions/others 先于 /my-sessions/{tokenId} 注册，否则 "others" 会被当成 tokenId
-auth.openapiRoutes([captchaRoute, loginRoute, registerRoute, refreshRoute, mfaVerifyRoute, resolveSessionConflictRoute, logoutRoute, logoutByRefreshRoute, meRoute, profileRoute, passwordRoute, myLoginLogsRoute, myOperationLogsRoute, mySessionsRoute, deleteOtherSessionsRoute, deleteSessionRoute, switchTenantRoute, authTenantsRoute, forgotPasswordRoute, resetPasswordRoute, getPreferencesRoute, savePreferencesRoute, getFavoriteMenusRoute, saveFavoriteMenusRoute, verifyPasswordRoute, myMfaFactorsRoute, beginTotpSetupRoute, verifyTotpSetupRoute, disableMfaFactorRoute, deleteMfaFactorRoute, myTrustedDevicesRoute, deleteTrustedDeviceRoute] as const);
+auth.openapiRoutes([...signatureRoutes, captchaRoute, loginRoute, registerRoute, refreshRoute, mfaVerifyRoute, resolveSessionConflictRoute, logoutRoute, logoutByRefreshRoute, meRoute, profileRoute, passwordRoute, myLoginLogsRoute, myOperationLogsRoute, mySessionsRoute, deleteOtherSessionsRoute, deleteSessionRoute, switchTenantRoute, authTenantsRoute, forgotPasswordRoute, resetPasswordRoute, getPreferencesRoute, savePreferencesRoute, getFavoriteMenusRoute, saveFavoriteMenusRoute, verifyPasswordRoute, myMfaFactorsRoute, beginTotpSetupRoute, verifyTotpSetupRoute, disableMfaFactorRoute, deleteMfaFactorRoute, myTrustedDevicesRoute, deleteTrustedDeviceRoute] as const);
 
 export default auth;

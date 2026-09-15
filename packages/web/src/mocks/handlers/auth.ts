@@ -9,6 +9,7 @@ import { mockDateTime, mockDateTimeOffset } from '@/mocks/utils/date';
 import { currentMockSession, isMockPlatformAdmin, mockAccessToken, mockRefreshToken, mockUserPermissions, resolveMockSession, MOCK_REFRESH_TOKEN_PREFIX } from '@/mocks/utils/auth';
 import { matchesFilter } from '@/mocks/utils/filter';
 import { getMockSettings } from '@/mocks/data/settings';
+import { deleteMockMySignature, getMockMySignature, saveMockMySignature } from '@/mocks/utils/personal-signature';
 
 // 偏好设置 & 收藏菜单 mock 状态（模块级可变，模拟服务端持久化）
 let mockPreferencesStore: Record<string, unknown> | null = null;
@@ -62,6 +63,9 @@ function getAllPermissions(): string[] {
 }
 
 export const authHandlers = [
+  mock(authContract.mySignature, ({ request, ok }) => ok(getMockMySignature(request))),
+  mock(authContract.saveMySignature, ({ request, body, ok }) => ok(saveMockMySignature(request, body.dataUrl))),
+  mock(authContract.deleteMySignature, ({ request, ok }) => { deleteMockMySignature(request); return ok(null); }),
   // 验证码（演示模式永远禁用）
   mock(authContract.captcha, ({ ok }) => {
     return ok({ enabled: false, captchaId: '', svg: '' });
