@@ -227,32 +227,32 @@ function MaintenancePanel({ canMaintain }: Readonly<{ canMaintain: boolean }>) {
   ];
   if (canMaintain) {
     columns.push(createOperationColumn<TableMaintenance>({
-      width: 150,
+      width: 220,
       desktopInlineKeys: ['vacuum'],
       actions: (record) => {
         const key = `${record.schema}.${record.name}`;
         return [
           {
             key: 'vacuum',
-            label: 'VACUUM',
+            label: '清理（VACUUM）',
             loading: busyKey === key,
             onClick: () => { void run(record, 'vacuum'); },
           },
           {
             key: 'vacuum-analyze',
-            label: 'VACUUM ANALYZE',
+            label: '清理并分析（VACUUM ANALYZE）',
             loading: busyKey === key,
             onClick: () => { void run(record, 'vacuum_analyze'); },
           },
           {
             key: 'analyze',
-            label: 'ANALYZE',
+            label: '分析（ANALYZE）',
             loading: busyKey === key,
             onClick: () => { void run(record, 'analyze'); },
           },
           {
             key: 'reindex',
-            label: 'REINDEX',
+            label: '重建索引（REINDEX）',
             danger: true,
             loading: busyKey === key,
             onClick: () => { void run(record, 'reindex'); },
