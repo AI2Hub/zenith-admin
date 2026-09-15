@@ -22,5 +22,6 @@ export const sqlMonitorSettingsModule = defineSettingsModule({
   scope: 'platform',
   readPermission: 'system:sql-monitor:list',
   writePermission: 'system:sql-monitor:manage',
+  platformOnly: 'multi-tenant',
   sort: 56,
 });

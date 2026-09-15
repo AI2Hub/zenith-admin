@@ -104,13 +104,13 @@ export const sqlMonitorActionResponseSchema = z.object({
 }).meta({ id: 'SqlMonitorActionResponse' });
 
 export const sqlMonitorContract = defineContract('/api/sql-monitor', {
-  overview: op.get('/', { access: { permission: 'system:sql-monitor:list' }, response: sqlMonitorOverviewSchema, summary: '获取 SQL 监控概览' }),
-  queries: op.get('/queries', { access: { permission: 'system:sql-monitor:list' }, query: sqlMonitorQueriesQuerySchema, response: sqlMonitorQueriesResponseSchema, summary: '查询 SQL 统计' }),
-  sessions: op.get('/sessions', { access: { permission: 'system:sql-monitor:list' }, response: sqlMonitorSessionsResponseSchema, summary: '查询数据库活动会话' }),
-  locks: op.get('/locks', { access: { permission: 'system:sql-monitor:list' }, response: sqlMonitorLocksResponseSchema, summary: '查询数据库锁与阻塞' }),
-  history: op.get('/history', { access: { permission: 'system:sql-monitor:list' }, query: sqlMonitorHistoryQuerySchema, response: sqlMonitorHistoryResponseSchema, summary: '查询 SQL 历史趋势' }),
-  sessionAction: op.post('/sessions/action', { access: { permission: 'system:sql-monitor:terminate' }, body: sqlMonitorSessionActionSchema, response: sqlMonitorActionResponseSchema, summary: '取消或终止数据库会话' }),
-  reset: op.post('/reset', { access: { permission: 'system:sql-monitor:manage' }, response: sqlMonitorActionResponseSchema, summary: '重置 SQL 统计' }),
+  overview: op.get('/', { access: { permission: 'system:sql-monitor:list', platformOnly: 'multi-tenant' }, response: sqlMonitorOverviewSchema, summary: '获取 SQL 监控概览' }),
+  queries: op.get('/queries', { access: { permission: 'system:sql-monitor:list', platformOnly: 'multi-tenant' }, query: sqlMonitorQueriesQuerySchema, response: sqlMonitorQueriesResponseSchema, summary: '查询 SQL 统计' }),
+  sessions: op.get('/sessions', { access: { permission: 'system:sql-monitor:list', platformOnly: 'multi-tenant' }, response: sqlMonitorSessionsResponseSchema, summary: '查询数据库活动会话' }),
+  locks: op.get('/locks', { access: { permission: 'system:sql-monitor:list', platformOnly: 'multi-tenant' }, response: sqlMonitorLocksResponseSchema, summary: '查询数据库锁与阻塞' }),
+  history: op.get('/history', { access: { permission: 'system:sql-monitor:list', platformOnly: 'multi-tenant' }, query: sqlMonitorHistoryQuerySchema, response: sqlMonitorHistoryResponseSchema, summary: '查询 SQL 历史趋势' }),
+  sessionAction: op.post('/sessions/action', { access: { permission: 'system:sql-monitor:terminate', platformOnly: 'multi-tenant' }, body: sqlMonitorSessionActionSchema, response: sqlMonitorActionResponseSchema, summary: '取消或终止数据库会话' }),
+  reset: op.post('/reset', { access: { permission: 'system:sql-monitor:manage', platformOnly: 'multi-tenant' }, response: sqlMonitorActionResponseSchema, summary: '重置 SQL 统计' }),
 }, { tags: ['SQL Monitor'] });
 
 export type SqlMonitorQuery = z.infer<typeof sqlMonitorQuerySchema>;
@@ -118,3 +118,4 @@ export type SqlMonitorSession = z.infer<typeof sqlMonitorSessionSchema>;
 export type SqlMonitorLock = z.infer<typeof sqlMonitorLockSchema>;
 export type SqlMonitorOverview = z.infer<typeof sqlMonitorOverviewSchema>;
 export type SqlMonitorHistoryPoint = z.infer<typeof sqlMonitorHistoryPointSchema>;
+

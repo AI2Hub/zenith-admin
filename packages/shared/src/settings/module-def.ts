@@ -26,6 +26,8 @@ export interface SettingsModuleDef<S extends z.ZodObject = z.ZodObject> {
   readonly feature?: LicenseFeatureKey;
   readonly readPermission: Permission | null;
   readonly writePermission: Permission;
+  /** 多租户部署下仅平台超管可访问平台级运维设置。 */
+  readonly platformOnly?: 'multi-tenant';
   readonly visibility?: Partial<Record<keyof z.output<S> & string, SettingsVisibility>>;
   readonly page?: string;
   readonly sort: number;

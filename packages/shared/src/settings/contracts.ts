@@ -98,15 +98,16 @@ function moduleOps<M extends SettingsModuleKey>(module: M) {
   const envelope = settingsEnvelopeSchema(module);
   // 访问要求直接取模块定义：readPermission 为 null = 任意登录用户可读；feature 随模块门控
   const feature = def.feature ? { feature: def.feature } : {};
+  const platformOnly = def.platformOnly ? { platformOnly: def.platformOnly } : {};
   return {
     get: op.get(path, {
-      access: def.readPermission ? { permission: def.readPermission } : 'authenticated',
+      access: def.readPermission ? { permission: def.readPermission, ...platformOnly } : 'authenticated',
       ...feature,
       response: envelope,
       summary: `读取「${def.title}」设置`,
     }),
     update: op.put(path, {
-      access: { permission: def.writePermission },
+      access: { permission: def.writePermission, ...platformOnly },
       audit: { description: `更新「${def.title}」设置`, module: '系统设置' },
       ...feature,
       body: settingsWriteSchema(module),
