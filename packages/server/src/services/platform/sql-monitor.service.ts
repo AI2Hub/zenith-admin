@@ -1,13 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import type {
-  QueryOutputOf,
-  SqlMonitorHistoryPoint,
-  SqlMonitorLock,
-  SqlMonitorOverview,
-  SqlMonitorQuery,
-  SqlMonitorSession,
-} from '@zenith/shared/platform';
+import type { QueryOutputOf } from '@zenith/shared/core';
+import type { SqlMonitorHistoryPoint, SqlMonitorLock, SqlMonitorOverview, SqlMonitorQuery, SqlMonitorSession } from '@zenith/shared/platform';
 import { SQL_MONITOR_SESSION_ACTIONS, type SqlMonitorQuerySort, sqlMonitorContract } from '@zenith/shared/platform';
 import { db } from '../../db';
 import { sqlQuerySamples } from '../../db/schema';
