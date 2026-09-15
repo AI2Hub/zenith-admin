@@ -236,6 +236,7 @@ export const deployTargetListQuery = z.object({
 export const deployRunListQuery = paginationQuery.extend({
   appId: idQuery('应用 ID'),
   targetId: idQuery('目标 ID'),
+  releaseId: idQuery('版本 ID'),
   kind: queryEnum(DEPLOY_RUN_KINDS, { description: '类型；空 = 全部', options: DEPLOY_RUN_KIND_OPTIONS }),
   status: queryEnum(DEPLOY_RUN_STATUSES, { description: '状态；空 = 全部', options: DEPLOY_RUN_STATUS_OPTIONS }),
   keyword: keywordQuery('版本号 / 备注', { max: 128 }),

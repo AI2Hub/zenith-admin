@@ -89,6 +89,7 @@ export async function listDeployRuns(q: QueryOutputOf<typeof deployRunContract.l
   const where = buildWhere(
     q.appId !== undefined ? eq(deployRuns.appId, q.appId) : undefined,
     q.targetId !== undefined ? eq(deployRuns.targetId, q.targetId) : undefined,
+    q.releaseId !== undefined ? eq(deployRuns.appReleaseId, q.releaseId) : undefined,
     q.kind ? eq(deployRuns.kind, q.kind) : undefined,
     q.status ? eq(deployRuns.status, q.status) : undefined,
     keywordCondition(q.keyword, [deployRuns.version, deployRuns.remark, deployRuns.releaseName]),

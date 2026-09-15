@@ -6,6 +6,7 @@
  * Tab「统计图表」：检查 / 下载 / 安装回执的升级看板（趋势、平台分布、版本分布）。
  */
 import { useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button, Card, Col, Empty, Form, Modal, Row, Select, SideSheet, Skeleton, Space, Spin, TabPane, Tabs, Tag, Toast, Typography, Upload } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
@@ -22,6 +23,8 @@ import {
   APP_ARCH_LABELS,
   APP_ARCH_OPTIONS,
   APP_ARTIFACT_KIND_LABELS,
+  APP_KIND_LABELS,
+  APP_KIND_OPTIONS,
   APP_PLATFORM_LABELS,
   APP_PLATFORM_OPTIONS,
   APP_RELEASE_CHANNEL_LABELS,
@@ -134,7 +137,8 @@ function AppsManageModal({ visible, onClose }: { visible: boolean; onClose: () =
   const modal = useEditModal<ClientApp, Partial<CreateClientAppInput>>({
     entityName: '应用',
     save: useSaveClientApp(),
-    toValues: (r) => ({ appKey: r.appKey, name: r.name, description: r.description ?? '' }),
+    defaults: { kind: 'client' },
+    toValues: (r) => ({ appKey: r.appKey, name: r.name, description: r.description ?? '', kind: r.kind }),
   });
   const toggleMutation = useSaveClientApp();
   const deleteMutation = useDeleteClientApps();
@@ -152,6 +156,7 @@ function AppsManageModal({ visible, onClose }: { visible: boolean; onClose: () =
   const columns: ColumnProps<ClientApp>[] = [
     { title: 'appKey', dataIndex: 'appKey', width: 160, render: renderEllipsis },
     { title: '名称', dataIndex: 'name', minWidth: 150, render: renderEllipsis },
+    { title: '类型', dataIndex: 'kind', width: 110, render: (v: ClientApp['kind']) => <Tag color={v === 'service' ? 'purple' : 'blue'} size="small">{APP_KIND_LABELS[v]}</Tag> },
     { title: '版本数', dataIndex: 'releaseCount', width: 80 },
     {
       title: '最新版本', dataIndex: 'latestVersion', width: 100,
@@ -205,6 +210,13 @@ function AppsManageModal({ visible, onClose }: { visible: boolean; onClose: () =
         />
         <Form.Input field="name" label="应用名称" placeholder="请输入应用名称"
           rules={[{ required: true, message: '名称不能为空' }]} />
+        <Form.Select
+          field="kind"
+          label="应用类型"
+          optionList={APP_KIND_OPTIONS}
+          disabled={modal.isEdit}
+          extraText="服务端应用的已发布部署包可在「系统运维 → 应用部署」中推送到主机"
+        />
         <Form.TextArea field="description" label="描述" placeholder="选填" rows={2} maxCount={500} />
       </EditFormModal>
     </>
@@ -459,6 +471,7 @@ interface SearchParams {
 const defaultSearchParams: SearchParams = { appId: undefined, channel: undefined, status: undefined, keyword: '' };
 
 function ReleaseManageTab({ active }: { active: boolean }) {
+  const navigate = useNavigate();
   const { hasPermission } = usePermission();
   const {
     page, pageSize, buildPagination,
@@ -477,8 +490,9 @@ function ReleaseManageTab({ active }: { active: boolean }) {
   const listQuery = useAppReleaseList({ page, pageSize, ...filterQuery }, active);
 
   const appsQuery = useAllClientApps(active);
-  const apps = appsQuery.data ?? [];
-  const appOptions = apps.map((a) => ({ value: a.id, label: a.name }));
+  const apps = useMemo(() => appsQuery.data ?? [], [appsQuery.data]);
+  const appById = useMemo(() => new Map(apps.map((a) => [a.id, a])), [apps]);
+  const appOptions = apps.map((a) => ({ value: a.id, label: `${a.name} · ${APP_KIND_LABELS[a.kind]}` }));
 
   const modal = useEditModal<AppRelease, Partial<CreateAppReleaseInput>>({
     entityName: '版本',
@@ -543,17 +557,22 @@ function ReleaseManageTab({ active }: { active: boolean }) {
     { title: '应用', dataIndex: 'appName', minWidth: 140, render: renderEllipsis },
     {
       title: '渠道', dataIndex: 'channel', width: 90,
-      render: (v: AppReleaseChannel) => <Tag color={CHANNEL_TAG_COLORS[v]} size="small">{APP_RELEASE_CHANNEL_LABELS[v]}</Tag>,
+      render: (v: AppReleaseChannel, record: AppRelease) => appById.get(record.appId)?.kind === 'service'
+        ? EMPTY_PLACEHOLDER
+        : <Tag color={CHANNEL_TAG_COLORS[v]} size="small">{APP_RELEASE_CHANNEL_LABELS[v]}</Tag>,
     },
     {
       title: '强制更新', dataIndex: 'mandatory', width: 130,
-      render: (v: boolean, record: AppRelease) => (v || record.minVersion
-        ? <Tag color="red" size="small">{v ? '强更' : `< ${record.minVersion} 强更`}</Tag>
-        : EMPTY_PLACEHOLDER),
+      render: (v: boolean, record: AppRelease) => {
+        if (appById.get(record.appId)?.kind === 'service') return EMPTY_PLACEHOLDER;
+        return v || record.minVersion
+          ? <Tag color="red" size="small">{v ? '强更' : `< ${record.minVersion} 强更`}</Tag>
+          : EMPTY_PLACEHOLDER;
+      },
     },
     {
       title: '灰度', dataIndex: 'rolloutPercent', width: 80,
-      render: (v: number) => (v === 100 ? '全量' : `${v}%`),
+      render: (v: number, record: AppRelease) => appById.get(record.appId)?.kind === 'service' ? EMPTY_PLACEHOLDER : (v === 100 ? '全量' : `${v}%`),
     },
     { title: '制品数', dataIndex: 'artifactCount', width: 80 },
     dateTimeColumn('发布时间', 'publishedAt', { empty: '未发布' }),
@@ -563,10 +582,13 @@ function ReleaseManageTab({ active }: { active: boolean }) {
       render: (v: AppReleaseStatus) => <Tag color={STATUS_TAG_COLORS[v]} size="small">{APP_RELEASE_STATUS_LABELS[v]}</Tag>,
     },
     createOperationColumn<AppRelease>({
-      width: 180,
-      desktopInlineKeys: ['artifacts', 'edit'],
+      width: 220,
+      desktopInlineKeys: ['artifacts', 'deploy', 'edit'],
       actions: (record) => [
         { key: 'artifacts', label: '制品', onClick: () => setArtifactReleaseId(record.id) },
+        ...(appById.get(record.appId)?.kind === 'service' && record.status === 'published' ? [{
+          key: 'deploy', label: '部署', onClick: () => navigate(`/system/deploy?tab=records&release=${record.id}`),
+        }] : []),
         ...(canUpdate ? [{ key: 'edit', label: '编辑', onClick: () => modal.openEdit(record) }] : []),
         ...(canPublish && record.status !== 'published' ? [{
           key: 'publish', label: '发布', onClick: () => confirmPublish(record),
@@ -673,7 +695,7 @@ const DAYS_OPTIONS = [
 function ReleaseStatsTab({ active }: { active: boolean }) {
   const palette = useChartPalette();
   const appsQuery = useAllClientApps(active);
-  const apps = appsQuery.data ?? [];
+  const apps = (appsQuery.data ?? []).filter((a) => a.kind === 'client');
   const [selectedAppId, setSelectedAppId] = useState<number>();
   const appId = selectedAppId ?? apps[0]?.id;
   const [days, setDays] = useState(30);
@@ -839,7 +861,7 @@ function DevicesTab({ active }: { active: boolean }) {
   const listQuery = useClientDeviceList({ page, pageSize, ...filterQuery }, active);
 
   const appsQuery = useAllClientApps(active);
-  const appOptions = (appsQuery.data ?? []).map((a) => ({ value: a.id, label: a.name }));
+  const appOptions = (appsQuery.data ?? []).filter((a) => a.kind === 'client').map((a) => ({ value: a.id, label: a.name }));
 
   const unbindMutation = useUnbindDevicePush();
   const deleteMutation = useDeleteClientDevice();

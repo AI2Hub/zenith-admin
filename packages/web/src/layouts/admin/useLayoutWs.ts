@@ -125,6 +125,8 @@ export function useLayoutWs({
       if (!globalThis.location.pathname.startsWith('/chat')) {
         setChatUnreadCount((v) => v + 1);
       }
+    } else if (msg.type === 'deploy:run-updated' || msg.type === 'deploy:log') {
+      globalThis.dispatchEvent(new CustomEvent(msg.type, { detail: msg.payload }));
     } else if (msg.type === 'session:force-logout') {
       const kicked = msg.payload.code === 'concurrent-login';
       Notification.warning({

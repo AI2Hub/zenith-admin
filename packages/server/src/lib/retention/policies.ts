@@ -158,6 +158,25 @@ export const RETENTION_POLICIES: readonly RetentionPolicyDefinition[] = [
     description: '同步产生的多重匹配 / 字段冲突记录，含两侧数据快照；超期未裁决的冲突随下次同步重建。',
   },
 
+  {
+    key: 'deploy_runs',
+    title: '应用部署记录',
+    module: '系统运维',
+    tableName: 'deploy_runs',
+    timeColumn: 'created_at',
+    defaultDays: 180,
+    description: '应用制品发布、回滚与重启运行记录，保留部署审计与故障追踪所需历史。',
+  },
+  {
+    key: 'deploy_run_logs',
+    title: '应用部署日志',
+    module: '系统运维',
+    tableName: 'deploy_run_logs',
+    timeColumn: 'created_at',
+    defaultDays: 90,
+    description: '应用部署逐主机逐步骤日志，保留期短于部署记录以控制高频日志增长。',
+  },
+
   // ── 系统调度 ───────────────────────────────────────────────────────────────
   {
     key: 'system_scheduler_runs',

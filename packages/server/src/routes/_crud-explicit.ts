@@ -154,6 +154,10 @@ export const explicitCrudRoutes: Readonly<Record<string, readonly ExplicitCrudEn
   'ops/processes.ts': [
     { contract: 'processContract', ops: ['list', 'detail'], reason: 'handler 含前置校验 / 业务分支' },
   ],
+  'ops/deploy.ts': [
+    { contract: 'deployRunContract', ops: ['list', 'detail', 'create'], reason: '部署记录包含目标 / 制品解析、任务提交与逐主机投影；服务函数签名与契约派生签名不一致，且同路由组包含日志、重试、取消等自定义操作' },
+    { contract: 'deployReleaseContract', ops: ['list', 'remove'], reason: '发布备份列表需要关联应用、目标与主机发布状态；删除操作包含 current / previous 保护校验，不能使用通用 CRUD' },
+  ],
   'ops/retention.ts': [
     { contract: 'retentionPolicyContract', ops: ['update'], reason: '需记录审计 after 数据' },
   ],

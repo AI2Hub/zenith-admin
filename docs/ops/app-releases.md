@@ -1,6 +1,6 @@
 # 应用版本与在线升级
 
-应用版本管理用于统一发布桌面端、移动端与 Web 热更新制品。管理侧位于「系统设置 → 应用版本」（`/system/app-releases`），接口前缀为 `/api/app-releases`；公开升级接口前缀为 `/api/public/app-releases`，免登录访问。
+应用版本管理用于统一发布桌面端、移动端、Web 热更新与服务端部署包。管理侧位于「系统设置 → 系统运维 → 应用版本」（`/system/app-releases`），服务端应用的已发布版本可跳转到「应用部署」执行远程发布；接口前缀为 `/api/app-releases`；公开升级接口前缀为 `/api/public/app-releases`，免登录访问。
 
 ---
 
@@ -17,7 +17,7 @@ app_release_events（检查 / 下载 / 安装回执流水）
 
 | 表 | 作用 |
 | --- | --- |
-| `client_apps` | 客户端侧应用标识、名称、描述与启停状态；公开 API 通过 `app_key` 定位应用 |
+| `client_apps` | 应用类型（`client` 客户端 / `service` 服务端）、应用标识、名称、描述与启停状态；公开 API 只接受 `client` 应用 |
 | `app_releases` | 渠道、semver 版本号、更新说明、发布状态、强制更新、最低版本、灰度比例与发布时间 |
 | `app_artifacts` | 平台、CPU 架构、制品类型、托管文件、外链、文件名、大小、SHA256 与下载次数 |
 | `app_release_events` | `check`、`download`、`install_success`、`install_fail` 追加型事件，用于升级看板统计 |
@@ -30,9 +30,9 @@ app_release_events（检查 / 下载 / 安装回执流水）
 | --- | --- |
 | 发布渠道 | `stable`（正式版）、`beta`（测试版）、`internal`（内部版） |
 | 发布状态 | `draft`（草稿）、`published`（已发布）、`revoked`（已撤回） |
-| 平台 | `windows`、`macos`、`linux`、`android`、`ios`、`web` |
+| 平台 | `windows`、`macos`、`linux`、`android`、`ios`、`web`、`server`（服务端部署包） |
 | 架构 | `x64`、`arm64`、`universal` |
-| 制品类型 | `installer`（安装包）、`hotupdate`（热更新包）、`metadata`（latest.yml / blockmap）、`external`（外部链接） |
+| 制品类型 | `installer`（安装包）、`hotupdate`（热更新包）、`metadata`（latest.yml / blockmap）、`external`（外部链接）、`archive`（服务端部署包） |
 | 事件类型 | `check`、`download`、`install_success`、`install_fail` |
 
 版本号必须符合 semver（允许预发布与构建元数据后缀，如 `1.2.3-beta.1`）。`app_key` 只允许小写字母、数字和连字符，创建后不可修改。`app_releases` 对 `(app_id, channel, version)` 加唯一约束，`app_artifacts` 对 `(release_id, file_name)` 加唯一约束。
@@ -70,7 +70,7 @@ app_release_events（检查 / 下载 / 安装回执流水）
 
 ## 制品上传与分发
 
-文件制品通过 `POST /api/app-releases/releases/{id}/artifacts` 上传，multipart 字段为 `file`、`platform`、`arch`、`kind`。`kind` 仅允许 `installer`、`hotupdate`、`metadata`。服务端读取文件内容计算 SHA256，使用生成文件通道保存到统一文件存储，并在 `app_artifacts.sha256` 落库。
+文件制品通过 `POST /api/app-releases/releases/{id}/artifacts` 上传，multipart 字段为 `file`、`platform`、`arch`、`kind`。客户端应用使用 `installer`、`hotupdate`、`metadata`；服务端应用使用 `platform=server`、`kind=archive`，由「应用部署」推送到目标主机。服务端读取文件内容计算 SHA256，使用生成文件通道保存到统一文件存储，并在 `app_artifacts.sha256` 落库。
 
 超过分片阈值（运行时设置 `files.chunkThresholdMb`，默认 5MB）的制品由前端自动改走分片上传：`POST /{id}/artifacts/upload/init`（带 `platform` / `arch` / `kind`）→ `POST /{id}/artifacts/upload/chunk` → `POST /{id}/artifacts/upload/complete`，
 另有 `GET /{id}/artifacts/upload/{uploadId}/status` 与 `DELETE /{id}/artifacts/upload/{uploadId}`。分片路径同样由服务端在合并后计算 SHA256，

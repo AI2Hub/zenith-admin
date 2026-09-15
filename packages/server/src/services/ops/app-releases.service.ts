@@ -493,7 +493,7 @@ async function findEnabledAppByKey(appKey: string): Promise<ClientAppRow> {
     db
       .select()
       .from(clientApps)
-      .where(and(eq(clientApps.appKey, appKey), eq(clientApps.status, 'enabled')))
+      .where(and(eq(clientApps.appKey, appKey), eq(clientApps.status, 'enabled'), eq(clientApps.kind, 'client')))
       .limit(1),
     '应用不存在',
   );
