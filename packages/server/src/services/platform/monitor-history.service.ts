@@ -9,7 +9,7 @@
 import os from 'node:os';
 import { sql, gte, type AnyColumn } from 'drizzle-orm';
 import { db } from '../../db';
-import { systemMetricSamples } from '../../db/schema';
+import { sqlQuerySamples, systemMetricSamples } from '../../db/schema';
 import { metricsSampler } from '../../lib/metrics-sampler';
 import { formatDateTime } from '../../lib/datetime';
 import logger from '../../lib/logger';
@@ -127,28 +127,96 @@ export async function getCurrentMetricSnapshot(tenantId: number | null = null): 
   return { ...global, ...paymentMetrics };
 }
 
-/** 落库一条指标采样（pg-boss 定时调用）。采样器未预热则跳过。 */
-export async function persistMetricSample(): Promise<boolean> {
-  if (!metricsSampler.getLatest()) return false;
-  // 采样表只存基础设施列，无需为此触发各业务域的派生指标查询
-  const s = await getInfraMetricSnapshot();
-  await db.insert(systemMetricSamples).values({
-    cpu: s.cpu,
-    memory: s.memory,
-    disk: s.disk,
-    swap: s.swap,
-    load1: s.load1,
-    procCpu: s.procCpu,
-    heap: s.heap,
-    loopLag: s.loopLag,
-    qps: s.qps,
-    errorRate: s.errorRate,
-    netRxBps: s.netRxBps,
-    netTxBps: s.netTxBps,
-    diskReadBps: s.diskReadBps,
-    diskWriteBps: s.diskWriteBps,
-  });
-  return true;
+const SQL_QUERY_SAMPLE_LIMIT = 200;
+const SQL_QUERY_TEXT_LIMIT = 2_000;
+
+type SqlQueryStatRow = {
+  database_name: string;
+  query_id: string;
+  query: string;
+  calls: number | string;
+  total_ms: number | string;
+  mean_ms: number | string;
+  rows: number | string;
+  shared_blks_hit: number | string;
+  shared_blks_read: number | string;
+  temp_blks_read: number | string;
+  temp_blks_written: number | string;
+};
+
+/**
+ * 采集当前数据库的 Top SQL 累计快照。
+ * pg_stat_statements 未安装或未加入 shared_preload_libraries 时跳过，不能影响系统指标采样。
+ */
+export async function persistSqlQuerySamples(): Promise<number> {
+  try {
+    const rows = (await db.execute(sql`
+      SELECT current_database() AS database_name,
+             queryid::text AS query_id,
+             query,
+             calls::bigint AS calls,
+             total_exec_time::float8 AS total_ms,
+             mean_exec_time::float8 AS mean_ms,
+             rows::bigint AS rows,
+             shared_blks_hit::bigint AS shared_blks_hit,
+             shared_blks_read::bigint AS shared_blks_read,
+             temp_blks_read::bigint AS temp_blks_read,
+             temp_blks_written::bigint AS temp_blks_written
+      FROM pg_stat_statements
+      WHERE dbid = (SELECT oid FROM pg_database WHERE datname = current_database())
+        AND queryid IS NOT NULL
+      ORDER BY total_exec_time DESC
+      LIMIT ${SQL_QUERY_SAMPLE_LIMIT}
+    `)) as unknown as SqlQueryStatRow[];
+    if (rows.length === 0) return 0;
+
+    await db.insert(sqlQuerySamples).values(rows.map((row) => ({
+      databaseName: String(row.database_name),
+      queryId: String(row.query_id),
+      query: String(row.query).slice(0, SQL_QUERY_TEXT_LIMIT),
+      calls: Number(row.calls ?? 0),
+      totalMs: Number(row.total_ms ?? 0),
+      meanMs: Number(row.mean_ms ?? 0),
+      rows: Number(row.rows ?? 0),
+      sharedBlksHit: Number(row.shared_blks_hit ?? 0),
+      sharedBlksRead: Number(row.shared_blks_read ?? 0),
+      tempBlksRead: Number(row.temp_blks_read ?? 0),
+      tempBlksWritten: Number(row.temp_blks_written ?? 0),
+    })));
+    return rows.length;
+  } catch (err) {
+    // 扩展缺失属于可降级环境，不应每分钟写 error 日志或阻断其它监控采样。
+    logger.debug('[monitor] pg_stat_statements 不可用，跳过 SQL 查询采样', { err: String(err) });
+    return 0;
+  }
+}
+
+/** 落库一条系统指标和一批 SQL 查询采样（pg-boss 定时调用）。 */
+export async function persistMetricSample(): Promise<{ systemMetricStored: boolean; sqlQuerySamples: number }> {
+  let systemMetricStored = false;
+  if (metricsSampler.getLatest()) {
+    // 采样表只存基础设施列，无需为此触发各业务域的派生指标查询
+    const s = await getInfraMetricSnapshot();
+    await db.insert(systemMetricSamples).values({
+      cpu: s.cpu,
+      memory: s.memory,
+      disk: s.disk,
+      swap: s.swap,
+      load1: s.load1,
+      procCpu: s.procCpu,
+      heap: s.heap,
+      loopLag: s.loopLag,
+      qps: s.qps,
+      errorRate: s.errorRate,
+      netRxBps: s.netRxBps,
+      netTxBps: s.netTxBps,
+      diskReadBps: s.diskReadBps,
+      diskWriteBps: s.diskWriteBps,
+    });
+    systemMetricStored = true;
+  }
+
+  return { systemMetricStored, sqlQuerySamples: await persistSqlQuerySamples() };
 }
 
 /** 按时间范围分桶聚合查询历史趋势（每桶取平均值 + 峰值）。 */

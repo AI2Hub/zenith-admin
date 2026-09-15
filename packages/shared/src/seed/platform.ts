@@ -391,7 +391,7 @@ export const SEED_CRON_JOBS: CronJob[] = [
     handler: 'sampleSystemMetrics',
     params: null,
     status: 'enabled',
-    description: '每分钟将系统监控指标快照落库，用于历史趋势与容量规划',
+    description: '每分钟将系统指标与 pg_stat_statements Top SQL 快照落库，用于历史趋势与容量规划',
     retryCount: 0,
     retryInterval: 0,
     retryBackoff: false,

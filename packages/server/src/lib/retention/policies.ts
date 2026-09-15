@@ -223,6 +223,15 @@ export const RETENTION_POLICIES: readonly RetentionPolicyDefinition[] = [
     description: 'CPU / 内存 / 磁盘等指标采样点，驱动监控趋势图。',
   },
   {
+    key: 'sql_query_samples',
+    title: 'SQL 查询采样',
+    module: '系统监控',
+    tableName: 'sql_query_samples',
+    timeColumn: 'sampled_at',
+    defaultDays: 14,
+    description: 'pg_stat_statements Top SQL 的分钟级累计快照；原始查询采样数据量较大，保留 14 天用于性能排查。',
+  },
+  {
     key: 'monitor_alert_events',
     title: '监控告警事件',
     module: '监控告警',

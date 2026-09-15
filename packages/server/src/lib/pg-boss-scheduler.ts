@@ -794,8 +794,9 @@ handlerRegistry.set('evaluateErrorAlerts', async () => {
 
 handlerRegistry.set('sampleSystemMetrics', async () => {
   const { persistMetricSample } = await import('../services/platform/monitor-history.service');
-  const ok = await persistMetricSample();
-  return ok ? '已记录系统指标采样' : '采样器未预热，跳过';
+  const result = await persistMetricSample();
+  if (!result.systemMetricStored && result.sqlQuerySamples === 0) return '采样器未预热或 pg_stat_statements 不可用，跳过';
+  return `已记录系统指标采样${result.systemMetricStored ? '' : '（系统指标未预热）'}，SQL 查询 ${result.sqlQuerySamples} 条`;
 });
 
 handlerRegistry.set('evaluateMonitorAlerts', async () => {

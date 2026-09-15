@@ -1,5 +1,5 @@
 import { timestampColumns, idColumn } from './common';
-import { pgTable, varchar, timestamp, pgEnum, integer, boolean, text, index, jsonb, real, type AnyPgColumn } from 'drizzle-orm/pg-core';
+import { pgTable, varchar, timestamp, pgEnum, integer, boolean, text, index, jsonb, real, bigint, doublePrecision, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { MONITOR_ALERT_HANDLE_STATUSES, MONITOR_ALERT_NOTIFY_STATUSES, MONITOR_METRICS } from '@zenith/shared/platform';
 import { auditColumns, users, tenantIdColumn } from './core';
 
@@ -30,6 +30,33 @@ export const systemMetricSamples = pgTable('system_metric_samples', {
 export type SystemMetricSampleRow = typeof systemMetricSamples.$inferSelect;
 
 export type NewSystemMetricSample = typeof systemMetricSamples.$inferInsert;
+
+// ─── SQL 查询统计采样（追加型）──────────────────────────────────────────────────
+// 由系统指标采样任务按分钟记录 pg_stat_statements 的 Top SQL 累计快照；
+// 原始明细保留期较短，历史趋势由采样快照的相邻差值计算。
+export const sqlQuerySamples = pgTable('sql_query_samples', {
+  id: bigint({ mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
+  sampledAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  databaseName: varchar({ length: 128 }).notNull(),
+  /** PostgreSQL pg_stat_statements.queryid，使用字符串避免 64 位值丢失精度。 */
+  queryId: varchar({ length: 64 }).notNull(),
+  /** pg_stat_statements 已归一化的 SQL；服务端仍会截断，避免把超长语句写入采样表。 */
+  query: text().notNull(),
+  calls: bigint({ mode: 'number' }).notNull().default(0),
+  totalMs: doublePrecision().notNull().default(0),
+  meanMs: doublePrecision().notNull().default(0),
+  rows: bigint({ mode: 'number' }).notNull().default(0),
+  sharedBlksHit: bigint({ mode: 'number' }).notNull().default(0),
+  sharedBlksRead: bigint({ mode: 'number' }).notNull().default(0),
+  tempBlksRead: bigint({ mode: 'number' }).notNull().default(0),
+  tempBlksWritten: bigint({ mode: 'number' }).notNull().default(0),
+}, (t) => [
+  index('sql_query_samples_at_idx').on(t.sampledAt),
+  index('sql_query_samples_query_time_idx').on(t.queryId, t.sampledAt),
+]);
+
+export type SqlQuerySampleRow = typeof sqlQuerySamples.$inferSelect;
+export type NewSqlQuerySample = typeof sqlQuerySamples.$inferInsert;
 
 // ─── 监控告警规则 ──────────────────────────────────────────────────────────────
 // 指标维度直接取 shared 的 MONITOR_METRICS（枚举 SSOT），保证 pgEnum / Zod / TS union 三端不会漂移。
