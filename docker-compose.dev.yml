@@ -14,6 +14,8 @@ services:
     image: postgres:16-alpine
     container_name: zenith-dev-postgres
     restart: unless-stopped
+    # SQL 监控依赖 pg_stat_statements 在 PostgreSQL 启动时预加载。
+    command: ["postgres", "-c", "shared_preload_libraries=pg_stat_statements"]
     environment:
       POSTGRES_DB: zenith_admin
       POSTGRES_USER: postgres

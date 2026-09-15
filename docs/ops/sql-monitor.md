@@ -10,7 +10,7 @@ SQL 监控位于「系统设置 → 系统监控 → SQL 监控」（`/system/sq
 
 实时查询统计来自 PostgreSQL `pg_stat_statements`，活动会话来自 `pg_stat_activity`，锁等待来自 `pg_locks`。扩展不可用时页面仍展示数据库连接和缓存等基础状态，并明确提示查询统计不可用，不影响服务监控和数据库管理台。
 
-生产数据库需要在 `postgresql.conf` 中配置：
+使用仓库 Compose 自带的 PostgreSQL 时，`docker-compose.yml` 与 `docker-compose.dev.yml` 已通过启动参数预加载该扩展。使用外部或托管 PostgreSQL 时，需要在 `postgresql.conf` 中配置：
 
 ```text
 shared_preload_libraries = 'pg_stat_statements'

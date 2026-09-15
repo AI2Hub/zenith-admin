@@ -58,7 +58,7 @@ api ⇄ api_storage ⇄ worker       （本地文件、上传暂存、CMS 静态
 
 | 服务 | 镜像 / 阶段 | 说明 |
 | --- | --- | --- |
-| `postgres` | `postgres:16-alpine` | 数据库，库名 `zenith_admin` |
+| `postgres` | `postgres:16-alpine` | 数据库，库名 `zenith_admin`；Compose 启动时预加载 `pg_stat_statements` |
 | `redis` | `redis:7-alpine` | 会话、限流、幂等、黑名单与 WS 扇出状态；始终 `requirepass` + AOF |
 | `migrate` | Dockerfile `server` stage | 一次性执行 `node dist/db/migrate.js`，`restart: "no"` |
 | `api` | Dockerfile `server` stage | Hono 后端，`ZENITH_ROLES=api`，端口 3300，健康检查 `/api/health`；以非 root 用户 `node` 运行 |
@@ -173,7 +173,9 @@ docker compose -f docker-compose.dev.yml up -d
 npm run dev
 ```
 
-`docker-compose.dev.yml` 只启动 `postgres:16-alpine` 与 `redis:7-alpine`，端口固定映射为 `5432` / `6379`，用于配合本地 Node / Vite 开发。
+`docker-compose.dev.yml` 只启动 `postgres:16-alpine` 与 `redis:7-alpine`，端口固定映射为 `5432` / `6379`，用于配合本地 Node / Vite 开发。PostgreSQL 服务会在启动时预加载 `pg_stat_statements`，因此本地 SQL 监控可直接使用；已有容器需要重建或执行 `docker compose -f docker-compose.dev.yml up -d --force-recreate postgres` 才会应用新的启动参数。
+
+仓库 Compose 文件只负责配置自带的 PostgreSQL 容器。若使用外部或托管 PostgreSQL，需要由数据库运维配置 `shared_preload_libraries = 'pg_stat_statements'` 并重启数据库，迁移再负责创建数据库扩展。
 
 ## 数据持久化
 
