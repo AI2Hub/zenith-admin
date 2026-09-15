@@ -8,7 +8,7 @@ export const apiCatalogKeys = {
 
 /**
  * 接口目录：服务端从契约派生（前端不 import 契约聚合，避免各域契约进共享分包）。
- * 目录只随发布变化，进程内视为不过期；页面「查询」按标准列表语义回源，刷新即拿到新版本。
+ * 目录只随发布变化，缓存视为不过期；页面「查询 / 重置」仅在客户端过滤，显式刷新仍可重新获取。
  */
 export function useApiCatalog() {
   return useApiQuery(apiCatalogContract.get, { staleTime: Infinity });

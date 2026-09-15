@@ -5,15 +5,6 @@ import { ACCESS_KINDS, SECURITY_SCHEMES } from '../../permission-catalog-core';
 
 // ─── 接口目录 ────────────────────────────────────────────────────────────────
 
-/** 后台登录令牌操作的访问要求（与 `OperationAccess` 同形：'authenticated' 或权限码 / 平台限定对象） */
-export const operationAccessSchema = z.union([
-  z.literal('authenticated'),
-  z.object({
-    permission: z.union([z.string(), z.array(z.string())]).optional(),
-    platformOnly: z.union([z.literal(true), z.literal('multi-tenant')]).optional(),
-  }),
-]).meta({ id: 'OperationAccess' });
-
 /** 目录里的一个接口：全部凭证类型都收录；只有后台登录令牌操作带访问要求 */
 export const apiCatalogItemSchema = z.object({
   domain: z.string().meta({ example: 'identity' }),
@@ -27,7 +18,6 @@ export const apiCatalogItemSchema = z.object({
   tags: z.array(z.string()),
   deprecated: z.boolean(),
   security: z.enum(SECURITY_SCHEMES),
-  access: operationAccessSchema.nullable().meta({ description: '后台登录令牌操作必有；其它凭证为 null' }),
   accessKind: z.enum(ACCESS_KINDS).nullable(),
   permissions: z.array(z.string()).meta({ description: '任一即可的权限码；登录即可 / 仅平台超管 / 非登录令牌 → 空' }),
   platformOnly: z.union([z.literal(false), z.literal(true), z.literal('multi-tenant')]),

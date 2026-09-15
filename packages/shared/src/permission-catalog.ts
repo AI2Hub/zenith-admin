@@ -5,7 +5,7 @@
  * 没有任何新表：接口需要什么权限 = 契约声明；谁拥有什么权限 = 角色 / 用户 / 用户组绑定的按钮菜单。
  */
 import { accessPermissions, accessPlatformOnly, type AnyOperation, type OperationAccess, type SecurityScheme } from './core/contract';
-import { permissionList, type Permission } from './core/permissions';
+import type { Permission } from './core/permissions';
 import { CONTRACT_DOMAIN_LABELS, CONTRACTS_BY_DOMAIN, listAllOperations, type ContractDomain } from './contracts';
 import type { ApiCatalog, ApiCatalogItem } from './identity/contracts/api-catalog';
 import { accessKindOf, type AccessKind } from './permission-catalog-core';
@@ -95,16 +95,6 @@ export const PERMISSION_CATALOG_DOMAINS = Object.keys(CONTRACTS_BY_DOMAIN) as Co
 
 // ─── 契约响应形状（GET /api/api-catalog） ────────────────────────────────────
 
-/** 契约里的 access 带 readonly 数组与 Permission 字面量类型，转成响应 schema 的可序列化形状 */
-function toItemAccess(access: OperationAccess | null): ApiCatalogItem['access'] {
-  if (access === null || access === 'authenticated') return access;
-  return {
-    ...(access.permission !== undefined ? { permission: [...permissionList(access.permission)] } : {}),
-    // 契约允许写 platformOnly: false（等价缺省），响应里省略
-    ...(access.platformOnly ? { platformOnly: access.platformOnly } : {}),
-  };
-}
-
 /**
  * `GET /api/api-catalog` 的响应：目录条目 + 引用到的权限码的注册表标签。
  * 服务端与 Demo Mock 共用；目录随发布静态可知，调用方自行缓存。
@@ -128,7 +118,6 @@ export function buildApiCatalog(): ApiCatalog {
       tags: [...entry.tags],
       deprecated: entry.deprecated,
       security: entry.security,
-      access: toItemAccess(entry.access),
       accessKind: entry.accessKind,
       permissions: [...entry.permissions],
       platformOnly: entry.platformOnly,

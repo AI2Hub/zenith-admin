@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { QueryClientProvider } from '@tanstack/react-query';
@@ -12,6 +13,7 @@ const recorder = new ApiRecorder();
 vi.mock('@/utils/request', () => ({ request: createRequestMock(() => recorder) }));
 vi.mock('@/hooks/usePermission', () => ({ usePermission: () => ({ hasPermission: () => true }) }));
 
+import { apiCatalogKeys } from '@/hooks/queries/permission-matrix';
 import ApiCatalogPage from './ApiCatalogPage';
 
 const prefs = { preferences: defaultPreferences } as unknown as PreferencesContextValue;
@@ -26,7 +28,6 @@ function item(partial: Partial<ApiCatalogItem> & Pick<ApiCatalogItem, 'method' |
     tags: [],
     deprecated: false,
     security: 'bearer',
-    access: 'authenticated',
     accessKind: 'authenticated',
     permissions: [],
     platformOnly: false,
@@ -38,25 +39,26 @@ function item(partial: Partial<ApiCatalogItem> & Pick<ApiCatalogItem, 'method' |
 
 const catalog: ApiCatalog = {
   items: [
-    item({ method: 'post', fullPath: '/api/auth/login', summary: '登录', basePath: '/api/auth', security: 'none', access: null, accessKind: null }),
+    item({ method: 'post', fullPath: '/api/auth/login', summary: '登录', basePath: '/api/auth', security: 'none', accessKind: null }),
     item({ method: 'get', fullPath: '/api/auth/me', summary: '当前用户', basePath: '/api/auth' }),
-    item({ method: 'get', fullPath: '/api/users', summary: '用户列表', access: { permission: ['system:user:list'] }, accessKind: 'permission', permissions: ['system:user:list'], audit: '查询用户' }),
-    item({ method: 'delete', fullPath: '/api/users/{id}', summary: '删除用户', access: { permission: ['system:user:delete'] }, accessKind: 'permission', permissions: ['system:user:delete'] }),
-    item({ method: 'get', fullPath: '/api/tenants', summary: '租户列表', domain: 'platform', domainLabel: '平台', basePath: '/api/tenants', access: { platformOnly: true }, accessKind: 'platform', platformOnly: true }),
-    item({ method: 'get', fullPath: '/api/member/profile', summary: '会员资料', domain: 'member', domainLabel: '会员', basePath: '/api/member', security: 'member-bearer', access: null, accessKind: null }),
+    item({ method: 'get', fullPath: '/api/users', summary: '用户列表', accessKind: 'permission', permissions: ['system:user:list'], audit: '查询用户' }),
+    item({ method: 'delete', fullPath: '/api/users/{id}', summary: '删除用户', accessKind: 'permission', permissions: ['system:user:delete'] }),
+    item({ method: 'get', fullPath: '/api/tenants', summary: '租户列表', domain: 'platform', domainLabel: '平台', basePath: '/api/tenants', accessKind: 'platform', platformOnly: true }),
+    item({ method: 'get', fullPath: '/api/member/profile', summary: '会员资料', domain: 'member', domainLabel: '会员', basePath: '/api/member', security: 'member-bearer', accessKind: null }),
   ],
   permissionLabels: { 'system:user:list': '查看用户', 'system:user:delete': '删除用户' },
 };
 
 function renderPage() {
   const qc = createTestQueryClient();
-  return render(
+  const view = render(
     <QueryClientProvider client={qc}>
       <PreferencesContext.Provider value={prefs}>
         <MemoryRouter initialEntries={['/system/api-catalog']}><ApiCatalogPage /></MemoryRouter>
       </PreferencesContext.Provider>
     </QueryClientProvider>,
   );
+  return { ...view, client: qc };
 }
 
 beforeEach(() => {
@@ -100,6 +102,7 @@ describe('ApiCatalogPage', () => {
     // 再点一次取消
     fireEvent.click(screen.getByRole('button', { name: /公开接口/ }));
     expect(screen.getByText('共 6 个接口，由契约声明派生')).toBeTruthy();
+    expect(recorder.countOf('GET', apiCatalogContract.get.fullPath)).toBe(1);
 
     // 关键字只进草稿：未点「查询」前结果不变
     const toolbar = desktopToolbar(container);
@@ -107,6 +110,7 @@ describe('ApiCatalogPage', () => {
     expect(screen.getByText('共 6 个接口，由契约声明派生')).toBeTruthy();
     fireEvent.click(toolbar.getByText('查询'));
     expect(screen.getByText('匹配 1 / 6 个接口')).toBeTruthy();
+    expect(recorder.countOf('GET', apiCatalogContract.get.fullPath)).toBe(1);
 
     const pathCell = await screen.findByText('/api/auth/login');
     // 路径列可复制：单元格自身吞掉点击（避免选中文本触发行动作），点同一行的方法标签打开详情
@@ -119,6 +123,24 @@ describe('ApiCatalogPage', () => {
     // 重置回到全量
     fireEvent.click(toolbar.getByText('重置'));
     expect(screen.getByText('共 6 个接口，由契约声明派生')).toBeTruthy();
+    expect(recorder.countOf('GET', apiCatalogContract.get.fullPath)).toBe(1);
+  });
+
+  it('still downloads fresh catalog data when the active query is explicitly refreshed', async () => {
+    const { client } = renderPage();
+    await screen.findByText('共 6 个接口，由契约声明派生');
+    recorder.on('GET', apiCatalogContract.get.fullPath, {
+      ...catalog,
+      items: [...catalog.items, item({ method: 'post', fullPath: '/api/auth/logout', summary: '退出登录', basePath: '/api/auth' })],
+    });
+
+    await act(async () => {
+      await client.refetchQueries({ queryKey: apiCatalogKeys.catalog });
+    });
+
+    expect(await screen.findByText('共 7 个接口，由契约声明派生')).toBeTruthy();
+    expect(screen.getByText('/api/auth/logout')).toBeTruthy();
+    expect(recorder.countOf('GET', apiCatalogContract.get.fullPath)).toBe(2);
   });
 
   it('shows permission labels from the catalog and lists related operations in the sheet', async () => {
@@ -133,12 +155,23 @@ describe('ApiCatalogPage', () => {
   });
 
   it('lists only the callable operations of the selected role by default and can switch to denied', async () => {
+    const user = userEvent.setup();
+    const selectRoleOption = async (name: RegExp) => {
+      const option = await screen.findByRole('option', { name });
+      const popup = option.closest('.semi-popover-wrapper');
+      expect(popup).not.toBeNull();
+      await user.click(option);
+      // Semi 受控 Select 在关闭动画 afterClose 后才提交 onChange；jsdom 不执行 CSS 动画，
+      // 且缺少 AnimationEvent 时 React 会监听 WebKit 前缀事件。
+      const eventName = 'AnimationEvent' in window ? 'animationend' : 'webkitAnimationEnd';
+      fireEvent(popup as HTMLElement, Object.assign(new Event(eventName, { bubbles: true }), { animationName: 'semi-tooltip-zoomOut' }));
+    };
     renderPage();
     await screen.findByText('共 6 个接口，由契约声明派生');
     await waitFor(() => expect(recorder.countOf('GET', permissionMatrixContract.roles.fullPath)).toBe(1));
 
-    fireEvent.click(screen.getByText('选择角色，查看它能调用哪些接口'));
-    fireEvent.click(await screen.findByText('只读（viewer）'));
+    await user.click(screen.getByText('选择角色，查看它能调用哪些接口'));
+    await selectRoleOption(/只读（viewer）/);
     await waitFor(() => expect(screen.getByText('持有 1 个权限码')).toBeTruthy());
 
     // 默认只看「可调用」：登录即可 + 持有码的接口；非登录令牌接口不计入判定
@@ -149,6 +182,7 @@ describe('ApiCatalogPage', () => {
     expect(screen.getByText('/api/auth/me')).toBeTruthy();
     expect(screen.getByText('/api/users')).toBeTruthy();
     expect(screen.queryByText('/api/users/{id}')).toBeNull();
+    expect(recorder.countOf('GET', apiCatalogContract.get.fullPath)).toBe(1);
 
     // 切到「无权限」
     fireEvent.click(screen.getByRole('button', { name: /无权限/ }));
@@ -160,5 +194,13 @@ describe('ApiCatalogPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /仅平台超管/ }));
     expect(screen.getByText('仅平台超管 1 / 6 个接口')).toBeTruthy();
     expect(screen.getByText('/api/tenants')).toBeTruthy();
+    expect(recorder.countOf('GET', apiCatalogContract.get.fullPath)).toBe(1);
+
+    // 切换查看主体只重新判定已缓存的目录
+    await user.click(screen.getByText('只读（viewer）'));
+    await selectRoleOption(/超级管理员（super_admin）/);
+    expect(await screen.findByText('可调用 4 / 6 个接口')).toBeTruthy();
+    expect(screen.getByText('平台超管 · 全部放行')).toBeTruthy();
+    expect(recorder.countOf('GET', apiCatalogContract.get.fullPath)).toBe(1);
   });
 });

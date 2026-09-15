@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { ALL_PERMISSIONS } from './permissions';
 import { CONTRACT_DOMAIN_LABELS, CONTRACTS_BY_DOMAIN } from './contracts';
-import { judgeOperation, listApiCatalog, listPermissionCatalog, operationsByPermission, SECURITY_SCHEME_LABELS } from './permission-catalog';
+import { apiCatalogSchema } from './identity/contracts/api-catalog';
+import { buildApiCatalog, judgeOperation, listApiCatalog, listPermissionCatalog, operationsByPermission, SECURITY_SCHEME_LABELS } from './permission-catalog';
 
 describe('接口目录（契约派生）', () => {
   const api = listApiCatalog();
@@ -25,6 +26,35 @@ describe('接口目录（契约派生）', () => {
   it('每个契约域都有展示名', () => {
     for (const domain of Object.keys(CONTRACTS_BY_DOMAIN)) {
       expect(CONTRACT_DOMAIN_LABELS[domain as keyof typeof CONTRACT_DOMAIN_LABELS], domain).toBeTruthy();
+    }
+  });
+
+  it('HTTP 目录符合响应契约，省略原始 access 后仍与内部目录的权限判定一致', () => {
+    const response = JSON.parse(JSON.stringify(buildApiCatalog()));
+    const catalog = apiCatalogSchema.parse(response);
+    expect(catalog).toEqual(response);
+    expect(catalog.items.every((item) => !('access' in item))).toBe(true);
+    expect(catalog.items).toHaveLength(api.length);
+
+    const originals = new Map(listPermissionCatalog(api).map((entry) => [`${entry.method} ${entry.fullPath}`, entry]));
+    for (const item of catalog.items) {
+      if (item.security !== 'bearer') continue;
+      const original = originals.get(`${item.method} ${item.fullPath}`)!;
+      expect(original).toBeDefined();
+      expect(item).toMatchObject({ accessKind: original.accessKind, permissions: original.permissions, platformOnly: original.platformOnly });
+      const input = { accessKind: item.accessKind!, permissions: item.permissions, platformOnly: item.platformOnly };
+      const subjects = [
+        { permissions: [], superAdmin: false },
+        { permissions: original.permissions, superAdmin: false },
+        { permissions: ['*'], superAdmin: false },
+        { permissions: [], superAdmin: true },
+      ];
+      for (const multiTenant of [false, true]) {
+        for (const subject of subjects) {
+          expect(judgeOperation(input, subject, { multiTenant }), `${item.method} ${item.fullPath}`)
+            .toBe(judgeOperation(original, subject, { multiTenant }));
+        }
+      }
     }
   });
 });
