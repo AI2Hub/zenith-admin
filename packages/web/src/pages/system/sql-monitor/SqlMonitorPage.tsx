@@ -51,7 +51,7 @@ import {
   useSqlMonitorSessionAction,
 } from '@/hooks/queries/sql-monitor';
 import { confirmDanger } from '@/utils/confirm';
-import { EMPTY_PLACEHOLDER } from '@/utils/table-columns';
+import { EMPTY_PLACEHOLDER, renderEllipsis } from '@/utils/table-columns';
 import DateTimeText from '@/components/DateTimeText';
 import { SQL_MONITOR_QUERY_SORT_OPTIONS, type SqlMonitorQuery, type SqlMonitorSession, type SqlMonitorLock, type SqlMonitorHistoryPoint, type MonitorHistoryRange } from '@zenith/shared/platform';
 import './SqlMonitorPage.css';
@@ -163,7 +163,13 @@ function QueryTable({
       render: (value: string | null) => renderQueryText(value),
     },
     { key: 'databaseName', title: '数据库', dataIndex: 'databaseName', width: 140, ellipsis: true },
-    { key: 'queryId', title: 'Query ID', dataIndex: 'queryId', width: 130, render: (value: string) => <Text code>{value}</Text> },
+    {
+      key: 'queryId',
+      title: 'Query ID',
+      dataIndex: 'queryId',
+      width: 190,
+      render: (value: string) => renderEllipsis(value, { code: true }),
+    },
     { key: 'calls', title: '调用次数', dataIndex: 'calls', width: 110, align: 'right', render: (value: number) => formatNumber(value) },
     { key: 'totalMs', title: '总耗时', dataIndex: 'totalMs', width: 110, align: 'right', render: (value: number) => formatMs(value) },
     { key: 'meanMs', title: '平均耗时', dataIndex: 'meanMs', width: 110, align: 'right', render: (value: number) => formatMs(value) },

@@ -29,9 +29,9 @@ export const DATE_RANGE_COLUMN_WIDTH = 260;
  * @example
  * { title: '描述', dataIndex: 'description', render: renderEllipsis }
  */
-export function renderEllipsis(v: string | null | undefined): React.ReactNode {
+export function renderEllipsis(v: string | null | undefined, options?: { code?: boolean }): React.ReactNode {
   return (
-    <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>
+    <Typography.Text code={options?.code} ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>
       {v || EMPTY_PLACEHOLDER}
     </Typography.Text>
   );
