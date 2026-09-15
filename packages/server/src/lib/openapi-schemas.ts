@@ -166,6 +166,11 @@ export const conflictResponse = {
   409: { content: jsonContent(ErrorResponse), description: '存在关联数据，操作冲突' },
 } as const;
 
+/** 304 未修改响应：静态载荷带 ETag，`If-None-Match` 命中时无正文（见 lib/static-json-response.ts） */
+export const notModifiedResponse = {
+  304: { description: '未修改（If-None-Match 命中 ETag），无正文' },
+} as const;
+
 /** Excel 文件下载响应（OpenAPI responses 块） */
 export function okExcel(description = 'Excel 文件') {
   return {
