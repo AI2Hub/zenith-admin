@@ -1,5 +1,5 @@
 {
-  "id": "ab314d38-a695-4675-96b2-25e554f2efa4",
+  "id": "d2a4e375-8d5a-46ab-b5cf-bad824c69af3",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -3010,6 +3010,28 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "managed_files_storage_object_key_idx": {
+          "name": "managed_files_storage_object_key_idx",
+          "columns": [
+            {
+              "expression": "storage_config_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "object_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last",
+              "opclass": "varchar_pattern_ops"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -4066,6 +4088,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "node_id": {
+          "name": "node_id",
+          "type": "varchar(128)",
+          "primaryKey": false,
+          "notNull": false
+        },
         "tenant_id": {
           "name": "tenant_id",
           "type": "integer",
@@ -4893,6 +4921,55 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "trigger": {
+          "name": "trigger",
+          "type": "cron_run_trigger",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'schedule'"
+        },
+        "attempt": {
+          "name": "attempt",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "scheduled_at": {
+          "name": "scheduled_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "latency_ms": {
+          "name": "latency_ms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "generated": {
+            "as": "CAST(EXTRACT(EPOCH FROM (started_at - scheduled_at)) * 1000 AS integer)",
+            "type": "stored"
+          }
+        },
+        "error_message": {
+          "name": "error_message",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "node_id": {
+          "name": "node_id",
+          "type": "varchar(128)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "triggered_by": {
+          "name": "triggered_by",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -4925,6 +5002,48 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "cron_job_logs_job_started_idx": {
+          "name": "cron_job_logs_job_started_idx",
+          "columns": [
+            {
+              "expression": "job_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "started_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "cron_job_logs_status_started_idx": {
+          "name": "cron_job_logs_status_started_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "started_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -4939,6 +5058,19 @@
             "id"
           ],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "cron_job_logs_triggered_by_users_id_fk": {
+          "name": "cron_job_logs_triggered_by_users_id_fk",
+          "tableFrom": "cron_job_logs",
+          "tableTo": "users",
+          "columnsFrom": [
+            "triggered_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -5566,6 +5698,13 @@
           "primaryKey": false,
           "notNull": true
         },
+        "roles": {
+          "name": "roles",
+          "type": "process_role[]",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
         "version": {
           "name": "version",
           "type": "varchar(64)",
@@ -5841,11 +5980,23 @@
         }
       },
       "indexes": {
-        "system_scheduler_runs_task_idx": {
-          "name": "system_scheduler_runs_task_idx",
+        "system_scheduler_runs_task_started_idx": {
+          "name": "system_scheduler_runs_task_started_idx",
           "columns": [
             {
               "expression": "task_name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "started_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -6357,6 +6508,276 @@
           "tableTo": "users",
           "columnsFrom": [
             "handled_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.impersonation_sessions": {
+      "name": "impersonation_sessions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "always",
+            "name": "impersonation_sessions_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "impersonator_id": {
+          "name": "impersonator_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "impersonator_name": {
+          "name": "impersonator_name",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "target_user_id": {
+          "name": "target_user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "target_username": {
+          "name": "target_username",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "token_id": {
+          "name": "token_id",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "read_only": {
+          "name": "read_only",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "reason": {
+          "name": "reason",
+          "type": "varchar(256)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ip": {
+          "name": "ip",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "location": {
+          "name": "location",
+          "type": "varchar(128)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "browser": {
+          "name": "browser",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "os": {
+          "name": "os",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ended_at": {
+          "name": "ended_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "end_reason": {
+          "name": "end_reason",
+          "type": "impersonation_end_reason",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ended_by": {
+          "name": "ended_by",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "impersonation_sessions_token_uq": {
+          "name": "impersonation_sessions_token_uq",
+          "columns": [
+            {
+              "expression": "token_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "impersonation_sessions_impersonator_idx": {
+          "name": "impersonation_sessions_impersonator_idx",
+          "columns": [
+            {
+              "expression": "impersonator_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "impersonation_sessions_target_idx": {
+          "name": "impersonation_sessions_target_idx",
+          "columns": [
+            {
+              "expression": "target_user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "impersonation_sessions_tenant_started_idx": {
+          "name": "impersonation_sessions_tenant_started_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "started_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "impersonation_sessions_started_idx": {
+          "name": "impersonation_sessions_started_idx",
+          "columns": [
+            {
+              "expression": "started_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "impersonation_sessions_impersonator_id_users_id_fk": {
+          "name": "impersonation_sessions_impersonator_id_users_id_fk",
+          "tableFrom": "impersonation_sessions",
+          "tableTo": "users",
+          "columnsFrom": [
+            "impersonator_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "impersonation_sessions_target_user_id_users_id_fk": {
+          "name": "impersonation_sessions_target_user_id_users_id_fk",
+          "tableFrom": "impersonation_sessions",
+          "tableTo": "users",
+          "columnsFrom": [
+            "target_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "impersonation_sessions_tenant_id_tenants_id_fk": {
+          "name": "impersonation_sessions_tenant_id_tenants_id_fk",
+          "tableFrom": "impersonation_sessions",
+          "tableTo": "tenants",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "impersonation_sessions_ended_by_users_id_fk": {
+          "name": "impersonation_sessions_ended_by_users_id_fk",
+          "tableFrom": "impersonation_sessions",
+          "tableTo": "users",
+          "columnsFrom": [
+            "ended_by"
           ],
           "columnsTo": [
             "id"
@@ -7412,6 +7833,162 @@
           "columns": [
             "provider",
             "open_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.user_signatures": {
+      "name": "user_signatures",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "always",
+            "name": "user_signatures_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "file_id": {
+          "name": "file_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "user_signatures_user_id_users_id_fk": {
+          "name": "user_signatures_user_id_users_id_fk",
+          "tableFrom": "user_signatures",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "user_signatures_tenant_id_tenants_id_fk": {
+          "name": "user_signatures_tenant_id_tenants_id_fk",
+          "tableFrom": "user_signatures",
+          "tableTo": "tenants",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "user_signatures_file_id_managed_files_id_fk": {
+          "name": "user_signatures_file_id_managed_files_id_fk",
+          "tableFrom": "user_signatures",
+          "tableTo": "managed_files",
+          "columnsFrom": [
+            "file_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "user_signatures_created_by_users_id_fk": {
+          "name": "user_signatures_created_by_users_id_fk",
+          "tableFrom": "user_signatures",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "user_signatures_updated_by_users_id_fk": {
+          "name": "user_signatures_updated_by_users_id_fk",
+          "tableFrom": "user_signatures",
+          "tableTo": "users",
+          "columnsFrom": [
+            "updated_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "user_signatures_user_tenant_unique": {
+          "name": "user_signatures_user_tenant_unique",
+          "nullsNotDistinct": true,
+          "columns": [
+            "user_id",
+            "tenant_id"
           ]
         }
       },
@@ -9927,11 +10504,17 @@
         }
       },
       "indexes": {
-        "login_logs_tenant_idx": {
-          "name": "login_logs_tenant_idx",
+        "login_logs_tenant_created_idx": {
+          "name": "login_logs_tenant_created_idx",
           "columns": [
             {
               "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -10038,6 +10621,18 @@
         },
         "username": {
           "name": "username",
+          "type": "varchar(32)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "impersonator_id": {
+          "name": "impersonator_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "impersonator_name": {
+          "name": "impersonator_name",
           "type": "varchar(32)",
           "primaryKey": false,
           "notNull": false
@@ -10153,11 +10748,17 @@
         }
       },
       "indexes": {
-        "operation_logs_tenant_idx": {
-          "name": "operation_logs_tenant_idx",
+        "operation_logs_tenant_created_idx": {
+          "name": "operation_logs_tenant_created_idx",
           "columns": [
             {
               "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -10188,6 +10789,21 @@
           "columns": [
             {
               "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "operation_logs_impersonator_idx": {
+          "name": "operation_logs_impersonator_idx",
+          "columns": [
+            {
+              "expression": "impersonator_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -13197,6 +13813,13 @@
           "primaryKey": false,
           "notNull": true
         },
+        "source": {
+          "name": "source",
+          "type": "analytics_event_source",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
         "error_type": {
           "name": "error_type",
           "type": "frontend_error_type",
@@ -13566,6 +14189,66 @@
           "primaryKey": false,
           "notNull": false
         },
+        "trace_id": {
+          "name": "trace_id",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "route": {
+          "name": "route",
+          "type": "varchar(256)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "error_name": {
+          "name": "error_name",
+          "type": "varchar(128)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "error_code": {
+          "name": "error_code",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "job_type": {
+          "name": "job_type",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "job_id": {
+          "name": "job_id",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "process_role": {
+          "name": "process_role",
+          "type": "varchar(16)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "hostname": {
+          "name": "hostname",
+          "type": "varchar(128)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pid": {
+          "name": "pid",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "affected_tenant_id": {
+          "name": "affected_tenant_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -13682,6 +14365,22 @@
             }
           ],
           "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "error_events_trace_idx": {
+          "name": "error_events_trace_idx",
+          "columns": [
+            {
+              "expression": "trace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"error_events\".\"trace_id\" IS NOT NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -13820,6 +14519,14 @@
           "type": "varchar(64)",
           "primaryKey": false,
           "notNull": true
+        },
+        "source": {
+          "name": "source",
+          "type": "analytics_event_source",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'web_admin'"
         },
         "error_type": {
           "name": "error_type",
@@ -14023,6 +14730,27 @@
           "columns": [
             {
               "expression": "assignee_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "error_groups_source_last_seen_idx": {
+          "name": "error_groups_source_last_seen_idx",
+          "columns": [
+            {
+              "expression": "source",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "last_seen_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -15517,6 +16245,27 @@
           "columns": [
             {
               "expression": "source",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "user_events_app_created_idx": {
+          "name": "user_events_app_created_idx",
+          "columns": [
+            {
+              "expression": "app_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -17798,6 +18547,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "print_template_id": {
+          "name": "print_template_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
         "status": {
           "name": "status",
           "type": "workflow_definition_status",
@@ -17944,6 +18699,19 @@
           "tableTo": "users",
           "columnsFrom": [
             "updated_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "workflow_definitions_print_template_fk": {
+          "name": "workflow_definitions_print_template_fk",
+          "tableFrom": "workflow_definitions",
+          "tableTo": "report_print_templates",
+          "columnsFrom": [
+            "print_template_id"
           ],
           "columnsTo": [
             "id"
@@ -18975,6 +19743,30 @@
           "primaryKey": false,
           "notNull": false
         },
+        "archive_file_id": {
+          "name": "archive_file_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "archive_sha256": {
+          "name": "archive_sha256",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "archive_template_id": {
+          "name": "archive_template_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "archived_at": {
+          "name": "archived_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_by": {
           "name": "created_by",
           "type": "integer",
@@ -19148,6 +19940,19 @@
             "id"
           ],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "workflow_instances_archive_file_id_managed_files_id_fk": {
+          "name": "workflow_instances_archive_file_id_managed_files_id_fk",
+          "tableFrom": "workflow_instances",
+          "tableTo": "managed_files",
+          "columnsFrom": [
+            "archive_file_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
           "onUpdate": "no action"
         },
         "workflow_instances_created_by_users_id_fk": {
@@ -21242,6 +22047,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "signature_evidence": {
+          "name": "signature_evidence",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
         "attachments": {
           "name": "attachments",
           "type": "jsonb",
@@ -22862,6 +23673,22 @@
             }
           ],
           "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "in_app_messages_user_unread_idx": {
+          "name": "in_app_messages_user_unread_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"in_app_messages\".\"is_read\" = false",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -28521,6 +29348,27 @@
             },
             {
               "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "chat_messages_conversation_created_idx": {
+          "name": "chat_messages_conversation_created_idx",
+          "columns": [
+            {
+              "expression": "conversation_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -44715,6 +45563,22 @@
           "method": "btree",
           "with": {}
         },
+        "member_notifications_member_unread_idx": {
+          "name": "member_notifications_member_unread_idx",
+          "columns": [
+            {
+              "expression": "member_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"member_notifications\".\"read_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "member_notifications_member_type_biz_uq": {
           "name": "member_notifications_member_type_biz_uq",
           "columns": [
@@ -47486,6 +48350,14 @@
           "primaryKey": false,
           "notNull": false
         },
+        "kind": {
+          "name": "kind",
+          "type": "app_kind",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'client'"
+        },
         "status": {
           "name": "status",
           "type": "status",
@@ -47763,6 +48635,1101 @@
           "nullsNotDistinct": false,
           "columns": [
             "device_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.deploy_releases": {
+      "name": "deploy_releases",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "always",
+            "name": "deploy_releases_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "app_id": {
+          "name": "app_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "target_id": {
+          "name": "target_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "host_id": {
+          "name": "host_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "release_name": {
+          "name": "release_name",
+          "type": "varchar(80)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version": {
+          "name": "version",
+          "type": "varchar(32)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "app_release_id": {
+          "name": "app_release_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "artifact_id": {
+          "name": "artifact_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "run_id": {
+          "name": "run_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_current": {
+          "name": "is_current",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "current_since": {
+          "name": "current_since",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "size_bytes": {
+          "name": "size_bytes",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "removed_at": {
+          "name": "removed_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "deploy_releases_target_host_idx": {
+          "name": "deploy_releases_target_host_idx",
+          "columns": [
+            {
+              "expression": "target_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "host_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "deploy_releases_current_unique": {
+          "name": "deploy_releases_current_unique",
+          "columns": [
+            {
+              "expression": "target_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "host_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"deploy_releases\".\"is_current\" = true",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "deploy_releases_app_id_client_apps_id_fk": {
+          "name": "deploy_releases_app_id_client_apps_id_fk",
+          "tableFrom": "deploy_releases",
+          "tableTo": "client_apps",
+          "columnsFrom": [
+            "app_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "deploy_releases_target_id_deploy_targets_id_fk": {
+          "name": "deploy_releases_target_id_deploy_targets_id_fk",
+          "tableFrom": "deploy_releases",
+          "tableTo": "deploy_targets",
+          "columnsFrom": [
+            "target_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "deploy_releases_host_id_ops_hosts_id_fk": {
+          "name": "deploy_releases_host_id_ops_hosts_id_fk",
+          "tableFrom": "deploy_releases",
+          "tableTo": "ops_hosts",
+          "columnsFrom": [
+            "host_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "deploy_releases_app_release_id_app_releases_id_fk": {
+          "name": "deploy_releases_app_release_id_app_releases_id_fk",
+          "tableFrom": "deploy_releases",
+          "tableTo": "app_releases",
+          "columnsFrom": [
+            "app_release_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "deploy_releases_artifact_id_app_artifacts_id_fk": {
+          "name": "deploy_releases_artifact_id_app_artifacts_id_fk",
+          "tableFrom": "deploy_releases",
+          "tableTo": "app_artifacts",
+          "columnsFrom": [
+            "artifact_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "deploy_releases_run_id_deploy_runs_id_fk": {
+          "name": "deploy_releases_run_id_deploy_runs_id_fk",
+          "tableFrom": "deploy_releases",
+          "tableTo": "deploy_runs",
+          "columnsFrom": [
+            "run_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "deploy_releases_target_host_name_unique": {
+          "name": "deploy_releases_target_host_name_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "target_id",
+            "host_id",
+            "release_name"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.deploy_run_hosts": {
+      "name": "deploy_run_hosts",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "always",
+            "name": "deploy_run_hosts_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "run_id": {
+          "name": "run_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "host_id": {
+          "name": "host_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "deploy_host_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "step": {
+          "name": "step",
+          "type": "deploy_step",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "release_name": {
+          "name": "release_name",
+          "type": "varchar(80)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "previous_release_name": {
+          "name": "previous_release_name",
+          "type": "varchar(80)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "finished_at": {
+          "name": "finished_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "error": {
+          "name": "error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "deploy_run_hosts_run_id_deploy_runs_id_fk": {
+          "name": "deploy_run_hosts_run_id_deploy_runs_id_fk",
+          "tableFrom": "deploy_run_hosts",
+          "tableTo": "deploy_runs",
+          "columnsFrom": [
+            "run_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "deploy_run_hosts_host_id_ops_hosts_id_fk": {
+          "name": "deploy_run_hosts_host_id_ops_hosts_id_fk",
+          "tableFrom": "deploy_run_hosts",
+          "tableTo": "ops_hosts",
+          "columnsFrom": [
+            "host_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "deploy_run_hosts_run_host_unique": {
+          "name": "deploy_run_hosts_run_host_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "run_id",
+            "host_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.deploy_run_logs": {
+      "name": "deploy_run_logs",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "bigint",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "always",
+            "name": "deploy_run_logs_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "9223372036854775807",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "run_id": {
+          "name": "run_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "host_id": {
+          "name": "host_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "seq": {
+          "name": "seq",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "level": {
+          "name": "level",
+          "type": "deploy_log_level",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'info'"
+        },
+        "step": {
+          "name": "step",
+          "type": "deploy_step",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "line": {
+          "name": "line",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "deploy_run_logs_run_id_deploy_runs_id_fk": {
+          "name": "deploy_run_logs_run_id_deploy_runs_id_fk",
+          "tableFrom": "deploy_run_logs",
+          "tableTo": "deploy_runs",
+          "columnsFrom": [
+            "run_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "deploy_run_logs_host_id_ops_hosts_id_fk": {
+          "name": "deploy_run_logs_host_id_ops_hosts_id_fk",
+          "tableFrom": "deploy_run_logs",
+          "tableTo": "ops_hosts",
+          "columnsFrom": [
+            "host_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "deploy_run_logs_run_seq_unique": {
+          "name": "deploy_run_logs_run_seq_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "run_id",
+            "seq"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.deploy_runs": {
+      "name": "deploy_runs",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "always",
+            "name": "deploy_runs_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "app_id": {
+          "name": "app_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "target_id": {
+          "name": "target_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "deploy_run_kind",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "deploy_run_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "app_release_id": {
+          "name": "app_release_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "version": {
+          "name": "version",
+          "type": "varchar(32)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "artifact_id": {
+          "name": "artifact_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "release_name": {
+          "name": "release_name",
+          "type": "varchar(80)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "async_task_id": {
+          "name": "async_task_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "snapshot": {
+          "name": "snapshot",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "host_total": {
+          "name": "host_total",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "host_succeeded": {
+          "name": "host_succeeded",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "host_failed": {
+          "name": "host_failed",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "error": {
+          "name": "error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "remark": {
+          "name": "remark",
+          "type": "varchar(500)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "finished_at": {
+          "name": "finished_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "deploy_runs_target_created_idx": {
+          "name": "deploy_runs_target_created_idx",
+          "columns": [
+            {
+              "expression": "target_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "deploy_runs_app_created_idx": {
+          "name": "deploy_runs_app_created_idx",
+          "columns": [
+            {
+              "expression": "app_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "deploy_runs_target_active_unique": {
+          "name": "deploy_runs_target_active_unique",
+          "columns": [
+            {
+              "expression": "target_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"deploy_runs\".\"status\" in ('pending', 'running')",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "deploy_runs_app_id_client_apps_id_fk": {
+          "name": "deploy_runs_app_id_client_apps_id_fk",
+          "tableFrom": "deploy_runs",
+          "tableTo": "client_apps",
+          "columnsFrom": [
+            "app_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "deploy_runs_target_id_deploy_targets_id_fk": {
+          "name": "deploy_runs_target_id_deploy_targets_id_fk",
+          "tableFrom": "deploy_runs",
+          "tableTo": "deploy_targets",
+          "columnsFrom": [
+            "target_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "deploy_runs_app_release_id_app_releases_id_fk": {
+          "name": "deploy_runs_app_release_id_app_releases_id_fk",
+          "tableFrom": "deploy_runs",
+          "tableTo": "app_releases",
+          "columnsFrom": [
+            "app_release_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "deploy_runs_artifact_id_app_artifacts_id_fk": {
+          "name": "deploy_runs_artifact_id_app_artifacts_id_fk",
+          "tableFrom": "deploy_runs",
+          "tableTo": "app_artifacts",
+          "columnsFrom": [
+            "artifact_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "deploy_runs_async_task_id_async_tasks_id_fk": {
+          "name": "deploy_runs_async_task_id_async_tasks_id_fk",
+          "tableFrom": "deploy_runs",
+          "tableTo": "async_tasks",
+          "columnsFrom": [
+            "async_task_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "deploy_runs_created_by_users_id_fk": {
+          "name": "deploy_runs_created_by_users_id_fk",
+          "tableFrom": "deploy_runs",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "deploy_runs_updated_by_users_id_fk": {
+          "name": "deploy_runs_updated_by_users_id_fk",
+          "tableFrom": "deploy_runs",
+          "tableTo": "users",
+          "columnsFrom": [
+            "updated_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.deploy_target_hosts": {
+      "name": "deploy_target_hosts",
+      "schema": "",
+      "columns": {
+        "target_id": {
+          "name": "target_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "host_id": {
+          "name": "host_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "order": {
+          "name": "order",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        }
+      },
+      "indexes": {
+        "deploy_target_hosts_host_idx": {
+          "name": "deploy_target_hosts_host_idx",
+          "columns": [
+            {
+              "expression": "host_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "deploy_target_hosts_target_id_deploy_targets_id_fk": {
+          "name": "deploy_target_hosts_target_id_deploy_targets_id_fk",
+          "tableFrom": "deploy_target_hosts",
+          "tableTo": "deploy_targets",
+          "columnsFrom": [
+            "target_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "deploy_target_hosts_host_id_ops_hosts_id_fk": {
+          "name": "deploy_target_hosts_host_id_ops_hosts_id_fk",
+          "tableFrom": "deploy_target_hosts",
+          "tableTo": "ops_hosts",
+          "columnsFrom": [
+            "host_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "deploy_target_hosts_target_id_host_id_pk": {
+          "name": "deploy_target_hosts_target_id_host_id_pk",
+          "columns": [
+            "target_id",
+            "host_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.deploy_targets": {
+      "name": "deploy_targets",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "always",
+            "name": "deploy_targets_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "app_id": {
+          "name": "app_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "deploy_path": {
+          "name": "deploy_path",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "shared_paths": {
+          "name": "shared_paths",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "keep_releases": {
+          "name": "keep_releases",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 5
+        },
+        "restart_mode": {
+          "name": "restart_mode",
+          "type": "deploy_restart_mode",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'systemd'"
+        },
+        "service_name": {
+          "name": "service_name",
+          "type": "varchar(128)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "scripts": {
+          "name": "scripts",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{\"beforeSwitch\":null,\"restart\":null}'::jsonb"
+        },
+        "health_check": {
+          "name": "health_check",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "env": {
+          "name": "env",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "auto_rollback": {
+          "name": "auto_rollback",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "strategy": {
+          "name": "strategy",
+          "type": "deploy_strategy",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'rolling'"
+        },
+        "max_parallel": {
+          "name": "max_parallel",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 2
+        },
+        "stop_on_failure": {
+          "name": "stop_on_failure",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "enabled": {
+          "name": "enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "remark": {
+          "name": "remark",
+          "type": "varchar(500)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "deploy_targets_app_id_client_apps_id_fk": {
+          "name": "deploy_targets_app_id_client_apps_id_fk",
+          "tableFrom": "deploy_targets",
+          "tableTo": "client_apps",
+          "columnsFrom": [
+            "app_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "deploy_targets_created_by_users_id_fk": {
+          "name": "deploy_targets_created_by_users_id_fk",
+          "tableFrom": "deploy_targets",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "deploy_targets_updated_by_users_id_fk": {
+          "name": "deploy_targets_updated_by_users_id_fk",
+          "tableFrom": "deploy_targets",
+          "tableTo": "users",
+          "columnsFrom": [
+            "updated_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "deploy_targets_app_name_unique": {
+          "name": "deploy_targets_app_name_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "app_id",
+            "name"
           ]
         }
       },
@@ -55379,6 +57346,26 @@
           "primaryKey": false,
           "notNull": false
         },
+        "source_type": {
+          "name": "source_type",
+          "type": "report_print_source_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'dataset'"
+        },
+        "entity_kind": {
+          "name": "entity_kind",
+          "type": "varchar(32)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "entity_ref_id": {
+          "name": "entity_ref_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
         "content": {
           "name": "content",
           "type": "jsonb",
@@ -55521,6 +57508,27 @@
           "columns": [
             {
               "expression": "owner_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "report_print_templates_entity_idx": {
+          "name": "report_print_templates_entity_idx",
+          "columns": [
+            {
+              "expression": "entity_kind",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "entity_ref_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -83409,7 +85417,25 @@
       "values": [
         "success",
         "fail",
-        "running"
+        "running",
+        "timeout"
+      ]
+    },
+    "public.cron_run_trigger": {
+      "name": "cron_run_trigger",
+      "schema": "public",
+      "values": [
+        "schedule",
+        "manual",
+        "retry"
+      ]
+    },
+    "public.process_role": {
+      "name": "process_role",
+      "schema": "public",
+      "values": [
+        "api",
+        "worker"
       ]
     },
     "public.region_level": {
@@ -83465,6 +85491,15 @@
         "processing",
         "resolved",
         "ignored"
+      ]
+    },
+    "public.impersonation_end_reason": {
+      "name": "impersonation_end_reason",
+      "schema": "public",
+      "values": [
+        "manual",
+        "expired",
+        "forced"
       ]
     },
     "public.login_risk_action": {
@@ -83601,7 +85636,10 @@
       "schema": "public",
       "values": [
         "login",
-        "logout"
+        "logout",
+        "impersonate",
+        "impersonate_end",
+        "kicked"
       ]
     },
     "public.login_status": {
@@ -83739,7 +85777,13 @@
         "console_error",
         "http_error",
         "white_screen",
-        "crash"
+        "crash",
+        "server_exception",
+        "job_failure",
+        "cron_failure",
+        "event_failure",
+        "process_crash",
+        "logged_error"
       ]
     },
     "public.replay_mode": {
@@ -84860,6 +86904,8 @@
         "diskWriteBps",
         "logErrorPerMin",
         "logWarnPerMin",
+        "schedulerWorkerNodes",
+        "schedulerQueueBacklog",
         "workflowHealth",
         "workflowBacklog",
         "workflowDeadLetter",
@@ -84912,7 +86958,16 @@
         "installer",
         "hotupdate",
         "metadata",
-        "external"
+        "external",
+        "archive"
+      ]
+    },
+    "public.app_kind": {
+      "name": "app_kind",
+      "schema": "public",
+      "values": [
+        "client",
+        "service"
       ]
     },
     "public.app_platform": {
@@ -84924,7 +86979,8 @@
         "linux",
         "android",
         "ios",
-        "web"
+        "web",
+        "server"
       ]
     },
     "public.app_release_channel": {
@@ -84953,6 +87009,80 @@
         "draft",
         "published",
         "revoked"
+      ]
+    },
+    "public.deploy_host_status": {
+      "name": "deploy_host_status",
+      "schema": "public",
+      "values": [
+        "pending",
+        "running",
+        "succeeded",
+        "failed",
+        "rolled_back",
+        "skipped",
+        "cancelled"
+      ]
+    },
+    "public.deploy_log_level": {
+      "name": "deploy_log_level",
+      "schema": "public",
+      "values": [
+        "info",
+        "warn",
+        "error"
+      ]
+    },
+    "public.deploy_restart_mode": {
+      "name": "deploy_restart_mode",
+      "schema": "public",
+      "values": [
+        "systemd",
+        "script",
+        "none"
+      ]
+    },
+    "public.deploy_run_kind": {
+      "name": "deploy_run_kind",
+      "schema": "public",
+      "values": [
+        "deploy",
+        "rollback",
+        "restart"
+      ]
+    },
+    "public.deploy_run_status": {
+      "name": "deploy_run_status",
+      "schema": "public",
+      "values": [
+        "pending",
+        "running",
+        "succeeded",
+        "partial",
+        "failed",
+        "cancelled"
+      ]
+    },
+    "public.deploy_step": {
+      "name": "deploy_step",
+      "schema": "public",
+      "values": [
+        "preflight",
+        "upload",
+        "unpack",
+        "before_switch",
+        "switch",
+        "restart",
+        "health_check",
+        "prune"
+      ]
+    },
+    "public.deploy_strategy": {
+      "name": "deploy_strategy",
+      "schema": "public",
+      "values": [
+        "rolling",
+        "parallel"
       ]
     },
     "public.mp_account_type": {
@@ -85208,6 +87338,14 @@
         "scheduled",
         "trigger",
         "recover"
+      ]
+    },
+    "public.report_print_source_type": {
+      "name": "report_print_source_type",
+      "schema": "public",
+      "values": [
+        "dataset",
+        "entity"
       ]
     },
     "public.report_resource_type": {

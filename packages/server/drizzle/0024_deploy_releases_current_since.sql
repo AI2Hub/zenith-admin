@@ -1,1 +1,0 @@
-ALTER TABLE "deploy_releases" ADD COLUMN "current_since" timestamp;

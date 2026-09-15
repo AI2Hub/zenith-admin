@@ -1,5 +1,4 @@
--- pg_trgm 必须先于本文件内的 gin_trgm_ops 索引（operation_logs / wiki_docs / cms_contents / async_tasks 等）创建；
--- 重建基线后需保留此前置行（见 docs/backend/database.md「迁移目录」）。
+-- gin_trgm_ops 索引需要的扩展，必须先于本基线中的索引创建。
 CREATE EXTENSION IF NOT EXISTS pg_trgm;--> statement-breakpoint
 CREATE TYPE "public"."push_provider" AS ENUM('jpush');--> statement-breakpoint
 CREATE TYPE "public"."status" AS ENUM('enabled', 'disabled');--> statement-breakpoint
@@ -19,13 +18,16 @@ CREATE TYPE "public"."export_job_delete_reason" AS ENUM('expired', 'manual', 'fi
 CREATE TYPE "public"."export_job_execution_mode" AS ENUM('sync', 'async');--> statement-breakpoint
 CREATE TYPE "public"."export_job_format" AS ENUM('xlsx', 'csv', 'pdf', 'docx');--> statement-breakpoint
 CREATE TYPE "public"."export_job_status" AS ENUM('pending', 'running', 'success', 'failed', 'cancelled', 'expired');--> statement-breakpoint
-CREATE TYPE "public"."cron_run_status" AS ENUM('success', 'fail', 'running');--> statement-breakpoint
+CREATE TYPE "public"."cron_run_status" AS ENUM('success', 'fail', 'running', 'timeout');--> statement-breakpoint
+CREATE TYPE "public"."cron_run_trigger" AS ENUM('schedule', 'manual', 'retry');--> statement-breakpoint
+CREATE TYPE "public"."process_role" AS ENUM('api', 'worker');--> statement-breakpoint
 CREATE TYPE "public"."region_level" AS ENUM('province', 'city', 'county');--> statement-breakpoint
 CREATE TYPE "public"."system_scheduler_run_status" AS ENUM('running', 'success', 'failed');--> statement-breakpoint
 CREATE TYPE "public"."system_scheduler_task_type" AS ENUM('recurring', 'queue');--> statement-breakpoint
 CREATE TYPE "public"."system_scheduler_trigger_type" AS ENUM('schedule', 'manual', 'queue');--> statement-breakpoint
 CREATE TYPE "public"."user_feedback_category" AS ENUM('suggestion', 'bug', 'ux', 'other');--> statement-breakpoint
 CREATE TYPE "public"."user_feedback_status" AS ENUM('pending', 'processing', 'resolved', 'ignored');--> statement-breakpoint
+CREATE TYPE "public"."impersonation_end_reason" AS ENUM('manual', 'expired', 'forced');--> statement-breakpoint
 CREATE TYPE "public"."login_risk_action" AS ENUM('allow', 'challenge', 'block');--> statement-breakpoint
 CREATE TYPE "public"."login_risk_level" AS ENUM('low', 'medium', 'high');--> statement-breakpoint
 CREATE TYPE "public"."mfa_factor_status" AS ENUM('pending', 'enabled', 'disabled');--> statement-breakpoint
@@ -40,7 +42,7 @@ CREATE TYPE "public"."identity_provider_type" AS ENUM('oidc', 'saml', 'ldap', 'a
 CREATE TYPE "public"."directory_sync_conflict_status" AS ENUM('pending', 'resolved', 'ignored');--> statement-breakpoint
 CREATE TYPE "public"."directory_sync_run_status" AS ENUM('running', 'success', 'partial', 'failed', 'aborted');--> statement-breakpoint
 CREATE TYPE "public"."directory_sync_source_type" AS ENUM('ldap', 'dingtalk', 'wechat_work', 'feishu', 'scim');--> statement-breakpoint
-CREATE TYPE "public"."login_event_type" AS ENUM('login', 'logout');--> statement-breakpoint
+CREATE TYPE "public"."login_event_type" AS ENUM('login', 'logout', 'impersonate', 'impersonate_end', 'kicked');--> statement-breakpoint
 CREATE TYPE "public"."login_status" AS ENUM('success', 'fail');--> statement-breakpoint
 CREATE TYPE "public"."analytics_campaign_channel" AS ENUM('email', 'in_app', 'webhook', 'sms');--> statement-breakpoint
 CREATE TYPE "public"."analytics_campaign_status" AS ENUM('draft', 'running', 'completed', 'failed');--> statement-breakpoint
@@ -54,7 +56,7 @@ CREATE TYPE "public"."analytics_identity_type" AS ENUM('admin', 'member', 'anony
 CREATE TYPE "public"."error_alert_condition" AS ENUM('new_error', 'threshold', 'spike');--> statement-breakpoint
 CREATE TYPE "public"."error_level" AS ENUM('fatal', 'error', 'warning', 'info');--> statement-breakpoint
 CREATE TYPE "public"."error_status" AS ENUM('unresolved', 'resolved', 'ignored', 'muted');--> statement-breakpoint
-CREATE TYPE "public"."frontend_error_type" AS ENUM('js_error', 'promise_rejection', 'resource_error', 'console_error', 'http_error', 'white_screen', 'crash');--> statement-breakpoint
+CREATE TYPE "public"."frontend_error_type" AS ENUM('js_error', 'promise_rejection', 'resource_error', 'console_error', 'http_error', 'white_screen', 'crash', 'server_exception', 'job_failure', 'cron_failure', 'event_failure', 'process_crash', 'logged_error');--> statement-breakpoint
 CREATE TYPE "public"."replay_mode" AS ENUM('buffer', 'stream');--> statement-breakpoint
 CREATE TYPE "public"."replay_status" AS ENUM('recording', 'completed', 'expired');--> statement-breakpoint
 CREATE TYPE "public"."user_behavior_event_type" AS ENUM('page_view', 'page_leave', 'feature_use', 'area_click', 'custom', 'perf', 'api_request', 'identify');--> statement-breakpoint
@@ -165,15 +167,23 @@ CREATE TYPE "public"."monitor_alert_level" AS ENUM('info', 'warning', 'critical'
 CREATE TYPE "public"."monitor_alert_notify_status" AS ENUM('skipped', 'success', 'partial', 'failed');--> statement-breakpoint
 CREATE TYPE "public"."monitor_alert_operator" AS ENUM('gt', 'gte', 'lt', 'lte');--> statement-breakpoint
 CREATE TYPE "public"."monitor_alert_state" AS ENUM('ok', 'firing');--> statement-breakpoint
-CREATE TYPE "public"."monitor_metric" AS ENUM('cpu', 'memory', 'disk', 'swap', 'load1', 'procCpu', 'heap', 'loopLag', 'qps', 'errorRate', 'netRxBps', 'netTxBps', 'diskReadBps', 'diskWriteBps', 'logErrorPerMin', 'logWarnPerMin', 'workflowHealth', 'workflowBacklog', 'workflowDeadLetter', 'workflowFailureRate', 'workflowStuckRunning', 'paymentFailureRate', 'paymentStuckPaying', 'paymentReconDiff', 'paymentEventBacklog', 'paymentWebhookFailureRate', 'openApiErrorRate', 'openApiAppErrorRate', 'openWebhookFailureRate', 'openWebhookDisabledSubs', 'replayStorageMb');--> statement-breakpoint
+CREATE TYPE "public"."monitor_metric" AS ENUM('cpu', 'memory', 'disk', 'swap', 'load1', 'procCpu', 'heap', 'loopLag', 'qps', 'errorRate', 'netRxBps', 'netTxBps', 'diskReadBps', 'diskWriteBps', 'logErrorPerMin', 'logWarnPerMin', 'schedulerWorkerNodes', 'schedulerQueueBacklog', 'workflowHealth', 'workflowBacklog', 'workflowDeadLetter', 'workflowFailureRate', 'workflowStuckRunning', 'paymentFailureRate', 'paymentStuckPaying', 'paymentReconDiff', 'paymentEventBacklog', 'paymentWebhookFailureRate', 'openApiErrorRate', 'openApiAppErrorRate', 'openWebhookFailureRate', 'openWebhookDisabledSubs', 'replayStorageMb');--> statement-breakpoint
 CREATE TYPE "public"."ssl_cert_status" AS ENUM('valid', 'expiring', 'expired', 'invalid');--> statement-breakpoint
 CREATE TYPE "public"."ssl_cert_type" AS ENUM('self_signed', 'uploaded', 'letsencrypt');--> statement-breakpoint
 CREATE TYPE "public"."app_arch" AS ENUM('x64', 'arm64', 'universal');--> statement-breakpoint
-CREATE TYPE "public"."app_artifact_kind" AS ENUM('installer', 'hotupdate', 'metadata', 'external');--> statement-breakpoint
-CREATE TYPE "public"."app_platform" AS ENUM('windows', 'macos', 'linux', 'android', 'ios', 'web');--> statement-breakpoint
+CREATE TYPE "public"."app_artifact_kind" AS ENUM('installer', 'hotupdate', 'metadata', 'external', 'archive');--> statement-breakpoint
+CREATE TYPE "public"."app_kind" AS ENUM('client', 'service');--> statement-breakpoint
+CREATE TYPE "public"."app_platform" AS ENUM('windows', 'macos', 'linux', 'android', 'ios', 'web', 'server');--> statement-breakpoint
 CREATE TYPE "public"."app_release_channel" AS ENUM('stable', 'beta', 'internal');--> statement-breakpoint
 CREATE TYPE "public"."app_release_event_type" AS ENUM('check', 'download', 'install_success', 'install_fail');--> statement-breakpoint
 CREATE TYPE "public"."app_release_status" AS ENUM('draft', 'published', 'revoked');--> statement-breakpoint
+CREATE TYPE "public"."deploy_host_status" AS ENUM('pending', 'running', 'succeeded', 'failed', 'rolled_back', 'skipped', 'cancelled');--> statement-breakpoint
+CREATE TYPE "public"."deploy_log_level" AS ENUM('info', 'warn', 'error');--> statement-breakpoint
+CREATE TYPE "public"."deploy_restart_mode" AS ENUM('systemd', 'script', 'none');--> statement-breakpoint
+CREATE TYPE "public"."deploy_run_kind" AS ENUM('deploy', 'rollback', 'restart');--> statement-breakpoint
+CREATE TYPE "public"."deploy_run_status" AS ENUM('pending', 'running', 'succeeded', 'partial', 'failed', 'cancelled');--> statement-breakpoint
+CREATE TYPE "public"."deploy_step" AS ENUM('preflight', 'upload', 'unpack', 'before_switch', 'switch', 'restart', 'health_check', 'prune');--> statement-breakpoint
+CREATE TYPE "public"."deploy_strategy" AS ENUM('rolling', 'parallel');--> statement-breakpoint
 CREATE TYPE "public"."mp_account_type" AS ENUM('subscribe', 'service', 'test');--> statement-breakpoint
 CREATE TYPE "public"."mp_auto_reply_match" AS ENUM('exact', 'contain', 'regex');--> statement-breakpoint
 CREATE TYPE "public"."mp_auto_reply_type" AS ENUM('subscribe', 'keyword', 'default');--> statement-breakpoint
@@ -201,6 +211,7 @@ CREATE TYPE "public"."report_datasource_type" AS ENUM('api', 'sql', 'mysql', 'po
 CREATE TYPE "public"."report_delivery_status" AS ENUM('pending', 'running', 'success', 'partial', 'failed', 'cancelled');--> statement-breakpoint
 CREATE TYPE "public"."report_delivery_target_type" AS ENUM('subscription', 'alert', 'sla');--> statement-breakpoint
 CREATE TYPE "public"."report_delivery_trigger_type" AS ENUM('manual', 'scheduled', 'trigger', 'recover');--> statement-breakpoint
+CREATE TYPE "public"."report_print_source_type" AS ENUM('dataset', 'entity');--> statement-breakpoint
 CREATE TYPE "public"."report_resource_type" AS ENUM('datasource', 'dataset', 'dashboard', 'metric', 'print_template', 'fill_template', 'asset_template');--> statement-breakpoint
 CREATE TYPE "public"."report_schedule_misfire_policy" AS ENUM('skip', 'fire_once');--> statement-breakpoint
 CREATE TYPE "public"."report_acl_role" AS ENUM('viewer', 'editor', 'owner');--> statement-breakpoint
@@ -743,6 +754,7 @@ CREATE TABLE "async_tasks" (
 	"heartbeat_at" timestamp,
 	"trace_id" varchar(64),
 	"parent_ref" varchar(32),
+	"node_id" varchar(128),
 	"tenant_id" integer,
 	"created_by" integer,
 	"updated_by" integer,
@@ -803,7 +815,14 @@ CREATE TABLE "cron_job_logs" (
 	"ended_at" timestamp with time zone,
 	"duration_ms" integer,
 	"status" "cron_run_status" DEFAULT 'running' NOT NULL,
-	"output" text
+	"output" text,
+	"trigger" "cron_run_trigger" DEFAULT 'schedule' NOT NULL,
+	"attempt" integer DEFAULT 0 NOT NULL,
+	"scheduled_at" timestamp with time zone,
+	"latency_ms" integer GENERATED ALWAYS AS (CAST(EXTRACT(EPOCH FROM (started_at - scheduled_at)) * 1000 AS integer)) STORED,
+	"error_message" text,
+	"node_id" varchar(128),
+	"triggered_by" integer
 );
 --> statement-breakpoint
 CREATE TABLE "cron_jobs" (
@@ -888,6 +907,7 @@ CREATE TABLE "system_scheduler_nodes" (
 	"node_id" varchar(128) PRIMARY KEY NOT NULL,
 	"hostname" varchar(128) NOT NULL,
 	"pid" integer NOT NULL,
+	"roles" "process_role"[] NOT NULL,
 	"version" varchar(64),
 	"started_at" timestamp with time zone NOT NULL,
 	"last_heartbeat_at" timestamp with time zone NOT NULL,
@@ -971,6 +991,27 @@ CREATE TABLE "user_feedbacks" (
 	"handled_at" timestamp,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "impersonation_sessions" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "impersonation_sessions_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"impersonator_id" integer NOT NULL,
+	"impersonator_name" varchar(64) NOT NULL,
+	"target_user_id" integer NOT NULL,
+	"target_username" varchar(64) NOT NULL,
+	"tenant_id" integer,
+	"token_id" varchar(64) NOT NULL,
+	"read_only" boolean DEFAULT true NOT NULL,
+	"reason" varchar(256) NOT NULL,
+	"ip" varchar(64),
+	"location" varchar(128),
+	"browser" varchar(64),
+	"os" varchar(64),
+	"started_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"expires_at" timestamp with time zone NOT NULL,
+	"ended_at" timestamp with time zone,
+	"end_reason" "impersonation_end_reason",
+	"ended_by" integer
 );
 --> statement-breakpoint
 CREATE TABLE "login_risk_events" (
@@ -1080,6 +1121,19 @@ CREATE TABLE "user_oauth_accounts" (
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
 	CONSTRAINT "uniq_provider_open_id" UNIQUE("provider","open_id")
+);
+--> statement-breakpoint
+CREATE TABLE "user_signatures" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "user_signatures_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"user_id" integer NOT NULL,
+	"tenant_id" integer,
+	"file_id" uuid NOT NULL,
+	"version" integer DEFAULT 1 NOT NULL,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "user_signatures_user_tenant_unique" UNIQUE NULLS NOT DISTINCT("user_id","tenant_id")
 );
 --> statement-breakpoint
 CREATE TABLE "user_trusted_devices" (
@@ -1352,6 +1406,8 @@ CREATE TABLE "operation_logs" (
 	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "operation_logs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"user_id" integer,
 	"username" varchar(32),
+	"impersonator_id" integer,
+	"impersonator_name" varchar(32),
 	"module" varchar(64),
 	"description" varchar(256) NOT NULL,
 	"method" varchar(16) NOT NULL,
@@ -1627,6 +1683,7 @@ CREATE TABLE "error_alert_rules" (
 	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "error_alert_rules_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"name" varchar(128) NOT NULL,
+	"source" "analytics_event_source",
 	"error_type" "frontend_error_type",
 	"level" "error_level",
 	"condition" "error_alert_condition" DEFAULT 'threshold' NOT NULL,
@@ -1675,6 +1732,16 @@ CREATE TABLE "error_events" (
 	"environment" varchar(32) DEFAULT 'production' NOT NULL,
 	"member_id" integer,
 	"replay_id" varchar(36),
+	"trace_id" varchar(64),
+	"route" varchar(256),
+	"error_name" varchar(128),
+	"error_code" varchar(64),
+	"job_type" varchar(64),
+	"job_id" varchar(64),
+	"process_role" varchar(16),
+	"hostname" varchar(128),
+	"pid" integer,
+	"affected_tenant_id" integer,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
@@ -1689,6 +1756,7 @@ CREATE TABLE "error_groups" (
 	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "error_groups_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"fingerprint" varchar(64) NOT NULL,
+	"source" "analytics_event_source" DEFAULT 'web_admin' NOT NULL,
 	"error_type" "frontend_error_type" NOT NULL,
 	"level" "error_level" DEFAULT 'error' NOT NULL,
 	"message" text NOT NULL,
@@ -2048,6 +2116,7 @@ CREATE TABLE "workflow_definitions" (
 	"form_id" integer,
 	"form_type" "workflow_form_type" DEFAULT 'designer' NOT NULL,
 	"custom_form" jsonb,
+	"print_template_id" integer,
 	"status" "workflow_definition_status" DEFAULT 'draft' NOT NULL,
 	"version" integer DEFAULT 1 NOT NULL,
 	"tenant_id" integer,
@@ -2157,6 +2226,10 @@ CREATE TABLE "workflow_instances" (
 	"biz_id" varchar(64),
 	"suspended_at" timestamp,
 	"suspend_reason" varchar(500),
+	"archive_file_id" uuid,
+	"archive_sha256" varchar(64),
+	"archive_template_id" integer,
+	"archived_at" timestamp with time zone,
 	"created_by" integer,
 	"updated_by" integer,
 	"created_at" timestamp DEFAULT now() NOT NULL,
@@ -2332,6 +2405,7 @@ CREATE TABLE "workflow_tasks" (
 	"status" "workflow_task_status" DEFAULT 'pending' NOT NULL,
 	"comment" text,
 	"signature" text,
+	"signature_evidence" jsonb,
 	"attachments" jsonb,
 	"action_at" timestamp with time zone,
 	"task_order" integer,
@@ -4780,6 +4854,7 @@ CREATE TABLE "client_apps" (
 	"app_key" varchar(64) NOT NULL,
 	"name" varchar(100) NOT NULL,
 	"description" text,
+	"kind" "app_kind" DEFAULT 'client' NOT NULL,
 	"status" "status" DEFAULT 'enabled' NOT NULL,
 	"created_by" integer,
 	"updated_by" integer,
@@ -4805,6 +4880,108 @@ CREATE TABLE "client_devices" (
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"last_active_at" timestamp DEFAULT now() NOT NULL,
 	CONSTRAINT "client_devices_device_id_unique" UNIQUE("device_id")
+);
+--> statement-breakpoint
+CREATE TABLE "deploy_releases" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "deploy_releases_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"app_id" integer NOT NULL,
+	"target_id" integer NOT NULL,
+	"host_id" integer NOT NULL,
+	"release_name" varchar(80) NOT NULL,
+	"version" varchar(32) NOT NULL,
+	"app_release_id" integer,
+	"artifact_id" integer,
+	"run_id" integer,
+	"is_current" boolean DEFAULT false NOT NULL,
+	"current_since" timestamp,
+	"size_bytes" bigint,
+	"removed_at" timestamp,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "deploy_releases_target_host_name_unique" UNIQUE("target_id","host_id","release_name")
+);
+--> statement-breakpoint
+CREATE TABLE "deploy_run_hosts" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "deploy_run_hosts_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"run_id" integer NOT NULL,
+	"host_id" integer NOT NULL,
+	"status" "deploy_host_status" DEFAULT 'pending' NOT NULL,
+	"step" "deploy_step",
+	"release_name" varchar(80),
+	"previous_release_name" varchar(80),
+	"started_at" timestamp,
+	"finished_at" timestamp,
+	"error" text,
+	CONSTRAINT "deploy_run_hosts_run_host_unique" UNIQUE("run_id","host_id")
+);
+--> statement-breakpoint
+CREATE TABLE "deploy_run_logs" (
+	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "deploy_run_logs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
+	"run_id" integer NOT NULL,
+	"host_id" integer,
+	"seq" integer NOT NULL,
+	"level" "deploy_log_level" DEFAULT 'info' NOT NULL,
+	"step" "deploy_step",
+	"line" text NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "deploy_run_logs_run_seq_unique" UNIQUE("run_id","seq")
+);
+--> statement-breakpoint
+CREATE TABLE "deploy_runs" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "deploy_runs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"app_id" integer NOT NULL,
+	"target_id" integer NOT NULL,
+	"kind" "deploy_run_kind" NOT NULL,
+	"status" "deploy_run_status" DEFAULT 'pending' NOT NULL,
+	"app_release_id" integer,
+	"version" varchar(32),
+	"artifact_id" integer,
+	"release_name" varchar(80),
+	"async_task_id" integer,
+	"snapshot" jsonb NOT NULL,
+	"host_total" smallint DEFAULT 0 NOT NULL,
+	"host_succeeded" smallint DEFAULT 0 NOT NULL,
+	"host_failed" smallint DEFAULT 0 NOT NULL,
+	"error" text,
+	"remark" varchar(500),
+	"started_at" timestamp,
+	"finished_at" timestamp,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "deploy_target_hosts" (
+	"target_id" integer NOT NULL,
+	"host_id" integer NOT NULL,
+	"order" smallint DEFAULT 0 NOT NULL,
+	CONSTRAINT "deploy_target_hosts_target_id_host_id_pk" PRIMARY KEY("target_id","host_id")
+);
+--> statement-breakpoint
+CREATE TABLE "deploy_targets" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "deploy_targets_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"app_id" integer NOT NULL,
+	"name" varchar(64) NOT NULL,
+	"description" text,
+	"deploy_path" varchar(255) NOT NULL,
+	"shared_paths" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"keep_releases" smallint DEFAULT 5 NOT NULL,
+	"restart_mode" "deploy_restart_mode" DEFAULT 'systemd' NOT NULL,
+	"service_name" varchar(128),
+	"scripts" jsonb DEFAULT '{"beforeSwitch":null,"restart":null}'::jsonb NOT NULL,
+	"health_check" jsonb NOT NULL,
+	"env" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"auto_rollback" boolean DEFAULT true NOT NULL,
+	"strategy" "deploy_strategy" DEFAULT 'rolling' NOT NULL,
+	"max_parallel" smallint DEFAULT 2 NOT NULL,
+	"stop_on_failure" boolean DEFAULT true NOT NULL,
+	"enabled" boolean DEFAULT true NOT NULL,
+	"remark" varchar(500),
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "deploy_targets_app_name_unique" UNIQUE("app_id","name")
 );
 --> statement-breakpoint
 CREATE TABLE "mp_accounts" (
@@ -5419,6 +5596,9 @@ CREATE TABLE "report_print_templates" (
 	"folder_id" integer,
 	"name" varchar(64) NOT NULL,
 	"dataset_id" integer,
+	"source_type" "report_print_source_type" DEFAULT 'dataset' NOT NULL,
+	"entity_kind" varchar(32),
+	"entity_ref_id" integer,
 	"content" jsonb DEFAULT '{}'::jsonb NOT NULL,
 	"params" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"page_config" jsonb DEFAULT '{}'::jsonb NOT NULL,
@@ -7793,6 +7973,7 @@ ALTER TABLE "export_jobs" ADD CONSTRAINT "export_jobs_tenant_id_tenants_id_fk" F
 ALTER TABLE "export_jobs" ADD CONSTRAINT "export_jobs_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "export_jobs" ADD CONSTRAINT "export_jobs_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "cron_job_logs" ADD CONSTRAINT "cron_job_logs_job_id_cron_jobs_id_fk" FOREIGN KEY ("job_id") REFERENCES "public"."cron_jobs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cron_job_logs" ADD CONSTRAINT "cron_job_logs_triggered_by_users_id_fk" FOREIGN KEY ("triggered_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "cron_jobs" ADD CONSTRAINT "cron_jobs_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "cron_jobs" ADD CONSTRAINT "cron_jobs_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "regions" ADD CONSTRAINT "regions_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
@@ -7804,6 +7985,10 @@ ALTER TABLE "system_settings" ADD CONSTRAINT "system_settings_created_by_users_i
 ALTER TABLE "system_settings" ADD CONSTRAINT "system_settings_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "user_feedbacks" ADD CONSTRAINT "user_feedbacks_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "user_feedbacks" ADD CONSTRAINT "user_feedbacks_handled_by_users_id_fk" FOREIGN KEY ("handled_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "impersonation_sessions" ADD CONSTRAINT "impersonation_sessions_impersonator_id_users_id_fk" FOREIGN KEY ("impersonator_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "impersonation_sessions" ADD CONSTRAINT "impersonation_sessions_target_user_id_users_id_fk" FOREIGN KEY ("target_user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "impersonation_sessions" ADD CONSTRAINT "impersonation_sessions_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "impersonation_sessions" ADD CONSTRAINT "impersonation_sessions_ended_by_users_id_fk" FOREIGN KEY ("ended_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "login_risk_events" ADD CONSTRAINT "login_risk_events_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "login_risk_events" ADD CONSTRAINT "login_risk_events_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "oauth_configs" ADD CONSTRAINT "oauth_configs_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
@@ -7816,6 +8001,11 @@ ALTER TABLE "user_api_tokens" ADD CONSTRAINT "user_api_tokens_created_by_users_i
 ALTER TABLE "user_api_tokens" ADD CONSTRAINT "user_api_tokens_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "user_mfa_factors" ADD CONSTRAINT "user_mfa_factors_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "user_oauth_accounts" ADD CONSTRAINT "user_oauth_accounts_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "user_signatures" ADD CONSTRAINT "user_signatures_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "user_signatures" ADD CONSTRAINT "user_signatures_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "user_signatures" ADD CONSTRAINT "user_signatures_file_id_managed_files_id_fk" FOREIGN KEY ("file_id") REFERENCES "public"."managed_files"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "user_signatures" ADD CONSTRAINT "user_signatures_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "user_signatures" ADD CONSTRAINT "user_signatures_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "user_trusted_devices" ADD CONSTRAINT "user_trusted_devices_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "identity_provider_sync_logs" ADD CONSTRAINT "identity_provider_sync_logs_provider_id_tenant_identity_providers_id_fk" FOREIGN KEY ("provider_id") REFERENCES "public"."tenant_identity_providers"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "tenant_identity_providers" ADD CONSTRAINT "tenant_identity_providers_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -7937,6 +8127,7 @@ ALTER TABLE "workflow_definitions" ADD CONSTRAINT "workflow_definitions_form_id_
 ALTER TABLE "workflow_definitions" ADD CONSTRAINT "workflow_definitions_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workflow_definitions" ADD CONSTRAINT "workflow_definitions_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workflow_definitions" ADD CONSTRAINT "workflow_definitions_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "workflow_definitions" ADD CONSTRAINT "workflow_definitions_print_template_fk" FOREIGN KEY ("print_template_id") REFERENCES "public"."report_print_templates"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workflow_delegations" ADD CONSTRAINT "workflow_delegations_principal_id_users_id_fk" FOREIGN KEY ("principal_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workflow_delegations" ADD CONSTRAINT "workflow_delegations_delegate_id_users_id_fk" FOREIGN KEY ("delegate_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workflow_delegations" ADD CONSTRAINT "workflow_delegations_definition_id_workflow_definitions_id_fk" FOREIGN KEY ("definition_id") REFERENCES "public"."workflow_definitions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -7958,6 +8149,7 @@ ALTER TABLE "workflow_instance_migrations" ADD CONSTRAINT "workflow_instance_mig
 ALTER TABLE "workflow_instances" ADD CONSTRAINT "workflow_instances_definition_id_workflow_definitions_id_fk" FOREIGN KEY ("definition_id") REFERENCES "public"."workflow_definitions"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workflow_instances" ADD CONSTRAINT "workflow_instances_initiator_id_users_id_fk" FOREIGN KEY ("initiator_id") REFERENCES "public"."users"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workflow_instances" ADD CONSTRAINT "workflow_instances_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "workflow_instances" ADD CONSTRAINT "workflow_instances_archive_file_id_managed_files_id_fk" FOREIGN KEY ("archive_file_id") REFERENCES "public"."managed_files"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workflow_instances" ADD CONSTRAINT "workflow_instances_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workflow_instances" ADD CONSTRAINT "workflow_instances_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workflow_job_executions" ADD CONSTRAINT "workflow_job_executions_job_id_workflow_jobs_id_fk" FOREIGN KEY ("job_id") REFERENCES "public"."workflow_jobs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -8371,6 +8563,28 @@ ALTER TABLE "app_releases" ADD CONSTRAINT "app_releases_updated_by_users_id_fk" 
 ALTER TABLE "client_apps" ADD CONSTRAINT "client_apps_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "client_apps" ADD CONSTRAINT "client_apps_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "client_devices" ADD CONSTRAINT "client_devices_app_id_client_apps_id_fk" FOREIGN KEY ("app_id") REFERENCES "public"."client_apps"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "deploy_releases" ADD CONSTRAINT "deploy_releases_app_id_client_apps_id_fk" FOREIGN KEY ("app_id") REFERENCES "public"."client_apps"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "deploy_releases" ADD CONSTRAINT "deploy_releases_target_id_deploy_targets_id_fk" FOREIGN KEY ("target_id") REFERENCES "public"."deploy_targets"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "deploy_releases" ADD CONSTRAINT "deploy_releases_host_id_ops_hosts_id_fk" FOREIGN KEY ("host_id") REFERENCES "public"."ops_hosts"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "deploy_releases" ADD CONSTRAINT "deploy_releases_app_release_id_app_releases_id_fk" FOREIGN KEY ("app_release_id") REFERENCES "public"."app_releases"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "deploy_releases" ADD CONSTRAINT "deploy_releases_artifact_id_app_artifacts_id_fk" FOREIGN KEY ("artifact_id") REFERENCES "public"."app_artifacts"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "deploy_releases" ADD CONSTRAINT "deploy_releases_run_id_deploy_runs_id_fk" FOREIGN KEY ("run_id") REFERENCES "public"."deploy_runs"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "deploy_run_hosts" ADD CONSTRAINT "deploy_run_hosts_run_id_deploy_runs_id_fk" FOREIGN KEY ("run_id") REFERENCES "public"."deploy_runs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "deploy_run_hosts" ADD CONSTRAINT "deploy_run_hosts_host_id_ops_hosts_id_fk" FOREIGN KEY ("host_id") REFERENCES "public"."ops_hosts"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "deploy_run_logs" ADD CONSTRAINT "deploy_run_logs_run_id_deploy_runs_id_fk" FOREIGN KEY ("run_id") REFERENCES "public"."deploy_runs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "deploy_run_logs" ADD CONSTRAINT "deploy_run_logs_host_id_ops_hosts_id_fk" FOREIGN KEY ("host_id") REFERENCES "public"."ops_hosts"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "deploy_runs" ADD CONSTRAINT "deploy_runs_app_id_client_apps_id_fk" FOREIGN KEY ("app_id") REFERENCES "public"."client_apps"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "deploy_runs" ADD CONSTRAINT "deploy_runs_target_id_deploy_targets_id_fk" FOREIGN KEY ("target_id") REFERENCES "public"."deploy_targets"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "deploy_runs" ADD CONSTRAINT "deploy_runs_app_release_id_app_releases_id_fk" FOREIGN KEY ("app_release_id") REFERENCES "public"."app_releases"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "deploy_runs" ADD CONSTRAINT "deploy_runs_artifact_id_app_artifacts_id_fk" FOREIGN KEY ("artifact_id") REFERENCES "public"."app_artifacts"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "deploy_runs" ADD CONSTRAINT "deploy_runs_async_task_id_async_tasks_id_fk" FOREIGN KEY ("async_task_id") REFERENCES "public"."async_tasks"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "deploy_runs" ADD CONSTRAINT "deploy_runs_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "deploy_runs" ADD CONSTRAINT "deploy_runs_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "deploy_target_hosts" ADD CONSTRAINT "deploy_target_hosts_target_id_deploy_targets_id_fk" FOREIGN KEY ("target_id") REFERENCES "public"."deploy_targets"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "deploy_target_hosts" ADD CONSTRAINT "deploy_target_hosts_host_id_ops_hosts_id_fk" FOREIGN KEY ("host_id") REFERENCES "public"."ops_hosts"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "deploy_targets" ADD CONSTRAINT "deploy_targets_app_id_client_apps_id_fk" FOREIGN KEY ("app_id") REFERENCES "public"."client_apps"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "deploy_targets" ADD CONSTRAINT "deploy_targets_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "deploy_targets" ADD CONSTRAINT "deploy_targets_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "mp_accounts" ADD CONSTRAINT "mp_accounts_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "mp_accounts" ADD CONSTRAINT "mp_accounts_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "mp_accounts" ADD CONSTRAINT "mp_accounts_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
@@ -8991,6 +9205,7 @@ CREATE INDEX "business_files_tenant_idx" ON "business_files" USING btree ("tenan
 CREATE INDEX "managed_files_tenant_idx" ON "managed_files" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "managed_files_content_hash_idx" ON "managed_files" USING btree ("tenant_id","content_hash");--> statement-breakpoint
 CREATE INDEX "managed_files_orphaned_idx" ON "managed_files" USING btree ("orphaned_at") WHERE "managed_files"."orphaned_at" is not null;--> statement-breakpoint
+CREATE INDEX "managed_files_storage_object_key_idx" ON "managed_files" USING btree ("storage_config_id","object_key" varchar_pattern_ops);--> statement-breakpoint
 CREATE INDEX "upload_session_bindings_module_idx" ON "upload_session_bindings" USING btree ("module");--> statement-breakpoint
 CREATE INDEX "upload_sessions_tenant_idx" ON "upload_sessions" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "upload_sessions_created_at_idx" ON "upload_sessions" USING btree ("created_at");--> statement-breakpoint
@@ -9016,11 +9231,13 @@ CREATE INDEX "export_jobs_tenant_idx" ON "export_jobs" USING btree ("tenant_id")
 CREATE INDEX "export_jobs_expires_at_idx" ON "export_jobs" USING btree ("expires_at");--> statement-breakpoint
 CREATE INDEX "cron_job_logs_started_at_idx" ON "cron_job_logs" USING btree ("started_at");--> statement-breakpoint
 CREATE INDEX "cron_job_logs_job_idx" ON "cron_job_logs" USING btree ("job_id");--> statement-breakpoint
+CREATE INDEX "cron_job_logs_job_started_idx" ON "cron_job_logs" USING btree ("job_id","started_at" DESC NULLS LAST);--> statement-breakpoint
+CREATE INDEX "cron_job_logs_status_started_idx" ON "cron_job_logs" USING btree ("status","started_at" DESC NULLS LAST);--> statement-breakpoint
 CREATE INDEX "maintenance_logs_started_at_idx" ON "maintenance_logs" USING btree ("started_at");--> statement-breakpoint
 CREATE INDEX "maintenance_logs_ended_at_idx" ON "maintenance_logs" USING btree ("ended_at");--> statement-breakpoint
 CREATE INDEX "system_scheduler_nodes_active_idx" ON "system_scheduler_nodes" USING btree ("active");--> statement-breakpoint
 CREATE INDEX "system_scheduler_nodes_last_heartbeat_idx" ON "system_scheduler_nodes" USING btree ("last_heartbeat_at");--> statement-breakpoint
-CREATE INDEX "system_scheduler_runs_task_idx" ON "system_scheduler_runs" USING btree ("task_name");--> statement-breakpoint
+CREATE INDEX "system_scheduler_runs_task_started_idx" ON "system_scheduler_runs" USING btree ("task_name","started_at","id");--> statement-breakpoint
 CREATE INDEX "system_scheduler_runs_status_idx" ON "system_scheduler_runs" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "system_scheduler_runs_started_at_idx" ON "system_scheduler_runs" USING btree ("started_at");--> statement-breakpoint
 CREATE INDEX "system_scheduler_runs_triggered_by_idx" ON "system_scheduler_runs" USING btree ("triggered_by");--> statement-breakpoint
@@ -9028,6 +9245,11 @@ CREATE INDEX "system_scheduler_runs_alert_ack_by_idx" ON "system_scheduler_runs"
 CREATE INDEX "user_feedbacks_status_idx" ON "user_feedbacks" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "user_feedbacks_user_idx" ON "user_feedbacks" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "user_feedbacks_created_at_idx" ON "user_feedbacks" USING btree ("created_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "impersonation_sessions_token_uq" ON "impersonation_sessions" USING btree ("token_id");--> statement-breakpoint
+CREATE INDEX "impersonation_sessions_impersonator_idx" ON "impersonation_sessions" USING btree ("impersonator_id");--> statement-breakpoint
+CREATE INDEX "impersonation_sessions_target_idx" ON "impersonation_sessions" USING btree ("target_user_id");--> statement-breakpoint
+CREATE INDEX "impersonation_sessions_tenant_started_idx" ON "impersonation_sessions" USING btree ("tenant_id","started_at" DESC NULLS LAST);--> statement-breakpoint
+CREATE INDEX "impersonation_sessions_started_idx" ON "impersonation_sessions" USING btree ("started_at" DESC NULLS LAST);--> statement-breakpoint
 CREATE INDEX "login_risk_events_user_idx" ON "login_risk_events" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "login_risk_events_tenant_created_id_idx" ON "login_risk_events" USING btree ("tenant_id","created_at" DESC NULLS LAST,"id" DESC NULLS LAST);--> statement-breakpoint
 CREATE INDEX "login_risk_events_created_id_idx" ON "login_risk_events" USING btree ("created_at" DESC NULLS LAST,"id" DESC NULLS LAST);--> statement-breakpoint
@@ -9058,13 +9280,14 @@ CREATE INDEX "dict_items_parent_idx" ON "dict_items" USING btree ("parent_id");-
 CREATE UNIQUE INDEX "dict_items_dict_id_value_unique" ON "dict_items" USING btree ("dict_id","value");--> statement-breakpoint
 CREATE INDEX "ip_access_logs_created_at_idx" ON "ip_access_logs" USING btree ("created_at");--> statement-breakpoint
 CREATE INDEX "ip_access_logs_ip_idx" ON "ip_access_logs" USING btree ("ip");--> statement-breakpoint
-CREATE INDEX "login_logs_tenant_idx" ON "login_logs" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "login_logs_tenant_created_idx" ON "login_logs" USING btree ("tenant_id","created_at");--> statement-breakpoint
 CREATE INDEX "login_logs_created_at_idx" ON "login_logs" USING btree ("created_at");--> statement-breakpoint
 CREATE INDEX "login_logs_user_idx" ON "login_logs" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "login_logs_status_idx" ON "login_logs" USING btree ("status");--> statement-breakpoint
-CREATE INDEX "operation_logs_tenant_idx" ON "operation_logs" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "operation_logs_tenant_created_idx" ON "operation_logs" USING btree ("tenant_id","created_at");--> statement-breakpoint
 CREATE INDEX "operation_logs_created_at_idx" ON "operation_logs" USING btree ("created_at");--> statement-breakpoint
 CREATE INDEX "operation_logs_user_idx" ON "operation_logs" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "operation_logs_impersonator_idx" ON "operation_logs" USING btree ("impersonator_id");--> statement-breakpoint
 CREATE INDEX "operation_logs_module_idx" ON "operation_logs" USING btree ("module");--> statement-breakpoint
 CREATE INDEX "operation_logs_request_idx" ON "operation_logs" USING btree ("request_id");--> statement-breakpoint
 CREATE INDEX "operation_logs_before_trgm_idx" ON "operation_logs" USING gin ("before_data" gin_trgm_ops);--> statement-breakpoint
@@ -9122,12 +9345,14 @@ CREATE INDEX "error_events_tenant_idx" ON "error_events" USING btree ("tenant_id
 CREATE INDEX "error_events_member_idx" ON "error_events" USING btree ("member_id");--> statement-breakpoint
 CREATE INDEX "error_events_group_created_idx" ON "error_events" USING btree ("group_id","created_at");--> statement-breakpoint
 CREATE INDEX "error_events_replay_idx" ON "error_events" USING btree ("replay_id");--> statement-breakpoint
+CREATE INDEX "error_events_trace_idx" ON "error_events" USING btree ("trace_id") WHERE "error_events"."trace_id" IS NOT NULL;--> statement-breakpoint
 CREATE UNIQUE INDEX "error_groups_fingerprint_uq" ON "error_groups" USING btree ("fingerprint");--> statement-breakpoint
 CREATE INDEX "error_groups_status_idx" ON "error_groups" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "error_groups_type_idx" ON "error_groups" USING btree ("error_type");--> statement-breakpoint
 CREATE INDEX "error_groups_last_seen_idx" ON "error_groups" USING btree ("last_seen_at");--> statement-breakpoint
 CREATE INDEX "error_groups_tenant_idx" ON "error_groups" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "error_groups_assignee_idx" ON "error_groups" USING btree ("assignee_id");--> statement-breakpoint
+CREATE INDEX "error_groups_source_last_seen_idx" ON "error_groups" USING btree ("source","last_seen_at");--> statement-breakpoint
 CREATE INDEX "replay_access_logs_replay_idx" ON "replay_access_logs" USING btree ("replay_id");--> statement-breakpoint
 CREATE INDEX "replay_access_logs_user_idx" ON "replay_access_logs" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "replay_access_logs_created_idx" ON "replay_access_logs" USING btree ("created_at");--> statement-breakpoint
@@ -9157,6 +9382,7 @@ CREATE INDEX "user_events_member_idx" ON "user_events" USING btree ("member_id")
 CREATE INDEX "user_events_tenant_created_type_idx" ON "user_events" USING btree ("tenant_id","created_at","event_type");--> statement-breakpoint
 CREATE INDEX "user_events_tenant_created_name_idx" ON "user_events" USING btree ("tenant_id","created_at","event_name");--> statement-breakpoint
 CREATE INDEX "user_events_source_created_idx" ON "user_events" USING btree ("source","created_at");--> statement-breakpoint
+CREATE INDEX "user_events_app_created_idx" ON "user_events" USING btree ("app_id","created_at");--> statement-breakpoint
 CREATE INDEX "user_events_perf_metric_idx" ON "user_events" USING btree ("metric_name","created_at") WHERE "user_events"."event_type" = 'perf';--> statement-breakpoint
 CREATE INDEX "user_events_properties_gin_idx" ON "user_events" USING gin ("properties");--> statement-breakpoint
 CREATE INDEX "user_events_anon_pending_idx" ON "user_events" USING btree ("anonymous_id") WHERE "user_events"."user_id" IS NULL AND "user_events"."member_id" IS NULL AND "user_events"."anonymous_id" IS NOT NULL;--> statement-breakpoint
@@ -9239,6 +9465,7 @@ CREATE INDEX "email_templates_tenant_idx" ON "email_templates" USING btree ("ten
 CREATE INDEX "in_app_messages_tenant_idx" ON "in_app_messages" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "in_app_messages_user_created_idx" ON "in_app_messages" USING btree ("user_id","created_at");--> statement-breakpoint
 CREATE INDEX "in_app_messages_created_at_idx" ON "in_app_messages" USING btree ("created_at");--> statement-breakpoint
+CREATE INDEX "in_app_messages_user_unread_idx" ON "in_app_messages" USING btree ("user_id") WHERE "in_app_messages"."is_read" = false;--> statement-breakpoint
 CREATE INDEX "in_app_templates_tenant_idx" ON "in_app_templates" USING btree ("tenant_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "notification_dispatches_dedupe_uq" ON "notification_dispatches" USING btree ("dedupe_key") WHERE "notification_dispatches"."dedupe_key" is not null;--> statement-breakpoint
 CREATE INDEX "notification_dispatches_recipient_idx" ON "notification_dispatches" USING btree ("recipient_type","recipient_id","created_at");--> statement-breakpoint
@@ -9289,6 +9516,7 @@ CREATE INDEX "chat_group_join_requests_user_idx" ON "chat_group_join_requests" U
 CREATE INDEX "chat_message_favorites_user_idx" ON "chat_message_favorites" USING btree ("user_id","created_at");--> statement-breakpoint
 CREATE INDEX "chat_message_reactions_user_idx" ON "chat_message_reactions" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "chat_messages_conversation_id_idx" ON "chat_messages" USING btree ("conversation_id","id");--> statement-breakpoint
+CREATE INDEX "chat_messages_conversation_created_idx" ON "chat_messages" USING btree ("conversation_id","created_at");--> statement-breakpoint
 CREATE INDEX "chat_messages_sender_idx" ON "chat_messages" USING btree ("sender_id");--> statement-breakpoint
 CREATE INDEX "chat_quick_replies_user_idx" ON "chat_quick_replies" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "chat_scheduled_messages_conversation_idx" ON "chat_scheduled_messages" USING btree ("conversation_id");--> statement-breakpoint
@@ -9452,6 +9680,7 @@ CREATE INDEX "member_coupons_status_idx" ON "member_coupons" USING btree ("statu
 CREATE INDEX "member_login_logs_member_created_idx" ON "member_login_logs" USING btree ("member_id","created_at");--> statement-breakpoint
 CREATE INDEX "member_notifications_member_idx" ON "member_notifications" USING btree ("member_id","created_at");--> statement-breakpoint
 CREATE INDEX "member_notifications_biz_idx" ON "member_notifications" USING btree ("type","biz_id");--> statement-breakpoint
+CREATE INDEX "member_notifications_member_unread_idx" ON "member_notifications" USING btree ("member_id") WHERE "member_notifications"."read_at" is null;--> statement-breakpoint
 CREATE UNIQUE INDEX "member_notifications_member_type_biz_uq" ON "member_notifications" USING btree ("member_id","type","biz_id") WHERE "member_notifications"."biz_id" is not null and "member_notifications"."type" = 'cms_content_published';--> statement-breakpoint
 CREATE UNIQUE INDEX "member_point_accounts_member_unique" ON "member_point_accounts" USING btree ("member_id");--> statement-breakpoint
 CREATE INDEX "member_point_transactions_operator_idx" ON "member_point_transactions" USING btree ("operator_id");--> statement-breakpoint
@@ -9485,6 +9714,12 @@ CREATE INDEX "app_release_events_app_time_idx" ON "app_release_events" USING btr
 CREATE INDEX "client_devices_app_active_idx" ON "client_devices" USING btree ("app_id","last_active_at");--> statement-breakpoint
 CREATE INDEX "client_devices_subject_idx" ON "client_devices" USING btree ("subject_type","subject_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "client_devices_push_reg_unique" ON "client_devices" USING btree ("push_provider","push_registration_id");--> statement-breakpoint
+CREATE INDEX "deploy_releases_target_host_idx" ON "deploy_releases" USING btree ("target_id","host_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "deploy_releases_current_unique" ON "deploy_releases" USING btree ("target_id","host_id") WHERE "deploy_releases"."is_current" = true;--> statement-breakpoint
+CREATE INDEX "deploy_runs_target_created_idx" ON "deploy_runs" USING btree ("target_id","created_at");--> statement-breakpoint
+CREATE INDEX "deploy_runs_app_created_idx" ON "deploy_runs" USING btree ("app_id","created_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "deploy_runs_target_active_unique" ON "deploy_runs" USING btree ("target_id") WHERE "deploy_runs"."status" in ('pending', 'running');--> statement-breakpoint
+CREATE INDEX "deploy_target_hosts_host_idx" ON "deploy_target_hosts" USING btree ("host_id");--> statement-breakpoint
 CREATE INDEX "mp_accounts_tenant_idx" ON "mp_accounts" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "mp_auto_replies_tenant_idx" ON "mp_auto_replies" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "mp_auto_replies_account_type_idx" ON "mp_auto_replies" USING btree ("account_id","reply_type");--> statement-breakpoint
@@ -9588,6 +9823,7 @@ CREATE UNIQUE INDEX "report_print_templates_global_name_uq" ON "report_print_tem
 CREATE INDEX "report_print_templates_tenant_status_idx" ON "report_print_templates" USING btree ("tenant_id","status");--> statement-breakpoint
 CREATE INDEX "report_print_templates_folder_idx" ON "report_print_templates" USING btree ("folder_id");--> statement-breakpoint
 CREATE INDEX "report_print_templates_owner_idx" ON "report_print_templates" USING btree ("owner_id");--> statement-breakpoint
+CREATE INDEX "report_print_templates_entity_idx" ON "report_print_templates" USING btree ("entity_kind","entity_ref_id");--> statement-breakpoint
 CREATE INDEX "report_share_access_logs_share_idx" ON "report_share_access_logs" USING btree ("share_id");--> statement-breakpoint
 CREATE INDEX "report_share_access_logs_created_idx" ON "report_share_access_logs" USING btree ("created_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "report_asset_templates_tenant_code_uq" ON "report_asset_templates" USING btree ("tenant_id","code") WHERE "report_asset_templates"."tenant_id" is not null;--> statement-breakpoint

@@ -1,2 +1,0 @@
-ALTER TYPE "public"."monitor_metric" ADD VALUE 'schedulerWorkerNodes' BEFORE 'workflowHealth';--> statement-breakpoint
-ALTER TYPE "public"."monitor_metric" ADD VALUE 'schedulerQueueBacklog' BEFORE 'workflowHealth';
