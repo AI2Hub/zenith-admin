@@ -29,6 +29,13 @@
       "when": 1789484804591,
       "tag": "0003_sql_monitor_extension",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1789485306850,
+      "tag": "0004_move_sql_sampling_to_system_scheduler",
+      "breakpoints": true
     }
   ]
 }

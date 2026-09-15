@@ -27,6 +27,21 @@ export async function registerSystemTasks(): Promise<void> {
     },
   });
 
+  const { persistMetricSample } = await import('../services/platform/monitor-history.service');
+  await registerSystemRecurringJob({
+    name: 'monitor-metrics-persist',
+    title: '系统指标与 SQL 采样',
+    module: '系统监控',
+    cronExpression: '* * * * *',
+    description: '每分钟将系统指标快照与 pg_stat_statements Top SQL 采样落库；SQL 采样间隔由「SQL 监控」设置控制。',
+    allowManualRun: true,
+    run: async () => {
+      const result = await persistMetricSample();
+      if (!result.systemMetricStored && result.sqlQuerySamples === 0) return '本次无可用采样数据';
+      return `已记录系统指标 ${result.systemMetricStored ? '1' : '0'} 条、SQL 查询 ${result.sqlQuerySamples} 条`;
+    },
+  });
+
   const { cleanupExpiredExportFiles } = await import('../services/tasks/export-jobs.service');
   await registerSystemRecurringJob({
     name: 'export-file-cleanup',
