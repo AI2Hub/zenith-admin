@@ -207,23 +207,23 @@ function MaintenancePanel({ canMaintain }: Readonly<{ canMaintain: boolean }>) {
     // 表名是弹性主列（标识符最长 63 字符），其余列定宽
     { title: '表', minWidth: 260, render: (_: unknown, r) => renderStrongEllipsis(qualifiedName(r.schema, r.name)) },
     { title: '活元组', dataIndex: 'liveTuples', width: 100, align: 'right', render: (v: number) => v.toLocaleString() },
-    { title: '死元组', dataIndex: 'deadTuples', width: 160, render: (v: number, r) => (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{ minWidth: 56 }}>{v.toLocaleString()}</span>
+    { title: '死元组', dataIndex: 'deadTuples', width: 220, ellipsis: { showTitle: false }, render: (v: number, r) => (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+        <span style={{ flexShrink: 0, minWidth: 56 }}>{v.toLocaleString()}</span>
         <MetricMeter
           value={r.deadRatio}
           label={`${r.schema}.${r.name} 死元组率`}
           valueText={`${r.deadRatio}%`}
           tone={r.deadRatio > 20 ? 'danger' : r.deadRatio > 10 ? 'warning' : 'success'}
           height={6}
-          style={{ flex: 1, minWidth: 40 }}
+          style={{ flex: '1 1 auto', minWidth: 36 }}
         />
-        <Text type={r.deadRatio > 20 ? 'danger' : undefined} size="small">{r.deadRatio}%</Text>
+        <Text type={r.deadRatio > 20 ? 'danger' : undefined} size="small" style={{ flexShrink: 0 }}>{r.deadRatio}%</Text>
       </div>
     )},
     { title: '大小', dataIndex: 'sizeText', width: 90, align: 'right' },
-    { title: '上次 VACUUM', width: 160, render: (_: unknown, r) => <Text type="tertiary" size="small">{r.lastVacuum ?? r.lastAutovacuum ?? '从未'}</Text> },
-    { title: '上次 ANALYZE', width: 160, render: (_: unknown, r) => <Text type="tertiary" size="small">{r.lastAnalyze ?? r.lastAutoanalyze ?? '从未'}</Text> },
+    { title: '上次 VACUUM', width: 160, ellipsis: { showTitle: false }, render: (_: unknown, r) => <Text type="tertiary" size="small" ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{r.lastVacuum ?? r.lastAutovacuum ?? '从未'}</Text> },
+    { title: '上次 ANALYZE', width: 160, ellipsis: { showTitle: false }, render: (_: unknown, r) => <Text type="tertiary" size="small" ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{r.lastAnalyze ?? r.lastAutoanalyze ?? '从未'}</Text> },
   ];
   if (canMaintain) {
     columns.push(createOperationColumn<TableMaintenance>({
