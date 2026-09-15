@@ -384,7 +384,7 @@ export default function SqlMonitorPage() {
   return (
     <div className="page-container page-tabs-page zx-flat-panels sql-monitor-page">
       <div className="sql-monitor-header">
-        <div>
+        <div className="sql-monitor-heading">
           <Title heading={5} style={{ margin: 0 }}>
             <Database size={18} /> SQL 监控
           </Title>
@@ -392,17 +392,18 @@ export default function SqlMonitorPage() {
         </div>
         <Space wrap spacing={8}>
           <Select
-            size="small"
             value={refreshInterval === false ? 0 : refreshInterval}
             optionList={REFRESH_OPTIONS}
             onChange={(value) => setRefreshInterval(Number(value) === 0 ? false : Number(value))}
-            prefix="刷新"
-            style={{ width: 120 }}
+            insetLabel="刷新"
+            insetLabelId="sql-monitor-refresh-label"
+            aria-labelledby="sql-monitor-refresh-label"
+            style={{ width: 140 }}
           />
           <RefreshButton onClick={refreshAll} loading={overviewQuery.isFetching} />
-          {canManage && <Button size="small" type="danger" theme="light" icon={<RotateCcw size={14} />} onClick={handleReset} loading={resetMutation.isPending}>重置统计</Button>}
-          <Button size="small" theme="borderless" icon={<Settings2 size={14} />} onClick={() => navigate('/system/settings')}>采样设置</Button>
-          <Button size="small" theme="borderless" icon={<Archive size={14} />} onClick={() => navigate('/system/retention')}>数据保留</Button>
+          {canManage && <Button type="danger" theme="light" icon={<RotateCcw size={14} />} onClick={handleReset} loading={resetMutation.isPending}>重置统计</Button>}
+          <Button theme="borderless" icon={<Settings2 size={14} />} onClick={() => navigate('/system/settings')}>采样设置</Button>
+          <Button theme="borderless" icon={<Archive size={14} />} onClick={() => navigate('/system/retention')}>数据保留</Button>
         </Space>
       </div>
 
@@ -420,7 +421,7 @@ export default function SqlMonitorPage() {
         </StatGrid>
       </section>
 
-      <div className="chart-grid chart-grid--aside sql-monitor-overview-panels">
+      <div className="sql-monitor-overview-panels">
         <Card title="数据库健康" headerExtraContent={overview?.sampledAt ? <Text type="tertiary" size="small">更新于 <DateTimeText value={overview.sampledAt} /></Text> : null}>
           <div className="sql-monitor-health-grid">
             <HealthValue label="数据库" value={overview?.databaseName ?? EMPTY_PLACEHOLDER} />
@@ -458,7 +459,6 @@ export default function SqlMonitorPage() {
             <div className="sql-monitor-toolbar">
               <Space wrap spacing={8}>
                 <Input
-                  size="small"
                   prefix={<Search size={14} />}
                   value={queryDraft.keyword ?? ''}
                   placeholder="搜索 SQL 或 Query ID"
@@ -469,16 +469,17 @@ export default function SqlMonitorPage() {
                   style={{ width: 260 }}
                 />
                 <Select
-                  size="small"
                   value={queryDraft.sort}
                   optionList={SQL_MONITOR_QUERY_SORT_OPTIONS}
                   onChange={(value) => setQueryDraft((current) => ({ ...current, sort: value as SqlMonitorQueriesParams['sort'] }))}
-                  prefix="排序"
-                  style={{ width: 150 }}
+                  insetLabel="排序"
+                  insetLabelId="sql-monitor-sort-label"
+                  aria-labelledby="sql-monitor-sort-label"
+                  style={{ width: 180 }}
                 />
                 <SearchButton onClick={handleQuery}>查询</SearchButton>
               </Space>
-              {queryParams.keyword || queryParams.sort !== defaultQueryParams.sort ? <Button size="small" type="tertiary" onClick={() => { setQueryDraft(defaultQueryParams); setQueryParams(defaultQueryParams); }}>重置筛选</Button> : null}
+              {queryParams.keyword || queryParams.sort !== defaultQueryParams.sort ? <Button type="tertiary" onClick={() => { setQueryDraft(defaultQueryParams); setQueryParams(defaultQueryParams); }}>重置筛选</Button> : null}
             </div>
             {queryError && !queryResponse ? <ErrorState error={queryError} onRetry={() => void queriesQuery.refetch()} /> : (
               <QueryTable
@@ -540,12 +541,13 @@ export default function SqlMonitorPage() {
               <Text type="tertiary" size="small">历史采样用于回溯查询量与耗时趋势，不会包含 SQL 文本明细。</Text>
               <Space spacing={8}>
                 <Select
-                  size="small"
                   value={historyParams.range}
                   optionList={HISTORY_OPTIONS}
                   onChange={(value) => setHistoryParams({ range: value as MonitorHistoryRange })}
-                  prefix="范围"
-                  style={{ width: 140 }}
+                  insetLabel="范围"
+                  insetLabelId="sql-monitor-range-label"
+                  aria-labelledby="sql-monitor-range-label"
+                  style={{ width: 180 }}
                 />
                 <RefreshButton onClick={() => void historyQuery.refetch()} loading={historyQuery.isFetching} />
               </Space>
