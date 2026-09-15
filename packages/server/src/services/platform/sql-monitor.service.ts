@@ -257,7 +257,7 @@ export async function listSqlMonitorLocks() {
 export async function getSqlMonitorHistory(query: SqlHistoryQuery) {
   const windows: Record<string, number> = { '1h': 3600, '6h': 6 * 3600, '24h': 24 * 3600, '7d': 7 * 24 * 3600, '30d': 30 * 24 * 3600 };
   const since = new Date(Date.now() - (windows[query.range ?? '1h'] ?? 3600) * 1000);
-  const rows = await db.select().from(sqlQuerySamples).where(sql`${sqlQuerySamples.sampledAt} >= ${since}`).orderBy(sql`${sqlQuerySamples.sampledAt} ASC`);
+  const rows = await db.select().from(sqlQuerySamples).where(sql`${sqlQuerySamples.sampledAt} >= ${since.toISOString()}`).orderBy(sql`${sqlQuerySamples.sampledAt} ASC`);
   const previous = new Map<string, { calls: number; totalMs: number }>();
   const points = new Map<string, SqlMonitorHistoryPoint>();
   for (const row of rows) {

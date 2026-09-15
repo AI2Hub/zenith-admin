@@ -1,0 +1,116 @@
+.sql-monitor-page {
+  gap: 16px;
+}
+
+.sql-monitor-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.sql-monitor-header .semi-typography-h5 {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sql-monitor-availability {
+  margin-bottom: 12px;
+}
+
+.sql-monitor-overview-panels {
+  margin-top: 2px;
+}
+
+.sql-monitor-health-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr));
+  gap: 16px 24px;
+}
+
+.sql-monitor-health-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.sql-monitor-health-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sql-monitor-health-value--warning {
+  color: var(--semi-color-warning);
+}
+
+.sql-monitor-health-value--danger {
+  color: var(--semi-color-danger);
+}
+
+.sql-monitor-health-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 20px;
+  padding-top: 12px;
+  border-top: 1px solid var(--semi-color-border);
+}
+
+.sql-monitor-query-text {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.sql-monitor-tab-panel {
+  min-width: 0;
+}
+
+.sql-monitor-toolbar,
+.sql-monitor-tab-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.sql-monitor-session-principal {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+}
+
+.sql-monitor-error-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 120px;
+  padding: 24px;
+}
+
+@media (max-width: 720px) {
+  .sql-monitor-header {
+    align-items: stretch;
+  }
+
+  .sql-monitor-header > .semi-space {
+    width: 100%;
+  }
+
+  .sql-monitor-health-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

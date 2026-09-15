@@ -21,6 +21,7 @@ import { systemSchedulerHandlers } from './system-scheduler';
 import { cronJobsHandlers } from './cron-jobs';
 import { monitorHandlers } from './monitor';
 import { monitorAlertsHandlers } from './monitor-alerts';
+import { sqlMonitorHandlers } from './sql-monitor';
 import { sslCertificatesHandlers } from './ssl-certificates';
 import { loginLogsHandlers } from './login-logs';
 import { operationLogsHandlers } from './operation-logs';
@@ -171,6 +172,7 @@ export const handlers = [
   ...cronJobsHandlers,
   ...monitorHandlers,
   ...monitorAlertsHandlers,
+  ...sqlMonitorHandlers,
   ...sslCertificatesHandlers,
   ...loginLogsHandlers,
   ...operationLogsHandlers,

@@ -5,6 +5,7 @@ export * from './departments';
 export * from './positions';
 export * from './dicts';
 export * from './system';
+export * from './sql-monitor';
 export * from './announcements';
 export * from './logs';
 export * from './regions';
