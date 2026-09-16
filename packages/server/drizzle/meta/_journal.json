@@ -22,6 +22,13 @@
       "when": 1789548509539,
       "tag": "0002_majestic_the_captain",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1789567000000,
+      "tag": "0003_add_resolved_in_app_message_type",
+      "breakpoints": true
     }
   ]
 }

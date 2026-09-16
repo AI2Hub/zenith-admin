@@ -141,7 +141,7 @@ export const SEND_SOURCES = ['manual', 'test', 'system', 'api'] as const;
 
 export type SendSource = (typeof SEND_SOURCES)[number];
 
-export const IN_APP_MESSAGE_TYPES = ['info', 'success', 'warning', 'error'] as const;
+export const IN_APP_MESSAGE_TYPES = ['info', 'success', 'warning', 'error', 'resolved'] as const;
 
 export type InAppMessageType = (typeof IN_APP_MESSAGE_TYPES)[number];
 
@@ -230,6 +230,7 @@ export const IN_APP_MESSAGE_TYPE_LABELS: Record<InAppMessageType, string> = {
   success: '成功',
   warning: '警告',
   error: '错误',
+  resolved: '已恢复',
 };
 
 export const IN_APP_MESSAGE_TYPE_OPTIONS: Array<{ value: InAppMessageType; label: string }> =

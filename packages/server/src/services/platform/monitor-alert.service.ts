@@ -458,7 +458,7 @@ async function dispatchAlert(
       eventKey: 'ops.monitor.alert',
       vars: { ruleName: rule.name, tag, message },
       html: `<h3>系统监控${tag}</h3><p><b>规则：</b>${rule.name}</p><p><b>详情：</b>${message}</p><p>请前往后台「监控告警 / 告警记录」查看处理。</p>`,
-      inAppType: recovered ? 'success' : rule.level === 'critical' ? 'error' : rule.level === 'info' ? 'info' : 'warning',
+      inAppType: recovered ? 'resolved' : rule.level === 'critical' ? 'error' : rule.level === 'info' ? 'info' : 'warning',
       dedupeKey: `monitor-alert:${rule.id}:${recovered ? 'resolved' : 'firing'}:${triggeredAt}`,
       webhookBody: {
         type: recovered ? 'monitor_recovered' : 'monitor_alert',

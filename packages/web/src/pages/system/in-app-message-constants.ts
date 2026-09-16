@@ -8,6 +8,7 @@ export const IN_APP_MESSAGE_TYPE_COLORS: Record<InAppMessageType, InAppMessageTy
   success: 'green',
   warning: 'orange',
   error: 'red',
+  resolved: 'green',
 };
 
 export const IN_APP_MESSAGE_TYPE_OPTIONS_WITH_COLOR = IN_APP_MESSAGE_TYPE_OPTIONS.map((option) => ({

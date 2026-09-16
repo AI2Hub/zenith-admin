@@ -45,7 +45,7 @@ export const sendStatusEnum = pgEnum('send_status', ['pending', 'success', 'fail
 
 export const sendSourceEnum = pgEnum('send_source', ['manual', 'test', 'system', 'api']);
 
-export const inAppMessageTypeEnum = pgEnum('in_app_message_type', ['info', 'success', 'warning', 'error']);
+export const inAppMessageTypeEnum = pgEnum('in_app_message_type', ['info', 'success', 'warning', 'error', 'resolved']);
 
 // ── 邮件模板 ────────────────────────────────────────────────────────────────
 export const emailTemplates = pgTable('email_templates', {
