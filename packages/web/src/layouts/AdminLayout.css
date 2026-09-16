@@ -1365,7 +1365,7 @@
   padding-bottom: 7px;
 }
 
-/* Semi Tabs size 对应的页签密度；页签栏本身是自定义实现，因此用同名偏好映射视觉尺寸。 */
+/* 后台多页签尺寸：页签栏本身是自定义实现，因此映射 Semi Tabs 的视觉尺寸语义。 */
 .admin-tabs-bar--size-small .admin-tab-item {
   padding-block: 6px;
   font-size: 12px;

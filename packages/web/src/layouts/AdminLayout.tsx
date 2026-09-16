@@ -946,7 +946,7 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
           )}
           {/* Tabs bar — shown above breadcrumb for all layouts */}
           {preferences.enableTabs && tabs.length > 0 && (
-            <div ref={tabsBarRef} className={`admin-tabs-bar admin-tabs-bar--size-${preferences.tabSize ?? 'small'}${preferences.compactTabs ? ' admin-tabs-bar--compact' : ''}${preferences.showBreadcrumb ? ' admin-tabs-bar--with-breadcrumb' : ''}`} data-tab-animation={reduceMotion ? 'none' : preferences.tabAnimation} data-tab-style={preferences.tabStyle ?? 'line'}>
+            <div ref={tabsBarRef} className={`admin-tabs-bar admin-tabs-bar--size-${preferences.multiTabSize ?? 'small'}${preferences.compactTabs ? ' admin-tabs-bar--compact' : ''}${preferences.showBreadcrumb ? ' admin-tabs-bar--with-breadcrumb' : ''}`} data-tab-animation={reduceMotion ? 'none' : preferences.tabAnimation} data-tab-style={preferences.tabStyle ?? 'line'}>
               <div ref={tabsScrollRef} className="admin-tabs-bar__scroll">
               {tabs.map((tab, tabIndex) => {
                   const favMenuId = tabFavMenuIds?.[tabIndex] ?? null;

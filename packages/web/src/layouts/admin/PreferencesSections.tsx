@@ -129,6 +129,27 @@ export function PrefsAppearanceSection({
     <>
       {prefSection('外观')}
 
+      {/* ── 后台多页签尺寸 ── */}
+      {matchesPref(['多页签尺寸', '多标签尺寸', 'small', 'medium', 'large', '外观']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          多页签尺寸
+          <Tooltip content="控制后台页面顶部多页签的尺寸，对应 Semi Tabs 的 small、medium、large 语义" position="right">
+            <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+          </Tooltip>
+        </span>
+        <RadioGroup
+          type="button"
+          value={preferences.multiTabSize ?? 'small'}
+          onChange={(e) => setPreferences({ multiTabSize: e.target.value as TabSize })}
+        >
+          <Radio value="small">小</Radio>
+          <Radio value="medium">中</Radio>
+          <Radio value="large">大</Radio>
+        </RadioGroup>
+      </div>
+      )}
+
       {/* ── 颜色模式 ── */}
       {matchesPref(['颜色模式', '深色', '浅色', '系统', '主题模式']) && (
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1024,25 +1045,6 @@ export function PrefsTabsSection({
           <Radio value="refresh">刷新</Radio>
           <Radio value="close">关闭</Radio>
           <Radio value="none">无</Radio>
-        </RadioGroup>
-      </div>
-      )}
-      {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['标签尺寸', '页签尺寸', 'small', 'medium', 'large', '标签页', '标签']) && (
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          标签页尺寸
-          <Tooltip content="对应 Semi Tabs 的 size 属性：small、medium、large" position="right">
-            <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
-          </Tooltip>
-        </span>
-        <RadioGroup
-          type="button"
-          value={preferences.tabSize ?? 'small'}
-          onChange={(e) => setPreferences({ tabSize: e.target.value as TabSize })}
-        >
-          <Radio value="small">小</Radio>
-          <Radio value="medium">中</Radio>
-          <Radio value="large">大</Radio>
         </RadioGroup>
       </div>
       )}
