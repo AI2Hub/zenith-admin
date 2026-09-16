@@ -51,8 +51,7 @@ import {
   useSqlMonitorSessionAction,
 } from '@/hooks/queries/sql-monitor';
 import { confirmDanger } from '@/utils/confirm';
-import { EMPTY_PLACEHOLDER, renderCodeEllipsis } from '@/utils/table-columns';
-import DateTimeText from '@/components/DateTimeText';
+import { dateTimeColumn, EMPTY_PLACEHOLDER, renderCodeEllipsis } from '@/utils/table-columns';
 import { SQL_MONITOR_QUERY_SORT_OPTIONS, type SqlMonitorQuery, type SqlMonitorSession, type SqlMonitorLock, type SqlMonitorHistoryPoint, type MonitorHistoryRange } from '@zenith/shared/platform';
 import './SqlMonitorPage.css';
 
@@ -336,7 +335,7 @@ export default function SqlMonitorPage() {
         : <Text type="tertiary">{EMPTY_PLACEHOLDER}</Text>,
     },
     { key: 'querySeconds', title: '查询耗时', dataIndex: 'querySeconds', width: 110, align: 'right', render: (value: number | null) => formatSeconds(value) },
-    { key: 'queryStart', title: '开始时间', dataIndex: 'queryStart', width: 165, render: (value: string | null) => <DateTimeText value={value} empty={EMPTY_PLACEHOLDER} /> },
+    { key: 'queryStart', ...dateTimeColumn<SqlMonitorSession>('开始时间', 'queryStart') },
     {
       key: 'query', title: '当前 SQL', dataIndex: 'query', minWidth: 360,
       render: (value: string | null) => renderQueryText(value),
