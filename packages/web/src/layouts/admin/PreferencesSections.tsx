@@ -159,16 +159,17 @@ export function PrefsAppearanceSection({
             <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
           </Tooltip>
         </span>
-        <RadioGroup
-          type="button"
+        <Select
           value={preferences.tabsType ?? 'line'}
-          onChange={(e) => setPreferences({ tabsType: e.target.value as TabType })}
-        >
-          <Radio value="line">线条</Radio>
-          <Radio value="button">按钮</Radio>
-          <Radio value="card">卡片</Radio>
-          <Radio value="slash">斜线</Radio>
-        </RadioGroup>
+          optionList={[
+            { value: 'line', label: '线条' },
+            { value: 'button', label: '按钮' },
+            { value: 'card', label: '卡片' },
+            { value: 'slash', label: '斜线' },
+          ]}
+          onChange={(v) => setPreferences({ tabsType: v as TabType })}
+          style={{ width: 120 }}
+        />
       </div>
       )}
 
