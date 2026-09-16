@@ -1365,23 +1365,26 @@
   padding-bottom: 7px;
 }
 
-/* 后台多页签尺寸：页签栏本身是自定义实现，因此映射 Semi Tabs 的视觉尺寸语义。 */
-.admin-tabs-bar--size-small .admin-tab-item {
-  padding-block: 6px;
-  font-size: 12px;
-  line-height: 16px;
-}
-
-.admin-tabs-bar--size-medium .admin-tab-item {
-  padding-block: 8px;
+/* 页面内部 Semi Tabs 尺寸：只作用于 .semi-tabs-tab，不影响顶部后台多页签。 */
+.admin-layout--tabs-size-small .semi-tabs-tab {
+  min-height: 32px;
+  padding: 6px 12px;
   font-size: 13px;
-  line-height: 18px;
+  line-height: 20px;
 }
 
-.admin-tabs-bar--size-large .admin-tab-item {
-  padding-block: 10px;
+.admin-layout--tabs-size-medium .semi-tabs-tab {
+  min-height: 40px;
+  padding: 9px 16px;
   font-size: 14px;
-  line-height: 20px;
+  line-height: 22px;
+}
+
+.admin-layout--tabs-size-large .semi-tabs-tab {
+  min-height: 48px;
+  padding: 12px 20px;
+  font-size: 16px;
+  line-height: 24px;
 }
 
 .admin-tab-item__icon {

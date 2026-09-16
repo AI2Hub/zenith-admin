@@ -129,19 +129,19 @@ export function PrefsAppearanceSection({
     <>
       {prefSection('外观')}
 
-      {/* ── 后台多页签尺寸 ── */}
-      {matchesPref(['多页签尺寸', '多标签尺寸', 'small', 'medium', 'large', '外观']) && (
+      {/* ── 页面 Tabs 尺寸 ── */}
+      {matchesPref(['Tabs尺寸', 'Tabs 大小', '标签控件尺寸', 'small', 'medium', 'large', '外观']) && (
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          多页签尺寸
-          <Tooltip content="控制后台页面顶部多页签的尺寸，对应 Semi Tabs 的 small、medium、large 语义" position="right">
+          Tabs 尺寸
+          <Tooltip content="控制页面内部 Semi Tabs 组件的尺寸" position="right">
             <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
           </Tooltip>
         </span>
         <RadioGroup
           type="button"
-          value={preferences.multiTabSize ?? 'small'}
-          onChange={(e) => setPreferences({ multiTabSize: e.target.value as TabSize })}
+          value={preferences.tabsSize ?? 'small'}
+          onChange={(e) => setPreferences({ tabsSize: e.target.value as TabSize })}
         >
           <Radio value="small">小</Radio>
           <Radio value="medium">中</Radio>

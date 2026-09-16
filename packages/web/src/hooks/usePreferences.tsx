@@ -124,8 +124,8 @@ export interface UserPreferences {
   showTabIcon: boolean;
   /** 页签栏是否使用紧凑间距与高度 */
   compactTabs: boolean;
-  /** 后台多页签的尺寸，对应 Semi Tabs 的 small / medium / large 语义 */
-  multiTabSize: TabSize;
+  /** 页面内部 Semi Tabs 的尺寸 */
+  tabsSize: TabSize;
   tabStyle: TabStyle;
   navLayout: NavLayout;
   showBreadcrumb: boolean;
@@ -244,7 +244,7 @@ export const defaultPreferences: UserPreferences = {
   tabsMaxCount: 20,
   showTabIcon: true,
   compactTabs: true,
-  multiTabSize: 'small',
+  tabsSize: 'small',
   tabStyle: 'line',
   navLayout: 'vertical',
   showBreadcrumb: false,
@@ -342,7 +342,7 @@ export interface PreferencesContextValue {
 /** 枚举型偏好的合法值白名单（导入校验用），须与各 union type 保持一致 */
 const PREF_ENUM_VALUES: Partial<Record<keyof UserPreferences, readonly (string | number)[]>> = {
   navLayout: ['vertical', 'horizontal', 'mixed', 'double'],
-  multiTabSize: ['small', 'medium', 'large'],
+  tabsSize: ['small', 'medium', 'large'],
   tabStyle: ['line', 'pill', 'card', 'chrome'],
   tabAnimation: ['none', 'fade', 'slide', 'scale'],
   routeAnimation: ['none', 'fade', 'slide-up', 'slide-left'],
