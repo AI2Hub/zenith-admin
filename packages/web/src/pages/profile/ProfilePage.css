@@ -13,7 +13,6 @@
 }
 
 .profile-tabs > .semi-tabs-bar .semi-tabs-tab {
-  padding: 0;
   margin: 0 8px 0 0;
   height: auto;
 }
@@ -37,7 +36,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 12px 8px;
+  padding: 0 8px;
   font-size: 13px;
   width: auto;
   box-sizing: border-box;
