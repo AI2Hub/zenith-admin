@@ -7,6 +7,7 @@ const PreferenceTabs = (props: ComponentProps<typeof SemiTabs>) => {
   return createElement(SemiTabs, {
     ...props,
     size: preferences?.preferences.tabsSize ?? props.size ?? 'small',
+    type: preferences?.preferences.tabsType ?? props.type ?? 'line',
   });
 };
 

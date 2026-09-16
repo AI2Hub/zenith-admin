@@ -7,6 +7,7 @@ export type NavLayout = 'vertical' | 'horizontal' | 'mixed' | 'double';
 export type TabAnimation = 'none' | 'fade' | 'slide' | 'scale';
 export type TabStyle = 'line' | 'pill' | 'card' | 'chrome';
 export type TabSize = 'small' | 'medium' | 'large';
+export type TabType = 'line' | 'button' | 'card' | 'slash';
 export type TableSizePreference = 'small' | 'default' | 'middle';
 export type RouteAnimation = 'none' | 'fade' | 'slide-up' | 'slide-left';
 export type SidebarToggleIconPosition = 'left' | 'right';
@@ -126,6 +127,8 @@ export interface UserPreferences {
   compactTabs: boolean;
   /** 页面内部 Semi Tabs 的尺寸 */
   tabsSize: TabSize;
+  /** 页面内部 Semi Tabs 的视觉类型 */
+  tabsType: TabType;
   tabStyle: TabStyle;
   navLayout: NavLayout;
   showBreadcrumb: boolean;
@@ -245,6 +248,7 @@ export const defaultPreferences: UserPreferences = {
   showTabIcon: true,
   compactTabs: true,
   tabsSize: 'small',
+  tabsType: 'line',
   tabStyle: 'line',
   navLayout: 'vertical',
   showBreadcrumb: false,
@@ -343,6 +347,7 @@ export interface PreferencesContextValue {
 const PREF_ENUM_VALUES: Partial<Record<keyof UserPreferences, readonly (string | number)[]>> = {
   navLayout: ['vertical', 'horizontal', 'mixed', 'double'],
   tabsSize: ['small', 'medium', 'large'],
+  tabsType: ['line', 'button', 'card', 'slash'],
   tabStyle: ['line', 'pill', 'card', 'chrome'],
   tabAnimation: ['none', 'fade', 'slide', 'scale'],
   routeAnimation: ['none', 'fade', 'slide-up', 'slide-left'],

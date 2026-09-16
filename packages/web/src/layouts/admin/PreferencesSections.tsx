@@ -3,7 +3,7 @@ import { Button, ColorPicker, InputNumber, Popover, Radio, RadioGroup, Select, S
 import { Check, ClipboardPaste, Copy, Info, Palette } from 'lucide-react';
 import { LOADING_STYLE_OPTIONS, DARK_SURFACE_TONE_OPTIONS, UI_SCALE_OPTIONS, FONT_FAMILY_OPTIONS } from '@/hooks/usePreferences';
 import { clearAllListFilterSnapshots } from '@/lib/list-filter-memory';
-import type { NavLayout, TableSizePreference, RouteAnimation, BorderRadiusPreference, TabStyle, TabSize, DarkSurfaceTone, UserPreferences, UiScale, FontFamilyPreference, WeekStart, TimeDisplay } from '@/hooks/usePreferences';
+import type { NavLayout, TableSizePreference, RouteAnimation, BorderRadiusPreference, TabStyle, TabSize, TabType, DarkSurfaceTone, UserPreferences, UiScale, FontFamilyPreference, WeekStart, TimeDisplay } from '@/hooks/usePreferences';
 import type { ThemeMode } from '@/hooks/useTheme';
 import { THEME_COLOR_PRESETS } from '@/lib/theme-color';
 import { confirmDanger } from '@/utils/confirm';
@@ -146,6 +146,28 @@ export function PrefsAppearanceSection({
           <Radio value="small">小</Radio>
           <Radio value="medium">中</Radio>
           <Radio value="large">大</Radio>
+        </RadioGroup>
+      </div>
+      )}
+
+      {/* ── 标签栏样式 ── */}
+      {matchesPref(['标签栏样式', 'Tabs样式', 'Tabs 类型', 'line', 'button', 'card', 'slash', '外观']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          标签栏样式
+          <Tooltip content="控制页面内部标签栏（Semi Tabs）的原生 type 属性" position="right">
+            <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+          </Tooltip>
+        </span>
+        <RadioGroup
+          type="button"
+          value={preferences.tabsType ?? 'line'}
+          onChange={(e) => setPreferences({ tabsType: e.target.value as TabType })}
+        >
+          <Radio value="line">线条</Radio>
+          <Radio value="button">按钮</Radio>
+          <Radio value="card">卡片</Radio>
+          <Radio value="slash">斜线</Radio>
         </RadioGroup>
       </div>
       )}
