@@ -15,6 +15,22 @@
   padding: 24px 28px;
 }
 
+.profile-signature-description {
+  margin-bottom: 16px !important;
+}
+
+.profile-signature-editor {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.profile-signature-editor canvas {
+  border: 1px solid var(--semi-color-border-2, var(--semi-color-border)) !important;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 12%);
+}
+
 .profile-basic-overview {
   display: flex;
   align-items: flex-start;

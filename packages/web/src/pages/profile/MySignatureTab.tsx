@@ -23,18 +23,18 @@ export default function MySignatureTab() {
   return (
     <div className="profile-section">
       <Typography.Title heading={5}>我的签名</Typography.Title>
-      <Typography.Paragraph type="tertiary">
+      <Typography.Paragraph type="tertiary" className="profile-signature-description">
         保存后，可在允许复用的表单和审批中使用。每次签署会保留当次签名，更换或删除个人签名不会改变已保存的签署记录。
       </Typography.Paragraph>
       {query.error && <Banner type="warning" closeIcon={null} description={query.error.message} />}
       {query.isLoading ? <Spin /> : editing ? (
-        <>
+        <div className="profile-signature-editor">
           <SignaturePad value={drawing} onChange={setDrawing} width={600} height={200} disabled={save.isPending} />
-          <Space spacing={8} style={{ marginTop: 16 }}>
+          <Space spacing={8}>
             <Button onClick={() => setEditing(false)} disabled={save.isPending}>取消</Button>
             <Button type="primary" disabled={!drawing} loading={save.isPending} onClick={() => void saveSignature()}>保存签名</Button>
           </Space>
-        </>
+        </div>
       ) : (
         <>
           {query.data ? (
