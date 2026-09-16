@@ -1365,6 +1365,22 @@
   padding-bottom: 7px;
 }
 
+/* Semi Tabs size 对应的页签密度；页签栏本身是自定义实现，因此用同名偏好映射视觉尺寸。 */
+.admin-tabs-bar--size-small .admin-tab-item {
+  padding-block: 7px;
+  font-size: 12px;
+}
+
+.admin-tabs-bar--size-medium .admin-tab-item {
+  padding-block: 9px;
+  font-size: 13px;
+}
+
+.admin-tabs-bar--size-large .admin-tab-item {
+  padding-block: 10px;
+  font-size: 13px;
+}
+
 .admin-tab-item__icon {
   display: inline-flex;
   align-items: center;

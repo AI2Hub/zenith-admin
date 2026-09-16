@@ -3,7 +3,7 @@ import { Button, ColorPicker, InputNumber, Popover, Radio, RadioGroup, Select, S
 import { Check, ClipboardPaste, Copy, Info, Palette } from 'lucide-react';
 import { LOADING_STYLE_OPTIONS, DARK_SURFACE_TONE_OPTIONS, UI_SCALE_OPTIONS, FONT_FAMILY_OPTIONS } from '@/hooks/usePreferences';
 import { clearAllListFilterSnapshots } from '@/lib/list-filter-memory';
-import type { NavLayout, TableSizePreference, RouteAnimation, BorderRadiusPreference, TabStyle, DarkSurfaceTone, UserPreferences, UiScale, FontFamilyPreference, WeekStart, TimeDisplay } from '@/hooks/usePreferences';
+import type { NavLayout, TableSizePreference, RouteAnimation, BorderRadiusPreference, TabStyle, TabSize, DarkSurfaceTone, UserPreferences, UiScale, FontFamilyPreference, WeekStart, TimeDisplay } from '@/hooks/usePreferences';
 import type { ThemeMode } from '@/hooks/useTheme';
 import { THEME_COLOR_PRESETS } from '@/lib/theme-color';
 import { confirmDanger } from '@/utils/confirm';
@@ -1024,6 +1024,25 @@ export function PrefsTabsSection({
           <Radio value="refresh">刷新</Radio>
           <Radio value="close">关闭</Radio>
           <Radio value="none">无</Radio>
+        </RadioGroup>
+      </div>
+      )}
+      {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['标签尺寸', '页签尺寸', 'small', 'medium', 'large', '标签页', '标签']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          标签页尺寸
+          <Tooltip content="对应 Semi Tabs 的 size 属性：small、medium、large" position="right">
+            <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+          </Tooltip>
+        </span>
+        <RadioGroup
+          type="button"
+          value={preferences.tabSize ?? 'small'}
+          onChange={(e) => setPreferences({ tabSize: e.target.value as TabSize })}
+        >
+          <Radio value="small">小</Radio>
+          <Radio value="medium">中</Radio>
+          <Radio value="large">大</Radio>
         </RadioGroup>
       </div>
       )}

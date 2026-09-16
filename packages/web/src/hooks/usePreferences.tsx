@@ -6,6 +6,7 @@ import { DEFAULT_NOTIFICATION_SOUND_STYLE, NOTIFICATION_SOUND_STYLES, type Notif
 export type NavLayout = 'vertical' | 'horizontal' | 'mixed' | 'double';
 export type TabAnimation = 'none' | 'fade' | 'slide' | 'scale';
 export type TabStyle = 'line' | 'pill' | 'card' | 'chrome';
+export type TabSize = 'small' | 'medium' | 'large';
 export type TableSizePreference = 'small' | 'default' | 'middle';
 export type RouteAnimation = 'none' | 'fade' | 'slide-up' | 'slide-left';
 export type SidebarToggleIconPosition = 'left' | 'right';
@@ -123,6 +124,7 @@ export interface UserPreferences {
   showTabIcon: boolean;
   /** 页签栏是否使用紧凑间距与高度 */
   compactTabs: boolean;
+  tabSize: TabSize;
   tabStyle: TabStyle;
   navLayout: NavLayout;
   showBreadcrumb: boolean;
@@ -241,6 +243,7 @@ export const defaultPreferences: UserPreferences = {
   tabsMaxCount: 20,
   showTabIcon: true,
   compactTabs: true,
+  tabSize: 'small',
   tabStyle: 'line',
   navLayout: 'vertical',
   showBreadcrumb: false,
@@ -338,6 +341,7 @@ export interface PreferencesContextValue {
 /** 枚举型偏好的合法值白名单（导入校验用），须与各 union type 保持一致 */
 const PREF_ENUM_VALUES: Partial<Record<keyof UserPreferences, readonly (string | number)[]>> = {
   navLayout: ['vertical', 'horizontal', 'mixed', 'double'],
+  tabSize: ['small', 'medium', 'large'],
   tabStyle: ['line', 'pill', 'card', 'chrome'],
   tabAnimation: ['none', 'fade', 'slide', 'scale'],
   routeAnimation: ['none', 'fade', 'slide-up', 'slide-left'],
