@@ -3,43 +3,11 @@
   min-width: 0;
 }
 
-/* Semi Tabs 顶部导航覆盖 */
-.profile-tabs {
-  min-height: 480px;
-}
-
-.profile-tabs > .semi-tabs-bar {
-  padding: 0 20px;
-}
-
-.profile-tabs > .semi-tabs-bar .semi-tabs-tab {
-  margin: 0 8px 0 0;
-  height: auto;
-}
-
-.profile-tabs > .semi-tabs-content-wrapper {
-  flex: 1;
-  min-width: 0;
-}
-
-.profile-tabs > .semi-tabs-content-wrapper > .semi-tabs-content {
-  flex: 1 1 0%;
-  min-width: 0;
-}
-
-.profile-tabs > .semi-tabs-content-wrapper > .semi-tabs-content > .semi-tabs-pane {
-  padding: 0;
-}
-
 /* tab 标签：图标 + 文字 */
 .profile-tab-label {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 0 8px;
-  font-size: 13px;
-  width: auto;
-  box-sizing: border-box;
 }
 
 /* 内容区 */
@@ -209,11 +177,6 @@
 }
 
 @media (--md-down) {
-  .profile-tabs > .semi-tabs-bar {
-    padding: 0 12px;
-    overflow-x: auto;
-  }
-
   .profile-section {
     padding: 20px 16px;
   }
