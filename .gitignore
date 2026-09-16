@@ -30,3 +30,5 @@ docs/.vitepress/.temp/
 packages/server/assets/fonts/*.subset.otf
 # 本地打包产物（scripts/package-server.mjs 默认输出）
 release_artifacts/
+
+.freebuff/
