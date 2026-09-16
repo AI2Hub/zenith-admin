@@ -124,8 +124,8 @@ export default function WorkflowTemplatesPage() {
     {
       title: '编码',
       dataIndex: 'code',
-      width: 140,
-      render: (v: string | null) => v || <span style={{ color: 'var(--semi-color-text-2)' }}>—</span>,
+      width: 200,
+      render: renderEllipsis,
     },
     {
       title: '分类',
