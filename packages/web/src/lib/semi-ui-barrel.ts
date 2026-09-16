@@ -1,3 +1,15 @@
+import { createElement, type ComponentProps } from 'react';
+import SemiTabs from '@douyinfe/semi-ui/lib/es/tabs';
+import { useOptionalPreferences } from '@/hooks/usePreferences';
+
+const PreferenceTabs = (props: ComponentProps<typeof SemiTabs>) => {
+  const preferences = useOptionalPreferences();
+  return createElement(SemiTabs, {
+    ...props,
+    size: preferences?.preferences.tabsSize ?? props.size ?? 'small',
+  });
+};
+
 /**
  * @douyinfe/semi-ui 的本地影子 barrel（无副作用版）。
  *
@@ -78,7 +90,7 @@ export { default as Step } from '@douyinfe/semi-ui/lib/es/steps/step';
 export { default as Steps } from '@douyinfe/semi-ui/lib/es/steps';
 export { default as Switch } from '@douyinfe/semi-ui/lib/es/switch';
 export { default as Table } from '@douyinfe/semi-ui/lib/es/table';
-export { default as Tabs } from '@douyinfe/semi-ui/lib/es/tabs';
+export const Tabs = Object.assign(PreferenceTabs, { TabPane: SemiTabs.TabPane, TabItem: SemiTabs.TabItem });
 export { default as TabPane } from '@douyinfe/semi-ui/lib/es/tabs/TabPane';
 export { default as Tag } from '@douyinfe/semi-ui/lib/es/tag';
 export { default as TagGroup } from '@douyinfe/semi-ui/lib/es/tag/group';

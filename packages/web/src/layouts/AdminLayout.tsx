@@ -783,7 +783,6 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
     preferences.darkSidebarTone === 'bg-0' ? 'admin-layout--dark-sidebar-deep' : '',
     preferences.darkHeaderTone === 'bg-0' ? 'admin-layout--dark-header-deep' : '',
     preferences.darkContentTone === 'bg-0' ? 'admin-layout--dark-content-deep' : '',
-    `admin-layout--tabs-size-${preferences.tabsSize ?? 'small'}`,
   ].filter(Boolean).join(' ');
   // .semi-always-dark 会把 --semi-color-primary 复位成 Semi 默认蓝，品牌主色需按深色档重新注入
   const sectionDarkVars = useMemo((): Record<string, string> => {
