@@ -184,6 +184,7 @@ export default function RetentionPage() {
             key: 'description',
             title: '说明',
             dataIndex: 'description',
+            width: 320,
             ellipsis: true,
           },
           createOperationColumn<RetentionPolicy & { _rowId: string }>({
