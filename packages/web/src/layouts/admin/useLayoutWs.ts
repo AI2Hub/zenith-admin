@@ -53,16 +53,17 @@ export function useLayoutWs({
   const soundEnabled = prefs?.preferences.notificationSound ?? false;
   const soundStyle = prefs?.preferences.notificationSoundStyle;
   const desktopEnabled = prefs?.preferences.desktopNotification ?? false;
+  const desktopContent = prefs?.preferences.desktopNotificationContent ?? 'summary';
 
   // 页签隐藏时站内 Toast 看不到，改弹系统通知；可见时维持站内 Toast
   const notifyArrival = useCallback((title: string, body: string, tag: string, path: string) => {
     if (soundEnabled) playNotificationSound(soundStyle);
     if (desktopEnabled && document.hidden) {
-      const shown = showDesktopNotification({ title, body, tag, onClick: () => navigate(path) });
+      const shown = showDesktopNotification({ title, body: desktopContent === 'summary' ? body : undefined, tag, onClick: () => navigate(path) });
       if (shown) return;
     }
     Notification.info({ title, content: body, duration: 5, position: 'topRight' });
-  }, [soundEnabled, soundStyle, desktopEnabled, navigate]);
+  }, [soundEnabled, soundStyle, desktopEnabled, desktopContent, navigate]);
 
   // 断线重连后补拉：期间的推送不会重放；首次连接不算（挂载时的查询刚拉过）
   const hadDisconnectRef = useRef(false);

@@ -49,7 +49,7 @@ const DIGEST_HOUR_OPTIONS = Array.from({ length: 24 }, (_, hour) => ({
 }));
 
 /** 桌面通知开关：开启时申请浏览器授权，被拒绝 / 不支持时回退关闭并说明原因；已授权时可发一条测试通知 */
-function DesktopNotificationControls({ enabled, onChange }: Readonly<{ enabled: boolean; onChange: (enabled: boolean) => void }>) {
+function DesktopNotificationControls({ enabled, content, onChange, onContentChange }: Readonly<{ enabled: boolean; content: 'summary' | 'type'; onChange: (enabled: boolean) => void; onContentChange: (content: 'summary' | 'type') => void }>) {
   const [permission, setPermission] = useState<DesktopNotificationPermission>(desktopNotificationPermission);
   const [requesting, setRequesting] = useState(false);
 
@@ -70,7 +70,7 @@ function DesktopNotificationControls({ enabled, onChange }: Readonly<{ enabled: 
   };
 
   const handleTest = () => {
-    const shown = showDesktopNotification({ title: '测试通知', body: '桌面通知已生效，站内信与公告会以此形式提醒你', tag: 'desktop-notification-test' });
+    const shown = showDesktopNotification({ title: '测试通知', body: content === 'summary' ? '桌面通知已生效，站内信与公告会以此形式提醒你' : undefined, tag: 'desktop-notification-test' });
     if (!shown) Toast.warning('未能弹出通知，请检查浏览器与系统的通知权限');
   };
 
@@ -87,6 +87,13 @@ function DesktopNotificationControls({ enabled, onChange }: Readonly<{ enabled: 
       {enabled && permission === 'granted' && (
         <Button theme="light" icon={<BellRing size={14} />} onClick={handleTest}>发送测试通知</Button>
       )}
+      <Select
+        value={content}
+        onChange={(value) => onContentChange(value as 'summary' | 'type')}
+        optionList={[{ value: 'summary', label: '显示消息摘要' }, { value: 'type', label: '仅显示消息类型' }]}
+        style={{ width: 160 }}
+        aria-label="桌面通知内容预览"
+      />
     </div>
   );
 }
@@ -264,7 +271,9 @@ export default function NotificationSettingsTab() {
       </Text>
       <DesktopNotificationControls
         enabled={preferences.desktopNotification}
+        content={preferences.desktopNotificationContent}
         onChange={(enabled) => setPreferences({ desktopNotification: enabled })}
+        onContentChange={(content) => setPreferences({ desktopNotificationContent: content })}
       />
 
       <div className="section-title" style={{ marginTop: 32 }}>订阅偏好</div>

@@ -45,6 +45,8 @@ export const FONT_FAMILY_OPTIONS: readonly { value: FontFamilyPreference; label:
 /** 时间元信息展示方式：absolute = YYYY-MM-DD HH:mm:ss；relative = 「3 分钟前」（悬停显示绝对时间） */
 export const TIME_DISPLAYS = ['absolute', 'relative'] as const;
 export type TimeDisplay = (typeof TIME_DISPLAYS)[number];
+/** 桌面通知正文展示：显示消息摘要，或仅显示通知类型标题 */
+export type DesktopNotificationContent = 'summary' | 'type';
 
 /** 日期选择器 / 日历的一周起始日 */
 export const WEEK_STARTS = ['monday', 'sunday'] as const;
@@ -213,6 +215,7 @@ export interface UserPreferences {
   notificationSoundStyle: NotificationSoundStyle;
   /** 页签隐藏时，站内信 / 公告实时到达弹系统桌面通知（需浏览器授权；聊天有独立开关） */
   desktopNotification: boolean;
+  desktopNotificationContent: DesktopNotificationContent;
   /** 界面缩放百分比，100 = 原始大小 */
   uiScale: UiScale;
   /** 界面字体预设 */
@@ -290,6 +293,7 @@ export const defaultPreferences: UserPreferences = {
   notificationSound: false,
   notificationSoundStyle: DEFAULT_NOTIFICATION_SOUND_STYLE,
   desktopNotification: false,
+  desktopNotificationContent: 'summary',
   uiScale: 100,
   fontFamily: 'system',
   timeDisplay: 'absolute',
@@ -351,6 +355,7 @@ const PREF_ENUM_VALUES: Partial<Record<keyof UserPreferences, readonly (string |
   fontFamily: FONT_FAMILIES,
   timeDisplay: TIME_DISPLAYS,
   weekStart: WEEK_STARTS,
+  desktopNotificationContent: ['summary', 'type'],
 };
 
 /**
