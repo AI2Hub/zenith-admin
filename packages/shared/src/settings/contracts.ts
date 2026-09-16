@@ -118,6 +118,7 @@ function moduleOps<M extends SettingsModuleKey>(module: M) {
 }
 
 const auth = moduleOps('auth');
+const analytics = moduleOps('analytics');
 const identitySecurity = moduleOps('identitySecurity');
 const ui = moduleOps('ui');
 const files = moduleOps('files');
@@ -141,6 +142,7 @@ export const settingsContract = defineContract('/api/settings', {
   me: op.get('/me', { access: 'authenticated', response: mySettingsSchema, summary: '登录用户可见的设置投影（布局开关 / 密码规则 / 终端录屏）' }),
 
   getAuth: auth.get, updateAuth: auth.update,
+  getAnalytics: analytics.get, updateAnalytics: analytics.update,
   getIdentitySecurity: identitySecurity.get, updateIdentitySecurity: identitySecurity.update,
   getUi: ui.get, updateUi: ui.update,
   getFiles: files.get, updateFiles: files.update,

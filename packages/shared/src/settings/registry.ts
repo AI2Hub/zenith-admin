@@ -2,6 +2,7 @@ import type * as z from 'zod';
 import { SETTINGS_RESERVED_MODULE_NAMES } from './constants';
 import type { SettingsModuleDef } from './module-def';
 import { aiSettingsModule } from './modules/ai';
+import { analyticsSettingsModule } from './modules/analytics';
 import { authSettingsModule } from './modules/auth';
 import { driveSettingsModule } from './modules/drive';
 import { errorTrackingSettingsModule } from './modules/error-tracking';
@@ -29,6 +30,7 @@ export const SETTINGS_MODULES = {
   terminal: terminalSettingsModule,
   member: memberSettingsModule,
   ai: aiSettingsModule,
+  analytics: analyticsSettingsModule,
   rules: rulesSettingsModule,
   payment: paymentSettingsModule,
   workflow: workflowSettingsModule,
@@ -55,6 +57,7 @@ export const SETTINGS_MODULE_PATHS = {
   terminal: '/terminal',
   member: '/member',
   ai: '/ai',
+  analytics: '/analytics',
   rules: '/rules',
   payment: '/payment',
   workflow: '/workflow',

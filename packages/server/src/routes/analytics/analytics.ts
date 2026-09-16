@@ -20,7 +20,7 @@ import { queryEvents } from '../../services/analytics/analytics-event-query.serv
 import {
   listSegments, getSegmentDetail, ensureSegmentExists, createSegment, updateSegment, deleteSegment, listSegmentMembers,
 } from '../../services/analytics/analytics-segments.service';
-import { getPublicConfig, getSettings, updateSettings } from '../../services/analytics/analytics-settings.service';
+import { getPublicConfig } from '../../services/analytics/analytics-settings.service';
 import { listEventMeta, createEventMeta, updateEventMeta, deleteEventMeta, getEventMetaReferences } from '../../services/analytics/analytics-event-meta.service';
 import { getRollupSummary } from '../../services/analytics/analytics-rollup.service';
 import { listSavedReports, createSavedReport, deleteSavedReport } from '../../services/analytics/analytics-reports.service';
@@ -232,15 +232,6 @@ const debugEventsRoute = defineContractRoute(analyticsContract.debugEvents, {
   handler: async (c) => c.json(okBody(await listDebugEvents(c.req.valid('query'))), 200),
 });
 
-// ─── 采集设置 ─────────────────────────────────────────────────────────────────
-const settingsGetRoute = defineContractRoute(analyticsContract.settings, {
-  handler: async (c) => c.json(okBody(await getSettings()), 200),
-});
-
-const settingsUpdateRoute = defineContractRoute(analyticsContract.updateSettings, {
-  handler: async (c) => c.json(okBody(await updateSettings(c.req.valid('json')), '更新成功'), 200),
-});
-
 // ─── 数据聚合 ─────────────────────────────────────────────────────────────────
 const rollupGetRoute = defineContractRoute(analyticsContract.rollup, {
   handler: async (c) => c.json(okBody({ items: await getRollupSummary(c.req.valid('query').days) }), 200),
@@ -323,7 +314,6 @@ r.openapiRoutes([
 
 r.openapiRoutes([
   qualityRoute, debugEventsRoute,
-  settingsGetRoute, settingsUpdateRoute,
   rollupGetRoute, rollupRebuildRoute,
   segmentListRoute, segmentCreateRoute, segmentDetailRoute, segmentUpdateRoute, segmentDeleteRoute,
   segmentMembersRoute, segmentMaterializeRoute,

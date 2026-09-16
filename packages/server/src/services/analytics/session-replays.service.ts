@@ -15,7 +15,7 @@ import { gzip as gzipCallback } from 'node:zlib';
 import { promisify } from 'node:util';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
-import { replaySessions, replaySegments, replayClickPoints, replayAccessLogs, errorEvents, analyticsSettings, userEvents } from '../../db/schema';
+import { replaySessions, replaySegments, replayClickPoints, replayAccessLogs, errorEvents, userEvents } from '../../db/schema';
 import type { ReplaySessionRow, ReplaySegmentRow } from '../../db/schema';
 import { replaySessionSchema, type ReplaySegmentUploadMetaInput } from '@zenith/shared/analytics';
 import { sessionReplayContract } from '@zenith/shared/analytics';
@@ -28,6 +28,7 @@ import { formatDateTime, startOfToday } from '../../lib/datetime';
 import { parseClientEnv, resolveIngestPlatformFields } from '../../lib/analytics-helpers';
 import { isSiteOriginAllowed, resolveSiteByKey } from './analytics-sites.service';
 import { pickEntity } from '../../lib/entity-map';
+import { getSettings } from '../../lib/settings';
 
 /** 单分片 gz 上限（防滥用；rrweb 10s 分片 gz 后通常 <200KB） */
 export const REPLAY_SEGMENT_MAX_BYTES = 2 * 1024 * 1024;
@@ -204,12 +205,8 @@ function bumpUsageCache(tenantId: number | null, delta: number): void {
 }
 
 async function getReplayQuotaBytes(tenantId: number | null): Promise<number> {
-  const [row] = await db
-    .select({ quotaMb: analyticsSettings.replayStorageQuotaMb })
-    .from(analyticsSettings)
-    .where(exactTenantCondition(analyticsSettings.tenantId, tenantId))
-    .limit(1);
-  return (row?.quotaMb ?? 4096) * 1024 * 1024;
+  const settings = await getSettings('analytics', { tenantId });
+  return settings.replayStorageQuotaMb * 1024 * 1024;
 }
 
 /** 当前租户回放总占用（字节），30s 缓存 */

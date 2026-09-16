@@ -1,7 +1,6 @@
 import { keepPreviousData, type QueryClient } from '@tanstack/react-query';
 import { resourceKeyOf, type AnyOperation, type BodyOf, type QueryOf } from '@zenith/shared/core';
 import {
-  ANALYTICS_CONFIG_VERSION_KEY,
   analyticsCampaignContract,
   analyticsContract,
   analyticsExperimentContract,
@@ -14,7 +13,6 @@ import {
 } from '@zenith/shared/analytics';
 import { userContract } from '@zenith/shared/identity';
 import { useSaveMutation, apiQueryOptions, contractKey, useApiMutation, useApiQuery } from '@/lib/contract-query';
-import { reloadTrackerConfig } from '@/utils/tracker';
 
 // ─── 查询参数类型（均由契约推导）────────────────────────────────────────────
 
@@ -50,7 +48,7 @@ const ANALYTICS_DATA_OPS: readonly AnyOperation[] = [
   analyticsContract.events, analyticsContract.eventDetail,
   analyticsContract.eventMeta, analyticsContract.eventMetaReferences,
   analyticsContract.eventOverrides, analyticsContract.quality, analyticsContract.debugEvents,
-  analyticsContract.settings, analyticsContract.rollup,
+  analyticsContract.rollup,
   analyticsContract.segments, analyticsContract.segmentDetail, analyticsContract.segmentMembers,
   analyticsCampaignContract.campaigns,
   analyticsSiteContract.sites,
@@ -72,7 +70,6 @@ export const analyticsKeys = {
     eventsLists: contractKey(analyticsContract.events),
     metaLists: contractKey(analyticsContract.eventMeta),
     metaReferences: contractKey(analyticsContract.eventMetaReferences),
-    settings: contractKey(analyticsContract.settings),
     overridesLists: contractKey(analyticsContract.eventOverrides),
     quality: contractKey(analyticsContract.quality),
     debugEvents: contractKey(analyticsContract.debugEvents),
@@ -270,21 +267,6 @@ export function useDeleteAnalyticsEventMeta() {
 }
 
 // ─── 采集设置 / 每日聚合 ──────────────────────────────────────────────────────
-
-export function useAnalyticsSettings(enabled = true) {
-  return useApiQuery(analyticsContract.settings, { enabled });
-}
-
-export function useSaveAnalyticsSettings() {
-  return useApiMutation(analyticsContract.updateSettings, {
-    invalidate: (qc) => void qc.invalidateQueries({ queryKey: analyticsKeys.all }),
-    onSuccess: () => {
-      // 设置热更新：当前标签页立即重拉配置；写入版本号触发同浏览器其它标签页的 storage 事件重拉
-      reloadTrackerConfig();
-      try { localStorage.setItem(ANALYTICS_CONFIG_VERSION_KEY, String(Date.now())); } catch { /* storage unavailable */ }
-    },
-  });
-}
 
 export function useAnalyticsRollup(days: number, enabled = true) {
   return useApiQuery(analyticsContract.rollup, { query: { days } }, { enabled });

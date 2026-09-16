@@ -1,33 +1,36 @@
 import { sql } from 'drizzle-orm';
 import { db } from '../../db';
-import { analyticsSettings } from '../../db/schema';
+import { systemSettings } from '../../db/schema';
+import { resolveSettings, type SettingsDoc } from '@zenith/shared/settings';
 import type { RetentionPolicyDefinition, TenantRetentionDays } from './types';
 
-/** 行为埋点：各租户在「数据分析设置」中自定义的埋点保留天数 */
+/** system_settings 中 analytics 模块的租户覆盖，平台行作为未覆盖租户的回退。 */
+async function analyticsRetentionSettings(): Promise<Map<number | null, ReturnType<typeof resolveSettings<'analytics'>>['value']>> {
+  const rows = await db.select({ tenantId: systemSettings.tenantId, data: systemSettings.data })
+    .from(systemSettings)
+    .where(sql`${systemSettings.module} = 'analytics'`);
+  const platform = rows.find((row) => row.tenantId === null)?.data ?? {};
+  const result = new Map<number | null, ReturnType<typeof resolveSettings<'analytics'>>['value']>();
+  result.set(null, resolveSettings('analytics', [platform]).value);
+  for (const row of rows) {
+    if (row.tenantId !== null) result.set(row.tenantId, resolveSettings('analytics', [platform, row.data as SettingsDoc]).value);
+  }
+  return result;
+}
+
 async function analyticsEventRetention(): Promise<TenantRetentionDays> {
-  const rows = await db.select({
-    tenantId: analyticsSettings.tenantId,
-    days: analyticsSettings.retentionDays,
-  }).from(analyticsSettings);
-  return new Map(rows.map((row) => [row.tenantId, row.days]));
+  const settings = await analyticsRetentionSettings();
+  return new Map([...settings].map(([tenantId, value]) => [tenantId, value.retentionDays]));
 }
 
-/** 前端错误：各租户在「数据分析设置」中自定义的错误保留天数 */
 async function analyticsErrorRetention(): Promise<TenantRetentionDays> {
-  const rows = await db.select({
-    tenantId: analyticsSettings.tenantId,
-    days: analyticsSettings.errorRetentionDays,
-  }).from(analyticsSettings);
-  return new Map(rows.map((row) => [row.tenantId, row.days]));
+  const settings = await analyticsRetentionSettings();
+  return new Map([...settings].map(([tenantId, value]) => [tenantId, value.errorRetentionDays]));
 }
 
-/** 会话回放：各租户在「数据分析设置」中自定义的回放保留天数 */
 async function analyticsReplayRetention(): Promise<TenantRetentionDays> {
-  const rows = await db.select({
-    tenantId: analyticsSettings.tenantId,
-    days: analyticsSettings.replayRetentionDays,
-  }).from(analyticsSettings);
-  return new Map(rows.map((row) => [row.tenantId, row.days]));
+  const settings = await analyticsRetentionSettings();
+  return new Map([...settings].map(([tenantId, value]) => [tenantId, value.replayRetentionDays]));
 }
 
 /**

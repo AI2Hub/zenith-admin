@@ -19,16 +19,15 @@ import {
   useAnalyticsEventMeta,
   useAnalyticsEvents,
   useAnalyticsRollup,
-  useAnalyticsSettings,
   useCleanAnalyticsEvents,
   useDeleteAnalyticsEventMeta,
   useEventMetaReferences,
   useFrontendAdminUsers,
   useRebuildAnalyticsRollup,
   useSaveAnalyticsEventMeta,
-  useSaveAnalyticsSettings,
 } from '@/hooks/queries/analytics';
-import type { AnalyticsEventMeta, AnalyticsEventMetaReferences, AnalyticsRollupItem, AnalyticsSettings, EventListItem, UserBehaviorEventType } from '@zenith/shared/analytics';
+import type { AnalyticsEventMeta, AnalyticsEventMetaReferences, AnalyticsRollupItem, EventListItem, UserBehaviorEventType } from '@zenith/shared/analytics';
+import type { AnalyticsSettings } from '@zenith/shared/settings';
 import { ANALYTICS_DEVICE_TYPES, ANALYTICS_DEVICE_TYPE_OPTIONS, ANALYTICS_EVENT_META_STATUS_LABELS, ANALYTICS_EVENT_META_STATUS_OPTIONS, ANALYTICS_EVENT_PROPERTY_TYPES, USER_BEHAVIOR_EVENT_TYPE_LABELS, USER_BEHAVIOR_EVENT_TYPE_OPTIONS, userBehaviorEventTypeEnum } from '@zenith/shared/analytics';
 import { enumValueOf } from '@zenith/shared/core';
 import { usePermission } from '@/hooks/usePermission';
@@ -47,6 +46,7 @@ import { EMPTY_PLACEHOLDER, copyableNoColumn, dateColumn, dateTimeColumn, render
 import { JsonBlock } from '@/components/JsonBlock';
 import { msToReadable, nullableText, trimToNull } from './analytics-format';
 import { useFilterQuery } from '@/hooks/useFilterQuery';
+import { useSaveSettings, useSettings } from '@/hooks/queries/settings';
 
 const PAGE_SIZE = 20;
 
@@ -122,7 +122,7 @@ type EventMetaPayload = {
   strictMode: boolean;
 };
 type EventMetaFormValues = Omit<EventMetaPayload, 'propertySchema'> & { propertySchemaText?: string };
-type SettingsPayload = Omit<AnalyticsSettings, 'id' | 'createdAt' | 'updatedAt'>;
+type SettingsPayload = AnalyticsSettings;
 
 const defaultEventSearch: EventSearchParams = {
   eventType: undefined,
@@ -239,18 +239,20 @@ export default function AnalyticsDataPage() {
 
   const rollupQuery = useAnalyticsRollup(rollupDays, activeTab === 'rollup');
   const rollupItems = rollupQuery.data?.items ?? [];
-  const settingsQuery = useAnalyticsSettings(activeTab === 'settings');
+  const settingsQuery = useSettings('analytics', activeTab === 'settings');
   const settings = settingsDraft;
 
   useEffect(() => {
-    if (settingsQuery.data) setSettingsDraft(settingsQuery.data);
-  }, [settingsQuery.data]);
+    if (settingsQuery.data?.effective) setSettingsDraft(settingsQuery.data.effective);
+  }, [settingsQuery.data?.effective]);
 
   const cleanMutation = useCleanAnalyticsEvents();
   const saveMetaMutation = useSaveAnalyticsEventMeta();
   const deleteMetaMutation = useDeleteAnalyticsEventMeta();
   const rebuildRollupMutation = useRebuildAnalyticsRollup();
-  const saveSettingsMutation = useSaveAnalyticsSettings();
+  const saveSettingsMutation = useSaveSettings('analytics', (qc) => {
+    void qc.invalidateQueries({ queryKey: analyticsKeys.all });
+  });
   const metaModal = useEditModal<AnalyticsEventMeta, EventMetaFormValues, EventMetaPayload>({
     entityName: '事件字典',
     save: saveMetaMutation,
@@ -359,9 +361,10 @@ export default function AnalyticsDataPage() {
 
   const handleSaveSettings = async () => {
     if (!settings) return;
-    const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, ...payload } = settings;
-    const next = await saveSettingsMutation.mutateAsync({ body: payload });
-    setSettingsDraft(next);
+    const next = await saveSettingsMutation.mutateAsync({
+      body: { version: settingsQuery.data?.version ?? 0, data: settings },
+    });
+    setSettingsDraft(next.effective);
     Toast.success('保存成功');
   };
 

@@ -175,9 +175,8 @@ export const analyticsQualityQueryResultSchema = z.object({
 
 export type AnalyticsQualityQueryResult = z.infer<typeof analyticsQualityQueryResultSchema>;
 
-// ─── 采集设置（SDK 远程配置）────────────────────────────────────────────────
+// ─── SDK 公开配置（远程采集配置投影）──────────────────────────────────────────
 
-/** SDK 采集开关与采样：管理端设置实体与公开精简配置共用 */
 const analyticsCollectionSwitchFields = {
   enabled: z.boolean(),
   sampleRate: z.number(),
@@ -190,29 +189,6 @@ const analyticsCollectionSwitchFields = {
   respectDnt: z.boolean(),
 };
 
-export const analyticsSettingsSchema = z.object({
-  id: z.int(),
-  ...analyticsCollectionSwitchFields,
-  anonymizeIp: z.boolean(),
-  blacklistPaths: z.array(z.string()),
-  errorIgnorePatterns: z.array(z.string()).meta({ description: '错误忽略规则（正则字符串数组），命中 message 的错误上报直接丢弃' }),
-  retentionDays: z.int(),
-  errorRetentionDays: z.int(),
-  sessionTimeoutMinutes: z.int(),
-  trackReplay: z.boolean().meta({ description: '会话回放总开关' }),
-  replaySessionSampleRate: z.number().meta({ description: '全程录制采样率（0-1）' }),
-  replayOnError: z.boolean().meta({ description: '错误触发回放：报错时上传错误前的缓冲现场并继续录制' }),
-  replayMaskAllText: z.boolean(),
-  replayBlockSelector: z.string().meta({ description: '回放屏蔽元素的 CSS 选择器' }),
-  replayRetentionDays: z.int(),
-  replayStorageQuotaMb: z.int().meta({ description: '回放存储配额（MB，0=不限制）' }),
-  createdAt: z.string(),
-  updatedAt: z.string(),
-}).meta({ id: 'AnalyticsSettings' });
-
-export type AnalyticsSettings = z.infer<typeof analyticsSettingsSchema>;
-
-/** SDK 公开配置（无需鉴权可获取的精简版） */
 export const analyticsPublicConfigSchema = z.object({
   ...analyticsCollectionSwitchFields,
   blacklistPaths: z.array(z.string()),

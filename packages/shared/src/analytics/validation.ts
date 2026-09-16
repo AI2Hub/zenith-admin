@@ -391,33 +391,6 @@ export const createAnalyticsExperimentSchema = analyticsExperimentBaseSchema.sup
 
 export const updateAnalyticsExperimentSchema = partialForUpdate(analyticsExperimentBaseSchema).superRefine(refineExperimentWindow);
 
-// ─── 采集设置 ─────────────────────────────────────────────────────────────────
-export const updateAnalyticsSettingsSchema = z.object({
-  enabled: z.boolean().optional(),
-  sampleRate: z.number().min(0).max(1).optional(),
-  trackPageviews: z.boolean().optional(),
-  trackClicks: z.boolean().optional(),
-  trackPerformance: z.boolean().optional(),
-  trackErrors: z.boolean().optional(),
-  trackApi: z.boolean().optional(),
-  maskInputs: z.boolean().optional(),
-  respectDnt: z.boolean().optional(),
-  anonymizeIp: z.boolean().optional(),
-  blacklistPaths: z.array(z.string().max(256)).optional(),
-  /** 错误忽略规则：正则字符串数组，命中 message 的错误上报直接丢弃 */
-  errorIgnorePatterns: z.array(z.string().min(1).max(500)).max(50).optional(),
-  retentionDays: z.number().int().min(1).max(3650).optional(),
-  errorRetentionDays: z.number().int().min(1).max(3650).optional(),
-  sessionTimeoutMinutes: z.number().int().min(1).max(1440).optional(),
-  trackReplay: z.boolean().optional(),
-  replaySessionSampleRate: z.number().min(0).max(1).optional(),
-  replayOnError: z.boolean().optional(),
-  replayMaskAllText: z.boolean().optional(),
-  replayBlockSelector: z.string().max(256).optional(),
-  replayRetentionDays: z.number().int().min(1).max(3650).optional(),
-  replayStorageQuotaMb: z.number().int().min(0).max(1_048_576).optional(),
-});
-
 // ─── 会话回放 ─────────────────────────────────────────────────────────────────
 export const replayTriggerSchema = z.object({
   type: z.enum(REPLAY_TRIGGER_TYPES),
@@ -666,8 +639,6 @@ export type UpdateAnalyticsUserSegmentInput = z.infer<typeof updateAnalyticsUser
 export type CreateAnalyticsCampaignInput = z.infer<typeof createAnalyticsCampaignSchema>;
 
 export type UpdateAnalyticsCampaignInput = z.infer<typeof updateAnalyticsCampaignSchema>;
-
-export type UpdateAnalyticsSettingsInput = z.infer<typeof updateAnalyticsSettingsSchema>;
 
 /** 留存查询（客户端形态：带默认值的字段可省略） */
 export type RetentionQueryInput = z.input<typeof retentionQuerySchema>;

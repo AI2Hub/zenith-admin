@@ -3,7 +3,7 @@ import { getTableConfig } from 'drizzle-orm/pg-core';
 import { ANALYTICS_PROPERTIES_MAX_BYTES, createErrorAlertRuleSchema, funnelStepSchema, trackEventInputSchema } from '@zenith/shared/analytics';
 import { SEED_MENUS, SEED_RATE_LIMIT_RULES } from '@zenith/shared/seed';
 import type { TrackEventInput } from '@zenith/shared/analytics';
-import { userEvents, analyticsSettings } from '../../db/schema';
+import { userEvents } from '../../db/schema';
 import { getLegacyEventsWithoutIdCount, resolveDistinctId } from './analytics.service';
 
 const baseEvent = {
@@ -81,9 +81,7 @@ describe('analytics P0 contracts', () => {
 
   it('declares the P0 persistence and seed controls', () => {
     expect(userEvents.eventId).toBeDefined();
-    expect(analyticsSettings.tenantId).toBeDefined();
     expect(getTableConfig(userEvents).indexes.map((index) => index.config.name)).toContain('user_events_event_id_uq');
-    expect(getTableConfig(analyticsSettings).indexes.map((index) => index.config.name)).toContain('analytics_settings_tenant_uq');
     expect(SEED_RATE_LIMIT_RULES.map((rule) => rule.name)).toEqual(expect.arrayContaining([
       'analytics-ingest',
       'error-report',

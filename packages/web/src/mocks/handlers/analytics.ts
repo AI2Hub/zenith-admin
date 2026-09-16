@@ -17,7 +17,6 @@ import type {
   AnalyticsSavedReport,
   AnalyticsSegmentCampaign,
   AnalyticsSegmentMember,
-  AnalyticsSettings,
   AnalyticsSite,
   AnalyticsUserSegment,
   EventDetail,
@@ -184,15 +183,6 @@ let mockEventMeta: AnalyticsEventMeta[] = [
   })),
 ];
 let nextMetaId = 5;
-
-let mockSettings: AnalyticsSettings = {
-  id: 1, enabled: true, sampleRate: 1, trackPageviews: true, trackClicks: true, trackPerformance: true,
-  trackErrors: true, trackApi: true, maskInputs: true, respectDnt: false, anonymizeIp: false, blacklistPaths: ['/login'],
-  errorIgnorePatterns: ['Invalid DOM property'],
-  retentionDays: 180, errorRetentionDays: 90, sessionTimeoutMinutes: 30,
-  trackReplay: false, replaySessionSampleRate: 0, replayOnError: true, replayMaskAllText: false, replayBlockSelector: '', replayRetentionDays: 30, replayStorageQuotaMb: 4096,
-  createdAt: mockDateTimeOffset(-60 * 86400000), updatedAt: mockDateTime(),
-};
 
 const PUBLIC_CONFIG: AnalyticsPublicConfig = {
   enabled: true, sampleRate: 1, trackPageviews: true, trackClicks: true, trackPerformance: true,
@@ -937,13 +927,7 @@ export const analyticsHandlers = [
     return ok({ ...paged, list });
   }),
 
-  // ─── 设置 / 聚合 ───────────────────────────────────────────────────────────
-  mock(analyticsContract.settings, ({ ok }) => ok(mockSettings)),
-  mock(analyticsContract.updateSettings, ({ body, ok }) => {
-    mockSettings = { ...mockSettings, ...body, updatedAt: mockDateTime() };
-    return ok(mockSettings, '更新成功');
-  }),
-
+  // ─── 聚合 ──────────────────────────────────────────────────────────────────
   mock(analyticsContract.rollup, ({ query, ok }) => {
     const items: AnalyticsRollupItem[] = daysAxis(query.days ?? 30).reverse().map((statDate) => ({ statDate, pv: rand(400, 900), uv: rand(80, 200), sessions: rand(150, 300), events: rand(1000, 2000), bounceSessions: rand(30, 90), totalDwellMs: rand(20_000_000, 80_000_000) }));
     return ok({ items });

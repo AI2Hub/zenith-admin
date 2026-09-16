@@ -25,7 +25,6 @@ import {
   retentionQuerySchema,
   updateAnalyticsEventMetaSchema,
   updateAnalyticsEventOverrideSchema,
-  updateAnalyticsSettingsSchema,
   updateAnalyticsUserSegmentSchema,
 } from '../validation';
 import { dateOnly, daysQuery, siteKeyQueryField } from './_query';
@@ -61,7 +60,6 @@ import {
   analyticsPublicConfigSchema,
   analyticsQualityQueryResultSchema,
   analyticsRollupSummarySchema,
-  analyticsSettingsSchema,
   eventDetailSchema,
   eventListItemSchema,
 } from './analytics-events';
@@ -249,9 +247,7 @@ export const analyticsContract = defineContract('/api/analytics', {
   quality: op.get('/quality', { access: { permission: 'analytics:manage' }, query: analyticsQualityQuery, response: analyticsQualityQueryResultSchema, summary: '埋点质量看板' }),
   debugEvents: op.get('/debug/events', { access: { permission: 'analytics:manage' }, query: analyticsDebugEventsQuery, response: paginated(analyticsDebugEventSchema), summary: '事件调试查询' }),
 
-  // 采集设置 / 每日聚合
-  settings: op.get('/settings', { access: { permission: 'analytics:manage' }, response: analyticsSettingsSchema, summary: '获取采集设置' }),
-  updateSettings: op.put('/settings', { access: { permission: 'analytics:manage' }, body: updateAnalyticsSettingsSchema, response: analyticsSettingsSchema, summary: '更新采集设置' }),
+  // 每日聚合
   rollup: op.get('/rollup', { access: { permission: 'analytics:manage' }, query: analyticsRollupQuery, response: analyticsRollupSummarySchema, summary: '每日聚合数据' }),
   rebuildRollup: op.post('/rollup/rebuild', { access: { permission: 'analytics:manage' }, audit: '提交重建每日聚合任务', query: analyticsRollupQuery, response: asyncTaskSchema, summary: '重建每日聚合（异步任务）' }),
 

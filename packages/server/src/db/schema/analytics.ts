@@ -236,46 +236,6 @@ export type AnalyticsEventMetaRow = typeof analyticsEventMeta.$inferSelect;
 
 export type NewAnalyticsEventMeta = typeof analyticsEventMeta.$inferInsert;
 
-// ─── 采集配置 / 采样 / 保留策略（SDK 远程配置）──────────────────────────────
-export const analyticsSettings = pgTable('analytics_settings', {
-  id: idColumn(),
-  tenantId: integer(),
-  enabled: boolean().notNull().default(true),
-  sampleRate: real().notNull().default(1),
-  trackPageviews: boolean().notNull().default(true),
-  trackClicks: boolean().notNull().default(true),
-  trackPerformance: boolean().notNull().default(true),
-  trackErrors: boolean().notNull().default(true),
-  trackApi: boolean().notNull().default(true),
-  maskInputs: boolean().notNull().default(true),
-  respectDnt: boolean().notNull().default(false),
-  anonymizeIp: boolean().notNull().default(false),
-  blacklistPaths: jsonb().$type<string[]>().notNull().default([]),
-  // 错误忽略规则（正则字符串数组）：命中 message 的前端错误上报直接丢弃，用于压制
-  // dev-only 框架告警 / 浏览器插件噪音等已知无价值错误
-  errorIgnorePatterns: jsonb().$type<string[]>().notNull().default([]),
-  retentionDays: integer().notNull().default(180),
-  errorRetentionDays: integer().notNull().default(90),
-  sessionTimeoutMinutes: integer().notNull().default(30),
-  // ─── 会话回放 ───────────────────────────────────────────────────────────────
-  trackReplay: boolean().notNull().default(false),
-  replaySessionSampleRate: real().notNull().default(0),
-  replayOnError: boolean().notNull().default(true),
-  replayMaskAllText: boolean().notNull().default(false),
-  replayBlockSelector: varchar({ length: 256 }).notNull().default(''),
-  replayRetentionDays: integer().notNull().default(30),
-  // 回放存储配额（MB，0=不限制）：超限滚动淘汰旧回放（无错误优先），超硬顶（120%）拒收采样录制
-  replayStorageQuotaMb: integer().notNull().default(4096),
-  ...auditColumns(),
-  ...timestampColumns({ withTimezone: true }),
-}, (t) => [
-  uniqueIndex('analytics_settings_tenant_uq').on(sql`coalesce(${t.tenantId}, 0)`),
-]);
-
-export type AnalyticsSettingsRow = typeof analyticsSettings.$inferSelect;
-
-export type NewAnalyticsSettings = typeof analyticsSettings.$inferInsert;
-
 // ─── 前端错误监控（Issue 模型：error_groups + error_events）────────────────────
 /**
  * 错误类型：前端（SDK 上报）+ 服务端（进程内采集）共用一个枚举，取值以 `@zenith/shared/analytics` 的 `ERROR_TYPES` 为准。

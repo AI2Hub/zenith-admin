@@ -10,6 +10,7 @@ export * from './constants';
 export * from './contracts';
 export * from './module-def';
 export * from './modules/ai';
+export * from './modules/analytics';
 export * from './modules/auth';
 export * from './modules/drive';
 export * from './modules/error-tracking';
