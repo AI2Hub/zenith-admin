@@ -198,6 +198,7 @@
      不覆盖就不会跟随侧边栏的深色底色档位；透明则始终透出 .admin-sidebar 本身。 */
   background: transparent;
   border-right: none;
+  padding-right: 0;
   display: flex;
   flex-direction: column;
 }
