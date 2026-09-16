@@ -129,12 +129,12 @@ export function PrefsAppearanceSection({
     <>
       {prefSection('外观')}
 
-      {/* ── 页面 Tabs 尺寸 ── */}
-      {matchesPref(['Tabs尺寸', 'Tabs 大小', '标签控件尺寸', 'small', 'medium', 'large', '外观']) && (
+      {/* ── 标签栏尺寸 ── */}
+      {matchesPref(['标签栏尺寸', 'Tabs尺寸', 'Tabs 大小', '标签控件尺寸', 'small', 'medium', 'large', '外观']) && (
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          Tabs 尺寸
-          <Tooltip content="控制页面内部 Semi Tabs 组件的尺寸" position="right">
+          标签栏尺寸
+          <Tooltip content="控制页面内部标签栏（Semi Tabs）组件的尺寸" position="right">
             <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
           </Tooltip>
         </span>
