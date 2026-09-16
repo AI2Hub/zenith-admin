@@ -948,6 +948,17 @@ export function PrefsTabsSection({
         <Switch checked={preferences.showTabIcon} onChange={(v) => setPreferences({ showTabIcon: v })} />
       </div>
       )}
+      {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['紧凑标签', '紧凑模式', '页签密度', '标签页', '标签']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          紧凑标签页
+          <Tooltip content="减少标签栏的高度与页签间距，适合同时打开较多页面" position="right">
+            <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+          </Tooltip>
+        </span>
+        <Switch checked={preferences.compactTabs ?? true} onChange={(v) => setPreferences({ compactTabs: v })} />
+      </div>
+      )}
       {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['标签切换器', '切换器', 'chevron', '标签页', '标签']) && (
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span>显示标签切换器</span>

@@ -1311,6 +1311,60 @@
   background: radial-gradient(circle at 100% 0, transparent 9.5px, var(--semi-color-primary-light-default) 10px);
 }
 
+/* ── 紧凑模式：降低页签栏高度，同时保留足够的点击空间 ── */
+.admin-tabs-bar--compact .admin-tabs-bar__scroll {
+  gap: 8px;
+  padding: 0 10px;
+}
+
+.admin-tabs-bar--compact .admin-tab-item {
+  gap: 3px;
+  padding: 7px 0;
+  font-size: 12px;
+}
+
+.admin-tabs-bar--compact .admin-tab-item__text {
+  max-width: 104px;
+}
+
+.admin-tabs-bar--compact .admin-tab-item__close {
+  width: 14px;
+  height: 14px;
+}
+
+.admin-tabs-bar.admin-tabs-bar--compact[data-tab-style="card"] .admin-tabs-bar__scroll {
+  gap: 2px;
+  padding: 0 8px;
+}
+
+.admin-tabs-bar.admin-tabs-bar--compact[data-tab-style="card"] .admin-tab-item {
+  padding: 6px 10px;
+  margin-top: 3px;
+}
+
+.admin-tabs-bar.admin-tabs-bar--compact[data-tab-style="pill"] .admin-tabs-bar__scroll {
+  gap: 3px;
+  padding: 4px 8px;
+}
+
+.admin-tabs-bar.admin-tabs-bar--compact[data-tab-style="pill"] .admin-tab-item {
+  padding: 4px 10px;
+}
+
+.admin-tabs-bar.admin-tabs-bar--compact[data-tab-style="chrome"] .admin-tabs-bar__scroll {
+  gap: 0;
+  padding: 0 10px;
+}
+
+.admin-tabs-bar.admin-tabs-bar--compact[data-tab-style="chrome"] .admin-tab-item {
+  padding: 4px 10px;
+  margin: 4px 2px 3px;
+}
+
+.admin-tabs-bar.admin-tabs-bar--compact[data-tab-style="chrome"] .admin-tab-item--active {
+  padding-bottom: 7px;
+}
+
 .admin-tab-item__icon {
   display: inline-flex;
   align-items: center;

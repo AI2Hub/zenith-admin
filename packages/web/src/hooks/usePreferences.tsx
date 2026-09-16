@@ -121,6 +121,8 @@ export interface UserPreferences {
   enablePageCache: boolean;
   tabsMaxCount: number;
   showTabIcon: boolean;
+  /** 页签栏是否使用紧凑间距与高度 */
+  compactTabs: boolean;
   tabStyle: TabStyle;
   navLayout: NavLayout;
   showBreadcrumb: boolean;
@@ -238,6 +240,7 @@ export const defaultPreferences: UserPreferences = {
   enablePageCache: true,
   tabsMaxCount: 20,
   showTabIcon: true,
+  compactTabs: true,
   tabStyle: 'line',
   navLayout: 'vertical',
   showBreadcrumb: false,
