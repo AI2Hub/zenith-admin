@@ -1502,6 +1502,44 @@
   color: var(--semi-color-text-0);
 }
 
+/* ── 短线式：激活页签下方一条居中短横线 ── */
+.admin-tabs-bar[data-tab-style="shortline"] .admin-tabs-bar__scroll {
+  gap: 16px;
+  padding: 0 16px;
+}
+
+[data-tab-style="shortline"] .admin-tab-item--active::after {
+  left: 50%;
+  width: 20px;
+  transform: translateX(-50%);
+}
+
+/* ── 圆点式：激活页签下方一颗小圆点 ── */
+.admin-tabs-bar[data-tab-style="dot"] .admin-tabs-bar__scroll {
+  gap: 16px;
+  padding: 0 16px;
+}
+
+[data-tab-style="dot"] .admin-tab-item--active::after {
+  left: 50%;
+  bottom: 2px;
+  width: 4px;
+  height: 4px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+}
+
+/* ── 顶线式：VS Code 式激活页签顶部主题色线 ── */
+.admin-tabs-bar[data-tab-style="topline"] .admin-tabs-bar__scroll {
+  gap: 16px;
+  padding: 0 16px;
+}
+
+[data-tab-style="topline"] .admin-tab-item--active::after {
+  top: 0;
+  bottom: auto;
+}
+
 /* ── 紧凑模式：降低页签栏高度，同时保留足够的点击空间 ── */
 .admin-tabs-bar--compact .admin-tabs-bar__scroll {
   gap: 8px;
@@ -1581,6 +1619,13 @@
 
 .admin-tabs-bar.admin-tabs-bar--compact[data-tab-style="block"] .admin-tab-item {
   padding: 3px 10px;
+}
+
+.admin-tabs-bar.admin-tabs-bar--compact[data-tab-style="shortline"] .admin-tabs-bar__scroll,
+.admin-tabs-bar.admin-tabs-bar--compact[data-tab-style="dot"] .admin-tabs-bar__scroll,
+.admin-tabs-bar.admin-tabs-bar--compact[data-tab-style="topline"] .admin-tabs-bar__scroll {
+  gap: 12px;
+  padding: 0 10px;
 }
 
 .admin-tab-item__icon {
