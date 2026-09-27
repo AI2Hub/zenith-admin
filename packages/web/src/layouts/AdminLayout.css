@@ -1798,6 +1798,73 @@
   transform-origin: left center;
 }
 
+/* ===== 路由切换动画预览弹出层（Popover 内容）：小窗 + 循环播放的假页面 ===== */
+.route-anim-preview {
+  width: 168px;
+  padding: 8px;
+  overflow: hidden;
+  background: var(--semi-color-bg-0);
+  border: 1px solid var(--semi-color-border);
+  border-radius: var(--semi-border-radius-medium);
+}
+
+.route-anim-preview__page {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.route-anim-preview__title {
+  width: 40%;
+  height: 8px;
+  background: var(--semi-color-primary-light-default);
+  border-radius: var(--semi-border-radius-small);
+}
+
+.route-anim-preview__line {
+  height: 6px;
+  background: var(--semi-color-fill-2);
+  border-radius: var(--semi-border-radius-small);
+}
+
+.route-anim-preview__line--short {
+  width: 60%;
+}
+
+@keyframes preview-loop-route-fade {
+  0%   { opacity: 0; }
+  15%  { opacity: 1; }
+  65%  { opacity: 1; }
+  80%  { opacity: 0; }
+  100% { opacity: 0; }
+}
+
+@keyframes preview-loop-route-slide-up {
+  0%   { opacity: 0; transform: translateY(12px); }
+  15%  { opacity: 1; transform: translateY(0); }
+  65%  { opacity: 1; transform: translateY(0); }
+  80%  { opacity: 0; transform: translateY(12px); }
+  100% { opacity: 0; transform: translateY(12px); }
+}
+
+@keyframes preview-loop-route-slide-left {
+  0%   { opacity: 0; transform: translateX(16px); }
+  15%  { opacity: 1; transform: translateX(0); }
+  65%  { opacity: 1; transform: translateX(0); }
+  80%  { opacity: 0; transform: translateX(16px); }
+  100% { opacity: 0; transform: translateX(16px); }
+}
+
+.route-anim-preview[data-anim="fade"] .route-anim-preview__page {
+  animation: preview-loop-route-fade 2.5s ease infinite;
+}
+.route-anim-preview[data-anim="slide-up"] .route-anim-preview__page {
+  animation: preview-loop-route-slide-up 2.5s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+.route-anim-preview[data-anim="slide-left"] .route-anim-preview__page {
+  animation: preview-loop-route-slide-left 2.5s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
 /* ===== 标签页动画 keyframes ===== */
 @keyframes tab-fade-in {
   from { opacity: 0; transform: translateY(-4px); }

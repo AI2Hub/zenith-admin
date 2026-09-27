@@ -1419,10 +1419,31 @@ export function PrefsTabsSection({
           value={preferences.routeAnimation ?? 'fade'}
           onChange={(e) => setPreferences({ routeAnimation: e.target.value as RouteAnimation })}
         >
-          <Radio value="none">无</Radio>
-          <Radio value="fade">淡入</Radio>
-          <Radio value="slide-up">上滑</Radio>
-          <Radio value="slide-left">左滑</Radio>
+          {(['none', 'fade', 'slide-up', 'slide-left'] as const).map((anim) => {
+            const labels: Record<string, string> = { none: '无', fade: '淡入', 'slide-up': '上滑', 'slide-left': '左滑' };
+            const radio = <Radio key={anim} value={anim}>{labels[anim]}</Radio>;
+            if (anim === 'none') return radio;
+            return (
+              <Popover
+                key={anim}
+                trigger="hover"
+                position="bottom"
+                mouseEnterDelay={100}
+                mouseLeaveDelay={100}
+                content={
+                  <div className="route-anim-preview" data-anim={anim}>
+                    <div className="route-anim-preview__page">
+                      <div className="route-anim-preview__title" />
+                      <div className="route-anim-preview__line" />
+                      <div className="route-anim-preview__line route-anim-preview__line--short" />
+                    </div>
+                  </div>
+                }
+              >
+                {radio}
+              </Popover>
+            );
+          })}
         </RadioGroup>
       </div>
       </PreferenceControl>
