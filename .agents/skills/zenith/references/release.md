@@ -115,9 +115,13 @@ Lint、测试、构建、文档站四类验证**互相独立**（只读源码、
 npx concurrently --group --timings --kill-others-on-fail -n lint,test,build,docs \
   "npm run lint" \
   "npm test" \
-  "npm run build && npm run build:demo" \
+  "VITE_DEPLOYMENT_ID=local npm run build && VITE_DEPLOYMENT_ID=local npm run build:demo" \
   "npm run docs:build"
 ```
+
+> 本地构建必须带 `VITE_DEPLOYMENT_ID`：`npm run build` / `build:demo` 都写 `packages/web/dist`，
+> 而生产构建缺这个标识会直接抛「生产构建必须设置唯一的 VITE_DEPLOYMENT_ID」（CI 由 workflow 注入 `ci-build` / `ci-demo`，
+> 本地用任意合规标识即可，如 `local`）。标识只在产物里烘焙一次，与 CI 注入值不同不影响验证。
 
 四路全部 `exit code 0` 方可继续。并行墙钟取决于最长的一路（通常是 test 或 build）。
 任一路失败会立即终止其余任务，修复后可只重跑失败的那条命令。
