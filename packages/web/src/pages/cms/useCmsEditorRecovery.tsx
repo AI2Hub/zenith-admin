@@ -1,8 +1,9 @@
 import { useCallback, useContext, useEffect, useRef, useState, type RefObject } from 'react';
 import { UNSAFE_NavigationContext, useLocation, type To } from 'react-router-dom';
-import { Modal } from '@douyinfe/semi-ui';
+import { Button, Modal } from '@douyinfe/semi-ui';
 import { useDebouncer } from '@tanstack/react-pacer';
 import { useAuth } from '@/hooks/useAuth';
+import { ModalFooter } from '@/components/ModalFooter';
 import type { CmsAlbumImage, CmsContentAttachment } from '@zenith/shared/cms';
 
 export interface CmsEditorDraft {
@@ -50,6 +51,11 @@ export function useCmsEditorRecovery({ key, dirty, getDraft }: Readonly<{
     try { localStorage.removeItem(storageKey); } catch { /* 无存储环境仍有离开提醒 */ }
     setPending(null);
   }, [persistDebouncer, storageKey]);
+  /** 用户明确选择「直接离开」：丢弃刚写入的恢复副本，并标记失效，避免卸载时的 persist 把它写回。 */
+  const discard = useCallback(() => {
+    retiredKeys.current.add(storageKey);
+    clear();
+  }, [clear, storageKey]);
   useEffect(() => {
     // The editor itself moved the current local draft after its first POST.
     // Keep that recovery copy without offering to restore over the live input.
@@ -90,10 +96,33 @@ export function useCmsEditorRecovery({ key, dirty, getDraft }: Readonly<{
       const retained = persist();
       if (confirming) return;
       confirming = true;
-      Modal.confirm({
-        title: '离开当前稿件？', content: retained ? '还有未保存到服务器的修改。可以继续编辑并保存；离开后可从本浏览器的恢复副本找回。' : '恢复副本保存失败。请返回编辑页保存到服务器，否则离开将丢失当前修改。',
-        okText: retained ? '保留副本并离开' : '放弃修改并离开', cancelText: '继续编辑',
-        onOk: () => { confirming = false; run(); }, onCancel: () => { confirming = false; },
+      let modal: { destroy: () => void } | null = null;
+      // 自定义 footer 不走 Modal.confirm 自带的确定 / 取消，必须用实例的 destroy 关闭弹窗。
+      const leave = (before?: () => void) => {
+        confirming = false;
+        before?.();
+        modal?.destroy();
+        run();
+      };
+      modal = Modal.confirm({
+        title: '离开当前稿件？',
+        content: retained
+          ? '还有未保存到服务器的修改。可以继续编辑并保存；保留副本后可从本浏览器的恢复副本找回。'
+          : '恢复副本保存失败。请返回编辑页保存到服务器，否则离开将丢失当前修改。',
+        // ESC / 遮罩 / 关闭图标经这里收尾：漏掉会把确认态留在已关闭的弹窗上，之后离开只剩恢复副本、再也不提示。
+        onCancel: () => { confirming = false; },
+        footer: (
+          <ModalFooter
+            cancelText="继续编辑"
+            onCancel={() => { confirming = false; modal?.destroy(); }}
+            okText={retained ? '保留副本并离开' : '放弃修改并离开'}
+            okType={retained ? 'primary' : 'danger'}
+            onOk={() => leave()}
+            extraActions={retained
+              ? <Button type="danger" theme="light" onClick={() => leave(discard)}>直接离开</Button>
+              : undefined}
+          />
+        ),
       });
     };
     const push: typeof originalPush = (...args) => staysInDraft(args[0]) ? originalPush.apply(navigator, args) : confirm(() => originalPush.apply(navigator, args));
@@ -111,7 +140,7 @@ export function useCmsEditorRecovery({ key, dirty, getDraft }: Readonly<{
       if (navigator.replace === replace) navigator.replace = originalReplace;
       if (navigator.go === go) navigator.go = originalGo;
     };
-  }, [dirty, navigator, persist, persistDebouncer]);
+  }, [dirty, navigator, persist, persistDebouncer, discard]);
   const navigateSaved = (action: () => void) => {
     allowed.current = true;
     try { action(); } finally { allowed.current = false; }

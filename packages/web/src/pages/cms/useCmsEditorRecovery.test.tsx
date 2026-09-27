@@ -5,13 +5,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useCmsEditorRecovery } from './useCmsEditorRecovery';
 
 const { confirm, account } = vi.hoisted(() => ({ confirm: vi.fn(), account: { id: 71 } }));
-vi.mock('@douyinfe/semi-ui', () => ({ Modal: { confirm } }));
+vi.mock('@douyinfe/semi-ui', () => ({ Modal: { confirm }, Button: () => null }));
 vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: { id: account.id } }) }));
 
 const key = 'cms-editor-recovery:71:3:new-article';
 const otherKey = 'cms-editor-recovery:72:3:new-article';
 const draft = { values: { title: '未保存的新稿' }, body: '<p>正文修改</p>', albumImages: [], attachments: [], version: 3 };
 const wrapper = ({ children }: { children: ReactNode }) => <MemoryRouter initialEntries={['/cms/contents/edit']}>{children}</MemoryRouter>;
+/** 弹窗页脚（`ModalFooter`）的 props：确定 / 取消动作与第三个「直接离开」都在这里。 */
+const lastFooter = () => confirm.mock.calls[confirm.mock.calls.length - 1][0].footer.props;
 
 beforeEach(() => { confirm.mockReset(); account.id = 71; localStorage.removeItem(key); localStorage.removeItem(otherKey); });
 afterEach(() => { localStorage.removeItem(key); localStorage.removeItem(otherKey); });
@@ -24,7 +26,35 @@ describe('CMS 编辑恢复', () => {
     expect(hook.result.current.location.pathname).toBe('/cms/contents/edit');
     expect(JSON.parse(localStorage.getItem(key)!)).toMatchObject(draft);
     expect(confirm).toHaveBeenCalledTimes(1);
-    act(() => confirm.mock.calls[0][0].onOk());
+    act(() => lastFooter().onOk());
+    expect(hook.result.current.location.pathname).toBe('/cms/contents');
+    hook.unmount();
+  });
+
+  it('leaves immediately on request and drops the recovery copy written for the prompt', () => {
+    const dirty = { current: true };
+    const hook = renderHook(() => ({ recovery: useCmsEditorRecovery({ key: '3:new-article', dirty, getDraft: () => draft }), navigate: useNavigate(), location: useLocation() }), { wrapper });
+    act(() => hook.result.current.navigate('/cms/contents'));
+    expect(localStorage.getItem(key)).not.toBeNull();
+    expect(lastFooter().extraActions.props.children).toBe('直接离开');
+    act(() => lastFooter().extraActions.props.onClick());
+    expect(localStorage.getItem(key)).toBeNull();
+    expect(hook.result.current.location.pathname).toBe('/cms/contents');
+    hook.unmount();
+    // 卸载时的 persist 不得把刚丢弃的副本写回。
+    expect(localStorage.getItem(key)).toBeNull();
+  });
+
+  it('offers no recovery copy when it cannot be written, and warns that leaving loses the edits', () => {
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('quota exceeded'); });
+    const dirty = { current: true };
+    const hook = renderHook(() => ({ recovery: useCmsEditorRecovery({ key: '3:new-article', dirty, getDraft: () => draft }), navigate: useNavigate(), location: useLocation() }), { wrapper });
+    act(() => hook.result.current.navigate('/cms/contents'));
+    const footer = lastFooter();
+    expect(footer.extraActions).toBeUndefined();
+    expect(footer).toMatchObject({ okText: '放弃修改并离开', okType: 'danger' });
+    setItem.mockRestore();
+    act(() => footer.onOk());
     expect(hook.result.current.location.pathname).toBe('/cms/contents');
     hook.unmount();
   });
