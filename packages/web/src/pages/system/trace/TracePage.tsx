@@ -5,14 +5,14 @@ import {
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Search } from 'lucide-react';
-import type { TraceFailureEntry, TraceNodeKind, TraceNodeStatus, TraceTimelineNode } from '@zenith/shared/platform';
+import type { TraceFailureEntry, TraceListEntry, TraceNodeKind, TraceNodeStatus, TraceTimelineNode } from '@zenith/shared/platform';
 import { TRACE_NODE_KIND_LABELS, TRACE_NODE_KINDS, TRACE_NODE_STATUS_LABELS } from '@zenith/shared/platform';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { listTableProps } from '@/components/list-page';
 import { usePermission } from '@/hooks/usePermission';
 import { useUrlTabState } from '@/hooks/useUrlTabState';
-import { useRecentTraceFailures, useTraceTimeline } from '@/hooks/queries/trace';
+import { useRecentTraceFailures, useRecentTraces, useTraceTimeline } from '@/hooks/queries/trace';
 import { useLogFiles, useLogFileContent } from '@/hooks/queries/log-files';
 import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { FilterSelect } from '@/components/search-filters';
@@ -86,6 +86,58 @@ function TraceLogsPanel({ traceId }: { traceId: string }) {
         </Text>
       )}
     </Spin>
+  );
+}
+
+/** 最近链路列表（无 ID 时的默认浏览入口） */
+function RecentTracesPanel({ onView }: { onView: (traceId: string) => void }) {
+  const [days, setDays] = useState(7);
+  const tracesQuery = useRecentTraces(days);
+  const columns: ColumnProps<TraceListEntry>[] = [
+    dateTimeColumn('最近活动', 'ts'),
+    { title: '入口摘要', dataIndex: 'title', minWidth: 220, render: (v: string) => renderEllipsis(v) },
+    {
+      title: '链路 ID', dataIndex: 'traceId', width: 220,
+      render: (v: string) => <Text size="small" style={{ fontFamily: 'monospace' }}>{v}</Text>,
+    },
+    {
+      title: '状态', dataIndex: 'status', width: 90,
+      render: (v: TraceNodeStatus) => <Tag size="small" color={STATUS_META[v].color}>{TRACE_NODE_STATUS_LABELS[v]}</Tag>,
+    },
+    { title: '节点', dataIndex: 'nodeCount', width: 70, align: 'right' },
+    {
+      title: '失败', dataIndex: 'failedCount', width: 70, align: 'right',
+      render: (v: number) => (v > 0 ? <Text type="danger" size="small">{v}</Text> : <Text type="tertiary" size="small">0</Text>),
+    },
+    createOperationColumn<TraceListEntry>({
+      width: 120,
+      actions: (r) => [{ key: 'view', label: '查看链路', onClick: () => onView(r.traceId) }],
+    }),
+  ];
+
+  return (
+    <>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' }}>
+        <Select
+          value={days}
+          onChange={(v) => setDays(v as number)}
+          optionList={[{ value: 1, label: '近 1 天' }, { value: 3, label: '近 3 天' }, { value: 7, label: '近 7 天' }, { value: 30, label: '近 30 天' }]}
+          style={{ width: 120 }}
+        />
+      </div>
+      <ConfigurableTable
+        columnSettings={false}
+        columns={columns}
+        {...listTableProps(tracesQuery, {
+          rowKey: (r?: TraceListEntry) => r?.traceId ?? '',
+          empty: '时间窗内没有链路记录',
+        })}
+        pagination={false}
+      />
+      <Text type="tertiary" size="small" style={{ display: 'block', marginTop: 8 }}>
+        按最近活动时间倒序，最多展示最近 50 条；点击「查看链路」展开完整时间线。
+      </Text>
+    </>
   );
 }
 
@@ -180,8 +232,8 @@ export default function TracePage() {
     if (traceId) applyTraceId(null);
   }
 
-  /** 失败列表行点击：回填 ID、切换到查询 Tab 并触发查询 */
-  function handleViewFailure(id: string) {
+  /** 失败 / 最近链路列表行点击：回填 ID、切到查询 Tab 并触发查询 */
+  function handleViewTrace(id: string) {
     setDraft(id);
     setActiveTab('query');
     applyTraceId(id);
@@ -243,7 +295,7 @@ export default function TracePage() {
           </div>
 
           {!traceId ? (
-            <Empty title="输入链路 ID 开始追踪" description="从操作日志详情、任务中心、报错提示或「最近失败」页签获取链路 ID" style={{ padding: '48px 0' }} />
+            <RecentTracesPanel onView={handleViewTrace} />
           ) : (
             <Spin spinning={timelineQuery.isFetching}>
               {timelineQuery.isFetched && nodes.length === 0 ? (
@@ -292,7 +344,7 @@ export default function TracePage() {
         </TabPane>
         <TabPane tab="最近失败" itemKey="failures">
           <div style={{ marginTop: 12 }}>
-            <RecentFailuresPanel onView={handleViewFailure} />
+            <RecentFailuresPanel onView={handleViewTrace} />
           </div>
         </TabPane>
       </Tabs>

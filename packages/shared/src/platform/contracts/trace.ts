@@ -26,6 +26,18 @@ export const traceTimelineSchema = z.object({
 
 export type TraceTimeline = z.infer<typeof traceTimelineSchema>;
 
+/** 最近链路条目（无 ID 时的浏览入口） */
+export const traceListEntrySchema = z.object({
+  traceId: z.string(),
+  ts: z.string().meta({ description: '最近活动时间', example: '2026-08-28 12:00:00' }),
+  title: z.string().meta({ description: '入口摘要（首个请求的方法路径 / 触发作业 / 任务标题）' }),
+  status: z.enum(TRACE_NODE_STATUSES).meta({ description: '汇总状态：任一节点失败为 failed，否则有在途节点为 running / pending，全成功为 success' }),
+  nodeCount: z.int().meta({ description: '链路内节点总数' }),
+  failedCount: z.int().meta({ description: '失败节点数' }),
+}).meta({ id: 'TraceListEntry' });
+
+export type TraceListEntry = z.infer<typeof traceListEntrySchema>;
+
 /** 最近失败链路条目（排障入口列表） */
 export const traceFailureEntrySchema = z.object({
   kind: z.enum(TRACE_NODE_KINDS),
@@ -49,9 +61,14 @@ export const traceFailureListQuery = z.object({
   kind: queryEnum(TRACE_NODE_KINDS, '按节点类型过滤'),
 });
 
+export const traceListQuery = z.object({
+  days: z.coerce.number().int().min(1).max(30).optional().meta({ description: '时间窗天数，默认 7' }),
+});
+
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const traceContract = defineContract('/api/trace', {
+  recent: op.get('/recent', { access: { permission: 'system:trace:view' }, query: traceListQuery, response: z.array(traceListEntrySchema), summary: '最近链路（按最近活动时间倒序，含节点 / 失败计数与汇总状态）' }),
   recentFailures: op.get('/recent-failures', { access: { permission: 'system:trace:view' }, query: traceFailureListQuery, response: z.array(traceFailureEntrySchema), summary: '最近失败链路（请求 5xx / 作业失败 / 任务失败 / 通知派发失败）' }),
   timeline: op.get('/{traceId}', { access: { permission: 'system:trace:view' }, params: traceIdParam, response: traceTimelineSchema, summary: '按 traceId 聚合一次操作的时间线（请求/作业/事件/通知/任务）' }),
 }, { tags: ['链路追踪'] });

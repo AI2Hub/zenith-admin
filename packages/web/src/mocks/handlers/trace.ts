@@ -1,5 +1,5 @@
 import { analyticsCampaignContract } from '@zenith/shared/analytics';
-import { traceContract, type TraceFailureEntry, type TraceTimelineNode } from '@zenith/shared/platform';
+import { traceContract, type TraceFailureEntry, type TraceListEntry, type TraceTimelineNode } from '@zenith/shared/platform';
 import { urlOf } from '@/lib/contract-query';
 import { mock } from '@/mocks/utils/contract';
 import { mockDateTime } from '../utils/date';
@@ -38,6 +38,21 @@ function buildDemoNodes(): TraceTimelineNode[] {
   ];
 }
 
+/** Demo 模式最近链路：含成功 / 进行中 / 失败形态，失败行与 buildDemoFailures 对得上 */
+function buildDemoRecent(): TraceListEntry[] {
+  return [
+    {
+      traceId: 'demo-trace-failed-0001', ts: mockDateTime(),
+      title: `POST ${urlOf(analyticsCampaignContract.executeCampaign, { params: { id: 1 } })}`,
+      status: 'failed', nodeCount: 5, failedCount: 1,
+    },
+    { traceId: 'demo-trace-0002', ts: mockDateTime(), title: 'PUT /api/cms/contents/101', status: 'success', nodeCount: 3, failedCount: 0 },
+    { traceId: 'demo-trace-0003', ts: mockDateTime(), title: '触达活动执行', status: 'running', nodeCount: 2, failedCount: 0 },
+    { traceId: 'demo-trace-failed-0002', ts: mockDateTime(), title: '数据导入', status: 'failed', nodeCount: 2, failedCount: 1 },
+    { traceId: 'demo-trace-failed-0003', ts: mockDateTime(), title: 'POST /api/payment/refunds', status: 'failed', nodeCount: 1, failedCount: 1 },
+  ];
+}
+
 function buildDemoFailures(): TraceFailureEntry[] {
   return [
     { kind: 'job', refId: 601, traceId: 'demo-trace-failed-0001', title: 'webhook_delivery', error: '死信：目标地址连接超时', ts: mockDateTime() },
@@ -47,6 +62,7 @@ function buildDemoFailures(): TraceFailureEntry[] {
 }
 
 export const traceHandlers = [
+  mock(traceContract.recent, ({ ok }) => ok(buildDemoRecent())),
   mock(traceContract.recentFailures, ({ ok }) => ok(buildDemoFailures())),
   mock(traceContract.timeline, ({ params, ok }) => ok({ traceId: params.traceId, nodes: buildDemoNodes() })),
 ];

@@ -5,11 +5,15 @@ import { OpenAPIHono } from '@hono/zod-openapi';
 import { traceContract } from '@zenith/shared/platform';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
-import { getTraceTimeline, listRecentTraceFailures } from '../../services/platform/trace.service';
+import { getTraceTimeline, listRecentTraces, listRecentTraceFailures } from '../../services/platform/trace.service';
 
 const traceRouter = new OpenAPIHono({ defaultHook: validationHook });
 
 // 静态路由须早于 /{traceId}
+const recentRoute = defineContractRoute(traceContract.recent, {
+  handler: async (c) => c.json(okBody(await listRecentTraces(c.req.valid('query'))), 200),
+});
+
 const recentFailuresRoute = defineContractRoute(traceContract.recentFailures, {
   handler: async (c) => c.json(okBody(await listRecentTraceFailures(c.req.valid('query'))), 200),
 });
@@ -21,6 +25,6 @@ const timelineRoute = defineContractRoute(traceContract.timeline, {
   },
 });
 
-traceRouter.openapiRoutes([recentFailuresRoute, timelineRoute] as const);
+traceRouter.openapiRoutes([recentRoute, recentFailuresRoute, timelineRoute] as const);
 
 export default traceRouter;

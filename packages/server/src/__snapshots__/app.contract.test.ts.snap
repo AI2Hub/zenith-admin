@@ -1259,6 +1259,7 @@ exports[`路由表快照 > 完整路由表保持不变 1`] = `
   "GET /api/terminal-recordings/:id/asciinema",
   "GET /api/terminal-sessions",
   "GET /api/trace/:traceId",
+  "GET /api/trace/recent",
   "GET /api/trace/recent-failures",
   "GET /api/user-groups",
   "GET /api/user-groups/:id",
