@@ -97,7 +97,7 @@ function RecentTracesPanel({ onView }: { onView: (traceId: string) => void }) {
     dateTimeColumn('最近活动', 'ts'),
     { title: '入口摘要', dataIndex: 'title', minWidth: 220, render: (v: string) => renderEllipsis(v) },
     {
-      title: '链路 ID', dataIndex: 'traceId', width: 280,
+      title: '链路 ID', dataIndex: 'traceId', width: 340, ellipsis: { showTitle: false },
       render: (v: string) => (
         <Text size="small" ellipsis={{ showTooltip: true }} style={{ fontFamily: 'monospace', maxWidth: '100%' }}>{v}</Text>
       ),
