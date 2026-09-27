@@ -1,14 +1,14 @@
 import { useMemo } from 'react';
-import { Card, Spin, Typography } from '@douyinfe/semi-ui';
+import { Card, Empty, Spin, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { CommonChart, chartOptions, makeMixedBarLineSpec, useChartPalette, StatCard, StatGrid } from '@/components/charts';
+import { BarChart, CommonChart, chartOptions, makeBarSpec, makeMixedBarLineSpec, useChartPalette, StatCard, StatGrid } from '@/components/charts';
 import { Bot, CircleCheck, Coins, Gauge, MessageCircle, Users, Wallet } from 'lucide-react';
 import { useListSearch } from '@/hooks/useListSearch';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { ListSearchToolbar } from '@/components/list-page';
 import { formatDateRangeValuesForApi, shortDate } from '@/utils/date';
 import { aiUsageKeys, useAiUsageStats } from '@/hooks/queries/ai-usage';
-import type { AiUsageByModel, AiUsageByUser } from '@/hooks/queries/ai-usage';
+import type { AiUsageByModel } from '@/hooks/queries/ai-usage';
 import { DateRangeFilter } from '@/components/search-filters';
 import { formatDurationMs } from '@/utils/format';
 import { EMPTY_PLACEHOLDER } from '@/utils/table-columns';
@@ -65,22 +65,23 @@ export default function AiUsagePage() {
     { title: '预估成本', dataIndex: 'costFen', width: 110, render: (value: number | null) => formatCostYuan(value) },
   ];
 
-  const userColumns: ColumnProps<AiUsageByUser>[] = [
-    {
-      title: '用户',
-      dataIndex: 'nickname',
-      width: 220,
-      render: (_: unknown, record) => (
-        <div>
-          <Text>{record.nickname || record.username}</Text>
-          <Text type="tertiary" size="small" style={{ display: 'block' }}>{record.username}</Text>
-        </div>
-      ),
-    },
-    { title: '对话数', dataIndex: 'conversations', width: 120, align: 'right', render: (value: number) => formatNumber(value) },
-    { title: '回复数', dataIndex: 'messages', width: 120, align: 'right', render: (value: number) => formatNumber(value) },
-    { title: '总Token', dataIndex: 'totalTokens', width: 140, align: 'right', render: (value: number) => formatNumber(value) },
-  ];
+  const userChartData = useMemo(
+    () => userData.map((u) => ({ name: u.nickname || u.username, totalTokens: u.totalTokens })),
+    [userData],
+  );
+
+  const userBarSpec = useMemo(() => makeBarSpec({
+    data: userChartData,
+    xField: 'name',
+    series: [{ field: 'totalTokens', name: '总 Token' }],
+    palette,
+    horizontal: true,
+    showLabel: true,
+    barMinHeight: 2,
+    categoryAxisWidth: 140,
+    axis: { yLabel: formatNumber },
+    tooltip: { value: (v) => `${formatNumber(v)} Token` },
+  }), [userChartData, palette]);
 
   const trendChartData = (stats?.trend ?? []).map((item) => ({ ...item, shortDate: shortDate(item.date) }));
 
@@ -157,37 +158,30 @@ export default function AiUsagePage() {
             <CommonChart {...trendSpec} options={chartOptions} height={280} />
           </Card>
 
-          <div className="chart-grid">
-            <Card title={<Text strong>按模型用量</Text>} bodyStyle={{ padding: 12 }}>
-              <ConfigurableTable
-                bordered
-                columns={modelColumns}
-                dataSource={modelData}
-                loading={statsQuery.isFetching}
-                rowKey="model"
-                size="small"
-                pagination={false}
-                empty="暂无模型用量"
-                onRefresh={() => void statsQuery.refetch()}
-                refreshLoading={statsQuery.isFetching}
-              />
-            </Card>
+          <Card title={<Text strong>按模型用量</Text>} bodyStyle={{ padding: 12 }}>
+            <ConfigurableTable
+              bordered
+              columns={modelColumns}
+              dataSource={modelData}
+              loading={statsQuery.isFetching}
+              rowKey="model"
+              size="small"
+              pagination={false}
+              empty="暂无模型用量"
+              onRefresh={() => void statsQuery.refetch()}
+              refreshLoading={statsQuery.isFetching}
+            />
+          </Card>
 
-            <Card title={<Text strong>用量 Top 10 用户</Text>} bodyStyle={{ padding: 12 }}>
-              <ConfigurableTable
-                bordered
-                columns={userColumns}
-                dataSource={userData}
-                loading={statsQuery.isFetching}
-                rowKey="userId"
-                size="small"
-                pagination={false}
-                empty="暂无用户用量"
-                onRefresh={() => void statsQuery.refetch()}
-                refreshLoading={statsQuery.isFetching}
-              />
-            </Card>
-          </div>
+          <Card
+            title={<Text strong>用量 Top 10 用户</Text>}
+            bodyStyle={{ padding: 12 }}
+            headerExtraContent={<Text type="tertiary" size="small">按总 Token</Text>}
+          >
+            {userChartData.length > 0
+              ? <BarChart {...userBarSpec} options={chartOptions} height={320} />
+              : <Empty description="暂无用户用量" style={{ padding: '86px 0' }} />}
+          </Card>
         </div>
       </Spin>
     </div>
