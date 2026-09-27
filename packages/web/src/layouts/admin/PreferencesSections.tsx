@@ -1350,7 +1350,7 @@ export function PrefsTabsSection({
       </div>
       </PreferenceControl>
       )}
-      {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['标签风格', '风格', '线条', '胶囊', '卡片', 'chrome', '谷歌', '极简', 'minimal', '标签页', '标签']) && (
+      {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['标签风格', '风格', '线条', '胶囊', '卡片', 'chrome', '谷歌', '极简', 'minimal', '分段', 'segment', '方块', 'block', '标签页', '标签']) && (
       <PreferenceControl path="tabStyle">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span>标签页风格</span>
@@ -1362,6 +1362,8 @@ export function PrefsTabsSection({
             { value: 'card', label: '卡片' },
             { value: 'chrome', label: '谷歌' },
             { value: 'minimal', label: '极简' },
+            { value: 'segment', label: '分段' },
+            { value: 'block', label: '方块' },
           ]}
           onChange={(v) => setPreferences({ tabStyle: v as TabStyle })}
           style={{ width: 120 }}

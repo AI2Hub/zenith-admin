@@ -1439,6 +1439,69 @@
   background: none;
 }
 
+/* ── 分段式：整条轨道带底色，激活页签浮起 ── */
+.admin-tabs-bar[data-tab-style="segment"] {
+  border-bottom: 1px solid var(--semi-color-border);
+}
+
+.admin-tabs-bar[data-tab-style="segment"] .admin-tabs-bar__scroll {
+  gap: 2px;
+  padding: 4px 12px;
+  background: var(--semi-color-fill-0);
+}
+
+/* stylelint-disable-next-line no-descending-specificity */
+[data-tab-style="segment"] .admin-tab-item {
+  padding: 6px 14px;
+  border-radius: var(--semi-border-radius-medium);
+}
+
+[data-tab-style="segment"] .admin-tab-item::after {
+  display: none;
+}
+
+[data-tab-style="segment"] .admin-tab-item--active {
+  background: var(--semi-color-bg-0);
+  color: var(--semi-color-primary);
+  font-weight: 500;
+  box-shadow: var(--semi-shadow-elevated);
+}
+
+[data-tab-style="segment"] .admin-tab-item:hover:not(.admin-tab-item--active) {
+  background: var(--semi-color-fill-1);
+  color: var(--semi-color-text-0);
+}
+
+/* ── 方块式：直角小方块，描边高亮 ── */
+.admin-tabs-bar[data-tab-style="block"] .admin-tabs-bar__scroll {
+  gap: 6px;
+  padding: 5px 12px;
+}
+
+/* stylelint-disable-next-line no-descending-specificity */
+[data-tab-style="block"] .admin-tab-item {
+  padding: 5px 12px;
+  border: 1px solid var(--semi-color-border);
+  border-radius: var(--semi-border-radius-small);
+  background: transparent;
+}
+
+[data-tab-style="block"] .admin-tab-item::after {
+  display: none;
+}
+
+[data-tab-style="block"] .admin-tab-item--active {
+  border-color: var(--semi-color-primary);
+  background: var(--semi-color-primary-light-default);
+  color: var(--semi-color-primary);
+  font-weight: 500;
+}
+
+[data-tab-style="block"] .admin-tab-item:hover:not(.admin-tab-item--active) {
+  border-color: var(--semi-color-text-3);
+  color: var(--semi-color-text-0);
+}
+
 /* ── 紧凑模式：降低页签栏高度，同时保留足够的点击空间 ── */
 .admin-tabs-bar--compact .admin-tabs-bar__scroll {
   gap: 8px;
@@ -1500,6 +1563,24 @@
 
 .admin-tabs-bar.admin-tabs-bar--compact[data-tab-style="minimal"] .admin-tab-item {
   padding: 7px 0;
+}
+
+.admin-tabs-bar.admin-tabs-bar--compact[data-tab-style="segment"] .admin-tabs-bar__scroll {
+  gap: 2px;
+  padding: 3px 8px;
+}
+
+.admin-tabs-bar.admin-tabs-bar--compact[data-tab-style="segment"] .admin-tab-item {
+  padding: 4px 10px;
+}
+
+.admin-tabs-bar.admin-tabs-bar--compact[data-tab-style="block"] .admin-tabs-bar__scroll {
+  gap: 4px;
+  padding: 4px 8px;
+}
+
+.admin-tabs-bar.admin-tabs-bar--compact[data-tab-style="block"] .admin-tab-item {
+  padding: 3px 10px;
 }
 
 .admin-tab-item__icon {

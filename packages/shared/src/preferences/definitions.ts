@@ -84,7 +84,7 @@ const metadata: Record<PreferencePath, Entry> = {
   tabEvictPolicy: { label: '标签超限关闭策略', group: 'tabs', options: options(C.TAB_EVICT_POLICIES, ['最早打开（FIFO）', '最久未使用（LRU）']), applicableWhen: tabs },
   openTabBehavior: { label: '新标签插入位置', group: 'tabs', options: options(C.OPEN_TAB_BEHAVIORS, ['末尾', '当前标签后方']), applicableWhen: tabs },
   tabDoubleClickAction: { label: '双击标签行为', group: 'tabs', options: options(C.TAB_DOUBLE_CLICK_ACTIONS, ['刷新', '关闭', '无']), applicableWhen: tabs },
-  tabStyle: { label: '标签页风格', group: 'tabs', options: options(C.TAB_STYLES, ['线条', '胶囊', '卡片', '谷歌', '极简']), applicableWhen: tabs },
+  tabStyle: { label: '标签页风格', group: 'tabs', options: options(C.TAB_STYLES, ['线条', '胶囊', '卡片', '谷歌', '极简', '分段', '方块']), applicableWhen: tabs },
   tabAnimation: { label: '标签页动画', group: 'tabs', options: options(C.TAB_ANIMATIONS, ['无', '淡入', '滑入', '缩放']), applicableWhen: { all: [tabs, motion] } },
   routeAnimation: { label: '路由切换动画', group: 'tabs', options: options(C.ROUTE_ANIMATIONS, ['无', '淡入', '上滑', '左滑']), applicableWhen: motion },
   notificationSound: { label: '通知提示音', group: 'notifications', description: '浏览器首次播放前需要用户交互。' },
