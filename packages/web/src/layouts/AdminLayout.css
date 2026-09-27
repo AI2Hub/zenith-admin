@@ -1412,6 +1412,33 @@
   background: radial-gradient(circle at 100% 0, transparent 9.5px, var(--semi-color-primary-light-default) 10px);
 }
 
+/* ── 极简风格：纯文本，无背景、无下划线，仅颜色 + 字重区分 ── */
+.admin-tabs-bar[data-tab-style="minimal"] .admin-tabs-bar__scroll {
+  gap: 16px;
+  padding: 0 16px;
+}
+
+/* stylelint-disable-next-line no-descending-specificity */
+[data-tab-style="minimal"] .admin-tab-item {
+  padding: 10px 0;
+  background: none;
+  border-radius: 0;
+}
+
+[data-tab-style="minimal"] .admin-tab-item::after {
+  display: none;
+}
+
+[data-tab-style="minimal"] .admin-tab-item--active {
+  color: var(--semi-color-primary);
+  font-weight: 500;
+}
+
+[data-tab-style="minimal"] .admin-tab-item:hover:not(.admin-tab-item--active) {
+  color: var(--semi-color-text-0);
+  background: none;
+}
+
 /* ── 紧凑模式：降低页签栏高度，同时保留足够的点击空间 ── */
 .admin-tabs-bar--compact .admin-tabs-bar__scroll {
   gap: 8px;
@@ -1464,6 +1491,15 @@
 
 .admin-tabs-bar.admin-tabs-bar--compact[data-tab-style="chrome"] .admin-tab-item--active {
   padding-bottom: 7px;
+}
+
+.admin-tabs-bar.admin-tabs-bar--compact[data-tab-style="minimal"] .admin-tabs-bar__scroll {
+  gap: 12px;
+  padding: 0 10px;
+}
+
+.admin-tabs-bar.admin-tabs-bar--compact[data-tab-style="minimal"] .admin-tab-item {
+  padding: 7px 0;
 }
 
 .admin-tab-item__icon {

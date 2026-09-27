@@ -1350,20 +1350,22 @@ export function PrefsTabsSection({
       </div>
       </PreferenceControl>
       )}
-      {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['标签风格', '风格', '线条', '胶囊', '卡片', 'chrome', '谷歌', '标签页', '标签']) && (
+      {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['标签风格', '风格', '线条', '胶囊', '卡片', 'chrome', '谷歌', '极简', 'minimal', '标签页', '标签']) && (
       <PreferenceControl path="tabStyle">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span>标签页风格</span>
-        <RadioGroup
-          type="button"
+        <Select
           value={preferences.tabStyle ?? 'line'}
-          onChange={(e) => setPreferences({ tabStyle: e.target.value as TabStyle })}
-        >
-          <Radio value="line">线条</Radio>
-          <Radio value="pill">胶囊</Radio>
-          <Radio value="card">卡片</Radio>
-          <Radio value="chrome">谷歌</Radio>
-        </RadioGroup>
+          optionList={[
+            { value: 'line', label: '线条' },
+            { value: 'pill', label: '胶囊' },
+            { value: 'card', label: '卡片' },
+            { value: 'chrome', label: '谷歌' },
+            { value: 'minimal', label: '极简' },
+          ]}
+          onChange={(v) => setPreferences({ tabStyle: v as TabStyle })}
+          style={{ width: 120 }}
+        />
       </div>
       </PreferenceControl>
       )}
