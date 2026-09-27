@@ -343,23 +343,23 @@ export default function SystemSchedulerPage() {
       render: (_: unknown, record) => renderQueue(record),
     },
     {
-      title: '告警',
+      title: '告警统计',
+      dataIndex: 'alertCount',
+      width: 150,
+      render: (_: unknown, record) => (
+        <Space vertical align="start" spacing={2}>
+          {record.lastAlertMessage
+            ? <Tag color="red" prefixIcon={<AlertTriangle size={12} />}>{record.alertCount}</Tag>
+            : <Tag color="grey">无</Tag>}
+          <Typography.Text type="tertiary" size="small">{record.alertEnabled ? record.alertChannels.map((item) => alertChannelMap[item]).join(' / ') : '未启用'}</Typography.Text>
+        </Space>
+      ),
+    },
+    {
+      title: '最近告警',
       dataIndex: 'lastAlertMessage',
-      minWidth: 300,
-      render: (_: unknown, record) => record.lastAlertMessage
-        ? (
-          <Space vertical align="start" spacing={2}>
-            <Tag color="red" prefixIcon={<AlertTriangle size={12} />}>{record.alertCount}</Tag>
-            <Typography.Text size="small">{record.alertChannels.map((item) => alertChannelMap[item]).join(' / ') || '未配置渠道'}</Typography.Text>
-            {renderEllipsis(record.lastAlertMessage)}
-          </Space>
-        )
-        : (
-          <Space vertical align="start" spacing={2}>
-            <Typography.Text type="tertiary">无</Typography.Text>
-            <Typography.Text type="tertiary" size="small">{record.alertEnabled ? record.alertChannels.map((item) => alertChannelMap[item]).join(' / ') : '未启用'}</Typography.Text>
-          </Space>
-        ),
+      minWidth: 220,
+      render: (v: string | null) => (v ? renderEllipsis(v) : EMPTY_PLACEHOLDER),
     },
     {
       title: '留存策略',
@@ -379,7 +379,7 @@ export default function SystemSchedulerPage() {
         </Space>
       ),
     },
-    { title: '注册节点', dataIndex: 'registeredHostname', width: 180, render: (_: unknown, record) => renderNode(record.registeredHostname, record.registeredPid) },
+    { title: '注册节点', dataIndex: 'registeredHostname', width: 220, render: (_: unknown, record) => renderEllipsis(renderNode(record.registeredHostname, record.registeredPid)) },
     {
       title: '运行次数',
       align: 'right',
@@ -469,17 +469,19 @@ export default function SystemSchedulerPage() {
     { title: '执行节点', dataIndex: 'nodeHostname', width: 190, render: (_: unknown, record) => renderNode(record.nodeHostname, record.nodePid) },
     { title: 'Job ID', dataIndex: 'jobId', width: 220, render: renderEllipsis },
     {
-      title: '告警',
+      title: '告警信息',
       dataIndex: 'alertMessage',
-      width: 270,
-      render: (_: unknown, record) => record.alertMessage
-        ? (
-          <Space vertical align="start" spacing={2}>
-            {renderEllipsis(record.alertMessage)}
-            <Tag color={record.alertAckAt ? 'green' : 'red'}>{record.alertAckAt ? '已确认' : '未确认'}</Tag>
-          </Space>
-        )
-        : <Typography.Text type="tertiary">无</Typography.Text>,
+      width: 200,
+      render: (v: string | null) => (v ? renderEllipsis(v) : <Typography.Text type="tertiary">无</Typography.Text>),
+    },
+    {
+      title: '确认状态',
+      dataIndex: 'alertAckAt',
+      width: 90,
+      render: (_: unknown, record) => {
+        if (!record.alertMessage) return EMPTY_PLACEHOLDER;
+        return <Tag color={record.alertAckAt ? 'green' : 'red'}>{record.alertAckAt ? '已确认' : '未确认'}</Tag>;
+      },
     },
     {
       title: '输出',
