@@ -101,7 +101,9 @@ export async function updateMaintenanceStatus(input: UpdateMaintenanceInput): Pr
     if (existing) {
       [updated] = await tx.update(maintenanceMode).set(values).where(eq(maintenanceMode.id, 1)).returning();
     } else {
-      [updated] = await tx.insert(maintenanceMode).values({ id: 1, ...values } as typeof maintenanceMode.$inferInsert).returning();
+      // 单例首行：id 交由 identity 自增分配（空表首行即 1，与各处 eq(id, 1) 读写一致）；
+      // 显式插 id 会被 GENERATED ALWAYS AS IDENTITY 拒绝（PUT /api/maintenance 首开 500）
+      [updated] = await tx.insert(maintenanceMode).values(values as typeof maintenanceMode.$inferInsert).returning();
     }
 
     await recordMaintenanceLog(tx, { wasEnabled, nowEnabled: input.enabled, message, estimatedEndAt, now });
