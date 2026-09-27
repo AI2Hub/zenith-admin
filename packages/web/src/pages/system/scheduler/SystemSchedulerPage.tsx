@@ -22,7 +22,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import { formatDateTimeRangeForApi } from '@/utils/date';
 import { formatDurationMs as formatDuration } from '@/utils/format';
-import { EMPTY_PLACEHOLDER, dateTimeColumn, overflowTagColumn, renderEllipsis } from '@/utils/table-columns';
+import { EMPTY_PLACEHOLDER, dateTimeColumn, overflowTagColumn, renderCodeEllipsis, renderEllipsis } from '@/utils/table-columns';
 import {
   systemSchedulerKeys,
   useAcknowledgeSystemSchedulerAlert,
@@ -302,16 +302,22 @@ export default function SystemSchedulerPage() {
 
   const taskColumns: ColumnProps<SystemSchedulerTask>[] = [
     {
-      title: '任务',
+      title: '任务标题',
       dataIndex: 'title',
-      width: 280,
+      width: 200,
       fixed: 'left',
-      render: (_: unknown, record) => (
-        <Space vertical align="start" spacing={2}>
-          <Typography.Text strong>{record.title}</Typography.Text>
-          <Typography.Text type="tertiary" size="small">{record.name}</Typography.Text>
-        </Space>
+      render: (v: string) => (
+        <Typography.Text strong ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>
+          {v}
+        </Typography.Text>
       ),
+    },
+    {
+      title: '任务标识',
+      dataIndex: 'name',
+      width: 180,
+      fixed: 'left',
+      render: renderCodeEllipsis,
     },
     { title: '模块', dataIndex: 'module', width: 110 },
     {
@@ -426,16 +432,22 @@ export default function SystemSchedulerPage() {
 
   const runColumns: ColumnProps<SystemSchedulerRun>[] = [
     {
-      title: '任务',
+      title: '任务标题',
       dataIndex: 'taskTitle',
-      width: 260,
+      width: 200,
       fixed: 'left',
-      render: (_: unknown, record) => (
-        <Space vertical align="start" spacing={2}>
-          <Typography.Text strong>{record.taskTitle}</Typography.Text>
-          <Typography.Text type="tertiary" size="small">{record.taskName}</Typography.Text>
-        </Space>
+      render: (v: string) => (
+        <Typography.Text strong ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>
+          {v}
+        </Typography.Text>
       ),
+    },
+    {
+      title: '任务标识',
+      dataIndex: 'taskName',
+      width: 180,
+      fixed: 'left',
+      render: renderCodeEllipsis,
     },
     { title: '模块', dataIndex: 'module', width: 110 },
     {
