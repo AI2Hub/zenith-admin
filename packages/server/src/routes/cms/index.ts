@@ -23,6 +23,7 @@ import {
   cmsSeoContract,
   cmsSiteContract,
   cmsStatContract,
+  cmsTelemetryAdminContract,
   cmsStaticContract,
   cmsSubscriptionContract,
   cmsTagContract,
@@ -56,6 +57,7 @@ import cmsSeoRoutes from './seo';
 import cmsSitesRoutes from './sites';
 import cmsStaticRoutes from './static';
 import cmsStatsRoutes from './stats';
+import cmsTelemetryRoutes from './telemetry';
 import cmsSubscriptionsRoutes from './subscriptions';
 import cmsTagsRoutes from './tags';
 import cmsUploadRoutes from './upload';
@@ -83,6 +85,7 @@ export default defineRouteDomain({
     [cmsErrorProneWordContract.basePath, cmsErrorProneWordsRoutes, { feature: 'cms' }],
     [cmsInteractionContract.basePath, cmsInteractionsRoutes, { feature: 'cms' }],
     [cmsStatContract.basePath, cmsStatsRoutes, { feature: 'cms' }],
+    [cmsTelemetryAdminContract.basePath, cmsTelemetryRoutes, { feature: 'cms' }],
     [cmsCollectContract.basePath, cmsCollectRoutes, { feature: 'cms' }],
     [cmsPageContract.basePath, cmsPagesRoutes, { feature: 'cms' }],
     [cmsWidgetContract.basePath, cmsWidgetsRoutes, { feature: 'cms' }],

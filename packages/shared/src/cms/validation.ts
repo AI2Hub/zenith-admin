@@ -758,6 +758,7 @@ export const cmsSubscriptionSubjectSchema = z.object({
   subjectId: z.number().int().positive().nullable().optional(),
   subjectKey: z.string().trim().max(255).nullable().optional(),
   notificationEnabled: z.boolean().default(true),
+  attribution: cmsAttributionContextSchema.optional(),
 }).superRefine((value, ctx) => {
   if ((value.subjectType === 'site' || value.subjectType === 'channel') && !value.subjectId) {
     ctx.addIssue({ code: 'custom', path: ['subjectId'], message: '站点/栏目订阅必须指定对象 ID' });
@@ -935,6 +936,7 @@ export const submitCmsCommentSchema = z.object({
   parentId: z.coerce.number().int().min(0).optional(),
   /** 蜜罐字段：正常用户不可见不填写，机器人填写即拒绝 */
   website: z.string().max(0, '提交被拒绝').optional(),
+  attribution: cmsAttributionContextSchema.optional(),
 });
 
 export type CreateCmsRedirectInput = z.input<typeof createCmsRedirectSchema>;

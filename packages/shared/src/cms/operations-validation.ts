@@ -1,11 +1,9 @@
 import * as z from 'zod';
 import { dateTimeStringSchema, partialForUpdate } from '../core/validation';
 import { CMS_EDITORIAL_TASK_SOURCES, CMS_EDITORIAL_TASK_STATUSES, CMS_FEEDBACK_STATUSES } from './constants';
+import { cmsTelemetryConversionContextSchema } from './telemetry';
 
-export const cmsAttributionContextSchema = z.object({
-  contentId: z.int().positive().nullish(), releaseId: z.int().positive().nullish(), deploymentId: z.int().positive().nullish(),
-  entryPath: z.string().startsWith('/').max(500), entrySource: z.string().max(128), visitorId: z.string().max(64).optional(),
-});
+export const cmsAttributionContextSchema = cmsTelemetryConversionContextSchema;
 export type CmsAttributionContext = z.infer<typeof cmsAttributionContextSchema>;
 
 export const updateCmsFeedbackSchema = z.object({

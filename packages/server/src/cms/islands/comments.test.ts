@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mountComments } from './comments';
+import * as analytics from './analytics';
 import { flush, html, setMemberToken, stubFetch } from './test-utils';
 
 const SECTION = `<section class="comments" data-island="comments">
@@ -30,6 +31,15 @@ describe('comments island', () => {
     localStorage.clear();
   });
   afterEach(() => vi.restoreAllMocks());
+
+  it('会员评论将页面身份上下文随业务请求提交', async () => {
+    const attribution = { contextToken: 'signed', visitorId: '13a2e23f-6d22-4a58-ab1a-6110142be161', sessionId: '24a2e23f-6d22-4a58-ab1a-6110142be161', pageViewId: '35a2e23f-6d22-4a58-ab1a-6110142be161', entryPath: '/', entrySource: 'direct' };
+    vi.spyOn(analytics, 'getCmsAttributionContext').mockReturnValue(attribution);
+    setMemberToken('member-token'); const { calls } = stubFetch([{ code: 0, message: '已收到' }]);
+    const { form } = mount(); form.querySelector<HTMLTextAreaElement>('textarea')!.value = '评论正文';
+    form.dispatchEvent(new Event('submit', { cancelable: true })); await flush();
+    expect(calls[0].body).toMatchObject({ content: '评论正文', attribution });
+  });
 
   it('回复定位：点击「回复」写入 parentId 并显示提示；「取消回复」还原', () => {
     stubFetch([]);

@@ -41,7 +41,7 @@ function EmptyWidget({ widget }: CmsWidgetRendererProps) {
 function SidebarRenderer({ widget }: CmsWidgetRendererProps) {
   if (widget.items.length === 0) return <EmptyWidget widget={widget} />;
   return (
-    <section className="cms-widget cms-widget-sidebar">
+    <section data-cms-placement="widget" data-cms-block-id={String(widget.id)} data-cms-component-name={widget.name} className="cms-widget cms-widget-sidebar">
       <h2 className="cms-widget__title">{widget.name}</h2>
       {widget.items.map((item) => (
         <div className="cms-widget-sidebar__item" key={item.id}>
@@ -57,7 +57,7 @@ function SidebarRenderer({ widget }: CmsWidgetRendererProps) {
 function GridRenderer({ widget }: CmsWidgetRendererProps) {
   if (widget.items.length === 0) return <EmptyWidget widget={widget} />;
   return (
-    <section className="cms-widget">
+    <section data-cms-placement="widget" data-cms-block-id={String(widget.id)} data-cms-component-name={widget.name} className="cms-widget">
       <h2 className="cms-widget__title">{widget.name}</h2>
       <div className="cms-widget-grid">
         {widget.items.map((item) => (
@@ -77,7 +77,7 @@ function GridRenderer({ widget }: CmsWidgetRendererProps) {
 function CarouselRenderer({ widget }: CmsWidgetRendererProps) {
   if (widget.items.length === 0) return <EmptyWidget widget={widget} />;
   return (
-    <section className="cms-widget">
+    <section data-cms-placement="widget" data-cms-block-id={String(widget.id)} data-cms-component-name={widget.name} className="cms-widget">
       <h2 className="cms-widget__title">{widget.name}</h2>
       <div className="cms-widget-carousel">
         {widget.items.map((item) => (

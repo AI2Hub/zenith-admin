@@ -29,7 +29,7 @@ import logger from '../../lib/logger';
 // 采集（ingest）
 // ════════════════════════════════════════════════════════════════════════════
 
-export interface IngestReqCtx { ip: string; ua: string; siteKey?: string | null; origin?: string | null }
+export interface IngestReqCtx { ip: string; ua: string; siteKey?: string | null; origin?: string | null; /** Set only by the signed CMS collector, never request JSON. */ cmsVerified?: boolean; onInserted?: (eventIds: string[]) => void; onRejected?: (reason: string) => void; onPersisted?: (tx: DbExecutor, eventIds: string[]) => Promise<void> }
 type NormalizedTrackEvent = TrackEventInput & { eventId: string };
 let legacyEventsWithoutId = 0;
 
@@ -81,12 +81,13 @@ interface IngestIdentityCtx {
   storedIp: string;
   ua: string;
   site: ResolvedAnalyticsSite | null;
+  cmsVerified?: boolean;
 }
 
 /** 组装单条事件的入库行：身份 / 平台字段解析在此统一收口，供 session/画像聚合复用同一份解析结果。 */
 function buildIngestRow(e: NormalizedTrackEvent, ctx: IngestIdentityCtx) {
   const platform = resolveIngestPlatformFields(e, { hasAdmin: ctx.hasAdmin, hasMember: ctx.hasMember });
-  if (!ctx.hasAdmin && !ctx.hasMember && ctx.site) platform.appId = ctx.site.appId;
+  if (ctx.site && (ctx.cmsVerified || (!ctx.hasAdmin && !ctx.hasMember))) platform.appId = ctx.site.appId;
   const eventTime = resolveEventTime(e.ts);
   return {
     eventId: e.eventId,
@@ -142,11 +143,18 @@ type IngestEventRow = ReturnType<typeof buildIngestRow>;
 
 export async function batchInsertEvents(rawEvents: TrackEventInput[], reqCtx: IngestReqCtx): Promise<void> {
   if (rawEvents.length === 0) return;
-  const user = currentUserOrNull();
+  // Generic telemetry cannot impersonate a verified CMS fact, even with a public site key.
+  if (!reqCtx.cmsVerified) rawEvents = rawEvents.map(event => {
+    if (!event.properties) return event;
+    const properties = { ...event.properties }; delete properties.trustedCms; delete properties.cmsSchemaVersion;
+    return { ...event, properties };
+  });
+  const user = reqCtx.cmsVerified ? null : currentUserOrNull();
   // 管理员 / 会员身份互斥：单次请求只会经过其中一种认证中间件
   const member = user ? undefined : currentMemberOrNull();
-  const site = (!user && !member) ? await resolveSiteByKey(reqCtx.siteKey).catch(() => null) : null;
-  if (site && !isSiteOriginAllowed(reqCtx.origin, site.allowedOrigins)) {
+  const site = (reqCtx.cmsVerified || (!user && !member)) ? await resolveSiteByKey(reqCtx.siteKey).catch(() => null) : null;
+  if (site && !reqCtx.cmsVerified && !isSiteOriginAllowed(reqCtx.origin, site.allowedOrigins)) {
+    reqCtx.onRejected?.('origin_rejected');
     await recordSiteRejection(site, rawEvents, 'origin_rejected');
     return;
   }
@@ -192,6 +200,7 @@ export async function batchInsertEvents(rawEvents: TrackEventInput[], reqCtx: In
     storedIp,
     ua: reqCtx.ua,
     site,
+    cmsVerified: reqCtx.cmsVerified,
   };
   const rows: IngestEventRow[] = events.map((e) => buildIngestRow(e, identityCtx));
 
@@ -217,7 +226,7 @@ export async function batchInsertEvents(rawEvents: TrackEventInput[], reqCtx: In
       const inserted = await tx
         .insert(userEvents)
         .values(rows)
-        .onConflictDoNothing({ target: userEvents.eventId })
+        .onConflictDoNothing(reqCtx.cmsVerified ? undefined : { target: userEvents.eventId })
         .returning({ eventId: userEvents.eventId });
       const insertedIds = new Set(inserted.flatMap((row) => row.eventId ? [row.eventId] : []));
       const freshEvents = events.filter((event) => insertedIds.has(event.eventId));
@@ -227,18 +236,21 @@ export async function batchInsertEvents(rawEvents: TrackEventInput[], reqCtx: In
         if (!quota.allowed) throw new SiteQuotaExceededError();
         consumedQuotaCount = freshEvents.length;
       }
+      await reqCtx.onPersisted?.(tx, [...insertedIds]);
       await upsertSessions(tx, freshRows, { tenantId, userId: identityCtx.userId, memberId: identityCtx.memberId, username: displayName, env, geo });
       await upsertUserProfiles(tx, freshRows, { identityType, userId: identityCtx.userId, memberId: identityCtx.memberId, displayName });
       return freshEvents;
     });
   } catch (err) {
     if (err instanceof SiteQuotaExceededError && site) {
+      reqCtx.onRejected?.('quota_exceeded');
       await recordSiteRejection(site, events, 'quota_exceeded');
       return;
     }
     if (site && consumedQuotaCount > 0) await refundSiteQuota(site.id, consumedQuotaCount);
     throw err;
   }
+  reqCtx.onInserted?.(insertedEvents.map(event => event.eventId));
   if (pendingSchemaIssues.length > 0) {
     // 只对真正新鲜落库（未被 onConflictDoNothing 去重）的事件计入质量问题，避免重放批次重复计数
     const freshEventIds = new Set(insertedEvents.map((e) => e.eventId));

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mountFollow } from './follow';
+import * as analytics from './analytics';
 import * as member from './shared/member';
 import { flush, html, setMemberToken, stubFetch } from './test-utils';
 
@@ -12,6 +13,15 @@ describe('follow island', () => {
     localStorage.clear();
   });
   afterEach(() => vi.restoreAllMocks());
+
+  it('关注只在创建业务请求中携带当前页面归因', async () => {
+    const attribution = { contextToken: 'signed', visitorId: '13a2e23f-6d22-4a58-ab1a-6110142be161', sessionId: '24a2e23f-6d22-4a58-ab1a-6110142be161', pageViewId: '35a2e23f-6d22-4a58-ab1a-6110142be161', entryPath: '/', entrySource: 'direct' };
+    vi.spyOn(analytics, 'getCmsAttributionContext').mockReturnValue(attribution);
+    setMemberToken('member-token'); const { calls } = stubFetch([{ code: 0, data: null }, { code: 0, data: { id: 5 } }]);
+    const button = html(BUTTON).querySelector<HTMLButtonElement>('button')!;
+    mountFollow(button); await flush(); button.click(); await flush();
+    expect(calls[0].url).not.toContain('contextToken'); expect(calls[1].body).toMatchObject({ attribution });
+  });
 
   it('未登录：文案改为「登录后关注」，点击跳会员端登录，不发请求', () => {
     const { calls } = stubFetch([]);

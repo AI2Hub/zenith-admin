@@ -1,5 +1,6 @@
 import { apiJson, isOk } from './shared/api';
 import { readMemberToken } from './shared/member';
+import { getCmsAttributionContext } from './analytics';
 
 /** 回复：点击评论的「回复」按钮把 parentId 写入表单并显示提示；「取消回复」还原 */
 function wireReplies(section: HTMLElement, form: HTMLFormElement): void {
@@ -72,7 +73,7 @@ function wireMemberSubmit(form: HTMLFormElement): void {
     apiJson(api, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ content, parentId }),
+      body: JSON.stringify({ content, parentId, attribution: getCmsAttributionContext(form.ownerDocument) }),
     })
       .then((result) => {
         if (isOk(result)) {

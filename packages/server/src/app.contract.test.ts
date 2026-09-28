@@ -203,7 +203,8 @@ describe('认证契约：声明与运行时行为必须一致', () => {
     // 会话并发拒绝模式 1 个匿名端点（POST /api/auth/session-conflict/resolve）：与 MFA 验证同构——凭据已通过后签发的
     // 5 分钟一次性票据（GETDEL），受 authRateLimit 约束，不接受任何身份声明。
     const publicOps = operations.filter((op) => op.isDeclaredPublic);
-    expect(publicOps.length).toBeLessThanOrEqual(68);
+    // CMS telemetry validates a signed published-page context and stable event IDs before anonymous ingest.
+    expect(publicOps.length).toBeLessThanOrEqual(69);
   });
 });
 

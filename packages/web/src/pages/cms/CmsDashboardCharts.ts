@@ -3,3 +3,4 @@
 export { default as CmsPublishVisitTrendChart } from './CmsPublishVisitTrendChart';
 export { default as CmsChannelDistributionChart } from './CmsChannelDistributionChart';
 export { default as CmsContentTypeDonut } from './CmsContentTypeDonut';
+export { default as CmsStatsTrend } from './stats/CmsStatsTrend';

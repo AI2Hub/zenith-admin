@@ -740,3 +740,8 @@ export const CMS_TWITTER_CARD_LABELS: Record<(typeof CMS_TWITTER_CARDS)[number],
   summary_large_image: '大图摘要',
   summary: '标准摘要',
 };
+
+/** CMS v2 telemetry: server success events cannot be submitted by browsers. */
+export const CMS_TELEMETRY_ENVIRONMENTS = ['live', 'preview', 'internal-test'] as const;
+export const CMS_TELEMETRY_CLIENT_EVENTS = ['cms.page_view', 'cms.engagement', 'cms.read', 'cms.search', 'cms.search_click', 'cms.component_impression', 'cms.component_click', 'cms.media_start', 'cms.media_progress', 'cms.media_error', 'cms.download_click', 'cms.form_start', 'cms.form_error'] as const;
+export const CMS_TELEMETRY_SERVER_EVENTS = ['cms.form_complete', 'cms.vote_complete', 'cms.comment_complete', 'cms.follow_complete', 'cms.download_delivered'] as const;

@@ -32,7 +32,7 @@ export type CmsFormHandlingPolicy = z.infer<typeof cmsFormHandlingPolicySchema>;
 export const cmsWorkspaceSchema = paginated(cmsWorkspaceItemSchema).extend({ counters: z.array(z.object({ queue: z.enum(CMS_WORKSPACE_QUEUES), count: z.int(), available: z.boolean() })) }).meta({ id: 'CmsWorkspace' });
 export const cmsAttributionSchema = z.object({
   totals: z.array(z.object({ event: z.enum(CMS_ATTRIBUTION_EVENTS), count: z.int(), visitors: z.int() })),
-  journeys: z.array(z.object({ contentId: z.int().nullable(), contentTitle: z.string().nullable(), releaseId: z.int().nullable(), deploymentId: z.int().nullable(), entryPath: z.string(), source: z.string(), reads: z.int(), clicks: z.int(), downloads: z.int(), formCompletions: z.int(), voteCompletions: z.int() })),
+  journeys: z.array(z.object({ contentId: z.int().nullable(), contentTitle: z.string().nullable(), releaseId: z.int().nullable(), deploymentId: z.int().nullable(), entryPath: z.string(), source: z.string(), entries: z.int(), reads: z.int(), clicks: z.int(), downloads: z.int(), formCompletions: z.int(), voteCompletions: z.int() })).meta({ description: '可信 v2 事件；成功转化归属同访客同会话最近 30 分钟内最后一次内容访问，未建立来源的事件保留未归因' }),
 }).meta({ id: 'CmsAttribution' });
 export type CmsAttribution = z.infer<typeof cmsAttributionSchema>;
 const siteScope = { siteId: requiredIdQuery() };

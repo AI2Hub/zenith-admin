@@ -5,6 +5,7 @@ import { requireItem } from '../utils/crud';
 import { badRequest, conflict, nextIdFrom } from '../utils/handlers';
 import { mockDateTime } from '../utils/date';
 import { matchesFilter } from '../utils/filter';
+import { hasMockCmsNoResultKeyword } from './cms-stats';
 import { mockCmsContents, mockCmsForms, mockCmsSites } from '../data/cms';
 import { mockUsers } from '../data/users';
 import { mockWorkflowDefinitions } from '../data/workflow';
@@ -87,7 +88,7 @@ export const cmsOperationsHandlers = [
   mock(cmsOperationsContract.taskDetail, ({ params, ok }) => ok(task(requireItem(mockCmsEditorialTasks, params.id, '事项不存在', { status: 404 })))),
   mock(cmsOperationsContract.createTask, ({ body, ok }) => {
     requireItem(mockCmsSites, body.siteId, '站点不存在', { status: 404 }); person(body.ownerId); taskContent(body.siteId, body.contentId);
-    if (body.source === 'search' && !mockCmsNoResultKeywords.some((row) => row.keyword === body.sourceKeyword)) return badRequest('无结果搜索词不存在', { status: 400 });
+    if (body.source === 'search' && !hasMockCmsNoResultKeyword(body.siteId, body.sourceKeyword ?? '') && !mockCmsNoResultKeywords.some((row) => row.keyword === body.sourceKeyword)) return badRequest('无结果搜索词不存在', { status: 400 });
     if (body.source === 'submission' && feedback(body.feedbackId!).siteId !== body.siteId) return badRequest('来源来信必须属于本站', { status: 400 });
     const existing = mockCmsEditorialTasks.find((row) => row.siteId === body.siteId && row.source === body.source && (body.source === 'search' ? row.sourceKeyword === body.sourceKeyword : body.source === 'submission' && row.feedbackId === body.feedbackId));
     if (existing) return ok(task(existing));
@@ -115,6 +116,6 @@ export const cmsOperationsHandlers = [
     const count = reads.reduce((total, row) => total + row.count, 0);
     const visitors = reads.reduce((total, row) => total + row.visitors, 0);
     return ok({ totals: CMS_ATTRIBUTION_EVENTS.map((event) => ({ event, count: event === 'cms.read' || event === 'cms.entry' ? count : 0, visitors: event === 'cms.read' || event === 'cms.entry' ? visitors : 0 })),
-      journeys: reads.map((row) => ({ contentId: row.contentId, contentTitle: row.contentTitle, releaseId: null, deploymentId: null, entryPath: row.entryPath, source: 'direct', reads: row.count, clicks: 0, downloads: 0, formCompletions: 0, voteCompletions: 0 })) });
+      journeys: reads.map((row) => ({ contentId: row.contentId, contentTitle: row.contentTitle, releaseId: null, deploymentId: null, entryPath: row.entryPath, source: 'direct', entries: row.count, reads: row.count, clicks: 0, downloads: 0, formCompletions: 0, voteCompletions: 0 })) });
   }),
 ];

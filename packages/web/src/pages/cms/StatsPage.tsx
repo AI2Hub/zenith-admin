@@ -1,189 +1,125 @@
-/** 访问统计（P4）：PV/UV 趋势、内容 TOP、来源/设备/通道分布 + 搜索分析（无结果词榜） */
-import { useState } from 'react';
+import { lazy, Suspense, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, Space, Spin, Typography, Empty, Tabs, TabPane, RadioGroup, Radio, Tag, Toast } from '@douyinfe/semi-ui';
-import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { ConfigurableTable } from '@/components/ConfigurableTable';
-import { SearchToolbar } from '@/components/SearchToolbar';
-import { useCmsVisitStats, useCmsSearchAnalytics } from '@/hooks/queries/cms';
-import type { CmsVisitStats, CmsSearchAnalytics } from '@zenith/shared/cms';
-import { CmsSiteSelect } from './CmsSiteSelect';
+import { Banner, Button, Card, Empty, Select, Space, Spin, TabPane, Tabs, Tag, Typography } from '@douyinfe/semi-ui';
+import { cmsStatContract, CMS_CONTENT_TYPES, CMS_CONTENT_TYPE_LABELS, type CmsStatMetrics } from '@zenith/shared/cms';
 import { StatCard, StatGrid } from '@/components/charts/StatCard';
-import { DataBar } from '@/components/data-viz/DataBar';
-
+import DateTimeText from '@/components/DateTimeText';
+import { DateRangeFilter, FilterSelect } from '@/components/search-filters';
+import { ListSearchToolbar } from '@/components/list-page';
+import { useListSearch } from '@/hooks/useListSearch';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import { usePermission } from '@/hooks/usePermission';
-import { useCreateCmsEditorialTask } from '@/hooks/queries/cms-operations';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { useCmsTaskEditor } from './CmsEditorialTasks';
+import { useCmsSiteDetail } from '@/hooks/queries/cms-sites';
+import { cmsStatKeys, useCmsStatsOptions, useCmsStatsOverview, useCmsStatsQuality, type CmsStatsQuery } from '@/hooks/queries/cms-stats';
+import { contractKey } from '@/lib/contract-query';
+import { formatDateRangeForApi } from '@/utils/date';
+import { IANA_TIMEZONE_OPTIONS } from '@/utils/timezones';
+import { CmsSiteSelect } from './CmsSiteSelect';
 import CmsAttributionPanel from './CmsAttributionPanel';
-const DEVICE_LABELS: Record<string, string> = { pc: 'PC', mobile: '移动端', bot: '爬虫' };
+import CmsStatsReport from './stats/CmsStatsReport';
+import CmsStatsNameFilter from './stats/CmsStatsNameFilter';
+import CmsStatsQuality, { CMS_COLLECTION_STATUS } from './stats/CmsStatsQuality';
+import { useCmsTelemetrySettings } from './stats/CmsTelemetrySettings';
+import { DIMENSION_LABELS, METRIC_LABELS, cmsStatsDateRange, displayCmsMetric, formatCmsScopeTime, type CmsStatsDimension } from './stats/cms-stats-presentation';
 
-/** 双指标趋势柱状（PV 主柱 + UV 覆盖柱，纯 CSS 与 Dashboard 同风格） */
-function TrendChart({ trend }: { trend: CmsVisitStats['trend'] }) {
-  const max = Math.max(1, ...trend.map((t) => t.pv));
-  if (!trend.some((t) => t.pv > 0)) return <Empty description="统计区间暂无访问" style={{ padding: '24px 0' }} />;
-  return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 150 }}>
-        {trend.map((t) => (
-          <div key={t.date} title={`${t.date}\nPV ${t.pv} / UV ${t.uv}`}
-            style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', height: '100%', position: 'relative' }}>
-            <div style={{ height: `${Math.max(t.pv > 0 ? 2 : 0, Math.round((t.pv / max) * 100))}%`, background: 'var(--semi-color-primary-light-active)', borderRadius: 'var(--semi-border-radius-small)', position: 'relative' }}>
-                          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: `${t.pv > 0 ? Math.round((t.uv / t.pv) * 100) : 0}%`, background: 'var(--semi-color-primary)', borderRadius: 'var(--semi-border-radius-small)' }} />
-            </div>
-          </div>
-        ))}
-      </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--semi-color-text-3)', marginTop: 6 }}>
-        <span>{trend[0]?.date}</span>
-        <Space spacing={12}>
-          <span><span style={{ display: 'inline-block', width: 10, height: 10, background: 'var(--semi-color-primary-light-active)', borderRadius: 'var(--semi-border-radius-small)', marginRight: 4 }} />PV</span>
-          <span><span style={{ display: 'inline-block', width: 10, height: 10, background: 'var(--semi-color-primary)', borderRadius: 'var(--semi-border-radius-small)', marginRight: 4 }} />UV</span>
-        </Space>
-        <span>{trend[trend.length - 1]?.date}</span>
-      </div>
-    </div>
-  );
-}
+const CmsStatsTrend = lazy(() => import('./CmsDashboardCharts').then(charts => ({ default: charts.CmsStatsTrend })));
+const TABS = ['overview', 'content', 'sources', 'search', 'conversions', 'quality'] as const;
+type Filters = Omit<CmsStatsQuery, 'siteId' | 'startTime' | 'endTime'> & { range: [Date, Date] | null };
+const CONTENT_DIMENSIONS = ['content', 'channel', 'author', 'contentType', 'release'] as const;
+const SOURCE_DIMENSIONS = ['source', 'entry', 'referrer', 'utmSource', 'utmMedium', 'utmCampaign', 'utmTerm', 'utmContent'] as const;
+const AUDIENCE_DIMENSIONS = ['device', 'browser', 'os', 'country'] as const;
+const OVERVIEW_METRICS: (keyof CmsStatMetrics)[] = ['pv', 'uv', 'sessions', 'reads', 'readRate', 'avgActiveMs', 'avgScrollDepth', 'engagementRate', 'bounceRate', 'newVisitors', 'returningVisitors'];
+const EXPLANATIONS: Partial<Record<keyof CmsStatMetrics, string>> = {
+  pv: '可见页面浏览，排除预览与爬虫', uv: '整个区间独立去重，不累加每日 UV', sessions: '同站点 30 分钟无活动开启新会话', reads: '活跃 ≥10 秒且正文深度 ≥50%，短正文需读完', readRate: '有效阅读页次 ÷ 浏览页次',
+  avgActiveMs: '可见活跃总时长 ÷ 页面浏览量', engagementRate: '参与会话 ÷ 浏览会话', newVisitors: '区间首次访问的访客', returningVisitors: '区间前已有访问的访客',
+  avgScrollDepth: '每次浏览的最高阅读深度平均值', bounceRate: '未参与会话 ÷ 浏览会话',
+};
 
-function DistBars({ items, labelOf }: { items: { key: string; pv: number }[]; labelOf?: (key: string) => string }) {
-  const max = Math.max(1, ...items.map((i) => i.pv));
-  if (items.length === 0) return <Empty description="暂无数据" style={{ padding: '16px 0' }} />;
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {items.map((i) => (
-        <div key={i.key}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{labelOf?.(i.key) ?? i.key}</span>
-            <span style={{ color: 'var(--semi-color-text-2)', flexShrink: 0 }}>{i.pv}</span>
-          </div>
-          <DataBar value={i.pv} max={max} track="var(--semi-color-fill-0)" />
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function VisitsTab({ siteId, days }: { siteId: number | undefined; days: number }) {
+function StatsWorkspace({ siteId, timeZone }: Readonly<{ siteId: number; timeZone: string }>) {
   const navigate = useNavigate();
-  const statsQuery = useCmsVisitStats(siteId, days);
-  const stats = statsQuery.data;
-
-  const topColumns: ColumnProps<CmsVisitStats['topContents'][number]>[] = [
-    {
-      title: '标题', dataIndex: 'title',
-      render: (v: string, record) => (
-        <Typography.Text link ellipsis={{ showTooltip: true }} style={{ maxWidth: 320 }}
-          onClick={() => navigate(`/cms/contents/edit?id=${record.contentId}&siteId=${siteId}`)}>
-          {v}
-        </Typography.Text>
-      ),
-    },
-    { title: 'PV', dataIndex: 'pv', width: 90, align: 'right' },
-    { title: 'UV', dataIndex: 'uv', width: 90, align: 'right' },
-  ];
-
-  return (
-    <Spin spinning={statsQuery.isFetching && !stats}>
-      <StatGrid minItemWidth={170}>
-        <StatCard title="今日 PV" value={stats?.today.pv ?? 0} delta={stats ? stats.today.pv - stats.yesterday.pv : null} />
-        <StatCard title="今日 UV" value={stats?.today.uv ?? 0} delta={stats ? stats.today.uv - stats.yesterday.uv : null} />
-        <StatCard title="今日独立 IP" value={stats?.today.ips ?? 0} delta={stats ? stats.today.ips - stats.yesterday.ips : null} />
-        <StatCard title={`近 ${days} 天累计 PV`} value={stats?.totalPv ?? 0} />
-      </StatGrid>
-
-      <Card title={`访问趋势（近 ${days} 天，不含爬虫）`} style={{ marginTop: 12 }} bodyStyle={{ padding: '16px 20px' }}>
-        {stats ? <TrendChart trend={stats.trend} /> : null}
-      </Card>
-
-      <div className="chart-grid chart-grid--aside" style={{ ['--chart-aside-main' as string]: '1.4fr', ['--chart-aside-side' as string]: '1fr', marginTop: 12 }}>
-        <Card title="内容访问 TOP20" bodyStyle={{ padding: 0 }}>
-          <ConfigurableTable columnSettingsKey="cms-stats-top-contents" columns={topColumns} dataSource={stats?.topContents ?? []} rowKey="contentId" size="small" pagination={false} empty="暂无详情页访问" onRefresh={() => void statsQuery.refetch()} refreshLoading={statsQuery.isFetching} />
-        </Card>
-        <div>
-          <Card title="来源域名 TOP10（外部引荐）" bodyStyle={{ padding: '16px 20px' }}>
-            <DistBars items={(stats?.referrers ?? []).map((r) => ({ key: r.host, pv: r.pv }))} />
-          </Card>
-          <Card title="设备分布（含爬虫）" style={{ marginTop: 12 }} bodyStyle={{ padding: '16px 20px' }}>
-            <DistBars items={(stats?.devices ?? []).map((d) => ({ key: d.deviceType, pv: d.pv }))} labelOf={(k) => DEVICE_LABELS[k] ?? k} />
-          </Card>
-        </div>
-      </div>
-    </Spin>
-  );
-}
-
-function SearchTab({ siteId, days }: { siteId: number | undefined; days: number }) {
+  const [activeTab, setActiveTab] = useUrlTabState(TABS, 'overview');
+  const site = useCmsSiteDetail(siteId);
+  const settings = useCmsTelemetrySettings();
   const { hasPermission } = usePermission();
-  const createTask = useCreateCmsEditorialTask();
-  const editor = useCmsTaskEditor(siteId);
-  const query = useCmsSearchAnalytics(siteId, days);
-  const data = query.data;
-  const maxTrend = Math.max(1, ...(data?.trend ?? []).map((t) => t.count));
-
-  const topColumns: ColumnProps<CmsSearchAnalytics['topKeywords'][number]>[] = [
-    { title: '关键词', dataIndex: 'keyword' },
-    { title: '搜索次数', dataIndex: 'count', width: 100, align: 'right' },
-    { title: '平均结果数', dataIndex: 'avgResults', width: 110, align: 'right' },
-  ];
-  const noResultColumns: ColumnProps<CmsSearchAnalytics['noResultKeywords'][number]>[] = [
-    { title: '关键词', dataIndex: 'keyword', render: (v: string) => <span>{v} <Tag size="small" color="orange">无结果</Tag></span> },
-    { title: '搜索次数', dataIndex: 'count', width: 100, align: 'right' },
-    createOperationColumn<CmsSearchAnalytics['noResultKeywords'][number]>({ width: 130, desktopInlineKeys: ['task'], actions: (row) => hasPermission('cms:editorial-task:manage') && siteId ? [{ key: 'task', label: '转为编辑事项', disabled: createTask.isPending, onClick: async () => { const task = await createTask.mutateAsync({ body: { siteId, title: `补充内容：${row.keyword}`, description: `读者搜索“${row.keyword}”未找到结果。`, source: 'search', sourceKeyword: row.keyword } }); Toast.success('已打开对应编辑事项'); editor.openEdit(task); } }] : [] }),
-  ];
-
-  return (
-    <Spin spinning={query.isFetching && !data}>
-      <StatGrid minItemWidth={170}>
-        <StatCard title={`近 ${days} 天搜索量`} value={data?.total ?? 0} />
-        <StatCard title="无结果关键词数" value={data?.noResultKeywords.length ?? 0} />
-      </StatGrid>
-      <Card title={`搜索量趋势（近 ${days} 天）`} style={{ marginTop: 12 }} bodyStyle={{ padding: '16px 20px' }}>
-        {data && data.trend.some((t) => t.count > 0) ? (
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 120 }}>
-            {data.trend.map((t) => (
-              <div key={t.date} title={`${t.date}：${t.count} 次`}
-                style={{ flex: 1, minWidth: 0, height: `${Math.max(t.count > 0 ? 3 : 1, Math.round((t.count / maxTrend) * 100))}%`, background: t.count > 0 ? 'var(--semi-color-primary)' : 'var(--semi-color-fill-1)', borderRadius: 'var(--semi-border-radius-small)' }} />
-            ))}
-          </div>
-        ) : (
-          <Empty description="统计区间暂无搜索" style={{ padding: '24px 0' }} />
-        )}
-      </Card>
-      <div className="chart-grid" style={{ marginTop: 12 }}>
-        <Card title="热搜词 TOP20" bodyStyle={{ padding: 0 }}>
-          <ConfigurableTable columnSettingsKey="cms-stats-top-keywords" columns={topColumns} dataSource={data?.topKeywords ?? []} rowKey="keyword" size="small" pagination={false} empty="暂无搜索记录" onRefresh={() => void query.refetch()} refreshLoading={query.isFetching} />
-        </Card>
-        <Card title="无结果搜索词榜（内容选题参考）" bodyStyle={{ padding: 0 }}>
-          <ConfigurableTable columnSettingsKey="cms-stats-no-result-keywords" columns={noResultColumns} dataSource={data?.noResultKeywords ?? []} rowKey="keyword" size="small" pagination={false} empty="暂无无结果搜索" onRefresh={() => void query.refetch()} refreshLoading={query.isFetching} />
-        </Card>
-      </div>
-      {editor.editor}
-    </Spin>
-  );
+  const filters = useListSearch<Filters>({ defaults: () => ({ range: cmsStatsDateRange(timeZone), timeZone, granularity: 'day', compare: 'previous_period' }), listKey: contractKey(cmsStatContract.overview), extraKeys: [cmsStatKeys.report, cmsStatKeys.quality, cmsStatKeys.options] });
+  const { range, ...submitted } = filters.submittedParams;
+  const filterQuery = useFilterQuery({ ...submitted, ...formatDateRangeForApi(range) });
+  const query = useMemo(() => ({ ...filterQuery, siteId }), [filterQuery, siteId]);
+  const optionsQuery = useFilterQuery({ siteId, timeZone: query.timeZone, days: query.days, startTime: query.startTime, endTime: query.endTime });
+  const options = useCmsStatsOptions({ ...optionsQuery, siteId });
+  const overview = useCmsStatsOverview(query);
+  const snapshotQuery = useMemo(() => ({ ...query, watermark: overview.data?.scope.watermark }), [query, overview.data?.scope.watermark]);
+  const quality = useCmsStatsQuality(query);
+  const [contentDimension, setContentDimension] = useState<CmsStatsDimension>('content');
+  const [sourceDimension, setSourceDimension] = useState<CmsStatsDimension>('source');
+  const [audienceDimension, setAudienceDimension] = useState<CmsStatsDimension>('device');
+  const numberOptions = useMemo(() => ({ content: options.data?.content.map((item) => ({ ...item, value: Number(item.value) })) ?? [], channel: options.data?.channel.map((item) => ({ ...item, value: Number(item.value) })) ?? [], release: options.data?.release.map((item) => ({ ...item, value: Number(item.value) })) ?? [] }), [options.data]);
+  const status = quality.data ? CMS_COLLECTION_STATUS[quality.data.status] : undefined;
+  const metrics = overview.data?.metrics;
+  const filtered = Boolean(query.contentId || query.channelId || query.releaseId || query.author || query.contentType || query.source || query.device);
+  function drill(dimension: CmsStatsDimension, key: string) {
+    const field = ({ content: 'contentId', channel: 'channelId', release: 'releaseId' } as const)[dimension as 'content' | 'channel' | 'release'];
+    if (field && /^\d+$/u.test(key)) filters.applySearch({ ...filters.submittedParams, [field]: Number(key) });
+    else if (['author', 'contentType', 'source', 'device'].includes(dimension)) filters.applySearch({ ...filters.submittedParams, [dimension]: key });
+    setActiveTab('overview');
+  }
+  const dimensionSelect = (dimensions: readonly CmsStatsDimension[], value: CmsStatsDimension, onChange: (value: CmsStatsDimension) => void, label: string) => <Select aria-label={label} value={value} onChange={(next) => onChange(next as CmsStatsDimension)} optionList={dimensions.map((dimension) => ({ value: dimension, label: DIMENSION_LABELS[dimension] }))} />;
+  return <>
+    <ListSearchToolbar onSearch={filters.handleSearch} onReset={filters.handleReset} filters={<>
+      <DateRangeFilter type="dateRange" {...filters.bind('range')} />
+      <Select aria-label="统计时区" {...filters.bind('timeZone', (value: unknown) => value as Filters['timeZone'])} optionList={IANA_TIMEZONE_OPTIONS} filter style={{ width: 180 }} />
+      <Select aria-label="时间粒度" {...filters.bind('granularity', (value: unknown) => value as Filters['granularity'])} optionList={[{ value: 'day', label: '按天统计' }, { value: 'hour', label: '按小时统计' }]} />
+      <Select aria-label="对比周期" {...filters.bind('compare', (value: unknown) => value as Filters['compare'])} optionList={[{ value: 'previous_period', label: '对比上一周期' }, { value: 'previous_year', label: '对比去年同期' }, { value: 'none', label: '不对比' }]} />
+      <CmsStatsNameFilter query={query} dimension="content" placeholder="全部内容" width={220} initialOptions={numberOptions.content} {...filters.bind('contentId')} />
+      <CmsStatsNameFilter query={query} dimension="channel" placeholder="全部栏目" initialOptions={numberOptions.channel} {...filters.bind('channelId')} />
+      <CmsStatsNameFilter query={query} dimension="release" placeholder="全部发布版本" initialOptions={numberOptions.release} {...filters.bind('releaseId')} />
+      <CmsStatsNameFilter query={query} dimension="author" placeholder="全部作者" initialOptions={options.data?.author ?? []} {...filters.bind('author')} />
+      <FilterSelect placeholder="全部内容形态" width={140} items={CMS_CONTENT_TYPES.map((value) => ({ value, label: CMS_CONTENT_TYPE_LABELS[value] }))} {...filters.bind('contentType')} />
+    </>} actions={<>
+      {hasPermission('cms:site:update') ? <Button disabled={!site.data} onClick={() => site.data && settings.open(site.data)}>采集设置</Button> : null}
+      <Button onClick={() => navigate(`/cms/publishing?siteId=${siteId}`)}>发布配置</Button>
+    </>} />
+    <Space wrap style={{ marginBottom: 12 }}>
+      <Tag color="blue">正式用户流量</Tag>{status ? <Tag color={status.color}>{status.label}</Tag> : null}
+      <Typography.Text type="tertiary">预览、内部测试、爬虫和技术请求不混入用户 PV</Typography.Text>
+      {query.source ? <Tag closable onClose={() => filters.applySearch({ ...filters.submittedParams, source: undefined })}>来源：{query.source}</Tag> : null}
+      {query.device ? <Tag closable onClose={() => filters.applySearch({ ...filters.submittedParams, device: undefined })}>设备：{query.device}</Tag> : null}
+    </Space>
+    {overview.isError ? <Banner type="danger" description={`统计查询失败：${overview.error.message}${overview.data ? '。下方保留上次成功数据，请刷新重试。' : '。指标尚未取得，不能视作零访问。'}`} /> : null}
+    {quality.isError ? <Banner type="warning" description={`采集状态查询失败：${quality.error.message}`} /> : null}
+    {options.isError ? <Banner type="warning" description="筛选名称加载失败，请刷新后重试。" /> : null}
+    {quality.data && ['disabled', 'pending_publication', 'attention'].includes(quality.data.status) ? <Banner type={quality.data.status === 'attention' ? 'warning' : 'info'} description={status?.description} /> : null}
+    {overview.data ? <Typography.Paragraph type="tertiary">
+      {formatCmsScopeTime(overview.data.scope.startTime, overview.data.scope.timeZone)} 至 {formatCmsScopeTime(overview.data.scope.endTime, overview.data.scope.timeZone)}（{overview.data.scope.timeZone}，结束边界不含） · 统计截至 <DateTimeText value={overview.data.scope.watermark} mode="absolute" />
+      {overview.data.scope.comparisonStart && overview.data.scope.comparisonEnd ? ` · 对比 ${formatCmsScopeTime(overview.data.scope.comparisonStart, overview.data.scope.timeZone)} 至 ${formatCmsScopeTime(overview.data.scope.comparisonEnd, overview.data.scope.timeZone)}` : ''}
+    </Typography.Paragraph> : null}
+    {overview.data?.comparisonUnavailableReason ? <Banner type="info" description={overview.data.comparisonUnavailableReason} /> : null}
+    {overview.data?.collectionAvailableSince ? <Typography.Paragraph type="tertiary">统一采集数据起点：<DateTimeText value={overview.data.collectionAvailableSince} mode="absolute" />。早于此时点的期间未采集，不作为零流量对比。</Typography.Paragraph> : null}
+    <Tabs collapsible="auto" type="line" activeKey={activeTab} onChange={(value) => setActiveTab(value as typeof activeTab)}>
+      {TABS.map((tab, index) => <TabPane key={tab} itemKey={tab} tab={['总览', '内容', '来源与入口', '搜索', '互动与转化', '采集质量'][index]} />)}
+    </Tabs>
+    {activeTab === 'quality' ? quality.data ? <CmsStatsQuality data={quality.data} refreshing={quality.isFetching} onRefresh={() => void quality.refetch()} /> : <Spin spinning={quality.isLoading} /> : !metrics || !overview.data ? overview.isLoading ? <Spin spinning /> : <Empty description="尚未取得统计数据，请刷新重试" /> : <>
+      {metrics.pv === 0 && !overview.isError ? <Banner type="info" description={filtered ? '当前筛选下暂无页面浏览；可以重置内容、栏目或版本条件查看全站数据。行为事件仍单独展示。' : (status?.description ?? '当前区间暂无正式访问事件。')} /> : null}
+      {activeTab === 'overview' ? <>
+        <StatGrid minItemWidth={180}>{OVERVIEW_METRICS.map((field) => <StatCard key={field} title={METRIC_LABELS[field]} value={displayCmsMetric(metrics, field)} sub={EXPLANATIONS[field]} delta={overview.data?.previousMetrics && ['pv', 'uv', 'sessions', 'reads', 'newVisitors', 'returningVisitors'].includes(field) ? metrics[field] - overview.data.previousMetrics[field] : null} deltaLabel={query.compare === 'previous_year' ? '较去年同期' : '较上一周期'} />)}</StatGrid>
+        <Card title="流量与有效参与趋势"><Suspense fallback={<Spin spinning />}><CmsStatsTrend data={overview.data.trend} /></Suspense><Typography.Text type="tertiary">每日 UV 独立去重，不能相加替代区间 UV。参与会话满足活跃 10 秒、有效阅读、成功转化或至少浏览两页之一。</Typography.Text></Card>
+        <Card title="受众分布" style={{ marginTop: 12 }} headerExtraContent={dimensionSelect(AUDIENCE_DIMENSIONS, audienceDimension, setAudienceDimension, '受众维度')}><CmsStatsReport key={audienceDimension} query={snapshotQuery} dimension={audienceDimension} onDrill={drill} /></Card>
+      </> : null}
+      {activeTab === 'content' ? <Card title="内容效果" headerExtraContent={dimensionSelect(CONTENT_DIMENSIONS, contentDimension, setContentDimension, '内容分析维度')}><CmsStatsReport key={contentDimension} query={snapshotQuery} dimension={contentDimension} onDrill={drill} /></Card> : null}
+      {activeTab === 'sources' ? <Card title="会话来源与入口" headerExtraContent={dimensionSelect(SOURCE_DIMENSIONS, sourceDimension, setSourceDimension, '来源分析维度')}><Typography.Paragraph type="tertiary">来源固定为会话首次入口，后续内容跳转不会覆盖；转化率分母为对应来源的区间浏览访客。</Typography.Paragraph><CmsStatsReport key={sourceDimension} query={snapshotQuery} dimension={sourceDimension} onDrill={drill} /></Card> : null}
+      {activeTab === 'search' ? <><StatGrid><StatCard title="搜索次数" value={metrics.searches} /><StatCard title="独立搜索词" value={metrics.uniqueKeywords} /><StatCard title="无结果独立词" value={metrics.noResultKeywords} sub="全量去重，不受分页或排行截断影响" /><StatCard title="无结果次数 / 搜索次数" value={`${metrics.noResultSearches} / ${metrics.searches}`} sub={metrics.searches ? `无结果率 ${(metrics.noResultSearches / metrics.searches * 100).toFixed(1)}%` : '暂无搜索分母'} /><StatCard title="搜索结果点击" value={metrics.searchClicks} /><StatCard title="搜索点击率" value={displayCmsMetric(metrics, 'searchClickRate')} sub="发生点击的搜索次数 ÷ 搜索次数" /></StatGrid><Card title="搜索需求与后续阅读"><Typography.Paragraph type="tertiary">后续阅读与成功转化关联同一访客、同一会话、点击后 30 分钟内的目标内容，按最近一次搜索点击归因。</Typography.Paragraph><CmsStatsReport query={snapshotQuery} dimension="search" /></Card></> : null}
+      {activeTab === 'conversions' ? <CmsAttributionPanel query={snapshotQuery} overview={overview.data} /> : null}
+    </>}
+    {settings.editor}
+  </>;
 }
 
 export default function StatsPage() {
-  const [activeTab, setActiveTab] = useUrlTabState(['visits', 'search', 'attribution'] as const, 'visits');
-  const [siteId, setSiteId] = useState<number | undefined>(undefined);
-  const [days, setDays] = useState(30);
-
-  return (
-    <div className="page-container page-tabs-page zx-flat-panels">
-      <SearchToolbar>
-        <CmsSiteSelect value={siteId} onChange={setSiteId} width={200} />
-        <RadioGroup type="button" value={days} onChange={(e) => setDays(e.target.value as number)}>
-          <Radio value={7}>近 7 天</Radio>
-          <Radio value={30}>近 30 天</Radio>
-          <Radio value={90}>近 90 天</Radio>
-        </RadioGroup>
-      </SearchToolbar>
-      <Tabs collapsible="auto" type="line" lazyRender activeKey={activeTab} onChange={(k) => setActiveTab(k as typeof activeTab)}>
-        <TabPane tab="访问统计" itemKey="visits"><VisitsTab siteId={siteId} days={days} /></TabPane>
-        <TabPane tab="搜索分析" itemKey="search"><SearchTab siteId={siteId} days={days} /></TabPane>
-        <TabPane tab="内容转化归因" itemKey="attribution"><CmsAttributionPanel siteId={siteId} days={days} /></TabPane>
-      </Tabs>
-    </div>
-  );
+  const [siteId, setSiteId] = useState<number>();
+  const site = useCmsSiteDetail(siteId);
+  return <div className="page-container page-tabs-page zx-flat-panels">
+    <Space wrap style={{ marginBottom: 12 }}><CmsSiteSelect value={siteId} onChange={setSiteId} /><Typography.Text type="tertiary">访问统计</Typography.Text></Space>
+    {siteId && site.data ? <StatsWorkspace key={siteId} siteId={siteId} timeZone={(site.data.settings.telemetry as { timeZone?: string } | undefined)?.timeZone ?? 'Asia/Shanghai'} /> : siteId && site.isLoading ? <Spin spinning /> : <Empty description={site.isError ? '站点信息加载失败，请刷新重试' : '请选择站点查看统计'} />}
+  </div>;
 }

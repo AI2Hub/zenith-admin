@@ -52,6 +52,7 @@ import { decisionTablesHandlers } from './decision-tables';
 import { rulesP2Handlers } from './rules-p2';
 import { userFeedbacksHandlers } from './user-feedbacks';
 import { cmsHandlers, cmsP2Handlers, cmsP3Handlers, cmsP6Handlers } from './cms';
+import { cmsStatsHandlers } from './cms-stats';
 import { cmsStage3Handlers } from './cms-stage3';
 import { cmsStage4Handlers } from './cms-stage4';
 import { cmsStage5Handlers } from './cms-stage5';
@@ -305,6 +306,7 @@ export const handlers = [
   ...cmsP2Handlers,
   ...cmsStage3Handlers,
   ...cmsHandlers,
+  ...cmsStatsHandlers,
   ...cmsWidgetsHandlers,
   ...wikiHandlers,
   ...driveHandlers,

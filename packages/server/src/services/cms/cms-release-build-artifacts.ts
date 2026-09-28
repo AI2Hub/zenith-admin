@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { CMS_STATIC_ROOT, isStrictlyWithin, pathToStaticFile } from './cms-static-path';
+import { signCmsTelemetryPage, verifyCmsTelemetryPageToken } from './cms-telemetry-context';
 
 export interface CmsBuildArtifact { path: string; checksum: string; size: number }
 export interface CmsBuildTarget { key: string; fingerprint: string; artifacts: CmsBuildArtifact[] }
@@ -19,6 +20,10 @@ export function cmsBuildTargetFingerprint(globalHash: string, key: string, pages
 }
 
 export function rebindCmsArtifactAttribution(html: string, releaseId: number, deploymentId: number): string {
+  html = html.replace(/(<meta\b[^>]*\bname=["']cms-telemetry-context["'][^>]*\bcontent=["'])([^"']*)(["'][^>]*>)/gi, (tag, before: string, token: string, after: string) => {
+    const page = verifyCmsTelemetryPageToken(token);
+    return page ? `${before}${signCmsTelemetryPage({ ...page, releaseId, deploymentId }).contextToken}${after}` : tag;
+  });
   for (const [name, value] of [['cms-release-id', releaseId], ['cms-deployment-id', deploymentId]] as const) {
     html = html.replace(new RegExp(`(<meta\\b[^>]*\\bname=["']${name}["'][^>]*\\bcontent=["'])[^"']*(["'][^>]*>)`, 'gi'), (_tag, before: string, after: string) => `${before}${value}${after}`);
   }

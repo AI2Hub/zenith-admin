@@ -27,3 +27,6 @@ export * from './workbench-validation';
 export * from './release-review';
 
 export * from './site-blueprints';
+
+export * from './telemetry';
+export * from './cms-statistics';

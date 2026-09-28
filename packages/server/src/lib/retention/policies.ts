@@ -28,6 +28,20 @@ async function analyticsErrorRetention(): Promise<TenantRetentionDays> {
   return new Map([...settings].map(([tenantId, value]) => [tenantId, value.errorRetentionDays]));
 }
 
+/** CMS comparisons need thirteen months; other apps retain their existing tenant policy. */
+async function analyticsEventExpiry(fallbackDays: number) {
+  const policies = await analyticsEventRetention();
+  const clauses = [...policies].map(([tenantId, days]) => sql`when ${tenantId === null ? sql`tenant_id is null` : sql`tenant_id=${tenantId}`} then ${days}`);
+  const configured = sql`(case ${sql.join(clauses, sql` `)} else ${fallbackDays} end)`;
+  const days = sql`(case when properties @> '{"cmsSchemaVersion":2,"trustedCms":true}'::jsonb then greatest(${configured},400) else ${configured} end)`;
+  return sql`${configured}>0 and created_at < now()-make_interval(days=>${days})`;
+}
+async function purgeAnalyticsEvents(days: number, batchSize: number): Promise<number> {
+  const where = await analyticsEventExpiry(days);
+  const deleted = await db.execute<{ id: number }>(sql`delete from user_events where id in (select id from user_events where ${where} limit ${batchSize} for update skip locked) returning id`);
+  return deleted.length;
+}
+
 async function analyticsReplayRetention(): Promise<TenantRetentionDays> {
   const settings = await analyticsRetentionSettings();
   return new Map([...settings].map(([tenantId, value]) => [tenantId, value.replayRetentionDays]));
@@ -41,6 +55,11 @@ async function analyticsReplayRetention(): Promise<TenantRetentionDays> {
  * 之后管理员在后台调整的值不会被重启覆盖。
  */
 export const RETENTION_POLICIES: readonly RetentionPolicyDefinition[] = [
+  { key: 'cms_telemetry_receipts', title: 'CMS 采集接收记录', module: 'CMS内容管理', tableName: 'cms_telemetry_receipts', timeColumn: 'created_at', defaultDays: 90, description: '采集接收、拒绝与重复诊断，不参与业务访问统计。' },
+  { key: 'cms_telemetry_outbox', title: 'CMS 转化投递记录', module: 'CMS内容管理', tableName: 'cms_telemetry_outbox', timeColumn: 'created_at', defaultDays: 90, mode: 'custom',
+    run: async (days, batchSize) => { if (days <= 0) return 0; const rows = await db.execute<{ id: number }>(sql`delete from cms_telemetry_outbox where id in (select id from cms_telemetry_outbox where delivered_at is not null and created_at < now()-make_interval(days=>${days}) limit ${batchSize}) returning id`); return rows.length; },
+    previewPending: async days => { if (days <= 0) return 0; const [row] = await db.execute<{ count: number }>(sql`select count(*)::int as count from cms_telemetry_outbox where delivered_at is not null and created_at < now()-make_interval(days=>${days})`); return row?.count ?? 0; },
+    description: '仅清理已成功投递记录，待投递和失败事实保留重试。' },
   {
     key: 'payment_recon_runs', title: '支付对账运行历史', module: '支付中心', tableName: 'payment_recon_runs',
     timeColumn: 'created_at', defaultDays: 3650, description: '对账运行输入快照、规则版本和结果，用于财务追溯。',
@@ -335,6 +354,8 @@ export const RETENTION_POLICIES: readonly RetentionPolicyDefinition[] = [
     timeColumn: 'created_at',
     defaultDays: 180,
     perTenant: analyticsEventRetention,
+    mode: 'custom', run: purgeAnalyticsEvents,
+    previewPending: async days => { const where = await analyticsEventExpiry(days); const [row] = await db.execute<{ count: number }>(sql`select count(*)::int as count from user_events where ${where}`); return row?.count ?? 0; },
     description: '原始埋点事件，增长最快的表之一；各租户可在数据分析设置中单独指定保留天数。',
   },
   {

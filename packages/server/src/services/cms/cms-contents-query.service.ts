@@ -4,17 +4,14 @@ import { requireFirstRow, requireRow } from '../../lib/db-assert';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { buildListResult } from '../../lib/list-query';
 import { eq, asc, desc, and, or, inArray, notInArray, isNull, isNotNull, ne, lt, gt, sql, type SQL } from 'drizzle-orm';
-import { db, withoutDbExecutor } from '../../db';
+import { db } from '../../db';
 import { withCmsPublicGeneration } from './cms-generation-storage.service';
-import { cmsGenerationContext } from './cms-generation-context';
 import { cmsContents, cmsContentTags, cmsContentChannels, cmsContentRelations, cmsContentWorkingCopies, cmsChannels, cmsTags, cmsEditorialNotes, users } from '../../db/schema';
 import type { CmsContentRow, CmsTagRow } from '../../db/schema';
 import dayjs from 'dayjs';
 import { DATE_FORMAT, formatDate, formatTimestamps, parseDateRangeStart, parseDateRangeEnd, APP_TIME_ZONE } from '../../lib/datetime';
 import { pickEntity } from '../../lib/entity-map';
 import { buildWhere, dateRangeConditions, withPagination, keywordCondition } from '../../lib/where-helpers';
-import { config } from '../../config';
-import redis from '../../lib/redis';
 import { getAccessibleChannelIds, assertChannelAccess } from './cms-channels.service';
 import { assertSiteAccess, ensureCmsSiteExists } from './cms-sites.service';
 import { CMS_CONTENT_CALENDAR_DAY_ITEM_LIMIT, cmsContentContract, cmsContentSchema, type CmsContentCalendarEventKind, type CmsContentCalendarItem, type CmsEditorialStatus, type CmsContentRevisionSnapshot, type CmsBodyDocument, type CmsModelField } from '@zenith/shared/cms';
@@ -498,51 +495,6 @@ async function query_getAdjacentContents(row: Pick<CmsContentRow, 'id' | 'siteId
     db.select(cmsContentLinkColumns).from(cmsContents).where(and(base, gt(cmsContents.publishedAt, anchor))).orderBy(asc(cmsContents.publishedAt), asc(cmsContents.id)).limit(1),
   ]);
   return { prev: prevRows[0] ?? null, next: nextRows[0] ?? null };
-}
-
-/**
- * 浏览计数：Redis 缓冲累加（zenith:cms:viewbuf hash），周期任务批量落库，
- * 避免高并发下逐次 UPDATE 行锁排队；Redis 不可用时降级直写 DB。
- */
-const VIEW_BUFFER_KEY = `${config.redis.keyPrefix}cms:viewbuf`;
-
-/** 单条批量 UPDATE 的最大行数（每行 2 个绑定参数，远低于 PG 的 65535 上限） */
-const VIEW_FLUSH_CHUNK = 5000;
-
-export async function increaseViewCount(id: number): Promise<void> {
-  if (cmsGenerationContext()?.candidate) return;
-  try {
-    await redis.hincrby(VIEW_BUFFER_KEY, String(id), 1);
-  } catch {
-    await withoutDbExecutor(() => db.execute(sql`update ${cmsContents} set view_count = view_count + 1 where id = ${id}`));
-  }
-}
-
-/** 浏览计数落库（系统周期任务调用，每分钟）：取走缓冲并批量累加 */
-export async function flushViewCountBuffer(): Promise<number> {
-  const buffer = await redis.hgetall(VIEW_BUFFER_KEY).catch(() => ({} as Record<string, string>));
-  const entries = Object.entries(buffer).filter(([, v]) => Number(v) > 0);
-  if (entries.length === 0) return 0;
-  await redis.del(VIEW_BUFFER_KEY).catch(() => undefined);
-  const deltas = entries
-    .map(([idText, countText]) => ({ id: Number(idText), count: Number(countText) }))
-    .filter((d) => Number.isInteger(d.id) && Number.isInteger(d.count) && d.count > 0);
-  // 单条 UPDATE ... FROM (VALUES ...) 累加全部增量，替代逐条 UPDATE。
-  // 浏览计数是运行统计，不属于公开内容版本；不要触碰 updated_at，
-  // 否则静态产物会因每次访问被判为过期。分片提交仍必要：单条语句的
-  // 绑定参数上限为 65535（每行 2 个），且此处的行数由
-  //    真实访问量决定；缓冲已在上面 del 掉，一次性超限抛错会丢掉整个窗口的计数
-  for (let i = 0; i < deltas.length; i += VIEW_FLUSH_CHUNK) {
-    const chunk = deltas.slice(i, i + VIEW_FLUSH_CHUNK);
-    const values = sql.join(chunk.map((d) => sql`(${d.id}::int, ${d.count}::int)`), sql`, `);
-    await db.execute(sql`
-      update ${cmsContents} as c
-      set view_count = c.view_count + delta.view_delta
-      from (values ${values}) as delta(id, view_delta)
-      where c.id = delta.id
-    `);
-  }
-  return entries.length;
 }
 
 /** 内容标签（前台详情页展示） */

@@ -4,7 +4,7 @@ import type * as z from 'zod';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { cmsContentContract, cmsEditorialTaskSchema, cmsOperationsContract, createCmsEditorialTaskSchema, updateCmsEditorialTaskSchema } from '@zenith/shared/cms';
 import { db } from '../../db';
-import { cmsContents, cmsContentWorkingCopies, cmsEditorialTasks, cmsSearchLogs, users } from '../../db/schema';
+import { cmsContents, cmsContentWorkingCopies, cmsEditorialTasks, userEvents, users } from '../../db/schema';
 import { pickEntity } from '../../lib/entity-map';
 import { requireRow } from '../../lib/db-assert';
 import { buildListResult } from '../../lib/list-query';
@@ -55,7 +55,10 @@ export async function createCmsEditorialTask(input: z.output<typeof createCmsEdi
   if (input.source === 'search') {
     if (!await hasPermission('cms:stat:view')) throw new HTTPException(403, { message: '没有查看搜索反馈的权限' });
     await assertAllCmsSiteChannelsAccess(input.siteId);
-    const [search] = await db.select({ id: cmsSearchLogs.id }).from(cmsSearchLogs).where(and(eq(cmsSearchLogs.siteId, input.siteId), eq(cmsSearchLogs.keyword, input.sourceKeyword!), eq(cmsSearchLogs.resultCount, 0))).limit(1);
+    const [search] = await db.select({ id: userEvents.id }).from(userEvents).where(and(
+      eq(userEvents.eventName, 'cms.search'), sql`${userEvents.properties} @> ${JSON.stringify({ cmsSchemaVersion: 2, trustedCms: true, environment: 'live', cmsSiteId: input.siteId })}::jsonb`,
+      sql`${userEvents.properties}->>'keyword'=${input.sourceKeyword!}`, sql`${userEvents.properties}->>'resultCount'='0'`,
+    )).limit(1);
     requireRow(search, '该搜索词不存在于本站无结果搜索记录'); sourceKey = input.sourceKeyword!;
   }
   if (input.source === 'submission') {

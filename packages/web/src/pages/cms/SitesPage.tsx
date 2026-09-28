@@ -26,7 +26,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { useListSearch } from '@/hooks/useListSearch';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useTreeExpansion } from '@/hooks/useTreeExpansion';
-import { cmsSiteExportUrl, cmsSiteKeys, useCmsSiteList, useCmsSiteTree, useDeleteCmsSites, useEnableSiteAnalytics, useImportCmsSite } from '@/hooks/queries/cms';
+import { cmsSiteExportUrl, cmsSiteKeys, useCmsSiteList, useCmsSiteTree, useDeleteCmsSites, useImportCmsSite } from '@/hooks/queries/cms';
 import { useSubmitCmsSiteGroupPublish } from '@/hooks/queries/cms-stage3';
 import { CMS_STATIC_MODE_LABELS } from '@zenith/shared/cms';
 import { enumValueOf, USER_STATUSES } from '@zenith/shared/core';
@@ -40,6 +40,8 @@ import SiteInheritanceSheet from './sites/SiteInheritanceSheet';
 import SiteStaticSheet from './sites/SiteStaticSheet';
 import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { useFilterQuery } from '@/hooks/useFilterQuery';
+import { Link } from 'react-router-dom';
+import { useCmsTelemetrySettings } from './stats/CmsTelemetrySettings';
 
 interface SearchParams {
   keyword: string;
@@ -93,7 +95,7 @@ export default function SitesPage() {
   const [staticSheetSite, setStaticSheetSite] = useState<CmsSite | null>(null);
 
   const deleteMutation = useDeleteCmsSites();
-  const enableAnalyticsMutation = useEnableSiteAnalytics();
+  const telemetrySettings = useCmsTelemetrySettings();
   const groupPublishMutation = useSubmitCmsSiteGroupPublish();
   const importMutation = useImportCmsSite();
   const importFileRef = useRef<HTMLInputElement>(null);
@@ -183,6 +185,7 @@ export default function SitesPage() {
       render: (v: string | null) => v || <span style={{ color: 'var(--semi-color-text-2)' }}>未绑定</span>,
     },
     { title: '有效主题', width: 110, render: (_: unknown, record) => record.effectiveTheme ?? record.theme },
+    { title: '访问采集配置', width: 160, render: (_: unknown, record) => <Link to={`/cms/stats?siteId=${record.id}&tab=quality`}>{(record.settings.telemetry as { enabled?: boolean } | undefined)?.enabled ? '已启用 · 查看生效状态' : '未启用 · 查看详情'}</Link> },
     {
       title: '静态化模式',
       dataIndex: 'staticMode',
@@ -230,21 +233,8 @@ export default function SitesPage() {
           onClick: () => handleExport(record),
         }, {
           key: 'analytics',
-          label: (record.settings as Record<string, unknown>)?.analyticsSiteKey ? '统计已开通' : '开通统计',
-          onClick: () => {
-            if ((record.settings as Record<string, unknown>)?.analyticsSiteKey) {
-              Toast.info('该站点已开通行为统计，数据见「数据分析 → 行为分析」');
-              return;
-            }
-            Modal.confirm({
-              title: `为「${record.name}」开通行为统计？`,
-              content: '将自动创建统计站点并在前台页面注入采集脚本（需重新生成静态页生效）',
-              onOk: async () => {
-                await enableAnalyticsMutation.mutateAsync({ params: { id: record.id } });
-                Toast.success('已开通，重新生成静态页后生效');
-              },
-            });
-          },
+          label: '采集设置',
+          onClick: () => telemetrySettings.open(record),
         });
         if (hasPermission('cms:site:hierarchy')) actions.push({
           key: 'inheritance',
@@ -333,6 +323,8 @@ export default function SitesPage() {
       <SiteMoveModal site={moveSite} onClose={() => setMoveSite(null)} />
       <SiteInheritanceSheet site={inheritanceSite} onClose={() => setInheritanceSite(null)} />
       <SiteStaticSheet site={staticSheetSite} canBuild={hasPermission('cms:publish:build')} onClose={() => setStaticSheetSite(null)} />
+      {telemetrySettings.editor}
     </div>
   );
 }
+

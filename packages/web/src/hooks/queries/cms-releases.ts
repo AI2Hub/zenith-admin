@@ -1,3 +1,4 @@
+import { invalidateCmsCollectionStatus } from './cms-stats';
 import { keepPreviousData, type QueryClient } from '@tanstack/react-query';
 import { cmsReleaseContract, cmsWorkbenchContract } from '@zenith/shared/cms';
 import type { QueryOf } from '@zenith/shared/core';
@@ -24,7 +25,7 @@ export const useCmsReleasePreview = (id: number | undefined, path: string, enabl
 export const useCreateCmsRelease = () => useApiMutation(cmsReleaseContract.create, { invalidate: invalidateCmsReleases });
 export const useBuildCmsRelease = () => useApiMutation(cmsReleaseContract.build, { invalidate: invalidateCmsReleases });
 export const useCancelCmsRelease = () => useApiMutation(cmsReleaseContract.cancel, { invalidate: invalidateCmsReleases });
-function invalidateActivation(qc: QueryClient) { invalidateCmsReleases(qc); invalidateAfterCmsContentChange(qc); }
+function invalidateActivation(qc: QueryClient) { invalidateCmsCollectionStatus(qc); invalidateCmsReleases(qc); invalidateAfterCmsContentChange(qc); }
 export const useActivateCmsRelease = () => useApiMutation(cmsReleaseContract.activate, { invalidate: invalidateActivation });
 export const useRollbackCmsRelease = () => useApiMutation(cmsReleaseContract.rollback, { invalidate: invalidateActivation });
 export const useSuppressCmsContent = () => useApiMutation(cmsReleaseContract.suppress, { invalidate: invalidateActivation });

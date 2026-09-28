@@ -21,6 +21,7 @@ import { readStoredFile } from '../../lib/file-storage';
 import { parseRangeHeader, rangeNotSatisfiable, supportsRange, rangeContentHeaders } from '../../lib/http-range';
 import { attachmentDisposition, inlineOrAttachmentDisposition } from '../../lib/content-disposition';
 import { mountCrud } from '../_crud';
+import { recordCmsDownloadResponse } from '../../services/cms/cms-telemetry-download';
 
 const filesRouter = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -54,6 +55,7 @@ const contentRoute = defineContractRoute(fileContract.content, {
       return new Response(null, { status: 304, headers: cacheHeaders });
     }
     const storedFile = await readStoredFile(file, storageConfig, range ?? undefined);
+    await recordCmsDownloadResponse(id, c.req.query('cmsTelemetry'));
     return new Response(storedFile.stream, {
       status: range ? 206 : 200,
       headers: {

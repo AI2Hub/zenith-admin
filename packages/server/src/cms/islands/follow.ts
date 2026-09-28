@@ -1,5 +1,6 @@
 import { apiHeaders, apiJson, isOk } from './shared/api';
 import { goToMemberLogin, readMemberToken } from './shared/member';
+import { getCmsAttributionContext } from './analytics';
 
 interface SubscriptionRow {
   id: number;
@@ -59,7 +60,7 @@ export function mountFollow(el: HTMLElement): void {
       : apiJson<SubscriptionRow>('/api/member/cms/subscriptions', {
         method: 'POST',
         headers: { ...apiHeaders(token, true), 'X-Idempotency-Key': `follow-${Date.now()}` },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ ...body, attribution: getCmsAttributionContext(button.ownerDocument) }),
       });
     request
       .then((result) => {

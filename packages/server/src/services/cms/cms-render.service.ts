@@ -1,3 +1,5 @@
+import { buildCmsTelemetryContext, findCmsRenderedMediaAsset } from './cms-telemetry-render';
+import { verifyCmsTelemetryPageToken } from './cms-telemetry-context';
 import { cmsGenerationNow } from './cms-generation-context';
 import { frozenCmsImageAttributes, frozenCmsMediaForUrl, renderCmsFrozenBody, cmsDurationLabel } from './cms-frozen-media';
 import { createElement, type ComponentType } from 'react';
@@ -188,6 +190,7 @@ export function mergeSeo(site: CmsSiteRow, overrides: Partial<CmsSeo> & { pathFo
     ? settings.socialImageAlt.trim()
     : site.name;
   return {
+    pagePath: overrides.pathForCanonical ?? overrides.pagePath ?? '/',
     title,
     keywords: overrides.keywords?.trim() || site.keywords?.trim() || '',
     description,
@@ -213,7 +216,7 @@ export function mergeSeo(site: CmsSiteRow, overrides: Partial<CmsSeo> & { pathFo
   };
 }
 
-async function buildBaseContext(site: CmsSiteRow, baseUrl: string, seo: CmsSeo, analyticsContentId?: number): Promise<CmsBaseContext> {
+async function buildBaseContext(site: CmsSiteRow, baseUrl: string, seo: CmsSeo, analyticsContentId?: number, analyticsChannelId?: number): Promise<CmsBaseContext> {
   const [tree, friendLinks, friendLinkGroups, ads, langAlternates, assets, themeSlots] = await Promise.all([
     listCmsChannelTree({ siteId: site.id, status: 'enabled' }, { skipAccessCheck: true }),
     listEnabledFriendLinks(site.id, baseUrl),
@@ -259,6 +262,7 @@ async function buildBaseContext(site: CmsSiteRow, baseUrl: string, seo: CmsSeo, 
     friendLinkGroups,
     seo,
     searchUrl: `${baseUrl}/search`,
+    telemetry: await buildCmsTelemetryContext(site, seo, analyticsContentId, undefined, analyticsChannelId),
     analytics: typeof analyticsSiteKey === 'string' && analyticsSiteKey
       ? { siteKey: analyticsSiteKey, ...(analyticsContentId ? { contentId: analyticsContentId } : {}), ...(generation?.generationId ? { deploymentId: generation.generationId } : {}), ...(deployment?.releaseId ? { releaseId: deployment.releaseId } : {}) }
       : null,
@@ -744,7 +748,7 @@ export async function renderChannelPage(site: CmsSiteRow, baseUrl: string, chann
     description: channel.seoDescription ?? undefined,
     pathForCanonical: channelUrl('', channel.path, page),
   });
-  const base = await buildBaseContext(site, baseUrl, seo);
+  const base = await buildBaseContext(site, baseUrl, seo, undefined, channel.id);
   const breadcrumbs = await buildBreadcrumbs(site, baseUrl, channel);
 
   if (channel.type === 'page') {
@@ -759,7 +763,7 @@ export async function renderChannelPage(site: CmsSiteRow, baseUrl: string, chann
       breadcrumbs,
       contentHtml: await resolveCmsResourcePayload(channel.pageContent ?? '', site.id),
       form: form ? {
-        code: form.code,
+        id: form.id, code: form.code,
         name: form.name,
         action: `/api/public/cms/forms/${site.code}/${form.code}`,
         returnUrl: channelUrl(baseUrl, channel.path, 1),
@@ -837,6 +841,8 @@ function buildDetailExtras(row: CmsContentRow, resolvedBody: string | null, base
       mediaUrl: typeof media.mediaUrl === 'string' && isValidCmsAssetUrl(media.mediaUrl) ? media.mediaUrl : null,
       mediaPoster: typeof media.poster === 'string' && isValidCmsAssetUrl(media.poster) ? media.poster : frozenMedia?.poster?.url ?? null,
       mediaDuration: media.duration || cmsDurationLabel(frozenMedia?.duration),
+      mediaResourceId: frozenMedia ? Number(Object.entries(row.media ?? {}).find(([, value]) => value === frozenMedia)?.[0]) || undefined : undefined,
+      mediaAssetVersionId: frozenMedia?.assetVersionId,
       mediaSubtitle: frozenMedia?.subtitle && isValidCmsAssetUrl(frozenMedia.subtitle.url) ? frozenMedia.subtitle : null,
     },
   };
@@ -903,6 +909,11 @@ export async function renderDetailPage(site: CmsSiteRow, baseUrl: string, channe
   const safeBody = sanitizeCmsHtml(resolved.body);
   const related = await buildRelatedLinks(baseUrl, relatedRows);
   const { pageBody, totalPages, extras } = buildDetailExtras(row, safeBody, baseUrl, channel, bodyPage);
+  if (base.telemetry && extras.mediaUrl && !extras.mediaResourceId) {
+    const page = verifyCmsTelemetryPageToken(base.telemetry.contextToken);
+    const asset = await findCmsRenderedMediaAsset(site.id, extras.mediaUrl, page?.revisionId);
+    if (asset) { extras.mediaResourceId = asset.resourceId; extras.mediaAssetVersionId = asset.assetVersionId; }
+  }
   if (bodyPage > totalPages) return renderNotFound(site, baseUrl, `/${channel.path}/${idOrSlug}_${bodyPage}.html`);
   const detailTemplate = await resolveDetailComponent(site, channel, row.detailTemplate, row.modelId, templateOverride);
   const props = {
@@ -1018,19 +1029,15 @@ export async function renderSearchPage(
   baseUrl: string,
   keyword: string,
   page: number,
-  track?: { ip: string | null; userAgent: string | null },
+  track?: { ip: string | null; userAgent: string | null; searchId?: string },
 ): Promise<RenderResult> {
   const theme = getBuiltinThemeFallback(site.theme);
-  const seo = mergeSeo(site, { title: keyword ? `搜索：${keyword} - ${site.name}` : `搜索 - ${site.name}` });
+  const seo = mergeSeo(site, { title: keyword ? `搜索：${keyword} - ${site.name}` : `搜索 - ${site.name}`, pathForCanonical: '/search' });
   const base = await buildBaseContext(site, baseUrl, seo);
   const result = keyword
     ? await searchCmsContents({ siteId: site.id, keyword, page, pageSize: SEARCH_PAGE_SIZE, skipAccessCheck: true, trackKeyword: Boolean(track) })
     : { list: [], total: 0, page, pageSize: SEARCH_PAGE_SIZE, tokens: [] };
-  // 搜索日志（仅首屏记一次，翻页不重复计）
-  if (track && keyword && page === 1) {
-    const { recordCmsSearchLog } = await import('./cms-stats.service');
-    recordCmsSearchLog({ siteId: site.id, keyword, resultCount: result.total, ip: track.ip, userAgent: track.userAgent });
-  }
+  base.telemetry = await buildCmsTelemetryContext(site, seo, undefined, { keyword, resultCount: result.total, page, ...(track?.searchId && /^[0-9a-f-]{36}$/i.test(track.searchId) ? { searchId: track.searchId } : {}) });
   const searchPageUrl = (p: number) => `${baseUrl}/search?q=${encodeURIComponent(keyword)}&page=${p}`;
   const totalPages = Math.max(1, Math.ceil(result.total / SEARCH_PAGE_SIZE));
   const pages = [];
@@ -1057,7 +1064,7 @@ export async function renderNotFound(site: CmsSiteRow, baseUrl: string, path: st
   const theme = getBuiltinThemeFallback(site.theme);
   const seo = mergeSeo(site, { title: `页面不存在 - ${site.name}` });
   const base = await buildBaseContext(site, baseUrl, seo);
-  const props = { ...base, path };
+  const props = { ...base, telemetry: null, path };
   const html = renderDoc(theme.templates.notFound, props);
   return { status: 404, html, kind: 'notFound' };
 }

@@ -630,6 +630,7 @@ export async function submitCmsInteraction(
       await tx.update(cmsInteractions)
         .set({ responseCount: sql`${cmsInteractions.responseCount} + 1` })
         .where(eq(cmsInteractions.id, locked.id));
+      await enqueueCmsTelemetryConversion(tx,locked.siteId,'vote',created.id,input.attribution,meta.memberId,`interaction:${locked.id}`,locked.title);
     }
     return { responseId: created?.id ?? null, repeatKey, interaction: locked };
   });
@@ -649,7 +650,6 @@ export async function submitCmsInteraction(
     duplicate = true;
   }
   const finalInteraction = transactionResult.interaction;
-  if (!duplicate) void recordCmsAttributionConversion(finalInteraction.siteId, 'vote', responseId, input.attribution, meta.memberId).catch(() => undefined);
   const canSee = finalInteraction.resultVisibility === 'always' || finalInteraction.resultVisibility === 'after_submit';
   return {
     responseId,
@@ -715,4 +715,4 @@ export async function getCmsInteractionPublicState(
       : null,
   };
 }
-import { recordCmsAttributionConversion } from './cms-attribution.service';
+import { enqueueCmsTelemetryConversion } from './cms-telemetry-business';

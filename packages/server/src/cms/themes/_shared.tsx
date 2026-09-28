@@ -7,6 +7,7 @@
  * SeoHead 统一消费渲染管线注入的 ctx.assets（正式外链 / 预览内联）。
  */
 import type { CSSProperties, ReactNode } from 'react';
+import { cloneElement, isValidElement } from 'react';
 import type { CmsContentAttachment, CmsFormField, CmsSearchResult } from '@zenith/shared/cms';
 import type { CmsBaseContext, CmsBodyPagination, CmsBreadcrumb, CmsContentDetail, CmsFrontFormConfig, CmsModelFieldValue, CmsPageContext, CmsPagination, CmsRenderSite, CmsSearchContext, CmsThemeContentCollection, CmsThemeDataApi } from './types';
 import { serializeJsonForScript } from '../../lib/json-script';
@@ -71,6 +72,8 @@ export function SeoHead({ ctx, langAlternates = false, children }: SeoHeadProps)
       <meta name="generator" content="Zenith CMS" />
       {/* 页面级岛配置（非执行内容，不进 CSP 哈希）：站点编码供广告令牌；统计开启时输出采集 key 与详情内容 id */}
       <meta name="cms-site" content={site.code} />
+      {ctx.telemetry ? <meta name="cms-telemetry-context" content={ctx.telemetry.contextToken} /> : null}
+      {ctx.telemetry ? <meta name="cms-telemetry-config" content={JSON.stringify(ctx.telemetry.config)} /> : null}
       {ctx.analytics ? <meta name="cms-analytics-key" content={ctx.analytics.siteKey} /> : null}
       {ctx.analytics?.deploymentId ? <meta name="cms-deployment-id" content={String(ctx.analytics.deploymentId)} /> : null}
       {ctx.analytics?.releaseId ? <meta name="cms-release-id" content={String(ctx.analytics.releaseId)} /> : null}
@@ -209,7 +212,7 @@ function FieldControl({ field: f, radioLabelStyle }: { field: CmsFormField; radi
 /** 前台自定义表单（栏目绑定，原生 form POST） */
 export function FrontForm({ form, buttonText = '提交', className = 'front-form', radioLabelStyle, captchaBox }: FrontFormProps) {
   return (
-    <form className={className} method="post" action={form.action}>
+    <form className={className} method="post" action={form.action} data-cms-form-id={form.id} data-cms-form-name={form.name} data-cms-target-id={form.id ? `form:${form.id}` : undefined}>
       <h2>{form.name}</h2>
       <input type="hidden" name="returnUrl" value={form.returnUrl} />
       <input className="hp" type="text" name="website" tabIndex={-1} autoComplete="off" aria-hidden="true" />
@@ -356,6 +359,7 @@ export function searchResultHref(result: { url: string; isExternal: boolean }, b
 export function SearchResultLink({ result, baseUrl }: { result: CmsSearchResult; baseUrl: string }) {
   return (
     <a
+      data-cms-search-result={result.id} data-cms-content-id={result.id}
       href={searchResultHref(result, baseUrl)}
       {...externalLinkProps(result.isExternal)}
       dangerouslySetInnerHTML={{ __html: result.titleHighlight }}
@@ -382,7 +386,10 @@ export function SearchResultList({ ctx, className = 'content-list', renderItem }
     <div className={`${className} search-result`}>
       {ctx.results.length === 0 ? (
         <div className="empty">未找到相关内容</div>
-      ) : ctx.results.map((r) => render(r))}
+      ) : ctx.results.map((r, index) => {
+        const item = render(r);
+        return isValidElement<Record<string, unknown>>(item) ? cloneElement(item, { key: r.id, 'data-cms-search-position': (ctx.pagination.page - 1) * ctx.pagination.pageSize + index + 1 }) : item;
+      })}
     </div>
   );
 }
@@ -495,6 +502,8 @@ export function MediaBlock({ content }: {
     mediaUrl: string | null;
     mediaPoster: string | null;
     mediaDuration: string | null;
+    mediaResourceId?: number;
+    mediaAssetVersionId?: number;
     mediaSubtitle?: { url: string; language: string; label: string } | null;
   };
 }) {
@@ -516,8 +525,8 @@ export function MediaBlock({ content }: {
     return (
       <div className="media-player">
         {content.mediaType === 'audio'
-          ? <audio src={content.mediaUrl} controls preload="metadata">{content.mediaSubtitle ? <track kind="subtitles" src={content.mediaSubtitle.url} srcLang={content.mediaSubtitle.language} label={content.mediaSubtitle.label} default /> : null}</audio>
-          : <video src={content.mediaUrl} controls preload="metadata" poster={content.mediaPoster ?? undefined}>{content.mediaSubtitle ? <track kind="subtitles" src={content.mediaSubtitle.url} srcLang={content.mediaSubtitle.language} label={content.mediaSubtitle.label} default /> : null}</video>}
+          ? <audio data-cms-resource-id={content.mediaResourceId} data-cms-asset-version-id={content.mediaAssetVersionId} data-cms-resource-name={content.title} src={content.mediaUrl} controls preload="metadata">{content.mediaSubtitle ? <track kind="subtitles" src={content.mediaSubtitle.url} srcLang={content.mediaSubtitle.language} label={content.mediaSubtitle.label} default /> : null}</audio>
+          : <video data-cms-resource-id={content.mediaResourceId} data-cms-asset-version-id={content.mediaAssetVersionId} data-cms-resource-name={content.title} src={content.mediaUrl} controls preload="metadata" poster={content.mediaPoster ?? undefined}>{content.mediaSubtitle ? <track kind="subtitles" src={content.mediaSubtitle.url} srcLang={content.mediaSubtitle.language} label={content.mediaSubtitle.label} default /> : null}</video>}
         {content.mediaDuration ? <div className="media-duration">时长：{content.mediaDuration}</div> : null}
       </div>
     );

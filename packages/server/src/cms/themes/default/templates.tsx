@@ -240,7 +240,7 @@ function IndexBody({ ctx, channelBlocks }: { ctx: CmsHomeContext; channelBlocks:
           {ctx.themeSlots?.['home.main'] ? <div className="home-main-widget" dangerouslySetInnerHTML={{ __html: renderCmsWidgetHtml(ctx.themeSlots['home.main']) }} /> : null}
           {channelBlocks.length > 0 ? (
             <div className="home-channel-grid">{channelBlocks.map((block, blockIndex) => (
-              <section className="home-channel-block" key={block.section?.id ?? `${block.channel?.code}-${blockIndex}`} data-style={block.section?.style ?? 'feature-list'} aria-labelledby={`home-channel-${block.channel?.id ?? 'all'}-${blockIndex}`}
+              <section data-cms-placement="home.main" data-cms-block-id={block.section?.id ?? `channel-${block.channel?.id ?? blockIndex}`} data-cms-component-name={block.section?.title || block.channel?.name} className="home-channel-block" key={block.section?.id ?? `${block.channel?.code}-${blockIndex}`} data-style={block.section?.style ?? 'feature-list'} aria-labelledby={`home-channel-${block.channel?.id ?? 'all'}-${blockIndex}`}
                 style={{ '--home-image-ratio': block.section?.imageRatio === 'square' ? '1 / 1' : block.section?.imageRatio === 'portrait' ? '3 / 4' : '16 / 9', '--home-image-position': `${block.section?.focusX ?? 50}% ${block.section?.focusY ?? 50}%` } as CSSProperties}>
                 <div className="home-channel-heading">
                   <h2 className="section-title" id={`home-channel-${block.channel?.id ?? 'all'}-${blockIndex}`}>

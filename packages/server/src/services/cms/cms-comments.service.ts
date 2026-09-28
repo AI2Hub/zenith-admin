@@ -20,6 +20,7 @@ import { assertChannelsAccess, getAccessibleChannelIds } from './cms-channels.se
 import { getEffectivelyEnabledCmsChannelIds } from './cms-channel-visibility.service';
 import { resolveEffectiveCmsSite } from './cms-site-inheritance.service';
 import { pickEntity } from '../../lib/entity-map';
+import { enqueueCmsTelemetryConversion } from './cms-telemetry-business';
 
 const SUBMIT_RL_PREFIX = `${config.redis.keyPrefix}cms:submit:`;
 const SUBMIT_RL_WINDOW_SECONDS = 60;
@@ -55,6 +56,7 @@ export interface SubmitCommentInput {
   memberId?: number | null;
   ip: string;
   userAgent: string | null;
+  attribution?: unknown;
 }
 
 export async function getCmsCommentSite(contentId: number): Promise<CmsSiteRow | null> {
@@ -97,7 +99,8 @@ export async function submitCmsComment(input: SubmitCommentInput) {
   }
   const nickname = await sanitizeUserText(input.nickname.trim());
   const text = await sanitizeUserText(input.content.trim());
-  const [row] = await db.insert(cmsComments).values({
+  const row = await db.transaction(async (tx) => {
+  const [created] = await tx.insert(cmsComments).values({
     siteId: content.siteId,
     contentId: input.contentId,
     parentId,
@@ -109,6 +112,9 @@ export async function submitCmsComment(input: SubmitCommentInput) {
     ip: input.ip,
     userAgent: input.userAgent,
   }).returning();
+  await enqueueCmsTelemetryConversion(tx,content.siteId,'comment',created.id,input.attribution,input.memberId,`content:${input.contentId}`);
+  return created;
+  });
   return mapCmsComment(row);
 }
 

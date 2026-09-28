@@ -23,6 +23,7 @@ import {
 import { HTTPException } from 'hono/http-exception';
 import { CMS_INTERACTION_DAILY_LIMITS, CMS_INTERACTION_POINTS, cmsMemberSubscriptionSchema } from '@zenith/shared/cms';
 import type { CmsSubscriptionSubjectInput, CmsSubscriptionSubjectType } from '@zenith/shared/cms';
+import { enqueueCmsTelemetryConversion } from './cms-telemetry-business';
 import { cmsSubscriptionContract } from '@zenith/shared/cms';
 import { db } from '../../db';
 import {
@@ -189,7 +190,8 @@ export async function subscribeCmsSubject(input: CmsSubscriptionSubjectInput) {
   if (!member || member.deletedAt || member.status !== 'active') {
     throw new HTTPException(403, { message: '会员状态异常，无法订阅' });
   }
-  const [row] = await db.insert(cmsMemberSubscriptions)
+  const row = await db.transaction(async (tx) => {
+  const [created] = await tx.insert(cmsMemberSubscriptions)
     .values({
       memberId,
       ...subject,
@@ -211,6 +213,9 @@ export async function subscribeCmsSubject(input: CmsSubscriptionSubjectInput) {
       },
     })
     .returning();
+  await enqueueCmsTelemetryConversion(tx,created.siteId,'follow',created.id,input.attribution,memberId,`${created.subjectType}:${created.subjectKey}`,created.subjectLabel);
+  return created;
+  });
   await awardFirstSubscriptionPoints(row);
   const [fresh] = await db.select().from(cmsMemberSubscriptions).where(eq(cmsMemberSubscriptions.id, row.id)).limit(1);
   return mapCmsMemberSubscription(fresh);

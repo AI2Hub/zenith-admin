@@ -16,8 +16,6 @@ export {
   getContentBodyExtendRaw,
   resolveContentBodyExtend,
   getAdjacentContents,
-  increaseViewCount,
-  flushViewCountBuffer,
   listContentTags,
   listRelatedContents,
   listPublishedContentsByTag,

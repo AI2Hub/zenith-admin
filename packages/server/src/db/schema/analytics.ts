@@ -110,6 +110,9 @@ export const userEvents = pgTable('user_events', {
   // services/analytics/analytics-property-filter.ts），使高基数属性 key 可走位图索引扫描，
   // 而不是对时间窗内每一行求值 `properties ->> 'key'`
   index('user_events_properties_gin_idx').using('gin', t.properties),
+  index('user_events_cms_site_created_idx').on(sql`(${t.properties}->>'cmsSiteId')`, t.createdAt).where(sql`${t.properties} @> '{"cmsSchemaVersion":2,"trustedCms":true}'::jsonb`),
+  index('user_events_cms_page_created_idx').on(sql`(${t.properties}->>'pageViewId')`, t.createdAt).where(sql`${t.properties} @> '{"cmsSchemaVersion":2,"trustedCms":true}'::jsonb`),
+  uniqueIndex('user_events_cms_page_view_uq').on(sql`(${t.properties}->>'cmsSiteId')`, sql`(${t.properties}->>'pageViewId')`).where(sql`${t.properties} @> '{"cmsSchemaVersion":2,"trustedCms":true}'::jsonb and ${t.eventName}='cms.page_view'`),
   // 身份回溯合并（$identify → 历史匿名事件改写 distinct_id）的更新路径：
   // 只覆盖尚未归属登录身份的匿名行，部分索引控制维护成本
   index('user_events_anon_pending_idx').on(t.anonymousId).where(sql`${t.userId} IS NULL AND ${t.memberId} IS NULL AND ${t.anonymousId} IS NOT NULL`),

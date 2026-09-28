@@ -16,7 +16,7 @@ import { cmsGenerationNeedsDynamicDelivery, withCmsPublicGeneration } from '../.
 import { cmsGenerationContext } from '../../services/cms/cms-generation-context';
 import { readStaticFile, writeStaticFile, generateSitemapXml, buildRobotsTxt, isCmsStaticArtifactCurrent, assertCmsHybridWriteSafe } from '../../services/cms/cms-static.service';
 import { generateRssXml, findChannelByPath, ensureSiteThemeCssAsset, ensureSiteIslandsAsset } from '../../services/cms/cms-render.service';
-import { recordCmsVisit, pageKindFromPath } from '../../services/cms/cms-stats.service';
+import { withCmsTelemetryEnvironment } from '../../services/cms/cms-telemetry-context';
 import { optionalMemberSessionMiddleware } from '../../middleware/optional-member-session';
 import { resolveDynamicCmsPageForPath } from '../../services/cms/cms-pages.service';
 import { getClientIp } from '../../lib/request-helpers';
@@ -108,12 +108,6 @@ async function resolveTarget(host: string | undefined, pathname: string): Promis
   return { site, sitePath: pathname.replace(/^\/+/, ''), baseUrl: '', isPreview: false };
 }
 
-/** 详情路径提取纯数字内容 id（静态命中无渲染上下文时尽力关联；slug 详情返回 null） */
-function extractContentIdFromPath(sitePath: string): number | null {
-  const m = /\/(\d+)(?:_\d+)?\.html$/.exec(`/${sitePath}`);
-  return m ? Number(m[1]) : null;
-}
-
 function respond(c: Context, result: RenderResult) {
   if (result.status === 302) return c.redirect(result.location, 302);
   return c.newResponse(result.html, result.status, { ...HTML_HEADERS });
@@ -147,21 +141,6 @@ export function createCmsFrontendRoutes(): Hono {
     const runtimeBlocked = generation ? await cmsGenerationNeedsDynamicDelivery(site.id) : false;
     const dynamicPage = await resolveDynamicCmsPageForPath(site.id, sitePath);
     const memberViewer = c.get('member')?.memberId != null;
-
-    // 访问统计埋点（fire-and-forget；预览流量不计入）
-    const trackVisit = (pageKind: string, contentId?: number | null) => {
-      if (isPreview) return;
-      recordCmsVisit({
-        siteId: site.id,
-        sitePath,
-        pageKind,
-        contentId: contentId ?? extractContentIdFromPath(sitePath),
-        ip: getClientIp(c),
-        userAgent: c.req.header('user-agent') ?? null,
-        referrer: c.req.header('referer') ?? null,
-        host: c.req.header('host') ?? null,
-      });
-    };
 
     // 主题样式资产（内容指纹文件名，长缓存 immutable；miss 时现场生成自愈）
     if (sitePath.startsWith('_assets/') && sitePath.endsWith('.css')) {
@@ -256,7 +235,7 @@ export function createCmsFrontendRoutes(): Hono {
       if (!revision || revision.siteId !== site.id) {
         return c.text('预览链接无效或已过期', 403);
       }
-      const result = await renderContentPreviewPage(site, baseUrl, contentId, revision);
+      const result = await withCmsTelemetryEnvironment('preview', () => renderContentPreviewPage(site, baseUrl, contentId, revision));
       c.header('Cache-Control', 'private, no-store');
       c.header('Referrer-Policy', 'no-referrer');
       return respond(c, result);
@@ -268,9 +247,8 @@ export function createCmsFrontendRoutes(): Hono {
       const page = Math.max(1, Number(c.req.query('page')) || 1);
       const result = await renderSearchPage(site, baseUrl, keyword, page, {
         ip: getClientIp(c),
-        userAgent: c.req.header('user-agent') ?? null,
+        userAgent: c.req.header('user-agent') ?? null, searchId: c.req.query('cmsSearchId'),
       });
-      trackVisit('search');
       return respond(c, result);
     }
 
@@ -282,7 +260,6 @@ export function createCmsFrontendRoutes(): Hono {
         return false;
       });
       if (cached !== null && artifactCurrent) {
-        trackVisit(pageKindFromPath(sitePath));
         return htmlResponse(c, cached, PAGE_CACHE_TTL_DEFAULT_SECONDS, { 'X-Cms-Cache': 'static' });
       }
     }
@@ -293,7 +270,6 @@ export function createCmsFrontendRoutes(): Hono {
     if (!runtimeBlocked && !dynamicPage && !isPreview && site.staticMode === 'dynamic') {
       const cached = await redis.get(cacheKey).catch(() => null);
       if (cached) {
-        trackVisit(pageKindFromPath(sitePath));
         return htmlResponse(c, cached, PAGE_CACHE_TTL_DEFAULT_SECONDS, { 'X-Cms-Cache': 'redis' });
       }
     }
@@ -304,7 +280,6 @@ export function createCmsFrontendRoutes(): Hono {
     const templateOverride = isPreview ? (c.req.query('__template')?.trim() || null) : null;
     const result = await renderSitePath(site, baseUrl, sitePath, templateOverride, { member: memberViewer });
     if (result.status === 200) {
-      trackVisit(result.kind, 'contentId' in result ? result.contentId : null);
       const ttl = PAGE_CACHE_TTL_BY_KIND[result.kind] ?? PAGE_CACHE_TTL_DEFAULT_SECONDS;
       if (!generation && !dynamicPage && !isPreview && site.staticMode === 'hybrid') {
         // 混合模式：miss 即渲染并回写，下次直接命中静态文件

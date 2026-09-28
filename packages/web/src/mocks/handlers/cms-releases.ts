@@ -17,6 +17,13 @@ const activations: (OutputOf<typeof cmsReleaseContract.detail>['activations'][nu
 const configurations = new Map<number, CmsConfigurationSnapshot>();
 const requireRelease = (id: number) => requireItem(releases, id, '发布单不存在', { status: 404 });
 
+export function getMockCmsPublishedTelemetry(siteId: number): { enabled?: boolean; timeZone?: string } | undefined {
+  const id = active.get(siteId);
+  if (!id) return undefined;
+  const settings = deploymentConfigurations.get(id)?.tables.cms_sites?.find((row) => row.id === siteId)?.settings as { telemetry?: { enabled?: boolean; timeZone?: string } } | undefined;
+  return settings?.telemetry;
+}
+
 function captureConfiguration(siteId: number, options: { pageIds?: number[]; widgetIds?: number[]; includeSiteConfiguration?: boolean }) {
   const all = options.includeSiteConfiguration === true;
   const pageIds = options.pageIds ?? [];

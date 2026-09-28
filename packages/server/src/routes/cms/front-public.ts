@@ -1,12 +1,12 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
-import { publicCmsContract, submitCmsCommentSchema } from '@zenith/shared/cms';
+import { publicCmsContract, publicCmsTelemetryContract, submitCmsCommentSchema } from '@zenith/shared/cms';
 import { defineContractRoute } from '../../lib/contract-route';
 import { errBody, okBody, validationHook } from '../../lib/openapi-schemas';
 import { resolveSiteByCode } from '../../services/cms/cms-sites.service';
 import { getCmsCommentSite, submitCmsComment, likeCmsComment, throttleFrontSubmit } from '../../services/cms/cms-comments.service';
 import { getCmsFormByCode, submitCmsForm } from '../../services/cms/cms-forms.service';
-import { increaseViewCount } from '../../services/cms/cms-contents.service';
+import { collectCmsTelemetry } from '../../services/cms/cms-telemetry.service';
 import {
   recordCmsAdClick,
   getCmsAdClickTarget,
@@ -27,9 +27,6 @@ import {
   getPublicCmsInteractionByCode,
   submitCmsInteraction,
 } from '../../services/cms/cms-interactions.service';
-import redis from '../../lib/redis';
-import { config } from '../../config';
-import { hashCmsIp } from '../../services/cms/cms-visitor';
 import { optionalMemberSessionMiddleware } from '../../middleware/optional-member-session';
 import { getClientIp } from '../../lib/request-helpers';
 import { escapeHtml } from '@zenith/shared/core';
@@ -61,6 +58,11 @@ async function assertCaptchaIfEnabled(site: { settings: unknown } | null, body: 
 export function createCmsFrontPublicRoutes() {
   const app = new OpenAPIHono({ defaultHook: validationHook });
   app.use('*', optionalMemberSessionMiddleware);
+  app.openapiRoutes([defineContractRoute(publicCmsTelemetryContract.collect, {
+    handler: async c => c.json(okBody(await collectCmsTelemetry(c.req.valid('json'), {
+      ip: getClientIp(c), userAgent: c.req.header('user-agent') ?? '', origin: c.req.header('origin') ?? null, host: c.req.header('host') ?? new URL(c.req.url).host,
+    })), 200),
+  })]);
 
   // ─── 图形验证码（站点开启 captchaEnabled 时评论/表单提交必须携带）──────────────
   const captchaRoute = defineContractRoute(publicCmsContract.captcha, {
@@ -168,6 +170,7 @@ export function createCmsFrontPublicRoutes() {
       await submitCmsComment({
         contentId: parsed.data.contentId,
         nickname: parsed.data.nickname,
+        attribution: body._cmsAttribution,
         content: parsed.data.content,
         parentId: parsed.data.parentId,
         ip: getClientIp(c),
@@ -314,24 +317,6 @@ export function createCmsFrontPublicRoutes() {
     return c.body(null, 204);
   });
 
-  // ─── 浏览计数 beacon（静态页 sendBeacon 上报；同 IP+内容 60s 去重防刷）────────
-  app.post('/view', async (c) => {
-    let contentId: number;
-    try {
-      const body = await c.req.json<{ contentId?: number }>();
-      contentId = Number(body?.contentId) || 0;
-    } catch {
-      return c.body(null, 204);
-    }
-    if (!contentId) return c.body(null, 204);
-    const ip = getClientIp(c);
-    const dedupeKey = `${config.redis.keyPrefix}cms:view:${contentId}:${hashCmsIp(ip)}`;
-    const first = await redis.set(dedupeKey, '1', 'EX', 60, 'NX').catch(() => 'OK');
-    if (first) {
-      await increaseViewCount(contentId).catch(() => undefined);
-    }
-    return c.body(null, 204);
-  });
 
   return app;
 }

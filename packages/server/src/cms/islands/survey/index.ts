@@ -8,6 +8,7 @@ import { replace } from './dom';
 import { clearDraft, restoreDraft, saveDraft } from './draft';
 import { collect, refresh, setFieldError, setFormError, validate, type FormState } from './form';
 import { doneElement, formElement, liveResultsElement, memberOnlyHint, resultsElement } from './render';
+import { getCmsAttributionContext, trackCmsFormError } from '../analytics';
 
 function showResults(el: HTMLElement, state: SurveyState): void {
   replace(el, resultsElement(state.results));
@@ -32,6 +33,8 @@ function renderForm(el: HTMLElement, box: SurveyContainer, token: string | null,
   }
   const state: FormState = { page: 0, interaction };
   const form = formElement(server);
+  form.dataset.cmsInteractionId = String(interaction.id);
+  form.dataset.cmsInteractionName = interaction.title;
   const showLive = interaction.repeatPolicy === 'multiple' && server.resultsVisible && server.results;
   replace(el, showLive && server.results ? liveResultsElement(server.results) : null, form);
 
@@ -77,10 +80,11 @@ function renderForm(el: HTMLElement, box: SurveyContainer, token: string | null,
 
   form.addEventListener('submit', (event) => {
     event.preventDefault();
-    if (!validate(form, state, false)) return;
+    if (!validate(form, state, false)) { trackCmsFormError(el.ownerDocument, interaction.id, 'validation', interaction.title); return; }
     const captchaAnswer = form.querySelector<HTMLInputElement>('[name=captchaAnswer]');
     if (captchaAnswer && !captchaAnswer.value.trim()) {
       setFormError(form, '请填写验证码');
+      trackCmsFormError(el.ownerDocument, interaction.id, 'captcha_required', interaction.title);
       return;
     }
     const submitButton = form.querySelector<HTMLButtonElement>('.survey-submit')!;
@@ -89,6 +93,7 @@ function renderForm(el: HTMLElement, box: SurveyContainer, token: string | null,
       .then((result) => {
         submitButton.disabled = false;
         if (!isOk(result)) {
+          trackCmsFormError(el.ownerDocument, interaction.id, `business_${result?.code ?? 'unknown'}`, interaction.title);
           setFormError(form, result?.message || '提交失败');
           resetCaptcha(form, server.captcha);
           return;
@@ -118,6 +123,7 @@ function renderForm(el: HTMLElement, box: SurveyContainer, token: string | null,
         else replace(el, doneElement(message || '提交成功'));
       })
       .catch(() => {
+        trackCmsFormError(el.ownerDocument, interaction.id, 'network', interaction.title);
         submitButton.disabled = false;
         setFormError(form, '提交失败，请稍后再试');
         resetCaptcha(form, server.captcha);
@@ -153,4 +159,3 @@ export function mountSurvey(el: HTMLElement): void {
       el.style.display = 'none';
     });
 }
-import { getCmsAttributionContext } from '../analytics';

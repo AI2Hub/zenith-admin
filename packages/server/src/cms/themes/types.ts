@@ -38,6 +38,8 @@ export interface CmsBreadcrumb {
 
 /** 页面 SEO 元信息（三级 TDK 覆盖后的最终值） */
 export interface CmsSeo {
+  /** Stable relative URL, present even for a site served without a custom domain. */
+  pagePath?: string;
   title: string;
   keywords: string;
   description: string;
@@ -150,6 +152,8 @@ export interface CmsContentDetail extends CmsContentItem {
   mediaUrl: string | null;
   mediaPoster: string | null;
   mediaDuration: string | null;
+  mediaResourceId?: number;
+  mediaAssetVersionId?: number;
   mediaSubtitle?: { url: string; language: string; label: string } | null;
   extend: Record<string, unknown>;
   /** 模型标记 showInDetail 的字段展示值（按 group/sort 排序）；栏目未绑定模型或无勾选字段时为空数组 */
@@ -198,6 +202,7 @@ export interface CmsBaseContext {
   searchUrl: string;
   /** 行为统计（站点开启后注入采集脚本）；detail 页附 contentId 供浏览计数 beacon */
   analytics: { siteKey: string; contentId?: number; releaseId?: number; deploymentId?: number } | null;
+  telemetry?: { contextToken: string; config: import('@zenith/shared/cms').CmsTelemetryConfig } | null;
   /** 多语言站点关联（P5）：hreflang alternate + 语言切换；空数组 = 未配置 */
   langAlternates: { language: string; name: string; url: string; current: boolean }[];
   /** 搭建页受众渲染上下文；仅 dynamic=true 时使用 Bearer 可选会员身份二次渲染。 */
@@ -324,6 +329,7 @@ export interface CmsDetailContext extends CmsBaseContext {
 
 /** 前台自定义表单配置（栏目 settings.formCode 绑定） */
 export interface CmsFrontFormConfig {
+  id?: number;
   code: string;
   name: string;
   action: string;

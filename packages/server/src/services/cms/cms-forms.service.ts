@@ -26,7 +26,7 @@ import { compileCmsFormPattern } from './cms-form-pattern';
 import { refreshCmsPublicConfiguration } from './cms-public-config-refresh.service';
 import { pickEntity } from '../../lib/entity-map';
 import { assertCmsSubmissionsDeletable, createCmsFeedbackForSubmission } from './cms-feedback.service';
-import { recordCmsAttributionConversion } from './cms-attribution.service';
+import { enqueueCmsTelemetryConversion } from './cms-telemetry-business';
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
 export function mapCmsForm(row: CmsFormRow, submissionCount?: number) {
@@ -82,10 +82,10 @@ export async function submitCmsForm(input: SubmitFormInput) {
   const row = await db.transaction(async (tx) => {
     const [submission] = await tx.insert(cmsFormSubmissions).values({ formId: input.form.id, data, ip: input.ip, userAgent: input.userAgent }).returning();
     await createCmsFeedbackForSubmission(tx, input.form, submission);
+    await enqueueCmsTelemetryConversion(tx,input.site.id,'form',submission.id,input.raw._cmsAttribution,null,`form:${input.form.id}`,input.form.name);
     return submission;
   });
   notifyFormSubmission(input.form, data);
-  void recordCmsAttributionConversion(input.site.id, 'form', row.id, input.raw._cmsAttribution).catch((error) => logger.warn('[CMS] 表单完成归因写入失败', error));
   return mapCmsFormSubmission(row);
 }
 
