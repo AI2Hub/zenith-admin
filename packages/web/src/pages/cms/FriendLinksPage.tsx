@@ -16,7 +16,7 @@ import {
 } from '@/hooks/queries/cms';
 import type { CmsFriendLink, CmsFriendLinkGroup } from '@zenith/shared/cms';
 import { CmsSiteSelect } from './CmsSiteSelect';
-import { FriendLinkLogoField } from './FriendLinkLogoField';
+import { CmsAssetUrlField } from './CmsAssetUrlField';
 import { CreateButton } from '@/components/toolbar-controls';
 import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { abortSubmit } from '@/lib/abort-submit';
@@ -28,8 +28,8 @@ import { EditFormModal } from '@/components/EditFormModal';
 interface SearchParams { keyword: string; groupId?: number }
 const defaultSearch: SearchParams = { keyword: '', groupId: undefined };
 
-/** Logo 素材字段：外链手填与上传/选择共用同一 `logo` 值 */
-const FormFriendLinkLogo = withField(FriendLinkLogoField);
+/** Logo 字段：外链手填与上传/选择共用同一 `logo` 值 */
+const FormFriendLinkLogo = withField(CmsAssetUrlField);
 
 export default function FriendLinksPage() {
   const { hasPermission } = usePermission();

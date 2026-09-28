@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { SearchToolbar } from '@/components/SearchToolbar';
-import { Button, Form, Tag, Tabs, TabPane, SideSheet, Typography } from '@douyinfe/semi-ui';
+import { Button, Form, Tag, Tabs, TabPane, SideSheet, Typography, withField } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Trash2 } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -30,6 +30,10 @@ import { compactParams } from '@/lib/query';
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import { FormStatusRadioGroup } from '@/components/FormStatusRadioGroup';
 import { EditFormModal } from '@/components/EditFormModal';
+import { CmsAssetUrlField } from './CmsAssetUrlField';
+
+/** 广告图片：外链手填与上传/选择共用同一 `image` 值（留空显示文字条） */
+const FormAdImage = withField(CmsAssetUrlField);
 // ─── 广告位 Tab ───────────────────────────────────────────────────────────────
 function SlotsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
   const { hasPermission } = usePermission();
@@ -114,6 +118,8 @@ function AdsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
     }),
     beforeSave: (values) => ({
       ...values,
+      // 空图片归一为 null（与 nullable 列语义一致，避免存空串）
+      image: typeof values.image === 'string' && values.image.trim() ? values.image : null,
       // DatePicker clearing is an explicit null mutation; undefined would be
       // omitted by JSON serialization and leave the previous window in place.
       startAt: values.startAt instanceof Date ? formatDateTimeForApi(values.startAt) : (values.startAt ?? null),
@@ -125,6 +131,12 @@ function AdsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
 
   const columns: ColumnProps<CmsAd>[] = [
     { title: '广告名称', dataIndex: 'name', width: 220, render: renderEllipsis },
+    {
+      title: '图片', dataIndex: 'image', width: 72,
+      render: (v: string | null, record: CmsAd) => (v
+        ? <img src={v} alt={record.name} draggable={false} style={{ width: 32, height: 32, objectFit: 'contain', borderRadius: 'var(--semi-border-radius-small)', background: 'var(--semi-color-fill-0)' }} />
+        : EMPTY_PLACEHOLDER),
+    },
     { title: '广告位', dataIndex: 'slotName', width: 180, render: renderEllipsis },
     { title: '跳转地址', dataIndex: 'linkUrl', minWidth: 200, render: renderEllipsis },
     { title: '曝光量', dataIndex: 'viewCount', width: 90, align: 'right' },
@@ -171,7 +183,8 @@ function AdsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
         <Form.Select field="slotId" label="广告位" style={{ width: '100%' }} rules={[{ required: true, message: '请选择广告位' }]}
           optionList={(slotsQuery.data ?? []).map((s) => ({ value: s.id, label: s.name }))} />
         <Form.Input field="name" label="广告名称" rules={[{ required: true, message: '请输入名称' }]} />
-        <Form.Input field="image" label="图片 URL" placeholder="留空显示文字条" />
+        <FormAdImage field="image" label="图片" siteId={siteId} allowUpload={hasPermission('cms:resource:upload')}
+          urlPlaceholder="外链图片地址（可选），或下方上传/选择；留空显示文字条" />
         <Form.Input field="linkUrl" label="跳转地址" placeholder="/products/enterprise.html 或 https://..." />
         <Form.DatePicker field="startAt" label="开始时间" type="dateTime" density="compact" style={{ width: '100%' }} placeholder="不限" />
         <Form.DatePicker field="endAt" label="结束时间" type="dateTime" density="compact" style={{ width: '100%' }} placeholder="不限" />
