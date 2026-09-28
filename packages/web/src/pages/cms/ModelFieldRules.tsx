@@ -27,7 +27,8 @@ export default function ModelFieldRules({ field, siteId }: Readonly<{ field: str
   const requiredField = getByPath(state.values, `${field}.configuration.requiredWhen.field`);
   const requiredType = siblings.find((sibling) => sibling.name === requiredField)?.fieldType;
   return <div style={{ width: '100%', padding: '8px 0 4px' }}>
-    <Row gutter={16}>
+    {/* 与 ModelsPage 字段行一致：右侧 padding 给绝对定位的删除按钮让位，否则双列 label 错位 */}
+    <Row gutter={16} style={{ paddingRight: 40 }}>
       {type === 'number' ? <>
         <Col span={12}>
           <Form.InputNumber field={`${field}.configuration.min`} label="最小值" />
@@ -44,7 +45,7 @@ export default function ModelFieldRules({ field, siteId }: Readonly<{ field: str
         </Col>
       </>}
     </Row>
-    <Row gutter={16}>
+    <Row gutter={16} style={{ paddingRight: 40 }}>
       <Col span={12}>
       <Form.Select field={`${field}.configuration.requiredWhen.field`} label="条件必填" showClear placeholder="选择条件字段" optionList={siblings.filter((sibling) => sibling.name).map((sibling) => ({ value: sibling.name!, label: String(sibling.label ?? sibling.name) }))} />
       </Col>
