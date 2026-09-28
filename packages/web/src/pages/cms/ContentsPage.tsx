@@ -481,7 +481,8 @@ export default function ContentsPage() {
     { title: '语言', dataIndex: 'locale', width: 90 },
     { title: '负责人', dataIndex: 'ownerId', width: 110, render: (value: number | null) => users?.find((user) => user.id === value)?.nickname ?? EMPTY_PLACEHOLDER },
     dateTimeColumn('审稿截止', 'dueAt'),
-    { title: '作者', dataIndex: 'author', width: 90, render: (v: string | null) => v || EMPTY_PLACEHOLDER },
+    // 作者是自由文案（署名可到 50 字符，如「内容运营中心」，90 定宽会折成两行）：加宽到 140 并单行省略（悬停看全名）
+    { title: '作者', dataIndex: 'author', width: 140, render: renderEllipsis },
     { title: '浏览', dataIndex: 'viewCount', width: 80, align: 'right' },
     { title: '赞/藏', dataIndex: 'likeCount', width: 90, align: 'right', render: (_: number, record) => `${record.likeCount}/${record.favoriteCount}` },
     {

@@ -1,5 +1,5 @@
 import CmsWorkbenchPreview from './CmsWorkbenchPreview';
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import CmsValueDiff from './CmsValueDiff';
 import CmsContentConflictView from './CmsContentConflictView';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -13,6 +13,9 @@ import { useDebouncedCallback } from '@tanstack/react-pacer';
 import { formatDateTimeForApi } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import { useUrlTabState } from '@/hooks/useUrlTabState';
+import { useElementSize } from '@/hooks/useElementSize';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { mediaUp } from '@/lib/breakpoints';
 import { config as appConfig } from '@/config';
 import { confirmDanger } from '@/utils/confirm';
 import {
@@ -54,10 +57,10 @@ const RichTextEditor = lazy(() => import('@/components/RichTextEditor'));
 const FormContentReference = withField(CmsContentReferenceInput);
 const FormCmsAsset = withField(CmsAssetField);
 const BusinessWorkflowPanel = lazy(() => import('@/components/workflow/BusinessWorkflowPanel'));
-const editorLoadingFallback = (
+const editorLoadingFallback = (height: number) => (
   <div
     style={{
-      height: 420,
+      height,
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -68,6 +71,10 @@ const editorLoadingFallback = (
     <Spin />
   </div>
 );
+
+/** 大屏正文编辑器的高度下限（文章）与底部留白（px） */
+const BODY_EDITOR_MIN_HEIGHT = 320;
+const BODY_EDITOR_BOTTOM_GAP = 12;
 
 const AUTO_SAVE_INTERVAL_MS = 5_000;
 const EDIT_LOCK_HEARTBEAT_MS = 30_000;
@@ -659,6 +666,61 @@ export default function ContentEditPage() {
     Toast.success(`已替换「${word}」→「${correction}」`);
   }
 
+  /**
+   * 大屏正文编辑器填满左栏可视高度。
+   *
+   * 断点与 ContentEditPage.css 的 `--lg-up` 一致（来自 lib/breakpoints，避免硬编码漂移）：
+   * 只有该断点下左栏才是「锁定视口高度的独立滚动容器」，编辑器才谈得上按可视高定高；
+   * 窄屏整页滚动，无确定高度可参考，继续用原定高（文章 420 / 其它 240）。
+   *
+   * 高度 = 左栏可视高 − 编辑器顶部偏移 − 下方区块（附件 / 模型字段）高 − 留白。
+   * 锚点取编辑器本体（`[data-w-e-textarea]`）而非整个正文块：正文块里还有工具栏、文章还多一条分页符条，
+   * 以编辑器自身为锚点量偏移，这些高度自动进入「上方偏移」，页面因此不需要维护任何尺寸常量；
+   * 偏移按左栏坐标系取（加回 scrollTop），与左栏滚动位置无关；
+   * 图集 / 音视频这类「正文块上方还有内容（图集图片列表 / 媒体处理面板）」的类型，
+   * 拿到的也是上方内容用剩的高度。
+   *
+   * 高度本身不再是依赖项（它不改变上下方布局），因此不会「改高度→重算→再改」循环。
+   * 需要重算的是「拿不到编辑器 / 上下方布局变了」这两种情况：编辑器挂载前后（懒加载 chunk 到达、
+   * 换内容类型重建）拿不到元素，就用正文块的子节点变化数（`editorEpoch`）触发；
+   * 正文块高度（`bodyBlockHeight`）则负责工具栏换行这类块内高度变化。
+   */
+  const isWideLayout = useMediaQuery(mediaUp('lg'));
+  const { ref: mainPaneRef, height: mainPaneHeight } = useElementSize<HTMLDivElement>();
+  const { ref: bodyBlockRef, height: bodyBlockHeight } = useElementSize<HTMLDivElement>();
+  const [editorEpoch, setEditorEpoch] = useState(0);
+  useLayoutEffect(() => {
+    const block = bodyBlockRef.current;
+    if (!block || typeof MutationObserver !== 'function') return;
+    // 只听正文块的直接子节点：Suspense 占位换成编辑器时会变，编辑器内部敲字不会（无 subtree）
+    const observer = new MutationObserver(() => setEditorEpoch((epoch) => epoch + 1));
+    observer.observe(block, { childList: true });
+    return () => observer.disconnect();
+  }, [contentType, isWideLayout, bodyBlockRef]);
+  const bodyEditorHeight = useMemo(() => {
+    const fixedHeight = contentType === 'article' ? 420 : 240;
+    // 下限：文章允许收缩到 320 换取「不出滚动条」，其余类型不低于现有定高（图集 / 音视频的图文说明块）
+    const minHeight = contentType === 'article' ? BODY_EDITOR_MIN_HEIGHT : fixedHeight;
+    const pane = mainPaneRef.current;
+    const editorEl = bodyBlockRef.current?.querySelector<HTMLElement>('[data-w-e-textarea]');
+    if (!isWideLayout || contentType === 'link' || !pane || !editorEl || mainPaneHeight <= 0) return fixedHeight;
+    const paneTop = pane.getBoundingClientRect().top;
+    const editorRect = editorEl.getBoundingClientRect();
+    const offsetTop = editorRect.top - paneTop + pane.scrollTop;
+    // 下方区块按真实内容底边量：左栏的 scrollHeight 有 clientHeight 兜底，内容没溢出时量不出差异
+    const contentBottom = Array.from(pane.children).reduce(
+      (bottom, child) => Math.max(bottom, child.getBoundingClientRect().bottom),
+      editorRect.bottom,
+    ) - paneTop + pane.scrollTop;
+    const belowHeight = Math.max(0, contentBottom - offsetTop - editorRect.height);
+    return Math.max(
+      minHeight,
+      Math.floor(mainPaneHeight - offsetTop - belowHeight - BODY_EDITOR_BOTTOM_GAP),
+    );
+    // 正文块高度 / 附件 / 模型字段数量都会改变上下方布局，必须在 DOM 重量；exhaustive-deps 看不到这层关系
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isWideLayout, contentType, mainPaneHeight, mainPaneRef, bodyBlockRef, bodyBlockHeight, editorEpoch, albumImages.length, attachments.length, modelFields.length]);
+
   const loading = (!!id && detailQuery.isFetching && !detail) || treeQuery.isLoading;
   const diffVersion = (versionsQuery.data?.list ?? []).find((v) => v.id === diffVersionId);
   const viewedVersion = viewedVersionQuery.data;
@@ -821,7 +883,7 @@ export default function ContentEditPage() {
             onMasterBack={() => setShowEditorOnNarrow(true)}
             masterBackLabel="返回编辑"
             onResponsiveChange={setIsLayoutNarrow}
-            detail={<div className="cms-content-edit__main">
+            detail={<div className="cms-content-edit__main" ref={mainPaneRef}>
               {contentType === 'link' ? (
                 <>
                   <Banner type="info" closeIcon={null} style={{ marginBottom: 12 }} description="链接型内容：前台列表点击标题直接跳转，不生成详情页。可手输外链，也可用右侧「内部链接」选择站内内容/栏目（目标改 slug 或换栏目时链接自动跟随）。" />
@@ -894,19 +956,21 @@ export default function ContentEditPage() {
               {contentType === 'media' ? <CmsContentMediaFields siteId={siteId} disabled={isReadOnly} allowUpload={canUploadResources} onResourceChange={selectResource} /> : null}
               {contentType !== 'link' ? (
                 <Form.Slot noLabel>
-                  <Suspense fallback={editorLoadingFallback}>
+                  <div ref={bodyBlockRef}>
+                    <Suspense fallback={editorLoadingFallback(bodyEditorHeight)}>
                       <RichTextEditor
                         value={body}
                         onChange={(v) => { setBody(v); markDirty(); }}
                         /* 保存中不锁定编辑器：readOnly 翻转会触发 wangeditor disable/enable + 工具栏显隐，
                         每次自动保存（5s 一次）编辑区闪一次、还会丢光标；保存中的并发输入由 editSequence 与 CAS 版本兜底 */
                         readOnly={isReadOnly}
-                        height={contentType === 'article' ? 420 : 240}
+                        height={bodyEditorHeight}
                         enablePageBreak={contentType === 'article'}
                         placeholder={contentType === 'article' ? '请输入正文内容...' : '图文说明（可选）'}
                         uploadServer={siteId && canUploadResources ? `${appConfig.apiBaseUrl}${cmsImageUploadUrl(siteId)}` : undefined}
                       />
-                  </Suspense>
+                    </Suspense>
+                  </div>
                 </Form.Slot>
               ) : null}
               {contentType !== 'link' ? (
