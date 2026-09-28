@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Form, SideSheet, Typography } from '@douyinfe/semi-ui';
+import { Button, Form, SideSheet, Typography, withField } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { ChevronsDownUp, ChevronsUpDown, FolderTree, List as ListIcon, ListTree } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { createdAtColumn, renderEllipsis, renderEnabledStatusTag } from '@/utils/table-columns';
+import { createdAtColumn, EMPTY_PLACEHOLDER, renderEllipsis, renderEnabledStatusTag } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import { useTreeExpansion, type TreeRowKey } from '@/hooks/useTreeExpansion';
@@ -16,6 +16,7 @@ import {
 } from '@/hooks/queries/cms';
 import type { CmsFriendLink, CmsFriendLinkGroup } from '@zenith/shared/cms';
 import { CmsSiteSelect } from './CmsSiteSelect';
+import { FriendLinkLogoField } from './FriendLinkLogoField';
 import { CreateButton } from '@/components/toolbar-controls';
 import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { abortSubmit } from '@/lib/abort-submit';
@@ -26,6 +27,9 @@ import { EditFormModal } from '@/components/EditFormModal';
 
 interface SearchParams { keyword: string; groupId?: number }
 const defaultSearch: SearchParams = { keyword: '', groupId: undefined };
+
+/** Logo 素材字段：外链手填与上传/选择共用同一 `logo` 值 */
+const FormFriendLinkLogo = withField(FriendLinkLogoField);
 
 export default function FriendLinksPage() {
   const { hasPermission } = usePermission();
@@ -67,6 +71,8 @@ export default function FriendLinksPage() {
         // Semi's clearable Select yields undefined; retain an explicit null so
         // the PATCH removes the previous group instead of omitting the field.
         groupId: values.groupId == null ? null : values.groupId,
+        // 空 Logo 归一为 null（与 nullable 列语义一致，避免存空串）
+        logo: values.logo?.trim() ? values.logo : null,
         ...(!isEdit ? { siteId } : {}),
       };
     },
@@ -121,6 +127,12 @@ export default function FriendLinksPage() {
 
   const columns: ColumnProps<CmsFriendLink>[] = [
     { title: '链接名称', dataIndex: 'name', width: 180 },
+    {
+      title: 'Logo', dataIndex: 'logo', width: 72,
+      render: (v: string | null, record: CmsFriendLink) => (v
+        ? <img src={v} alt={record.name} draggable={false} style={{ width: 32, height: 32, objectFit: 'contain', borderRadius: 'var(--semi-border-radius-small)', background: 'var(--semi-color-fill-0)' }} />
+        : EMPTY_PLACEHOLDER),
+    },
     {
       title: '分组', dataIndex: 'groupName', width: 120,
       render: (v: string | null) => v ?? <Typography.Text type="tertiary">未分组</Typography.Text>,
@@ -245,7 +257,8 @@ export default function FriendLinksPage() {
         <Form.Input field="url" label="链接地址" placeholder="https://..." rules={[{ required: true, message: '请输入链接地址' }]} />
         <Form.Select field="groupId" label="所属分组" showClear style={{ width: '100%' }} placeholder="未分组"
           optionList={groupOptions.map((g) => ({ value: g.id, label: g.name }))} />
-        <Form.Input field="logo" label="Logo URL" />
+        <FormFriendLinkLogo field="logo" label="Logo" siteId={linkModal.editing?.siteId ?? siteId}
+          allowUpload={hasPermission('cms:resource:upload')} />
         <Form.InputNumber field="sort" label="排序" style={{ width: 160 }} />
         <FormStatusRadioGroup />
         <Form.Input field="remark" label="备注" />
