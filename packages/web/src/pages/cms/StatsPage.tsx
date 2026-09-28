@@ -1,6 +1,6 @@
 import { lazy, Suspense, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Banner, Button, Card, Empty, Select, Space, Spin, TabPane, Tabs, Tag, Typography } from '@douyinfe/semi-ui';
+import { Banner, Button, Card, Empty, Select, Skeleton, Space, TabPane, Tabs, Tag, Typography } from '@douyinfe/semi-ui';
 import { cmsStatContract, CMS_CONTENT_TYPES, CMS_CONTENT_TYPE_LABELS, type CmsStatMetrics } from '@zenith/shared/cms';
 import { StatCard, StatGrid } from '@/components/charts/StatCard';
 import DateTimeText from '@/components/DateTimeText';
@@ -24,6 +24,31 @@ import { useCmsTelemetrySettings } from './stats/CmsTelemetrySettings';
 import { DIMENSION_LABELS, METRIC_LABELS, cmsStatsDateRange, displayCmsMetric, formatCmsScopeTime, type CmsStatsDimension } from './stats/cms-stats-presentation';
 
 const CmsStatsTrend = lazy(() => import('./CmsDashboardCharts').then(charts => ({ default: charts.CmsStatsTrend })));
+
+/** 页签内容区首屏骨架：按总览布局（指标卡 + 趋势图）占位，避免左上角小 spinner 闪烁。 */
+function CmsStatsSkeleton() {
+  return (
+    <Skeleton
+      loading
+      active
+      placeholder={(
+        <>
+          <StatGrid minItemWidth={180}>
+            {Array.from({ length: 4 }, (_, index) => `cms-stats-sk-${index}`).map((key) => (
+              <div key={key}>
+                <Skeleton.Title style={{ width: 64, height: 26, marginBottom: 10 }} />
+                <Skeleton.Paragraph rows={1} style={{ width: '70%', marginBottom: 0 }} />
+              </div>
+            ))}
+          </StatGrid>
+          <Card title="流量与有效参与趋势" style={{ marginTop: 12 }}>
+            <Skeleton.Image style={{ width: '100%', height: 230 }} />
+          </Card>
+        </>
+      )}
+    >{null}</Skeleton>
+  );
+}
 const TABS = ['overview', 'content', 'sources', 'search', 'conversions', 'quality'] as const;
 type Filters = Omit<CmsStatsQuery, 'siteId' | 'startTime' | 'endTime'> & { range: [Date, Date] | null };
 const CONTENT_DIMENSIONS = ['content', 'channel', 'author', 'contentType', 'release'] as const;
@@ -99,11 +124,11 @@ function StatsWorkspace({ siteId, timeZone }: Readonly<{ siteId: number; timeZon
     <Tabs collapsible="auto" type="line" activeKey={activeTab} onChange={(value) => setActiveTab(value as typeof activeTab)}>
       {TABS.map((tab, index) => <TabPane key={tab} itemKey={tab} tab={['总览', '内容', '来源与入口', '搜索', '互动与转化', '采集质量'][index]} />)}
     </Tabs>
-    {activeTab === 'quality' ? quality.data ? <CmsStatsQuality data={quality.data} refreshing={quality.isFetching} onRefresh={() => void quality.refetch()} /> : <Spin spinning={quality.isLoading} /> : !metrics || !overview.data ? overview.isLoading ? <Spin spinning /> : <Empty description="尚未取得统计数据，请刷新重试" /> : <>
+    {activeTab === 'quality' ? quality.data ? <CmsStatsQuality data={quality.data} refreshing={quality.isFetching} onRefresh={() => void quality.refetch()} /> : <Skeleton active loading placeholder={<Skeleton.Paragraph rows={6} />} /> : !metrics || !overview.data ? overview.isLoading ? <CmsStatsSkeleton /> : <Empty description="尚未取得统计数据，请刷新重试" /> : <>
       {metrics.pv === 0 && !overview.isError ? <Banner type="info" description={filtered ? '当前筛选下暂无页面浏览；可以重置内容、栏目或版本条件查看全站数据。行为事件仍单独展示。' : (status?.description ?? '当前区间暂无正式访问事件。')} /> : null}
       {activeTab === 'overview' ? <>
         <StatGrid minItemWidth={180}>{OVERVIEW_METRICS.map((field) => <StatCard key={field} title={METRIC_LABELS[field]} value={displayCmsMetric(metrics, field)} sub={EXPLANATIONS[field]} delta={overview.data?.previousMetrics && ['pv', 'uv', 'sessions', 'reads', 'newVisitors', 'returningVisitors'].includes(field) ? metrics[field] - overview.data.previousMetrics[field] : null} deltaLabel={query.compare === 'previous_year' ? '较去年同期' : '较上一周期'} />)}</StatGrid>
-        <Card title="流量与有效参与趋势"><Suspense fallback={<Spin spinning />}><CmsStatsTrend data={overview.data.trend} /></Suspense><Typography.Text type="tertiary">每日 UV 独立去重，不能相加替代区间 UV。参与会话满足活跃 10 秒、有效阅读、成功转化或至少浏览两页之一。</Typography.Text></Card>
+        <Card title="流量与有效参与趋势"><Suspense fallback={<Skeleton active loading placeholder={<Skeleton.Image style={{ width: '100%', height: 230 }} />} />}><CmsStatsTrend data={overview.data.trend} /></Suspense><Typography.Text type="tertiary">每日 UV 独立去重，不能相加替代区间 UV。参与会话满足活跃 10 秒、有效阅读、成功转化或至少浏览两页之一。</Typography.Text></Card>
         <Card title="受众分布" style={{ marginTop: 12 }} headerExtraContent={dimensionSelect(AUDIENCE_DIMENSIONS, audienceDimension, setAudienceDimension, '受众维度')}><CmsStatsReport key={audienceDimension} query={snapshotQuery} dimension={audienceDimension} onDrill={drill} /></Card>
       </> : null}
       {activeTab === 'content' ? <Card title="内容效果" headerExtraContent={dimensionSelect(CONTENT_DIMENSIONS, contentDimension, setContentDimension, '内容分析维度')}><CmsStatsReport key={contentDimension} query={snapshotQuery} dimension={contentDimension} onDrill={drill} /></Card> : null}
@@ -120,6 +145,6 @@ export default function StatsPage() {
   const site = useCmsSiteDetail(siteId);
   return <div className="page-container page-tabs-page zx-flat-panels">
     <Space wrap style={{ marginBottom: 12 }}><CmsSiteSelect value={siteId} onChange={setSiteId} /><Typography.Text type="tertiary">访问统计</Typography.Text></Space>
-    {siteId && site.data ? <StatsWorkspace key={siteId} siteId={siteId} timeZone={(site.data.settings.telemetry as { timeZone?: string } | undefined)?.timeZone ?? 'Asia/Shanghai'} /> : siteId && site.isLoading ? <Spin spinning /> : <Empty description={site.isError ? '站点信息加载失败，请刷新重试' : '请选择站点查看统计'} />}
+    {siteId && site.data ? <StatsWorkspace key={siteId} siteId={siteId} timeZone={(site.data.settings.telemetry as { timeZone?: string } | undefined)?.timeZone ?? 'Asia/Shanghai'} /> : siteId && site.isLoading ? <CmsStatsSkeleton /> : <Empty description={site.isError ? '站点信息加载失败，请刷新重试' : '请选择站点查看统计'} />}
   </div>;
 }

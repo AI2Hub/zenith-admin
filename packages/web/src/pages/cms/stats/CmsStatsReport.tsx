@@ -41,9 +41,11 @@ export default function CmsStatsReport({ query: scopeQuery, dimension, onDrill }
   const createTask = useCreateCmsEditorialTask();
   const editor = useCmsTaskEditor(scopeQuery.siteId);
   const sortFields: NonNullable<CmsStatsReportQuery['sortBy']>[] = ['pv', 'uv', 'sessions', 'reads', 'activeMs', 'conversions', 'searches', 'noResultSearches', 'searchClicks', 'downloads', 'impressions', 'clicks', 'mediaStarts', 'mediaErrors'];
+  /** 指标列宽跟随标题长度：6 字及以上（搜索结果点击、区间访客 UV…）给 140，避免表头换行。 */
+  const metricColumnWidth = (field: keyof CmsStatMetrics) => field === 'avgActiveMs' ? 160 : METRIC_LABELS[field].length >= 6 ? 140 : 115;
   const columns: ColumnProps<CmsStatReportRow>[] = [
     { title: DIMENSION_LABELS[dimension], dataIndex: 'label', minWidth: 220, render: (label: string, row) => dimension === 'content' && /^\d+$/u.test(row.key) ? <Link to={`/cms/contents/edit?id=${row.key}&siteId=${scopeQuery.siteId}`}>{label}</Link> : renderEllipsis(cmsStatsDimensionLabel(dimension, row.key, label)) },
-    ...columnsToShow.map((field): ColumnProps<CmsStatReportRow> => ({ title: METRIC_LABELS[field], dataIndex: field, width: field === 'avgActiveMs' ? 160 : 115, align: 'right', render: (_value: number, row) => displayCmsMetric(row, field) })),
+    ...columnsToShow.map((field): ColumnProps<CmsStatReportRow> => ({ title: METRIC_LABELS[field], dataIndex: field, width: metricColumnWidth(field), align: 'right', render: (_value: number, row) => displayCmsMetric(row, field) })),
   ];
   const drillable = ['content', 'channel', 'author', 'contentType', 'release', 'source', 'device'].includes(dimension);
   if (drillable || dimension === 'search') columns.push(createOperationColumn<CmsStatReportRow>({ width: dimension === 'search' ? 150 : 110, desktopInlineKeys: ['drill', 'task'], actions: (row) => {
