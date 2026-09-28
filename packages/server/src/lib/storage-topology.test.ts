@@ -25,7 +25,8 @@ afterEach(() => {
   mocks.fail = false;
 });
 
-describe('assertWorkerStorageTopology', () => {
+// 每个用例都 resetModules 后冷加载完整 schema 图（300+ 模块），首个用例 transform 耗时可能超过全局 15s，单独放宽。
+describe('assertWorkerStorageTopology', { timeout: 60_000 }, () => {
   it('纯 worker + 本地磁盘型存储 + 未声明共享 → 拒绝启动并列出依赖', async () => {
     mocks.storages = [{ name: '默认本地', provider: 'local' }, { name: '七牛', provider: 'kodo' }];
     mocks.staticSites = 2;
