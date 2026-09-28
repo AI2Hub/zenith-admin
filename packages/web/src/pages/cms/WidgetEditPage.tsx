@@ -19,11 +19,11 @@ import {
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { ArrowDown, ArrowLeft, ArrowUp, Eye, GripVertical, ImageUp, Monitor, Save, Send, Smartphone, Tablet, Trash2 } from 'lucide-react';
 import dayjs from 'dayjs';
-import { CMS_WIDGET_RENDERER_LABELS, CMS_WIDGET_SOURCE_TYPE_LABELS, CMS_WIDGET_STATUS_LABELS, CMS_WIDGET_RENDERER_OPTIONS, CMS_WIDGET_SOURCE_TYPE_OPTIONS } from '@zenith/shared/cms';
+import { CMS_WIDGET_RENDERER_LABELS, CMS_WIDGET_SOURCE_TYPE_LABELS, CMS_WIDGET_STATUS_LABELS, CMS_WIDGET_RENDERER_OPTIONS, CMS_WIDGET_SOURCE_TYPE_OPTIONS, CMS_RESOURCE_URI_PREFIX } from '@zenith/shared/cms';
 import type { CmsWidgetItem, CmsWidgetRendererKey, CmsWidgetSourceType } from '@zenith/shared/cms';
 import { flattenChannels } from './channel-tree';
 import AppModal from '@/components/AppModal';
-import MediaPickerModal from '@/components/MediaPickerModal';
+import { CmsResourcePicker } from './components/CmsResourcePicker';
 import { usePermission } from '@/hooks/usePermission';
 import { useCmsChannelTree, useCmsContentList } from '@/hooks/queries/cms';
 import {
@@ -462,17 +462,22 @@ export default function WidgetEditPage() {
             <Form.Input
               field="image"
               label={editingSourceType === 'manual' ? '图片' : '覆盖图片'}
-              suffix={<Button theme="borderless" icon={<ImageUp size={14} />} onClick={() => setMediaPickerVisible(true)}>媒体库</Button>}
+              placeholder="外链地址，或从本站素材库选择"
+              suffix={<Button theme="borderless" icon={<ImageUp size={14} />} onClick={() => setMediaPickerVisible(true)}>素材库</Button>}
             />
           </Form>
         ) : null}
       </AppModal>
 
-      <MediaPickerModal
+      <CmsResourcePicker
+        siteId={siteId}
+        type="image"
+        title="选择条目图片"
         visible={mediaPickerVisible}
+        allowUpload={hasPermission('cms:resource:upload')}
         onCancel={() => setMediaPickerVisible(false)}
-        onSelect={(file) => {
-          itemFormApi.current?.setValue('image', file.url);
+        onSelect={(resource) => {
+          itemFormApi.current?.setValue('image', `${CMS_RESOURCE_URI_PREFIX}${resource.id}`);
           setMediaPickerVisible(false);
         }}
       />
