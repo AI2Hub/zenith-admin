@@ -59,7 +59,7 @@ export default function CmsContentMediaFields({ siteId, disabled, allowUpload, o
     </Row>
     <Row gutter={16}>
       <Col xs={24} lg={12}>
-        <FormAsset field="mediaPoster" label="媒体海报" labelPosition="left" labelWidth={96} siteId={siteId} type="image" disabled={disabled} allowUpload={allowUpload} onResourceChange={onResourceChange} placeholder="可选择或上传图片，留空时使用内容封面" />
+        <FormAsset field="mediaPoster" label="媒体海报" labelPosition="left" labelWidth={96} siteId={siteId} type="image" disabled={disabled} allowUpload={allowUpload} onResourceChange={onResourceChange} placeholder={resource.data?.media?.poster ? '已生成视频海报，留空将使用该海报；也可选择其他图片' : '可选择或上传图片，留空时使用内容封面'} />
       </Col>
       <Col xs={24} lg={12}>
         {isExternalCmsMediaUrl(value) ? <div className="cms-media-fields__preview">

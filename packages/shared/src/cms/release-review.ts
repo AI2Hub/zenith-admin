@@ -22,7 +22,8 @@ export function cmsReleaseFieldDiffs(before: Record<string, unknown> | null, aft
   const fields: { path: string; before: unknown; after: unknown }[] = [];
   for (const key of [...new Set([...Object.keys(before ?? {}), ...Object.keys(after ?? {})])].sort()) {
     if (AUDIT_FIELDS.has(key)) continue;
-    const left = before?.[key] ?? null; const right = after?.[key] ?? null;
+    const normalize = (value: unknown) => value === '' || value == null ? null : value;
+    const left = normalize(before?.[key]); const right = normalize(after?.[key]);
     if (stableStringify(left) !== stableStringify(right)) fields.push({ path: key, before: left, after: right });
   }
   return fields;

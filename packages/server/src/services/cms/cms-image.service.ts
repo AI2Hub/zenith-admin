@@ -131,6 +131,11 @@ export async function processCmsImageUpload(file: File, siteId: number): Promise
 
   const input = Buffer.from(await file.arrayBuffer());
   const meta = await readImageMetadataWithinLimit(input);
+  // Keep every frame of animated WebP / AVIF; the static image pipeline would flatten them.
+  if ((meta.pages ?? 1) > 1) {
+    const raw = await uploadManagedFile(file);
+    return { url: raw.url ?? '', thumbUrl: null, fileId: raw.id, width: meta.width ?? null, height: meta.pageHeight ?? meta.height ?? null, watermarked: false };
+  }
   // limitInputPixels 与上面的读头判定同值：文件头缺失尺寸时仍由 sharp 在解码阶段兜底
   let pipeline = sharp(input, { failOn: 'none', limitInputPixels: IMAGE_MAX_INPUT_PIXELS }).rotate();
 

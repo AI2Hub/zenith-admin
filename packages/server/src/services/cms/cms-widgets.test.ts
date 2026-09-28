@@ -127,8 +127,10 @@ describe('CMS page widgets', () => {
     // Working-copy edits cannot rebuild live widgets; the release builds all dependent pages.
     expect(contents).toContain('createCmsContentRelease(');
     const releases = await source('cms-releases.service.ts');
-    expect(releases).toContain('assertCmsReleaseDependencies(tx, release.siteId)');
-    expect(releases).toContain('buildSiteStatic(release.siteId,');
+    expect(releases).toContain('buildCmsReleaseCandidate(release, deployment, ctx, guard)');
+    const candidateBuilder = await source('cms-release-build.service.ts');
+    expect(candidateBuilder).toContain('assertCmsReleaseDependencies(tx, release.siteId)');
+    expect(candidateBuilder).toContain('buildSiteStatic(release.siteId,');
     expect(channels).toContain("assertCmsWidgetSourcesMutable('channel'");
     expect(channels).toContain("assertCmsWidgetSourcesMutable('channel', [id], tx)");
     expect(channels).toContain('submitCmsWidgetChannelRefreshSideEffect([id])');

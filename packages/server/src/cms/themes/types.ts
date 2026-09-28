@@ -79,6 +79,8 @@ export interface CmsContentItem {
   coverImage: string | null;
   /** 封面缩略图（空 = 回退 coverImage） */
   coverThumb: string | null;
+  coverSrcSet?: string;
+  coverPosition?: string;
   /** album：图片数 */
   imageCount: number;
   /** media：音频/视频 */
@@ -105,6 +107,8 @@ export interface CmsAlbumImageItem {
   url: string;
   thumb: string | null;
   caption: string | null;
+  srcSet?: string;
+  objectPosition?: string;
 }
 
 /** 模型字段展示值（详情页「模型字段表」消费；由渲染管线按模型定义组装） */
@@ -146,6 +150,7 @@ export interface CmsContentDetail extends CmsContentItem {
   mediaUrl: string | null;
   mediaPoster: string | null;
   mediaDuration: string | null;
+  mediaSubtitle?: { url: string; language: string; label: string } | null;
   extend: Record<string, unknown>;
   /** 模型标记 showInDetail 的字段展示值（按 group/sort 排序）；栏目未绑定模型或无勾选字段时为空数组 */
   modelFields: CmsModelFieldValue[];

@@ -23,6 +23,7 @@ import { mapAsyncTask } from '../../lib/task-center';
 import { submitCmsResourceTask, submitCmsResourceRefRebuildTask } from '../../services/cms/cms-resource-task-submit.service';
 import { mountCrud } from '../_crud';
 import { getCmsAssetRights, listCmsAssetVersions, updateCmsAssetRights } from '../../services/cms/cms-asset-rights.service';
+import { getCmsMedia, submitCmsMediaProcessing } from '../../services/cms/cms-media.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -133,6 +134,8 @@ mountCrud(router, cmsResourceContract,
     defineContractRoute(cmsResourceContract.versions, { handler: async (c) => c.json(okBody(await listCmsAssetVersions(c.req.valid('param').id)), 200) }),
     defineContractRoute(cmsResourceContract.rights, { handler: async (c) => c.json(okBody(await getCmsAssetRights(c.req.valid('param').id)), 200) }),
     defineContractRoute(cmsResourceContract.updateRights, { handler: async (c) => c.json(okBody(await updateCmsAssetRights(c.req.valid('param').id, c.req.valid('json'))), 200) }),
+    defineContractRoute(cmsResourceContract.media, { handler: async (c) => c.json(okBody(await getCmsMedia(c.req.valid('param').id)), 200) }),
+    defineContractRoute(cmsResourceContract.processMedia, { handler: async (c) => c.json(okBody(mapAsyncTask(await submitCmsMediaProcessing(c.req.valid('param').id, c.req.valid('json'))), '媒体处理任务已提交'), 200) }),
     folderTreeRoute,
     createFolderRoute,
     updateFolderRoute,

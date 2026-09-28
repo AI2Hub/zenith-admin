@@ -67,4 +67,11 @@ describe('CMS 素材字段', () => {
     expect(screen.getByRole('button', { name: '清除音频' })).toBeDisabled();
     expect(change).not.toHaveBeenCalled();
   });
+
+  it('reuses server duration metadata without waiting for a browser playback event', () => {
+    state.resolved = { ...audio, media: { duration: 45, width: null, height: null, focalPoint: { x: 0.5, y: 0.5 }, variants: [], poster: null, subtitle: null, format: 'wav', videoCodec: null, audioCodec: 'pcm' } };
+    const duration = vi.fn();
+    render(<CmsAssetField siteId={3} type="audio" value="cms-res://41" onDuration={duration} />);
+    expect(duration).toHaveBeenCalledWith(45, 'cms-res://41');
+  });
 });

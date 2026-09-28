@@ -10,6 +10,7 @@ import { CMS_STATIC_ROOT, isStrictlyWithin } from './cms-static-path';
 import { canonicalCmsJson } from './cms-content-revisions.service';
 import type { CmsConfigurationSnapshot } from '@zenith/shared/cms';
 import { CMS_PUBLIC_SITE_SETTINGS, CMS_CONFIGURATION_TABLES } from './cms-public-settings';
+import { cmsBuildArtifactFile } from './cms-release-build-artifacts';
 
 /** Only publication definitions are copied. Sessions, permissions, submissions and telemetry remain live. */
 const SITE_TABLES = [
@@ -44,16 +45,21 @@ export async function createCmsGenerationStorage(tx: DbTransaction, siteId: numb
       ORDER BY ordinal_position
     `);
     const names = columns.map((column) => identifier(column.name)).join(',');
+    const baseMedia = table === 'cms_contents' && baseGenerationId
+      ? await tx.execute<{ present: boolean }>(sql`SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=${cmsGenerationSchemaName(baseGenerationId)} AND table_name='cms_content_projection' AND column_name='media') AS present`)
+      : null;
     const selected = columns.map((column) => table === 'cms_sites' && column.name === 'settings'
       ? `jsonb_strip_nulls(jsonb_build_object(${CMS_PUBLIC_SITE_SETTINGS.map((key) => `'${key}', settings->'${key}'`).join(',')}))`
+      : table === 'cms_contents' && column.name === 'media' && baseMedia && !baseMedia[0]?.present ? `'{}'::jsonb`
       : identifier(column.name)).join(',');
     const scope = (GLOBAL_DEFINITION_TABLES as readonly string[]).includes(table)
       ? sql``
       : (CONTENT_RELATION_TABLES as readonly string[]).includes(table)
-        ? sql` WHERE content_id IN (SELECT id FROM public.cms_contents WHERE site_id = ${siteId})`
+        ? sql` WHERE content_id IN (SELECT id FROM ${sql.raw(baseGenerationId ? `${identifier(cmsGenerationSchemaName(baseGenerationId))}.cms_content_projection` : 'public.cms_contents')} WHERE site_id = ${siteId})`
         : sql` WHERE site_id = ${siteId}`;
     const configTable = (CMS_CONFIGURATION_TABLES as readonly string[]).includes(table);
-    const source = baseGenerationId && configTable ? `${identifier(cmsGenerationSchemaName(baseGenerationId))}.${table === 'cms_sites' ? 'cms_site_projection' : table === 'cms_resources' ? 'cms_resource_projection' : name}` : `public.${name}`;
+    const useBase = baseGenerationId && (configTable || table === 'cms_contents' || (CONTENT_RELATION_TABLES as readonly string[]).includes(table));
+    const source = useBase ? `${identifier(cmsGenerationSchemaName(baseGenerationId!))}.${table === 'cms_sites' ? 'cms_site_projection' : table === 'cms_resources' ? 'cms_resource_projection' : table === 'cms_contents' ? 'cms_content_projection' : name}` : `public.${name}`;
     if (baseGenerationId || !['cms_pages', 'cms_widgets', 'cms_widget_refs', 'cms_widget_source_refs'].includes(table)) {
       await tx.execute(sql`${sql.raw(`INSERT INTO ${schema}.${name} (${names}) OVERRIDING SYSTEM VALUE SELECT ${selected} FROM ${source}`)}${scope}`);
     }
@@ -154,12 +160,12 @@ export async function cmsGenerationNeedsDynamicDelivery(siteId: number): Promise
   return rows[0]?.blocked === true;
 }
 
-export async function cmsGenerationManifest(tx: DbTransaction, generationId: number, revisions: CmsDeploymentSnapshot['revisions']): Promise<{ snapshot: CmsDeploymentSnapshot; hash: string }> {
+export async function cmsGenerationManifest(tx: DbTransaction, generationId: number, revisions: CmsDeploymentSnapshot['revisions'], sealed = false): Promise<{ snapshot: CmsDeploymentSnapshot; hash: string }> {
   const schema = identifier(cmsGenerationSchemaName(generationId));
   const tables: CmsDeploymentSnapshot['tables'] = {};
   for (const table of CMS_GENERATION_TABLES) {
     const rows = await tx.execute<{ count: string; hash: string }>(sql.raw(
-      `SELECT count(*)::text AS count, md5(coalesce(string_agg(md5(row_to_json(t)::text), '' ORDER BY md5(row_to_json(t)::text)), '')) AS hash FROM ${schema}.${identifier(table === 'cms_sites' ? 'cms_site_projection' : table)} t`,
+      `SELECT count(*)::text AS count, md5(coalesce(string_agg(md5(row_to_json(t)::text), '' ORDER BY md5(row_to_json(t)::text)), '')) AS hash FROM ${schema}.${identifier(table === 'cms_sites' ? 'cms_site_projection' : sealed && table === 'cms_contents' ? 'cms_content_projection' : sealed && table === 'cms_resources' ? 'cms_resource_projection' : table)} t`,
     ));
     tables[table] = [{ count: Number(rows[0]?.count ?? 0), hash: rows[0]?.hash ?? '' }];
   }
@@ -170,7 +176,8 @@ export function hashCmsDeploymentManifest(snapshot: CmsDeploymentSnapshot): stri
   return createHash('sha256').update(canonicalCmsJson(snapshot)).digest('hex');
 }
 
-export async function collectCmsGenerationArtifacts(siteCode: string, generationId: number): Promise<NonNullable<CmsDeploymentSnapshot['artifacts']>> {
+export async function collectCmsGenerationArtifacts(siteCode: string, generationId: number, onProgress?: (count: number) => Promise<void>): Promise<NonNullable<CmsDeploymentSnapshot['artifacts']>> {
+  await cmsBuildArtifactFile(siteCode, generationId, 'index.html');
   cmsGenerationSchemaName(generationId);
   if (!/^[a-z0-9][a-z0-9_-]*$/i.test(siteCode)) throw new Error('Invalid CMS site code');
   const root = path.resolve(CMS_STATIC_ROOT, siteCode, `generation-${generationId}`);
@@ -184,6 +191,7 @@ export async function collectCmsGenerationArtifacts(siteCode: string, generation
       else if (entry.isFile()) {
         const bytes = await fs.readFile(file);
         artifacts.push({ path: path.relative(root, file).replaceAll('\\', '/'), checksum: createHash('sha256').update(bytes).digest('hex'), size: bytes.length });
+        if (artifacts.length % 100 === 0) await onProgress?.(artifacts.length);
       }
     }
   };

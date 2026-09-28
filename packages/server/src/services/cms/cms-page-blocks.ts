@@ -1,3 +1,4 @@
+import { cmsGenerationNow } from './cms-generation-context';
 import { CMS_PAGE_BLOCK_TYPES, isValidCmsAssetUrl, isValidCmsLink } from '@zenith/shared/cms';
 import type { CmsPageBlock, CmsPageBlockType } from '@zenith/shared/cms';
 import { HTTPException } from 'hono/http-exception';
@@ -113,7 +114,7 @@ export function isCmsPageBlockVisible(
 ): boolean {
   const condition = block.displayCondition;
   if (!condition) return true;
-  const now = dayjs(viewer.now);
+  const now = dayjs(viewer.now ?? cmsGenerationNow());
   if (condition.startAt && now.isBefore(dayjs(condition.startAt))) return false;
   if (condition.endAt && now.isAfter(dayjs(condition.endAt))) return false;
   if (condition.audience === 'guest') return !viewer.member;

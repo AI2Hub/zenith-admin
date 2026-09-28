@@ -4,7 +4,7 @@ import { HTTPException } from 'hono/http-exception';
 import type * as z from 'zod';
 import { CMS_PREVIEW_MODE_LABELS, cmsSiteRelativePath, renderCmsWorkbenchPreviewSchema, type CmsWorkbenchPreview } from '@zenith/shared/cms';
 import { db, withDbExecutor } from '../../db';
-import { cmsContents, cmsChannels, cmsContentWorkingCopies, cmsContentRevisions, cmsReleases, cmsSiteGenerations } from '../../db/schema';
+import { cmsContents, cmsChannels, cmsContentWorkingCopies, cmsContentRevisions, cmsReleases, cmsSiteGenerations, cmsDeployments } from '../../db/schema';
 import { currentUser, hasPermission } from '../../lib/context';
 import { assertAllCmsSiteChannelsAccess } from './cms-channels.service';
 import { assertSiteAccess, ensureCmsSiteExists } from './cms-sites.service';
@@ -73,6 +73,7 @@ export async function renderCmsWorkbenchPreview(input: PreviewInput): Promise<Cm
   }
   if (input.mode === 'online') return withCmsPublicGeneration(input.siteId, async () => {
     const [pointer] = await db.select({ id: cmsSiteGenerations.activeGenerationId }).from(cmsSiteGenerations).where(eq(cmsSiteGenerations.siteId, input.siteId)).limit(1);
+    if (!pointer?.id) throw new HTTPException(409, { message: '本站尚未激活线上版本，请先构建并发布站点' });
     const key = fingerprint({ mode: 'online', siteId: input.siteId, generation: pointer?.id ?? null });
     assertFingerprint(input, key);
     return { ...await renderPath(input.siteId, input.path), mode: input.mode, sourceLabel: CMS_PREVIEW_MODE_LABELS.online,
@@ -94,15 +95,16 @@ export async function renderCmsWorkbenchPreview(input: PreviewInput): Promise<Cm
         if (input.widgetIds.includes(Number(widget.id))) Object.assign(widget, { published_data: widget.draft_data, published_name: widget.name, published_revision: widget.draft_revision, status: 'published' });
       }
       const working = await Promise.all(identities.map(async (identity) => ({ identity, copy: await requireCmsWorkingCopy(tx, identity.id) })));
-      const key = fingerprint({ mode: 'working', base: pointer?.activeGenerationId ?? null, configuration: configuration.snapshot,
-        contents: working.map(({ identity, copy }) => ({ id: identity.id, version: copy.version, snapshot: copy.snapshot })) });
-      assertFingerprint(input, key);
       const revisions: Awaited<ReturnType<typeof loadCmsRevision>>[] = [];
       for (const { identity, copy } of working) {
         const revision = await freezeCmsContentRevision(tx, identity, copy, 'preview', '工作区组合预览');
         revisions.push(await loadCmsRevision(tx, revision.id));
       }
-      const existing = await tx.select({ contentId: cmsContentWorkingCopies.contentId, revisionId: cmsContentRevisions.id, hash: cmsContentRevisions.hash })
+      const key = fingerprint({ mode: 'working', base: pointer?.activeGenerationId ?? null, configuration: configuration.snapshot,
+        contents: revisions.map((revision) => ({ id: revision.contentId, version: revision.sourceVersion, snapshot: revision.snapshot })) });
+      assertFingerprint(input, key);
+      const [base] = pointer?.activeGenerationId ? await tx.select({ snapshot: cmsDeployments.snapshot }).from(cmsDeployments).where(eq(cmsDeployments.id, pointer.activeGenerationId)).limit(1) : [];
+      const existing = base?.snapshot?.revisions ?? await tx.select({ contentId: cmsContentWorkingCopies.contentId, revisionId: cmsContentRevisions.id, hash: cmsContentRevisions.hash })
         .from(cmsContentWorkingCopies).innerJoin(cmsContents, eq(cmsContents.id, cmsContentWorkingCopies.contentId))
         .innerJoin(cmsContentRevisions, eq(cmsContentRevisions.id, cmsContentWorkingCopies.publishedRevisionId)).where(eq(cmsContents.siteId, input.siteId));
       const refs = new Map(existing.map((row) => [row.contentId, row]));
@@ -110,10 +112,18 @@ export async function renderCmsWorkbenchPreview(input: PreviewInput): Promise<Cm
       // Reserve a collision-free namespace. The sequence may have gaps; no deployment row is created.
       const [namespace] = await tx.execute<{ id: number }>(sql`SELECT nextval(pg_get_serial_sequence('public.cms_deployments','id'))::integer AS id`);
       await createCmsGenerationStorage(tx, input.siteId, namespace.id, pointer?.activeGenerationId ?? null, configuration.snapshot);
+      if (revisions.length) {
+        const columns = await tx.execute<{ name: string }>(sql`SELECT column_name AS name FROM information_schema.columns WHERE table_schema='public' AND table_name='cms_contents' AND is_generated='NEVER' ORDER BY ordinal_position`);
+        const names = columns.map(({ name }) => { if (!/^[a-z][a-z0-9_]*$/.test(name)) throw new Error('Invalid preview column'); return `"${name}"`; }).join(',');
+        await tx.execute(sql`INSERT INTO ${sql.raw(`"${cmsGenerationSchemaName(namespace.id)}".cms_contents (${names})`)} OVERRIDING SYSTEM VALUE SELECT ${sql.raw(names)} FROM public.cms_contents WHERE site_id=${input.siteId} AND id IN (${sql.join(revisions.map((revision) => sql`${revision.contentId}`), sql`,`)}) ON CONFLICT (id) DO NOTHING`);
+      }
       await tx.execute(sql`SELECT set_config('search_path', ${`${cmsGenerationSchemaName(namespace.id)},public`}, true)`);
       await tx.execute(sql`SELECT set_config('cms.preview', 'true', true)`);
       const result = await withDbExecutor(tx, () => withCmsGenerationContext({ siteId: input.siteId, generationId: namespace.id, candidate: true }, async () => {
-        for (const revision of revisions) await applyCmsRevisionProjection(tx, revision, { generationId: namespace.id, candidate: true, publishedAt: new Date() });
+        for (const revision of revisions) {
+          const [previous] = await tx.select({ publishedAt: cmsContents.publishedAt, status: cmsContents.status }).from(cmsContents).where(eq(cmsContents.id, revision.contentId)).limit(1);
+          await applyCmsRevisionProjection(tx, revision, { generationId: namespace.id, candidate: true, publishedAt: previous?.status === 'published' && previous.publishedAt ? previous.publishedAt : new Date() });
+        }
         await sealCmsGenerationStorage(tx, namespace.id, [...refs.values()]);
         return { ...await renderPath(input.siteId, input.path), mode: input.mode, sourceLabel: CMS_PREVIEW_MODE_LABELS.working,
           fingerprint: key, generationId: pointer?.activeGenerationId ?? null, contentVersions: working.map(({ identity, copy }) => ({ id: identity.id, version: copy.version })) };

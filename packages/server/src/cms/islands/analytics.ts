@@ -68,7 +68,7 @@ export function runAnalytics(doc: Document = document): void {
     const controller = new AbortController(); listeners.set(doc, controller);
     doc.addEventListener('click', (event) => {
       if (!properties || !(event.target instanceof Element)) return;
-      const link = event.target.closest<HTMLAnchorElement>('a[download],.attachments a,.model-display-download a,.home-hero a,.home-banner a,.cms-block-hero a,[data-cms-topic]');
+      const link = event.target.closest<HTMLAnchorElement>('a[download],.attachments a,.model-display-download a,.home-hero a,.home-banner a,.pb-hero a,a[data-cms-topic]');
       if (!link) return;
       const isDownload = link.hasAttribute('download') || Boolean(link.closest('.attachments,.model-display-download'));
       let targetPath: string; try { targetPath = new URL(link.href, location.href).pathname; } catch { return; }

@@ -11,4 +11,8 @@ describe('CMS static build stable checkpoint keys', () => {
     expect(isCmsStaticTargetCompleted(channel1, cmsStaticTargetKey('~site', 1, 5))).toBe(true);
     expect(isCmsStaticTargetCompleted(channel9, cmsStaticTargetKey('~site', 1, 5))).toBe(false);
   });
+  it('places metadata after all site targets during resume', () => {
+    expect(isCmsStaticTargetCompleted(cmsStaticTargetKey('~meta', 0, 1), cmsStaticTargetKey('~site', 2, 50))).toBe(false);
+    expect(isCmsStaticTargetCompleted(cmsStaticTargetKey('~site', 4, 50), cmsStaticTargetKey('~meta', 0, 1))).toBe(true);
+  });
 });

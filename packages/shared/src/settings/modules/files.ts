@@ -6,7 +6,7 @@ const MIB = 1024 * 1024;
 
 /** 通用文件上传的默认 MIME 白名单（`*` / `*\/*` 表示放行全部） */
 export const DEFAULT_UPLOAD_ALLOWED_TYPES = [
-  'image/*', 'video/*', 'audio/*', 'application/pdf', 'text/plain', 'text/csv',
+  'image/*', 'video/*', 'audio/*', 'application/pdf', 'text/plain', 'text/csv', 'text/vtt',
   'application/zip', 'application/x-zip-compressed',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',

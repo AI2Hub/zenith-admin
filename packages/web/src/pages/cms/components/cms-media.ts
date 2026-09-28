@@ -1,3 +1,16 @@
+import type { CmsResource } from '@zenith/shared/cms';
+
+export function cmsResourceThumbnail(resource: Pick<CmsResource, 'type' | 'url' | 'thumbUrl' | 'media'>): string | null {
+  if (resource.type === 'image') return resource.media?.animated ? resource.url : resource.media?.variants[0]?.url ?? resource.thumbUrl ?? resource.url;
+  return resource.media?.poster?.url ?? resource.thumbUrl;
+}
+
+export function cmsResourceMediaSummary(resource: Pick<CmsResource, 'width' | 'height' | 'media'>): string {
+  const width = resource.media?.width ?? resource.width;
+  const height = resource.media?.height ?? resource.height;
+  return [width && height ? `${width} × ${height}` : '', resource.media?.duration ? formatCmsMediaDuration(resource.media.duration) : ''].filter(Boolean).join(' · ');
+}
+
 /** Browser metadata can report Infinity for live streams and NaN before it is loaded. */
 export function formatCmsMediaDuration(seconds: number): string | null {
   if (!Number.isFinite(seconds) || seconds <= 0) return null;

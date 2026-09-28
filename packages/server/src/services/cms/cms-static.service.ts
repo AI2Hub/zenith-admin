@@ -34,7 +34,8 @@ import { cmsStaticTargetKey, isCmsStaticTargetCompleted } from './cms-static-bui
 import { assertCmsStaticWriteFence } from './cms-site-publish-lock.service';
 import { invalidateCmsSiteCaches } from './cms-cache.service';
 import { getEffectivelyEnabledCmsChannelIds } from './cms-channel-visibility.service';
-import { cmsGenerationContext } from './cms-generation-context';
+import { cmsGenerationContext, cmsGenerationNow } from './cms-generation-context';
+import { cmsBuildArtifactFile } from './cms-release-build-artifacts';
 export {
   CMS_STATIC_ROOT, isStrictlyWithin, pathToStaticFile, resolveStaticFile, siteStaticDir,
 } from './cms-static-path';
@@ -305,6 +306,8 @@ export async function assertCmsHybridWriteSafe(siteId: number, startedAt: Date):
 
 /** 原子写入：先写临时文件再 rename，避免读到半个页面 */
 export async function writeStaticFile(siteCode: string, relPath: string, html: string): Promise<void> {
+  const generation = cmsGenerationContext();
+  if (generation?.candidate) await cmsBuildArtifactFile(siteCode, generation.generationId, relPath);
   const abs = resolveStaticFile(siteCode, relPath);
   if (!abs) return;
   await fs.mkdir(path.dirname(abs), { recursive: true });
@@ -317,7 +320,8 @@ export async function writeStaticFile(siteCode: string, relPath: string, html: s
     await assertCmsStaticWriteFence();
    await fs.rename(tmp, abs);
     renamed = true;
-   buildWriteCollector.getStore()?.add(normalizeStaticRelPath(relPath));
+    buildWriteCollector.getStore()?.add(normalizeStaticRelPath(relPath));
+    targetWriteCollector.getStore()?.add(normalizeStaticRelPath(relPath));
     await recordCmsPublishArtifact({ relPath, status: 'generated', content: html });
  } catch (error) {
    await fs.rm(tmp, { force: true }).catch(() => undefined);
@@ -381,6 +385,7 @@ export async function clearSiteStatic(siteCode: string): Promise<void> {
  * 多站点/并发构建互不串扰。
  */
 const buildWriteCollector = new AsyncLocalStorage<Set<string>>();
+const targetWriteCollector = new AsyncLocalStorage<Set<string>>();
 
 /**
  * 统一成磁盘上的实际相对路径，供集合比对。
@@ -447,7 +452,7 @@ export async function pruneOrphanStaticFiles(siteCode: string, kept: ReadonlySet
 export async function generateSitemapXml(site: CmsSiteRow, part?: number): Promise<string> {
   const origin = siteOrigin(site) ?? '';
   const entries: { loc: string; lastmod: string | null; priority: string }[] = [];
-  entries.push({ loc: `${origin}/`, lastmod: formatIso8601(new Date()), priority: '1.0' });
+  entries.push({ loc: `${origin}/`, lastmod: formatIso8601(cmsGenerationNow()), priority: '1.0' });
   const effectiveChannelIds = await getEffectivelyEnabledCmsChannelIds(site.id);
 
   const channels = await db.select().from(cmsChannels)
@@ -479,7 +484,7 @@ export async function generateSitemapXml(site: CmsSiteRow, part?: number): Promi
       eq(cmsContents.status, 'published'),
       isNull(cmsContents.deletedAt),
       isNull(cmsContents.archivedAt),
-      or(isNull(cmsContents.expireAt), gt(cmsContents.expireAt, new Date())),
+      or(isNull(cmsContents.expireAt), gt(cmsContents.expireAt, cmsGenerationNow())),
       effectiveChannelIds.size > 0 ? inArray(cmsContents.channelId, [...effectiveChannelIds]) : sql`false`,
     ))
     .orderBy(cmsContents.id);
@@ -499,7 +504,7 @@ export async function generateSitemapXml(site: CmsSiteRow, part?: number): Promi
         eq(cmsContents.status, 'published'),
         isNull(cmsContents.deletedAt),
         isNull(cmsContents.archivedAt),
-        or(isNull(cmsContents.expireAt), gt(cmsContents.expireAt, new Date())),
+        or(isNull(cmsContents.expireAt), gt(cmsContents.expireAt, cmsGenerationNow())),
         inArray(cmsContents.channelId, [...effectiveChannelIds]),
       ))
     : [];
@@ -567,7 +572,7 @@ async function writeRenderedPath(site: CmsSiteRow, relPath: string): Promise<boo
     await writeStaticFile(site.code, relPath, result.html);
     return true;
   }
-  if (cmsGenerationContext()?.candidate && result.status !== 302) throw new Error(`候选页面 ${relPath} 渲染失败（${result.status}）`);
+  if (cmsGenerationContext()?.candidate) throw new Error(`候选页面 ${relPath} 渲染失败（${result.status}）`);
 
   if (result.status === 404) {
     await deleteStaticFile(site.code, relPath);
@@ -582,6 +587,10 @@ export async function refreshHomeStatic(site: CmsSiteRow): Promise<boolean> {
   const takeover = await getHomeTakeoverPage(site.id);
   const staticPath = '';
   if (takeover?.requiresDynamic) {
+    if (cmsGenerationContext()?.candidate) {
+      const rendered = await renderHomePage(site, '');
+      if (rendered.status !== 200) throw new Error(`动态首页渲染失败（${rendered.status}）`);
+    }
     await deleteStaticFile(site.code, staticPath);
     return false;
   }
@@ -628,7 +637,7 @@ async function regenerateChannelPages(
     eq(cmsContents.status, 'published'),
     isNull(cmsContents.deletedAt),
     isNull(cmsContents.archivedAt),
-    or(isNull(cmsContents.expireAt), gt(cmsContents.expireAt, new Date())),
+    or(isNull(cmsContents.expireAt), gt(cmsContents.expireAt, cmsGenerationNow())),
   ));
   const totalPages = Math.min(Math.max(1, Math.ceil(total / channel.pageSize)), MAX_LIST_PAGES);
   const buildPages = Math.min(totalPages, Math.max(1, pageCap));
@@ -637,7 +646,7 @@ async function regenerateChannelPages(
     if (result.status === 200) {
       await writeStaticFile(site.code, `${channel.path}/index_${p}.html`, result.html);
       generated += 1;
-    }
+    } else if (cmsGenerationContext()?.candidate) throw new Error(`候选栏目 ${channel.path}/index_${p}.html 渲染失败（${result.status}）`);
   }
   // 清掉超出当前页数的历史分页
   for (let p = totalPages + 1; p <= MAX_LIST_PAGES; p++) {
@@ -828,10 +837,16 @@ export interface CmsStaticBuildCheckpoint {
   lastId: number | null;
 }
 
+export interface CmsStaticBuildOptions {
+  resumeAfterKey?: string | null;
+  /** A durable target owner must validate every returned path before skipping rendering. */
+  runTarget?: (key: string, render: () => Promise<string[]>) => Promise<string[]>;
+}
+
 export async function buildSiteStatic(
   siteId: number,
   onProgress?: (p: FullBuildProgress) => Promise<boolean | void>,
-  options?: { resumeAfterKey?: string | null },
+  options?: CmsStaticBuildOptions,
 ): Promise<{ pages: number; pruned: number }> {
   const written = new Set<string>();
   return buildWriteCollector.run(written, () => buildSiteStaticInner(siteId, written, onProgress, options));
@@ -841,7 +856,7 @@ async function buildSiteStaticInner(
   siteId: number,
   written: Set<string>,
   onProgress?: (p: FullBuildProgress) => Promise<boolean | void>,
-  options?: { resumeAfterKey?: string | null },
+  options?: CmsStaticBuildOptions,
 ): Promise<{ pages: number; pruned: number }> {
   const effectiveSite = await resolveEffectiveCmsSiteRow(siteId).catch(() => null);
   if (!effectiveSite) throw new Error(`站点不存在（id=${siteId}）`);
@@ -865,7 +880,7 @@ async function buildSiteStaticInner(
       eq(cmsContents.status, 'published'),
       isNull(cmsContents.deletedAt),
       isNull(cmsContents.archivedAt),
-      or(isNull(cmsContents.expireAt), gt(cmsContents.expireAt, new Date())),
+      or(isNull(cmsContents.expireAt), gt(cmsContents.expireAt, cmsGenerationNow())),
       effectiveChannelIds.size > 0 ? inArray(cmsContents.channelId, [...effectiveChannelIds]) : sql`false`,
     ))
     .orderBy(asc(cmsContents.id));
@@ -880,7 +895,7 @@ async function buildSiteStaticInner(
         eq(cmsContents.status, 'published'),
         isNull(cmsContents.deletedAt),
         isNull(cmsContents.archivedAt),
-        or(isNull(cmsContents.expireAt), gt(cmsContents.expireAt, new Date())),
+        or(isNull(cmsContents.expireAt), gt(cmsContents.expireAt, cmsGenerationNow())),
         inArray(cmsContents.channelId, [...effectiveChannelIds]),
       ))
     : [];
@@ -889,7 +904,7 @@ async function buildSiteStaticInner(
   const { listPublishedPages } = await import('./cms-pages.service');
   const publishedPages = await listPublishedPages(siteId);
   const customPages = publishedPages
-    .filter((page) => !page.isHome && !page.requiresDynamic)
+    .filter((page) => !page.isHome && (cmsGenerationContext()?.candidate || !page.requiresDynamic))
     .sort((a, b) => a.id - b.id);
   // 首页 + 栏目 + 内容 + 标签 + 搭建页；站点级：sitemap/rss/robots
   const total = 1 + channels.length + contents.length + activeTags.length + customPages.length + 3;
@@ -910,9 +925,19 @@ async function buildSiteStaticInner(
     return cancelled === true;
   };
 
+  const runTarget = async (key: string, render: () => Promise<void>): Promise<void> => {
+    const generate = async () => {
+      const paths = new Set<string>();
+      await targetWriteCollector.run(paths, render);
+      return [...paths].sort();
+    };
+    const paths = options?.runTarget ? await options.runTarget(key, generate) : await generate();
+    for (const artifact of paths) written.add(artifact);
+  };
+
   const homeKey = cmsStaticTargetKey('~site', 0, 0);
   if (!skipCompleted(homeKey)) {
-    if (await refreshHomeStatic(site)) pages += 1;
+    await runTarget(homeKey, async () => { if (await refreshHomeStatic(site)) pages += 1; });
     if (await report(`首页已生成`, {
       phase: 'home', lastKey: homeKey, lastId: null,
     })) return { pages, pruned: 0 };
@@ -921,7 +946,7 @@ async function buildSiteStaticInner(
   for (const channel of channels) {
     const key = cmsStaticTargetKey('~site', 1, channel.id);
     if (skipCompleted(key)) continue;
-    pages += await regenerateChannelPages(site, channel);
+    await runTarget(key, async () => { pages += await regenerateChannelPages(site, channel); });
     if (await report(`栏目「${channel.name}」已生成`, {
       phase: 'channel', lastKey: key, lastId: channel.id,
     })) return { pages, pruned: 0 };
@@ -946,16 +971,18 @@ async function buildSiteStaticInner(
       const key = cmsStaticTargetKey('~site', 2, row.id);
       if (skipCompleted(key)) continue;
       const channel = channelMap.get(row.channelId);
-      if (channel && !row.externalLink?.trim() && !isChannelDynamic(site, channel)) {
-        const bodyPages = bodyPagesById.get(row.id) ?? 1;
-        for (let p = 1; p <= bodyPages; p++) {
-          const ok = await writeRenderedPath(site, contentUrl('', channel, row, p));
-          if (ok) pages += 1;
+      await runTarget(key, async () => {
+        if (channel && !row.externalLink?.trim() && !isChannelDynamic(site, channel)) {
+          const bodyPages = bodyPagesById.get(row.id) ?? 1;
+          for (let p = 1; p <= bodyPages; p++) {
+            const ok = await writeRenderedPath(site, contentUrl('', channel, row, p));
+            if (ok) pages += 1;
+          }
+        } else if (channel && !row.externalLink?.trim() && cmsGenerationContext()?.candidate) {
+          const rendered = await renderSitePath(site, '', contentUrl('', channel, row));
+          if (rendered.status !== 200) throw new Error(`动态内容 #${row.id} 渲染失败（${rendered.status}）`);
         }
-      } else if (channel && !row.externalLink?.trim() && cmsGenerationContext()?.candidate) {
-        const rendered = await renderSitePath(site, '', contentUrl('', channel, row));
-        if (rendered.status !== 200) throw new Error(`动态内容 #${row.id} 渲染失败（${rendered.status}）`);
-      }
+      });
       if (await report(`内容 ${row.id} 已生成`, {
         phase: 'content', lastKey: key, lastId: row.id,
       })) return { pages, pruned: 0 };
@@ -966,11 +993,13 @@ async function buildSiteStaticInner(
   for (const tag of activeTags) {
     const key = cmsStaticTargetKey('~site', 3, tag.id);
     if (skipCompleted(key)) continue;
-    const result = await renderTagPage(site, '', tag.slug, 1);
-    if (result.status === 200) {
-      await writeStaticFile(site.code, `tag/${tag.slug}/`, result.html);
-      pages += 1;
-    }
+    await runTarget(key, async () => {
+      const result = await renderTagPage(site, '', tag.slug, 1);
+      if (result.status === 200) {
+        await writeStaticFile(site.code, `tag/${tag.slug}/`, result.html);
+        pages += 1;
+      } else if (cmsGenerationContext()?.candidate) throw new Error(`候选标签 tag/${tag.slug}/ 渲染失败（${result.status}）`);
+    });
     if (await report(`标签「${tag.name}」已生成`, {
       phase: 'tag', lastKey: key, lastId: tag.id,
     })) return { pages, pruned: 0 };
@@ -980,11 +1009,15 @@ async function buildSiteStaticInner(
   for (const page of customPages) {
     const key = cmsStaticTargetKey('~site', 4, page.id);
     if (skipCompleted(key)) continue;
-    const result = await renderCustomPage(site, '', page);
-    if (result.status === 200) {
-      await writeStaticFile(site.code, customPagePath(page), result.html);
-      pages += 1;
-    }
+    await runTarget(key, async () => {
+      const result = await renderCustomPage(site, '', page);
+      if (result.status === 200) {
+        if (!page.requiresDynamic) {
+          await writeStaticFile(site.code, customPagePath(page), result.html);
+          pages += 1;
+        }
+      } else if (cmsGenerationContext()?.candidate) throw new Error(`候选搭建页 ${customPagePath(page)} 渲染失败（${result.status}）`);
+    });
     if (await report(`搭建页「${page.name}」已生成`, {
       phase: 'page', lastKey: key, lastId: page.id,
     })) return { pages, pruned: 0 };
@@ -992,17 +1025,17 @@ async function buildSiteStaticInner(
 
   const sitemapKey = cmsStaticTargetKey('~meta', 0, 1);
   if (!skipCompleted(sitemapKey)) {
-    await writeStaticFile(site.code, 'sitemap.xml', await generateSitemapXml(site));
+    await runTarget(sitemapKey, async () => writeStaticFile(site.code, 'sitemap.xml', await generateSitemapXml(site)));
     if (await report('sitemap.xml 已生成', { phase: 'meta', lastKey: sitemapKey, lastId: 1 })) return { pages, pruned: 0 };
   }
   const rssKey = cmsStaticTargetKey('~meta', 0, 2);
   if (!skipCompleted(rssKey)) {
-    await writeStaticFile(site.code, 'rss.xml', await generateRssXml(site));
+    await runTarget(rssKey, async () => writeStaticFile(site.code, 'rss.xml', await generateRssXml(site)));
     if (await report('rss.xml 已生成', { phase: 'meta', lastKey: rssKey, lastId: 2 })) return { pages, pruned: 0 };
   }
   const robotsKey = cmsStaticTargetKey('~meta', 0, 3);
   if (!skipCompleted(robotsKey)) {
-    await writeStaticFile(site.code, 'robots.txt', buildRobotsTxt(site));
+    await runTarget(robotsKey, () => writeStaticFile(site.code, 'robots.txt', buildRobotsTxt(site)));
     if (await report('robots.txt 已生成', { phase: 'meta', lastKey: robotsKey, lastId: 3 })) return { pages, pruned: 0 };
   }
   triggerCdnPurgeAll(site);

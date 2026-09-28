@@ -63,7 +63,7 @@ function ContentItemRow({ item, homeVariant }: { item: CmsContentItem; homeVaria
   const badge = typeBadgeText(item);
   return (
     <div className={homeVariant ? `content-item home-content-${homeVariant}` : 'content-item'}>
-      {cover && homeVariant !== 'compact' ? <img className="thumb" src={cover} alt={item.title} loading="lazy" /> : null}
+      {cover && homeVariant !== 'compact' ? <img className="thumb" src={cover} srcSet={item.coverSrcSet} sizes="(max-width: 640px) 90vw, 360px" style={item.coverPosition ? { objectPosition: item.coverPosition } : undefined} alt={item.title} loading="lazy" /> : null}
       <div className={homeVariant ? 'home-content-text' : undefined}>
         <h3>
           {item.isTop ? <span className="badge">置顶</span> : null}
@@ -492,7 +492,7 @@ export function ListCardTemplate(ctx: CmsListContext) {
         <div className="card-grid">
           {ctx.items.map((item) => (
             <a className="card" key={item.id} href={item.url}>
-              {item.coverImage ? <img className="cover" src={item.coverImage} alt={item.title} loading="lazy" /> : null}
+              {item.coverImage ? <img className="cover" src={item.coverImage} srcSet={item.coverSrcSet} sizes="(max-width: 640px) 90vw, 33vw" style={item.coverPosition ? { objectPosition: item.coverPosition } : undefined} alt={item.title} loading="lazy" /> : null}
               <div className="card-body">
                 <h3 style={titleStyleOf(item.titleStyle)}>
                   {item.isTop ? <span className="badge">置顶</span> : null}

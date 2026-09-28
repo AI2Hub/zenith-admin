@@ -21,6 +21,8 @@ export * from './design-validation';
 export * from './distribution-merge';
 export * from './content-import';
 export * from './resource-selection';
+export * from './cms-media';
+export * from './cms-media-validation';
 export * from './workbench-validation';
 export * from './release-review';
 

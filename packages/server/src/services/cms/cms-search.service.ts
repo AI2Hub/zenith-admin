@@ -1,3 +1,4 @@
+import { cmsGenerationNow } from './cms-generation-context';
 import { sql, and, eq, gt, inArray, isNull, or, type SQL } from 'drizzle-orm';
 import { Jieba } from '@node-rs/jieba';
 import { dict } from '@node-rs/jieba/dict.js';
@@ -28,6 +29,15 @@ const stopWordsBySite = new Map<string, Set<string>>();
 const synonymsBySite = new Map<string, Map<string, string[]>>();
 const dictionaryKey = (siteId: number) => `${cmsGenerationContext()?.generationId ?? 'working'}:${siteId}`;
 let defaultJieba: Jieba | null = null;
+
+/** Candidate dictionaries are rehydrated on demand after activation; completed builds need not retain them. */
+export function releaseCmsGenerationSearchDictionary(generationId: number): void {
+  const prefix = `${generationId}:`;
+  for (const key of jiebaBySite.keys()) {
+    if (!key.startsWith(prefix)) continue;
+    jiebaBySite.delete(key); stopWordsBySite.delete(key); synonymsBySite.delete(key);
+  }
+}
 
 function getJieba(siteId?: number): Jieba {
   if (siteId && jiebaBySite.has(dictionaryKey(siteId))) return jiebaBySite.get(dictionaryKey(siteId))!;
@@ -299,7 +309,7 @@ export function buildSnippet(plainText: string, tokens: string[], radius = 60): 
   return highlightTokens(fragment, tokens);
 }
 
-export type CmsSearchQuery = QueryOutputOf<typeof cmsSearchContract.test> & { skipAccessCheck?: boolean };
+export type CmsSearchQuery = QueryOutputOf<typeof cmsSearchContract.test> & { skipAccessCheck?: boolean; trackKeyword?: boolean };
 
 interface SearchRowShape {
   id: number;
@@ -361,7 +371,7 @@ export async function searchCmsContents(q: CmsSearchQuery): Promise<{ list: CmsS
   const tokens = segmentForQuery(keyword, siteId);
   const empty = { list: [] as CmsSearchResult[], total: 0, page, pageSize, tokens };
   if (tokens.length === 0) return empty;
-  recordSearchKeyword(siteId, keyword);
+  if (q.trackKeyword !== false) recordSearchKeyword(siteId, keyword);
 
   const cfg = sql.raw(`'${TSVECTOR_CONFIG}'`);
   const tsquery = usesAppSegmentation()
@@ -374,7 +384,7 @@ export async function searchCmsContents(q: CmsSearchQuery): Promise<{ list: CmsS
     eq(cmsContents.status, 'published'),
     isNull(cmsContents.deletedAt),
     isNull(cmsContents.archivedAt),
-    or(isNull(cmsContents.expireAt), gt(cmsContents.expireAt, new Date())),
+    or(isNull(cmsContents.expireAt), gt(cmsContents.expireAt, cmsGenerationNow())),
     eq(cmsChannels.status, 'enabled'),
     eq(cmsChannels.siteId, siteId),
     inArray(cmsChannels.id, [...effectivelyEnabledChannelIds]),
@@ -496,9 +506,8 @@ export async function rebuildSearchIndex(options: {
     for (const row of rows) {
       const searchable = row.modelVersionId ? searchableByVersion.get(row.modelVersionId) : undefined;
       const extendTexts = extendSearchTexts(Object.fromEntries(Object.entries(row.extend ?? {}).filter(([key]) => searchable?.has(key))));
-      await db.update(cmsContents)
-        .set({ searchVector: buildSearchVector({ ...row, extendTexts }) })
-        .where(eq(cmsContents.id, row.id));
+      // Rebuilding a derived index must not change the business modification time or audit owner.
+      await db.execute(sql`UPDATE ${cmsContents} SET search_vector=${buildSearchVector({ ...row, extendTexts })} WHERE ${cmsContents.id}=${row.id}`);
       processed += 1;
       lastId = row.id;
     }

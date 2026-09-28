@@ -490,11 +490,12 @@ export function MediaBlock({ content }: {
   content: {
     contentType: 'article' | 'album' | 'media' | 'link';
     title: string;
-    albumImages: { url: string; thumb: string | null; caption: string | null }[];
+    albumImages: { url: string; thumb: string | null; caption: string | null; srcSet?: string; objectPosition?: string }[];
     mediaType: 'video' | 'audio' | null;
     mediaUrl: string | null;
     mediaPoster: string | null;
     mediaDuration: string | null;
+    mediaSubtitle?: { url: string; language: string; label: string } | null;
   };
 }) {
   if (content.contentType === 'album' && content.albumImages.length > 0) {
@@ -503,7 +504,7 @@ export function MediaBlock({ content }: {
         {content.albumImages.map((img, i) => (
           <figure key={`${img.url}-${i}`}>
             <a href={img.url} target="_blank" rel="noopener">
-              <img src={img.thumb ?? img.url} alt={img.caption ?? `${content.title} ${i + 1}`} loading="lazy" />
+              <img src={img.thumb ?? img.url} srcSet={img.srcSet} sizes="(max-width: 640px) 100vw, 33vw" style={img.objectPosition ? { objectPosition: img.objectPosition } : undefined} alt={img.caption ?? `${content.title} ${i + 1}`} loading="lazy" />
             </a>
             {img.caption ? <figcaption>{img.caption}</figcaption> : null}
           </figure>
@@ -515,8 +516,8 @@ export function MediaBlock({ content }: {
     return (
       <div className="media-player">
         {content.mediaType === 'audio'
-          ? <audio src={content.mediaUrl} controls preload="metadata" />
-          : <video src={content.mediaUrl} controls preload="metadata" poster={content.mediaPoster ?? undefined} />}
+          ? <audio src={content.mediaUrl} controls preload="metadata">{content.mediaSubtitle ? <track kind="subtitles" src={content.mediaSubtitle.url} srcLang={content.mediaSubtitle.language} label={content.mediaSubtitle.label} default /> : null}</audio>
+          : <video src={content.mediaUrl} controls preload="metadata" poster={content.mediaPoster ?? undefined}>{content.mediaSubtitle ? <track kind="subtitles" src={content.mediaSubtitle.url} srcLang={content.mediaSubtitle.language} label={content.mediaSubtitle.label} default /> : null}</video>}
         {content.mediaDuration ? <div className="media-duration">时长：{content.mediaDuration}</div> : null}
       </div>
     );

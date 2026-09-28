@@ -1,3 +1,4 @@
+import { cmsGenerationNow } from './cms-generation-context';
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { BodyOf } from '@zenith/shared/core';
 import { cmsAssetRightsSchema, cmsAssetVersionSchema, cmsResourceContract } from '@zenith/shared/cms';
@@ -18,6 +19,7 @@ import { randomUUID } from 'node:crypto';
 import { insertCmsCdnPurgeOutbox } from './cms-cdn.service';
 import { enqueueAsyncTask } from '../../lib/task-center';
 import { invalidateCmsSiteCaches } from './cms-cache.service';
+import { removeUnusedCmsMedia } from './cms-media.service';
 
 async function requireResource(id: number) {
   const [row] = await db.select().from(cmsResources).where(eq(cmsResources.id, id)).limit(1);
@@ -66,6 +68,7 @@ export async function removeUnusedCmsAssetVersions(tx: DbExecutor, resourceId: n
   const configured = await tx.$count(cmsReleases, sql`${cmsReleases.configurationSnapshot}->'assetVersions' ? ${String(resourceId)}`);
   if (configured) throw new HTTPException(409, { message: '素材仍被固定发布配置引用，不能删除' });
   const versions = await tx.select({ id: cmsAssetVersions.id, fileId: cmsAssetVersions.fileId }).from(cmsAssetVersions).where(eq(cmsAssetVersions.resourceId, resourceId));
+  await removeUnusedCmsMedia(tx, versions.map((version) => version.id));
   await tx.delete(cmsAssetVersions).where(eq(cmsAssetVersions.resourceId, resourceId));
   await releaseManagedFiles(tx, versions.map((version) => version.fileId));
 }
@@ -76,7 +79,7 @@ export async function isCmsRevisionAssetVisible(snapshot: { assetVersions?: Reco
   if (!ids.length) return true;
   const [blocked] = await executor.select({ id: cmsAssetRights.id }).from(cmsAssetRights).where(and(
     inArray(cmsAssetRights.resourceId, ids),
-    sql`(${cmsAssetRights.revoked} = true or ${cmsAssetRights.expiresAt} <= now())`,
+    sql`(${cmsAssetRights.revoked} = true or ${cmsAssetRights.expiresAt} <= ${cmsGenerationNow().toISOString()}::timestamptz)`,
   )).limit(1);
   return !blocked;
 }

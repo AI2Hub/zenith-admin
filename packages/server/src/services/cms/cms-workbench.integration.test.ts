@@ -9,6 +9,7 @@ import { withDbExecutor } from '../../db';
 import { runWithCurrentUser } from '../../lib/context';
 import { initializeCmsContentWorkingCopy } from './cms-content-revisions.service';
 import { renderCmsWorkbenchPreview } from './cms-workbench-preview.service';
+import { approveCmsContentForRelease } from './cms-contents-write.service';
 
 const connection = process.env.TEST_DATABASE_URL;
 const client = connection ? postgres(connection, { max: 1, onnotice: () => undefined }) : null;
@@ -23,7 +24,7 @@ describe.skipIf(!connection)('CMS workbench PostgreSQL isolation', () => {
     try {
       await testDb.transaction(async (tx) => withDbExecutor(tx, async () => {
         const suffix = randomUUID().slice(0, 8);
-        const [user] = await tx.insert(schema.users).values({ username: `qa-preview-${suffix}`, nickname: 'Preview QA', password: 'unused' }).returning();
+        const [user] = await tx.insert(schema.users).values({ username: `qa-preview-${suffix}`, nickname: 'Preview QA', password: 'unused', userDataScope: 'all' }).returning();
         await runWithCurrentUser({ userId: user.id, username: user.username, roles: ['super_admin'], tenantId: null }, async () => {
           const [site] = await tx.insert(schema.cmsSites).values({ name: 'QA Preview isolation', code: `qa-preview-${suffix}`, theme: 'default', settings: {} }).returning();
           const [other] = await tx.insert(schema.cmsSites).values({ name: 'QA Other', code: `qa-other-${suffix}`, theme: 'default' }).returning();
@@ -45,7 +46,14 @@ describe.skipIf(!connection)('CMS workbench PostgreSQL isolation', () => {
           await expect(renderCmsWorkbenchPreview({ ...input, siteId: other.id })).rejects.toMatchObject({ status: 404 });
           await tx.update(schema.cmsContentWorkingCopies).set({ version: 2, snapshot: { ...copy.snapshot, title: 'Changed after preview' } }).where(eq(schema.cmsContentWorkingCopies.contentId, content.id));
           await expect(renderCmsWorkbenchPreview({ ...input, expectedFingerprint: result.fingerprint })).rejects.toMatchObject({ status: 409 });
-          await expect(renderCmsWorkbenchPreview({ ...input, mode: 'online', includeSiteConfiguration: false, contentIds: [] })).rejects.toMatchObject({ status: 404 });
+          await expect(renderCmsWorkbenchPreview({ ...input, mode: 'online', includeSiteConfiguration: false, contentIds: [] })).rejects.toMatchObject({ status: 409 });
+          const releasesBefore = await tx.$count(schema.cmsReleases);
+          const approved = await approveCmsContentForRelease(content.id, 2);
+          expect(approved.editorialStatus).toBe('approved');
+          expect(approved.approvedRevisionId).toBeGreaterThan(0);
+          expect(approved.status).toBe('draft');
+          expect(await tx.$count(schema.cmsReleases)).toBe(releasesBefore);
+          await expect(approveCmsContentForRelease(content.id, 2)).rejects.toMatchObject({ status: 409 });
         });
         throw rollback;
       }));

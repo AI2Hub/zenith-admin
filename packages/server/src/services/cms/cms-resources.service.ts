@@ -25,6 +25,7 @@ import { ensureCmsAssetVersion } from './cms-design-versions.service';
 import { removeUnusedCmsAssetVersions } from './cms-asset-rights.service';
 import { sharp } from '../../lib/sharp-loader';
 import { pickEntity } from '../../lib/entity-map';
+import { addCmsMediaToResources } from './cms-media.service';
 
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
@@ -71,7 +72,7 @@ export async function listCmsResources(q: QueryOutputOf<typeof cmsResourceContra
         q.page, q.pageSize,
       );
       const refCounts = await countCmsResourceRefs(rows.map((row) => row.resource.id), q.siteId);
-      return rows.map((row) => mapCmsResource(row.resource, row.folderName, refCounts.get(row.resource.id) ?? 0));
+      return addCmsMediaToResources(rows.map((row) => mapCmsResource(row.resource, row.folderName, refCounts.get(row.resource.id) ?? 0)));
     },
   });
 }
@@ -87,7 +88,7 @@ export async function getCmsResourceSelection(q: QueryOutputOf<typeof cmsResourc
     resourceId === null ? eq(cmsResources.url, q.value) : eq(cmsResources.id, resourceId),
     q.type ? eq(cmsResources.type, q.type) : undefined,
   )).limit(1);
-  if (current) return mapCmsResource(current);
+  if (current) return (await addCmsMediaToResources([mapCmsResource(current)]))[0];
   if (resourceId !== null) return null;
   // A saved revision can point to a retained binary version after the resource was replaced.
   const [retained] = await db.select({ resource: cmsResources, version: cmsAssetVersions }).from(cmsAssetVersions)
@@ -97,9 +98,9 @@ export async function getCmsResourceSelection(q: QueryOutputOf<typeof cmsResourc
   if (!retained) return null;
   const type = retained.version.mimeType ? detectResourceType(retained.version.mimeType) : retained.resource.type;
   if (q.type && type !== q.type) return null;
-  return mapCmsResource({ ...retained.resource, type, url: retained.version.url, thumbUrl: retained.version.thumbUrl,
+  return (await addCmsMediaToResources([mapCmsResource({ ...retained.resource, type, url: retained.version.url, thumbUrl: retained.version.thumbUrl,
     fileId: retained.version.fileId, size: retained.version.size, width: retained.version.width, height: retained.version.height,
-    mimeType: retained.version.mimeType });
+    mimeType: retained.version.mimeType })]))[0];
 }
 
 /** 素材上传：图片走站点图片管线（压缩/水印/缩略图），其他类型原样入库 */

@@ -19,6 +19,7 @@ import { recordMockSubjects, mockEntitySubjects } from '@/mocks/data/entity-subj
  */
 
 const taskTypes: AsyncTaskTypeMeta[] = [
+  { taskType: 'cms-media-processing', title: 'CMS 媒体处理', module: 'CMS内容管理', description: '提取媒体信息、生成海报与图片变体并关联字幕', allowConcurrent: true, enabled: true, maxAttempts: 2, retryDelayMs: 5000, retentionDays: 30 },
   {
     taskType: 'messaging-broadcast',
     title: '运营群发',
@@ -428,7 +429,7 @@ export function createImmediateMockTask(input: {
 }
 
 export function createProgressingMockTask(input: {
-  taskType: 'report-dq-rule-run' | 'report-dataset-materialize' | 'report-sla-rule-evaluate' | 'report-fill-sync' | 'analytics-rollup-rebuild' | 'analytics-segment-materialize' | 'analytics-campaign-execute' | 'cms-search-reindex' | 'cms-deadlink-check' | 'cms-collect-run' | 'cms-content-import' | 'cms-resource-governance' | 'cms-resource-ref-rebuild' | 'cms-publish-build' | 'cms-widget-batch' | 'cms-widget-refresh' | 'cms-ad-events-cleanup' | 'cms-interactions-batch-status' | 'cms-subscription-notify' | 'cms-distribution-sync' | 'messaging-broadcast';
+  taskType: 'cms-media-processing' | 'report-dq-rule-run' | 'report-dataset-materialize' | 'report-sla-rule-evaluate' | 'report-fill-sync' | 'analytics-rollup-rebuild' | 'analytics-segment-materialize' | 'analytics-campaign-execute' | 'cms-search-reindex' | 'cms-deadlink-check' | 'cms-collect-run' | 'cms-content-import' | 'cms-resource-governance' | 'cms-resource-ref-rebuild' | 'cms-publish-build' | 'cms-widget-batch' | 'cms-widget-refresh' | 'cms-ad-events-cleanup' | 'cms-interactions-batch-status' | 'cms-subscription-notify' | 'cms-distribution-sync' | 'messaging-broadcast';
   title: string;
   payload?: Record<string, unknown>;
   totalItems?: number;
@@ -622,6 +623,12 @@ function startSim(task: AsyncTask) {
 
 function findTask(id: number) {
   return tasks.find((item) => item.id === id);
+}
+
+export function refreshMockAsyncTask(id: number) {
+  const task = findTask(id);
+  if (task) tickTask(task);
+  return task;
 }
 
 type TaskListQuery = QueryOutputOf<typeof asyncTaskContract.list>;

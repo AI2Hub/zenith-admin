@@ -69,6 +69,17 @@ describe('processCmsImageUpload 体积校验先于解码', () => {
     expect(arrayBuffer).not.toHaveBeenCalled();
     expect(result).toEqual({ url: 'https://cdn/f1.png', thumbUrl: null, fileId: 'f1', width: null, height: null, watermarked: false });
   });
+
+  it('preserves both frames of an animated WebP instead of applying the static compression pipeline', async () => {
+    const pixels = Buffer.alloc(4 * 4 * 3 * 2, 100);
+    pixels.fill(220, 4 * 4 * 3);
+    const bytes = await sharp(pixels, { raw: { width: 4, height: 8, channels: 3, pageHeight: 4 } }).webp({ delay: [100, 200] }).toBuffer();
+    const file = new File([new Uint8Array(bytes)], 'animation.webp', { type: 'image/webp' });
+    await processCmsImageUpload(file, 1);
+    expect(uploadManagedFile).toHaveBeenCalledWith(file);
+    expect(uploadManagedFile).toHaveBeenCalledTimes(1);
+    expect(await sharp(Buffer.from(await file.arrayBuffer())).metadata()).toMatchObject({ pages: 2 });
+  });
 });
 
 describe('readImageMetadataWithinLimit 像素上限', () => {

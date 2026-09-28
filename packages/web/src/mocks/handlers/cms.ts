@@ -103,6 +103,7 @@ import {
 import { mockCmsPublishingTasks } from '../data/cms-stage3';
 import { mockCmsDistributionRules } from '../data/cms-stage5';
 import { createProgressingMockTask } from './async-tasks';
+import { mockCmsResourceWithMedia, mockCmsResourceVersions } from './cms-media';
 import { submitMockCmsWidgetSourceRefresh } from './cms-widgets';
 import { assertMockCmsSiteComposition } from '../utils/cms-site-composition';
 import { getMockCmsPublishedModelFields, getMockCmsUnresolvedNoteContentIds } from './cms-editorial';
@@ -1287,14 +1288,15 @@ export const cmsP2Handlers = [
     else if (folderId) list = list.filter((r) => r.folderId === folderId);
     list = filterByKeyword(list, keyword, [(r) => r.name]);
     const sorted = [...list].sort((a, b) => b.id - a.id)
-      .map((r) => ({ ...r, refCount: collectMockResourceRefs(r).length }));
+      .map((r) => ({ ...mockCmsResourceWithMedia(r), refCount: collectMockResourceRefs(r).length }));
     return ok(paginate(sorted));
   }),
   mock(cmsResourceContract.selection, ({ query, ok }) => {
     const match = /^cms-res:\/\/([1-9]\d*)$/.exec(query.value);
-    return ok(mockCmsResources.find((resource) => resource.siteId === query.siteId
+    const selected = mockCmsResources.find((resource) => resource.siteId === query.siteId
       && matchesFilter(resource.type, query.type)
-      && (match ? resource.id === Number(match[1]) : resource.url === query.value)) ?? null);
+      && (match ? resource.id === Number(match[1]) : resource.url === query.value));
+    return ok(selected ? mockCmsResourceWithMedia(selected) : null);
   }),
   mock(cmsResourceContract.upload, ({ query, body, ok }) => {
     const siteId = query.siteId ?? 1;
@@ -1357,6 +1359,7 @@ export const cmsP2Handlers = [
   }),
   mock(cmsResourceContract.replace, ({ params, body, ok }) => {
     const res = requireItem(mockCmsResources, params.id, '素材不存在', { status: 404 });
+    mockCmsResourceVersions(res);
     const file = body.get('file');
     if (!(file instanceof File)) return badRequest('请选择要上传的文件', { status: 400 });
     // 句柄化后素材 id 是稳定引用，换文件只改素材行本身，站内引用无需改动

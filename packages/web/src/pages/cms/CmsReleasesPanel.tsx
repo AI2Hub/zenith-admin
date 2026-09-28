@@ -20,6 +20,7 @@ import CmsContentReferenceInput from './CmsContentReferenceInput';
 import CmsConfigurationPicker from './CmsConfigurationPicker';
 import CmsWorkbenchPreview from './CmsWorkbenchPreview';
 import CmsReleaseReviewPanel from './CmsReleaseReviewPanel';
+import CmsDeploymentProgress from './CmsDeploymentProgress';
 import { useCmsReleaseList, useCmsReleaseDetail, useCreateCmsRelease, useBuildCmsRelease, useActivateCmsRelease, useCancelCmsRelease, useRollbackCmsRelease } from '@/hooks/queries/cms-releases';
 
 const RELEASE_LABELS: Record<CmsRelease['status'], string> = { draft: '草拟', building: '构建中', ready: '待激活', scheduled: '已排期', active: '已激活', failed: '失败', cancelled: '已取消', superseded: '历史部署' };
@@ -116,6 +117,7 @@ export default function CmsReleasesPanel() {
         {/* 单列键值对：row（双行）模式会把值渲染成大字并让 64 位摘要溢出抽屉边界 */}
         <Descriptions data={[{ key: '当前公开代次', value: detail.data.activeGenerationId ?? '尚未上线' }, { key: '候选部署', value: detail.data.deploymentId ?? '待构建' }, { key: '基础代次', value: detail.data.baseGenerationId ?? '首次部署' }, { key: '排期', value: detail.data.activateAt ? `${detail.data.activateAt}（${detail.data.timeZone}）` : '无' }, { key: '产物数', value: detail.data.deployment?.artifactCount ?? 0 }, { key: '部署摘要', value: detail.data.deployment?.manifestHash ? <Typography.Text code style={{ wordBreak: 'break-all' }}>{detail.data.deployment.manifestHash}</Typography.Text> : '构建后生成' }]} />
         {detail.data.error ? <Banner type="danger" description={detail.data.error} /> : null}
+        <CmsDeploymentProgress deployment={detail.data.deployment} siteId={detail.data.siteId} />
         {detail.data.blockingChecks.map((message) => <Banner key={message} type="warning" description={message} />)}
         <CmsReleaseReviewPanel releaseId={detail.data.id} onRecreated={setDetailId} onPreview={(path) => { setPreviewPath(path); setPreviewOpen(true); }} />
         <Typography.Title heading={6}>已冻结的变更范围</Typography.Title>

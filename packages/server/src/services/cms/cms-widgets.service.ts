@@ -1,3 +1,4 @@
+import { cmsGenerationNow } from './cms-generation-context';
 import { requireFirstRow, requireRow } from '../../lib/db-assert';
 import { buildListResult } from '../../lib/list-query';
 import {
@@ -202,7 +203,7 @@ async function assertWidgetSources(
     const content = contentById.get(contentId);
     const contentRow = requireRow(content, `引用内容 #${contentId} 不存在`, 400);
     if (contentRow.siteId !== siteId) throw new HTTPException(400, { message: `引用内容 #${contentId} 不属于当前站点` });
-    if (requirePublished && (contentRow.status !== 'published' || contentRow.deletedAt || contentRow.archivedAt || (contentRow.expireAt && contentRow.expireAt <= new Date()))) {
+    if (requirePublished && (contentRow.status !== 'published' || contentRow.deletedAt || contentRow.archivedAt || (contentRow.expireAt && contentRow.expireAt <= cmsGenerationNow()))) {
       throw new HTTPException(400, { message: `引用内容 #${contentId} 必须处于已发布状态` });
     }
   }
@@ -702,7 +703,7 @@ export async function resolveCmsWidgetPlacements(
         eq(cmsContents.status, 'published'),
         isNull(cmsContents.deletedAt),
         isNull(cmsContents.archivedAt),
-        or(isNull(cmsContents.expireAt), gt(cmsContents.expireAt, new Date())),
+        or(isNull(cmsContents.expireAt), gt(cmsContents.expireAt, cmsGenerationNow())),
       ))
     : [];
   const contents = await resolveCmsContentRows(rawContents, siteId);

@@ -1,3 +1,5 @@
+import { cmsGenerationNow } from './cms-generation-context';
+import { frozenCmsImageAttributes, frozenCmsMediaForUrl, renderCmsFrozenBody, cmsDurationLabel } from './cms-frozen-media';
 import { createElement, type ComponentType } from 'react';
 import { cmsModelDisplayFor } from '@zenith/shared/cms';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -223,7 +225,7 @@ async function buildBaseContext(site: CmsSiteRow, baseUrl: string, seo: CmsSeo, 
   ]);
   const analyticsSiteKey = (site.settings as Record<string, unknown> | null)?.analyticsSiteKey;
   const generation = cmsGenerationContext();
-  const [deployment] = generation?.candidate && generation.generationId
+  const [deployment] = generation?.generationId
     ? await db.select({ releaseId: cmsDeployments.releaseId }).from(cmsDeployments).where(eq(cmsDeployments.id, generation.generationId)).limit(1)
     : [];
   // 站点 logo/favicon/主题配置、广告、友链都以素材句柄存储，
@@ -244,7 +246,7 @@ async function buildBaseContext(site: CmsSiteRow, baseUrl: string, seo: CmsSeo, 
       logo: site.logo ?? null,
       favicon: site.favicon ?? null,
       icp: site.icp ?? null,
-      copyright: site.copyright ?? null,
+      copyright: site.copyright ?? (generation?.buildAt ? `© ${generation.buildAt.getFullYear()} ${site.name}` : null),
       theme: site.theme,
       extend: site.extend ?? {},
       settings: site.settings ?? {},
@@ -258,7 +260,7 @@ async function buildBaseContext(site: CmsSiteRow, baseUrl: string, seo: CmsSeo, 
     seo,
     searchUrl: `${baseUrl}/search`,
     analytics: typeof analyticsSiteKey === 'string' && analyticsSiteKey
-      ? { siteKey: analyticsSiteKey, ...(analyticsContentId ? { contentId: analyticsContentId } : {}), ...(generation?.candidate && generation.generationId ? { deploymentId: generation.generationId } : {}), ...(deployment?.releaseId ? { releaseId: deployment.releaseId } : {}) }
+      ? { siteKey: analyticsSiteKey, ...(analyticsContentId ? { contentId: analyticsContentId } : {}), ...(generation?.generationId ? { deploymentId: generation.generationId } : {}), ...(deployment?.releaseId ? { releaseId: deployment.releaseId } : {}) }
       : null,
     langAlternates,
     audience: { dynamic: false, member: false },
@@ -368,6 +370,7 @@ function toContentItem(row: CmsContentListRow & { coverThumb?: string | null }, 
   // because old rows may still contain javascript:/protocol-relative payloads.
   const link = rawLink ? (resolveLink?.(rawLink) ?? null) : null;
   const media = (row.mediaData ?? {}) as { images?: unknown[]; mediaType?: 'video' | 'audio' };
+  const coverMedia = frozenCmsImageAttributes(row.coverImage, row.media);
   return {
     id: row.id,
     modelId: row.modelId,
@@ -379,6 +382,8 @@ function toContentItem(row: CmsContentListRow & { coverThumb?: string | null }, 
     summary: listSummaryOf(row, 120),
     coverImage: row.coverImage ?? null,
     coverThumb: row.coverThumb ?? null,
+    coverSrcSet: coverMedia.srcSet,
+    coverPosition: coverMedia.objectPosition,
     imageCount: Array.isArray(media.images) ? media.images.length : 0,
     mediaType: row.contentType === 'media' ? (media.mediaType ?? 'video') : null,
     author: row.author ?? null,
@@ -541,7 +546,7 @@ async function listBlockContents(siteId: number, opts: { channelId?: number; tag
     eq(cmsContents.status, 'published'),
     isNull(cmsContents.deletedAt),
     isNull(cmsContents.archivedAt),
-    or(isNull(cmsContents.expireAt), gt(cmsContents.expireAt, new Date()))!,
+    or(isNull(cmsContents.expireAt), gt(cmsContents.expireAt, cmsGenerationNow()))!,
     inArray(cmsContents.channelId, [...effectiveChannelIds]),
     tagCondition,
     !opts.tagSlug && opts.channelId ? eq(cmsContents.channelId, opts.channelId) : undefined,
@@ -799,9 +804,11 @@ function buildDetailExtras(row: CmsContentRow, resolvedBody: string | null, base
       url: img.url!,
       thumb: typeof img.thumb === 'string' && isValidCmsAssetUrl(img.thumb) ? img.thumb : null,
       caption: img.caption ?? null,
+      ...frozenCmsImageAttributes(img.url, row.media),
     }));
 
-  const bodyPages = splitBodyPages(resolvedBody);
+  const bodyPages = splitBodyPages(renderCmsFrozenBody(resolvedBody ?? '', row.media));
+  const frozenMedia = frozenCmsMediaForUrl(media.mediaUrl, row.media);
   const totalPages = bodyPages.length;
   const pageBody = bodyPages[Math.min(bodyPage, totalPages) - 1] ?? '';
   const bodyPagination = totalPages > 1 ? {
@@ -828,8 +835,9 @@ function buildDetailExtras(row: CmsContentRow, resolvedBody: string | null, base
       }),
       albumImages,
       mediaUrl: typeof media.mediaUrl === 'string' && isValidCmsAssetUrl(media.mediaUrl) ? media.mediaUrl : null,
-      mediaPoster: typeof media.poster === 'string' && isValidCmsAssetUrl(media.poster) ? media.poster : null,
-      mediaDuration: media.duration ?? null,
+      mediaPoster: typeof media.poster === 'string' && isValidCmsAssetUrl(media.poster) ? media.poster : frozenMedia?.poster?.url ?? null,
+      mediaDuration: media.duration || cmsDurationLabel(frozenMedia?.duration),
+      mediaSubtitle: frozenMedia?.subtitle && isValidCmsAssetUrl(frozenMedia.subtitle.url) ? frozenMedia.subtitle : null,
     },
   };
 }
@@ -1016,7 +1024,7 @@ export async function renderSearchPage(
   const seo = mergeSeo(site, { title: keyword ? `搜索：${keyword} - ${site.name}` : `搜索 - ${site.name}` });
   const base = await buildBaseContext(site, baseUrl, seo);
   const result = keyword
-    ? await searchCmsContents({ siteId: site.id, keyword, page, pageSize: SEARCH_PAGE_SIZE, skipAccessCheck: true })
+    ? await searchCmsContents({ siteId: site.id, keyword, page, pageSize: SEARCH_PAGE_SIZE, skipAccessCheck: true, trackKeyword: Boolean(track) })
     : { list: [], total: 0, page, pageSize: SEARCH_PAGE_SIZE, tokens: [] };
   // 搜索日志（仅首屏记一次，翻页不重复计）
   if (track && keyword && page === 1) {
@@ -1177,7 +1185,7 @@ export async function generateRssXml(site: CmsSiteRow, channel?: CmsChannelRow |
       eq(cmsContents.status, 'published'),
       isNull(cmsContents.deletedAt),
       isNull(cmsContents.archivedAt),
-      or(isNull(cmsContents.expireAt), gt(cmsContents.expireAt, new Date())),
+      or(isNull(cmsContents.expireAt), gt(cmsContents.expireAt, cmsGenerationNow())),
       inArray(cmsContents.channelId, [...effectiveChannelIds]),
     ))
     .orderBy(desc(cmsContents.publishedAt), desc(cmsContents.id))

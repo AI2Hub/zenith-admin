@@ -9,6 +9,7 @@ vi.mock('./cms-resource-refs.service', () => ({ countCmsResourceRefs: vi.fn(), i
 vi.mock('./cms-image.service', () => ({ processCmsImageUpload: vi.fn() }));
 vi.mock('./cms-design-versions.service', () => ({ ensureCmsAssetVersion: vi.fn() }));
 vi.mock('./cms-asset-rights.service', () => ({ removeUnusedCmsAssetVersions: vi.fn() }));
+vi.mock('./cms-media.service', () => ({ addCmsMediaToResources: vi.fn(async (resources: unknown[]) => resources) }));
 vi.mock('../files/files.service', () => ({ uploadManagedFile: vi.fn(), deleteManagedFile: vi.fn(), readFileContent: vi.fn() }));
 vi.mock('../../lib/sharp-loader', () => ({ sharp: vi.fn() }));
 

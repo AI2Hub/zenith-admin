@@ -11,15 +11,18 @@ import { usePermission } from '@/hooks/usePermission';
 import { useListSearch } from '@/hooks/useListSearch';
 import { useFilterQuery } from '@/hooks/useFilterQuery';
 import { cmsResourceKeys, useCmsResourceList, useUploadCmsResource } from '@/hooks/queries/cms-resources';
+import { cmsResourceMediaSummary, cmsResourceThumbnail } from './cms-media';
 import './cms-assets.css';
 
 export const CMS_ASSET_LABELS: Record<CmsResourceType, string> = { image: '图片', audio: '音频', video: '视频', document: '文档', other: '文件' };
 export const cmsResourceAccept = (type?: CmsResourceType) => type === 'image' || type === 'audio' || type === 'video' ? `${type}/*` : undefined;
 
-export function CmsResourcePreview({ resource, onDuration }: Readonly<{ resource: Pick<CmsResource, 'type' | 'url' | 'thumbUrl' | 'name'>; onDuration?: (seconds: number) => void }>) {
-  if (resource.type === 'image') return <img className="cms-asset-preview__image" src={resource.thumbUrl ?? resource.url} alt={resource.name} loading="lazy" />;
+export function CmsResourcePreview({ resource, onDuration }: Readonly<{ resource: Pick<CmsResource, 'type' | 'url' | 'thumbUrl' | 'name' | 'media'>; onDuration?: (seconds: number) => void }>) {
+  if (resource.type === 'image') return <img className="cms-asset-preview__image" src={cmsResourceThumbnail(resource) ?? resource.url} alt={resource.name} loading="lazy" style={resource.media ? { objectPosition: `${resource.media.focalPoint.x * 100}% ${resource.media.focalPoint.y * 100}%` } : undefined} />;
   if (resource.type === 'audio') return <audio key={resource.url} aria-label={`预览${resource.name}`} controls preload="metadata" src={resource.url} onLoadedMetadata={(event) => onDuration?.(event.currentTarget.duration)} />;
-  if (resource.type === 'video') return <video key={resource.url} aria-label={`预览${resource.name}`} controls preload="metadata" src={resource.url} onLoadedMetadata={(event) => onDuration?.(event.currentTarget.duration)} />;
+  if (resource.type === 'video') return <video key={resource.url} aria-label={`预览${resource.name}`} controls preload="metadata" src={resource.url} poster={resource.media?.poster?.url} onLoadedMetadata={(event) => onDuration?.(event.currentTarget.duration)}>
+    {resource.media?.subtitle ? <track kind="subtitles" src={resource.media.subtitle.url} srcLang={resource.media.subtitle.language} label={resource.media.subtitle.label} default /> : null}
+  </video>;
   return <FileText size={36} aria-hidden />;
 }
 
@@ -77,7 +80,7 @@ export function CmsResourcePicker({ siteId, visible, type, title, disabled = fal
         {resources.map((resource) => {
           const pickable = !disabled && resource.siteId === siteId && !(type && resource.type !== type);
           const pickedOne = picked.some((item) => item.id === resource.id);
-          const thumb = resource.thumbUrl ?? (resource.type === 'image' ? resource.url : null);
+          const thumb = cmsResourceThumbnail(resource);
           const ext = resource.name.includes('.') ? resource.name.split('.').pop()?.toUpperCase() : '';
           return <div key={resource.id} className={`cms-resource-picker__item${pickedOne ? ' cms-resource-picker__item--selected' : ''}`}>
             <button
@@ -101,7 +104,7 @@ export function CmsResourcePicker({ siteId, visible, type, title, disabled = fal
             </div>
             <div className="cms-resource-picker__info">
               <div className="cms-resource-picker__name">{resource.name}</div>
-              <div className="cms-resource-picker__meta">{formatBytes(resource.size)}</div>
+              <div className="cms-resource-picker__meta">{[formatBytes(resource.size), cmsResourceMediaSummary(resource)].filter(Boolean).join(' · ')}</div>
             </div>
           </div>;
         })}

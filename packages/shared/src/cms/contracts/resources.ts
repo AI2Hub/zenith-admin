@@ -14,6 +14,8 @@ import {
 } from '../validation';
 import { cmsSiteScopeQuery } from './tags';
 import { updateCmsAssetRightsSchema } from '../design-validation';
+import { cmsMediaProcessingSchema, cmsMediaResultSchema } from '../cms-media';
+import { processCmsMediaSchema } from '../cms-media-validation';
 
 export const cmsAssetVersionSchema = z.object({ id: z.int(), resourceId: z.int(), version: z.int(), url: z.string(), thumbUrl: z.string().nullable(), fileId: z.string().nullable(), mimeType: z.string().nullable(), size: z.int(), width: z.int().nullable(), height: z.int().nullable(), contentHash: z.string(), createdAt: z.string() }).meta({ id: 'CmsAssetVersion' });
 export const cmsAssetRightsSchema = z.object({ resourceId: z.int(), source: z.string().nullable(), license: z.string().nullable(), expiresAt: z.string().nullable(), revoked: z.boolean(), tags: z.array(z.string()), alt: z.string().nullable() }).meta({ id: 'CmsAssetRights' });
@@ -39,6 +41,10 @@ export const cmsResourceSchema = z.object({
   remark: z.string().nullable(),
   ownsFile: z.boolean().meta({ description: 'false = 仅引用登记（文件由文件中心/来源站点持有），删除素材不会删除物理文件' }),
   refCount: z.int().optional().meta({ description: '站内引用数（列表返回；0 = 孤立素材）' }),
+  // Response metadata, not a query-string association filter.
+  // eslint-disable-next-line no-restricted-syntax -- 响应实体中的可选版本编号不使用查询串 coercion
+  assetVersionId: z.int().positive().optional(),
+  media: cmsMediaResultSchema.nullable().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
 }).meta({ id: 'CmsResource' });
@@ -108,6 +114,8 @@ const cmsResourceFileBody = multipart(z.object({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const cmsResourceContract = defineContract('/api/cms/resources', {
+  media: op.get('/{id}/media', { access: { permission: 'cms:resource:list' }, params: idParam, response: z.object({ assetVersionId: z.int().positive().nullable(), processing: cmsMediaProcessingSchema.nullable() }), summary: '当前文件版本的媒体信息与处理状态' }),
+  processMedia: op.post('/{id}/media/process', { access: { permission: 'cms:resource:update' }, params: idParam, body: processCmsMediaSchema, response: asyncTaskSchema, audit: '处理 CMS 媒体', summary: '提取媒体信息、生成海报和响应式图片、关联字幕' }),
   selection: op.get('/selection', { access: { permission: 'cms:resource:list' }, query: cmsResourceSelectionQuery, response: cmsResourceSchema.nullable(), summary: '按本站素材句柄或已登记地址精确回显素材' }),
   versions: op.get('/{id}/versions', { access: { permission: 'cms:resource:list' }, params: idParam, response: z.array(cmsAssetVersionSchema), summary: '素材不可变文件版本' }),
   rights: op.get('/{id}/rights', { access: { permission: 'cms:resource:list' }, params: idParam, response: cmsAssetRightsSchema, summary: '素材来源与版权' }),

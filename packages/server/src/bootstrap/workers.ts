@@ -37,6 +37,8 @@ export async function declareBackgroundJobs(): Promise<boolean> {
     const { registerDeployTaskHandlers } = await import('../services/ops/deploy-engine.service');
     registerDeployTaskHandlers(); // 应用部署：制品推送到主机并切换版本（含回滚 / 重启）
     registerCmsTaskHandlers(); // CMS 全站静态化 / 检索索引重建 / 死链检测
+    const { registerCmsMediaTaskHandlers } = await import('../services/cms/cms-media-tasks');
+    registerCmsMediaTaskHandlers();
     const { registerBroadcastTaskHandlers } = await import('../services/messaging/broadcast-tasks');
     registerBroadcastTaskHandlers(); // 运营群发分批派发
     const { registerIotBatchTaskHandlers } = await import('../services/iot/iot-batch-tasks');

@@ -30,6 +30,10 @@ import {
   useDeleteCmsResources,
   useSaveCmsResourceFolder,
   useUpdateCmsResource,
+  useCmsMedia,
+  useCmsResourceSelection,
+  useProcessCmsMedia,
+  invalidateAfterCmsMediaChange,
 } from './cms-resources';
 import { cmsSiteKeys, useAllCmsSites } from './cms-sites';
 
@@ -47,6 +51,35 @@ beforeEach(() => {
     .on('PUT', '/api/cms/resources/5', { ...RESOURCE, name: 'hero.png' })
     .on('PUT', '/api/cms/resources/folders/2', { id: 2, name: '首页轮播' })
     .on('POST', '/api/cms/resources/delete', null);
+});
+
+describe('媒体处理缓存边界', () => {
+  it('refreshes only the affected site media surfaces while keeping folders, other sites and references fresh', async () => {
+    api.on('GET', '/api/cms/resources/5/media', { assetVersionId: 11, processing: null })
+      .on('GET', '/api/cms/resources/6/media', { assetVersionId: 12, processing: null })
+      .on('GET', '/api/cms/resources/selection', RESOURCE)
+      .on('POST', '/api/cms/resources/5/media/process', { id: 101, status: 'pending' });
+    const qc = createTestQueryClient();
+    const hook = renderHook(() => ({
+      list: useCmsResourceList(LIST_PARAMS), otherList: useCmsResourceList({ ...LIST_PARAMS, siteId: 2 }),
+      selection: useCmsResourceSelection(1, 'cms-res://5'), otherSelection: useCmsResourceSelection(2, 'cms-res://6'),
+      media: useCmsMedia(5), otherMedia: useCmsMedia(6), folders: useCmsResourceFolders(1), refs: useCmsResourceReferences(5),
+      process: useProcessCmsMedia(1),
+    }), { wrapper: createWrapper(qc) });
+    await waitFor(() => expect([hook.result.current.list, hook.result.current.otherList, hook.result.current.selection, hook.result.current.otherSelection,
+      hook.result.current.media, hook.result.current.otherMedia, hook.result.current.folders, hook.result.current.refs].every((query) => query.isSuccess)).toBe(true));
+    const fetches = observeFetches(qc);
+    await hook.result.current.process.mutateAsync({ params: { id: 5 }, body: { assetVersionId: 11 } });
+    await waitFor(() => expect(fetches.countOf(cmsResourceKeys.media(5))).toBe(1));
+    invalidateAfterCmsMediaChange(qc, 5, 1);
+    await waitFor(() => expect(fetches.countOf(cmsResourceKeys.media(5))).toBe(2));
+    expect(fetches.countOf(cmsResourceKeys.list({ ...LIST_PARAMS, siteId: 2 }))).toBe(0);
+    expect(fetches.countOf(cmsResourceKeys.selection(2, 'cms-res://6'))).toBe(0);
+    expect(fetches.countOf(cmsResourceKeys.media(6))).toBe(0);
+    expect(fetches.countOf(cmsResourceKeys.references(5))).toBe(0);
+    expect(fetches.countOf(cmsResourceKeys.foldersAll)).toBe(0);
+    fetches.stop(); hook.unmount();
+  });
 });
 
 /** 还原 ResourcesPage 的挂载情况：列表 + 文件夹树 + 站点切换器，引用抽屉已打开 */

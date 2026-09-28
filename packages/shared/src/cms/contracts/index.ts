@@ -26,4 +26,3 @@ export * from './widgets';
 export * from './words';
 export * from './workbench';
 export * from './operations';
-export * from './operations';

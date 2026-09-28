@@ -1,3 +1,4 @@
+import { cmsGenerationNow } from './cms-generation-context';
 import { requireFirstRow } from '../../lib/db-assert';
 import { buildListResult } from '../../lib/list-query';
 import type { QueryOutputOf } from '@zenith/shared/core';
@@ -42,7 +43,7 @@ export async function ensureCmsAdExists(id: number): Promise<CmsAdRow> {
 
 // ─── 前台渲染：站点投放中广告（按 slot code 分组）──────────────────────────────
 export async function getActiveAds(siteId: number, baseUrl = ''): Promise<Record<string, { id: number; name: string; image: string | null; linkUrl: string | null }[]>> {
-  const now = new Date();
+  const now = cmsGenerationNow();
   const rows = await db.select({ ad: cmsAds, slotCode: cmsAdSlots.code })
     .from(cmsAds)
     .innerJoin(cmsAdSlots, eq(cmsAds.slotId, cmsAdSlots.id))

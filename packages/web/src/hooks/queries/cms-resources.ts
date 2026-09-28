@@ -5,6 +5,9 @@ import { CMS_RESOURCE_URI_PREFIX, cmsResourceContract, type CmsResource } from '
 import { useSaveMutation, contractKey, urlOf, useApiMutation, useApiQuery } from '@/lib/contract-query';
 import { unwrap } from '@/lib/query';
 import { request } from '@/utils/request';
+import { useEffect } from 'react';
+import { asyncTaskContract, isAsyncTaskTerminal } from '@zenith/shared/tasks';
+import { useTaskProgressEvents } from '@/hooks/useAsyncTasks';
 
 export type CmsResourceListParams = NonNullable<QueryOf<typeof cmsResourceContract.list>>;
 export type CmsAssetRightsRecord = OutputOf<typeof cmsResourceContract.rights> & { id: number };
@@ -32,12 +35,47 @@ export const cmsResourceKeys = {
   selections: contractKey(cmsResourceContract.selection),
   selection: (siteId: number, value: string, type?: CmsResourceListParams['type']) => contractKey(cmsResourceContract.selection, { query: { siteId, value, type } }),
   versions: (id: number) => contractKey(cmsResourceContract.versions, { params: { id } }),
+  media: (id: number) => contractKey(cmsResourceContract.media, { params: { id } }),
   list: (params: CmsResourceListParams) => contractKey(cmsResourceContract.list, { query: params }),
   references: (id: number) => contractKey(cmsResourceContract.references, { params: { id } }),
   /** 全部站点文件夹树的公共前缀 */
   foldersAll: contractKey(cmsResourceContract.folders),
   folders: (siteId: number | undefined) => contractKey(cmsResourceContract.folders, { query: { siteId: siteId ?? 0 } }),
 };
+
+export function useCmsMedia(id?: number) {
+  return useApiQuery(cmsResourceContract.media, { params: { id: id ?? 0 } }, { enabled: id !== undefined });
+}
+
+export function invalidateAfterCmsMediaChange(qc: QueryClient, resourceId: number, siteId: number) {
+  void qc.invalidateQueries({ queryKey: cmsResourceKeys.media(resourceId) });
+  void qc.invalidateQueries({ queryKey: contractKey(cmsResourceContract.list, { query: { siteId } }) });
+  void qc.invalidateQueries({ queryKey: cmsResourceKeys.selections, predicate: (query) => (query.queryKey[2] as { query?: { siteId?: number } } | undefined)?.query?.siteId === siteId });
+}
+
+export function useProcessCmsMedia(siteId: number) {
+  return useApiMutation(cmsResourceContract.processMedia, {
+    invalidate: (qc, _result, { params }) => invalidateAfterCmsMediaChange(qc, params.id, siteId),
+  });
+}
+
+/** Progress uses the task center subscription and its standard detail endpoint. */
+export function useCmsMediaTask(taskId: number | null | undefined, resourceId: number, siteId: number) {
+  const qc = useQueryClient();
+  const task = useApiQuery(asyncTaskContract.detail, { params: { id: taskId ?? 0 } }, {
+    enabled: Boolean(taskId),
+    refetchInterval: (query) => query.state.data && !isAsyncTaskTerminal(query.state.data.status) ? 3000 : false,
+    requestOptions: { silent: true },
+  });
+  useTaskProgressEvents((update) => {
+    if (update.id === taskId && isAsyncTaskTerminal(update.status)) invalidateAfterCmsMediaChange(qc, resourceId, siteId);
+  });
+  const status = task.data?.status;
+  useEffect(() => {
+    if (status && isAsyncTaskTerminal(status)) invalidateAfterCmsMediaChange(qc, resourceId, siteId);
+  }, [qc, resourceId, siteId, taskId, status]);
+  return task;
+}
 
 /**
  * 素材 / 文件夹写操作（上传、编辑、裁剪、替换、移动、删除、文件夹增删改）后的失效面：
@@ -160,6 +198,7 @@ export function useReplaceCmsResource() {
     onSuccess: (_result, { id }) => {
       invalidateAfterCmsResourceChange(qc);
       void qc.invalidateQueries({ queryKey: cmsResourceKeys.versions(id) });
+      void qc.invalidateQueries({ queryKey: cmsResourceKeys.media(id) });
     },
   });
 }

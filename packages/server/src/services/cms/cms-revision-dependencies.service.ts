@@ -9,6 +9,7 @@ import { extractCmsResourceIds, resolveCmsResourceUris } from '../../lib/cms-res
 import { cmsSnapshotHash, ensureCmsAssetVersion } from './cms-design-versions.service';
 import { normalizeCmsContentDocument, renderCmsContentDocument, sanitizeCmsModelValues } from './cms-document.service';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
+import { freezeCmsMediaForAssets } from './cms-media.service';
 
 /** Freeze definitions and binary identities before the immutable revision is inserted. */
 export async function freezeCmsRevisionDependencies(tx: DbExecutor, siteId: number, modelId: number | null, snapshot: CmsContentRevisionSnapshot, options: { strict?: boolean } = {}) {
@@ -49,8 +50,18 @@ export async function freezeCmsRevisionDependencies(tx: DbExecutor, siteId: numb
     urls.set(id, version.url);
   }
   const frozen = resolveCmsResourceUris(snapshot, (id) => urls.get(id) ?? null);
+  const media = await freezeCmsMediaForAssets(tx, assetVersions);
+  for (const [id, prior] of Object.entries(snapshot.media ?? {})) if (prior.assetVersionId === assetVersions[id]) media[id] = prior;
+  for (const [id, result] of Object.entries(media)) result.sourceUrl = urls.get(Number(id));
+  // Subtitles are content dependencies too: later revocation of the subtitle
+  // must suppress old published content just like revocation of the video.
+  for (const result of Object.values(media)) if (result.subtitle) {
+    const [rights] = await tx.select().from(cmsAssetRights).where(eq(cmsAssetRights.resourceId, result.subtitle.resourceId)).limit(1);
+    if (rights?.revoked || (rights?.expiresAt && rights.expiresAt <= new Date())) throw new HTTPException(400, { message: '关联字幕素材已撤权或授权过期' });
+    assetVersions[String(result.subtitle.resourceId)] = result.subtitle.assetVersionId;
+  }
   const bodyDocument = normalizeCmsContentDocument(frozen.body ?? '', frozen.bodyDocument ?? undefined);
-  return { schemaVersionId, assetVersions, snapshot: { ...frozen, modelVersionId: schemaVersionId, assetVersions, bodyDocument, body: renderCmsContentDocument(bodyDocument) } };
+  return { schemaVersionId, assetVersions, snapshot: { ...frozen, modelVersionId: schemaVersionId, assetVersions, media, bodyDocument, body: renderCmsContentDocument(bodyDocument) } };
 }
 
 export async function claimCmsUniqueModelValues(tx: DbExecutor, siteId: number, contentId: number, snapshot: CmsContentRevisionSnapshot) {

@@ -2,8 +2,8 @@ import { and, asc, desc, eq, inArray, isNotNull, lte, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { cmsDeploymentSchema, cmsReleaseActivationSchema, cmsReleaseContract, cmsReleaseSchema, type CreateCmsReleaseInput, type CmsRelease } from '@zenith/shared/cms';
 import type { QueryOutputOf } from '@zenith/shared/core';
-import { db, withDbExecutor, withoutDbExecutor } from '../../db';
-import { asyncTasks, cmsChannels, cmsContents, cmsContentSuppressions, cmsContentWorkingCopies, cmsContentRevisions, cmsDeployments, cmsReleases, cmsReleaseActivations, cmsSiteGenerations, cmsSites, type CmsReleaseRow } from '../../db/schema';
+import { db } from '../../db';
+import { asyncTasks, cmsContents, cmsContentSuppressions, cmsContentWorkingCopies, cmsDeployments, cmsReleases, cmsReleaseActivations, cmsSiteGenerations, type CmsReleaseRow } from '../../db/schema';
 import type { DbTransaction } from '../../db/types';
 import { requireRow } from '../../lib/db-assert';
 import { entityMapper } from '../../lib/entity-map';
@@ -15,14 +15,11 @@ import { assertSiteAccess, ensureCmsSiteExists, invalidateSiteCache } from './cm
 import { acquireCmsSitePublishLock } from './cms-site-publish-lock.service';
 import { invalidateCmsSiteCaches } from './cms-cache.service';
 import { applyCmsRevisionProjection, loadCmsPublishableRevision, markCmsRevisionPublished, requireCmsWorkingCopy } from './cms-content-revisions.service';
-import { buildSiteStatic } from './cms-static.service';
-import { cmsStaticBuildResumeAfterKey, reportCmsStaticBuildProgress } from './cms-release-build-plan';
-import { withCmsGenerationContext } from './cms-generation-context';
-import { cmsGenerationManifest, cmsGenerationSchemaName, collectCmsGenerationArtifacts, createCmsGenerationStorage, dropFailedCmsGenerationStorage, hashCmsDeploymentManifest, sealCmsGenerationStorage, verifyCmsGenerationArtifacts, withCmsGenerationTransaction } from './cms-generation-storage.service';
+import { buildCmsReleaseCandidate, newCmsDeploymentBuildPlan } from './cms-release-build.service';
+import { cmsGenerationSchemaName, hashCmsDeploymentManifest, verifyCmsGenerationArtifacts, withCmsGenerationTransaction } from './cms-generation-storage.service';
 import { ensureSiteThemeCssAsset, renderSitePath } from './cms-render.service';
 import { stripCmsPreviewScripts } from './cms-preview';
 import { resolveEffectiveCmsSiteRow } from './cms-site-inheritance.service';
-import { rebuildSearchIndex, reloadCmsSearchDict } from './cms-search.service';
 import { enqueueCmsWebhookEvents, insertCmsContentWebhookOutbox } from './cms-webhook.service';
 import { insertCmsCdnPurgeOutbox } from './cms-cdn.service';
 import { insertCmsSubscriptionNotificationOutbox, enqueueCmsSubscriptionNotification } from './cms-stage4-tasks';
@@ -33,7 +30,6 @@ import { captureCmsConfiguration, type CmsCapturedConfiguration } from './cms-co
 import { cmsReleaseInputFingerprint } from './cms-release-fingerprint';
 import { stageCmsConfigurationDraft } from './cms-configuration-drafts.service';
 import { assertCmsReleaseSelectionAccess, cmsReleaseScope } from './cms-release-access.service';
-import { assertCmsReleaseDependencies } from './cms-release-preflight.service';
 import { isCmsRevisionAssetVisible } from './cms-asset-rights.service';
 import { APP_TIME_ZONE, formatDateTime } from '../../lib/datetime';
 import { formatCmsReleaseActivationTime, resolveCmsReleaseActivationTime } from './cms-release-time';
@@ -47,15 +43,6 @@ async function lockCurrentReleaseExecution(tx: DbTransaction, execution: Pick<Ta
     .where(and(eq(asyncTasks.id, execution.taskId), eq(asyncTasks.dispatchToken, execution.dispatchToken), eq(asyncTasks.status, 'running'))).for('update').limit(1);
   return run;
 }
-let buildTail: Promise<void> = Promise.resolve();
-async function acquireGenerationBuildSlot(): Promise<() => void> {
-  const previous = buildTail;
-  let release!: () => void;
-  buildTail = new Promise<void>((resolve) => { release = resolve; });
-  await previous;
-  return release;
-}
-
 export async function requireRelease(id: number): Promise<CmsReleaseRow> {
   const [row] = await db.select().from(cmsReleases).where(eq(cmsReleases.id, id)).limit(1);
   const release = requireRow(row, '发布单不存在');
@@ -121,7 +108,7 @@ export async function createCmsRelease(input: CreateCmsReleaseInput, captured?: 
       const [original] = await tx.select().from(cmsReleases).where(eq(cmsReleases.id, expectedSource.id)).for('share').limit(1);
       if (!original || original.siteId !== input.siteId || cmsReleaseInputFingerprint(original) !== expectedSource.fingerprint) throw new HTTPException(409, { message: '发布草稿已有变化，请重新审阅后再准备' });
     }
-    const configuration = captured ?? await captureCmsConfiguration(tx, input.siteId, input);
+    const configuration = captured ?? await captureCmsConfiguration(tx, input.siteId, expectedSource ? { ...input, allowDeletedSelection: true } : input);
     const items: CmsRelease['items'] = [];
     for (const id of ids) {
       const revision = await loadCmsPublishableRevision(tx, id);
@@ -163,12 +150,7 @@ export async function buildCmsRelease(id: number): Promise<CmsRelease> {
       if (!canAdvance) throw new HTTPException(409, { message: '发布基代已变化，请新建发布单' });
       [locked] = await tx.update(cmsReleases).set({ baseGenerationId: currentGenerationId }).where(eq(cmsReleases.id, id)).returning();
     }
-    const [deployment] = await tx.insert(cmsDeployments).values({ siteId: locked.siteId, releaseId: id, buildPlan: { version: 1, phases: [
-      { key: 'projection', label: '生成公开投影', dependsOn: [], status: 'pending', processed: 0, total: 1 },
-      { key: 'search', label: '重建搜索索引', dependsOn: ['projection'], status: 'pending', processed: 0, total: 1 },
-      { key: 'static', label: '生成静态页面', dependsOn: ['projection', 'search'], status: 'pending', processed: 0, total: 0 },
-      { key: 'manifest', label: '校验并封存产物', dependsOn: ['static'], status: 'pending', processed: 0, total: 1 },
-    ] } }).returning();
+    const [deployment] = await tx.insert(cmsDeployments).values({ siteId: locked.siteId, releaseId: id, buildPlan: newCmsDeploymentBuildPlan() }).returning();
     const [updated] = await tx.update(cmsReleases).set({ status: 'building', deploymentId: deployment.id, error: null }).where(eq(cmsReleases.id, id)).returning();
     const task = await persistAsyncTask(tx, { taskType: RELEASE_BUILD_TASK, title: `CMS 发布单：${locked.name}`, tenantId: null, payload: { siteId: locked.siteId, releaseId: id, deploymentId: deployment.id }, idempotencyKey: `cms-release:${id}:deployment:${deployment.id}` });
     await tx.update(cmsDeployments).set({ taskIds: [task.id] }).where(eq(cmsDeployments.id, deployment.id));
@@ -386,61 +368,26 @@ export async function activateScheduledCmsReleases(): Promise<number> {
 }
 
 export function registerCmsReleaseTaskHandler(): void {
-  registerTaskHandler({ taskType: RELEASE_BUILD_TASK, title: 'CMS 发布单构建', module: 'CMS内容管理', allowConcurrent: true, maxAttempts: 1,
+  registerTaskHandler({ taskType: RELEASE_BUILD_TASK, title: 'CMS 发布单构建', module: 'CMS内容管理', allowConcurrent: true, maxAttempts: 3, retryDelayMs: 5000, affinity: 'node',
     async run(ctx) {
       const releaseId = Number(ctx.payload.releaseId); const deploymentId = Number(ctx.payload.deploymentId);
       const release = await requireRelease(releaseId);
-      if (release.deploymentId !== deploymentId || release.status !== 'building') return { skipped: true };
-      const releaseSlot = await acquireGenerationBuildSlot();
+      if (release.deploymentId !== deploymentId || !['building', 'failed', 'ready', 'scheduled'].includes(release.status)) return { skipped: true };
       try {
-        const startedAt = new Date();
-        await db.update(cmsDeployments).set({ buildMetrics: { startedAt: startedAt.toISOString() }, buildPlan: { version: 1, phases: [{ key: 'projection', label: '生成公开投影', dependsOn: [], status: 'running', processed: 0, total: 1 }, { key: 'search', label: '重建搜索索引', dependsOn: ['projection'], status: 'pending', processed: 0, total: 1 }, { key: 'static', label: '生成静态页面', dependsOn: ['projection', 'search'], status: 'pending', processed: 0, total: 0 }, { key: 'manifest', label: '校验并封存产物', dependsOn: ['static'], status: 'pending', processed: 0, total: 1 }] } }).where(eq(cmsDeployments.id, deploymentId));
-        const [existingDeployment] = await db.select().from(cmsDeployments).where(eq(cmsDeployments.id, deploymentId)).limit(1);
-        if (existingDeployment?.status !== 'ready') await db.transaction(async (tx) => {
-          await createCmsGenerationStorage(tx, release.siteId, deploymentId, release.baseGenerationId, release.configurationSnapshot);
-          const revisions: Awaited<ReturnType<typeof loadCmsPublishableRevision>>[] = [];
-          for (const item of release.items) if (item.revisionId) revisions.push(await loadCmsPublishableRevision(tx, item.revisionId));
-          const existingRevisions = await tx.select({ contentId: cmsContentWorkingCopies.contentId, revisionId: cmsContentRevisions.id, hash: cmsContentRevisions.hash })
-            .from(cmsContentWorkingCopies).innerJoin(cmsContents, eq(cmsContents.id, cmsContentWorkingCopies.contentId))
-            .innerJoin(cmsContentRevisions, eq(cmsContentRevisions.id, cmsContentWorkingCopies.publishedRevisionId)).where(eq(cmsContents.siteId, release.siteId));
-          const revisionMap = new Map(existingRevisions.map((entry) => [entry.contentId, entry]));
-          for (const revision of revisions) revisionMap.set(revision.contentId, { contentId: revision.contentId, revisionId: revision.id, hash: revision.hash });
-          await tx.execute(sql`select set_config('search_path', ${`${cmsGenerationSchemaName(deploymentId)},public`}, true)`);
-          await withDbExecutor(tx, () => withCmsGenerationContext({ siteId: release.siteId, generationId: deploymentId, candidate: true }, async () => {
-            await reloadCmsSearchDict(release.siteId);
-            await tx.update(cmsDeployments).set({ buildPlan: sql`${cmsDeployments.buildPlan} || jsonb_build_object('lastPhase','search')` }).where(eq(cmsDeployments.id, deploymentId));
-            for (const revision of revisions) {
-              const [channel] = await tx.select({ id: cmsChannels.id }).from(cmsChannels).where(and(eq(cmsChannels.siteId, release.siteId), eq(cmsChannels.id, revision.payload.channelId), eq(cmsChannels.status, 'enabled'))).limit(1);
-              if (!channel) throw new HTTPException(409, { message: '修订目标栏目未包含在候选公开配置中，请将栏目配置一并发布' });
-              await applyCmsRevisionProjection(tx, revision, { publishedAt: release.activateAt ?? new Date(), generationId: deploymentId, candidate: true });
-            }
-            const withdrawIds = release.items.filter((item) => item.action === 'withdraw').map((item) => item.contentId);
-            if (withdrawIds.length) await tx.update(cmsContents).set({ status: 'offline' }).where(inArray(cmsContents.id, withdrawIds));
-            await assertCmsReleaseDependencies(tx, release.siteId);
-            await rebuildSearchIndex({ siteId: release.siteId });
-            const [site] = await tx.select().from(cmsSites).where(eq(cmsSites.id, release.siteId)).limit(1);
-            await buildSiteStatic(release.siteId, async (progress) => {
-              const result = await reportCmsStaticBuildProgress(ctx, progress);
-              const [currentRelease] = await withoutDbExecutor(() => db.select({ status: cmsReleases.status }).from(cmsReleases).where(eq(cmsReleases.id, releaseId)).limit(1));
-              if (currentRelease?.status === 'cancelled') throw new Error('发布单已取消');
-              if (result.cancelRequested) throw new Error('发布构建已取消');
-              return false;
-            }, { resumeAfterKey: cmsStaticBuildResumeAfterKey(ctx.checkpoint) });
-            const manifest = await cmsGenerationManifest(tx, deploymentId, [...revisionMap.values()]);
-            manifest.snapshot.siteCode = site.code;
-            manifest.snapshot.sitePublicRevision = site.publicRevision;
-            manifest.snapshot.artifacts = await collectCmsGenerationArtifacts(site.code, deploymentId);
-            manifest.hash = hashCmsDeploymentManifest(manifest.snapshot);
-            // 构建事务为 repeatable read；心跳由外部连接更新，不能在旧快照中锁任务行。
-            if (await withoutDbExecutor(() => ctx.isCancelRequested())) throw new Error('发布执行轮次已失效或已取消');
-            await sealCmsGenerationStorage(tx, deploymentId, manifest.snapshot.revisions);
-            const completedAt = new Date();
-            await tx.update(cmsDeployments).set({ status: 'ready', snapshot: manifest.snapshot, manifestHash: manifest.hash, artifactCount: manifest.snapshot.artifacts.length,
-              buildMetrics: { startedAt: startedAt.toISOString(), completedAt: completedAt.toISOString(), elapsedMs: completedAt.getTime() - startedAt.getTime(), reusedArtifacts: 0, generatedArtifacts: manifest.snapshot.artifacts.length },
-              buildPlan: sql`${cmsDeployments.buildPlan} || jsonb_build_object('lastPhase','manifest','completed',true)`,
-            }).where(eq(cmsDeployments.id, deploymentId));
-          }));
-        }, { isolationLevel: 'repeatable read' });
+        const guard = async (tx: DbTransaction) => {
+          const run = await lockCurrentReleaseExecution(tx, ctx);
+          if (!run || run.cancelRequested) throw new Error('发布执行轮次已失效或已取消');
+          const [current] = await tx.select({ status: cmsReleases.status, deploymentId: cmsReleases.deploymentId }).from(cmsReleases).where(eq(cmsReleases.id, releaseId)).for('share').limit(1);
+          if (current?.status !== 'building' || current.deploymentId !== deploymentId) throw new Error('发布单已取消或已被其他候选部署接管');
+        };
+        await db.transaction(async (tx) => {
+          const run = await lockCurrentReleaseExecution(tx, ctx);
+          if (!run || run.cancelRequested) throw new Error('发布执行轮次已失效或已取消');
+          await tx.update(cmsReleases).set({ status: 'building', error: null }).where(and(eq(cmsReleases.id, releaseId), eq(cmsReleases.deploymentId, deploymentId), inArray(cmsReleases.status, ['building', 'failed', 'ready', 'scheduled'])));
+        });
+        const [deployment] = await db.select().from(cmsDeployments).where(eq(cmsDeployments.id, deploymentId)).limit(1);
+        if (!deployment) throw new Error('候选部署不存在');
+        await buildCmsReleaseCandidate(release, deployment, ctx, guard);
         const status = release.activateAt && release.activateAt > new Date() ? 'scheduled' : 'ready';
         const ready = await db.transaction(async (tx) => {
           const run = await lockCurrentReleaseExecution(tx, ctx);
@@ -456,15 +403,15 @@ export function registerCmsReleaseTaskHandler(): void {
         const owned = await db.transaction(async (tx) => {
           const run = await lockCurrentReleaseExecution(tx, ctx);
           if (!run) return false;
-          await tx.update(cmsDeployments).set({ status: 'failed', error: message }).where(and(eq(cmsDeployments.id, deploymentId), inArray(cmsDeployments.status, ['building', 'ready'])));
+          const [deployment] = await tx.select({ buildPlan: cmsDeployments.buildPlan }).from(cmsDeployments).where(eq(cmsDeployments.id, deploymentId)).limit(1);
+          const buildPlan = deployment?.buildPlan;
+          if (buildPlan) for (const phase of buildPlan.phases) if (phase.status === 'running') phase.status = 'failed';
+          await tx.update(cmsDeployments).set({ status: 'failed', error: message, ...(buildPlan ? { buildPlan } : {}) }).where(and(eq(cmsDeployments.id, deploymentId), eq(cmsDeployments.status, 'building')));
           await tx.update(cmsReleases).set({ status: run.cancelRequested ? 'cancelled' : 'failed', error: message }).where(and(eq(cmsReleases.id, releaseId), eq(cmsReleases.deploymentId, deploymentId), inArray(cmsReleases.status, ['building', 'ready', 'scheduled'])));
           return true;
         });
         if (!owned) return { releaseId, deploymentId, skipped: true, reason: '执行轮次已交接' };
-        await dropFailedCmsGenerationStorage(deploymentId);
         throw error;
-      } finally {
-        releaseSlot();
       }
     },
   });

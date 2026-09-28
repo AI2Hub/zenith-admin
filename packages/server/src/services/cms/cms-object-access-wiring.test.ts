@@ -45,7 +45,7 @@ describe('CMS object-level access wiring', () => {
   it('keeps public rendering explicitly separate from admin ACL filtering', async () => {
     const text = await source('cms-render.service.ts');
     expect(text).toContain("listCmsChannelTree({ siteId: site.id, status: 'enabled' }, { skipAccessCheck: true })");
-    expect(text).toContain('searchCmsContents({ siteId: site.id, keyword, page, pageSize: SEARCH_PAGE_SIZE, skipAccessCheck: true })');
+    expect(text).toContain('searchCmsContents({ siteId: site.id, keyword, page, pageSize: SEARCH_PAGE_SIZE, skipAccessCheck: true, trackKeyword: Boolean(track) })');
   });
 
   it('builds global Host/code/default lookups in a deterministic order', async () => {

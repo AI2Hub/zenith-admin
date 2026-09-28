@@ -18,5 +18,6 @@ describe('CMS publication workbench', () => {
     const after = { title: 'new', settings: { b: 2, a: 1 }, blocks: ['list', 'hero'], updated_at: 'today', view_count: 200 };
     expect(cmsReleaseFieldDiffs(before, after).map((field) => field.path)).toEqual(['blocks', 'title']);
     expect(cmsReleaseFieldDiffs({ title: 'old' }, null)).toEqual([{ path: 'title', before: 'old', after: null }]);
+    expect(cmsReleaseFieldDiffs({ seo_title: null }, { seo_title: '' })).toEqual([]);
   });
 });

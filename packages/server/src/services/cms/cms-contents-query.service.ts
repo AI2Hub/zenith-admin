@@ -1,3 +1,4 @@
+import { cmsGenerationNow } from './cms-generation-context';
 import { cmsModelVersions } from '../../db/schema/cms-design';
 import { requireFirstRow, requireRow } from '../../lib/db-assert';
 import type { QueryOutputOf } from '@zenith/shared/core';
@@ -342,7 +343,7 @@ const publishedWhere = (siteId: number) => and(
   eq(cmsContents.status, 'published'),
   isNull(cmsContents.deletedAt),
   // 过期内容即使调度 worker 尚未运行也不能继续出现在任何公开查询中。
-  or(isNull(cmsContents.expireAt), gt(cmsContents.expireAt, new Date())),
+  or(isNull(cmsContents.expireAt), gt(cmsContents.expireAt, cmsGenerationNow())),
 )!;
 
 /** 栏目下已发布内容分页（含以此为副栏目的内容；归档内容不参与聚合；置顶权重优先，发布时间倒序） */
@@ -428,7 +429,7 @@ async function query_findPublishedContentByStaticPath(
       eq(cmsContents.staticPath, staticPath),
       eq(cmsContents.status, 'published'),
       isNull(cmsContents.deletedAt),
-      or(isNull(cmsContents.expireAt), gt(cmsContents.expireAt, new Date())),
+      or(isNull(cmsContents.expireAt), gt(cmsContents.expireAt, cmsGenerationNow())),
     )).limit(1);
     return row ?? null;
   };

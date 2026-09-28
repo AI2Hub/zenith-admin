@@ -49,6 +49,8 @@ import { formatDateTimeForApi } from '@/utils/date';
 import { useCmsUploadQueue } from './useCmsUploadQueue';
 import { Progress } from '@douyinfe/semi-ui';
 import { NavListItemActions } from '@/components/NavListPanel';
+import CmsMediaProcessingSheet from './components/CmsMediaProcessingSheet';
+import { cmsResourceMediaSummary, cmsResourceThumbnail } from './components/cms-media';
 
 const TYPE_COLORS: Record<CmsResourceType, 'blue' | 'purple' | 'cyan' | 'orange' | 'grey'> = {
   image: 'blue', video: 'purple', audio: 'cyan', document: 'orange', other: 'grey',
@@ -329,6 +331,7 @@ export default function ResourcesPage() {
   const [renameTarget, setRenameTarget] = useState<CmsResource | null>(null);
   const [cropTarget, setCropTarget] = useState<CmsResource | null>(null);
   const [refsTarget, setRefsTarget] = useState<CmsResource | null>(null);
+  const [mediaTarget, setMediaTarget] = useState<CmsResource | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const replaceInputRef = useRef<HTMLInputElement>(null);
   const [replaceTarget, setReplaceTarget] = useState<CmsResource | null>(null);
@@ -550,8 +553,9 @@ export default function ResourcesPage() {
       render: (_: string, record: CmsResource) => {
         // 与文件列表页一致：仅可预览类型渲染为可点击
         const previewable = canPreviewFile(record.mimeType, record.name);
-        const content = record.type === 'image'
-          ? <img src={record.thumbUrl ?? record.url} alt={record.name} draggable={false} style={{ width: 32, height: 32, objectFit: 'cover', borderRadius: 'var(--semi-border-radius-small)' }} />
+        const thumbnail = cmsResourceThumbnail(record);
+        const content = thumbnail
+          ? <img src={thumbnail} alt={record.name} draggable={false} style={{ width: 32, height: 32, objectFit: 'cover', objectPosition: record.media ? `${record.media.focalPoint.x * 100}% ${record.media.focalPoint.y * 100}%` : undefined, borderRadius: 'var(--semi-border-radius-small)' }} />
           : <div style={{ width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--semi-color-text-2)', background: 'var(--semi-color-fill-0)', borderRadius: 'var(--semi-border-radius-small)' }}><TypeIcon type={record.type} /></div>;
         if (!previewable) return content;
         return (
@@ -583,8 +587,8 @@ export default function ResourcesPage() {
       render: (v: CmsResourceType) => <Tag size="small" color={TYPE_COLORS[v]}>{CMS_RESOURCE_TYPE_LABELS[v]}</Tag>,
     },
     {
-      title: '尺寸', dataIndex: 'width', width: 110,
-      render: (_: number | null, record: CmsResource) => (record.width && record.height ? `${record.width}×${record.height}` : EMPTY_PLACEHOLDER),
+      title: '媒体信息', dataIndex: 'width', width: 160,
+      render: (_: number | null, record: CmsResource) => cmsResourceMediaSummary(record) || EMPTY_PLACEHOLDER,
     },
     { title: '大小', dataIndex: 'size', width: 100, align: 'right', render: (v: number) => formatBytes(v) },
     {
@@ -596,6 +600,7 @@ export default function ResourcesPage() {
       width: 240,
       desktopInlineKeys: ['references', 'rename', 'delete'],
       actions: (record) => [
+        { key: 'media', label: '媒体处理', hidden: !['image', 'video', 'audio'].includes(record.type), onClick: () => setMediaTarget(record) },
         { key: 'rights', label: '版本与授权', hidden: !canUpdate, onClick: () => rightsModal.openEdit({ id: record.id, resourceId: record.id, source: null, license: null, expiresAt: null, revoked: false, tags: [], alt: null }) },
         { key: 'references', label: '引用', onClick: () => setRefsTarget(record) },
         ...(canUpdate ? [{
@@ -915,6 +920,7 @@ export default function ResourcesPage() {
 
       <CropModal resource={cropTarget} onClose={() => setCropTarget(null)} />
       <FilePreviewLayer preview={preview} />
+      {mediaTarget ? <CmsMediaProcessingSheet resource={mediaTarget} onClose={() => setMediaTarget(null)} /> : null}
       <EditFormSheet modal={rightsModal} width={760} title="素材版本与授权"><AssetRightsFields resourceId={rightsModal.editing?.id} /></EditFormSheet>
       <ReferencesModal resource={refsTarget} onClose={() => setRefsTarget(null)} />
     </div>

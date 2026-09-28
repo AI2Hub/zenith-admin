@@ -9,6 +9,7 @@ import { requireCmsContentAccess } from './cms-content-access.service';
 import { ensureCmsSiteExists } from './cms-sites.service';
 import { freezeCmsContentRevision, loadCmsRevision, requireCmsWorkingCopy } from './cms-content-revisions.service';
 import { lockCmsSiteForMutation } from './cms-site-publish-lock.service';
+import { isCmsRevisionAssetVisible } from './cms-asset-rights.service';
 
 const PREVIEW_TTL_SECONDS = 2 * 60 * 60;
 const sign = (contentId: number, revisionId: number, token: string, exp: number) => hmacSha256(`cms-preview:${contentId}:${revisionId}:${token}:${exp}`, 'hex');
@@ -41,7 +42,7 @@ export async function verifyContentPreviewToken(contentId: number, exp: number, 
 export async function resolveCmsPreviewRevision(contentId: number, exp: number, sig: string, revisionId: number, grantId: string) {
   if (!await verifyContentPreviewToken(contentId, exp, sig, revisionId, grantId)) return null;
   const revision = await loadCmsRevision(db, revisionId);
-  return revision.contentId === contentId && !revision.payload.deletedAt ? revision : null;
+  return revision.contentId === contentId && !revision.payload.deletedAt && await isCmsRevisionAssetVisible(revision.snapshot) ? revision : null;
 }
 
 export async function revokeCmsContentPreview(contentId: number, grantId: string): Promise<void> {

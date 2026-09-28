@@ -269,7 +269,8 @@ export async function updateCmsContent(id: number, input: UpdateCmsContentInput,
     assertCmsContentVersion(working, expectedVersion);
     const canonical = await canonicalizeCmsResourceFields(tx, identity.siteId, policied, 'content');
     const assetVersions = await refreshCmsContentResourcePins(tx, identity.siteId, working.snapshot.assetVersions, patch, refreshResourceIds);
-    const snapshot = buildCmsRevisionSnapshot({ ...working.snapshot, ...canonical, assetVersions, modelId: working.snapshot.modelId, ...(canonical.body !== undefined ? { bodyDocument: normalizeCmsContentDocument(canonical.body ?? '', patch.bodyDocument ?? working.snapshot.bodyDocument ?? undefined) } : {}) });
+    const media = Object.fromEntries(Object.entries(working.snapshot.media ?? {}).filter(([id]) => !refreshResourceIds?.includes(Number(id))));
+    const snapshot = buildCmsRevisionSnapshot({ ...working.snapshot, ...canonical, assetVersions, media, modelId: working.snapshot.modelId, ...(canonical.body !== undefined ? { bodyDocument: normalizeCmsContentDocument(canonical.body ?? '', patch.bodyDocument ?? working.snapshot.bodyDocument ?? undefined) } : {}) });
     await assertContentStaticPathFree(tx, identity.siteId, snapshot.staticPath);
     if (snapshot.tagIds.length) {
       const tags = await tx.select({ id: cmsTags.id }).from(cmsTags).where(and(eq(cmsTags.siteId, identity.siteId), inArray(cmsTags.id, snapshot.tagIds)));

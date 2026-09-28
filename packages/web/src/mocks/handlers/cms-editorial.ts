@@ -118,8 +118,7 @@ export const cmsEditorialHandlers = [
   }),
   mock(cmsResourceContract.versions, ({ params, ok }) => {
     const resource = requireItem(mockCmsResources, params.id, '素材不存在', { status: 404 });
-    return ok([{ id: resource.id, resourceId: resource.id, version: 1, url: resource.url, thumbUrl: resource.thumbUrl, fileId: resource.fileId, mimeType: resource.mimeType, size: resource.size,
-      width: resource.width, height: resource.height, contentHash: `demo-resource-${resource.id}`, createdAt: resource.createdAt }]);
+    return ok(mockCmsResourceVersions(resource));
   }),
   mock(cmsResourceContract.rights, ({ params, ok }) => {
     requireItem(mockCmsResources, params.id, '素材不存在', { status: 404 });
@@ -140,3 +139,4 @@ export function publishMockCmsModelVersion(id: number) {
     publishedModelIds.add(row.id);
     return updateItem(mockCmsModels, row.id, { publishedVersionId: version.id, hasUnpublishedChanges: false }, { notFoundMessage: '模型不存在', now: mockDateTime });
 }
+import { mockCmsResourceVersions } from './cms-media';

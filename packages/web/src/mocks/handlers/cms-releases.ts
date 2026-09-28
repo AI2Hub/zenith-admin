@@ -176,6 +176,7 @@ export const cmsReleaseHandlers = [
     if (release && release.siteId !== body.siteId) return badRequest('发布单不属于本站', { status: 404 });
     const generationId = release?.deploymentId ?? active.get(body.siteId) ?? null;
     const deployment = deployments.find((row) => row.id === generationId);
+    if (body.mode === 'online' && !deployment) return conflict('本站尚未激活线上版本，请先构建并发布站点', { status: 409 });
     if (body.mode === 'candidate' && (!deployment?.manifestHash || !release || !['ready', 'scheduled', 'active', 'superseded'].includes(release.status))) return conflict('请先完成候选构建', { status: 409 });
     const contents = mockCmsContents.filter((row) => row.siteId === body.siteId).flatMap((row) => {
       if (body.mode === 'working' && body.contentIds.includes(row.id)) return [getMockCmsWorkingContent(row.id)];

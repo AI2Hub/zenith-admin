@@ -1,3 +1,4 @@
+import { cmsGenerationNow } from './cms-generation-context';
 import { and, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { cmsSiteRelativePath, parseCmsLink } from '@zenith/shared/cms';
@@ -84,7 +85,7 @@ async function loadContentTargets(siteId: number, seedIds: Set<number>): Promise
         eq(cmsContents.status, 'published'),
         isNull(cmsContents.deletedAt),
         isNull(cmsContents.archivedAt),
-        or(isNull(cmsContents.expireAt), gt(cmsContents.expireAt, new Date())),
+        or(isNull(cmsContents.expireAt), gt(cmsContents.expireAt, cmsGenerationNow())),
       ));
     const next = new Set<number>();
     for (const row of rows) {
@@ -211,7 +212,7 @@ function publiclyVisibleContentWhere(siteId: number, contentId: number) {
     eq(cmsContents.status, 'published'),
     isNull(cmsContents.deletedAt),
     isNull(cmsContents.archivedAt),
-    or(isNull(cmsContents.expireAt), gt(cmsContents.expireAt, new Date())),
+    or(isNull(cmsContents.expireAt), gt(cmsContents.expireAt, cmsGenerationNow())),
   );
 }
 

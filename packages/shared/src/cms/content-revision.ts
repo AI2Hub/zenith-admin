@@ -1,6 +1,7 @@
 import * as z from 'zod';
 import { createCmsContentSchema } from './validation';
 import { cmsBodyDocumentSchema } from './document';
+import { cmsFrozenMediaSchema } from './cms-media';
 
 export const CMS_EDITORIAL_STATUSES = ['draft', 'pending', 'rejected', 'approved', 'clean'] as const;
 export const CMS_REVISION_KINDS = ['checkpoint', 'submission', 'publication', 'restore', 'preview'] as const;
@@ -11,6 +12,7 @@ export const cmsContentRevisionSnapshotSchema = createCmsContentSchema.omit({ si
   modelVersionId: z.int().positive().nullable().default(null),
   bodyDocument: cmsBodyDocumentSchema.nullable().default(null),
   assetVersions: z.record(z.string(), z.int().positive()).default({}),
+  media: z.record(z.string(), cmsFrozenMediaSchema).default({}),
 });
 
 export type CmsContentRevisionSnapshot = z.output<typeof cmsContentRevisionSnapshotSchema>;
