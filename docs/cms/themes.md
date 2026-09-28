@@ -85,6 +85,20 @@ themes/
 | 共享件 | `islands/shared/` | 会员 token 读取与登录跳转、`fetch` + 鉴权头 + `code` 判定、meta 读取 |
 | 类型检查 / 测试 | `tsconfig.islands.json`（lib DOM，`npm run lint` 内）、`*.test.ts`（`// @vitest-environment jsdom`） | 与服务端 tsc 隔离；类型可仅类型导入 `@zenith/shared/cms` 契约 |
 
+`analytics` 岛启动 CMS 行为采集器：它只读 `SeoHead` 输出的签名上下文（`cms-telemetry-context` / `cms-telemetry-config`）与发布标识 meta，按 `cms.page_view`、`cms.engagement`、`cms.read`、`cms.search`、`cms.media_*`、`cms.component_*` 等事件上报。**主题不需要写任何埋点代码**，但曝光 / 点击 / 阅读 / 表单 / 媒体统计靠 `data-*` 契约定位元素：
+
+| 属性 | 应放在 | 作用 |
+|---|---|---|
+| `data-cms-reading` | 详情页正文容器 | 阅读深度分母；未标记时回退 `article .body` / `.article-body` / `article` |
+| `data-cms-placement`（或 `data-cms-block-id`） | 首页区块、部件、专题按钮等版位容器 | 版位归属；进入视口过半并稳定 1 秒计曝光，容器内链接点击计版位点击 |
+| `data-cms-component-name`（或 `data-cms-block-title`） | 版位容器 | 版位展示名 |
+| `data-cms-search-result` + `data-cms-search-position` | 搜索结果条目 | 搜索点击归因与排名（共享件 `SearchResultList` 已输出） |
+| `data-cms-content-id` | 内容链接 | 点击事件的目标内容 |
+| `data-cms-resource-id` / `data-cms-asset-version-id` / `data-cms-resource-name` | 附件下载链接、`<video>` / `<audio>` | 媒体与下载按素材与文件版本归集 |
+| `data-cms-form-id` / `data-cms-form-name` / `data-cms-target-id` | 业务表单 | `form_start` / `form_error` 归属；互动问卷由 `survey` 岛自行写入 `data-cms-interaction-id` |
+
+行为表单与评论表单在提交前会被注入隐藏的归因字段（`_cmsAttribution`），服务端据此把成功转化归到内容与发布版本。因此自定义表单的 `action` 必须指向 `/api/public/cms/forms/...`，评论表单必须位于 `[data-island="comments"]` 容器内（共享件已满足）；埋点细节见[行为采集与访问统计](./telemetry)。只有 `live` 环境采集，预览页不初始化采集器。
+
 **交付**：`scripts/build-islands.mjs` 用 esbuild 打成单个 ESM（生产预构建到 `dist/cms/islands/islands.js`；开发 / 测试由
 `themes/islands-asset.ts` 按源码 mtime 在内存中按需构建，改岛源码刷新即生效）。渲染管线以内容指纹外链
 `/_assets/islands.{hash}.js`（`SeoHead` 输出 `<script type="module" src>`，module 默认 defer，执行时文档已解析完毕），
@@ -179,7 +193,7 @@ settingsSchema: [
 
 | 组件 / 常量 | 职责 |
 |------|------|
-| `SeoHead` | 完整 SEO head：TDK、canonical、Open Graph、Twitter Card、JSON-LD、hreflang；样式经 `ctx.assets` 输出（正式外链指纹 CSS / 预览内联）；输出岛脚本 `<script type="module">` 与页面岛配置 `<meta name="cms-*">`；暗色模式自动注入切换脚本 |
+| `SeoHead` | 完整 SEO head：TDK、canonical、Open Graph、Twitter Card、JSON-LD、hreflang；样式经 `ctx.assets` 输出（正式外链指纹 CSS / 预览内联）；输出岛脚本 `<script type="module">` 与页面岛配置 `<meta name="cms-*">`（含采集所需的 `cms-telemetry-context` / `cms-telemetry-config` 与发布标识）；暗色模式自动注入切换脚本 |
 | `Breadcrumbs` / `Pagination` | 面包屑 / 分页导航（语义结构，样式由主题 CSS 决定） |
 | `ArticleNav` / `RelatedArticles` / `AttachmentList` | 详情页上下篇导航（`.article-nav`）、相关阅读（`.related-articles`，可传 `title` / `heading`）、附件下载链接（`.attachments`）；空数据时不渲染 |
 | `ModelFieldTable` | 模型字段双栏键值表，按 `detailGroup` 分组（公文信息表头样式钩子 `.model-fields*`，公共样式在 `_shared/base.css`） |
@@ -232,8 +246,8 @@ widgetSlots: [{
 
 - **`CmsBaseContext`**（全模板共有）：`site`（含 `themeConfig` / `extend` / `settings`）、`nav`（导航树，节点带 `target`；链接栏目应使用已解析的最终 URL）、`ads`、`friendLinks` / `friendLinkGroups`、`baseUrl`、`searchUrl`、`seo`、`analytics`、`langAlternates`、`audience`、`assets`（`cssHref` / `inlineCss` / `darkMode`）
 - **`CmsHomeContext`**：继承 `CmsBaseContext`，额外提供 `latest` / `recommended` / `hot` 与 `homeSidebar`
-- **`CmsContentItem`**（列表条目）：标题/摘要/封面（`coverThumb` 优先）/形态（`contentType` + `imageCount` / `mediaType`）/属性标记（isTop/isRecommend/isHot）/`modelFields`
-- **`CmsDetailContext`**：`content`（`CmsContentDetail`，含正文、`bodyPagination` 正文分页、`attachments`、`albumImages` / `mediaUrl`、`modelFields`、`tags`、`prev` / `next`）、`related` 相关阅读、`comments`
+- **`CmsContentItem`**（列表条目）：标题/摘要/封面（`coverThumb` 优先，变体与焦点经 `coverSrcSet` / `coverPosition` 输出 `srcset` 与 `object-position`）/形态（`contentType` + `imageCount` / `mediaType`）/属性标记（isTop/isRecommend/isHot）/`modelFields`
+- **`CmsDetailContext`**：`content`（`CmsContentDetail`，含正文、`bodyPagination` 正文分页、`attachments`、`albumImages`（含 `srcSet` / `objectPosition`）/ `mediaUrl` / `mediaPoster` / `mediaSubtitle`、`modelFields`、`tags`、`prev` / `next`）、`related` 相关阅读、`comments`
 - **`CmsListContext` / `CmsTagPageContext` / `CmsSearchContext`**：`items` / `results` + `pagination` + `breadcrumbs`
 
 链接一律使用上下文给出的最终 URL（`item.url` / `channel.url` 等），由 `contentUrl()` 和 CMS link resolver 统一计算；静态化写文件、搜索、RSS、sitemap 与后台预览共享同一 canonical 规则。模板不应读取 `staticPath` 后自行拼接，也不应把原始 `entity:` / `internal:` 值直接输出到 `href`。

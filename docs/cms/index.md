@@ -28,7 +28,7 @@ graph LR
         G[SEO 管理] & H[广告事件] & I[评论/表单名单守卫] & J[互动问卷] & K[页面搭建/页面部件]
     end
     subgraph 平台与协作能力
-        L[数据看板] & M[内容工作台] & N[Headless API] & O[采集中心] & P[全文检索]
+        L[数据看板] & M[内容工作台] & N[Headless API] & O[采集中心] & P[全文检索] & Q[行为采集与访问统计]
     end
 ```
 
@@ -36,7 +36,7 @@ graph LR
 
 | 菜单 | 路径 | 说明 | 文档 |
 |------|------|------|------|
-| 数据看板 | `/cms/dashboard` | 纯内容运营概览：状态分布、发布趋势、热文 TOP、栏目分布 | 本页 |
+| 数据看板 | `/cms/dashboard` | 纯内容运营概览：状态分布、发布趋势、热文 TOP、栏目与形态分布 | 本页 |
 | 内容工作台 | `/cms/workspace` | 按当前站点集中处理稿件待办、读者反馈与编辑事项 | 本页 |
 | 站点管理 | `/cms/sites` | 父子站群、显式继承、域名路由、主题选择与主题参数、审核模式、Webhook；站点行内工作区提供建站检查与配置快捷入口 | [站群与分发](./site-groups-and-distribution) · [主题](./themes) |
 | 栏目管理 | `/cms/channels` | 左树右编辑，树形栏目（列表/单页/外链），栏目标识 code + 级联 path，批量建栏目 | [内容管线](./content-pipeline) |
@@ -53,12 +53,12 @@ graph LR
 | 敏感词库 | `/cms/sensitive-words` | Aho-Corasick 引擎，评论/表单提交拦截 | [互动与运营](./interaction) |
 | 易错词库 | `/cms/error-prone-words` | 编辑辅助：错误词→正确词，内容检查一键替换 | [内容管线](./content-pipeline) |
 | 互动问卷 | `/cms/interactions` | survey/poll 统一设计、发布/关闭、答卷、结果与导出 | [互动与运营](./interaction) |
-| 访问统计 | `/cms/stats` | PV/UV 趋势、内容 TOP、来源/设备分布、搜索分析 | [全文检索](./search) |
+| 访问统计 | `/cms/stats` | 行为采集开关与统计时区、总览/内容/来源/搜索/转化/采集质量六个视图 | [行为采集与统计](./telemetry) |
 | 采集中心 | `/cms/collect` | CSS 选择器采集 + 图片本地化 | [互动与运营](./interaction) |
 | 页面部件 | `/cms/widgets` | 手工榜单/实时来源内容块，草稿-发布-下线、主题插槽绑定、引用定向刷新 | [渲染与静态化](./static-and-render) |
 | 页面搭建 | `/cms/pages` | 区块拖拽（内容列表支持栏目/标签聚合取数、widget-ref 部件引用）、用户/角色 ACL、展示条件与实时预览 | [互动与运营](./interaction) |
 | 会员订阅 | `/cms/subscriptions` | 站点/栏目/作者订阅聚合、脱敏明细与导出 | [互动与运营](./interaction) |
-| 发布中心 | `/cms/publishing` | 通用任务队列投影、产物、失败恢复与导出 | [渲染与静态化](./static-and-render) |
+| 发布中心 | `/cms/publishing` | 发布单与候选部署、通用任务队列投影、产物、失败恢复与导出 | [发布单与公开代次](./publication-generations) |
 | 内容分发 | `/cms/distribution` | 跨站 copy/mapping/定时同步、冲突治理、行级结果与导出 | [站群与分发](./site-groups-and-distribution) |
 
 > **后台交互约定**：CMS 各管理页共用**站点切换器**（树形下拉，展示站群父子层级，支持搜索过滤）。
@@ -91,21 +91,23 @@ CMS 前台路由（Hono 兜底路由）
 
 ## 数据表
 
-核心表：`cms_sites` / `cms_site_inheritances` / `cms_distribution_rules` / `cms_models`（含 `owner_site_id` 站群归属）/ `cms_model_fields`（含列表/详情展示配置与默认值）/ `cms_channels` / `cms_contents` / `cms_tags` / `cms_content_tags` / `cms_content_channels`（副栏目）/ `cms_content_relations`（相关文章）/ `cms_content_versions` / `cms_content_op_logs`（操作日志时间线）
+核心表：`cms_sites` / `cms_site_inheritances` / `cms_distribution_rules` / `cms_distribution_sync_states`（映射同步状态）/ `cms_models`（含 `owner_site_id` 站群归属）/ `cms_model_fields`（含展示配置与字段规则）/ `cms_model_versions`（不可变模型版本）/ `cms_model_unique_values`（站内唯一值约束）/ `cms_channels` / `cms_contents` / `cms_tags` / `cms_content_tags` / `cms_content_channels`（副栏目）/ `cms_content_relations`（相关文章）/ `cms_content_op_logs`（操作日志时间线）
 
-素材表：`cms_resource_folders` / `cms_resources` / `cms_resource_refs`（素材反向引用索引，owner 写事务内维护，供孤立治理与删除保护）
+编辑协作与修订：`cms_content_revisions`（不可变修订快照，含模型版本与素材版本）/ `cms_content_working_copies`（可编辑工作稿与编辑状态）/ `cms_content_review_revisions`（审批轮次固定主体）/ `cms_content_revision_approvals`（修订批准事实）/ `cms_content_preview_grants`（固定修订预览授权）/ `cms_content_suppressions`（紧急撤下）/ `cms_editorial_notes`（审稿批注）/ `cms_editorial_tasks`（编辑事项）/ `cms_feedback_cases` + `cms_feedback_history`（读者反馈办理）/ `cms_form_handling_policies`（表单办理策略）
+
+素材表：`cms_resource_folders` / `cms_resources` / `cms_resource_refs`（素材反向引用索引，owner 写事务内维护，供孤立治理与删除保护）/ `cms_asset_versions`（不可变文件版本，修订快照按 id 固定）/ `cms_asset_rights`（来源、许可、到期与撤权）/ `cms_media_processing`（响应式图片、海报、字幕等处理结果）
 
 开放能力：`cms_open_app_grants`（开放应用的站点/栏目写入授权，fail-closed）/ `cms_content_tombstones`（硬删除墓碑，供 Headless 增量同步输出 `op=delete`）
 
 运营表：`cms_comments` / `cms_ad_slots` / `cms_ads` / `cms_ad_events` / `cms_forms` / `cms_form_submissions` / `cms_sensitive_words` / `cms_error_prone_words`（易错词）/ `cms_friend_link_groups` / `cms_friend_links` / `cms_pages` / `cms_page_block_acls` / `cms_widgets` / `cms_widget_refs`（部件被页面/主题插槽引用的索引）/ `cms_widget_source_refs`（实时来源→部件反向索引，供内容/栏目变更触发定向刷新）
 
-主题与发布：主题为仓库内置 React TSX 主题（`default` / `docs` / `gov-portal` / `magazine` / `news-portal`，见[主题与模板开发](./themes)），无独立模板表；主题参数存 `cms_sites.settings.themeConfig`；发布产物记录于 `cms_publish_artifacts`，发布任务与逐路径日志复用 `async_tasks` / `async_task_items`。
+主题与发布：主题为仓库内置 React TSX 主题（`default` / `docs` / `gov-portal` / `magazine` / `news-portal`，见[主题与模板开发](./themes)），无独立模板表；主题参数存 `cms_sites.settings.themeConfig`；发布链路由 `cms_releases`（发布单）/ `cms_deployments`（候选部署与代次快照）/ `cms_site_generations`（站点当前代次）/ `cms_release_activations`（激活与回滚留痕）承载，见[发布单与公开代次](./publication-generations)；发布产物记录于 `cms_publish_artifacts`，发布任务与逐路径日志复用 `async_tasks` / `async_task_items`。
 
 会员互动表：`cms_content_likes` / `cms_content_favorites` / `cms_member_view_history` / `cms_member_subscriptions` / `cms_interactions` / `cms_interaction_questions` / `cms_interaction_responses` / `cms_interaction_answers`
 
-统计表：`cms_visit_logs`（前台访问原始日志，90 天保留）/ `cms_ad_stats`（广告曝光/点击日聚合）/ `cms_ad_events`（追加型事件，配置化保留期）/ `cms_search_logs`（搜索日志，90 天保留）
+统计与采集：行为事件与转化统一落数据分析事件库 `user_events`（CMS v2 事实按 `properties` 可信标记区分），采集诊断与转化投递为 `cms_telemetry_receipts` / `cms_telemetry_outbox`；广告事件为 `cms_ad_events`（追加型事件，配置化保留期）与日聚合 `cms_ad_stats`。
 
-> 访问统计为**服务端响应路径埋点**（静态命中同样统计，无需前端 JS），UV 按 ip+ua 哈希去重；趋势、来源和内容排行默认排除 `bot`，设备分布保留 `bot` 作为独立项。报表基于原始日志实时聚合，原始日志由周期任务保留 90 天。
+> 访问统计由**前台行为采集**驱动：已发布页面加载 SDK 采集器上报站点签名的事件，服务端按可信标记入库；预览、爬虫与探针被拒收。指标口径、事件目录与维度见[行为采集与访问统计](./telemetry)。
 
 SEO 与采集：`cms_redirects` / `cms_link_words` / `cms_push_logs` / `cms_search_words` / `cms_hotword_groups` / `cms_hotwords`（可管理热词分组与词条）/ `cms_collect_rules` / `cms_collect_items`
 
@@ -120,8 +122,9 @@ SEO 与采集：`cms_redirects` / `cms_link_words` / `cms_push_logs` / `cms_sear
 - **发布趋势**：近 14 天发布数柱状图
 - **热门内容 TOP10**：按浏览量排序，点击直达编辑页
 - **栏目内容分布 TOP10**
+- **内容形态分布**：图文 / 图集 / 音视频 / 外链
 
-接口：`GET /api/cms/dashboard/stats?siteId=`，60s 自动轮询刷新。数据看板只展示数据，不嵌入建站操作或待办工作台。
+接口：`GET /api/cms/dashboard/stats?siteId=`，60s 自动轮询刷新；累计浏览量取行为采集的 `cms.page_view` 事实（与「访问统计」同源）。数据看板只展示数据，不嵌入建站操作或待办工作台。
 
 ## 内容工作台与建站工作区
 
@@ -144,9 +147,12 @@ SEO 与采集：`cms_redirects` / `cms_link_words` / `cms_push_logs` / `cms_sear
 - **CDN 刷新**：站点设置「CDN 刷新」配置 purge webhook 地址与令牌后，增量静态化/整站重建完成自动 POST 变更路径（请求体 `{ siteCode, origin, purgeAll, paths, urls }`，配置令牌时通过 `Authorization` 请求头发送），失败仅记日志不影响静态化结果。
 - **多语言站点关联**：站点设置「多语言站点关联」配置本站语言与关联站点（`语言代码=站点标识` 每行一条）后，前台所有页面输出 `<link rel="alternate" hreflang>` 且页头显示语言切换；关联站点 URL 取绑定域名（无域名回退预览路径）。
 - **公开提交名单守卫**：评论与自定义表单提交复用规则中心统一求值门面 `decide()`。`risk_blacklist` 命中直接返回 403，`cms_watchlist` 命中放行但评论写入 `cms_comments.risk_flag = 'watchlist'`，审核队列展示「观察主体」徽标；名单规则的配置与留痕见 [规则中心](/rules/evaluation)。
+- **素材授权与撤权**：素材带来源、许可、到期与撤权标记（`cms_asset_rights`），撤权/过期即时作用于前台与 Headless，历史部署无法撤销该门禁；修订快照按 id 固定素材版本，替换素材只产生新版本而不改变已发布修订。
+- **行为采集与运营数据**：访问采集按站点开关（需发布生效），事件与转化统一落数据分析事件库并带可信标记；预览、爬虫与探针不进入运营指标，详见[行为采集与访问统计](./telemetry)。
 
 ### 运行时约定
 
 - 所有公开 URL（栏目、内容、搭建页、标签、互动和资源）由服务端 resolver 生成；内容实体返回 `canonicalUrl`/`previewUrl`，主题和管理端不拼接 `channelPath + slug + 扩展名`。
 - HTML 正文、单页正文和富文本区块写入前经过 `sanitizeCmsHtml`；CMS link 字段只接受安全站内路径、`entity:` 引用和 `http(s)`/明确允许的 `mailto`/`tel`。资源句柄按 `siteId` 隔离，跨站句柄拒绝。
 - 内容/栏目/页面/部件等公开语义变更通过发布任务中心异步处理；事务 outbox 提交后先清理站点 Redis 页面和 sitemap/RSS 元数据缓存，再异步生成或删除静态文件。整站/主题快照使用 `publicRevision`，路径级增量任务使用对象版本与路径快照；旧任务不能覆盖更新后的产物。
+- 公开内容由**发布单与候选部署**决定：编辑保存只改工作稿，构建成功并在站点锁内激活后才切换线上投影。完整顺序与运行边界见[发布单与公开代次](./publication-generations)。

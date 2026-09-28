@@ -147,7 +147,7 @@ Open API 的 `include=body|extend|attachments` 决定这三列是否进入 `SELE
 
 ## 增量刷新
 
-内容、栏目、页面、部件及其他公开配置的变更（例如内容发布/更新/下线/回收、评论过审、搭建页保存）自动触发**增量静态刷新**（详情页 + 所属栏目全分页 + 首页 + sitemap + RSS），异步执行不阻塞请求；事务 outbox 提交后先清理受影响站点的 Redis 页面和元数据缓存。新提交的全量重建统一走任务中心 `cms-publish-build`，文件生成/删除和 CDN purge 在任务中完成。
+内容、栏目、页面、部件及其他公开配置的变更（例如内容发布/更新/下线/回收、评论过审、搭建页保存）自动触发**增量静态刷新**（详情页 + 所属栏目全分页 + 首页 + sitemap + RSS），异步执行不阻塞请求；事务 outbox 提交后先清理受影响站点的 Redis 页面和元数据缓存。全量重建入口仍提交任务中心 `cms-publish-build`，但它只负责固定提交时的配置快照并生成**待审阅的发布单**；文件生成/删除、CDN purge 与激活都发生在发布单的候选构建与激活流程中，见[发布单与公开代次](./publication-generations)。
 
 ## 缓存分级与协商缓存
 
@@ -160,7 +160,15 @@ SSR 响应按页面类型分级缓存：
 | 栏目列表 | 180s |
 | 其他 | 60s |
 
-所有 HTML 响应附带**弱 ETag**，命中 `If-None-Match` 返回 **304**，CDN 与浏览器可协商缓存；响应会标注 `X-Cms-Cache=static|redis|dynamic-audience`。任务提交后服务端 Redis key 会先清理，已缓存的浏览器/CDN 响应仍遵循其 `Cache-Control` 生命周期；配置 CDN purge 后会异步发送受影响路径。浏览计数经 Redis 缓冲聚合（`cms:viewbuf`），每分钟批量落库，避免高并发行锁排队。
+所有 HTML 响应附带**弱 ETag**，命中 `If-None-Match` 返回 **304**，CDN 与浏览器可协商缓存；响应会标注 `X-Cms-Cache=static|redis|dynamic-audience`。任务提交后服务端 Redis key 会先清理，已缓存的浏览器/CDN 响应仍遵循其 `Cache-Control` 生命周期；配置 CDN purge 后会异步发送受影响路径。
+
+浏览计数不再由独立的浏览 beacon 维护：正式页面输出的采集脚本上报 `cms.page_view`，服务端受理后在同一事务累加 `cms_contents.view_count`，因此静态命中、Redis 命中与 SSR 三种交付路径计量一致，重试也不会重复计数。计量口径与采集链路见[行为采集与访问统计](./telemetry)。
+
+### 代次交付
+
+正式产物按站点代次目录存放（`{siteCode}/generation-{id}/`），站点当前代次指针 `cms_site_generations.active_generation_id` 决定读取哪一份；激活与回滚在站点锁内原子换指针，不会出现半个站点的新旧混排。公开读取在请求开始时固定代次（短 `REPEATABLE READ` 只读事务 + 受控 `search_path`），因此一次请求内的列表、详情与聚合取自同一快照。
+
+代次内还叠加**运行时可见性门禁**：内容被紧急撤下、素材撤权/过期或内容已回收/下线时，公开投影立即按下线处理；这些门禁作用于已激活的历史代次，历史部署无法抹平。完整构建与激活顺序见[发布单与公开代次](./publication-generations)。
 
 ### 发布修订与产物新鲜度
 

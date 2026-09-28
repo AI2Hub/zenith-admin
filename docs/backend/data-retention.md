@@ -74,7 +74,7 @@
 | `in_app_messages` | 365 | 站内信 |
 | `notification_outbox` | 90 | 通知 outbox |
 | `notification_dispatches` | 180 | 通知投递记录 |
-| `user_events` | 180 | 用户行为事件 |
+| `user_events` | 180 | 用户行为事件（CMS v2 可信事件至少保留 400 天，支撑同比对比） |
 | `analytics_sessions` | 180 | 行为分析会话 |
 | `error_events` | 90 | 前端错误事件 |
 | `analytics_event_quality_daily` | 180 | 埋点质量日报 |
@@ -107,6 +107,8 @@
 | `cms_content_op_logs` | 180 | CMS 内容操作日志 |
 | `cms_push_logs` | 180 | CMS 推送日志 |
 | `cms_member_view_history` | 180 | CMS 会员浏览历史 |
+| `cms_telemetry_receipts` | 90 | CMS 采集接收/拒收/重复诊断 |
+| `cms_telemetry_outbox` | 90 | CMS 转化投递记录（仅清理已投递） |
 | `mp_template_send_logs` | 180 | 公众号模板消息发送 |
 | `mp_messages` | 180 | 公众号消息 |
 | `mp_kf_sessions` | 365 | 公众号客服会话 |
