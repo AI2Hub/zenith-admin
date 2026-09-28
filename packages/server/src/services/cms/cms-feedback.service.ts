@@ -105,10 +105,10 @@ export async function handleCmsFeedback(id: number, input: z.output<typeof updat
     const status = input.status ?? row.status;
     if (!canTransitionCmsFeedback(row.status, status)) throw new HTTPException(400, { message: '不支持此办理状态转换，请先转为处理中' });
     if (status !== row.status && !input.note?.trim()) throw new HTTPException(400, { message: '状态变化必须填写办理意见' });
-    if (status === 'resolved' && row.workflowDefinitionId) throw new HTTPException(409, { message: '本表单已启用办理审批，请提交办理结果，经审批通过后完成' });
+    if (status === 'resolved' && row.status !== 'resolved' && row.workflowDefinitionId) throw new HTTPException(409, { message: '本表单已启用办理审批，请提交办理结果，经审批通过后完成' });
     const [updated] = await tx.update(cmsFeedbackCases).set({ status, version: row.version + 1,
       ...(input.ownerId !== undefined ? { ownerId: input.ownerId } : {}), ...(input.dueAt !== undefined ? { dueAt: input.dueAt ? parseDateTimeInput(input.dueAt) : null } : {}),
-      ...(status === 'resolved' || status === 'closed' ? { resolution: input.note ?? row.resolution } : {}),
+      ...(status !== row.status && (status === 'resolved' || status === 'closed') ? { resolution: input.note ?? row.resolution } : {}),
     }).where(and(eq(cmsFeedbackCases.id, id), eq(cmsFeedbackCases.version, input.expectedVersion))).returning();
     await appendCmsFeedbackHistory(tx, requireRow(updated, '办理记录已变化', 409), status !== row.status ? `status:${status}` : input.ownerId !== undefined && input.ownerId !== row.ownerId ? 'assigned' : input.dueAt !== undefined && (input.dueAt ? parseDateTimeInput(input.dueAt)?.getTime() : null) !== (row.dueAt?.getTime() ?? null) ? 'deadline' : 'note', input.note);
   });

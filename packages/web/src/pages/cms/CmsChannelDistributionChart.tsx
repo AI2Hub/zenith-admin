@@ -16,7 +16,7 @@ interface CmsChannelDistributionChartProps {
 
 /**
  * 数据看板的「栏目内容分布 TOP10」：横向条形图，hover 显示数量与占比，点击穿透。
- * 独立成懒加载 chunk（vchart 体积，见 CmsPublishVisitTrendChart 注释）。
+ * 经 CmsDashboardCharts 与看板其它图表一起延迟加载。
  */
 export default function CmsChannelDistributionChart({ data = [], loading, onSelectChannel }: CmsChannelDistributionChartProps) {
   const palette = useChartPalette();

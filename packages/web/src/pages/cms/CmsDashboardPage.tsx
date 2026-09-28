@@ -5,7 +5,7 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { StatCard, StatGrid } from '@/components/charts/StatCard';
-// 只取卡片壳（无 vchart 依赖），画面本体见各懒加载 chunk
+// 只取卡片壳（无 vchart 依赖），三张图表共用一个懒加载模块。
 import { ChartCard } from '@/components/charts/ChartCard';
 import { usePermission } from '@/hooks/usePermission';
 import { useCmsDashboardStats, useCmsVisitStats } from '@/hooks/queries/cms-stats';
@@ -14,9 +14,9 @@ import { CmsSiteSelect } from './CmsSiteSelect';
 import CmsTodoStrip from './CmsTodoStrip';
 import { cmsContentsViewUrl } from './cms-contents-view';
 
-const CmsPublishVisitTrendChart = lazy(() => import('./CmsPublishVisitTrendChart'));
-const CmsChannelDistributionChart = lazy(() => import('./CmsChannelDistributionChart'));
-const CmsContentTypeDonut = lazy(() => import('./CmsContentTypeDonut'));
+const CmsPublishVisitTrendChart = lazy(() => import('./CmsDashboardCharts').then((charts) => ({ default: charts.CmsPublishVisitTrendChart })));
+const CmsChannelDistributionChart = lazy(() => import('./CmsDashboardCharts').then((charts) => ({ default: charts.CmsChannelDistributionChart })));
+const CmsContentTypeDonut = lazy(() => import('./CmsDashboardCharts').then((charts) => ({ default: charts.CmsContentTypeDonut })));
 
 const STAT_CARDS: { key: 'published' | 'draft' | 'pending' | 'offline' | 'rejected' | 'recycled'; label: string; color: string; tab?: 'published' | 'pending' | 'recycle' }[] = [
   { key: 'published', label: '已发布', color: 'var(--semi-color-success)', tab: 'published' },

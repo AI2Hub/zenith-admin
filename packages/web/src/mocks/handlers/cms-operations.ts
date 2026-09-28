@@ -55,10 +55,10 @@ export const cmsOperationsHandlers = [
     const status = body.status ?? row.status;
     if (!canTransitionCmsFeedback(row.status, status)) return badRequest('不支持此办理状态转换，请先转为处理中', { status: 400 });
     if (status !== row.status && !body.note?.trim()) return badRequest('状态变化必须填写办理意见', { status: 400 });
-    if (status === 'resolved' && row.workflowDefinitionId) return conflict('请提交办理审批，通过后完成办理', { status: 409 });
+    if (status === 'resolved' && row.status !== 'resolved' && row.workflowDefinitionId) return conflict('请提交办理审批，通过后完成办理', { status: 409 });
     if (body.ownerId) person(body.ownerId);
     const action = status !== row.status ? `status:${status}` : body.ownerId !== undefined && body.ownerId !== row.ownerId ? 'assigned' : body.dueAt !== undefined && body.dueAt !== row.dueAt ? 'deadline' : 'note';
-    Object.assign(row, { status, version: row.version + 1, ...(body.ownerId !== undefined ? { ownerId: body.ownerId } : {}), ...(body.dueAt !== undefined ? { dueAt: body.dueAt } : {}), ...(status === 'resolved' || status === 'closed' ? { resolution: body.note ?? row.resolution } : {}) });
+    Object.assign(row, { status, version: row.version + 1, ...(body.ownerId !== undefined ? { ownerId: body.ownerId } : {}), ...(body.dueAt !== undefined ? { dueAt: body.dueAt } : {}), ...(status !== row.status && (status === 'resolved' || status === 'closed') ? { resolution: body.note ?? row.resolution } : {}) });
     appendMockCmsFeedbackHistory(row, action, body.note ?? null);
     return ok(feedback(row.id));
   }),

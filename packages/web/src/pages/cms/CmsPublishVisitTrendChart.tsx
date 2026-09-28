@@ -16,7 +16,7 @@ const NO_VISITS: readonly { date: string; pv: number }[] = [];
 /**
  * 数据看板的「发布与访问趋势（近 14 天）」：柱 = 发布数（左轴），线 = 访问量 PV（右轴）。
  *
- * 独立成懒加载 chunk：'@/components/charts' 模块求值即接入 VChart 主题，
+ * 与其它看板图表共用 CmsDashboardCharts 懒加载模块：'@/components/charts' 模块求值即接入 VChart 主题，
  * 会拖入 ~2MB 的 @visactor 依赖树（见 charts-barrel-imports.test.ts）。拆出后
  * 看板主体先渲染，图表随本 chunk 就绪后补齐；无数据时 ChartCard 直接出空态。
  */

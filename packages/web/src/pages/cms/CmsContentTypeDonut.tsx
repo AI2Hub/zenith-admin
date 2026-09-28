@@ -9,7 +9,7 @@ interface CmsContentTypeDonutProps {
 
 /**
  * 数据看板的「内容形态分布」环图（图文 / 图集 / 音视频 / 链接）。
- * 独立成懒加载 chunk（vchart 体积，见 CmsPublishVisitTrendChart 注释）。
+ * 经 CmsDashboardCharts 与看板其它图表一起延迟加载。
  */
 export default function CmsContentTypeDonut({ data = [], loading }: CmsContentTypeDonutProps) {
   const palette = useChartPalette();
