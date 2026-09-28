@@ -14,7 +14,7 @@ import { assertSiteAccess } from './cms-sites.service';
 import { canonicalizeCmsResourceFields, deleteCmsResourceRefsForOwner, isSafeCmsResourceUrl, syncCmsResourceRefs, resolveCmsResourcePayload } from './cms-resource-refs.service';
 import type { CreateCmsAdSlotInput, UpdateCmsAdSlotInput, CreateCmsAdInput, UpdateCmsAdInput } from '@zenith/shared/cms';
 import { ensureCmsSiteExists } from './cms-sites.service';
-import { buildWhere, withPagination } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition, withPagination } from '../../lib/where-helpers';
 import { normalizeCmsAdClickUrl } from './cms-ad-events.service';
 import { buildCmsLinkResolver, ensureCmsLinkTargetExists } from './cms-link.service';
 import { refreshCmsPublicConfiguration } from './cms-public-config-refresh.service';
@@ -127,10 +127,12 @@ export async function listCmsAds(q: QueryOutputOf<typeof cmsAdContract.list>) {
   const where = buildWhere(
     eq(cmsAdSlots.siteId, q.siteId),
     q.slotId ? eq(cmsAds.slotId, q.slotId) : undefined,
+    keywordCondition(q.keyword, [cmsAds.name]),
   );
   const adWhere = buildWhere(
     inArray(cmsAds.slotId, db.select({ id: cmsAdSlots.id }).from(cmsAdSlots).where(eq(cmsAdSlots.siteId, q.siteId))),
     q.slotId ? eq(cmsAds.slotId, q.slotId) : undefined,
+    keywordCondition(q.keyword, [cmsAds.name]),
   );
   const base = db.select({ ad: cmsAds, slotName: cmsAdSlots.name })
     .from(cmsAds)

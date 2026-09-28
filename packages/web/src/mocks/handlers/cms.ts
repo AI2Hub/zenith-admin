@@ -1429,10 +1429,11 @@ export const cmsP2Handlers = [
     return ok(null, '删除成功');
   }),
   mock(cmsAdContract.list, ({ query, ok, paginate }) => {
-    const { siteId, slotId } = query;
+    const { siteId, slotId, keyword } = query;
     const siteSlotIds = new Set(mockCmsAdSlots.filter((s) => s.siteId === siteId).map((s) => s.id));
     let list = mockCmsAds.filter((a) => siteSlotIds.has(a.slotId));
     if (slotId) list = list.filter((a) => a.slotId === slotId);
+    list = filterByKeyword(list, keyword, [(a) => a.name]);
     return ok(paginate(list));
   }),
   mock(cmsAdContract.create, ({ body, ok }) => {

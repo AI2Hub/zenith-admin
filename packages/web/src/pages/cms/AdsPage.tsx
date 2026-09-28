@@ -1,27 +1,27 @@
-import { useEffect, useState, useMemo } from 'react';
-import { SearchToolbar } from '@/components/SearchToolbar';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { Button, Form, Tag, Tabs, TabPane, SideSheet, Typography, withField } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Trash2 } from 'lucide-react';
+import { ChevronsDownUp, ChevronsUpDown, LayoutGrid, List as ListIcon, ListTree, Trash2 } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import ExportButton from '@/components/ExportButton';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { formatDateTimeForApi, formatDateTimeRangeForApi } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
-import { usePagination } from '@/hooks/usePagination';
+import { useFilterQuery } from '@/hooks/useFilterQuery';
+import { useTreeExpansion, type TreeRowKey } from '@/hooks/useTreeExpansion';
 import { useListSearch } from '@/hooks/useListSearch';
 import {
   useCmsAdSlots, useSaveCmsAdSlot, useDeleteCmsAdSlot,
   useCmsAdList, useSaveCmsAd, useDeleteCmsAds,
-  cmsAdEventKeys, useCleanupCmsAdEvents, useCmsAdEventList, useCmsAdEventStats,
+  cmsAdKeys, cmsAdEventKeys, useCleanupCmsAdEvents, useCmsAdEventList, useCmsAdEventStats,
 } from '@/hooks/queries/cms';
 import { CMS_AD_EVENT_TYPE_LABELS, CMS_DEVICE_TYPE_LABELS, CMS_AD_EVENT_TYPE_OPTIONS, CMS_DEVICE_TYPE_OPTIONS } from '@zenith/shared/cms';
 import type { CmsAdEvent, CmsAdSlot, CmsAd } from '@zenith/shared/cms';
 import { percentOf } from '@zenith/shared/core';
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { CreateButton } from '@/components/toolbar-controls';
-import { DateRangeFilter, FilterSelect } from '@/components/search-filters';
+import { DateRangeFilter, FilterSelect, KeywordInput } from '@/components/search-filters';
 import { EMPTY_PLACEHOLDER, dateColumn, dateTimeColumn, renderEllipsis, enabledStatusColumn } from '@/utils/table-columns';
 import { abortSubmit } from '@/lib/abort-submit';
 import { confirmAndDelete, deleteAction, listTableProps, ListSearchToolbar } from '@/components/list-page';
@@ -29,13 +29,15 @@ import { compactParams } from '@/lib/query';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import { FormStatusRadioGroup } from '@/components/FormStatusRadioGroup';
-import { EditFormModal } from '@/components/EditFormModal';
+import { EditFormModal, EditFormSheet } from '@/components/EditFormModal';
 import { CmsAssetUrlField } from './CmsAssetUrlField';
 
 /** 广告图片：外链手填与上传/选择共用同一 `image` 值（留空显示文字条） */
 const FormAdImage = withField(CmsAssetUrlField);
-// ─── 广告位 Tab ───────────────────────────────────────────────────────────────
-function SlotsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
+// ─── 广告位管理：独立抽屉内做广告位 CRUD，避免广告 Tab 承载两套实体的表单 ──
+function AdSlotSheet({ siteId, visible, onClose }: Readonly<{
+  siteId: number | undefined; visible: boolean; onClose: () => void;
+}>) {
   const { hasPermission } = usePermission();
   const slotsQuery = useCmsAdSlots(siteId);
   const saveMutation = useSaveCmsAdSlot();
@@ -73,10 +75,10 @@ function SlotsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
   ];
 
   return (
-    <>
-      <SearchToolbar>
-        {canManage ? <CreateButton onClick={slotModal.openCreate}>新增广告位</CreateButton> : null}
-      </SearchToolbar>
+    <SideSheet title="广告位管理" visible={visible} onCancel={onClose} width={620}>
+      <div style={{ marginBottom: 12 }}>
+        <CreateButton permission="cms:ad:manage" onClick={slotModal.openCreate}>新增广告位</CreateButton>
+      </div>
       <ConfigurableTable<CmsAdSlot>
         columns={columns}
         {...listTableProps(slotsQuery, { empty: '暂无广告位；默认主题支持 home-ad（首页横幅下方）' })}
@@ -86,21 +88,43 @@ function SlotsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
         <Form.Input field="code" label="引用标识" disabled={slotModal.isEdit} placeholder="如 home-ad（主题模板中引用）" rules={[{ required: true, message: '请输入标识' }]} />
         <Form.Input field="remark" label="备注" />
       </EditFormModal>
-    </>
+    </SideSheet>
   );
 }
 
-// ─── 广告投放 Tab ─────────────────────────────────────────────────────────────
-function AdsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
+// ─── 广告投放 Tab（仿友情链接：列表视图 / 分组视图 + 广告位管理抽屉）───────────
+interface AdSearchParams { keyword: string; slotId?: number }
+const defaultAdSearch: AdSearchParams = { keyword: '', slotId: undefined };
+
+function AdsTab({ siteId, setSiteId }: Readonly<{
+  siteId: number | undefined;
+  setSiteId: (siteId: number | undefined) => void;
+}>) {
   const { hasPermission } = usePermission();
-  const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [slotFilter, setSlotFilter] = useState<number | undefined>(undefined);
-  const slotsQuery = useCmsAdSlots(siteId);
-  const listQuery = useCmsAdList({ page, pageSize, siteId: siteId ?? 0, slotId: slotFilter }, siteId !== undefined);
-  useEffect(() => {
-    setSlotFilter(undefined);
-    setPage(1);
-  }, [setPage, siteId]);
+  const {
+    page, pageSize, setPage, buildPagination,
+    bind, bindKeyword, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<AdSearchParams>({ defaults: defaultAdSearch, listKey: cmsAdKeys.lists });
+  const [slotView, setSlotView] = useState(false);
+  const [slotSheetVisible, setSlotSheetVisible] = useState(false);
+  const slotsData = useCmsAdSlots(siteId).data;
+  const slotOptions = useMemo(() => slotsData ?? [], [slotsData]);
+
+  // 已提交筛选 → 契约查询参数：只映射一次
+  const filterQuery = useFilterQuery({
+    keyword: submittedParams.keyword,
+    slotId: submittedParams.slotId,
+  });
+  const listQuery = useCmsAdList({
+    page, pageSize, siteId: siteId ?? 0,
+    ...filterQuery,
+  }, siteId !== undefined && !slotView);
+  // 分组视图不分页（同友链分组视图惯例）：一次取全量（接口上限 200），按广告位聚合展示
+  const groupListQuery = useCmsAdList({
+    page: 1, pageSize: 200, siteId: siteId ?? 0,
+    ...filterQuery,
+  }, siteId !== undefined && slotView);
   const saveMutation = useSaveCmsAd();
   const adModal = useEditModal<CmsAd, Record<string, unknown>, Record<string, unknown>>({
     entityName: '广告',
@@ -128,6 +152,50 @@ function AdsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
   });
   const deleteMutation = useDeleteCmsAds();
   const canManage = hasPermission('cms:ad:manage');
+
+  // 分组视图：按广告位排序（广告位下拉源顺序），位内按排序 → id
+  const slotOrder = useMemo(() => {
+    const order = new Map<number, number>();
+    slotOptions.forEach((slot, index) => order.set(slot.id, index));
+    return order;
+  }, [slotOptions]);
+  const groupedData = useMemo(() => {
+    const list = groupListQuery.data?.list ?? [];
+    const orderOf = (slotId: number) => slotOrder.get(slotId) ?? Number.MAX_SAFE_INTEGER;
+    return [...list].sort((a, b) => orderOf(a.slotId) - orderOf(b.slotId) || a.sort - b.sort || a.id - b.id);
+  }, [groupListQuery.data, slotOrder]);
+
+  const {
+    expandedRowKeys, allRowKeys: allSlotKeys,
+    isAllExpanded, toggleExpandAll, setExpandedRowKeys, onExpandedRowsChange,
+  } = useTreeExpansion(groupedData, {
+    // 展开态的 key 是广告位 id；onExpandedRowsChange 回传 { slotKey } 行
+    collectKeys: (rows) => [...new Set(rows.map((row) => row.slotId))],
+    getRowKey: (row) => (row && typeof row === 'object' && 'slotKey' in row
+      ? (row as { slotKey: TreeRowKey }).slotKey
+      : undefined),
+  });
+
+  // 首次出现的广告位自动展开；已见过的保持用户展开/折叠状态，避免刷新时弹回展开
+  const seenSlotKeysRef = useRef<Set<TreeRowKey>>(new Set());
+  useEffect(() => {
+    const newKeys = allSlotKeys.filter((key) => !seenSlotKeysRef.current.has(key));
+    if (newKeys.length === 0) return;
+    newKeys.forEach((key) => seenSlotKeysRef.current.add(key));
+    setExpandedRowKeys((prev) => [...prev, ...newKeys]);
+  }, [allSlotKeys, setExpandedRowKeys]);
+
+  const slotNameMap = useMemo(() => new Map(slotOptions.map((slot) => [slot.id, slot.name] as const)), [slotOptions]);
+  const slotCounts = useMemo(() => {
+    const counts = new Map<number, number>();
+    for (const item of groupedData) {
+      counts.set(item.slotId, (counts.get(item.slotId) ?? 0) + 1);
+    }
+    return counts;
+  }, [groupedData]);
+  const slotNameOf = (key: number): string => slotNameMap.get(key)
+    ?? groupedData.find((item) => item.slotId === key)?.slotName
+    ?? `广告位 #${key}`;
 
   const columns: ColumnProps<CmsAd>[] = [
     { title: '广告名称', dataIndex: 'name', width: 220, render: renderEllipsis },
@@ -163,25 +231,87 @@ function AdsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
     }),
   ];
 
+  // 分组视图下广告位名已展示在组头，广告位列不再重复
+  const viewColumns = slotView ? columns.filter((column) => column.dataIndex !== 'slotName') : columns;
+
   return (
     <>
-      <SearchToolbar>
-        <FilterSelect
-          placeholder="全部广告位"
-          items={(slotsQuery.data ?? []).map((s) => ({ value: s.id, label: s.name }))}
-          value={slotFilter}
-          onChange={(v) => { setSlotFilter(v as number | undefined); setPage(1); }}
-          width={180}
-        />
-        {canManage ? <CreateButton onClick={adModal.openCreate}>新增广告</CreateButton> : null}
-      </SearchToolbar>
-      <ConfigurableTable<CmsAd>
-        columns={columns}
-        {...listTableProps(listQuery, { pagination: buildPagination, empty: '暂无广告' })}
+      <ListSearchToolbar
+        keyword={(
+          <>
+            <CmsSiteSelect value={siteId} onChange={(v) => { setSiteId(v); setPage(1); }} width={180} />
+            <KeywordInput placeholder="搜索广告名称..." {...bindKeyword('keyword')} width={200} />
+          </>
+        )}
+        filters={(
+          <FilterSelect
+            placeholder="全部广告位"
+            items={slotOptions.map((s) => ({ value: s.id, label: s.name }))}
+            {...bind('slotId')}
+            width={160}
+            disabled={!siteId}
+          />
+        )}
+        onSearch={handleSearch}
+        onReset={handleReset}
+        create={<CreateButton permission="cms:ad:manage" onClick={adModal.openCreate}>新增广告</CreateButton>}
+        actions={(
+          <>
+            <Button
+              type="tertiary"
+              icon={slotView ? <ListIcon size={14} /> : <ListTree size={14} />}
+              onClick={() => { setSlotView((value) => !value); setPage(1); }}
+            >
+              {slotView ? '列表视图' : '分组视图'}
+            </Button>
+            {slotView ? (
+              <Button
+                type="tertiary"
+                icon={isAllExpanded ? <ChevronsDownUp size={14} /> : <ChevronsUpDown size={14} />}
+                onClick={toggleExpandAll}
+              >
+                {isAllExpanded ? '全部折叠' : '全部展开'}
+              </Button>
+            ) : null}
+            <Button icon={<LayoutGrid size={14} />} disabled={!siteId} onClick={() => setSlotSheetVisible(true)}>广告位管理</Button>
+          </>
+        )}
       />
-      <EditFormModal modal={adModal} width={560}>
+
+      {slotView ? (
+        // 与列表视图不同 key：Semi Table 会把 expandedRowKeys 存内部 state，
+        // 同实例切回列表视图时旧展开 key 残留，第一行会多出一个展开图标
+        <ConfigurableTable<CmsAd>
+          key="grouped"
+          columns={viewColumns}
+          {...listTableProps(groupListQuery, { empty: '暂无广告' })}
+          dataSource={groupedData}
+          groupBy={(record?: CmsAd) => record?.slotId ?? 0}
+          clickGroupedRowToExpand
+          renderGroupSection={(slotKey) => {
+            const key = Number(slotKey ?? 0);
+            return (
+              <>
+                <strong>{slotNameOf(key)}</strong>
+                <Typography.Text type="tertiary" size="small" style={{ marginLeft: 8 }}>
+                  {slotCounts.get(key) ?? 0} 个广告
+                </Typography.Text>
+              </>
+            );
+          }}
+          expandedRowKeys={expandedRowKeys}
+          onExpandedRowsChange={onExpandedRowsChange}
+        />
+      ) : (
+        <ConfigurableTable<CmsAd>
+          key="list"
+          columns={viewColumns}
+          {...listTableProps(listQuery, { pagination: buildPagination, empty: '暂无广告' })}
+        />
+      )}
+      <EditFormSheet modal={adModal} width={720}>
         <Form.Select field="slotId" label="广告位" style={{ width: '100%' }} rules={[{ required: true, message: '请选择广告位' }]}
-          optionList={(slotsQuery.data ?? []).map((s) => ({ value: s.id, label: s.name }))} />
+          optionList={slotOptions.map((s) => ({ value: s.id, label: s.name }))} />
         <Form.Input field="name" label="广告名称" rules={[{ required: true, message: '请输入名称' }]} />
         <FormAdImage field="image" label="图片" siteId={siteId} allowUpload={hasPermission('cms:resource:upload')}
           urlPlaceholder="外链图片地址（可选），或下方上传/选择；留空显示文字条" />
@@ -190,7 +320,13 @@ function AdsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
         <Form.DatePicker field="endAt" label="结束时间" type="dateTime" density="compact" style={{ width: '100%' }} placeholder="不限" />
         <Form.InputNumber field="sort" label="排序" style={{ width: 160 }} />
         <FormStatusRadioGroup />
-      </EditFormModal>
+      </EditFormSheet>
+
+      <AdSlotSheet
+        siteId={siteId}
+        visible={slotSheetVisible}
+        onClose={() => setSlotSheetVisible(false)}
+      />
     </>
   );
 }
@@ -413,17 +549,7 @@ function AdsManagementTab({ siteId, setSiteId }: Readonly<{
   siteId: number | undefined;
   setSiteId: (siteId: number | undefined) => void;
 }>) {
-  return (
-    <>
-      <SearchToolbar>
-        <CmsSiteSelect value={siteId} onChange={setSiteId} width={200} />
-      </SearchToolbar>
-      <Typography.Title heading={5}>广告位</Typography.Title>
-      <SlotsTab siteId={siteId} />
-      <Typography.Title heading={5} style={{ marginTop: 24 }}>广告投放</Typography.Title>
-      <AdsTab siteId={siteId} />
-    </>
-  );
+  return <AdsTab siteId={siteId} setSiteId={setSiteId} />;
 }
 
 // ════════════════════════════════════════════════════════════════════════════

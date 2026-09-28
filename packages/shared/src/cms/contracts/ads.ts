@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { dateRangeQuery, entityStatusSchema, idParam, idQuery, paginated, paginationQuery, queryEnum, requiredIdQuery } from '../../core/api-schemas';
+import { dateRangeQuery, entityStatusSchema, idParam, idQuery, keywordQuery, paginated, paginationQuery, queryEnum, requiredIdQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { asyncTaskSchema } from '../../tasks/contracts/async-tasks';
 import { CMS_AD_EVENT_TYPES, CMS_DEVICE_TYPES } from '../constants';
@@ -92,6 +92,7 @@ export type CmsAdEventStats = z.infer<typeof cmsAdEventStatsSchema>;
 export const cmsAdListQuery = paginationQuery.extend({
   siteId: requiredIdQuery(),
   slotId: idQuery(),
+  keyword: keywordQuery('广告名称'),
 });
 
 const cmsAdEventFilters = {
