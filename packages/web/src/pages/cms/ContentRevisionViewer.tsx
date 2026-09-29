@@ -38,7 +38,7 @@ export function ContentRevisionViewer({ content, fields = content.modelFields ??
   const safeLink = (value: string | null | undefined) => value && /^(https?:\/\/|\/(?!\/))/.test(value) ? value : undefined;
   const linkText = (value: string | null | undefined) => {
     const href = safeLink(value);
-    return href ? <a href={href} target="_blank" rel="noreferrer">{value}</a> : valueText(value);
+    return href ? <Typography.Text link={{ href, target: '_blank', rel: 'noreferrer' }}>{value}</Typography.Text> : valueText(value);
   };
   const extendEntries = Object.entries(content.extend);
   return (
@@ -113,7 +113,7 @@ export function ContentRevisionViewer({ content, fields = content.modelFields ??
         <Section title="附件">
           <Space vertical align="start">
             {content.attachments.map((item, index) => (
-              <a key={`${item.url}-${index}`} href={safeLink(item.url)} target="_blank" rel="noreferrer">{item.name}（{formatBytes(item.size)}）</a>
+              <Typography.Text key={`${item.url}-${index}`} link={{ href: safeLink(item.url), target: '_blank', rel: 'noreferrer' }}>{item.name}（{formatBytes(item.size)}）</Typography.Text>
             ))}
           </Space>
         </Section>
@@ -127,7 +127,7 @@ export function ContentRevisionViewer({ content, fields = content.modelFields ??
             const label = field?.label ?? name;
             if (field?.fieldType === 'richtext' && typeof value === 'string') return { key: label, value: <div className="cms-revision-body" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(value) }} /> };
             if (field?.fieldType === 'image' && typeof value === 'string') return { key: label, value: <Image src={value} alt={label} width={160} /> };
-            if (field?.fieldType === 'file' && typeof value === 'string' && safeLink(value)) return { key: label, value: <a href={safeLink(value)} target="_blank" rel="noreferrer">查看文件</a> };
+            if (field?.fieldType === 'file' && typeof value === 'string' && safeLink(value)) return { key: label, value: <Typography.Text link={{ href: safeLink(value), target: '_blank', rel: 'noreferrer' }}>查看文件</Typography.Text> };
             const display = options.length ? (Array.isArray(value) ? value : [value]).map((item) => options.find((option) => option.value === item)?.label ?? valueText(item)).join('、') : valueText(value);
             return { key: label, value: <span style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{display}</span> };
           })} />

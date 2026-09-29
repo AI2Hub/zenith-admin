@@ -83,7 +83,7 @@ export default function CmsMediaProcessingSheet({ resource, onClose }: Readonly<
         {result?.animated ? <Banner type="info" description="动态图片保留原文件的全部动画帧，本次仅提取媒体信息和保存焦点。" /> : null}
         {!resource.fileId ? <Banner type="warning" description="外部地址不能进行服务器媒体处理，请先上传本站文件。" /> : null}
         {resource.type !== 'image' ? <div className="cms-asset-field__player"><CmsResourcePreview resource={{ ...resource, media: result }} /></div> : null}
-        {result?.variants.length ? <Space wrap>{result.variants.map((variant) => <a key={variant.targetWidth} href={variant.url} target="_blank" rel="noreferrer">{variant.targetWidth}px WebP（{variant.width} × {variant.height}）</a>)}</Space> : null}
+        {result?.variants.length ? <Space wrap>{result.variants.map((variant) => <Typography.Text key={variant.targetWidth} link={{ href: variant.url, target: '_blank', rel: 'noreferrer' }}>{variant.targetWidth}px WebP（{variant.width} × {variant.height}）</Typography.Text>)}</Space> : null}
       </Space>
       {/* A media production command stays open to show progress; it is not a CRUD edit modal. */}
       {query.isSuccess ? <Form<Values> key={`${resource.id}:${versionId ?? 'current'}:${processing?.id ?? 0}`} initValues={{ assetVersionId: versionId ?? undefined,

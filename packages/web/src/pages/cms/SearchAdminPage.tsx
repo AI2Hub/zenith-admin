@@ -85,10 +85,8 @@ function SearchTestTab({ siteId, onSiteChange }: Readonly<{ siteId: number | und
       dataIndex: 'url',
       width: 300,
       render: (v: string, record: CmsSearchResult) => (
-        <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 280 }}>
-          <a href={v} target={record.isExternal ? '_blank' : undefined} rel={record.isExternal ? 'noreferrer' : undefined}>
-            {v}
-          </a>
+        <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 280 }} link={{ href: v, target: record.isExternal ? '_blank' : undefined, rel: record.isExternal ? 'noreferrer' : undefined }}>
+          {v}
         </Typography.Text>
       ),
     },
