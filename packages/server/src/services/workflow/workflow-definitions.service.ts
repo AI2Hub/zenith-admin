@@ -136,11 +136,12 @@ function canUserInitiateByScope(
 
 export async function listDefinitions(query: QueryOutputOf<typeof workflowDefinitionContract.list>) {
   const user = currentUser();
-  const { page, pageSize, keyword, status, categoryId } = query;
+  const { page, pageSize, keyword, status, formType, categoryId } = query;
   const where = buildWhere(
     tenantCondition(workflowDefinitions, user),
     keywordCondition(keyword, [workflowDefinitions.name]),
     status ? eq(workflowDefinitions.status, status) : undefined,
+    formType ? eq(workflowDefinitions.formType, formType) : undefined,
     categoryId ? eq(workflowDefinitions.categoryId, categoryId) : undefined,
   );
   return buildListResult({

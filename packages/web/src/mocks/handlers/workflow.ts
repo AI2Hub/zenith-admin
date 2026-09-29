@@ -1389,14 +1389,16 @@ async function settleTask(
 export const workflowHandlers = [
   // ─── 流程定义 ─────────────────────────────────────────────────────────────
 
-  // 获取流程定义列表（分页 + 搜索 + 状态筛选）
+  // 获取流程定义列表（分页 + 搜索 + 状态 / 表单类型筛选）
   mock(workflowDefinitionContract.list, ({ query, ok, paginate }) => {
     const keyword = query.keyword ?? '';
     const status = query.status ?? '';
+    const formType = query.formType ?? '';
 
     let list = [...mockWorkflowDefinitions];
     if (keyword) list = filterByKeyword(list, keyword, [(d) => d.name, (d) => d.description]);
     if (status) list = list.filter(d => d.status === status);
+    if (formType) list = list.filter(d => d.formType === formType);
 
     const page = paginate(list);
     return ok({ ...page, list: page.list.map(resolveWorkflowDefinition) });

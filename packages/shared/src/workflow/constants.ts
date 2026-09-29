@@ -375,6 +375,9 @@ export const WORKFLOW_FORM_TYPE_LABELS: Record<WorkflowFormType, string> = {
   external: '业务系统主导',
 };
 
+export const WORKFLOW_FORM_TYPE_OPTIONS: Array<{ value: WorkflowFormType; label: string }> =
+  createLabelOptionsFromMap(WORKFLOW_FORM_TYPE_LABELS);
+
 export const WORKFLOW_FORM_STATUS_LABELS: Record<WorkflowFormStatus, string> = {
   enabled: '启用',
   disabled: '停用',

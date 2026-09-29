@@ -4,7 +4,7 @@ import { Button, Modal, Select, Space, Tag, Typography, Toast } from '@douyinfe/
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { GitCompare, Layers, LayoutTemplate, Save, Upload } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { importWorkflowDefinitionSchema, workflowDefinitionContract, WORKFLOW_DEFINITION_STATUS_OPTIONS, WORKFLOW_DEFINITION_STATUSES, WORKFLOW_FORM_TYPE_LABELS, type WorkflowDefinition, type WorkflowFormType, type WorkflowVersionDiff as WorkflowVersionDiffData } from '@zenith/shared/workflow';
+import { importWorkflowDefinitionSchema, workflowDefinitionContract, WORKFLOW_DEFINITION_STATUS_OPTIONS, WORKFLOW_DEFINITION_STATUSES, WORKFLOW_FORM_TYPE_LABELS, WORKFLOW_FORM_TYPE_OPTIONS, WORKFLOW_FORM_TYPES, type WorkflowDefinition, type WorkflowFormType, type WorkflowVersionDiff as WorkflowVersionDiffData } from '@zenith/shared/workflow';
 import { enumValueOf } from '@zenith/shared/core';
 import { api } from '@/lib/contract-query';
 import { downloadBlob } from '@/utils/download';
@@ -38,7 +38,7 @@ import {
 import { WORKFLOW_DIFF_KIND_META as DIFF_KIND_META } from '../constants';
 import { PUBLISHABLE_STATUS_META as STATUS_MAP } from '@/lib/publishable-status';
 import { BatchDeleteButton, BatchDisableButton, BatchEnableButton, CreateButton } from '@/components/toolbar-controls';
-import { KeywordInput, StatusSelect } from '@/components/search-filters';
+import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { batchStatusHandler, confirmAndDelete, deleteAction, ListSearchToolbar, useRowSelection } from '@/components/list-page';
 import { confirmDanger } from '@/utils/confirm';
 import { useListPage } from '@/hooks/useListPage';
@@ -54,10 +54,11 @@ const FORM_TYPE_COLOR: Record<WorkflowFormType, TagColor> = {
 interface SearchParams {
   keyword: string;
   status?: string;
+  formType?: string;
   selectedCategoryId: number | null;
 }
 
-const defaultSearchParams: SearchParams = { keyword: '', status: undefined, selectedCategoryId: null };
+const defaultSearchParams: SearchParams = { keyword: '', status: undefined, formType: undefined, selectedCategoryId: null };
 
 const stringifyFlowData = (value: unknown) => JSON.stringify(value ?? null, null, 2);
 
@@ -84,6 +85,7 @@ export default function WorkflowDefinitionsPage() {
     toQuery: (s) => ({
       keyword: s.keyword,
       status: enumValueOf(WORKFLOW_DEFINITION_STATUSES, s.status),
+      formType: enumValueOf(WORKFLOW_FORM_TYPES, s.formType),
       categoryId: s.selectedCategoryId ?? undefined,
     }),
     table: { rowSelection: canBatchOperate ? rowSelection : undefined },
@@ -447,10 +449,18 @@ export default function WorkflowDefinitionsPage() {
           <ListSearchToolbar
             keyword={<KeywordInput placeholder="搜索流程名称" {...bind('keyword')} width={200} />}
             filters={(
-              <StatusSelect
-                items={WORKFLOW_DEFINITION_STATUS_OPTIONS}
-                {...bind('status')}
-              />
+              <>
+                <StatusSelect
+                  items={WORKFLOW_DEFINITION_STATUS_OPTIONS}
+                  {...bind('status')}
+                />
+                <FilterSelect
+                  placeholder="全部表单类型"
+                  items={WORKFLOW_FORM_TYPE_OPTIONS}
+                  {...bind('formType')}
+                  width={150}
+                />
+              </>
             )}
             onSearch={handleSearch}
             onReset={handleReset}
