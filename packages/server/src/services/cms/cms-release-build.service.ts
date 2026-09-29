@@ -1,9 +1,11 @@
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import type { CmsDeploymentBuildPlan, CmsDeploymentBuildMetrics } from '@zenith/shared/cms';
+import type { CmsDeploymentBuildPlan, CmsDeploymentBuildMetrics, CmsBuildPerformance } from '@zenith/shared/cms';
 import { db, withDbExecutor, withoutDbExecutor } from '../../db';
 import { cmsChannels, cmsContents, cmsContentRevisions, cmsContentWorkingCopies, cmsDeployments, cmsReleases, cmsSites, type CmsReleaseRow, type CmsDeploymentRow, type CmsDeploymentSnapshot } from '../../db/schema';
 import type { DbTransaction } from '../../db/types';
+import { config } from '../../config';
+import { createConcurrencyLimiter } from '../../lib/concurrency';
 import { TaskCancelledError } from '../../lib/task-center';
 import type { TaskRunContext } from '../../lib/task-center/types';
 import { applyCmsRevisionProjection, loadCmsPublishableRevision } from './cms-content-revisions.service';
@@ -13,10 +15,17 @@ import { assertCmsReleaseDependencies } from './cms-release-preflight.service';
 import { buildSiteStatic, writeStaticFile } from './cms-static.service';
 import { withCmsStaticWriteFence } from './cms-site-publish-lock.service';
 import { rebuildSearchIndex, reloadCmsSearchDict, releaseCmsGenerationSearchDictionary } from './cms-search.service';
-import { cmsBuildDependencyHashes, cmsBuildRuntimeHash, createCmsBuildStorage, loadCmsBuildTargets, saveCmsBuildTarget, withCmsBuildTransaction } from './cms-release-build-storage';
-import { cmsBuildTargetFingerprint, inspectCmsBuildArtifacts, reuseCmsBuildTarget, validateCmsBuildTarget, type CmsBuildTarget } from './cms-release-build-artifacts';
+import { cmsBuildDependencyHashes, cmsBuildRuntimeHash, createCmsBuildStorage, loadCmsBuildTargets, saveCmsBuildTargets, withCmsBuildTransaction, withCmsBuildReadTransaction } from './cms-release-build-storage';
+import { cmsBuildTargetFingerprint, cmsBuildTargetMatchesManifest, inspectCmsBuildArtifacts, reuseCmsBuildTarget, validateCmsBuildTarget, type CmsBuildTarget } from './cms-release-build-artifacts';
 import { ensureSiteIslandsAsset, ensureSiteThemeCssAsset } from './cms-render.service';
 import { resolveEffectiveCmsSiteRow } from './cms-site-inheritance.service';
+import { measureCmsBuildWork, newCmsBuildPerformance, withCmsBuildContext, withCmsBuildTargetMetrics } from './cms-build-context';
+import { assertCmsDeploymentStorageAvailable } from './cms-deployment-storage-state';
+import { cmsBuildConnectionBudget } from './cms-build-concurrency';
+
+// A build keeps one owner connection and reserves a control connection beside its render workers.
+const buildLimiter = createConcurrencyLimiter(Math.max(1, Math.floor(config.database.maxConnections / 6)));
+export interface CmsReleaseBuildOptions { forceFull?: boolean; /** Benchmark/regression override, bounded by the connection budget. */ concurrency?: number }
 
 export function newCmsDeploymentBuildPlan(): CmsDeploymentBuildPlan {
   return { version: 1, phases: [
@@ -30,8 +39,15 @@ export function newCmsDeploymentBuildPlan(): CmsDeploymentBuildPlan {
 type ExecutionGuard = (tx: DbTransaction) => Promise<void>;
 
 /** Short committed phases make the frozen projection and each artifact recoverable independently. */
-export async function buildCmsReleaseCandidate(release: CmsReleaseRow, deployment: CmsDeploymentRow, ctx: TaskRunContext, guard: ExecutionGuard, options?: { forceFull?: boolean }): Promise<void> {
+export async function buildCmsReleaseCandidate(release: CmsReleaseRow, deployment: CmsDeploymentRow, ctx: TaskRunContext, guard: ExecutionGuard, options?: CmsReleaseBuildOptions): Promise<void> {
+  const { concurrency } = cmsBuildConnectionBudget(config.database.maxConnections, options?.concurrency);
+  const performance = newCmsBuildPerformance(concurrency);
+  await buildLimiter.run(() => withCmsBuildContext(release.siteId, deployment.id, performance, () => buildCandidate(release, deployment, ctx, guard, performance, options)));
+}
+async function buildCandidate(release: CmsReleaseRow, deployment: CmsDeploymentRow, ctx: TaskRunContext, guard: ExecutionGuard, performance: CmsBuildPerformance, options?: CmsReleaseBuildOptions): Promise<void> {
   const generationId = deployment.id;
+  await assertCmsDeploymentStorageAvailable(db, generationId);
+  if (release.baseGenerationId) await assertCmsDeploymentStorageAvailable(db, release.baseGenerationId);
   const reportCompleted = async () => {
     const result = await withoutDbExecutor(() => ctx.progress({ processed: 1, total: 1, note: '候选部署构建完成', checkpoint: { generationId, phase: 'completed' } }));
     if (result.cancelRequested) throw new TaskCancelledError('发布执行轮次已失效或已取消');
@@ -47,9 +63,19 @@ export async function buildCmsReleaseCandidate(release: CmsReleaseRow, deploymen
   const plan = deployment.buildPlan.phases.length ? deployment.buildPlan : newCmsDeploymentBuildPlan();
   delete plan.failedTargetKey;
   const startedAt = deployment.buildMetrics.startedAt ?? new Date().toISOString();
-  const metrics: CmsDeploymentBuildMetrics = { ...deployment.buildMetrics, startedAt, attempts: ctx.attempt, generatedArtifacts: 0, reusedArtifacts: 0, resumedArtifacts: 0 };
+  const metrics: CmsDeploymentBuildMetrics = { ...deployment.buildMetrics, performance, startedAt, attempts: ctx.attempt, generatedArtifacts: 0, reusedArtifacts: 0, resumedArtifacts: 0 };
   const peak = () => { metrics.peakMemoryMb = Math.max(metrics.peakMemoryMb ?? 0, Math.ceil(process.memoryUsage().rss / 1024 / 1024)); };
   const assertCurrent = async () => {
+    if (ctx.taskId > 0) {
+      const [run] = await withoutDbExecutor(() => db.execute<{ current: boolean }>(sql`select exists (
+        select 1 from public.cms_releases r join public.async_tasks t on t.id=${ctx.taskId}
+        where r.id=${release.id} and r.status='building' and r.deployment_id=${generationId}
+          and t.dispatch_token=${ctx.dispatchToken}::uuid and t.status='running' and not t.cancel_requested
+      ) as current`));
+      if (!run?.current) throw new TaskCancelledError('发布执行轮次已失效或已取消');
+      return;
+    }
+    // Direct builder integration/benchmark callers have no task row; retain their supplied guard.
     if (await withoutDbExecutor(() => ctx.isCancelRequested())) throw new TaskCancelledError('发布执行轮次已失效或已取消');
     const [row] = await withoutDbExecutor(() => db.select({ status: cmsReleases.status, deploymentId: cmsReleases.deploymentId }).from(cmsReleases).where(eq(cmsReleases.id, release.id)).limit(1));
     if (row?.status !== 'building' || row.deploymentId !== generationId) throw new TaskCancelledError('发布单已取消或已由其他部署接管');
@@ -66,13 +92,34 @@ export async function buildCmsReleaseCandidate(release: CmsReleaseRow, deploymen
     if (total !== undefined) row.total = total;
     return row;
   };
+  const pendingTargets = new Map<string, CmsBuildTarget>();
+  let flushChain: Promise<void> = Promise.resolve();
+  let lastFlushAt = Date.now();
+  const flushTargets = async (force = false) => {
+    if (!pendingTargets.size || (!force && pendingTargets.size < 25 && Date.now() - lastFlushAt < 1000)) return flushChain;
+    const batch = [...pendingTargets.values()]; pendingTargets.clear(); lastFlushAt = Date.now();
+    const flush = flushChain.then(() => measureCmsBuildWork('checkpointMs', () => withoutDbExecutor(() => db.transaction(async tx => {
+      performance.checkpointFlushes += 1;
+      await persist(tx);
+      await saveCmsBuildTargets(tx, generationId, batch);
+    }))));
+    flushChain = flush;
+    return flush;
+  };
+  let lastStaticProgressAt = 0;
   const progress = async (key: string, note: string, processed: number, total: number, targetKey?: string) => {
     phase(key, 'running', processed, total);
     if (targetKey) plan.lastTargetKey = targetKey;
+    if (key === 'static') {
+      performance.targetCount = Math.max(performance.targetCount, total);
+      if (processed > 0 && processed < total && Date.now() - lastStaticProgressAt < 1000) return;
+      lastStaticProgressAt = Date.now();
+      await flushTargets(true);
+    }
     const result = await withoutDbExecutor(() => ctx.progress({ note, processed, total, checkpoint: { generationId, phase: key, lastTargetKey: plan.lastTargetKey ?? null, frozenAt: plan.frozenAt ?? null } }));
     if (result.cancelRequested) throw new TaskCancelledError('发布执行轮次已失效或已取消');
     await assertCurrent();
-    await withoutDbExecutor(() => db.transaction(persist));
+    await measureCmsBuildWork('checkpointMs', () => withoutDbExecutor(() => db.transaction(persist)));
   };
 
   try {
@@ -144,36 +191,49 @@ export async function buildCmsReleaseCandidate(release: CmsReleaseRow, deploymen
     await withCmsBuildTransaction(release.siteId, generationId, buildAt, async (tx) => {
       const site = await resolveEffectiveCmsSiteRow(release.siteId);
       const dependencies = await cmsBuildDependencyHashes(tx, generationId, buildAt, runtimeHash);
-      await withCmsStaticWriteFence(assertCurrent, () => buildSiteStatic(release.siteId, async (update) => {
+      try { await withCmsStaticWriteFence(assertCurrent, () => buildSiteStatic(release.siteId, async (update) => {
         await progress('static', update.note, update.processed, update.total, update.checkpoint.lastKey);
-      }, { runTarget: async (key, render) => {
+      }, { targetConcurrency: performance.concurrency, runTarget: (key, render) => withCmsBuildTargetMetrics(key, async targetMetrics => {
         try {
-          await assertCurrent();
           seenTargets.add(key);
           const fingerprint = cmsBuildTargetFingerprint(dependencies.global, key, dependencies.pages, plan.frozenAt, dependencies.contents);
           const completed = currentTargets.get(key);
-          if (completed?.fingerprint === fingerprint && await validateCmsBuildTarget(site.code, generationId, completed)) {
+          if (completed?.fingerprint === fingerprint && await measureCmsBuildWork('fileMs', () => validateCmsBuildTarget(site.code, generationId, completed))) {
+            await assertCurrent();
+            targetMetrics.outcome = 'resumed';
             metrics.resumedArtifacts = (metrics.resumedArtifacts ?? 0) + completed.artifacts.length;
             return completed.artifacts.map((artifact) => artifact.path);
           }
           const base = baseTargets.get(key);
           let artifacts = base?.fingerprint === fingerprint && release.baseGenerationId
-            ? await reuseCmsBuildTarget({ siteCode: site.code, sourceGenerationId: release.baseGenerationId, generationId, releaseId: release.id, target: base, assertCurrent }) : null;
-          if (artifacts) metrics.reusedArtifacts = (metrics.reusedArtifacts ?? 0) + artifacts.length;
+            ? await measureCmsBuildWork('fileMs', () => reuseCmsBuildTarget({ siteCode: site.code, sourceGenerationId: release.baseGenerationId!, generationId, releaseId: release.id, target: base, assertCurrent })) : null;
+          if (artifacts) { metrics.reusedArtifacts = (metrics.reusedArtifacts ?? 0) + artifacts.length; targetMetrics.outcome = 'reused'; }
           else {
-            artifacts = await inspectCmsBuildArtifacts(site.code, generationId, await render());
+            await assertCurrent();
+            const paths = await measureCmsBuildWork('renderMs', () => config.database.maxConnections > 2
+              ? withCmsBuildReadTransaction(release.siteId, generationId, buildAt, render) : render());
+            artifacts = await measureCmsBuildWork('fileMs', () => inspectCmsBuildArtifacts(site.code, generationId, paths));
             metrics.generatedArtifacts = (metrics.generatedArtifacts ?? 0) + artifacts.length;
           }
           const target = { key, fingerprint, artifacts };
-          await withoutDbExecutor(() => db.transaction(async (tx) => { await guard(tx); await saveCmsBuildTarget(tx, generationId, target); }));
+          pendingTargets.set(key, target);
+          await flushTargets();
           return artifacts.map((artifact) => artifact.path);
         } catch (error) {
           if (error instanceof TaskCancelledError) throw error;
-          plan.failedTargetKey = key;
-          await withoutDbExecutor(() => db.transaction(persist)).catch(() => undefined);
+          plan.failedTargetKey ??= key;
+          await flushTargets(true).catch(() => undefined);
           throw new Error(`构建目标 ${key} 失败：${error instanceof Error ? error.message : String(error)}`, { cause: error });
-        }
-      } }));
+        } finally { peak(); }
+      }) }));
+      await flushTargets(true);
+      } catch (error) {
+        // buildSiteStatic drains all in-flight workers before it throws. Completed targets
+        // may now be checkpointed without racing a previous execution's remaining writes.
+        await flushTargets(true).catch(() => undefined);
+        await withoutDbExecutor(() => db.transaction(persist)).catch(() => undefined);
+        throw error;
+      }
       // Shared assets are not owned by a page target and must exist even when every page was reused.
       await assertCurrent();
       const theme = await ensureSiteThemeCssAsset(site);
@@ -195,14 +255,15 @@ export async function buildCmsReleaseCandidate(release: CmsReleaseRow, deploymen
       const [stored] = await tx.select({ snapshot: cmsDeployments.snapshot }).from(cmsDeployments).where(eq(cmsDeployments.id, generationId)).limit(1);
       const manifest = await cmsGenerationManifest(tx, generationId, stored.snapshot!.revisions, sealed);
       const snapshot: CmsDeploymentSnapshot = { ...manifest.snapshot, siteCode: stored.snapshot!.siteCode, sitePublicRevision: stored.snapshot!.sitePublicRevision, createdAt: plan.frozenAt! };
-      snapshot.artifacts = await collectCmsGenerationArtifacts(snapshot.siteCode!, generationId, async (count) => {
+      snapshot.artifacts = await measureCmsBuildWork('fileMs', () => collectCmsGenerationArtifacts(snapshot.siteCode!, generationId, async (count) => {
         const result = await withoutDbExecutor(() => ctx.progress({ note: `核对产物 ${count} 个`, checkpoint: { generationId, phase: 'manifest', frozenAt: plan.frozenAt } }));
         if (result.cancelRequested) throw new TaskCancelledError('发布执行轮次已失效或已取消');
-      });
+      }));
       const targets = await withoutDbExecutor(() => loadCmsBuildTargets(generationId));
+      const artifactsByPath = new Map(snapshot.artifacts.map(artifact => [artifact.path, artifact]));
       let checked = 0;
       for (const target of targets.values()) {
-        if (!await validateCmsBuildTarget(snapshot.siteCode!, generationId, target)) throw new Error(`构建产物校验失败：${target.key}`);
+        if (!cmsBuildTargetMatchesManifest(target, artifactsByPath)) throw new Error(`构建产物校验失败：${target.key}`);
         if (++checked % 100 === 0) {
           const result = await withoutDbExecutor(() => ctx.progress({ note: `校验构建目标 ${checked}/${targets.size}`, checkpoint: { generationId, phase: 'manifest', frozenAt: plan.frozenAt } }));
           if (result.cancelRequested) throw new TaskCancelledError('发布执行轮次已失效或已取消');

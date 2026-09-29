@@ -35,7 +35,8 @@ import { assertCmsStaticWriteFence } from './cms-site-publish-lock.service';
 import { invalidateCmsSiteCaches } from './cms-cache.service';
 import { getEffectivelyEnabledCmsChannelIds } from './cms-channel-visibility.service';
 import { cmsGenerationContext, cmsGenerationNow } from './cms-generation-context';
-import { cmsBuildArtifactFile } from './cms-release-build-artifacts';
+import { cmsBuildArtifactFile, ensureCmsBuildArtifactDirectory } from './cms-release-build-artifacts';
+import { runCmsBuildBatch } from './cms-build-concurrency';
 export {
   CMS_STATIC_ROOT, isStrictlyWithin, pathToStaticFile, resolveStaticFile, siteStaticDir,
 } from './cms-static-path';
@@ -310,7 +311,7 @@ export async function writeStaticFile(siteCode: string, relPath: string, html: s
   if (generation?.candidate) await cmsBuildArtifactFile(siteCode, generation.generationId, relPath);
   const abs = resolveStaticFile(siteCode, relPath);
   if (!abs) return;
-  await fs.mkdir(path.dirname(abs), { recursive: true });
+  await ensureCmsBuildArtifactDirectory(abs);
   const tmp = `${abs}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`;
   let previous: Buffer | null = null;
   try { previous = await fs.readFile(abs); } catch { /* no previous artifact */ }
@@ -839,6 +840,8 @@ export interface CmsStaticBuildCheckpoint {
 
 export interface CmsStaticBuildOptions {
   resumeAfterKey?: string | null;
+  /** Only a durable per-target owner can opt into parallel completion. Legacy cursor builds stay serial. */
+  targetConcurrency?: number;
   /** A durable target owner must validate every returned path before skipping rendering. */
   runTarget?: (key: string, render: () => Promise<string[]>) => Promise<string[]>;
 }
@@ -967,26 +970,31 @@ async function buildSiteStaticInner(
         .from(cmsContents).where(inArray(cmsContents.id, needBody.map((row) => row.id)));
       for (const bodyRow of bodyRows) bodyPagesById.set(bodyRow.id, splitBodyPages(bodyRow.body).length);
     }
-    for (const row of batch) {
+    const cancelled = await runCmsBuildBatch(batch, options?.runTarget && !resumeAfterKey ? options.targetConcurrency ?? 1 : 1, async row => {
       const key = cmsStaticTargetKey('~site', 2, row.id);
-      if (skipCompleted(key)) continue;
+      if (skipCompleted(key)) return;
       const channel = channelMap.get(row.channelId);
       await runTarget(key, async () => {
         if (channel && !row.externalLink?.trim() && !isChannelDynamic(site, channel)) {
           const bodyPages = bodyPagesById.get(row.id) ?? 1;
           for (let p = 1; p <= bodyPages; p++) {
-            const ok = await writeRenderedPath(site, contentUrl('', channel, row, p));
-            if (ok) pages += 1;
+            const canonical = contentUrl('', channel, row, p);
+            // The frozen target plan already resolved its identity and channel. Keep the canonical
+            // guard, while avoiding repeated page/static-path/channel routing queries per detail.
+            const rendered = await renderDetailPage(site, '', channel, String(row.slug ?? row.id), p, undefined, canonical);
+            if (rendered.status === 200) { await writeStaticFile(site.code, canonical, rendered.html); pages += 1; }
+            else if (cmsGenerationContext()?.candidate) throw new Error(`候选页面 ${canonical} 渲染失败（${rendered.status}）`);
           }
         } else if (channel && !row.externalLink?.trim() && cmsGenerationContext()?.candidate) {
-          const rendered = await renderSitePath(site, '', contentUrl('', channel, row));
+          const rendered = await renderDetailPage(site, '', channel, String(row.slug ?? row.id), 1, undefined, contentUrl('', channel, row));
           if (rendered.status !== 200) throw new Error(`动态内容 #${row.id} 渲染失败（${rendered.status}）`);
         }
       });
-      if (await report(`内容 ${row.id} 已生成`, {
+      return report(`内容 ${row.id} 已生成`, {
         phase: 'content', lastKey: key, lastId: row.id,
-      })) return { pages, pruned: 0 };
-    }
+      });
+    });
+    if (cancelled) return { pages, pruned: 0 };
   }
 
   // 标签聚合页（仅首屏分页；深分页访问时由 hybrid 模式按需回写）

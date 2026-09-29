@@ -3,7 +3,7 @@ import { HTTPException } from 'hono/http-exception';
 import type * as z from 'zod';
 import { cmsReleaseFieldDiffs, type CmsReleaseChange, type CmsReleaseReview, recreateCmsReleaseSchema } from '@zenith/shared/cms';
 import { readSnapshot, withDbExecutor } from '../../db';
-import { asyncTasks, cmsChannels, cmsContents, cmsDeployments } from '../../db/schema';
+import { asyncTasks, cmsChannels, cmsContents, cmsDeployments, cmsDeploymentStorage } from '../../db/schema';
 import { createCmsRelease, getCmsReleaseDetail, requireRelease } from './cms-releases.service';
 import { loadCmsRevision } from './cms-content-revisions.service';
 import { cmsReleaseInputFingerprint } from './cms-release-fingerprint';
@@ -37,17 +37,25 @@ export async function getCmsReleaseReview(id: number): Promise<CmsReleaseReview>
     const detail = await getCmsReleaseDetail(id);
     const historical = ['active', 'superseded'].includes(release.status);
     const comparisonGenerationId = historical ? release.baseGenerationId : detail.activeGenerationId;
+    const [comparisonStorage] = comparisonGenerationId ? await tx.select({ state: cmsDeploymentStorage.storageState }).from(cmsDeploymentStorage).where(eq(cmsDeploymentStorage.deploymentId, comparisonGenerationId)).limit(1) : [];
+    const comparisonAvailable = comparisonGenerationId !== null && (!comparisonStorage || comparisonStorage.state === 'available');
+    const candidateAvailable = detail.deployment?.storageState === 'available' && Boolean(detail.deployment.manifestHash);
     const [current] = comparisonGenerationId ? await tx.select({ snapshot: cmsDeployments.snapshot }).from(cmsDeployments).where(eq(cmsDeployments.id, comparisonGenerationId)).limit(1) : [];
     const oldRevisions = new Map(current?.snapshot?.revisions.map((entry) => [entry.contentId, entry.revisionId]) ?? []);
     const report: CmsReleaseReview = { releaseId: id, fingerprint: cmsReleaseInputFingerprint(release), baseGenerationId: release.baseGenerationId,
       currentGenerationId: detail.activeGenerationId, comparisonGenerationId, stale: !historical && detail.activeGenerationId !== release.baseGenerationId,
       changes: [], checks: [], affectedPaths: [], wholeSiteAffected: false, tasks: [] };
+    if (comparisonGenerationId && !comparisonAvailable) report.checks.push({ severity: 'warning', code: 'comparison-storage', message: '比较代次存储已回收；内容修订差异仍可查看，配置差异和历史路径不再重算。', objectTitle: `部署 #${comparisonGenerationId}`, editPath: null });
     for (const message of detail.blockingChecks) if (!historical || !message.includes('公开代次已变化')) report.checks.push({ severity: release.status === 'draft' && message.includes('尚未成功构建') ? 'warning' : 'error', code: 'release', message, objectTitle: release.name, editPath: null });
-    const channels = comparisonGenerationId
+    const channels = comparisonAvailable
       ? await tx.execute<{ id: number; path: string; detailPathRule: typeof cmsChannels.$inferSelect.detailPathRule }>(sql.raw(`SELECT id,path,detail_path_rule AS "detailPathRule" FROM "${cmsGenerationSchemaName(comparisonGenerationId)}".cms_channels`))
-      : await tx.select({ id: cmsChannels.id, path: cmsChannels.path, detailPathRule: cmsChannels.detailPathRule }).from(cmsChannels).where(eq(cmsChannels.siteId, release.siteId));
+      : comparisonGenerationId ? [] : await tx.select({ id: cmsChannels.id, path: cmsChannels.path, detailPathRule: cmsChannels.detailPathRule }).from(cmsChannels).where(eq(cmsChannels.siteId, release.siteId));
     const beforeChannels = new Map(channels.map((channel) => [channel.id, channel]));
     const afterChannels = new Map(beforeChannels);
+    if (!comparisonAvailable && candidateAvailable && release.deploymentId) {
+      const candidateChannels = await tx.execute<{ id: number; path: string; detailPathRule: typeof cmsChannels.$inferSelect.detailPathRule }>(sql`select id,path,detail_path_rule as "detailPathRule" from ${sql.identifier(cmsGenerationSchemaName(release.deploymentId))}.cms_channels`);
+      for (const channel of candidateChannels) afterChannels.set(channel.id, channel);
+    }
     for (const row of release.configurationSnapshot.tables.cms_channels ?? []) afterChannels.set(Number(row.id), { id: Number(row.id), path: String(row.path), detailPathRule: row.detail_path_rule as typeof cmsChannels.$inferSelect.detailPathRule });
     const contentDates = await tx.select({ id: cmsContents.id, createdAt: cmsContents.createdAt }).from(cmsContents).where(eq(cmsContents.siteId, release.siteId));
     const dates = new Map(contentDates.map((row) => [row.id, row.createdAt]));
@@ -56,9 +64,11 @@ export async function getCmsReleaseReview(id: number): Promise<CmsReleaseReview>
       const before = beforeRevision ? (await loadCmsRevision(tx, beforeRevision)).snapshot : null;
       const after = item.revisionId ? (await loadCmsRevision(tx, item.revisionId)).snapshot : null;
       const fields = cmsReleaseFieldDiffs(before, after);
-      const [oldContent] = comparisonGenerationId ? await tx.execute<{ publishedAt: string | null }>(sql`SELECT published_at AS "publishedAt" FROM ${sql.raw(`"${cmsGenerationSchemaName(comparisonGenerationId)}".cms_contents`)} WHERE id=${item.contentId}`) : [];
-      const [candidateContent] = release.deploymentId && detail.deployment?.manifestHash ? await tx.execute<{ publishedAt: string | null }>(sql`SELECT published_at AS "publishedAt" FROM ${sql.raw(`"${cmsGenerationSchemaName(release.deploymentId)}".cms_contents`)} WHERE id=${item.contentId}`) : [];
+      const [oldContent] = comparisonAvailable ? await tx.execute<{ publishedAt: string | null }>(sql`SELECT published_at AS "publishedAt" FROM ${sql.raw(`"${cmsGenerationSchemaName(comparisonGenerationId)}".cms_contents`)} WHERE id=${item.contentId}`) : [];
+      const [candidateContent] = release.deploymentId && candidateAvailable && detail.deployment?.manifestHash ? await tx.execute<{ publishedAt: string | null }>(sql`SELECT published_at AS "publishedAt" FROM ${sql.raw(`"${cmsGenerationSchemaName(release.deploymentId)}".cms_contents`)} WHERE id=${item.contentId}`) : [];
       const paths = [before, after].flatMap((snapshot, index) => {
+        if (index === 0 && comparisonGenerationId && !comparisonAvailable) return [];
+        if (index === 1 && historical && release.deploymentId && !candidateAvailable) return [];
         const channel = snapshot ? (index === 0 ? beforeChannels : afterChannels).get(snapshot.channelId) : undefined;
         const publishedAt = index === 0 ? oldContent?.publishedAt ? new Date(oldContent.publishedAt) : null : candidateContent?.publishedAt ? new Date(candidateContent.publishedAt) : release.activateAt ?? new Date();
         return snapshot && channel ? [contentUrl('', channel, { id: item.contentId, slug: snapshot.slug ?? null, staticPath: snapshot.staticPath ?? null, publishedAt, createdAt: dates.get(item.contentId) ?? null }), channelUrl('', channel.path, 1)] : [];
@@ -77,6 +87,7 @@ export async function getCmsReleaseReview(id: number): Promise<CmsReleaseReview>
       }
     }
     for (const table of CMS_CONFIGURATION_TABLES) {
+      if (comparisonGenerationId && !comparisonAvailable) continue;
       const incoming = release.configurationSnapshot.tables[table];
       if (!incoming) continue;
       const scopeRows = (rows: Record<string, unknown>[]) => rows

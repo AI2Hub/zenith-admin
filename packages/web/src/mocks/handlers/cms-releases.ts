@@ -10,7 +10,7 @@ import { escapeHtml, stableStringify, type OutputOf } from '@zenith/shared/core'
 import { recordMockEditorialActivation } from '../utils/cms-editorial-outcomes';
 
 const releases: CmsRelease[] = [];
-const deployments: (CmsDeployment & { siteId: number; revisions: Map<number, number> })[] = [];
+const deployments: (CmsDeployment & { siteId: number; releaseId: number; createdAt: string; revisions: Map<number, number> })[] = [];
 const deploymentConfigurations = new Map<number, CmsConfigurationSnapshot>();
 const active = new Map<number, number>();
 const suppressed = new Set<number>();
@@ -88,6 +88,7 @@ function activate(id: number, expectedGenerationId: number | null, rollback = fa
   if (current !== expectedGenerationId || (!rollback && release.baseGenerationId !== current)) throw new MockHttpError(conflict('公开版本已变化，请刷新发布单', { status: 409 }));
   if (!(rollback ? ['active', 'superseded'] : ['ready', 'scheduled']).includes(release.status) || !release.deploymentId) throw new MockHttpError(conflict('候选部署尚未就绪', { status: 409 }));
   const deployment = requireItem(deployments, release.deploymentId, '部署不存在', { status: 404 });
+  if (deployment.storageState !== 'available') throw new MockHttpError(conflict('部署存储正在回收或已回收，不能回滚', { status: 409 }));
   for (const row of mockCmsContents.filter((item) => item.siteId === release.siteId)) {
     const revisionId = deployment.revisions.get(row.id);
     if (revisionId && !suppressed.has(row.id)) activateMockCmsRevision(revisionId);
@@ -133,7 +134,7 @@ function build(id: number) {
   const release = requireRelease(id);
   if (!['draft', 'failed'].includes(release.status)) throw new MockHttpError(conflict('当前状态不能构建', { status: 409 }));
   release.status = 'building';
-  const deployment = { id: nextIdFrom(deployments), siteId: release.siteId, status: 'building' as CmsDeployment['status'], manifestHash: null as string | null, artifactCount: 0, error: null, activatedAt: null, buildPlan: { version: 1 as const, phases: [] }, buildMetrics: {}, revisions: new Map<number, number>() };
+  const deployment = { storageState: 'available' as CmsDeployment['storageState'], id: nextIdFrom(deployments), siteId: release.siteId, releaseId: release.id, createdAt: mockDateTime(), status: 'building' as CmsDeployment['status'], manifestHash: null as string | null, artifactCount: 0, error: null, activatedAt: null, buildPlan: { version: 1 as const, phases: [] }, buildMetrics: {}, revisions: new Map<number, number>() };
   deployments.push(deployment); release.deploymentId = deployment.id;
   setTimeout(() => {
     if (release.status === 'cancelled') return;
@@ -201,6 +202,7 @@ export const cmsReleaseHandlers = [
     if (release && release.siteId !== body.siteId) return badRequest('发布单不属于本站', { status: 404 });
     const generationId = release?.deploymentId ?? active.get(body.siteId) ?? null;
     const deployment = deployments.find((row) => row.id === generationId);
+    if (deployment && deployment.storageState !== 'available') return conflict('部署存储正在回收或已回收，不能预览', { status: 409 });
     if (body.mode === 'online' && !deployment) return conflict('本站尚未激活线上版本，请先构建并发布站点', { status: 409 });
     if (body.mode === 'candidate' && (!deployment?.manifestHash || !release || !['ready', 'scheduled', 'active', 'superseded'].includes(release.status))) return conflict('请先完成候选构建', { status: 409 });
     const contents = mockCmsContents.filter((row) => row.siteId === body.siteId).flatMap((row) => {
@@ -267,6 +269,7 @@ export const cmsReleaseHandlers = [
     const release = requireRelease(params.id);
     const deployment = deployments.find((item) => item.id === release.deploymentId);
     if (!deployment || deployment.status === 'building') return conflict('请先完成候选构建', { status: 409 });
+    if (deployment.storageState !== 'available') return conflict('部署存储正在回收或已回收，不能预览', { status: 409 });
     const contentHtml = [...deployment.revisions.values()].map((revisionId) => {
       const row = getMockCmsRevisionContent(revisionId);
       return `<article><h2>${escapeHtml(row.title)}</h2><p>${escapeHtml(row.summary ?? '')}</p><p>${escapeHtml((row.body ?? '').replace(/<[^>]+>/g, ''))}</p></article>`;
@@ -291,6 +294,18 @@ export const cmsReleaseHandlers = [
     return ok(null);
   }),
 ];
+
+export function getMockCmsDeploymentRetentionContext(siteId: number) {
+  return { records: deployments.filter(deployment => deployment.siteId === siteId).map(deployment => ({ deployment, release: requireRelease(deployment.releaseId) })),
+    activeId: active.get(siteId) ?? null,
+    pendingBases: releases.filter(release => release.siteId === siteId && ['draft', 'building', 'ready', 'scheduled'].includes(release.status)).map(release => ({ id: release.id, base: release.baseGenerationId })),
+  };
+}
+export function purgeMockCmsDeploymentStorage(siteId: number, id: number) {
+  const deployment = requireItem(deployments, id, '部署不存在', { status: 404 });
+  if (deployment.siteId !== siteId || active.get(siteId) === id) throw new MockHttpError(conflict('不能回收当前在线部署', { status: 409 }));
+  deployment.storageState = 'purged'; deploymentConfigurations.delete(id);
+}
 
 export function resetMockCmsReleases() {
   releases.length = 0;

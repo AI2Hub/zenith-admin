@@ -1,6 +1,7 @@
 import { buildCmsTelemetryContext, findCmsRenderedMediaAsset } from './cms-telemetry-render';
 import { verifyCmsTelemetryPageToken } from './cms-telemetry-context';
 import { cmsGenerationNow } from './cms-generation-context';
+import { isCmsFrozenBuild, memoCmsBuild } from './cms-build-context';
 import { frozenCmsImageAttributes, frozenCmsMediaForUrl, renderCmsFrozenBody, cmsDurationLabel } from './cms-frozen-media';
 import { createElement, type ComponentType } from 'react';
 import { cmsModelDisplayFor } from '@zenith/shared/cms';
@@ -101,8 +102,10 @@ const MODEL_CACHE_TTL_MS = 30_000;
 
 async function getModelCode(modelId: number): Promise<string | null> {
   if (isCmsGenerationRead()) {
-    const [row] = await db.select({ code: cmsModels.code }).from(cmsModels).where(eq(cmsModels.id, modelId)).limit(1);
-    return row?.code ?? null;
+    return memoCmsBuild(`model-code:${modelId}`, async () => {
+      const [row] = await db.select({ code: cmsModels.code }).from(cmsModels).where(eq(cmsModels.id, modelId)).limit(1);
+      return row?.code ?? null;
+    });
   }
   if (!modelCodeCache || Date.now() - modelCodeCache.loadedAt > MODEL_CACHE_TTL_MS) {
     const rows = await db.select({ id: cmsModels.id, code: cmsModels.code }).from(cmsModels);
@@ -217,6 +220,16 @@ export function mergeSeo(site: CmsSiteRow, overrides: Partial<CmsSeo> & { pathFo
 }
 
 async function buildBaseContext(site: CmsSiteRow, baseUrl: string, seo: CmsSeo, analyticsContentId?: number, analyticsChannelId?: number): Promise<CmsBaseContext> {
+  if (!isCmsFrozenBuild()) return buildBaseContextUncached(site, baseUrl, seo, analyticsContentId, analyticsChannelId);
+  const common = await memoCmsBuild(`render-base:${site.id}:${baseUrl}`, () => buildBaseContextUncached(site, baseUrl, seo));
+  // Templates receive independent props; page-specific SEO and telemetry never enter the shared memo.
+  const base = structuredClone(common);
+  return { ...base, seo: await resolveCmsResourcePayload(seo, site.id),
+    telemetry: await buildCmsTelemetryContext(site, seo, analyticsContentId, undefined, analyticsChannelId),
+    analytics: base.analytics ? { ...base.analytics, ...(analyticsContentId ? { contentId: analyticsContentId } : {}) } : null };
+}
+
+async function buildBaseContextUncached(site: CmsSiteRow, baseUrl: string, seo: CmsSeo, analyticsContentId?: number, analyticsChannelId?: number): Promise<CmsBaseContext> {
   const [tree, friendLinks, friendLinkGroups, ads, langAlternates, assets, themeSlots] = await Promise.all([
     listCmsChannelTree({ siteId: site.id, status: 'enabled' }, { skipAccessCheck: true }),
     listEnabledFriendLinks(site.id, baseUrl),
@@ -445,10 +458,12 @@ function toChannelInfo(channel: CmsChannelRow, baseUrl: string): CmsChannelInfo 
 }
 
 export async function findChannelByPath(siteId: number, path: string): Promise<CmsChannelRow | null> {
+  return memoCmsBuild(`channel-path:${siteId}:${path}`, async () => {
   const [row] = await db.select().from(cmsChannels)
     .where(and(eq(cmsChannels.siteId, siteId), eq(cmsChannels.path, path), eq(cmsChannels.status, 'enabled')))
     .limit(1);
   return row && (await getEffectivelyEnabledCmsChannelIds(siteId)).has(row.id) ? row : null;
+  });
 }
 
 /** 归档目录最多占 3 段（date 规则的 年/月/日） */

@@ -3,13 +3,28 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { CMS_STATIC_ROOT, isStrictlyWithin, pathToStaticFile } from './cms-static-path';
 import { signCmsTelemetryPage, verifyCmsTelemetryPageToken } from './cms-telemetry-context';
+import { memoCmsBuild } from './cms-build-context';
 
 export interface CmsBuildArtifact { path: string; checksum: string; size: number }
 export interface CmsBuildTarget { key: string; fingerprint: string; artifacts: CmsBuildArtifact[] }
 export interface CmsBuildContentDependencies { collections: string; details: ReadonlyMap<number, string> }
 
+/** Compare checkpoints with the freshly re-read manifest; no second read of every file is needed. */
+export function cmsBuildTargetMatchesManifest(target: CmsBuildTarget, manifest: ReadonlyMap<string, CmsBuildArtifact>): boolean {
+  return target.artifacts.every(expected => {
+    const actual = manifest.get(expected.path);
+    return actual?.checksum === expected.checksum && actual.size === expected.size;
+  });
+}
+
 export function cmsBuildDigest(value: unknown): string {
   return createHash('sha256').update(JSON.stringify(value)).digest('hex');
+}
+
+/** Reuse mkdir work only. Symlink and containment validation still runs on every artifact access. */
+export function ensureCmsBuildArtifactDirectory(filename: string): Promise<void> {
+  const directory = path.dirname(filename);
+  return memoCmsBuild(`artifact-directory:${directory}`, async () => { await fs.mkdir(directory, { recursive: true }); });
 }
 
 /** Changes outside an independent page invalidate all pages, including navigation and collections. */
@@ -74,7 +89,7 @@ export async function reuseCmsBuildTarget(input: { siteCode: string; sourceGener
     if (bytes.length !== artifact.size || createHash('sha256').update(bytes).digest('hex') !== artifact.checksum) return null;
     if (artifact.path.endsWith('.html')) bytes = Buffer.from(rebindCmsArtifactAttribution(bytes.toString('utf8'), input.releaseId, input.generationId));
     const destination = await cmsBuildArtifactFile(input.siteCode, input.generationId, artifact.path, input.root);
-    await fs.mkdir(path.dirname(destination), { recursive: true });
+    await ensureCmsBuildArtifactDirectory(destination);
     const temporary = `${destination}.${randomUUID()}.tmp`;
     try {
       await fs.writeFile(temporary, bytes);

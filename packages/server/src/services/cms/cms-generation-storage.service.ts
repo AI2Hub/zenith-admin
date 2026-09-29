@@ -4,13 +4,14 @@ import path from 'node:path';
 import { eq, sql } from 'drizzle-orm';
 import { db, withDbExecutor } from '../../db';
 import type { DbTransaction } from '../../db/types';
-import { cmsDeployments, cmsSiteGenerations, type CmsDeploymentSnapshot } from '../../db/schema';
+import { cmsDeploymentStorage, cmsSiteGenerations, type CmsDeploymentSnapshot } from '../../db/schema';
 import { cmsGenerationContext, withCmsGenerationContext } from './cms-generation-context';
 import { CMS_STATIC_ROOT, isStrictlyWithin } from './cms-static-path';
 import { canonicalCmsJson } from './cms-content-revisions.service';
 import type { CmsConfigurationSnapshot } from '@zenith/shared/cms';
 import { CMS_PUBLIC_SITE_SETTINGS, CMS_CONFIGURATION_TABLES } from './cms-public-settings';
 import { cmsBuildArtifactFile } from './cms-release-build-artifacts';
+import { assertCmsDeploymentStorageAvailable } from './cms-deployment-storage-state';
 
 /** Only publication definitions are copied. Sessions, permissions, submissions and telemetry remain live. */
 const SITE_TABLES = [
@@ -34,6 +35,8 @@ function identifier(value: string): string {
 
 /** All identifiers come from a closed list or a server-generated positive database id. */
 export async function createCmsGenerationStorage(tx: DbTransaction, siteId: number, generationId: number, baseGenerationId?: number | null, configuration: CmsConfigurationSnapshot = { tables: {}, replaceAll: [] }): Promise<void> {
+  await assertCmsDeploymentStorageAvailable(tx, generationId);
+  if (baseGenerationId) await assertCmsDeploymentStorageAvailable(tx, baseGenerationId);
   const schema = identifier(cmsGenerationSchemaName(generationId));
   await tx.execute(sql.raw(`CREATE SCHEMA ${schema}`));
   for (const table of CMS_GENERATION_TABLES) {
@@ -81,12 +84,16 @@ export async function createCmsGenerationStorage(tx: DbTransaction, siteId: numb
       await tx.execute(sql.raw(`CREATE VIEW ${schema}.cms_sites AS SELECT ${projection} FROM ${schema}.cms_site_projection p`));
     }
   }
+  const [directoryOwner] = await tx.execute<{ code: string }>(sql`select code from ${sql.raw(schema)}.cms_site_projection where id=${siteId}`);
+  if (!directoryOwner?.code) throw new Error('公开站点快照缺少静态目录标识');
+  await tx.insert(cmsDeploymentStorage).values({ deploymentId: generationId, siteCode: directoryOwner.code }).onConflictDoUpdate({ target: cmsDeploymentStorage.deploymentId, set: { siteCode: sql`coalesce(${cmsDeploymentStorage.siteCode},excluded.site_code)`, updatedAt: new Date() } });
 }
 
 export async function withCmsGenerationTransaction<T>(
   siteId: number, generationId: number, candidate: boolean, fn: (tx: DbTransaction) => Promise<T>,
 ): Promise<T> {
   return db.transaction(async (tx) => {
+    await assertCmsDeploymentStorageAvailable(tx, generationId);
     await tx.execute(sql`select set_config('search_path', ${`${cmsGenerationSchemaName(generationId)},public`}, true)`);
     await tx.execute(sql`select set_config('cms.preview', ${candidate ? 'true' : 'false'}, true)`);
     await tx.execute(sql`select set_config('statement_timeout', '60000', true)`);
@@ -202,12 +209,4 @@ export async function verifyCmsGenerationArtifacts(generationId: number, snapsho
   if (!snapshot.siteCode || !snapshot.artifacts?.length) throw new Error('部署缺少完整产物清单');
   const actual = await collectCmsGenerationArtifacts(snapshot.siteCode, generationId);
   if (canonicalCmsJson(actual) !== canonicalCmsJson(snapshot.artifacts)) throw new Error('部署产物缺失或校验和变化，拒绝激活');
-}
-
-export async function dropFailedCmsGenerationStorage(generationId: number): Promise<void> {
-  const [deployment] = await db.select().from(cmsDeployments).where(eq(cmsDeployments.id, generationId)).limit(1);
-  if (!deployment || deployment.status !== 'failed') return;
-  const [active] = await db.select().from(cmsSiteGenerations).where(eq(cmsSiteGenerations.activeGenerationId, generationId)).limit(1);
-  if (active) throw new Error('Cannot remove an active CMS generation');
-  await db.execute(sql.raw(`DROP SCHEMA IF EXISTS ${identifier(cmsGenerationSchemaName(generationId))} CASCADE`));
 }

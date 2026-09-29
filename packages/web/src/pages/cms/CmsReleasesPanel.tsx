@@ -119,15 +119,15 @@ export default function CmsReleasesPanel() {
         {detail.data.error ? <Banner type="danger" description={detail.data.error} /> : null}
         <CmsDeploymentProgress deployment={detail.data.deployment} siteId={detail.data.siteId} />
         {detail.data.blockingChecks.map((message) => <Banner key={message} type="warning" description={message} />)}
-        <CmsReleaseReviewPanel releaseId={detail.data.id} onRecreated={setDetailId} onPreview={(path) => { setPreviewPath(path); setPreviewOpen(true); }} />
+        <CmsReleaseReviewPanel canPreview={detail.data.deployment?.storageState === 'available' && !!detail.data.deployment.manifestHash} releaseId={detail.data.id} onRecreated={setDetailId} onPreview={(path) => { setPreviewPath(path); setPreviewOpen(true); }} />
         <Typography.Title heading={6}>已冻结的变更范围</Typography.Title>
         {detail.data.items.length ? detail.data.items.map((item) => <Space key={item.contentId} wrap><Tag color={item.action === 'withdraw' ? 'red' : 'blue'}>{item.action === 'withdraw' ? '撤下' : '发布'}</Tag><Typography.Text>{item.title}</Typography.Text>{item.revisionId ? <Typography.Text type="tertiary">固定修订 #{item.revisionId}</Typography.Text> : null}</Space>) : <Typography.Text type="tertiary">重建本站当前公开集合</Typography.Text>}
         {detail.data.configurationItems.map((item) => <Space key={`${item.kind}-${item.id}`} wrap><Tag>{item.kind === 'page' ? '页面' : item.kind === 'widget' ? '部件' : '站点配置'}</Tag><Typography.Text>{item.title}</Typography.Text></Space>)}
         <Space wrap>
           {canBuild && ['draft', 'failed'].includes(detail.data.status) ? <Button loading={build.isPending} onClick={() => void build.mutateAsync({ params: { id: detail.data!.id } })}>构建候选部署</Button> : null}
-          {detail.data.deployment?.manifestHash ? <Button onClick={() => setPreviewOpen(true)}>预览固定部署</Button> : null}
+          {detail.data.deployment?.manifestHash ? <Button disabled={detail.data.deployment.storageState !== 'available'} onClick={() => setPreviewOpen(true)}>预览固定部署</Button> : null}
           {canManage && ['ready', 'scheduled'].includes(detail.data.status) ? <Button type="primary" loading={activate.isPending} disabled={detail.data.blockingChecks.length > 0} onClick={() => confirmDanger({ title: '激活该发布单？', content: '源站将切换到该部署的固定公开集合。', onOk: () => activate.mutateAsync({ params: { id: detail.data!.id }, body: { expectedGenerationId: detail.data!.activeGenerationId } }) })}>激活到源站</Button> : null}
-          {canManage && detail.data.status === 'superseded' ? <Button type="warning" loading={rollback.isPending} onClick={() => confirmDanger({ title: '恢复这个历史部署？', content: '系统将重新校验当前撤权和紧急门禁并保留激活记录。', onOk: () => rollback.mutateAsync({ params: { id: detail.data!.id }, body: { expectedGenerationId: detail.data!.activeGenerationId } }) })}>回滚到此部署</Button> : null}
+          {canManage && detail.data.status === 'superseded' ? <Button type="warning" loading={rollback.isPending} disabled={detail.data.deployment?.storageState !== 'available'} onClick={() => confirmDanger({ title: '恢复这个历史部署？', content: '系统将重新校验当前撤权和紧急门禁并保留激活记录。', onOk: () => rollback.mutateAsync({ params: { id: detail.data!.id }, body: { expectedGenerationId: detail.data!.activeGenerationId } }) })}>回滚到此部署</Button> : null}
         </Space>
         {detail.data.activations.map((entry) => <Typography.Text key={entry.id} type="secondary">{entry.createdAt} · {entry.operatorName} · {entry.action === 'rollback' ? '回滚' : '激活'} · {entry.fromGenerationId ?? '初始'} → {entry.toGenerationId}</Typography.Text>)}
       </Space> : <Typography.Text>正在加载…</Typography.Text>}

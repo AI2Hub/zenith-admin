@@ -7,6 +7,7 @@ vi.mock('./cms-generation-storage.service', async (original) => ({
   ...await original<typeof import('./cms-generation-storage.service')>(),
   verifyCmsGenerationArtifacts: mocks.verifyArtifacts,
 }));
+vi.mock('./cms-deployment-storage-state', () => ({ assertCmsDeploymentStorageAvailable: vi.fn() }));
 import { buildCmsReleaseCandidate } from './cms-release-build.service';
 
 describe('CMS completed candidate task progress', () => {

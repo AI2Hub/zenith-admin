@@ -14,6 +14,8 @@ import { escapeRegExp } from '@zenith/shared/core';
 import type { CmsLinkResolver } from './cms-link.service';
 import { refreshCmsPublicConfiguration } from './cms-public-config-refresh.service';
 import { pickEntity } from '../../lib/entity-map';
+import { memoCmsBuild } from './cms-build-context';
+import { isCmsGenerationRead } from './cms-generation-context';
 
 // ─── 渲染缓存 ─────────────────────────────────────────────────────────────────
 let wordCache: { bySite: Map<number, CmsLinkWordRow[]>; loadedAt: number } | null = null;
@@ -25,6 +27,8 @@ export function invalidateLinkWordCache() {
 
 /** 站点启用的内链词（长词优先，避免短词抢占长词的子串） */
 export async function getEnabledLinkWords(siteId: number): Promise<CmsLinkWordRow[]> {
+  if (isCmsGenerationRead()) return memoCmsBuild(`link-words:${siteId}`, async () => (await db.select().from(cmsLinkWords).where(eq(cmsLinkWords.siteId, siteId)))
+    .filter(row => row.status === 'enabled' && isValidCmsLink(row.url)).sort((a, b) => b.keyword.length - a.keyword.length));
   if (!wordCache || Date.now() - wordCache.loadedAt >= CACHE_TTL_MS) {
     const rows = (await db.select().from(cmsLinkWords).where(eq(cmsLinkWords.status, 'enabled')))
       .filter((row) => isValidCmsLink(row.url));

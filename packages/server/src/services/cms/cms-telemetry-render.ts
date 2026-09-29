@@ -6,6 +6,7 @@ import { cmsAssetVersions, cmsResources, cmsChannels, cmsContents, cmsContentWor
 import type { CmsSeo } from '../../cms/themes/types';
 import { cmsGenerationContext } from './cms-generation-context';
 import { cmsTelemetryEnvironment, signCmsTelemetryPage } from './cms-telemetry-context';
+import { memoCmsBuild } from './cms-build-context';
 
 const revisionsByGeneration = new Map<number, ReadonlyMap<number, number>>();
 async function generationRevision(generationId: number, contentId: number): Promise<number | null> {
@@ -40,7 +41,7 @@ export async function buildCmsTelemetryContext(site: CmsSiteRow, seo: CmsSeo, co
   const siteKey = site.settings?.analyticsSiteKey;
   if (!settings?.enabled || settings.schemaVersion !== 2 || typeof siteKey !== 'string') return null;
   const generation = cmsGenerationContext();
-  const [deployment] = generation ? await db.select({ releaseId: cmsDeployments.releaseId }).from(cmsDeployments).where(eq(cmsDeployments.id, generation.generationId)).limit(1) : [];
+  const [deployment] = generation ? await memoCmsBuild(`telemetry-deployment:${generation.generationId}`, () => db.select({ releaseId: cmsDeployments.releaseId }).from(cmsDeployments).where(eq(cmsDeployments.id, generation.generationId)).limit(1).then(rows => rows)) : [];
   const [content] = contentId ? await db.select({ id: cmsContents.id, title: cmsContents.title, contentType: cmsContents.contentType, author: cmsContents.author, channelId: cmsContents.channelId, channelName: cmsChannels.name })
     .from(cmsContents).leftJoin(cmsChannels, eq(cmsChannels.id, cmsContents.channelId)).where(and(eq(cmsContents.id, contentId), eq(cmsContents.siteId, site.id))).limit(1) : [];
   let revisionId: number | null = null;

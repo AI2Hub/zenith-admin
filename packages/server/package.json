@@ -6,7 +6,7 @@
 	"scripts": {
 		"dev": "node scripts/dev.mjs",
 		"dev:split": "node scripts/dev.mjs --split",
-		"build": "tsc && tsc-alias --resolve-full-paths && node scripts/copy-theme-assets.mjs && node scripts/build-islands.mjs && node scripts/build-pdf-font.mjs",
+		"build": "tsc && tsc-alias --resolve-full-paths && node scripts/copy-theme-assets.mjs && node scripts/build-islands.mjs && node scripts/write-cms-render-fingerprint.mjs && node scripts/build-pdf-font.mjs",
 		"build:pdf-font": "node scripts/build-pdf-font.mjs",
 		"package": "node scripts/package-server.mjs",
 		"start": "node dist/index.js",

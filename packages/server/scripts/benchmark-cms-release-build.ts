@@ -2,6 +2,8 @@
  * Real builder baseline. Requires a migrated disposable local zenith_review database.
  * TEST_DATABASE_URL=... npx tsx --tsconfig packages/server/tsconfig.json packages/server/scripts/benchmark-cms-release-build.ts --output C:/tmp/cms-build.json
  * Calls the production candidate builder directly: queue latency is explicitly excluded.
+ * Optional --counts 1000,10000 --concurrency 4; defaults run both capacity sizes.
+ * Forced-full parity uses one renderer connection to compare serial/full against parallel/incremental output.
  * All fixture rows, generation schemas and static files are removed, including on failure.
  */
 import '../src/lib/fatal-handlers';
@@ -19,6 +21,12 @@ const database = new URL(connection);
 if (!['localhost', '127.0.0.1', '[::1]'].includes(database.hostname) || database.pathname !== '/zenith_review') throw new Error('Only a local disposable zenith_review database is accepted');
 const outputIndex = process.argv.indexOf('--output');
 const output = outputIndex < 0 ? null : process.argv[outputIndex + 1];
+const countsIndex = process.argv.indexOf('--counts');
+const counts = countsIndex < 0 ? [1000, 10000] : process.argv[countsIndex + 1]?.split(',').map(Number);
+if (!counts?.length || counts.some(count => !Number.isSafeInteger(count) || count < 1 || count > 10000)) throw new Error('--counts requires comma-separated article counts from 1 to 10000');
+const concurrencyIndex = process.argv.indexOf('--concurrency');
+const concurrency = concurrencyIndex < 0 ? 4 : Number(process.argv[concurrencyIndex + 1]);
+if (!Number.isInteger(concurrency) || concurrency < 1 || concurrency > 4) throw new Error('--concurrency must be from 1 to 4');
 if (outputIndex >= 0 && (!output || !path.isAbsolute(output) || !path.relative(process.cwd(), output).startsWith('..'))) throw new Error('--output must be an absolute path outside the repository');
 if (output) await fs.mkdir(path.dirname(output), { recursive: true });
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'cms-real-build-baseline-'));
@@ -54,7 +62,7 @@ try {
   const [user] = await db.insert(schema.users).values({ username: `qa-cms-scale-${randomUUID().slice(0, 8)}`, nickname: 'CMS scale benchmark', password: 'not-a-login-password' }).returning();
   userId = user.id;
   await runWithCurrentUser({ userId: user.id, username: user.username, roles: ['super_admin'], tenantId: null }, async () => {
-    for (const count of [1000, 10000]) {
+    for (const count of counts) {
       const [site] = await db.insert(schema.cmsSites).values({ name: `CMS scale ${count}`, code: `qa-scale-${count}-${randomUUID().slice(0, 8)}`, theme: 'default', staticMode: 'static', settings: {} }).returning();
       sites.push(site.id);
       const [channel] = await db.insert(schema.cmsChannels).values({ siteId: site.id, name: 'News', code: 'news', slug: 'news', path: 'news', pageSize: 50 }).returning();
@@ -96,17 +104,18 @@ try {
           const [owned] = await tx.select({ id: schema.cmsReleases.id }).from(schema.cmsReleases).where(and(eq(schema.cmsReleases.id, candidate.release.id), eq(schema.cmsReleases.deploymentId, candidate.deployment.id), eq(schema.cmsReleases.status, 'building'))).limit(1);
           if (!owned) throw new Error('Benchmark candidate lost ownership');
         };
-        try { await buildCmsReleaseCandidate(candidate.release, candidate.deployment, ctx, guard, { forceFull }); }
+        const buildOptions = { forceFull, concurrency: forceFull ? 1 : concurrency };
+        try { await buildCmsReleaseCandidate(candidate.release, candidate.deployment, ctx, guard, buildOptions); }
         catch (error) {
           if (!interrupted || !(error instanceof Error) || error.message !== 'injected benchmark interruption') throw error;
           ctx.attempt = 2;
           const [resumed] = await db.select().from(schema.cmsDeployments).where(eq(schema.cmsDeployments.id, candidate.deployment.id));
-          await buildCmsReleaseCandidate(candidate.release, resumed, ctx, guard);
+          await buildCmsReleaseCandidate(candidate.release, resumed, ctx, guard, { concurrency });
         }
         phaseMs[lastPhase] = (phaseMs[lastPhase] ?? 0) + performance.now() - lastMark;
         const [finished] = await db.select().from(schema.cmsDeployments).where(eq(schema.cmsDeployments.id, candidate.deployment.id));
         if (finished.status !== 'ready') throw new Error('Builder did not produce a ready candidate');
-        const measurement = { articles: count, kind, invocation: 'direct-production-builder; queue and task-runner excluded', elapsedMs: Math.round(performance.now() - started), phaseMs: Object.fromEntries(Object.entries(phaseMs).map(([key, value]) => [key, Math.round(value)])), artifactBytes: finished.snapshot?.artifacts?.reduce((sum, artifact) => sum + artifact.size, 0) ?? 0, artifactCount: finished.artifactCount, metrics: finished.buildMetrics, processPeakRssMb: Math.ceil(process.resourceUsage().maxRSS / 1024), interrupted, ready: finished.status === 'ready' };
+        const measurement = { articles: count, kind, invocation: 'direct-production-builder; queue and task-runner excluded', concurrency: finished.buildMetrics.performance?.concurrency, elapsedMs: Math.round(performance.now() - started), phaseMs: Object.fromEntries(Object.entries(phaseMs).map(([key, value]) => [key, Math.round(value)])), artifactBytes: finished.snapshot?.artifacts?.reduce((sum, artifact) => sum + artifact.size, 0) ?? 0, artifactCount: finished.artifactCount, metrics: finished.buildMetrics, processPeakRssMb: Math.ceil(process.resourceUsage().maxRSS / 1024), interrupted, ready: finished.status === 'ready' };
         results.push(measurement);
         if (output) await fs.writeFile(output, JSON.stringify({ measuredAt: new Date().toISOString(), scope: 'real candidate builder; no activation; no queue latency', status: 'in-progress', results }, null, 2) + '\n');
         process.stderr.write(`${count} ${kind} completed in ${measurement.elapsedMs}ms\n`);
@@ -134,7 +143,7 @@ try {
         await fs.mkdir(path.dirname(destination), { recursive: true });
         await fs.copyFile(await cmsBuildArtifactFile(site.code, incremental.id, artifact.path), destination);
       }
-      const forced = await measure('same-frozen-input-forced-full', { ...bodyCandidate, deployment: incremental }, undefined, true);
+      const forced = await measure('same-frozen-input-forced-full-serial', { ...bodyCandidate, deployment: incremental }, undefined, true);
       const differences = forced.snapshot!.artifacts!.filter((artifact) => expectedArtifacts.get(artifact.path) !== artifact.checksum).map((artifact) => artifact.path);
       for (const artifact of forced.snapshot!.artifacts!) {
         if (!expectedArtifacts.has(artifact.path)) continue;

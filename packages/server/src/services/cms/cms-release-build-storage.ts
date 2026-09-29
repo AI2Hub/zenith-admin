@@ -1,9 +1,6 @@
-import { createHash } from 'node:crypto';
-import fs from 'node:fs/promises';
-import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { sql } from 'drizzle-orm';
-import { db, withDbExecutor } from '../../db';
+import { db, withDbExecutor, withoutDbExecutor } from '../../db';
 import type { DbTransaction } from '../../db/types';
 import { cmsGenerationSchemaName, CMS_GENERATION_TABLES } from './cms-generation-storage.service';
 import { withCmsGenerationContext } from './cms-generation-context';
@@ -11,6 +8,7 @@ import { cmsBuildDigest, type CmsBuildTarget, type CmsBuildContentDependencies }
 import { canonicalCmsJson } from './cms-content-revisions.service';
 import { resolveCmsThemeSlotsForRender } from './cms-widgets.service';
 import { resolveEffectiveCmsSiteRow } from './cms-site-inheritance.service';
+import { cmsRenderRuntimeHashFromEntry } from './cms-render-runtime';
 
 const RENDER_RUNTIME_TABLES = ['cms_comments', 'cms_ad_slots', 'cms_ads', 'cms_forms', 'cms_interactions', 'cms_interaction_questions', 'cms_asset_rights', 'dicts', 'dict_items'] as const;
 export function cmsBuildSchema(id: number): string { return `${cmsGenerationSchemaName(id)}_build`; }
@@ -50,6 +48,14 @@ export async function withCmsBuildTransaction<T>(siteId: number, generationId: n
   }, { isolationLevel });
 }
 
+/** The coordinator owns the build lock; each parallel target gets a separate frozen read connection. */
+export async function withCmsBuildReadTransaction<T>(siteId: number, generationId: number, buildAt: Date, fn: () => Promise<T>): Promise<T> {
+  return withoutDbExecutor(() => db.transaction(async tx => {
+    await tx.execute(sql`select set_config('search_path', ${`${cmsBuildSchema(generationId)},${cmsGenerationSchemaName(generationId)},public`}, true), set_config('cms.preview','true',true), set_config('statement_timeout','60000',true)`);
+    return withDbExecutor(tx, () => withCmsGenerationContext({ siteId, generationId, candidate: true, buildAt }, fn));
+  }, { isolationLevel: 'repeatable read', accessMode: 'read only' }));
+}
+
 export async function loadCmsBuildTargets(generationId: number): Promise<Map<string, CmsBuildTarget>> {
   const schema = cmsGenerationSchemaName(generationId);
   const exists = await db.execute<{ present: string | null }>(sql`SELECT to_regclass(${`${schema}.cms_build_targets`})::text AS present`);
@@ -59,29 +65,18 @@ export async function loadCmsBuildTargets(generationId: number): Promise<Map<str
 }
 
 export async function saveCmsBuildTarget(tx: DbTransaction, generationId: number, target: CmsBuildTarget): Promise<void> {
+  return saveCmsBuildTargets(tx, generationId, [target]);
+}
+export async function saveCmsBuildTargets(tx: DbTransaction, generationId: number, targets: readonly CmsBuildTarget[]): Promise<void> {
+  if (!targets.length) return;
   const schema = cmsGenerationSchemaName(generationId);
-  await tx.execute(sql`INSERT INTO ${sql.raw(`"${schema}".cms_build_targets`)} (key,fingerprint,artifacts) VALUES (${target.key},${target.fingerprint},${JSON.stringify(target.artifacts)}::jsonb)
+  await tx.execute(sql`INSERT INTO ${sql.raw(`"${schema}".cms_build_targets`)} (key,fingerprint,artifacts) VALUES ${sql.join(targets.map(target => sql`(${target.key},${target.fingerprint},${JSON.stringify(target.artifacts)}::jsonb)`), sql`,`)}
     ON CONFLICT (key) DO UPDATE SET fingerprint=excluded.fingerprint,artifacts=excluded.artifacts,completed_at=now()`);
 }
 
-/** Include the running renderer and themes, both in source execution and a bundled production entrypoint. */
+/** Hash renderer modules and themes, without invalidating every page for unrelated backend changes. */
 export async function cmsBuildRuntimeHash(): Promise<string> {
-  const entry = fileURLToPath(import.meta.url);
-  const hash = createHash('sha256');
-  const walk = async (directory: string): Promise<void> => {
-    const entries = await fs.readdir(directory, { withFileTypes: true });
-    for (const item of entries.sort((a, b) => a.name.localeCompare(b.name))) {
-      if (item.isSymbolicLink() || item.name === 'node_modules' || item.name.startsWith('.')) continue;
-      const filename = path.join(directory, item.name);
-      if (item.isDirectory()) await walk(filename);
-      else if (/\.(?:ts|tsx|js|mjs|css|json)$/.test(item.name) && !/\.test\./.test(item.name)) hash.update(filename).update(await fs.readFile(filename));
-    }
-  };
-  if (['cms-release-build-storage.ts', 'cms-release-build-storage.js'].includes(path.basename(entry))) {
-    await walk(path.dirname(entry));
-    await walk(path.resolve(path.dirname(entry), '../../cms'));
-  } else hash.update(await fs.readFile(entry));
-  return hash.digest('hex');
+  return cmsRenderRuntimeHashFromEntry(fileURLToPath(import.meta.url));
 }
 
 /** Broad dependency closure is intentional: home, menus, collections, related links and media cross pages. */

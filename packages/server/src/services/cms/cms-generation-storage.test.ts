@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { DbTransaction } from '../../db/types';
 const mocks = vi.hoisted(() => ({ transaction: vi.fn(), execute: vi.fn() }));
 vi.mock('../../db', () => ({ db: { transaction: mocks.transaction, execute: mocks.execute }, withDbExecutor: (_tx: unknown, fn: () => unknown) => fn() }));
+vi.mock('./cms-deployment-storage-state', () => ({ assertCmsDeploymentStorageAvailable: vi.fn(async () => undefined) }));
 import { cmsGenerationContext } from './cms-generation-context';
 import { cmsGenerationSchemaName, hashCmsDeploymentManifest, withCmsGenerationTransaction, withCmsPublicGeneration } from './cms-generation-storage.service';
 

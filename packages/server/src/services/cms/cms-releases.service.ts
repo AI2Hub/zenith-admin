@@ -5,7 +5,8 @@ import { HTTPException } from 'hono/http-exception';
 import { cmsDeploymentSchema, cmsReleaseActivationSchema, cmsReleaseContract, cmsReleaseSchema, type CreateCmsReleaseInput, type CmsRelease } from '@zenith/shared/cms';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { db } from '../../db';
-import { asyncTasks, cmsContents, cmsContentSuppressions, cmsContentWorkingCopies, cmsDeployments, cmsReleases, cmsReleaseActivations, cmsSiteGenerations, type CmsReleaseRow } from '../../db/schema';
+import { asyncTasks, cmsContents, cmsContentSuppressions, cmsContentWorkingCopies, cmsDeployments, cmsDeploymentStorage, cmsReleases, cmsReleaseActivations, cmsSiteGenerations, type CmsReleaseRow } from '../../db/schema';
+import { assertCmsDeploymentStorageAvailable } from './cms-deployment-storage-state';
 import type { DbTransaction } from '../../db/types';
 import { requireRow } from '../../lib/db-assert';
 import { entityMapper } from '../../lib/entity-map';
@@ -70,16 +71,19 @@ export async function getCmsReleaseDetail(id: number) {
   const [deployment] = release.deploymentId
     ? await db.select().from(cmsDeployments).where(eq(cmsDeployments.id, release.deploymentId)).limit(1) : [];
   const activeGenerationId = await activeGeneration(release.siteId);
+  const [storage] = deployment ? await db.select({ state: cmsDeploymentStorage.storageState }).from(cmsDeploymentStorage).where(eq(cmsDeploymentStorage.deploymentId, deployment.id)).limit(1) : [];
   const blockingChecks: string[] = [];
   if (release.status !== 'active' && activeGenerationId !== release.baseGenerationId) blockingChecks.push('当前公开代次已变化，请创建基于最新代次的发布单');
   if (!deployment || !['ready', 'active', 'retired'].includes(deployment.status)) blockingChecks.push('候选部署尚未成功构建');
   if (release.error) blockingChecks.push(release.error);
+  if (storage && storage.state !== 'available') blockingChecks.push(storage.state === 'purged' ? '部署存储已回收，不能预览或回滚' : '部署存储正在回收，不能预览或回滚');
   const activations = await db.select().from(cmsReleaseActivations).where(eq(cmsReleaseActivations.releaseId, id)).orderBy(desc(cmsReleaseActivations.id)).limit(100);
-  return { ...mapRelease(release), deployment: deployment ? mapDeployment(deployment) : null, activeGenerationId, blockingChecks, activations: activations.map(entityMapper(cmsReleaseActivationSchema)) };
+  return { ...mapRelease(release), deployment: deployment ? mapDeployment({ ...deployment, storageState: storage?.state ?? 'available' }) : null, activeGenerationId, blockingChecks, activations: activations.map(entityMapper(cmsReleaseActivationSchema)) };
 }
 export async function previewCmsRelease(id: number, path: string) {
   const release = await requireRelease(id);
   if (!release.deploymentId || !['ready', 'scheduled', 'active', 'superseded'].includes(release.status)) throw new HTTPException(409, { message: '请先成功构建候选部署再预览' });
+  await assertCmsDeploymentStorageAvailable(db, release.deploymentId);
   if (!path.startsWith('/') || path.startsWith('//') || path.includes('\\') || path.split('/').some((segment) => segment === '..' || segment === '.')) throw new HTTPException(400, { message: '预览仅支持当前站点路径' });
   return withCmsGenerationTransaction(release.siteId, release.deploymentId, true, async () => {
     const site = await resolveEffectiveCmsSiteRow(release.siteId);
@@ -152,6 +156,7 @@ export async function buildCmsRelease(id: number): Promise<CmsRelease> {
       if (!canAdvance) throw new HTTPException(409, { message: '发布基代已变化，请新建发布单' });
       [locked] = await tx.update(cmsReleases).set({ baseGenerationId: currentGenerationId }).where(eq(cmsReleases.id, id)).returning();
     }
+    if (locked.baseGenerationId) await assertCmsDeploymentStorageAvailable(tx, locked.baseGenerationId);
     const [deployment] = await tx.insert(cmsDeployments).values({ siteId: locked.siteId, releaseId: id, buildPlan: newCmsDeploymentBuildPlan() }).returning();
     const [updated] = await tx.update(cmsReleases).set({ status: 'building', deploymentId: deployment.id, error: null }).where(eq(cmsReleases.id, id)).returning();
     const task = await persistAsyncTask(tx, { taskType: RELEASE_BUILD_TASK, title: `CMS 发布单：${locked.name}`, tenantId: null, payload: { siteId: locked.siteId, releaseId: id, deploymentId: deployment.id }, idempotencyKey: `cms-release:${id}:deployment:${deployment.id}` });
@@ -218,6 +223,7 @@ export async function activateCmsRelease(id: number, expectedGenerationId: numbe
   if (!await hasPermission('cms:publish:manage') && (rollback || release.configurationItems.length > 0 || !await hasPermission('cms:content:publish'))) throw new HTTPException(403, { message: '发布单激活权限已失效' });
   const [preparedDeployment] = release.deploymentId ? await db.select().from(cmsDeployments).where(eq(cmsDeployments.id, release.deploymentId)).limit(1) : [];
   if (!preparedDeployment?.snapshot) throw new HTTPException(409, { message: '候选部署尚未完成' });
+  await assertCmsDeploymentStorageAvailable(db, preparedDeployment.id);
   if (rollback) {
     const currentId = await activeGeneration(release.siteId);
     const [currentDeployment] = currentId ? await db.select().from(cmsDeployments).where(eq(cmsDeployments.id, currentId)).limit(1) : [];
@@ -228,6 +234,7 @@ export async function activateCmsRelease(id: number, expectedGenerationId: numbe
   await verifyCmsGenerationArtifacts(preparedDeployment.id, preparedDeployment.snapshot);
   const result = await db.transaction(async (tx) => {
     await acquireCmsSitePublishLock(tx, release.siteId);
+    await assertCmsDeploymentStorageAvailable(tx, preparedDeployment.id);
     if (execution) {
       const run = await lockCurrentReleaseExecution(tx, execution);
       if (!run || run.cancelRequested) throw new HTTPException(409, { message: '发布执行轮次已失效或已取消' });

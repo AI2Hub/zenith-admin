@@ -760,3 +760,6 @@ export const CMS_CONTENT_REVIEW_ISSUE_KINDS = ['review_due','validity_expired','
 export const CMS_CONTENT_REVIEW_ISSUE_LABELS = { review_due:'复核到期',validity_expired:'资料已失效',validity_expiring:'资料即将失效',asset_revoked:'素材已撤权',asset_expired:'素材授权已到期',asset_expiring:'素材授权临近到期',broken_link:'失效链接' } as const;
 
 export const CMS_EDITORIAL_TASK_HISTORY_ACTION_LABELS: Record<string, string> = { baseline: '建立追踪基准', created: '创建事项', updated: '更新事项', edit_completed: '完成编辑', activated: '实际发布上线', observing: '开始观察', observation: '更新观察证据', verified: '确认复盘验证', reopened: '开启新一轮', cancelled: '取消处理', interrupted: '观察中断', review_confirmed: '确认定期复核' };
+
+export const CMS_DEPLOYMENT_STORAGE_STATES = ['available', 'purging', 'purged'] as const;
+export const CMS_DEPLOYMENT_STORAGE_LABELS = { available: '已保留', purging: '回收中', purged: '已回收' };

@@ -5,9 +5,11 @@ import type { QueryOf } from '@zenith/shared/core';
 import { contractKey, useApiMutation, useApiQuery } from '@/lib/contract-query';
 import { invalidateAfterCmsContentChange } from './cms-contents';
 import { invalidateCmsPublishingViews } from './cms-stage3';
+import { invalidateCmsDeploymentRetention } from './cms-deployment-retention';
 
 export const cmsReleaseKeys = { lists: contractKey(cmsReleaseContract.list), details: contractKey(cmsReleaseContract.detail) };
 export function invalidateCmsReleases(qc: QueryClient) {
+  invalidateCmsDeploymentRetention(qc);
   void qc.invalidateQueries({ queryKey: cmsReleaseKeys.lists });
   void qc.invalidateQueries({ queryKey: cmsReleaseKeys.details });
   void qc.invalidateQueries({ queryKey: contractKey(cmsReleaseContract.review) });

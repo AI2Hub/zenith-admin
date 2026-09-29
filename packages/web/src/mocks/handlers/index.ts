@@ -61,6 +61,7 @@ import { cmsEditorialHandlers } from './cms-editorial';
 import { cmsMediaHandlers } from './cms-media';
 import { cmsOperationsHandlers } from './cms-operations';
 import { cmsContentReviewHandlers } from './cms-reviews';
+import { cmsDeploymentRetentionHandlers } from './cms-deployment-retention';
 import { cmsBlueprintHandlers } from './cms-blueprints';
 import { cmsReleaseHandlers } from './cms-releases';
 import { wikiHandlers } from './wiki';
@@ -300,6 +301,7 @@ export const handlers = [
   ...cmsMediaHandlers,
   ...cmsOperationsHandlers,
   ...cmsContentReviewHandlers,
+  ...cmsDeploymentRetentionHandlers,
   ...cmsReleaseHandlers,
   ...cmsBlueprintHandlers,
   ...cmsStage4Handlers,

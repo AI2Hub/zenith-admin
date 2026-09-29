@@ -7,6 +7,7 @@ import logger from '../lib/logger';
 import { currentAuditUserId } from '../lib/audit-context';
 import type { DbTransaction } from './types';
 import * as schema from './schema';
+import { instrumentPostgresClient } from './query-metrics';
 
 class DrizzleLogger implements Logger {
   logQuery(query: string, params: unknown[]): void {
@@ -14,12 +15,12 @@ class DrizzleLogger implements Logger {
   }
 }
 
-const client = postgres(config.databaseUrl, {
+const client = instrumentPostgresClient(postgres(config.databaseUrl, {
   max: config.database.maxConnections,
   idle_timeout: config.database.idleTimeoutSeconds,
   connect_timeout: config.database.connectTimeoutSeconds,
   ssl: config.database.ssl,
-});
+}));
 
 const rawDb = drizzle(client, {
   schema,

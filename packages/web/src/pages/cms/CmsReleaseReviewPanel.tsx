@@ -8,7 +8,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { confirmDanger } from '@/utils/confirm';
 import CmsValueDiff from './CmsValueDiff';
 
-export default function CmsReleaseReviewPanel({ releaseId, onRecreated, onPreview }: Readonly<{ releaseId: number; onRecreated: (id: number) => void; onPreview: (path: string) => void }>) {
+export default function CmsReleaseReviewPanel({ releaseId, onRecreated, onPreview, canPreview = true }: Readonly<{ releaseId: number; onRecreated: (id: number) => void; onPreview: (path: string) => void; canPreview?: boolean }>) {
   const query = useCmsReleaseReview(releaseId);
   const recreate = useRecreateCmsRelease();
   const { hasPermission } = usePermission();
@@ -36,7 +36,7 @@ export default function CmsReleaseReviewPanel({ releaseId, onRecreated, onPrevie
     <Typography.Title heading={6}>检查与影响范围</Typography.Title>
     {review.checks.map((check, index) => <Banner key={`${check.code}:${index}`} type={check.severity === 'error' ? 'danger' : 'warning'} description={<Space wrap><span>{check.objectTitle ? `${check.objectTitle}：` : ''}{check.message}</span>{check.editPath ? <Button size="small" theme="borderless" onClick={() => navigate(check.editPath!)}>处理问题</Button> : null}</Space>} />)}
     {review.wholeSiteAffected ? <Typography.Text>包含站点、导航或共享部件变更，将检查整站展示影响。</Typography.Text> : null}
-    <Space wrap>{review.affectedPaths.map((path) => <Button key={path} size="small" onClick={() => onPreview(path)}>{path}</Button>)}</Space>
+    <Space wrap>{review.affectedPaths.map((path) => <Button key={path} size="small" disabled={!canPreview} onClick={() => onPreview(path)}>{path}</Button>)}</Space>
     <Typography.Title heading={6}>构建与后续交付</Typography.Title>
     {!review.tasks.length ? <Typography.Text type="tertiary">尚未生成交付任务</Typography.Text> : review.tasks.map((task) => <Space key={task.id} wrap>
       <Tag>{ASYNC_TASK_STATUS_LABELS[task.status]}</Tag><Typography.Text>{task.title}</Typography.Text>

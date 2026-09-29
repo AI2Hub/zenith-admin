@@ -2,6 +2,7 @@ import { Progress, Space, Tag, Typography } from '@douyinfe/semi-ui';
 import type { CmsDeployment } from '@zenith/shared/cms';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@douyinfe/semi-ui';
+import CmsBuildPerformancePanel from './CmsBuildPerformancePanel';
 
 const phaseLabels = { pending: '待开始', running: '处理中', completed: '已完成', failed: '失败' };
 export default function CmsDeploymentProgress({ deployment, siteId }: Readonly<{ deployment?: CmsDeployment | null; siteId?: number }>) {
@@ -23,5 +24,6 @@ export default function CmsDeploymentProgress({ deployment, siteId }: Readonly<{
     </div>)}
     <Typography.Text type="secondary">新生成 {metrics.generatedArtifacts ?? 0} 个文件 · 沿用 {metrics.reusedArtifacts ?? 0} 个文件 · 从断点恢复 {metrics.resumedArtifacts ?? 0} 个文件
       {metrics.elapsedMs != null ? ` · 总耗时 ${(metrics.elapsedMs / 1000).toFixed(1)} 秒` : ''}</Typography.Text>
+    {metrics.performance ? <CmsBuildPerformancePanel performance={metrics.performance} peakMemoryMb={metrics.peakMemoryMb} /> : null}
   </Space>;
 }

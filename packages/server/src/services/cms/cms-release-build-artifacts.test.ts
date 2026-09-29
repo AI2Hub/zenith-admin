@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { afterEach, describe, expect, it } from 'vitest';
-import { cmsBuildArtifactFile, cmsBuildTargetFingerprint, inspectCmsBuildArtifacts, rebindCmsArtifactAttribution, reuseCmsBuildTarget, validateCmsBuildTarget } from './cms-release-build-artifacts';
+import { cmsBuildArtifactFile, cmsBuildTargetFingerprint, cmsBuildTargetMatchesManifest, inspectCmsBuildArtifacts, rebindCmsArtifactAttribution, reuseCmsBuildTarget, validateCmsBuildTarget } from './cms-release-build-artifacts';
 
 const roots: string[] = [];
 afterEach(async () => { for (const root of roots.splice(0)) await fs.rm(root, { recursive: true, force: true }); });
@@ -16,6 +16,12 @@ async function fixture() {
 }
 
 describe('CMS durable build artifacts', () => {
+  it('validates checkpoints against the final freshly read manifest without trusting missing or changed files', () => {
+    const target = { key: 'one', fingerprint: 'fixed', artifacts: [{ path: 'one.html', size: 12, checksum: 'abc' }] };
+    expect(cmsBuildTargetMatchesManifest(target, new Map([['one.html', { ...target.artifacts[0] }]]))).toBe(true);
+    expect(cmsBuildTargetMatchesManifest(target, new Map())).toBe(false);
+    expect(cmsBuildTargetMatchesManifest(target, new Map([['one.html', { ...target.artifacts[0], checksum: 'changed' }]]))).toBe(false);
+  });
   it('validates disk bytes on resume, including reordered JSONB keys, and detects truncation', async () => {
     const { root, filename, target } = await fixture();
     const reordered = { ...target, artifacts: target.artifacts.map((a) => ({ size: a.size, checksum: a.checksum, path: a.path })) };

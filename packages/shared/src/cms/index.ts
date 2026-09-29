@@ -35,5 +35,8 @@ export * from './statistics-coverage';
 export * from './cms-stat-report';
 
 export * from './editorial-outcomes';
+export * from './release-build';
 
 export * from './reviews-validation';
+
+export * from './deployment-retention';

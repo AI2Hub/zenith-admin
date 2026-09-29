@@ -19,6 +19,8 @@ import { recordMockSubjects, mockEntitySubjects } from '@/mocks/data/entity-subj
  */
 
 const taskTypes: AsyncTaskTypeMeta[] = [
+  { taskType: 'cms-deployment-measure', title: 'CMS 部署容量测量', module: 'CMS内容管理', description: '模拟部署占用测量', allowConcurrent: true, enabled: true, maxAttempts: 2, retryDelayMs: 5000, retentionDays: 30 },
+  { taskType: 'cms-deployment-cleanup', title: 'CMS 历史部署存储回收', module: 'CMS内容管理', description: '按策略和当前保护状态回收部署存储', allowConcurrent: true, enabled: true, maxAttempts: 3, retryDelayMs: 5000, retentionDays: 30 },
   { taskType: 'cms-content-review-scan', title: 'CMS 内容复核巡检', module: 'CMS内容管理', description: '检查在线修订、有效期和素材风险并创建编辑事项；Demo 不探测外网', allowConcurrent: true, enabled: true, maxAttempts: 3, retryDelayMs: 5000, retentionDays: 30 },
   { taskType: 'cms-media-processing', title: 'CMS 媒体处理', module: 'CMS内容管理', description: '提取媒体信息、生成海报与图片变体并关联字幕', allowConcurrent: true, enabled: true, maxAttempts: 2, retryDelayMs: 5000, retentionDays: 30 },
   {
@@ -431,7 +433,7 @@ export function createImmediateMockTask(input: {
 
 const completionEffects = new Map<number, (task: AsyncTask) => void>();
 export function createProgressingMockTask(input: {
-  taskType: 'cms-content-review-scan' | 'cms-media-processing' | 'report-dq-rule-run' | 'report-dataset-materialize' | 'report-sla-rule-evaluate' | 'report-fill-sync' | 'analytics-rollup-rebuild' | 'analytics-segment-materialize' | 'analytics-campaign-execute' | 'cms-search-reindex' | 'cms-deadlink-check' | 'cms-collect-run' | 'cms-content-import' | 'cms-resource-governance' | 'cms-resource-ref-rebuild' | 'cms-publish-build' | 'cms-widget-batch' | 'cms-widget-refresh' | 'cms-ad-events-cleanup' | 'cms-interactions-batch-status' | 'cms-subscription-notify' | 'cms-distribution-sync' | 'messaging-broadcast';
+  taskType: 'cms-deployment-measure' | 'cms-deployment-cleanup' | 'cms-content-review-scan' | 'cms-media-processing' | 'report-dq-rule-run' | 'report-dataset-materialize' | 'report-sla-rule-evaluate' | 'report-fill-sync' | 'analytics-rollup-rebuild' | 'analytics-segment-materialize' | 'analytics-campaign-execute' | 'cms-search-reindex' | 'cms-deadlink-check' | 'cms-collect-run' | 'cms-content-import' | 'cms-resource-governance' | 'cms-resource-ref-rebuild' | 'cms-publish-build' | 'cms-widget-batch' | 'cms-widget-refresh' | 'cms-ad-events-cleanup' | 'cms-interactions-batch-status' | 'cms-subscription-notify' | 'cms-distribution-sync' | 'messaging-broadcast';
   title: string;
   payload?: Record<string, unknown>;
   totalItems?: number;
@@ -502,7 +504,7 @@ function finalize(task: AsyncTask, status: AsyncTaskStatus) {
     try { completionEffects.get(task.id)?.(task); completionEffects.delete(task.id); }
     catch (error) { status = 'failed'; task.errorMessage = error instanceof Error ? error.message : '任务结果处理失败'; }
   }
-  if (status === 'cancelled') completionEffects.delete(task.id);
+  // Keep effects for an explicitly resumed cancelled task; cancellation itself never runs them.
   task.status = status;
   task.completedAt = mockDateTime();
   task.updatedAt = task.completedAt;
@@ -639,6 +641,8 @@ export function refreshMockAsyncTask(id: number) {
   if (task) tickTask(task);
   return task;
 }
+
+export function getMockActiveAsyncTasks() { return tasks.filter(task => ['pending', 'running'].includes(task.status)); }
 
 type TaskListQuery = QueryOutputOf<typeof asyncTaskContract.list>;
 
@@ -794,6 +798,7 @@ export const asyncTasksHandlers = [
     for (const id of body.ids) {
       const index = tasks.findIndex((item) => item.id === id && isAsyncTaskTerminal(item.status));
       if (index >= 0) {
+        completionEffects.delete(tasks[index].id);
         itemsByTask.delete(tasks[index].id);
         tasks.splice(index, 1);
         affected++;
@@ -875,6 +880,7 @@ export const asyncTasksHandlers = [
       return badRequest('进行中的任务不能删除，请先取消', { status: 400 });
     }
     sims.delete(item.id);
+    completionEffects.delete(item.id);
     itemsByTask.delete(item.id);
     removeByIds(tasks, [params.id]);
     return ok(null, '已删除');
