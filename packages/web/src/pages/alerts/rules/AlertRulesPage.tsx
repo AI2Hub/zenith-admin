@@ -6,7 +6,7 @@ import { batchStatusHandler, confirmAndDelete, ListSearchToolbar, useStatusToggl
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import { monitorAlertContract, type CreateMonitorAlertRuleInput, type MonitorAlertRule, type MonitorMetric } from '@zenith/shared/platform';
-import { MONITOR_ALERT_LEVEL_OPTIONS } from '@zenith/shared/platform';
+import { MONITOR_ALERT_LEVEL_OPTIONS, MONITOR_ALERT_STATE_OPTIONS } from '@zenith/shared/platform';
 import { BASIC_COMPARISON_OPERATOR_LABELS } from '@zenith/shared/core';
 import { NOTIFY_CHANNEL_OPTIONS } from '@zenith/shared/messaging';
 import {
@@ -23,6 +23,7 @@ import {
   MONITOR_METRIC_META as METRIC_META,
   formatMonitorMetricValue,
 } from './constants';
+import { FilterSelect } from '@/components/search-filters';
 import { BatchDeleteButton, BatchStatusButtons, CreateButton } from '@/components/toolbar-controls';
 import { dateTimeColumn, EMPTY_PLACEHOLDER, overflowTagColumn } from '@/utils/table-columns';
 import AlertRecipientUserSelect from './AlertRecipientUserSelect';
@@ -241,6 +242,10 @@ export default function AlertRulesPage() {
         overrides={{
           metric: (p) => (
             <MonitorMetricFilterSelect value={p.bind('metric').value} onChange={(v) => p.bind('metric').onChange(v as MonitorMetric | undefined)} />
+          ),
+          // 派生 FilterSelect 宽 120 装不下 6 字占位「全部告警状态」，此处仅加宽（占位与契约 description 保持一致）
+          state: (p) => (
+            <FilterSelect placeholder="全部告警状态" items={MONITOR_ALERT_STATE_OPTIONS} {...p.bind('state')} width={140} />
           ),
         }}
         create={canCreate ? <CreateButton onClick={alertModal.openCreate}>新增规则</CreateButton> : null}

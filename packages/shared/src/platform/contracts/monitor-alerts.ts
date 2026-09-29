@@ -126,9 +126,9 @@ export type MonitorAlertTestResult = z.infer<typeof monitorAlertTestResultSchema
 export const monitorAlertRuleListQuery = paginationQuery.extend({
   keyword: keywordQuery(undefined, { max: 128 }),
   metric: queryEnum(MONITOR_METRICS),
-  level: queryEnum(MONITOR_ALERT_LEVELS, { options: MONITOR_ALERT_LEVEL_OPTIONS }),
+  level: queryEnum(MONITOR_ALERT_LEVELS, { description: '级别', options: MONITOR_ALERT_LEVEL_OPTIONS }),
   enabled: queryBool('启用状态；规则是否参与定时评估', { labels: ['已启用', '已停用'] }),
-  state: queryEnum(MONITOR_ALERT_STATES, { description: '规则当前是否处于告警中', options: MONITOR_ALERT_STATE_OPTIONS }),
+  state: queryEnum(MONITOR_ALERT_STATES, { description: '告警状态', options: MONITOR_ALERT_STATE_OPTIONS }),
 });
 
 export type MonitorAlertRuleQuery = z.infer<typeof monitorAlertRuleListQuery>;
@@ -136,7 +136,7 @@ export type MonitorAlertRuleQuery = z.infer<typeof monitorAlertRuleListQuery>;
 export const monitorAlertEventListQuery = paginationQuery.extend({
   keyword: keywordQuery(undefined, { max: 128 }),
   metric: queryEnum(MONITOR_METRICS),
-  level: queryEnum(MONITOR_ALERT_LEVELS),
+  level: queryEnum(MONITOR_ALERT_LEVELS, { description: '级别' }),
   status: queryEnum(MONITOR_ALERT_EVENT_STATUSES),
   notifyStatus: queryEnum(MONITOR_ALERT_NOTIFY_STATUSES),
   handleStatus: queryEnum(MONITOR_ALERT_HANDLE_STATUSES),
