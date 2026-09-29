@@ -30,8 +30,8 @@ export default function CmsPageImageEditor({ type, siteId, allowUpload }: Readon
   const mobileSource = useImageSource(siteId, props.mobileImage) || desktopSource;
   const decorative = typeof props.imageDecorative === 'boolean' ? props.imageDecorative : defaults.imageDecorative;
   return <>
-    <FormAsset field="mobileImage" label="手机图片（可选）" initValue={presentation.mobileImage} siteId={siteId} type="image" allowUpload={allowUpload} placeholder="不选择时复用桌面图片，可分别设置裁切焦点" />
-    <Form.Switch field="imageDecorative" label="纯装饰图片，不传达正文信息" initValue={presentation.imageDecorative} />
+    <FormAsset field="mobileImage" label="手机图片" initValue={presentation.mobileImage} siteId={siteId} type="image" allowUpload={allowUpload} extraText="可选；不选择时复用桌面图片，可分别为桌面 / 手机设置裁切焦点" />
+    <Form.Switch field="imageDecorative" label="装饰图片" initValue={presentation.imageDecorative} extraText="不传达正文信息时开启；开启后发布采用空替代文本，辅助阅读工具会跳过这张图片" />
     <Form.Input field="imageAlt" label="图片替代文本" initValue={presentation.imageAlt} maxLength={500} disabled={decorative} extraText={decorative ? '发布时采用空替代文本，辅助阅读工具会跳过这张装饰图片。' : '说明图片表达的内容或用途，供看不到图片的读者使用。发布前必填。'} />
     {type === 'image' && decorative ? <Form.Input field="linkLabel" label="图片链接说明" initValue={presentation.linkLabel} maxLength={200} extraText="装饰图片带点击链接时填写，例如“查看活动日程”。" /> : null}
     <div className="auto-grid cms-page-image-editor" style={{ '--auto-grid-cols': 2 } as CSSProperties}>

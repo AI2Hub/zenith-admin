@@ -359,10 +359,10 @@ export default function PagesPage() {
   const editingBlockType = blockModal?.block.type;
   const allBlocksManageable = blocks.every((block) => block.canManage !== false);
 
-  /** 区块编辑容器按类型分档：富文本（320 高编辑器）、单图与多列卡片（纵向很高的预览/嵌套列表）用全高抽屉；其余用弹窗并按字段量定宽 */
-  const useBlockSheet = editingBlockType === 'richtext' || editingBlockType === 'columns' || editingBlockType === 'image';
-  const blockSheetWidth = editingBlockType === 'richtext' ? 780 : editingBlockType === 'image' ? 720 : 680;
-  const blockModalWidth = editingBlockType === 'hero' || editingBlockType === 'content-list' ? 720 : 560;
+  /** 区块编辑容器按类型分档：富文本（320 高编辑器）、主横幅/单图（多组图片预览与编辑器）、多列卡片（纵向增长的嵌套列表）用全高抽屉；内容列表用 720 弹窗，部件引用保持 560 */
+  const useBlockSheet = editingBlockType === 'richtext' || editingBlockType === 'columns' || editingBlockType === 'image' || editingBlockType === 'hero';
+  const blockSheetWidth = editingBlockType === 'richtext' ? 780 : editingBlockType === 'columns' ? 680 : 720;
+  const blockModalWidth = editingBlockType === 'content-list' ? 720 : 560;
   const blockTitle = blockModal ? `编辑区块：${BLOCK_TYPE_LABEL[blockModal.block.type]}` : '编辑区块';
 
   const blockForm = blockModal ? (
@@ -371,7 +371,7 @@ export default function PagesPage() {
       getFormApi={(api) => { blockFormApi.current = api; }}
       allowEmpty
       labelPosition="left"
-      labelWidth={100}
+      labelWidth={110}
       initValues={{
         ...blockModal.block.props,
         displayAudience: blockModal.block.displayCondition?.audience ?? 'always',
