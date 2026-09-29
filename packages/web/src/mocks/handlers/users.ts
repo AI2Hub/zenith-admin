@@ -65,11 +65,12 @@ export const usersHandlers = [
 
   // 用户列表（分页）
   mock(userContract.list, ({ query, ok, paginate }) => {
-    const { keyword, phone, email, status, departmentId } = query;
+    const { keyword, phone, email, status, departmentId, positionId } = query;
     const list = mockUsers.filter((u) => {
       if (keyword && !includesKeyword(keyword, u.username, u.nickname)) return false;
       if (phone && !(u.phone ?? '').includes(phone)) return false;
       if (email && !(u.email ?? '').includes(email)) return false;
+      if (positionId && !(u.positionIds ?? []).includes(positionId)) return false;
       if (status && u.status !== status) return false;
       if (departmentId && u.departmentId !== departmentId) return false;
       return true;

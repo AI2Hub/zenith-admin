@@ -1,6 +1,6 @@
 import { buildListResult } from '../../lib/list-query';
 import { requireFirstRow, requireRow } from '../../lib/db-assert';
-import { eq, and, ne, inArray, type SQL } from 'drizzle-orm';
+import { eq, and, ne, inArray, exists, type SQL } from 'drizzle-orm';
 import { hashPassword } from '../../lib/password';
 import { db } from '../../db';
 import type { DbExecutor } from '../../db/types';
@@ -245,7 +245,7 @@ export async function listAlertRecipientUsers(): Promise<AlertRecipientUser[]> {
 export type UsersListFilter = Omit<QueryOutputOf<typeof userContract.list>, 'page' | 'pageSize'>;
 
 export async function buildUsersListWhere(q: UsersListFilter, user: JwtPayload): Promise<SQL | undefined> {
-  const { keyword, phone, email, departmentId, status, startTime, endTime } = q;
+  const { keyword, phone, email, departmentId, positionId, status, startTime, endTime } = q;
   const scopeCondition = await getDataScopeCondition({
     currentUserId: user.userId, deptColumn: users.departmentId, ownerColumn: users.id,
   });
@@ -254,6 +254,7 @@ export async function buildUsersListWhere(q: UsersListFilter, user: JwtPayload):
     keywordCondition(phone, [users.phone]),
     keywordCondition(email, [users.email]),
     departmentId ? eq(users.departmentId, departmentId) : undefined,
+    positionId ? exists(db.select({ userId: userPositions.userId }).from(userPositions).where(and(eq(userPositions.userId, users.id), eq(userPositions.positionId, positionId)))) : undefined,
     status ? eq(users.status, status) : undefined,
     ...dateRangeConditions(users.createdAt, startTime, endTime),
     scopeCondition,

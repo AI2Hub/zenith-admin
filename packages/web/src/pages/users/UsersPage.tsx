@@ -51,7 +51,7 @@ import {
   userKeys,
 } from '@/hooks/queries/users';
 import { BatchDeleteButton, BatchStatusButtons, CreateButton } from '@/components/toolbar-controls';
-import { DateRangeFilter, KeywordInput, StatusSelect } from '@/components/search-filters';
+import { DateRangeFilter, FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDanger } from '@/utils/confirm';
 import { getPreciseOs } from '@/utils/client-os';
 import { batchStatusHandler, confirmAndDelete, deleteAction, ListSearchToolbar, listTableProps, useStatusToggle } from '@/components/list-page';
@@ -73,6 +73,8 @@ interface SearchParams {
   timeRange: [Date, Date] | null;
   /** 部门树选中的部门；undefined = 全部部门 */
   departmentId?: number;
+  /** 岗位筛选；undefined = 全部岗位 */
+  positionId?: number;
 }
 
 /** 用户表单值：记录里的 null 在提交时归一为未填 / null，与创建入参对齐 */
@@ -90,7 +92,7 @@ interface ResetPasswordFormValues {
   confirmPassword: string;
 }
 
-const defaultSearchParams: SearchParams = { keyword: '', phone: '', email: '', status: undefined, timeRange: null, departmentId: undefined };
+const defaultSearchParams: SearchParams = { keyword: '', phone: '', email: '', status: undefined, timeRange: null, departmentId: undefined, positionId: undefined };
 const EMPTY_USERS: User[] = [];
 const EMPTY_ROLES: Role[] = [];
 const EMPTY_DEPARTMENTS: Department[] = [];
@@ -151,6 +153,7 @@ export default function UsersPage() {
     phone: submittedParams.phone,
     email: submittedParams.email,
     departmentId: submittedParams.departmentId,
+    positionId: submittedParams.positionId,
     status: enumValueOf(USER_STATUSES, submittedParams.status),
     ...formatDateTimeRangeForApi(submittedParams.timeRange),
   });
@@ -654,6 +657,13 @@ export default function UsersPage() {
           <>
             <KeywordInput placeholder="搜索手机号码" {...bindKeyword('phone')} width={180} />
             <KeywordInput placeholder="搜索邮箱" {...bindKeyword('email')} width={180} />
+            <FilterSelect
+              placeholder="全部岗位"
+              items={allPositions.map((position) => ({ value: position.id, label: position.name }))}
+              {...bind('positionId')}
+              width={140}
+              filter
+            />
             <StatusSelect
               items={statusItems}
               {...bind('status')}

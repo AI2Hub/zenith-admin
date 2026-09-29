@@ -119,6 +119,7 @@ export const userListQuery = paginationQuery.extend({
   phone: keywordQuery('手机号'),
   email: keywordQuery('邮箱'),
   departmentId: idQuery(),
+  positionId: idQuery('岗位'),
   status: entityStatusQuery,
   ...dateRangeQuery('创建时间'),
 });
