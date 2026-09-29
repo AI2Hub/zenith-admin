@@ -436,7 +436,10 @@ export default function PagesPage() {
           </Dropdown> : null}
         </div>
 
-        <Tag color={dirty || !editingPage ? 'orange' : 'green'} style={{ marginBottom: 12 }}>{!editingPage ? '新页面尚未保存' : dirty ? '尚有未保存修改' : '当前编辑内容已保存'}</Tag>
+        {/* 状态 Tag 独占一行：行内容器紧跟其后，行内容器无上边距时两者会粘连 */}
+        <div style={{ marginBottom: 12 }}>
+          <Tag color={dirty || !editingPage ? 'orange' : 'green'}>{!editingPage ? '新页面尚未保存' : dirty ? '尚有未保存修改' : '当前编辑内容已保存'}</Tag>
+        </div>
         <CmsPagePresetLibrary siteId={siteId} blocks={blocks} selectedBlockIds={selectedBlockIds} onApply={applyPreset} disabled={!canEditPage} />
         {/* 新建未保存时内容检查与上线状态都是噪音（空区块是必然状态）：保存后 editingPage 有值再展示 */}
         {editingPage && issues.length ? <Banner type="warning" style={{ marginBlock: 12 }} description={<><Typography.Text>内容检查：{issues.length} 项待处理（{dirty ? '当前工作稿，保存后可检查引用目标' : '已保存页面'}）</Typography.Text>{issues.map((issue, index) => <div key={`${issue.blockId}:${issue.rule}:${index}`}><Button theme="borderless" type={issue.severity === 'error' ? 'danger' : 'warning'} onClick={() => setLocateBlockId(issue.blockId)}>{issue.message}</Button></div>)}</>} /> : null}
