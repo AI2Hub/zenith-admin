@@ -8,7 +8,7 @@ import { useDictItems } from '@/hooks/useDictItems';
  *   - Webhook 回调 / 回写表单字段
  */
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Col, Empty, Form, Input, Row, Select, SideSheet, Space, Spin, Tag, TextArea, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
+import { Button, Col, Divider, Empty, Form, Input, Row, Select, SideSheet, Space, Spin, Tag, TextArea, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { TagColor } from '@douyinfe/semi-ui/lib/es/tag/interface';
 import { Plus, Trash2 } from 'lucide-react';
@@ -514,7 +514,10 @@ export default function WorkflowAutomationsPage() {
 
         <div style={{ marginTop: 12 }}>
           {actions.map((a, idx) => (
-            <div key={`${a.type}-${idx}`} style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: 12, marginBottom: 12 }}>
+            <div key={`${a.type}-${idx}`}>
+              {/* 卡片壳已去掉，动作之间的边界交给分隔线；首条之前不加，避免与说明文字挤在一起。
+                  Divider 的 margin 是单值，同时作用于上下（写 "16px 0" 会被浏览器当成非法值丢弃） */}
+              {idx > 0 && <Divider margin={16} />}
               <Space style={{ width: '100%', justifyContent: 'space-between', marginBottom: 8 }}>
                 <Space>
                   <Tag color={ACTION_TYPE_META[a.type].color}>{ACTION_TYPE_META[a.type].label}</Tag>
@@ -641,7 +644,7 @@ export default function WorkflowAutomationsPage() {
           ))}
         </div>
 
-        <Space>
+        <Space style={{ marginTop: 16 }}>
           <Button icon={<Plus size={14} />} onClick={() => addAction('startWorkflow')}>添加「发起流程」</Button>
           <Button icon={<Plus size={14} />} onClick={() => addAction('sendMessage')}>添加「站内信」</Button>
           <Button icon={<Plus size={14} />} onClick={() => addAction('webhook')}>添加「Webhook」</Button>
