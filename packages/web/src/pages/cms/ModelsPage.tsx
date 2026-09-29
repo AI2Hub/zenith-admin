@@ -1,4 +1,4 @@
-import { Button, Form, Tag, ArrayField, Row, Col, useFormApi, Toast } from '@douyinfe/semi-ui';
+import { Button, Form, Tag, ArrayField, Row, Col, useFormApi, Toast, Tooltip } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
@@ -14,6 +14,7 @@ import type { CmsModel } from '@zenith/shared/cms';
 import { CreateButton } from '@/components/toolbar-controls';
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { abortSubmit } from '@/lib/abort-submit';
+import { KeywordInput } from '@/components/search-filters';
 import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { FormStatusRadioGroup } from '@/components/FormStatusRadioGroup';
 import { useListPage } from '@/hooks/useListPage';
@@ -145,10 +146,11 @@ export default function ModelsPage() {
     {
       title: '归属',
       dataIndex: 'ownerSiteId',
-      width: 150,
-      render: (_v: number | null, record) => (record.ownerSiteId == null
-        ? <Tag size="small" color="blue">平台共享</Tag>
-        : <Tag size="small" color="teal">{record.ownerSiteName ?? `站点 #${record.ownerSiteId}`}</Tag>),
+      width: 180,
+      render: (_v: number | null, record) => {
+        const text = record.ownerSiteId == null ? '平台共享' : (record.ownerSiteName ?? `站点 #${record.ownerSiteId}`);
+        return <Tooltip content={text} position="topLeft"><Tag size="small" color={record.ownerSiteId == null ? 'blue' : 'teal'} style={{ maxWidth: '100%' }}>{text}</Tag></Tooltip>;
+      },
     },
     overflowTagColumn<CmsModel>({
       title: '自定义字段',
@@ -195,11 +197,11 @@ export default function ModelsPage() {
 
   return (
     <div className="page-container">
-      {/* 站点是列表的作用域而非筛选条件，与关键字一起留在移动端主区 */}
+      {/* 站点是列表的作用域而非筛选条件：契约模式无排序机制（extraFilters/overrides 只能追加），故用槽位写法把站点与关键字拼进主区（占位取派生回退「搜索关键字」，契约 keywordQuery() 未声明匹配字段）；两者桌面与移动主区都在关键字之前 */}
       <ListSearchToolbar
-        page={page}
-        filters={['keyword']}
-        extraFilters={<CmsSiteSelect value={siteId} onChange={(value) => { setSiteId(value); setPage(1); }} width={200} />}
+        keyword={<><CmsSiteSelect value={siteId} onChange={(value) => { setSiteId(value); setPage(1); }} width={200} /><KeywordInput placeholder="搜索关键字" {...page.bindKeyword('keyword')} /></>}
+        onSearch={page.toolbarProps.onSearch}
+        onReset={page.toolbarProps.onReset}
         create={<CreateButton permission="cms:model:create" onClick={modal.openCreate} disabled={!siteId} />}
       />
 
