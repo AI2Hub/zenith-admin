@@ -1,5 +1,5 @@
-import { useNavigate } from 'react-router-dom';
-import { Form, Toast, Tag, Row, Col, Select, withField } from '@douyinfe/semi-ui';
+import { useState } from 'react';
+import { Form, Toast, Tag, Row, Col, Select, SideSheet, withField } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { batchStatusHandler, confirmAndDelete, ListSearchToolbar, useStatusToggle, useRowSelection, useCrudOperationColumn } from '@/components/list-page';
@@ -36,6 +36,7 @@ import {
 } from '../monitor-alert-display';
 import { useListPage } from '@/hooks/useListPage';
 import { EditFormModal } from '@/components/EditFormModal';
+import { AlertEventsPanel } from '../events/AlertEventsPage';
 
 const OP_OPTIONS = (['gt', 'gte', 'lt', 'lte'] as const)
   .map((value) => ({ value, label: BASIC_COMPARISON_OPERATOR_LABELS[value] }));
@@ -56,8 +57,9 @@ function thresholdHint(metric: MonitorMetric | undefined): string {
 
 export default function AlertRulesPage() {
   const { hasPermission } = usePermission();
-  const navigate = useNavigate();
   const { selectedRowKeys, clear: clearSelection, rowSelection } = useRowSelection({ extra: { fixed: 'left' } });
+  // 查看事件：在本页抽屉内复用事件面板（按规则锁定），不再跳转路由
+  const [eventsRule, setEventsRule] = useState<{ id: number; name: string } | null>(null);
 
   const canCreate = hasPermission('alert:rule:create');
   const canUpdate = hasPermission('alert:rule:update');
@@ -172,7 +174,7 @@ export default function AlertRulesPage() {
         key: 'events',
         label: '查看事件',
         hidden: !canViewEvents,
-        onClick: () => navigate(`/alerts/events?ruleId=${record.id}`),
+        onClick: () => setEventsRule({ id: record.id, name: record.name }),
       },
     ],
     width: 180,
@@ -337,6 +339,16 @@ export default function AlertRulesPage() {
           );
         }}
       </EditFormModal>
+
+      <SideSheet
+        title={eventsRule ? `规则「${eventsRule.name}」的告警事件` : '告警事件'}
+        visible={eventsRule !== null}
+        onCancel={() => setEventsRule(null)}
+        width={1200}
+        closeOnEsc
+      >
+        {eventsRule ? <AlertEventsPanel key={eventsRule.id} ruleId={eventsRule.id} /> : null}
+      </SideSheet>
     </div>
   );
 }

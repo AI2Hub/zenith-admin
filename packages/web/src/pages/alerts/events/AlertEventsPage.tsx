@@ -86,13 +86,21 @@ const HANDLE_ACTION_META: Record<
   },
 };
 
-export default function AlertEventsPage() {
+/**
+ * 告警事件面板：表格 + 全套筛选（保留查询条件） + 批量处理 + 导出 + 处理弹窗。
+ * `ruleId` 锁定单规则时由调用方传入（规则页抽屉）；路由页不传，改从 URL 取。
+ */
+export function AlertEventsPanel({ ruleId, onClearRuleId, initialFilters }: Readonly<{
+  ruleId?: number;
+  /** 锁定规则可清除时提供：规则标签显示关闭按钮 */
+  onClearRuleId?: () => void;
+  /** 挂载时的筛选初值（路由页透传 URL 参数） */
+  initialFilters?: Partial<Pick<SearchParams, 'keyword' | 'level' | 'status' | 'notifyStatus' | 'handleStatus'>>;
+}>) {
   const { hasPermission } = usePermission();
   const navigate = useNavigate();
-  // 从告警规则页「查看事件」或概览页统计卡跳转而来时按 URL 过滤；
-  // URL 是这类联查的唯一来源，刷新后依然生效
-  const [urlParams, setUrlParams] = useSearchParams();
-  const ruleId = Number(urlParams.get('ruleId')) || undefined;
+  // 规则锁定（抽屉传入 ruleId 且不可清除）：标题已点名规则，规则标签与恒定条件（关键字/指标/级别）不再展示
+  const lockedRule = ruleId !== undefined && onClearRuleId === undefined;
 
   const canHandle = hasPermission('alert:event:handle');
   const { selectedRowKeys, clear: clearSelection, rowSelection } = useRowSelection();
@@ -102,14 +110,10 @@ export default function AlertEventsPage() {
   const [handleFormApi, setHandleFormApi] = useState<FormApi | null>(null);
   const [detailTarget, setDetailTarget] = useState<MonitorAlertEvent | null>(null);
 
-  // URL 携带的筛选作为初始条件，保证跳转过来时表单控件与列表结果一致
+  // 调用方携带的筛选作为初始条件，保证跳转/打开时表单控件与列表结果一致
   const searchDefaults: () => (SearchParams) = () => ({
     ...defaultSearchParams,
-    keyword: urlParams.get('keyword') ?? '',
-    level: urlParams.get('level') ?? '',
-    status: urlParams.get('status') ?? '',
-    notifyStatus: urlParams.get('notifyStatus') ?? '',
-    handleStatus: urlParams.get('handleStatus') ?? '',
+    ...initialFilters,
   });
   const {
     bind,
@@ -252,8 +256,8 @@ export default function AlertEventsPage() {
   return (
     <div className="page-container">
       <ListSearchToolbar
-        keyword={<>{ruleId ? (
-          <Tag closable color="blue" onClose={() => setUrlParams({}, { replace: true })}>
+        keyword={lockedRule ? undefined : <>{ruleId ? (
+          <Tag color="blue" closable={onClearRuleId !== undefined} onClose={onClearRuleId}>
             仅看规则 #{ruleId}
           </Tag>
         ) : null}<KeywordInput
@@ -261,14 +265,16 @@ export default function AlertEventsPage() {
           {...bindKeyword('keyword')}
         /></>}
         filters={<>
-          <MonitorMetricFilterSelect
-            {...bind('metric')}
-          />
-          <FilterSelect
-            placeholder="全部级别"
-            items={MONITOR_ALERT_LEVEL_OPTIONS}
-            {...bind('level')}
-          />
+          {lockedRule ? null : <>
+            <MonitorMetricFilterSelect
+              {...bind('metric')}
+            />
+            <FilterSelect
+              placeholder="全部级别"
+              items={MONITOR_ALERT_LEVEL_OPTIONS}
+              {...bind('level')}
+            />
+          </>}
           <StatusSelect
             items={MONITOR_ALERT_EVENT_STATUS_OPTIONS}
             {...bind('status')}
@@ -364,5 +370,28 @@ export default function AlertEventsPage() {
         </Form>
       </AppModal>
     </div>
+  );
+}
+
+/**
+ * 路由页：URL 是联查的唯一来源（规则页「查看事件」/ 概览统计卡跳转），刷新后依然生效。
+ * 与旧行为一致：ruleId 及筛选初值取自 URL，关闭规则标签时清空 URL 参数。
+ */
+export default function AlertEventsPage() {
+  // 从告警规则页「查看事件」或概览页统计卡跳转而来时按 URL 过滤
+  const [urlParams, setUrlParams] = useSearchParams();
+  const ruleId = Number(urlParams.get('ruleId')) || undefined;
+  return (
+    <AlertEventsPanel
+      ruleId={ruleId}
+      onClearRuleId={ruleId ? () => setUrlParams({}, { replace: true }) : undefined}
+      initialFilters={{
+        keyword: urlParams.get('keyword') ?? '',
+        level: urlParams.get('level') ?? '',
+        status: urlParams.get('status') ?? '',
+        notifyStatus: urlParams.get('notifyStatus') ?? '',
+        handleStatus: urlParams.get('handleStatus') ?? '',
+      }}
+    />
   );
 }
