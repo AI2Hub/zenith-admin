@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Banner, Button, Descriptions, Divider, Form, Space, Spin, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
 import type { BodyOf } from '@zenith/shared/core';
 import { CMS_CONTENT_REVIEW_ISSUE_LABELS, cmsContentReviewContract, type CmsContent } from '@zenith/shared/cms';
@@ -13,6 +13,7 @@ import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
 
 type PolicyValues = BodyOf<typeof cmsContentReviewContract.save>;
 export default function CmsContentReviewPanel({ content }: Readonly<{ content?: CmsContent }>) {
+  const navigate = useNavigate();
   const [editing, setEditing] = useState(false); const [note, setNote] = useState('');
   const [reviewSubject, setReviewSubject] = useState<{ revisionId: number; version: number } | null>(null);
   const { hasPermission } = usePermission(); const canManage = hasPermission('cms:editorial-task:manage');
@@ -55,7 +56,7 @@ export default function CmsContentReviewPanel({ content }: Readonly<{ content?: 
     <Typography.Title heading={6}>巡检结果</Typography.Title>
     {task ? <Space wrap><AsyncTaskProgress task={task} />{running ? <Button loading={cancel.isPending} onClick={async () => { await cancel.mutateAsync({ params: { id: task.id } }); await tasks.refresh(); }}>取消本次巡检</Button> : null}{task.errorMessage ? <Typography.Text type="danger">{task.errorMessage}</Typography.Text> : null}</Space> : null}
     {policy.lastCheckedAt && !policy.issues.length ? <Typography.Paragraph type="tertiary">最近巡检未发现需要处理的问题。</Typography.Paragraph> : null}
-    <Space vertical align="start" spacing={8} style={{ width: '100%' }}>{policy.issues.map(issue => <Banner key={issue.key} type="warning" closeIcon={null} description={<><Typography.Text strong>{CMS_CONTENT_REVIEW_ISSUE_LABELS[issue.kind]}</Typography.Text><Typography.Paragraph style={{ whiteSpace: 'pre-wrap' }}>{issue.summary}</Typography.Paragraph>{issue.taskId && canManage ? <Link to={`/cms/workspace?siteId=${content.siteId}&task=${issue.taskId}`}>处理编辑事项 #{issue.taskId}</Link> : null}</>} />)}</Space>
+    <Space vertical align="start" spacing={8} style={{ width: '100%' }}>{policy.issues.map(issue => <Banner key={issue.key} type="warning" closeIcon={null} description={<><Typography.Text strong>{CMS_CONTENT_REVIEW_ISSUE_LABELS[issue.kind]}</Typography.Text><Typography.Paragraph style={{ whiteSpace: 'pre-wrap' }}>{issue.summary}</Typography.Paragraph>{issue.taskId && canManage ? <Typography.Text link onClick={() => navigate(`/cms/workspace?siteId=${content.siteId}&task=${issue.taskId}`)}>处理编辑事项 #{issue.taskId}</Typography.Text> : null}</>} />)}</Space>
     {canManage && policy.enabled && policy.activeRevisionId ? <>
       <Divider margin={16} /><Typography.Title heading={6}>确认人工复核</Typography.Title>
       <Typography.Paragraph type="tertiary">记录核查结论并安排下个周期，符合条件的复核到期事项同步办结。有效期、素材授权和失效链接问题仍需分别处理。</Typography.Paragraph>

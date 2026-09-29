@@ -165,7 +165,7 @@ export default function WorkflowCompensationsView() {
                   <Timeline.Item key={l.id} time={formatDateTime(l.createdAt)} type={l.action === 'terminate' ? 'error' : l.action === 'resolve' || l.action === 'resume' ? 'success' : 'default'}>
                     <div><b>{LOG_LABEL[l.action] ?? l.action}</b>{l.operatorName ? ` · ${l.operatorName}` : ''}</div>
                     {l.note && <div style={{ color: 'var(--semi-color-text-1)' }}>{l.note}</div>}
-                    {l.attachments?.map((a) => <a key={a.id} href={a.url} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginRight: 8 }}><Paperclip size={12} />{a.name}</a>)}
+                    {l.attachments?.map((a) => <Typography.Text key={a.id} link={{ href: a.url, target: '_blank', rel: 'noreferrer' }} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginRight: 8 }}><Paperclip size={12} />{a.name}</Typography.Text>)}
                   </Timeline.Item>
                 ))}
               </Timeline>

@@ -143,7 +143,7 @@ function SchedulesTab({ onShowRuns }: Readonly<{ onShowRuns: (schedule: IotSched
     {
       title: '近 24h', dataIndex: 'recentRunCount', width: 90, align: 'right',
       render: (v: number, r: IotSchedule) => v > 0
-        ? <a onClick={() => onShowRuns(r)} style={{ cursor: 'pointer' }}>{v} 次</a>
+        ? <Text link onClick={() => onShowRuns(r)}>{v} 次</Text>
         : EMPTY_PLACEHOLDER,
     },
     createdAtColumn,

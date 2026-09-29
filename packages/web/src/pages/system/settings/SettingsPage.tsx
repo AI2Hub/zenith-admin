@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Banner, Button, Empty, Spin, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import { ExternalLink, Save, Settings2 } from 'lucide-react';
 import { emptyIllustration } from '@/components/EmptyIllustration';
@@ -107,6 +107,7 @@ export default function SettingsPage() {
 }
 
 function ModuleDetail({ module, meta }: { readonly module: SettingsModuleKey; readonly meta: SettingsModuleMeta }) {
+  const navigate = useNavigate();
   const def = SETTINGS_MODULES[module];
   const query = useSettings(module);
   const save = useSaveSettings(module);
@@ -170,7 +171,7 @@ function ModuleDetail({ module, meta }: { readonly module: SettingsModuleKey; re
             description={(
               <span>
                 该模块有专用设置页面，请前往
-                <Link to={meta.page} style={{ margin: '0 4px', display: 'inline-flex', alignItems: 'center', gap: 4 }}>{def.title}<ExternalLink size={12} /></Link>
+                <Text link onClick={() => navigate(meta.page)} style={{ margin: '0 4px', display: 'inline-flex', alignItems: 'center', gap: 4 }}>{def.title}<ExternalLink size={12} /></Text>
                 修改。
               </span>
             )}
