@@ -1,7 +1,7 @@
 import { invalidateCmsPublishingViews } from './cms-stage3';
 import { keepPreviousData, type QueryClient } from '@tanstack/react-query';
 import type { QueryOf } from '@zenith/shared/core';
-import { cmsWidgetContract, type CmsWidgetRendererKey, type CmsWidgetType } from '@zenith/shared/cms';
+import { cmsWidgetContract, cmsWorkbenchContract, type CmsWidgetRendererKey, type CmsWidgetType } from '@zenith/shared/cms';
 import { contractKey, createResourceQueries, useApiMutation, useApiQuery } from '@/lib/contract-query';
 import { LOOKUP_STALE_TIME } from '@/lib/query';
 
@@ -9,7 +9,7 @@ export type CmsWidgetListParams = NonNullable<QueryOf<typeof cmsWidgetContract.l
 
 const resource = createResourceQueries(cmsWidgetContract, {
   // 预览按草稿渲染，保存草稿后必须回源；renderers / slots 是站点级配置，不随单个部件变化
-  onSaved: (qc, saved) => void qc.invalidateQueries({ queryKey: cmsWidgetKeys.previewsOf(saved.id) }),
+  onSaved: (qc, saved) => { void qc.invalidateQueries({ queryKey: cmsWidgetKeys.previewsOf(saved.id) }); void qc.invalidateQueries({ queryKey: contractKey(cmsWorkbenchContract.configurationState) }); },
 });
 
 export const cmsWidgetKeys = {

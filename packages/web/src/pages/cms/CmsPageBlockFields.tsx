@@ -5,6 +5,7 @@ import { cmsImageUploadUrl } from '@/hooks/queries/cms-upload';
 import { config } from '@/config';
 import { usePermission } from '@/hooks/usePermission';
 import { FormCmsLinkField } from './CmsLinkInput';
+import CmsPageImageEditor from './CmsPageImageEditor';
 
 const RichTextEditor = lazy(() => import('@/components/RichTextEditor'));
 const FormAssetField = withField(CmsAssetField);
@@ -22,12 +23,13 @@ export default function CmsPageBlockFields({ type, siteId }: Readonly<{ type: 'h
     <Form.Input field="title" label="主标题" rules={[{ required: true, message: '请输入主标题' }]} />
     <Form.Input field="subtitle" label="副标题" />
     <FormAssetField field="image" label="背景图" siteId={siteId} type="image" allowUpload={allowUpload} />
+    <CmsPageImageEditor type="hero" siteId={siteId} allowUpload={allowUpload} />
     <Form.Input field="buttonText" label="按钮文字" />
     <FormCmsLinkField field="buttonUrl" label="按钮链接" siteId={siteId} />
   </>;
   return <>
     <FormAssetField field="src" label="图片" siteId={siteId} type="image" allowUpload={allowUpload} rules={[{ required: true, message: '请选择图片' }]} />
-    <Form.Input field="alt" label="替代文本" />
+    <CmsPageImageEditor type="image" siteId={siteId} allowUpload={allowUpload} />
     <FormCmsLinkField field="linkUrl" label="点击链接" siteId={siteId} />
   </>;
 }

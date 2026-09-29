@@ -1,10 +1,10 @@
 import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { eq, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { db, withDbExecutor } from '../../db';
 import type { DbTransaction } from '../../db/types';
-import { cmsDeploymentStorage, cmsSiteGenerations, type CmsDeploymentSnapshot } from '../../db/schema';
+import { cmsDeploymentStorage, type CmsDeploymentSnapshot } from '../../db/schema';
 import { cmsGenerationContext, withCmsGenerationContext } from './cms-generation-context';
 import { CMS_STATIC_ROOT, isStrictlyWithin } from './cms-static-path';
 import { canonicalCmsJson } from './cms-content-revisions.service';
@@ -12,6 +12,7 @@ import type { CmsConfigurationSnapshot } from '@zenith/shared/cms';
 import { CMS_PUBLIC_SITE_SETTINGS, CMS_CONFIGURATION_TABLES } from './cms-public-settings';
 import { cmsBuildArtifactFile } from './cms-release-build-artifacts';
 import { assertCmsDeploymentStorageAvailable } from './cms-deployment-storage-state';
+import { pinCmsGenerationRead, readCmsGenerationSnapshot } from './cms-generation-read';
 
 /** Only publication definitions are copied. Sessions, permissions, submissions and telemetry remain live. */
 const SITE_TABLES = [
@@ -93,6 +94,7 @@ export async function withCmsGenerationTransaction<T>(
   siteId: number, generationId: number, candidate: boolean, fn: (tx: DbTransaction) => Promise<T>,
 ): Promise<T> {
   return db.transaction(async (tx) => {
+    await pinCmsGenerationRead(tx, generationId);
     await assertCmsDeploymentStorageAvailable(tx, generationId);
     await tx.execute(sql`select set_config('search_path', ${`${cmsGenerationSchemaName(generationId)},public`}, true)`);
     await tx.execute(sql`select set_config('cms.preview', ${candidate ? 'true' : 'false'}, true)`);
@@ -104,14 +106,12 @@ export async function withCmsGenerationTransaction<T>(
 /** Capture the pointer and all public reads in one MVCC snapshot. No streaming response is held here. */
 export async function withCmsPublicGeneration<T>(siteId: number, fn: () => Promise<T>): Promise<T> {
   if (cmsGenerationContext()) return fn();
-  return db.transaction(async (tx) => {
-    const [pointer] = await tx.select().from(cmsSiteGenerations).where(eq(cmsSiteGenerations.siteId, siteId)).limit(1);
-    if (!pointer?.activeGenerationId) return withDbExecutor(tx, fn);
-    const generationId = pointer.activeGenerationId;
+  return readCmsGenerationSnapshot(siteId, async (tx, generationId) => {
+    if (!generationId) return withDbExecutor(tx, fn);
     await tx.execute(sql`select set_config('search_path', ${`${cmsGenerationSchemaName(generationId)},public`}, true)`);
     await tx.execute(sql`select set_config('statement_timeout', '15000', true)`);
     return withDbExecutor(tx, () => withCmsGenerationContext({ siteId, generationId, candidate: false }, fn));
-  }, { isolationLevel: 'repeatable read', accessMode: 'read only' });
+  });
 }
 
 /** Seal projections: content queries apply the live, fail-closed emergency withdrawal overlay. */

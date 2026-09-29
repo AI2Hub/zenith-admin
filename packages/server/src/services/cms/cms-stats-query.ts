@@ -1,3 +1,4 @@
+import { readCmsGenerationSnapshot } from './cms-generation-read';
 import { sql, type SQL } from 'drizzle-orm';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { cmsStatContract, cmsStatRate, type CmsStatMetrics, type CmsStatOverview, type CmsStatOptions, type CmsStatQuality, type CmsStatReport, type CmsStatReportRow, type CmsStatScope } from '@zenith/shared/cms';
@@ -215,7 +216,7 @@ const qualityStatus = (state: Awaited<ReturnType<typeof readCmsCollectionState>>
 
 export async function getCmsStatsOverview(q: CmsStatsQuery): Promise<CmsStatOverview> {
   await assertCmsStatisticsAccess(q.siteId); const scope = resolveCmsStatsWindow(q);
-  return readSnapshot(async (tx) => {
+  return readCmsGenerationSnapshot(q.siteId, async (tx) => {
     const current = await metrics(tx, q, scope);
     const [coverage]=await tx.execute<{since:Date|null}>(sql`select min(e.created_at) as since from public.user_events e where e.tenant_id is null and e.properties @> ${JSON.stringify({cmsSiteId:q.siteId,cmsSchemaVersion:2,trustedCms:true,environment:'live'})}::jsonb and coalesce((e.properties->>'receivedAt')::timestamptz,e.created_at)<=${scope.watermark}::timestamptz`);
     const collectionAvailableSince=coverage?.since?new Date(coverage.since).toISOString():null;
@@ -248,7 +249,7 @@ export async function getCmsStatsQuality(q: CmsStatsQuery): Promise<CmsStatQuali
   await assertCmsStatisticsAccess(q.siteId); const scope = resolveCmsStatsWindow(q);
   // Collection health always measures the entire site in the requested time window.
   const siteQuery: CmsStatsQuery = { ...q, contentId: undefined, channelId: undefined, releaseId: undefined, deploymentId: undefined, author: undefined, contentType: undefined, source: undefined, device: undefined };
-  return readSnapshot(async (tx) => {
+  return readCmsGenerationSnapshot(q.siteId, async (tx) => {
     const state = await readCmsCollectionState(tx, q.siteId);
     const [receipts] = await tx.execute<{ accepted: number; rejected: number; duplicates: number }>(sql`select coalesce(sum(accepted),0)::int as accepted,coalesce(sum(rejected),0)::int as rejected,coalesce(sum(duplicates),0)::int as duplicates from public.cms_telemetry_receipts where site_id=${q.siteId} and created_at>=${scope.startTime}::timestamptz and created_at<${scope.endTime}::timestamptz`);
     const [latest] = await tx.execute<{ received: Date | null }>(sql`select max(created_at) as received from public.cms_telemetry_receipts where site_id=${q.siteId}`);

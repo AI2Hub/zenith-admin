@@ -1,17 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Banner, Button, Checkbox, Collapsible, Input, Select, SideSheet, Space, Spin, Tag, Typography } from '@douyinfe/semi-ui';
-import { CMS_PREVIEW_MODE_LABELS, CMS_PREVIEW_MODES, type CmsWorkbenchPreview as PreviewResult } from '@zenith/shared/cms';
+import { CMS_PREVIEW_MODE_LABELS, CMS_PREVIEW_MODES, type CmsPreviewEditTarget, type CmsWorkbenchPreview as PreviewResult } from '@zenith/shared/cms';
 import { useEventCallback } from '@/hooks/useEventCallback';
 import { useCmsWorkbenchPreview } from '@/hooks/queries/cms-workbench';
 import { usePermission } from '@/hooks/usePermission';
 import CmsContentReferenceInput from './CmsContentReferenceInput';
 import CmsConfigurationPicker from './CmsConfigurationPicker';
+import { cmsPreviewDocument, readCmsPreviewPosition, cmsPreviewPositions } from './cms-preview-bridge';
 
 export interface CmsWorkbenchSelection { contentIds?: number[]; pageIds?: number[]; widgetIds?: number[]; includeSiteConfiguration?: boolean }
 type Mode = (typeof CMS_PREVIEW_MODES)[number];
-export default function CmsWorkbenchPreview({ visible, onClose, siteId, initialPath = '/', selection, releaseId, initialMode = 'working' }: Readonly<{
-  visible: boolean; onClose: () => void; siteId?: number; initialPath?: string; selection?: CmsWorkbenchSelection; releaseId?: number; initialMode?: Mode;
+export default function CmsWorkbenchPreview({ visible, onClose, siteId, initialPath = '/', selection, releaseId, initialMode = 'working', onLocate }: Readonly<{
+  visible: boolean; onClose: () => void; siteId?: number; initialPath?: string; selection?: CmsWorkbenchSelection; releaseId?: number; initialMode?: Mode; onLocate?: (target: CmsPreviewEditTarget) => void;
 }>) {
+  const route = useNavigate();
+  const [locate, setLocate] = useState(false);
+  const positions = useRef(cmsPreviewPositions);
   const [mode, setMode] = useState<Mode>(initialMode);
   const [path, setPath] = useState(initialPath);
   const [mobile, setMobile] = useState(false);
@@ -47,15 +52,24 @@ export default function CmsWorkbenchPreview({ visible, onClose, siteId, initialP
     void load(initialMode, initialPath);
   }, [visible, siteId, releaseId, initialMode, initialPath, selectionKey, load]);
   const nonce = useMemo(() => crypto.randomUUID(), [result]);
-  const document = useMemo(() => {
-    if (!result) return '';
-    const policy = `default-src 'none'; img-src http: https: data: blob:; media-src http: https: blob:; font-src http: https: data:; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'; connect-src 'none'; form-action 'none'; base-uri 'none'`;
-    const script = `<script nonce="${nonce}">document.addEventListener('click',function(e){var a=e.target.closest&&e.target.closest('a[data-cms-preview-path]');if(a){e.preventDefault();parent.postMessage({type:'cms-preview-navigation',nonce:${JSON.stringify(nonce)},path:a.getAttribute('data-cms-preview-path')},'*')}});document.addEventListener('submit',function(e){e.preventDefault()});</script>`;
-    return result.html.replace(/<head([^>]*)>/i, `<head$1><meta http-equiv="Content-Security-Policy" content="${policy}">`).replace('</body>', `${script}</body>`);
-  }, [nonce, result]);
+  const document = useMemo(() => result ? cmsPreviewDocument(result.html, nonce) : '', [nonce, result]);
+  const positionKey = () => `${siteId}:${result?.mode}:${releaseId ?? ''}:${result?.path}`;
+  const sendEditMode = (enabled: boolean) => frame.current?.contentWindow?.postMessage({ type: 'cms-preview-edit-mode', nonce, enabled }, '*');
+  const initializeFrame = useEventCallback(() => frame.current?.contentWindow?.postMessage({ type: 'cms-preview-init', nonce, enabled: locate, position: positions.current.get(positionKey()) }, '*'));
+  useEffect(() => { initializeFrame(); }, [mobile, initializeFrame]);
   const navigate = useEventCallback((event: MessageEvent) => {
-    if (!visible || event.source !== frame.current?.contentWindow || event.data?.type !== 'cms-preview-navigation' || event.data?.nonce !== nonce || typeof event.data.path !== 'string') return;
-    void load(mode, event.data.path, true);
+    if (!visible || event.source !== frame.current?.contentWindow || event.data?.nonce !== nonce || !result) return;
+    if (event.data.type === 'cms-preview-position') {
+      const position = readCmsPreviewPosition(event.data);
+      if (position) { positions.current.set(positionKey(), position); if (positions.current.size > 100) positions.current.delete(positions.current.keys().next().value!); }
+    } else if (event.data.type === 'cms-preview-navigation' && typeof event.data.path === 'string') {
+      void load(mode, event.data.path, true);
+    } else if (event.data.type === 'cms-preview-edit' && locate) {
+      const target = result.editTargets.find(item => item.key === event.data.key);
+      if (!target) return;
+      if (onLocate) onLocate(target);
+      else { onClose(); route(target.href); }
+    }
   });
   useEffect(() => { window.addEventListener('message', navigate); return () => window.removeEventListener('message', navigate); }, [navigate]);
   return <SideSheet title="页面预览" visible={visible} onCancel={onClose} width="94vw">
@@ -65,6 +79,7 @@ export default function CmsWorkbenchPreview({ visible, onClose, siteId, initialP
       <Input aria-label="预览页面路径" value={path} onChange={setPath} placeholder="例如 /news/" style={{ width: 280 }} onEnterPress={() => void load(mode, path, true)} />
       <Button onClick={() => void load(mode, path, true)} loading={request.isPending}>打开页面</Button>
       <Button onClick={() => void load(mode, path)}>刷新此来源</Button>
+      <Button onClick={() => { const next = !locate; setLocate(next); sendEditMode(next); }} theme={locate ? 'solid' : 'light'} disabled={!result?.editTargets.length}>定位编辑</Button>
       <Button onClick={() => setMobile(false)} theme={mobile ? 'light' : 'solid'}>桌面</Button><Button onClick={() => setMobile(true)} theme={mobile ? 'solid' : 'light'}>手机</Button>
       <Button onClick={() => setSelectionOpen((open) => !open)}>组合工作稿</Button>
     </Space>
@@ -78,13 +93,13 @@ export default function CmsWorkbenchPreview({ visible, onClose, siteId, initialP
         <Button disabled={!workingAvailable} loading={request.isPending} onClick={() => { appliedSelection.current = composition; setMode('working'); void load('working', path); setSelectionOpen(false); }}>应用并预览组合</Button>
       </Space>
     </Collapsible>
-    <Banner type="info" description="访客视角预览。互动提交、外部跳转及访问统计均已关闭；页面内跳转保持当前预览来源。" style={{ marginBottom: 12 }} />
+    <Banner type="info" description="浏览模式用于站内导航；开启“定位编辑”后，点击区块、图片或列表可打开对应配置。只显示有权限编辑的对象，互动提交和统计采集保持关闭。" style={{ marginBottom: 12 }} />
     {result ? <Space wrap style={{ marginBottom: 12 }}><Tag color={result.mode === 'online' ? 'green' : 'orange'}>{result.sourceLabel}</Tag>
       {result.generationId ? <Typography.Text type="tertiary">公开代次 #{result.generationId}</Typography.Text> : null}
       {result.contentVersions.map((content) => <Tag key={content.id}>稿件 #{content.id} · v{content.version}</Tag>)}
       {result.status !== 200 ? <Tag color="red">页面状态 {result.status}</Tag> : null}
     </Space> : null}
     {error ? <Banner type="danger" description={error} style={{ marginBottom: 12 }} /> : null}
-    <Spin spinning={request.isPending}>{result ? <iframe ref={frame} title="CMS 工作区预览" sandbox="allow-scripts" srcDoc={document} style={{ display: 'block', width: mobile ? 390 : '100%', maxWidth: '100%', height: '72vh', border: '1px solid var(--semi-color-border)', margin: '0 auto' }} /> : null}</Spin>
+    <Spin spinning={request.isPending}>{result ? <iframe ref={frame} onLoad={initializeFrame} title="CMS 工作区预览" sandbox="allow-scripts" srcDoc={document} style={{ display: 'block', width: mobile ? 390 : '100%', maxWidth: '100%', height: '72vh', border: '1px solid var(--semi-color-border)', margin: '0 auto' }} /> : null}</Spin>
   </SideSheet>;
 }

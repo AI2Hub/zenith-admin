@@ -14,7 +14,7 @@ import { isCmsGenerationRead } from './cms-generation-context';
 import { db } from '../../db';
 import {
   cmsAds, cmsAdSlots, cmsChannels, cmsContents, cmsContentRevisions, cmsForms,
-  cmsFriendLinks, cmsPages, cmsResourceRefs, cmsResources, cmsSites, cmsWidgets, managedFiles,
+  cmsFriendLinks, cmsPages, cmsPagePresetVersions, cmsResourceRefs, cmsResources, cmsSites, cmsWidgets, managedFiles,
   cmsReleases,
 } from '../../db/schema';
 import type { DbExecutor } from '../../db/types';
@@ -35,6 +35,8 @@ export const CMS_RESOURCE_OWNER_FIELDS = {
   friendLink: ['logo', 'url'],
   ad: ['image', 'linkUrl'],
   page: ['blocks'],
+  // 参数默认值保存在版本 blocks 对应属性中，必须和固定区块一起保护。
+  page_preset_version: ['blocks'],
   widget: ['draftData', 'publishedData'],
   form: ['fields'],
 } as const satisfies Record<CmsResourceOwnerType, readonly string[]>;
@@ -566,12 +568,13 @@ async function loadOwnerTitles(idsByType: Map<CmsResourceOwnerType, number[]>, s
   const friendLinkIds = ids('friendLink');
   const adIds = ids('ad');
   const pageIds = ids('page');
+  const presetVersionIds = ids('page_preset_version');
   const widgetIds = ids('widget');
   const formIds = ids('form');
   const releaseIds = ids('release');
   if (releaseIds.length) put('release', await db.select({ id: cmsReleases.id, title: cmsReleases.name }).from(cmsReleases).where(and(eq(cmsReleases.siteId, siteId), inArray(cmsReleases.id, releaseIds))));
 
-  const [sites, contents, versions, channels, friendLinks, ads, pages, widgets, forms] = await Promise.all([
+  const [sites, contents, versions, channels, friendLinks, ads, pages, presetVersions, widgets, forms] = await Promise.all([
     siteIds.length
       ? db.select({ id: cmsSites.id, title: cmsSites.name }).from(cmsSites).where(and(eq(cmsSites.id, siteId), inArray(cmsSites.id, siteIds)))
       : [],
@@ -598,6 +601,11 @@ async function loadOwnerTitles(idsByType: Map<CmsResourceOwnerType, number[]>, s
     pageIds.length
       ? db.select({ id: cmsPages.id, title: cmsPages.name }).from(cmsPages).where(and(eq(cmsPages.siteId, siteId), inArray(cmsPages.id, pageIds)))
       : [],
+    presetVersionIds.length
+      ? db.select({ id: cmsPagePresetVersions.id, title: cmsPagePresetVersions.name, version: cmsPagePresetVersions.version })
+          .from(cmsPagePresetVersions)
+          .where(and(eq(cmsPagePresetVersions.siteId, siteId), inArray(cmsPagePresetVersions.id, presetVersionIds)))
+      : [],
     widgetIds.length
       ? db.select({ id: cmsWidgets.id, title: cmsWidgets.name }).from(cmsWidgets).where(and(eq(cmsWidgets.siteId, siteId), inArray(cmsWidgets.id, widgetIds)))
       : [],
@@ -613,6 +621,7 @@ async function loadOwnerTitles(idsByType: Map<CmsResourceOwnerType, number[]>, s
   put('friendLink', friendLinks);
   put('ad', ads);
   put('page', pages);
+  put('page_preset_version', presetVersions.map((row) => ({ id: row.id, title: `${row.title}（版本 ${row.version}）` })));
   put('widget', widgets);
   put('form', forms);
   return titles;

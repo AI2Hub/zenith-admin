@@ -49,6 +49,8 @@ async function purgeAnalyticsEvents(days: number, batchSize: number): Promise<nu
     if (purged.size) {
       const { syncCmsCollectionState } = await import('../../services/cms/cms-collection-state');
       for (const [siteId, at] of purged) {
+        const [site] = await tx.execute<{ id: number }>(sql`select id from public.cms_sites where id=${siteId} for key share`);
+        if (!site) continue;
         await syncCmsCollectionState(tx, siteId, 'retention');
         await tx.execute(sql`update public.cms_collection_states set purged_through=greatest(purged_through,${at.toISOString()}::timestamptz) where site_id=${siteId}`);
       }

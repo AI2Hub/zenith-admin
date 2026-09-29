@@ -257,7 +257,7 @@ export const CMS_RESOURCE_URI_PREFIX = 'cms-res://';
 
 /** 素材引用方（反向索引 owner_type 取值） */
 export const CMS_RESOURCE_OWNER_TYPES = [
-  'site', 'content', 'contentVersion', 'channel', 'friendLink', 'ad', 'page', 'widget', 'form', 'release',
+  'site', 'content', 'contentVersion', 'channel', 'friendLink', 'ad', 'page', 'widget', 'form', 'release', 'page_preset_version',
 ] as const;
 
 export type CmsResourceOwnerType = (typeof CMS_RESOURCE_OWNER_TYPES)[number];
@@ -271,6 +271,7 @@ export const CMS_RESOURCE_OWNER_TYPE_LABELS: Record<CmsResourceOwnerType, string
   friendLink: '友情链接',
   ad: '广告',
   page: '搭建页面',
+  page_preset_version: '页面组合版本',
   widget: '页面部件',
   form: '表单',
 };
@@ -760,6 +761,38 @@ export const CMS_CONTENT_REVIEW_ISSUE_KINDS = ['review_due','validity_expired','
 export const CMS_CONTENT_REVIEW_ISSUE_LABELS = { review_due:'复核到期',validity_expired:'资料已失效',validity_expiring:'资料即将失效',asset_revoked:'素材已撤权',asset_expired:'素材授权已到期',asset_expiring:'素材授权临近到期',broken_link:'失效链接' } as const;
 
 export const CMS_EDITORIAL_TASK_HISTORY_ACTION_LABELS: Record<string, string> = { baseline: '建立追踪基准', created: '创建事项', updated: '更新事项', edit_completed: '完成编辑', activated: '实际发布上线', observing: '开始观察', observation: '更新观察证据', verified: '确认复盘验证', reopened: '开启新一轮', cancelled: '取消处理', interrupted: '观察中断', review_confirmed: '确认定期复核' };
+export const CMS_PREVIEW_EDIT_TARGET_KINDS = ['page', 'site', 'widget', 'content', 'channel'] as const;
 
 export const CMS_DEPLOYMENT_STORAGE_STATES = ['available', 'purging', 'purged'] as const;
 export const CMS_DEPLOYMENT_STORAGE_LABELS = { available: '已保留', purging: '回收中', purged: '已回收' };
+
+export const CMS_PAGE_IMAGE_RATIOS = ['auto', '21:9', '16:9', '4:3', '1:1', '3:4', '9:16'] as const;
+export const CMS_PAGE_IMAGE_RATIO_LABELS = { auto: '原图比例', '21:9': '21:9 宽幅', '16:9': '16:9 横幅', '4:3': '4:3 横图', '1:1': '1:1 方图', '3:4': '3:4 竖图', '9:16': '9:16 竖幅' };
+export const CMS_PAGE_IMAGE_RATIO_OPTIONS = createLabelOptionsFromMap(CMS_PAGE_IMAGE_RATIO_LABELS);
+
+export const CMS_CONFIGURATION_OBJECT_KINDS = ['site', 'page', 'widget'] as const;
+export const CMS_CONFIGURATION_STATES = ['saved', 'pending', 'online'] as const;
+export const CMS_CONFIGURATION_STATE_LABELS = { saved: '已保存未上线', pending: '待发布', online: '已上线' };
+
+/** 组合参数只能映射到以下平面 props 字段，禁止任意对象路径。 */
+export const CMS_PAGE_PRESET_FIELD_VALUES = ['title', 'subtitle', 'buttonText', 'buttonUrl', 'channelCode', 'count', 'image', 'src', 'mobileImage', 'imageAlt', 'linkUrl', 'linkLabel'] as const;
+export type CmsPagePresetField = (typeof CMS_PAGE_PRESET_FIELD_VALUES)[number];
+export const CMS_PAGE_PRESET_FIELDS: readonly {
+  value: CmsPagePresetField;
+  label: string;
+  kind: 'text' | 'number' | 'image' | 'link' | 'channel';
+  blockTypes: readonly (typeof CMS_PAGE_BLOCK_TYPE_VALUES)[number][];
+}[] = [
+  { value: 'title', label: '标题', kind: 'text', blockTypes: ['hero', 'content-list'] },
+  { value: 'subtitle', label: '副标题', kind: 'text', blockTypes: ['hero'] },
+  { value: 'buttonText', label: '按钮文字', kind: 'text', blockTypes: ['hero'] },
+  { value: 'buttonUrl', label: '按钮链接', kind: 'link', blockTypes: ['hero'] },
+  { value: 'channelCode', label: '栏目', kind: 'channel', blockTypes: ['content-list'] },
+  { value: 'count', label: '内容数量', kind: 'number', blockTypes: ['content-list'] },
+  { value: 'image', label: '背景图', kind: 'image', blockTypes: ['hero'] },
+  { value: 'src', label: '图片', kind: 'image', blockTypes: ['image'] },
+  { value: 'mobileImage', label: '移动端图片', kind: 'image', blockTypes: ['hero', 'image'] },
+  { value: 'imageAlt', label: '图片说明', kind: 'text', blockTypes: ['hero', 'image'] },
+  { value: 'linkUrl', label: '图片链接', kind: 'link', blockTypes: ['image'] },
+  { value: 'linkLabel', label: '链接说明', kind: 'text', blockTypes: ['image'] },
+];

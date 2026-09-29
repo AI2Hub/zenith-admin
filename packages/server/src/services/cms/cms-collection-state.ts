@@ -2,14 +2,17 @@ import { eq, sql } from 'drizzle-orm';
 import { cmsStatisticsCoverage } from '@zenith/shared/cms';
 import type { DbExecutor, DbTransaction } from '../../db/types';
 import { cmsCollectionStates, cmsCollectionTransitions } from '../../db/schema';
+import { pinCmsGenerationRead } from './cms-generation-read';
 import { cmsGenerationSchemaName } from './cms-generation-storage.service';
 
-export async function readCmsCollectionState(tx: DbExecutor, siteId: number) {
+export async function readCmsCollectionState(executor: DbExecutor, siteId: number) {
+  return executor.transaction(async tx => {
   const [current] = await tx.execute<{ settings: Record<string, unknown>; generationId: number | null; status: string }>(sql`
     select s.settings,s.status,g.active_generation_id as "generationId" from public.cms_sites s
     left join public.cms_site_generations g on g.site_id=s.id where s.id=${siteId}`);
   let published: Record<string, unknown> = {};
   if (current?.generationId) {
+    await pinCmsGenerationRead(tx, current.generationId);
     const schema = sql.identifier(cmsGenerationSchemaName(current.generationId));
     const [row] = await tx.execute<{ settings: Record<string, unknown> }>(sql`select settings from ${schema}.cms_site_projection where id=${siteId}`);
     published = row?.settings ?? {};
@@ -20,6 +23,7 @@ export async function readCmsCollectionState(tx: DbExecutor, siteId: number) {
   const publishedEnabled = active?.enabled === true && active.schemaVersion === 2;
   return { configured: configuredEnabled, published: publishedEnabled, enabled: configuredEnabled && publishedEnabled,
     generationId: current?.generationId ?? null, changed: JSON.stringify(configured ?? {}) !== JSON.stringify(active ?? {}) };
+  });
 }
 
 /** Caller-owned transaction serializes the small coverage state with publication/configuration changes. */

@@ -5,6 +5,7 @@ import type { DbExecutor } from '../../db/types';
 import { cmsChannels, cmsContents, cmsPages, cmsTags, cmsWidgets, cmsWidgetRefs } from '../../db/schema';
 import { resolveEffectivelyEnabledChannelIds } from './cms-channel-visibility.service';
 import { sanitizeCmsPageBlocks } from './cms-page-blocks';
+import { inspectCmsPageBlockTargets } from './cms-page-quality.service';
 
 /** Runs against the candidate executor, never against a later working configuration. */
 export async function assertCmsReleaseDependencies(executor: DbExecutor, siteId: number): Promise<void> {
@@ -24,6 +25,8 @@ export async function assertCmsReleaseDependencies(executor: DbExecutor, siteId:
   for (const placement of placements) requireWidget(placement.widgetId, `主题插槽 ${placement.field}`);
   for (const page of pages) {
     const blocks = sanitizeCmsPageBlocks(page.blocks) as CmsPageBlock[];
+    const issues = (await inspectCmsPageBlockTargets(executor, siteId, blocks)).filter(issue => issue.severity === 'error');
+    if (issues.length) throw new HTTPException(409, { message: `页面「${page.name}」发布检查失败：${issues.map(issue => `区块「${issue.blockId || '页面'}」${issue.fieldPath}：${issue.message}`).join('；')}` });
     for (const block of blocks) {
       if (block.type === 'widget-ref') requireWidget(Number(block.props.widgetId), `页面「${page.name}」`);
       if (block.type === 'content-list') {

@@ -1,4 +1,6 @@
 import { cmsBodyDocumentSchema } from './document';
+import { cmsPageImageOptionsSchema } from './page-image';
+import { cmsPagePresetParameterSchema, cmsPagePresetSourceSchema, cmsPagePresetValuesSchema, validateCmsPagePresetDefinition } from './page-presets';
 import * as z from 'zod';
 import { cmsAttributionContextSchema } from './operations-validation';
 import { dateTimeStringSchema, httpUrl, partialForUpdate } from '../core/validation';
@@ -788,7 +790,12 @@ export const cmsPageBlockSchema = z.strictObject({
   type: z.enum(['hero', 'richtext', 'image', 'content-list', 'columns', 'widget-ref']),
   props: z.record(z.string(), z.unknown()),
   displayCondition: cmsPageBlockDisplayConditionSchema.optional(),
+  presetSource: cmsPagePresetSourceSchema.optional(),
 }).superRefine((block, ctx) => {
+  if (block.type === 'hero' || block.type === 'image') {
+    const imageOptions = cmsPageImageOptionsSchema.safeParse(block.props);
+    if (!imageOptions.success) for (const issue of imageOptions.error.issues) ctx.addIssue({ code: 'custom', path: ['props', ...issue.path], message: issue.message });
+  }
   // Keep the block payload extensible, but every conventionally URL-bearing
   // property must still pass the shared policy before it can reach SSR HTML.
   const inspect = (value: unknown, path: (string | number)[]) => {
@@ -1357,3 +1364,28 @@ export const openCmsContentUpdateSchema = partialForUpdate(openCmsContentWriteSc
 });
 
 export type OpenCmsContentUpdateInput = z.input<typeof openCmsContentUpdateSchema>;
+
+// Site-owned page compositions: append-only versions, explicit snapshot instantiation.
+const cmsPagePresetDefinitionSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+  description: z.string().trim().max(500).nullish(),
+  blocks: z.array(cmsPageBlockSchema).min(1).max(50),
+  parameters: z.array(cmsPagePresetParameterSchema).max(50),
+});
+const validatePresetDefinition = (value: z.output<typeof cmsPagePresetDefinitionSchema>, ctx: z.RefinementCtx) => {
+  try { validateCmsPagePresetDefinition(value.blocks, value.parameters); }
+  catch (error) { ctx.addIssue({ code: 'custom', message: error instanceof Error ? error.message : '组合参数无效' }); }
+};
+export const createCmsPagePresetSchema = cmsPagePresetDefinitionSchema.extend({
+  siteId: z.number().int().positive(),
+  parameters: z.array(cmsPagePresetParameterSchema).max(50).default([]),
+}).superRefine(validatePresetDefinition);
+export const saveCmsPagePresetVersionSchema = cmsPagePresetDefinitionSchema.extend({
+  expectedVersion: z.number().int().positive(),
+  note: z.string().trim().max(500).nullish(),
+}).superRefine(validatePresetDefinition);
+export const copyCmsPagePresetSchema = z.object({ name: z.string().trim().min(1).max(100) });
+export const instantiateCmsPagePresetSchema = z.object({
+  version: z.number().int().positive(),
+  values: cmsPagePresetValuesSchema.default({}),
+});

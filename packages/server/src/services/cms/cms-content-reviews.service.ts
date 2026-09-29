@@ -12,7 +12,6 @@ import { buildListResult } from '../../lib/list-query';
 import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
 import { buildCmsContentListWhere, getCmsContent } from './cms-contents-query.service';
 import { requireCmsOperationsAssignee } from './cms-feedback.service';
-import { cmsGenerationSchemaName } from './cms-generation-storage.service';
 import { assertSiteAccess } from './cms-sites.service';
 import { acquireCmsSitePublishLock } from './cms-site-publish-lock.service';
 import { confirmCmsPeriodicReviewTasks } from './cms-content-review-completion';
@@ -21,12 +20,13 @@ export type CmsLiveReviewSubject = { generationId: number; revisionId: number; t
 export async function loadCmsLiveReviewSubject(siteId: number, contentId: number, executor: DbExecutor = db): Promise<CmsLiveReviewSubject | null> {
   const [pointer] = await executor.select({ id: cmsSiteGenerations.activeGenerationId }).from(cmsSiteGenerations).where(eq(cmsSiteGenerations.siteId, siteId)).limit(1);
   if (!pointer?.id) return null;
-  const schema = cmsGenerationSchemaName(pointer.id);
   const [row] = await executor.execute<{ revisionId: number; title: string; snapshot: CmsContentRevisionSnapshot }>(sql`
-    select r.id as "revisionId",r.title,r.snapshot from ${sql.identifier(schema)}.${sql.identifier('cms_generation_revision_refs')} ref
-    join public.cms_content_revisions r on r.id=ref.revision_id
-    join public.cms_contents c on c.id=ref.content_id
-    where ref.content_id=${contentId} and c.site_id=${siteId} and c.status='published' and c.deleted_at is null and c.archived_at is null
+    select r.id as "revisionId",r.title,r.snapshot from public.cms_deployments deployment
+    cross join lateral jsonb_array_elements(coalesce(deployment.snapshot->'revisions','[]'::jsonb)) ref
+    join public.cms_content_revisions r on r.id=(ref->>'revisionId')::int and r.hash=ref->>'hash'
+    join public.cms_contents c on c.id=(ref->>'contentId')::int
+    where deployment.id=${pointer.id} and deployment.site_id=${siteId} and c.id=${contentId} and r.content_id=c.id
+      and c.site_id=${siteId} and c.status='published' and c.deleted_at is null and c.archived_at is null
       and not exists(select 1 from public.cms_content_suppressions s where s.content_id=c.id) limit 1`);
   return row ? { ...row, generationId: pointer.id } : null;
 }

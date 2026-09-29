@@ -61,12 +61,14 @@ function SiteModelFieldControl({ field, siteId }: Readonly<{ field: CmsModelFiel
 
 interface SiteEditSheetProps {
   readonly open: boolean;
+  readonly initialSection?: string;
+  readonly focusBlockId?: string;
   /** 编辑中的站点；null = 新建 */
   readonly site: CmsSite | null;
   readonly onClose: () => void;
 }
 
-export default function SiteEditSheet({ open, site: initialSite, onClose }: Readonly<SiteEditSheetProps>) {
+export default function SiteEditSheet({ open, site: initialSite, onClose, initialSection, focusBlockId }: Readonly<SiteEditSheetProps>) {
   const { hasPermission } = usePermission();
   // useEditModal 例外：受控子组件（打开态与编辑对象由父级持有）的多页签站点编辑工作区，
   // 主题参数 / 模板默认值 / 扩展模型为表单外受控状态；编辑对象来自父级列表行，无详情查询
@@ -75,7 +77,7 @@ export default function SiteEditSheet({ open, site: initialSite, onClose }: Read
   const [createdSite, setCreatedSite] = useState<CmsSite | null>(null);
   const site = initialSite ?? createdSite;
   const confirmedSite = useRef<CmsSite | null>(initialSite);
-  const openKey = open ? String(initialSite?.id ?? 'new') : null;
+  const openKey = open ? `${initialSite?.id ?? 'new'}:${initialSection ?? ''}:${focusBlockId ?? ''}` : null;
   const preparedImages = usePreparedSiteImages(openKey);
   const [savingImages, setSavingImages] = useState(false);
   const [imageSaveError, setImageSaveError] = useState('');
@@ -114,7 +116,7 @@ export default function SiteEditSheet({ open, site: initialSite, onClose }: Read
     confirmedSite.current = initialSite;
     setImageSaveError('');
     if (openKey !== null) {
-      setActiveTab('basic');
+      setActiveTab(initialSection === 'appearance' || initialSection === 'templates' ? initialSection : 'basic');
       if (initialSite) {
         setSelectedTheme(initialSite.theme);
         setSelectedModelId(initialSite.modelId ?? undefined);
@@ -283,7 +285,7 @@ export default function SiteEditSheet({ open, site: initialSite, onClose }: Read
           />
         );
       case 'home-sections':
-        return <HomeSectionsEditor siteId={site?.id} value={Array.isArray(value) ? value as CmsHomeSection[] : []} onChange={(next) => themeConfigPatch(field.name, next)} disabled={savingImages} />;
+        return <HomeSectionsEditor focusBlockId={focusBlockId} siteId={site?.id} value={Array.isArray(value) ? value as CmsHomeSection[] : []} onChange={(next) => themeConfigPatch(field.name, next)} disabled={savingImages} />;
       case 'model-displays':
         return <ModelDisplaysEditor siteId={site?.id} value={Array.isArray(value) ? value as CmsModelDisplay[] : []} onChange={(next) => themeConfigPatch(field.name, next)} disabled={savingImages} />;
       case 'select':
@@ -395,7 +397,7 @@ export default function SiteEditSheet({ open, site: initialSite, onClose }: Read
       closeOnEsc
       footer={<ModalFooter onCancel={() => { if (!savingImages) onClose(); }} onOk={() => void handleSave()} okText={imageSaveError ? '重试保存' : '保存'} loading={savingImages || saveMutation.isPending} extra={<Button disabled={savingImages || saveMutation.isPending} onClick={() => void handleSave(true)}>保存并预览工作稿</Button>} />}
     >
-      {site?.id ? <CmsConfigurationNotice siteId={site.id} /> : null}
+      {site?.id ? <CmsConfigurationNotice siteId={site.id} kind="site" /> : null}
       {imageSaveError ? <Banner type="warning" description={imageSaveError} closeIcon={null} /> : null}
       {!initialSite && preparedImages.images.length > 0 ? <Banner type="info" description={`已准备 ${preparedImages.images.length} 张图片，将在保存站点后上传；关闭窗口会放弃尚未上传的本地文件。`} closeIcon={null} /> : null}
       <Form

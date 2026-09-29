@@ -1,14 +1,21 @@
 import * as z from 'zod';
 import { defineContract, op } from '../../core/contract';
-import { requiredIdQuery } from '../../core/api-schemas';
+import { idQuery, queryEnum, requiredIdQuery } from '../../core/api-schemas';
 import { ASYNC_TASK_STATUSES } from '../../tasks/constants';
-import { CMS_PREVIEW_MODES, CMS_RELEASE_CHANGE_KINDS } from '../constants';
+import { CMS_PREVIEW_MODES, CMS_RELEASE_CHANGE_KINDS, CMS_PREVIEW_EDIT_TARGET_KINDS, CMS_CONFIGURATION_OBJECT_KINDS, CMS_CONFIGURATION_STATES } from '../constants';
+import { CMS_RELEASE_STATUSES } from '../release-validation';
 import { renderCmsWorkbenchPreviewSchema } from '../workbench-validation';
 
+export const cmsPreviewEditTargetSchema = z.object({
+  key: z.string(), kind: z.enum(CMS_PREVIEW_EDIT_TARGET_KINDS), id: z.int().positive(), siteId: z.int().positive(),
+  blockId: z.string().nullable(), label: z.string(), href: z.string(),
+});
+export type CmsPreviewEditTarget = z.infer<typeof cmsPreviewEditTargetSchema>;
 export const cmsWorkbenchPreviewSchema = z.object({
   html: z.string(), status: z.int(), path: z.string(), mode: z.enum(CMS_PREVIEW_MODES),
   sourceLabel: z.string(), fingerprint: z.string(), generationId: z.int().nullable(),
   contentVersions: z.array(z.object({ id: z.int(), version: z.int() })),
+  editTargets: z.array(cmsPreviewEditTargetSchema),
 }).meta({ id: 'CmsWorkbenchPreview' });
 export type CmsWorkbenchPreview = z.infer<typeof cmsWorkbenchPreviewSchema>;
 export const cmsReleaseFieldDiffSchema = z.object({ path: z.string(), before: z.unknown(), after: z.unknown() });
@@ -32,7 +39,19 @@ export const cmsReleaseReviewSchema = z.object({
 }).meta({ id: 'CmsReleaseReview' });
 export type CmsReleaseReview = z.infer<typeof cmsReleaseReviewSchema>;
 
+export const cmsConfigurationStateQuery = z.object({ siteId: requiredIdQuery(), kind: queryEnum(CMS_CONFIGURATION_OBJECT_KINDS, '配置对象').default('site'), objectId: idQuery() }).superRefine((query, ctx) => {
+  if (query.kind !== 'site' && !query.objectId) ctx.addIssue({ code: 'custom', path: ['objectId'], message: '请选择已保存的页面或部件' });
+  if (query.kind === 'site' && query.objectId && query.objectId !== query.siteId) ctx.addIssue({ code: 'custom', path: ['objectId'], message: '站点对象必须与当前站点一致' });
+});
+export const cmsConfigurationStateSchema = z.object({
+  siteId: z.int(), kind: z.enum(CMS_CONFIGURATION_OBJECT_KINDS), objectId: z.int(), state: z.enum(CMS_CONFIGURATION_STATES),
+  generationId: z.int().nullable(), hasPublished: z.boolean(), savedAt: z.string().nullable(),
+  release: z.object({ id: z.int(), name: z.string(), status: z.enum(CMS_RELEASE_STATUSES), href: z.string(), matchesSaved: z.boolean() }).nullable(),
+}).meta({ id: 'CmsConfigurationState' });
+export type CmsConfigurationState = z.infer<typeof cmsConfigurationStateSchema>;
+
 export const cmsWorkbenchContract = defineContract('/api/cms/workbench', {
+  configurationState: op.get('/configuration-state', { access: { permission: ['cms:page:list', 'cms:widget:list', 'cms:site:list'] }, query: cmsConfigurationStateQuery, response: cmsConfigurationStateSchema, summary: '当前已保存配置与实际线上快照的状态及授权发布入口' }),
   preview: op.post('/preview', { access: { permission: ['cms:content:list', 'cms:page:list', 'cms:widget:list', 'cms:site:list', 'cms:publish:view'] },
     audit: { description: '预览 CMS 工作区', recordResponseBody: false }, body: renderCmsWorkbenchPreviewSchema, response: cmsWorkbenchPreviewSchema, summary: '受权预览工作稿、候选或线上版本，不产生公开副作用' }),
   configurationDraft: op.get('/configuration-draft', { access: { permission: ['cms:content:list', 'cms:page:list', 'cms:widget:list', 'cms:site:list', 'cms:publish:view'] },

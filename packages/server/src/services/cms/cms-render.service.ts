@@ -81,7 +81,7 @@ export function siteOrigin(site: CmsSiteRow): string | null {
 
 // ─── 渲染结果 ─────────────────────────────────────────────────────────────────
 export type RenderResult =
-  | { status: 200; html: string; kind: 'home' | 'list' | 'page' | 'detail' | 'search'; contentId?: number }
+  | { status: 200; html: string; kind: 'home' | 'list' | 'page' | 'detail' | 'search'; contentId?: number; pageId?: number; channelId?: number }
   | { status: 404; html: string; kind: 'notFound' }
   | { status: 302; location: string };
 
@@ -473,7 +473,7 @@ const MAX_ARCHIVE_SEGMENTS = 3;
  * 按最长前缀查找栏目：详情页目录可能带归档段（`news/2026/7/5`），
  * 逐级剥离尾段重试。同名子栏目真实存在时会先命中子栏目，语义正确。
  */
-async function findChannelByPathPrefix(siteId: number, dir: string): Promise<CmsChannelRow | null> {
+export async function findChannelByPathPrefix(siteId: number, dir: string): Promise<CmsChannelRow | null> {
   const segments = dir.split('/');
   const minLength = Math.max(1, segments.length - MAX_ARCHIVE_SEGMENTS);
   for (let length = segments.length; length >= minLength; length--) {
@@ -545,7 +545,7 @@ export async function renderCustomPage(
     blocksHtml,
   };
   const html = renderDoc(resolveCustomPageTemplate(theme), props);
-  return { status: 200, html, kind: opts?.asHome ? 'home' : 'page' };
+  return { status: 200, html, kind: opts?.asHome ? 'home' : 'page', pageId: pageRow.id };
 }
 
 async function listBlockContents(siteId: number, opts: { channelId?: number; tagSlug?: string; count: number; mode: 'latest' | 'recommend' | 'hot' }): Promise<ResolvedCmsContentListRow[]> {
@@ -808,7 +808,7 @@ export async function renderChannelPage(site: CmsSiteRow, baseUrl: string, chann
     pagination: buildPagination(baseUrl, channel.path, page, channel.pageSize, total),
   };
   const html = renderDoc(resolvedList.component, props);
-  return { status: 200, html, kind: 'list' };
+  return { status: 200, html, kind: 'list', channelId: channel.id };
 }
 
 /** 详情页专属上下文片段：形态数据 + 正文分页 */

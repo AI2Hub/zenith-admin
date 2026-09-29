@@ -61,6 +61,9 @@ import { cmsEditorialHandlers } from './cms-editorial';
 import { cmsMediaHandlers } from './cms-media';
 import { cmsOperationsHandlers } from './cms-operations';
 import { cmsContentReviewHandlers } from './cms-reviews';
+import { cmsPageQualityHandlers } from './cms-page-quality';
+import { cmsPagePresetHandlers } from './cms-page-presets';
+import { cmsConfigurationStateHandlers } from './cms-configuration-state';
 import { cmsDeploymentRetentionHandlers } from './cms-deployment-retention';
 import { cmsBlueprintHandlers } from './cms-blueprints';
 import { cmsReleaseHandlers } from './cms-releases';
@@ -301,6 +304,9 @@ export const handlers = [
   ...cmsMediaHandlers,
   ...cmsOperationsHandlers,
   ...cmsContentReviewHandlers,
+  ...cmsPageQualityHandlers,
+  ...cmsPagePresetHandlers,
+  ...cmsConfigurationStateHandlers,
   ...cmsDeploymentRetentionHandlers,
   ...cmsReleaseHandlers,
   ...cmsBlueprintHandlers,

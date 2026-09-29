@@ -32,3 +32,4 @@ export * from './telemetry';
 export * from './reviews';
 
 export * from './deployment-retention';
+export * from './page-presets';

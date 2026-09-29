@@ -1,5 +1,5 @@
 import { matchesFilter } from '../utils/filter';
-import { cmsReleaseContract, cmsWorkbenchContract, CMS_PREVIEW_MODE_LABELS, cmsReleaseFieldDiffs, mergeCmsConfigurationSnapshots, type CmsReleaseChange, type CmsConfigurationSnapshot, type CmsRelease, type CmsDeployment, type CreateCmsReleaseInput } from '@zenith/shared/cms';
+import { cmsReleaseContract, cmsWorkbenchContract, CMS_PREVIEW_MODE_LABELS, cmsReleaseFieldDiffs, mergeCmsConfigurationSnapshots, type CmsPreviewEditTarget, type CmsPageBlock, type CmsReleaseChange, type CmsConfigurationSnapshot, type CmsRelease, type CmsDeployment, type CreateCmsReleaseInput } from '@zenith/shared/cms';
 import { mock, MockHttpError } from '../utils/contract';
 import { requireItem, updateItem } from '../utils/crud';
 import { badRequest, conflict, nextIdFrom } from '../utils/handlers';
@@ -20,6 +20,20 @@ const requireRelease = (id: number) => requireItem(releases, id, '发布单不�
 
 export function getMockCmsSiteActivations(siteId: number) {
   return activations.filter(row => releases.some(release => release.id === row.releaseId && release.siteId === siteId));
+}
+/** Raw frozen records for configuration-state comparisons; never pass URL-resolved editor DTOs here. */
+export function getMockCmsConfigurationStateContext(siteId: number, kind: 'site' | 'page' | 'widget', objectId: number) {
+  const table = { site: 'cms_sites', page: 'cms_pages', widget: 'cms_widgets' }[kind];
+  const generationId = active.get(siteId) ?? null;
+  const snapshot = generationId ? deploymentConfigurations.get(generationId) : undefined;
+  const online = snapshot?.tables[table]?.find(row => Number(row.id) === objectId) ?? null;
+  const inheritance = snapshot?.tables.cms_site_inheritances?.find(row => Number(row.site_id) === siteId) ?? online?.inheritance;
+  return { generationId, online: kind === 'site' && online ? { ...online, inheritance: inheritance ?? {} } : online,
+    releases: releases.filter(row => row.siteId === siteId && ['draft', 'building', 'ready', 'scheduled', 'failed'].includes(row.status) && row.configurationItems.some(item => item.kind === kind && item.id === objectId)).sort((a, b) => b.id - a.id).map(row => {
+      const captured = configurations.get(row.id); const record = captured?.tables[table]?.find(item => Number(item.id) === objectId) ?? null;
+      return { release: row, captured: kind === 'site' && record ? { ...record, inheritance: captured?.tables.cms_site_inheritances?.find(item => Number(item.site_id) === siteId) ?? record.inheritance ?? inheritance ?? {} } : record };
+    }),
+  };
 }
 /** Read the same deployment pointer and pinned revisions that Demo release activation uses. */
 export function getMockCmsActivePublication(contentId: number) {
@@ -218,11 +232,24 @@ export const cmsReleaseHandlers = [
     if (body.expectedFingerprint && body.expectedFingerprint !== fingerprint) return conflict('预览来源已变化，请刷新预览', { status: 409 });
     const target = /^\/@content\/(\d+)$/.exec(body.path);
     const picked = target ? contents.filter((row) => row.id === Number(target[1])) : contents;
-    const contentHtml = picked.map((row) => `<article><h2>${escapeHtml(row.title)}</h2><p>${escapeHtml(row.summary ?? '')}</p><p>${escapeHtml((row.body ?? '').replace(/<[^>]+>/g, ''))}</p></article>`).join('');
-    const configurationHtml = (configuration.tables.cms_pages ?? []).map((page) => `<section><h2>${escapeHtml(String(page.name ?? ''))}</h2><pre>${escapeHtml(JSON.stringify(page.blocks))}</pre></section>`).join('');
+    const editTargets: CmsPreviewEditTarget[] = [];
+    const contentHtml = picked.map((row) => {
+      const key = `content:${row.id}:root`;
+      editTargets.push({ key, kind: 'content', id: row.id, siteId: body.siteId, blockId: null, label: row.title, href: `/cms/contents/edit?id=${row.id}&siteId=${body.siteId}` });
+      return `<article data-cms-preview-edit="${key}"><h2>${escapeHtml(row.title)}</h2><p>${escapeHtml(row.summary ?? '')}</p><p>${escapeHtml((row.body ?? '').replace(/<[^>]+>/g, ''))}</p></article>`;
+    }).join('');
+    const configurationHtml = (configuration.tables.cms_pages ?? []).map((page) => {
+      const blocks = (page.blocks ?? []) as CmsPageBlock[];
+      return `<section><h2>${escapeHtml(String(page.name ?? ''))}</h2>${blocks.map(block => {
+        const key = `page:${page.id}:${block.id}`;
+        const editable = mockCmsPages.find(row => row.id === Number(page.id))?.blocks.find(row => row.id === block.id)?.canManage !== false;
+        if (editable) editTargets.push({ key, kind: 'page', id: Number(page.id), siteId: body.siteId, blockId: block.id, label: `${String(page.name)} · ${block.type}`, href: `/cms/pages?siteId=${body.siteId}&page=${page.id}&block=${encodeURIComponent(block.id)}` });
+        return `<section data-cms-page-block="true" data-cms-block-id="${escapeHtml(block.id)}"${editable ? ` data-cms-preview-edit="${escapeHtml(key)}"` : ''}><pre>${escapeHtml(JSON.stringify(block.props))}</pre></section>`;
+      }).join('')}</section>`;
+    }).join('');
     return ok({ html: `<!doctype html><html><head><meta name="robots" content="noindex,nofollow"></head><body><h1>${escapeHtml(site.name)}</h1><p>Demo 预览采用本地数据，正式站点由服务端主题渲染。</p>${target ? '' : configurationHtml}${contentHtml}</body></html>`,
       status: target && !picked.length ? 404 : 200, path: body.path, mode: body.mode, sourceLabel: CMS_PREVIEW_MODE_LABELS[body.mode], fingerprint, generationId,
-      contentVersions: body.mode === 'working' ? contents.filter((row) => body.contentIds.includes(row.id)).map((row) => ({ id: row.id, version: row.version })) : [] });
+      editTargets, contentVersions: body.mode === 'working' ? contents.filter((row) => body.contentIds.includes(row.id)).map((row) => ({ id: row.id, version: row.version })) : [] });
   }),
   mock(cmsReleaseContract.review, async ({ params, ok }) => {
     const release = requireRelease(params.id);

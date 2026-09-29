@@ -1,3 +1,3 @@
 /** Public rendering settings; credentials and operational delivery policies remain live. */
-export const CMS_PUBLIC_SITE_SETTINGS = ['protocol', 'themePrimary', 'themeDark', 'themeConfig', 'defaultTemplates', 'language', 'langLinks', 'twitterSite', 'twitterCard', 'socialImageAlt', 'analyticsSiteKey', 'telemetry'] as const;
+export { CMS_PUBLIC_SITE_SETTINGS } from '@zenith/shared/cms';
 export const CMS_CONFIGURATION_TABLES = ['cms_sites', 'cms_site_inheritances', 'cms_channels', 'cms_pages', 'cms_widgets', 'cms_widget_refs', 'cms_widget_source_refs', 'cms_friend_link_groups', 'cms_friend_links', 'cms_link_words', 'cms_redirects', 'cms_search_words', 'cms_resources'] as const;

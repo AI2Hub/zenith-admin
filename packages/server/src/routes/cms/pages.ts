@@ -12,6 +12,7 @@ import {
 } from '../../services/cms/cms-pages.service';
 import { listCmsPageBlockAcls, setCmsPageBlockAcls } from '../../services/cms/cms-page-acl.service';
 import { mountCrud } from '../_crud';
+import { getCmsPageQuality } from '../../services/cms/cms-page-quality.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -44,7 +45,7 @@ const setBlockAclsRoute = defineContractRoute(cmsPageContract.setBlockAcls, {
 mountCrud(router, cmsPageContract,
   { list: listCmsPages, get: getCmsPage, create: createCmsPage, remove: deleteCmsPage },
   { exclude: ['update'] },
-  [listBlockAclsRoute, setBlockAclsRoute, updateRouteDef],
+  [listBlockAclsRoute, setBlockAclsRoute, updateRouteDef, defineContractRoute(cmsPageContract.quality, { handler: async c => c.json(okBody(await getCmsPageQuality(c.req.valid('param').id)), 200) })],
 );
 
 export default router;

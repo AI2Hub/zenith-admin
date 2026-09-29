@@ -1,3 +1,4 @@
+import { invalidateCmsPagePresetUsages } from './cms-page-presets';
 import { invalidateCmsPublishingViews } from './cms-stage3';
 import { keepPreviousData } from '@tanstack/react-query';
 import type { QueryOf } from '@zenith/shared/core';
@@ -6,7 +7,7 @@ import { contractKey, createResourceQueries, useApiMutation, useApiQuery } from 
 
 export type CmsPageListParams = NonNullable<QueryOf<typeof cmsPageContract.list>>;
 
-const resource = createResourceQueries(cmsPageContract, { onSaved: invalidateCmsPublishingViews, onDeleted: invalidateCmsPublishingViews });
+const resource = createResourceQueries(cmsPageContract, { onSaved: (qc) => { invalidateCmsPagePresetUsages(qc); invalidateCmsPublishingViews(qc); void qc.invalidateQueries({ queryKey: contractKey(cmsPageContract.quality) }); }, onDeleted: (qc) => { invalidateCmsPagePresetUsages(qc); invalidateCmsPublishingViews(qc); } });
 
 export const cmsPageKeys = {
   ...resource.keys,
@@ -42,3 +43,4 @@ export function useSetCmsPageBlockAcls() {
     },
   });
 }
+export const useCmsPageQuality = (id?: number, enabled = true) => useApiQuery(cmsPageContract.quality, { params: { id: id ?? 0 } }, { enabled: !!id && enabled });

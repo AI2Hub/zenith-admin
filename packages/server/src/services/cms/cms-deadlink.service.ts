@@ -1,10 +1,11 @@
 import { createRequire } from 'node:module';
 import { eq, and, gt, isNull, or } from 'drizzle-orm';
 import { db } from '../../db';
-import { cmsContents, cmsFriendLinks, cmsTags, cmsPages } from '../../db/schema';
+import { cmsContents, cmsFriendLinks, cmsTags, cmsInteractions } from '../../db/schema';
 import { httpRequest } from '../../lib/http-client';
 import { registerTaskHandler } from '../../lib/task-center';
-import { findChannelByPath } from './cms-render.service';
+import { findChannelByPath, findChannelByPathPrefix, splitBodyPages } from './cms-render.service';
+import { getPublishedPageByPath, getPublishedPageBySlug } from './cms-pages.service';
 import { getPublishedContent } from './cms-contents.service';
 import { assertSiteAccess, ensureCmsSiteExists } from './cms-sites.service';
 import { assertAllCmsSiteChannelsAccess } from './cms-channels.service';
@@ -83,11 +84,21 @@ export async function checkCmsInternalLink(siteId: number, path: string): Promis
   const cleaned = path.split(/[?#]/)[0].replace(/^\/+|\/+$/g, '');
   if (cleaned === '' || cleaned === 'index.html' || cleaned === 'search' || cleaned === 'rss.xml' || cleaned === 'sitemap.xml' || cleaned === 'robots.txt') return true;
   if (cleaned.startsWith('tag/')) {
-    const [tag] = await db.select({ id: cmsTags.id }).from(cmsTags).where(and(eq(cmsTags.siteId, siteId), eq(cmsTags.slug, cleaned.split('/')[1] ?? ''))).limit(1);
+    const target = /^tag\/([^/]+)(?:\/index_[1-9]\d*\.html)?$/u.exec(cleaned);
+    if (!target) return false;
+    const [tag] = await db.select({ id: cmsTags.id }).from(cmsTags).where(and(eq(cmsTags.siteId, siteId), eq(cmsTags.slug, target[1]))).limit(1);
     return Boolean(tag);
   }
-  const [page] = await db.select({ id: cmsPages.id }).from(cmsPages).where(and(eq(cmsPages.siteId, siteId), eq(cmsPages.status, 'enabled'), or(eq(cmsPages.path, cleaned), eq(cmsPages.slug, cleaned.replace(/^p\//, ''))))).limit(1);
-  if (page || await findPublishedContentByStaticPath(siteId, cleaned)) return true;
+  const pagePath = /^p\/([a-z0-9-]+)(?:\/index\.html)?$/u.exec(cleaned);
+  if (pagePath) return !!await getPublishedPageBySlug(siteId, pagePath[1]);
+  if (await getPublishedPageByPath(siteId, cleaned)) return true;
+  const custom = await findPublishedContentByStaticPath(siteId, cleaned);
+  if (custom) return custom.bodyPage <= splitBodyPages(custom.content.body).length;
+  const interaction = /^interaction\/([a-z0-9-]+)(?:\/index\.html)?$/u.exec(cleaned);
+  if (interaction) {
+    const [row] = await db.select({ id: cmsInteractions.id }).from(cmsInteractions).where(and(eq(cmsInteractions.siteId, siteId), eq(cmsInteractions.code, interaction[1]), eq(cmsInteractions.status, 'published'))).limit(1);
+    return Boolean(row);
+  }
   if (cleaned.endsWith('.html')) {
     const segments = cleaned.split('/');
     const file = segments.pop()!;
@@ -96,9 +107,11 @@ export async function checkCmsInternalLink(siteId: number, path: string): Promis
       return !!(dir && await findChannelByPath(siteId, dir));
     }
     if (!dir) return false;
-    const channel = await findChannelByPath(siteId, dir);
+    const channel = await findChannelByPathPrefix(siteId, dir);
     if (!channel) return false;
-    return !!(await getPublishedContent(siteId, channel.id, file.slice(0, -'.html'.length)));
+    const base = file.slice(0, -'.html'.length); const page = /^(.+)_([2-9]\d*|1\d+)$/u.exec(base);
+    const content = await getPublishedContent(siteId, channel.id, page ? page[1] : base);
+    return !!content && (!page || Number(page[2]) <= splitBodyPages(content.body).length);
   }
   return !!(await findChannelByPath(siteId, cleaned));
 }

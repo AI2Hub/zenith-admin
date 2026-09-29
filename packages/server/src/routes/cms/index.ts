@@ -15,6 +15,7 @@ import {
   cmsInteractionContract,
   cmsModelContract,
   cmsPageContract,
+  cmsPagePresetContract,
   cmsPublishingContract,
   cmsReleaseContract,
   cmsWorkbenchContract,
@@ -50,6 +51,7 @@ import cmsFriendLinksRoutes from './friend-links';
 import cmsInteractionsRoutes from './interactions';
 import cmsModelsRoutes from './models';
 import cmsPagesRoutes from './pages';
+import cmsPagePresetsRoutes from './page-presets';
 import cmsPublishingRoutes from './publishing';
 import cmsReleasesRoutes from './releases';
 import cmsWorkbenchRoutes from './workbench';
@@ -94,6 +96,7 @@ export default defineRouteDomain({
     [cmsTelemetryAdminContract.basePath, cmsTelemetryRoutes, { feature: 'cms' }],
     [cmsCollectContract.basePath, cmsCollectRoutes, { feature: 'cms' }],
     [cmsPageContract.basePath, cmsPagesRoutes, { feature: 'cms' }],
+    [cmsPagePresetContract.basePath, cmsPagePresetsRoutes, { feature: 'cms' }],
     [cmsWidgetContract.basePath, cmsWidgetsRoutes, { feature: 'cms' }],
     [cmsDashboardContract.basePath, cmsDashboardRoutes, { feature: 'cms' }],
     [cmsPublishingContract.basePath, cmsPublishingRoutes, { feature: 'cms' }],

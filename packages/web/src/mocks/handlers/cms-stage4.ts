@@ -1,4 +1,5 @@
 import { assertMockCmsCas, freezeMockCmsRevision } from '@/mocks/utils/cms-revisions';
+import { mockCmsPagePresetVersions } from '../data/cms-page-presets';
 import { stageMockCmsConfigurationDraft, submitMockCmsContentRelease } from './cms-releases';
 import { assertMockCmsManualAudit } from '@/mocks/utils/workflow-business';
 import { percentOf } from '@zenith/shared/core';
@@ -15,6 +16,7 @@ import {
   cmsSubscriptionContract,
   memberCmsContract,
   publicCmsContract,
+  validateCmsPagePresetSources,
 } from '@zenith/shared/cms';
 import type {
   CmsInteraction,
@@ -791,15 +793,17 @@ export const cmsStage4Handlers = [
     const page = requireItem(mockCmsPages, params.id, '页面不存在', { status: 404 });
     const { blocks: incoming, ...patch } = body;
     if (incoming) {
+      try { validateCmsPagePresetSources(incoming, mockCmsPagePresetVersions, page.siteId); }
+      catch (error) { return badRequest(error instanceof Error ? error.message : '组合来源无效', { status: 400 }); }
       const immutableBefore = page.blocks.filter((block) => block.canManage === false);
       const immutableIds = new Set(immutableBefore.map((block) => block.id));
       const immutableAfter = incoming.filter((block) => immutableIds.has(block.id));
       for (let index = 0; index < immutableBefore.length; index += 1) {
         const previous = immutableBefore[index];
         const next = immutableAfter[index];
-        const comparable = { id: previous.id, type: previous.type, props: previous.props, displayCondition: previous.displayCondition };
+        const comparable = { id: previous.id, type: previous.type, props: previous.props, displayCondition: previous.displayCondition, presetSource: previous.presetSource };
         const nextComparable = next
-          ? { id: next.id, type: next.type, props: next.props, displayCondition: next.displayCondition }
+          ? { id: next.id, type: next.type, props: next.props, displayCondition: next.displayCondition, presetSource: next.presetSource }
           : null;
         if (!nextComparable || JSON.stringify(comparable) !== JSON.stringify(nextComparable)) {
           return forbidden(`区块「${previous.id}」不可管理，禁止修改、删除、替换或重排`, { status: 403 });

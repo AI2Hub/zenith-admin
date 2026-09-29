@@ -1,5 +1,5 @@
 import { cmsGenerationNow } from './cms-generation-context';
-import { CMS_PAGE_BLOCK_TYPES, isValidCmsAssetUrl, isValidCmsLink } from '@zenith/shared/cms';
+import { CMS_PAGE_BLOCK_TYPES, cmsPageImageOptionsSchema, cmsPagePresetSourceSchema, isValidCmsAssetUrl, isValidCmsLink } from '@zenith/shared/cms';
 import type { CmsPageBlock, CmsPageBlockType } from '@zenith/shared/cms';
 import { HTTPException } from 'hono/http-exception';
 import { isDeepStrictEqual } from 'node:util';
@@ -59,8 +59,14 @@ export function sanitizeCmsPageBlocks(value: unknown): CmsPageBlock[] {
     if (!block.props || typeof block.props !== 'object' || Array.isArray(block.props)) {
       throw new HTTPException(400, { message: `第 ${index + 1} 个页面区块 props 格式无效` });
     }
-    assertSafeBlockUrls(block.props, `第 ${index + 1} 个区块 props`);
+    assertSafeBlockUrls(block.props, `第 ${index + 1} 个区块「${id}」props`);
+    if (block.type === 'hero' || block.type === 'image') {
+      const options = cmsPageImageOptionsSchema.safeParse(block.props);
+      if (!options.success) throw new HTTPException(400, { message: `区块「${id}」图片配置无效：${options.error.issues[0]?.message ?? '请检查裁切参数'}` });
+    }
     ids.add(id);
+    const parsedSource = block.presetSource === undefined ? undefined : cmsPagePresetSourceSchema.safeParse(block.presetSource);
+    if (parsedSource && !parsedSource.success) throw new HTTPException(400, { message: `区块「${id}」组合来源无效` });
     const display = block.displayCondition;
     let displayCondition: CmsPageBlock['displayCondition'];
     if (display !== undefined) {
@@ -94,6 +100,7 @@ export function sanitizeCmsPageBlocks(value: unknown): CmsPageBlock[] {
       type: block.type as CmsPageBlockType,
       props: sanitizeProps(block.props) as Record<string, unknown>,
       ...(displayCondition ? { displayCondition } : {}),
+      ...(parsedSource?.success ? { presetSource: parsedSource.data } : {}),
     };
   });
 }

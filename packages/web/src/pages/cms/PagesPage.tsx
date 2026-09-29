@@ -1,9 +1,9 @@
 /** 页面搭建：区块 JSON 装配（P3 Batch6）——列表 + 区块搭建器 SideSheet */
-import { useEffect, useRef, useState } from 'react';
-import { Button, Dropdown, Form, Input, Select, SideSheet, Tag, Toast, Typography, Empty } from '@douyinfe/semi-ui';
+import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { Banner, Checkbox, Button, Dropdown, Form, Input, Select, SideSheet, Tag, Toast, Typography, Empty } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Plus, ArrowUp, ArrowDown, Trash2, Pencil, ChevronDown, GripVertical, LockKeyhole, ShieldCheck } from 'lucide-react';
+import { Copy, Plus, ArrowUp, ArrowDown, Trash2, Pencil, ChevronDown, GripVertical, LockKeyhole, ShieldCheck } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import AppModal from '@/components/AppModal';
@@ -34,6 +34,10 @@ import { FormStatusRadioGroup } from '@/components/FormStatusRadioGroup';
 import { useListPage } from '@/hooks/useListPage';
 import { useListDeepLink } from '@/hooks/useListDeepLink';
 import CmsPageBlockFields from './CmsPageBlockFields';
+import CmsPagePresetLibrary from './CmsPagePresetLibrary';
+import { useNavigate } from 'react-router-dom';
+import { useCmsPageQuality } from '@/hooks/queries/cms-pages';
+import { inspectCmsPageBlocks, cmsPageImageDefaults } from '@zenith/shared/cms';
 
 /** 区块按栏目标识引用栏目：value 用 code，站点复制/重建后配置无需重配 */
 function channelsToSelectTree(nodes: CmsChannel[]): TreeNodeData[] {
@@ -61,7 +65,7 @@ function blockSummary(block: CmsPageBlock): string {
   switch (block.type) {
     case 'hero': return displayText(p.title);
     case 'richtext': return displayText(p.html).replace(/<[^>]*>/g, '').slice(0, 40);
-    case 'image': return displayText(p.src);
+    case 'image': return displayText(p.imageAlt, p.imageDecorative ? '装饰图片' : '图片内容');
     case 'content-list': {
       const count = typeof p.count === 'number' && p.count > 0 ? p.count : 5;
       return `${displayText(p.title)}（${displayText(p.mode, 'latest')} × ${count}）`;
@@ -73,6 +77,7 @@ function blockSummary(block: CmsPageBlock): string {
 }
 
 export default function PagesPage() {
+  const navigate = useNavigate();
   const { hasPermission } = usePermission();
   const [siteId, setSiteId] = useState<number | undefined>(undefined);
   const {
@@ -105,10 +110,19 @@ export default function PagesPage() {
   const [builderVisible, setBuilderVisible] = useState(false);
   const [editingPage, setEditingPage] = useState<CmsPage | null>(null);
   const [linkedPageId, setLinkedPageId] = useState<number>();
-  useListDeepLink(['page'], (picked) => { const id = Number(picked.page); if (Number.isSafeInteger(id) && id > 0) setLinkedPageId(id); });
-  const [blocks, setBlocks] = useState<CmsPageBlock[]>([]);
+  const [locateBlockId, setLocateBlockId] = useState<string>();
+  const [selectedBlockIds, setSelectedBlockIds] = useState<string[]>([]);
+  const [dirty, setDirty] = useState(false);
+  const baseTouched = useRef(false);
+  const editSequence = useRef(0);
+  const markDirty = () => { editSequence.current++; setDirty(true); };
+  const [formSeed, setFormSeed] = useState<CmsPage | null>(null);
+  useListDeepLink(['page','block'], picked => { const id = Number(picked.page); if (Number.isSafeInteger(id) && id > 0) { baseTouched.current = false; setDirty(false); setSelectedBlockIds([]); setLinkedPageId(id); setLocateBlockId(picked.block); } });
+  const [blocks, setBlocksState] = useState<CmsPageBlock[]>([]);
+  const setBlocks: Dispatch<SetStateAction<CmsPageBlock[]>> = next => { markDirty(); setBlocksState(next); };
   const detailQuery = useCmsPageDetail(linkedPageId ?? editingPage?.id);
   const editablePage = detailQuery.data ?? editingPage;
+  const quality = useCmsPageQuality(editingPage?.id, builderVisible && !dirty);
   // useEditModal 例外：搭建器工作区表单（理由见上方注释），key 用 formRemountKey 跟随详情重挂载
   const baseFormApi = useRef<FormApi | null>(null);
   // 区块编辑
@@ -136,8 +150,16 @@ export default function PagesPage() {
   }, [linkedPageId, detailQuery.data]);
 
   useEffect(() => {
-    if (builderVisible) setBlocks(editablePage?.blocks ?? []);
-  }, [builderVisible, editablePage]);
+    if (builderVisible && !dirty) { setBlocksState(editablePage?.blocks ?? []); setFormSeed(editablePage ?? null); }
+  }, [builderVisible, editablePage, dirty]);
+  useEffect(() => {
+    if (!builderVisible || !locateBlockId || !blocks.length) return;
+    const index = blocks.findIndex(block => block.id === locateBlockId);
+    if (index < 0) return;
+    const block = blocks[index]; setSelectedBlockIds([block.id]); setLocateBlockId(undefined);
+    if (block.canManage !== false) setBlockModal({ block, index });
+    else Toast.warning('该区块当前不可编辑，请确认最新权限');
+  }, [builderVisible, locateBlockId, blocks]);
 
   useEffect(() => {
     if (!aclBlock) return;
@@ -147,15 +169,16 @@ export default function PagesPage() {
   }, [aclBlock, aclQuery.data]);
 
   function openBuilder(record: CmsPage | null) {
+    baseTouched.current = false; setDirty(false); setSelectedBlockIds([]); setBlocksState(record?.blocks ?? []); setFormSeed(record);
     setEditingPage(record);
     setBuilderVisible(true);
   }
 
   function addBlock(type: CmsPageBlockType) {
     const defaults: Record<CmsPageBlockType, Record<string, unknown>> = {
-      hero: { title: '标题文案', subtitle: '', image: '', buttonText: '', buttonUrl: '' },
+      hero: { ...cmsPageImageDefaults('hero'), title: '标题文案', subtitle: '', image: '', buttonText: '', buttonUrl: '' },
       richtext: { html: '<p>在这里输入内容…</p>' },
-      image: { src: '', alt: '', linkUrl: '' },
+      image: { ...cmsPageImageDefaults('image'), src: '', imageAlt: '', linkUrl: '' },
       'content-list': { title: '最新内容', mode: 'latest', count: 5 },
       columns: { items: [{ title: '特性一', description: '' }, { title: '特性二', description: '' }, { title: '特性三', description: '' }] },
       'widget-ref': { widgetId: undefined, rendererKey: 'list-sidebar', styleProps: {} },
@@ -233,20 +256,39 @@ export default function PagesPage() {
     } catch {
       return;
     }
+    const savingSequence = editSequence.current;
     const saved = await saveMutation.mutateAsync({
       id: editingPage?.id,
       values: {
         ...(editingPage ? {} : { siteId }),
         ...(editingPage && !canEditPage ? {} : base),
-        blocks: blocks.map(({ id, type, props, displayCondition }) => ({ id, type, props, displayCondition })),
+        blocks: blocks.map(({ id, type, props, displayCondition, presetSource }) => ({ id, type, props, displayCondition, presetSource })),
       },
     });
+    if (savingSequence === editSequence.current) { baseTouched.current = false; setDirty(false); setBlocksState(saved.blocks); setFormSeed(saved); }
     Toast.success('已保存，待发布');
     if (previewAfterSave) setPreviewPage(saved);
     if (!editingPage) { setEditingPage(saved); }
 
   }
 
+  function copyBlock(index: number) {
+    const original = blocks[index]; if (!canEditPage || original.canManage === false || blocks.length >= 50) return;
+    const { presetSource: _source, ...copy } = structuredClone(original);
+    const id = newBlockId(); setBlocks(previous => [...previous.slice(0, index + 1), { ...copy, id, canManage: true, aclConfigured: false }, ...previous.slice(index + 1)]);
+    setSelectedBlockIds([id]);
+  }
+  function applyPreset(next: CmsPageBlock[], mode: 'append' | 'replace-selected', replaceIds?: string[]) {
+    if (!canEditPage) return;
+    const ids = new Set(replaceIds ?? selectedBlockIds);
+    if (mode === 'replace-selected' && (!ids.size || blocks.some(block => ids.has(block.id) && block.canManage === false))) { Toast.warning('请先选择可编辑的区块'); return; }
+    const items = next.map(block => ({ ...block, canManage: true, aclConfigured: false, disabledReason: null }));
+    const first = mode === 'append' ? blocks.length : blocks.findIndex(block => ids.has(block.id));
+    if (first < 0 || blocks.length - (mode === 'append' ? 0 : blocks.filter(block => ids.has(block.id)).length) + items.length > 50) { Toast.warning('替换范围无效或区块总数超过50'); return; }
+    const retained = mode === 'append' ? blocks : blocks.filter(block => !ids.has(block.id));
+    setBlocks([...retained.slice(0, first), ...items, ...retained.slice(first)]); setSelectedBlockIds(items.map(block => block.id));
+  }
+  const issues = dirty ? inspectCmsPageBlocks(blocks) : quality.data?.issues ?? inspectCmsPageBlocks(blocks);
   const currentSite = (sitesPage?.list ?? []).find((s) => s.id === siteId);
 
   const columns: ColumnProps<CmsPage>[] = [
@@ -345,20 +387,23 @@ export default function PagesPage() {
         footer={<ModalFooter onCancel={() => setBuilderVisible(false)} onOk={() => handleSavePage()} okText="保存" loading={saveMutation.isPending} />}
       >
         <Form
-          key={formRemountKey(editablePage?.id, detailQuery.data)}
+          key={formRemountKey(formSeed?.id, formSeed)}
+          onPointerDownCapture={() => { baseTouched.current = true; }}
+          onKeyDownCapture={() => { baseTouched.current = true; }}
+          onValueChange={() => { if (baseTouched.current) markDirty(); }}
           getFormApi={(api) => { baseFormApi.current = api; }}
           allowEmpty
           labelPosition="left"
           labelWidth={90}
-          initValues={editablePage ? {
-            name: editablePage.name,
-            slug: editablePage.slug,
-            path: editablePage.path ?? '',
-            isHome: editablePage.isHome,
-            status: editablePage.status,
-            seoTitle: editablePage.seoTitle ?? '',
-            seoKeywords: editablePage.seoKeywords ?? '',
-            seoDescription: editablePage.seoDescription ?? '',
+          initValues={formSeed ? {
+            name: formSeed.name,
+            slug: formSeed.slug,
+            path: formSeed.path ?? '',
+            isHome: formSeed.isHome,
+            status: formSeed.status,
+            seoTitle: formSeed.seoTitle ?? '',
+            seoKeywords: formSeed.seoKeywords ?? '',
+            seoDescription: formSeed.seoDescription ?? '',
           } : { isHome: false, status: 'enabled' }}
         >
           <Form.Input field="name" label="页面名称" disabled={!canEditPage} rules={[{ required: true, message: '请输入页面名称' }]} />
@@ -391,6 +436,9 @@ export default function PagesPage() {
           </Dropdown> : null}
         </div>
 
+        <Tag color={dirty || !editingPage ? 'orange' : 'green'} style={{ marginBottom: 12 }}>{!editingPage ? '新页面尚未保存' : dirty ? '尚有未保存修改' : '当前编辑内容已保存'}</Tag>
+        <CmsPagePresetLibrary siteId={siteId} blocks={blocks} selectedBlockIds={selectedBlockIds} onApply={applyPreset} disabled={!canEditPage} />
+        {issues.length ? <Banner type="warning" style={{ marginBlock: 12 }} description={<><Typography.Text>内容检查：{issues.length} 项待处理（{dirty ? '当前工作稿，保存后可检查引用目标' : '已保存页面'}）</Typography.Text>{issues.map((issue, index) => <div key={`${issue.blockId}:${issue.rule}:${index}`}><Button theme="borderless" type={issue.severity === 'error' ? 'danger' : 'warning'} onClick={() => setLocateBlockId(issue.blockId)}>{issue.message}</Button></div>)}</>} /> : null}
         {blocks.length === 0 ? (
           <Empty title="尚无区块" description="点击「添加区块」开始搭建页面" style={{ padding: 24 }} />
         ) : (
@@ -428,6 +476,7 @@ export default function PagesPage() {
                   background: dragOverIndex === index ? 'var(--semi-color-primary-light-default)' : undefined,
                 }}
               >
+                <Checkbox aria-label={`选择区块 ${index + 1}`} checked={selectedBlockIds.includes(block.id)} disabled={block.canManage === false} onChange={event => setSelectedBlockIds(ids => event.target.checked ? [...ids, block.id] : ids.filter(id => id !== block.id))} />
                 <GripVertical size={14} color="var(--semi-color-text-3)" />
                 <Tag size="small">{BLOCK_TYPE_LABEL[block.type] ?? block.type}</Tag>
                 {block.canManage === false ? (
@@ -451,6 +500,7 @@ export default function PagesPage() {
                 <Button aria-label="下移区块" title={!allBlocksManageable ? '页面含只读区块，禁止重排' : undefined}
                   size="small" theme="borderless" icon={<ArrowDown size={13} />}
                   disabled={!allBlocksManageable || block.canManage === false || index === blocks.length - 1} onClick={() => moveBlock(index, 1)} />
+                <Button aria-label="复制区块" size="small" theme="borderless" icon={<Copy size={13} />} disabled={!canEditPage || block.canManage === false || blocks.length >= 50} onClick={() => copyBlock(index)} />
                 <Button aria-label="编辑区块" title={block.disabledReason ?? undefined}
                   size="small" theme="borderless" icon={<Pencil size={13} />}
                   disabled={block.canManage === false} onClick={() => setBlockModal({ block, index })} />
@@ -466,12 +516,16 @@ export default function PagesPage() {
           </div>
         )}
 
-        <CmsConfigurationNotice siteId={siteId} />
+        <CmsConfigurationNotice siteId={siteId} kind="page" objectId={editingPage?.id} />
         <Button loading={saveMutation.isPending} onClick={() => void handleSavePage(true)}>保存后预览工作稿</Button>
       </SideSheet>
 
       <CmsWorkbenchPreview visible={!!previewPage} onClose={() => setPreviewPage(undefined)} siteId={siteId}
-        initialPath={previewPage?.isHome ? '/' : previewPage ? `/${cmsCustomPagePath(previewPage)}` : '/'} selection={{ pageIds: previewPage ? [previewPage.id] : [] }} />
+        initialPath={previewPage?.isHome ? '/' : previewPage ? `/${cmsCustomPagePath(previewPage)}` : '/'} selection={{ pageIds: previewPage ? [previewPage.id] : [] }} onLocate={target => {
+          const page = previewPage; setPreviewPage(undefined);
+          if (target.kind === 'page' && page?.id === target.id) { if (!builderVisible || editingPage?.id !== page.id) openBuilder(page); setLocateBlockId(target.blockId ?? undefined); }
+          else navigate(target.href);
+        }} />
       {/* 区块属性编辑 */}
       <AppModal
         title={blockModal ? `编辑区块：${BLOCK_TYPE_LABEL[blockModal.block.type]}` : '编辑区块'}

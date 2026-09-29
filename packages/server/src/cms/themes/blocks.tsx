@@ -4,7 +4,8 @@
  * 区块样式内联 <style>（.pb-* 前缀），静态页零外部依赖。
  */
 import { renderToStaticMarkup } from 'react-dom/server';
-import type { CmsPageBlock } from '@zenith/shared/cms';
+import type { CSSProperties } from 'react';
+import { cmsPageImagePresentation, isValidCmsAssetUrl, isDirectCmsHref, type CmsPageBlock } from '@zenith/shared/cms';
 import type { CmsContentItem } from './types';
 import { sanitizeCmsHtml } from '../../services/cms/cms-html-sanitizer';
 import type { CmsResolvedWidget } from '@zenith/shared/cms';
@@ -13,17 +14,24 @@ import { resolveThemeWidgetRenderer } from './registry';
 import { PublishedDate } from './_shared';
 
 export const BLOCK_STYLES = `
-.pb-hero { text-align: center; padding: 64px 24px; border-radius: 12px; background: var(--bg-2); background-size: cover; background-position: center; margin-bottom: 32px; }
+.pb-hero { position: relative; overflow: hidden; text-align: center; padding: 64px 24px; border-radius: 12px; background: var(--bg-2); margin-bottom: 32px; }
 .pb-hero h1 { font-size: 34px; font-weight: 800; letter-spacing: -0.02em; }
 .pb-hero p { color: var(--text-2); font-size: 16px; margin-top: 10px; max-width: 620px; margin-left: auto; margin-right: auto; }
-.pb-hero.pb-hero-image { color: #fff; }
+.pb-hero.pb-hero-image { color: #fff; padding: 0; }
+.pb-hero-shade { position: absolute; inset: 0; background: linear-gradient(180deg,rgba(0,0,0,.18),rgba(0,0,0,.58)); pointer-events: none; }
+.pb-hero-content { position: relative; }
+.pb-hero-image .pb-hero-content { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 24px; }
 .pb-hero.pb-hero-image h1 { color: #fff; text-shadow: 0 1px 6px rgba(0,0,0,.5); }
 .pb-hero.pb-hero-image p { color: rgba(255,255,255,.9); text-shadow: 0 1px 4px rgba(0,0,0,.5); }
 .pb-hero .pb-btn { display: inline-block; margin-top: 20px; background: var(--primary); color: #fff; border-radius: 8px; padding: 10px 28px; font-size: 15px; }
 .pb-richtext { margin-bottom: 32px; font-size: 15px; }
 .pb-richtext p { margin: 12px 0; }
 .pb-image { margin-bottom: 32px; text-align: center; }
-.pb-image img { border-radius: 10px; max-width: 100%; }
+.pb-image a { display: block; }
+.pb-picture { display: block; position: relative; overflow: hidden; aspect-ratio: var(--pb-desktop-ratio,auto); }
+.pb-picture img { display: block; width: 100%; height: auto; object-fit: cover; object-position: var(--pb-desktop-position,50% 50%); }
+.pb-picture.pb-crop-desktop img { position: absolute; inset: 0; height: 100%; }
+.pb-image .pb-picture { border-radius: 10px; }
 .pb-section-title { font-size: 20px; font-weight: 700; margin: 0 0 14px; }
 .pb-content-list { margin-bottom: 32px; }
 .pb-content-list .pb-item { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
@@ -33,25 +41,44 @@ export const BLOCK_STYLES = `
 .pb-columns .pb-col { border: 1px solid var(--border); border-radius: 10px; padding: 20px; }
 .pb-columns .pb-col h3 { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
 .pb-columns .pb-col p { font-size: 13.5px; color: var(--text-2); }
-@media (max-width: 768px) { .pb-hero { padding: 40px 16px; } .pb-hero h1 { font-size: 26px; } }
+@media (max-width: 768px) {
+  .pb-hero { padding: 40px 16px; } .pb-hero h1 { font-size: 26px; } .pb-hero-image .pb-hero-content { padding: 16px; }
+  .pb-picture { aspect-ratio: var(--pb-mobile-ratio,auto); }
+  .pb-picture img,.pb-picture.pb-crop-desktop img { position: static; height: auto; object-position: var(--pb-mobile-position,50% 50%); }
+  .pb-picture.pb-crop-mobile img { position: absolute; inset: 0; height: 100%; }
+}
 `;
 
 function str(v: unknown): string {
   return typeof v === 'string' ? v : '';
 }
 
+function BlockPicture({ props, type }: { props: Record<string, unknown>; type: 'hero' | 'image' }) {
+  const source = str(type === 'hero' ? props.image : props.src);
+  if (!source || !isValidCmsAssetUrl(source)) return null;
+  const image = cmsPageImagePresentation(props, type);
+  const mobile = image.mobileImage && isValidCmsAssetUrl(image.mobileImage) ? image.mobileImage : undefined;
+  const style = { '--pb-desktop-ratio': image.desktopAspectRatio, '--pb-mobile-ratio': image.mobileAspectRatio, '--pb-desktop-position': image.desktopObjectPosition, '--pb-mobile-position': image.mobileObjectPosition } as CSSProperties;
+  return <picture className={`pb-picture${image.desktopRatio !== 'auto' ? ' pb-crop-desktop' : ''}${image.mobileRatio !== 'auto' ? ' pb-crop-mobile' : ''}`} style={style} aria-hidden={image.imageDecorative ? true : undefined}>
+    {mobile ? <source media="(max-width: 768px)" srcSet={mobile} /> : null}
+    <img src={source} alt={image.imageDecorative ? '' : image.imageAlt} loading={type === 'hero' ? 'eager' : 'lazy'} />
+  </picture>;
+}
+
 function HeroBlock({ props }: { props: Record<string, unknown> }) {
-  const image = str(props.image);
+  const image = str(props.image) && isValidCmsAssetUrl(str(props.image));
   return (
     <section
       className={`pb-hero${image ? ' pb-hero-image' : ''}`}
-      style={image ? { backgroundImage: `url(${image})` } : undefined}
     >
+      {image ? <><BlockPicture props={props} type="hero" /><span className="pb-hero-shade" aria-hidden="true" /></> : null}
+      <div className="pb-hero-content">
       <h1>{str(props.title)}</h1>
       {str(props.subtitle) ? <p>{str(props.subtitle)}</p> : null}
-      {str(props.buttonText) && str(props.buttonUrl) ? (
+      {str(props.buttonText) && isDirectCmsHref(str(props.buttonUrl)) ? (
         <a className="pb-btn" href={str(props.buttonUrl)}>{str(props.buttonText)}</a>
       ) : null}
+      </div>
     </section>
   );
 }
@@ -61,10 +88,11 @@ function RichtextBlock({ props }: { props: Record<string, unknown> }) {
 }
 
 function ImageBlock({ props }: { props: Record<string, unknown> }) {
-  const img = <img src={str(props.src)} alt={str(props.alt)} loading="lazy" />;
+  const image = cmsPageImagePresentation(props, 'image');
+  const img = <BlockPicture props={props} type="image" />;
   return (
     <section className="pb-image">
-      {str(props.linkUrl) ? <a href={str(props.linkUrl)}>{img}</a> : img}
+      {str(props.linkUrl) && isDirectCmsHref(str(props.linkUrl)) ? <a href={str(props.linkUrl)} aria-label={image.imageDecorative ? image.linkLabel : undefined}>{img}</a> : img}
     </section>
   );
 }
@@ -137,7 +165,7 @@ export function renderBlocksHtml({ blocks, contentListData, widgetData, themeCod
       default:
         html = '';
     }
-    return html;
+    return renderToStaticMarkup(<div data-cms-page-block="true" data-cms-block-id={block.id} style={{ display: 'contents' }} dangerouslySetInnerHTML={{ __html: html }} />);
   }).join('\n');
   const widgetStyles = widgetData.size > 0 ? CMS_WIDGET_STYLES : '';
   return `<style>${BLOCK_STYLES}${widgetStyles}</style>\n${rendered}`;

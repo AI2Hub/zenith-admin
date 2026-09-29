@@ -5,7 +5,7 @@ import { auditColumns, users, departments } from './core';
 import { members } from './member';
 import { asyncTasks } from './tasks';
 import { CMS_PUBLISH_ARTIFACT_STATUSES, CMS_PUBLISH_TARGET_TYPES, CMS_AD_EVENT_TYPES, CMS_CHANNEL_DETAIL_PATH_RULES, CMS_CHANNEL_STATIC_MODES, CMS_DEVICE_TYPES, CMS_DISTRIBUTION_CONFLICT_STRATEGIES, CMS_DISTRIBUTION_MODES, CMS_FIELD_OPTION_SOURCES, CMS_INTERACTION_CAPTCHA_POLICIES, CMS_INTERACTION_KINDS, CMS_INTERACTION_PARTICIPANT_SCOPES, CMS_INTERACTION_QUESTION_TYPES, CMS_INTERACTION_REPEAT_POLICIES, CMS_INTERACTION_RESULT_VISIBILITIES, CMS_INTERACTION_STATUSES, CMS_RESOURCE_OWNER_TYPES, CMS_SUBSCRIPTION_SUBJECT_TYPES, CMS_WIDGET_REF_OWNER_TYPES, CMS_WIDGET_LIVE_SOURCE_TYPES, CMS_WIDGET_STATUSES, CMS_WIDGET_TYPES } from '@zenith/shared/cms';
-import type { CmsContentAttachment, CmsDistributionFilters, CmsFormField, CmsTitleStyle, CmsWidgetData, CmsFrozenMedia } from '@zenith/shared/cms';
+import type { CmsContentAttachment, CmsDistributionFilters, CmsFormField, CmsTitleStyle, CmsWidgetData, CmsFrozenMedia, CmsPageBlock, CmsPagePresetParameter } from '@zenith/shared/cms';
 import { CMS_FIELD_TYPES, type CmsFieldConfiguration } from '@zenith/shared/cms';
 
 // ─── 枚举（pgEnum / TS union / Zod enum 三处同步，见 @zenith/shared）────────────
@@ -1186,6 +1186,7 @@ export const cmsPages = pgTable('cms_pages', {
     type: string;
     props: Record<string, unknown>;
     displayCondition?: { audience: 'always' | 'guest' | 'member'; startAt?: string | null; endAt?: string | null };
+    presetSource?: CmsPageBlock['presetSource'];
   }[]>().notNull().default([]),
   /** guest/member 条件存在时为 true；静态构建和混合回写必须跳过。 */
   requiresDynamic: boolean().notNull().default(false),
@@ -1204,6 +1205,37 @@ export const cmsPages = pgTable('cms_pages', {
 ]);
 
 export type CmsPageRow = typeof cmsPages.$inferSelect;
+
+/** 站点组合主记录仅保存检索字段；区块和参数属于不可变版本。 */
+export const cmsPagePresets = pgTable('cms_page_presets', {
+  id: idColumn(),
+  siteId: integer().notNull().references(() => cmsSites.id, { onDelete: 'cascade' }),
+  name: varchar({ length: 100 }).notNull(),
+  description: varchar({ length: 500 }),
+  currentVersion: integer().notNull().default(1),
+  blockCount: integer().notNull(),
+  ...auditColumns(),
+  ...timestampColumns(),
+}, t => [index('cms_page_presets_site_idx').on(t.siteId)]);
+export type CmsPagePresetRow = typeof cmsPagePresets.$inferSelect;
+
+/** 追加型快照：修改组合只追加版本，不更新历史版本和使用中的页面。 */
+export const cmsPagePresetVersions = pgTable('cms_page_preset_versions', {
+  id: idColumn(),
+  presetId: integer().notNull().references(() => cmsPagePresets.id, { onDelete: 'cascade' }),
+  siteId: integer().notNull().references(() => cmsSites.id, { onDelete: 'cascade' }),
+  version: integer().notNull(),
+  name: varchar({ length: 100 }).notNull(),
+  description: varchar({ length: 500 }),
+  blocks: jsonb().$type<CmsPageBlock[]>().notNull(),
+  parameters: jsonb().$type<CmsPagePresetParameter[]>().notNull(),
+  note: varchar({ length: 500 }),
+  createdAt: timestamp().defaultNow().notNull(),
+}, t => [
+  uniqueIndex('cms_page_preset_versions_preset_version_uq').on(t.presetId, t.version),
+  index('cms_page_preset_versions_site_idx').on(t.siteId),
+]);
+export type CmsPagePresetVersionRow = typeof cmsPagePresetVersions.$inferSelect;
 
 // ─── 页面区块管理 ACL（配置后 fail-closed；未配置继承页面编辑权限）─────────────
 export const cmsPageBlockAcls = pgTable('cms_page_block_acls', {

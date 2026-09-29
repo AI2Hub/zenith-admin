@@ -59,7 +59,7 @@ import {
   cmsFormSubmissions, cmsFriendLinks, cmsHotwordGroups, cmsHotwords,
   cmsInteractionAnswers, cmsInteractionQuestions, cmsInteractionResponses, cmsInteractions,
   cmsLinkWords, cmsMemberSubscriptions, cmsMemberViewHistory, cmsModelFields, cmsModels,
-  cmsPageBlockAcls, cmsPages, cmsPublishArtifacts, cmsPushLogs,
+  cmsPageBlockAcls, cmsPages, cmsPagePresets, cmsPagePresetVersions, cmsPublishArtifacts, cmsPushLogs,
   cmsRedirects, cmsResourceFolders, cmsResourceRefs, cmsResources, cmsSearchWords, cmsSiteInheritances, cmsSites, cmsSiteUsers,
   cmsOpenAppGrants, cmsContentTombstones, cmsWidgets, cmsWidgetRefs, cmsWidgetSourceRefs,
   cmsTags,
@@ -1463,6 +1463,8 @@ export const cmsSitesRelations = relations(cmsSites, ({ one, many }) => ({
   subscriptions: many(cmsMemberSubscriptions),
   adEvents: many(cmsAdEvents),
   pages: many(cmsPages),
+  pagePresets: many(cmsPagePresets),
+  pagePresetVersions: many(cmsPagePresetVersions),
   widgets: many(cmsWidgets),
   sourceDistributionRules: many(cmsDistributionRules, { relationName: 'cmsDistributionSourceSite' }),
   targetDistributionRules: many(cmsDistributionRules, { relationName: 'cmsDistributionTargetSite' }),
@@ -1655,6 +1657,16 @@ export const cmsAdEventsRelations = relations(cmsAdEvents, ({ one }) => ({
 export const cmsPagesRelations = relations(cmsPages, ({ one, many }) => ({
   site: one(cmsSites, { fields: [cmsPages.siteId], references: [cmsSites.id] }),
   blockAcls: many(cmsPageBlockAcls),
+}));
+
+export const cmsPagePresetsRelations = relations(cmsPagePresets, ({ one, many }) => ({
+  site: one(cmsSites, { fields: [cmsPagePresets.siteId], references: [cmsSites.id] }),
+  versions: many(cmsPagePresetVersions),
+}));
+
+export const cmsPagePresetVersionsRelations = relations(cmsPagePresetVersions, ({ one }) => ({
+  site: one(cmsSites, { fields: [cmsPagePresetVersions.siteId], references: [cmsSites.id] }),
+  preset: one(cmsPagePresets, { fields: [cmsPagePresetVersions.presetId], references: [cmsPagePresets.id] }),
 }));
 
 export const cmsWidgetsRelations = relations(cmsWidgets, ({ one, many }) => ({

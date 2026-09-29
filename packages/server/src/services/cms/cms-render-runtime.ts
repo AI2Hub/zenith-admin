@@ -15,7 +15,7 @@ export const CMS_RENDER_RUNTIME_MODULES = new Set([
   'cms-search.service', 'cms-link-words.service', 'cms-interactions.service', 'cms-captcha.service', 'cms-form-captcha.service',
   'cms-comments.service', 'cms-ads.service', 'cms-ad-render-proof', 'cms-forms.service', 'cms-widgets.service',
   'cms-pages.service', 'cms-page-blocks', 'cms-preview', 'cms-html-sanitizer', 'cms-frozen-media',
-  'cms-site-inheritance.service', 'cms-site-settings', 'cms-public-settings', 'cms-generation-context',
+  'cms-site-inheritance.service', 'cms-site-settings', 'cms-public-settings', 'cms-generation-context', 'cms-generation-read',
   'cms-telemetry-render', 'cms-telemetry-context', 'cms-static.service', 'cms-static-path', 'cms-sitemap', 'cms-build-context',
   'cms-access', 'cms-cache.service', 'cms-captcha-adapter.service', 'cms-content-access.service',
   'cms-content-publish-snapshot.service', 'cms-content-revisions.service', 'cms-design-versions.service',
@@ -34,10 +34,11 @@ export const CMS_RENDER_NON_OUTPUT_DEPENDENCIES = new Set([
   'cms-feedback.service', 'cms-content-lock.service', 'cms-template-refs.service', // Administrative mutations/validation.
   'cms-cdn.service', 'cms-webhook.service', 'cms-widget-tasks', 'cms-public-config-refresh.service', 'cms-publish-outbox.service', // Post-commit dispatch.
   'cms-build-concurrency', 'cms-publish-artifact-tracker', 'cms-release-build-artifacts', 'cms-site-publish-lock.service', 'cms-deployment-storage-state', // Ownership, file integrity and storage lifecycle.
+  'cms-page-presets.service', // Combinations are instantiated into page snapshots before rendering.
   'cms-media.service', // Frozen revision preparation; resulting derivative fields enter the persisted content dependency hash.
 ]);
 
-const SHARED_RENDER_MODULES = new Set(['constants', 'link', 'resource-selection', 'model-design', 'site-composition', 'cms-media', 'cms-media-validation', 'telemetry', 'document', 'validation', 'design-validation', 'content-revision', 'types',
+const SHARED_RENDER_MODULES = new Set(['page-image', 'page-block-quality', 'configuration-state', 'constants', 'link', 'resource-selection', 'model-design', 'site-composition', 'cms-media', 'cms-media-validation', 'telemetry', 'document', 'validation', 'design-validation', 'content-revision', 'types',
   // Entity contracts participate in renderer service mapping/defaults; reporting/editorial contracts do not.
   'contents', 'channels', 'pages', 'widgets', 'forms', 'ads', 'interactions', 'resources', 'models', 'search', 'sites', 'words', 'friend-links', 'comments', 'public-cms']);
 export function isCmsSharedRenderFile(filename: string): boolean {

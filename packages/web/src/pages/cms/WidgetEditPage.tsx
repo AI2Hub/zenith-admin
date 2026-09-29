@@ -530,7 +530,7 @@ export default function WidgetEditPage() {
           </div>
         </Spin>
       </AppModal>
-      <CmsConfigurationNotice siteId={siteId} />
+      <CmsConfigurationNotice siteId={siteId} kind="widget" objectId={activeId} />
       <Button disabled={!canEditWidget} loading={saveMutation.isPending} onClick={async () => { const saved = await saveWidget(); setSitePreviewId(saved.id); }}>保存后查看整站工作稿</Button>
       <CmsWorkbenchPreview visible={!!sitePreviewId} onClose={() => setSitePreviewId(undefined)} siteId={siteId} selection={{ widgetIds: sitePreviewId ? [sitePreviewId] : [] }} />
     </div>

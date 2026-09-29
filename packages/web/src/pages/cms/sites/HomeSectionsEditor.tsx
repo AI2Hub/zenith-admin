@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Banner, Button, Input, InputNumber, Select, Space, Typography } from '@douyinfe/semi-ui';
 import { ArrowDown, ArrowUp, GripVertical, Plus, Trash2 } from 'lucide-react';
 import { CMS_HOME_IMAGE_RATIO_OPTIONS, CMS_HOME_SECTION_SOURCE_OPTIONS, CMS_HOME_SECTION_STYLE_OPTIONS, type CmsChannel, type CmsHomeSection } from '@zenith/shared/cms';
@@ -12,16 +12,25 @@ function reorderHomeSections(rows: readonly CmsHomeSection[], from: number, to: 
 }
 function flatten(rows: readonly CmsChannel[]): CmsChannel[] { return rows.flatMap((row) => [row, ...flatten(row.children ?? [])]); }
 
-export default function HomeSectionsEditor({ siteId, value = [], onChange, disabled }: Readonly<{ siteId?: number; value?: CmsHomeSection[]; onChange: (rows: CmsHomeSection[]) => void; disabled?: boolean }>) {
+export default function HomeSectionsEditor({ siteId, value = [], onChange, disabled, focusBlockId }: Readonly<{ focusBlockId?: string; siteId?: number; value?: CmsHomeSection[]; onChange: (rows: CmsHomeSection[]) => void; disabled?: boolean }>) {
+  const container = useRef<HTMLDivElement>(null);
+  const focused = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (!focusBlockId) { focused.current = undefined; return; }
+    const key = `${siteId}:${focusBlockId}`;
+    if (focused.current === key) return;
+    const element = Array.from(container.current?.querySelectorAll<HTMLElement>('[data-cms-home-section-id]') ?? []).find(node => node.dataset.cmsHomeSectionId === focusBlockId);
+    if (element) { focused.current = key; element.scrollIntoView({ block: 'center' }); element.focus(); }
+  }, [focusBlockId, siteId, value]);
   const channels = useCmsChannelTree(siteId);
   const [dragging, setDragging] = useState<number | null>(null);
   const options = flatten(channels.data ?? []).filter((row) => row.type === 'list' && row.status === 'enabled').map((row) => ({ value: row.id, label: row.name }));
   const patch = (index: number, values: Partial<CmsHomeSection>) => onChange(value.map((row, position) => position === index ? { ...row, ...values } : row));
   const move = (from: number, to: number) => onChange(reorderHomeSections(value, from, to));
-  return <div className="cms-composition-editor">
+  return <div ref={container} className="cms-composition-editor">
     <Typography.Text type="tertiary" size="small">拖动把手或使用上下移调整顺序。宽屏双列、手机单列，每区最多 24 条。</Typography.Text>
     {channels.isError ? <Banner type="warning" description="栏目加载失败，已选栏目保持不变，请重新打开编辑窗口重试。" /> : null}
-    {value.map((row, index) => <div key={row.id} className="cms-composition-row" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); if (!disabled && dragging !== null) move(dragging, index); setDragging(null); }}>
+    {value.map((row, index) => <div key={row.id} data-cms-home-section-id={row.id} tabIndex={-1} className="cms-composition-row" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); if (!disabled && dragging !== null) move(dragging, index); setDragging(null); }}>
       <Space wrap>
         <button type="button" className="cms-composition-drag" aria-label={`拖动区域 ${index + 1}`} draggable={!disabled} disabled={disabled}
           onDragStart={(event) => { setDragging(index); event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', row.id); }} onDragEnd={() => setDragging(null)}><GripVertical size={16} /></button>

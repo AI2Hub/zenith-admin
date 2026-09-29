@@ -171,7 +171,7 @@ function ModuleDetail({ module, meta }: { readonly module: SettingsModuleKey; re
             description={(
               <span>
                 该模块有专用设置页面，请前往
-                <Text link onClick={() => navigate(meta.page)} style={{ margin: '0 4px', display: 'inline-flex', alignItems: 'center', gap: 4 }}>{def.title}<ExternalLink size={12} /></Text>
+                <Text link onClick={() => { if (meta.page) navigate(meta.page); }} style={{ margin: '0 4px', display: 'inline-flex', alignItems: 'center', gap: 4 }}>{def.title}<ExternalLink size={12} /></Text>
                 修改。
               </span>
             )}

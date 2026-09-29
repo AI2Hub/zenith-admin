@@ -25,6 +25,7 @@ export const cmsPublishingKeys = {
  */
 export function invalidateCmsPublishingViews(qc: QueryClient) {
   void qc.invalidateQueries({ queryKey: contractKey(cmsWorkbenchContract.configurationDraft) });
+  void qc.invalidateQueries({ queryKey: contractKey(cmsWorkbenchContract.configurationState) });
   void qc.invalidateQueries({ queryKey: contractKey(cmsReleaseContract.review) });
   void qc.invalidateQueries({ queryKey: contractKey(cmsReleaseContract.list) });
   void qc.invalidateQueries({ queryKey: contractKey(cmsReleaseContract.detail) });

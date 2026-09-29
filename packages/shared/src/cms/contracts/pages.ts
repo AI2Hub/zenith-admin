@@ -3,6 +3,8 @@ import { entityStatusSchema, idParam, keywordQuery, paginated, paginationQuery, 
 import { defineContract, op } from '../../core/contract';
 import { CMS_PAGE_BLOCK_AUDIENCES, CMS_PAGE_BLOCK_TYPE_VALUES } from '../constants';
 import { createCmsPageSchema, setCmsPageBlockAclSchema, updateCmsPageSchema } from '../validation';
+import { cmsPageBlockQualityIssueSchema } from '../page-block-quality';
+import { cmsPagePresetSourceSchema } from '../page-presets';
 
 // ─── 实体 ────────────────────────────────────────────────────────────────────
 
@@ -19,6 +21,7 @@ export const cmsPageBlockViewSchema = z.object({
   type: z.enum(CMS_PAGE_BLOCK_TYPE_VALUES),
   props: z.record(z.string(), z.unknown()),
   displayCondition: cmsPageBlockDisplayConditionViewSchema.optional(),
+  presetSource: cmsPagePresetSourceSchema.optional(),
   canManage: z.boolean().optional().meta({ description: '管理端详情按当前用户计算；写入时忽略' }),
   aclConfigured: z.boolean().optional(),
   disabledReason: z.string().nullable().optional(),
@@ -72,6 +75,7 @@ export const cmsPageBlockAclQuery = z.object({
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const cmsPageContract = defineContract('/api/cms/pages', {
+  quality: op.get('/{id}/quality', { access: { permission: 'cms:page:list' }, params: idParam, response: z.object({ pageId: z.int(), issues: z.array(cmsPageBlockQualityIssueSchema) }), summary: '检查已保存页面区块内容、图片说明及站内目标' }),
   list: op.get('/', { access: { permission: 'cms:page:list' }, query: cmsPageListQuery, response: paginated(cmsPageSchema), summary: '页面分页列表' }),
   blockAcls: op.get('/{id}/block-acls', { access: { permission: 'cms:page:acl' }, params: idParam, query: cmsPageBlockAclQuery, response: z.array(cmsPageBlockAclSchema), summary: '查看页面区块 ACL' }),
   setBlockAcls: op.put('/{id}/block-acls', { access: { permission: 'cms:page:acl' }, audit: '设置 CMS 页面区块 ACL', params: idParam, body: setCmsPageBlockAclSchema, response: z.array(cmsPageBlockAclSchema), summary: '批量设置页面区块 ACL（用户/角色）' }),

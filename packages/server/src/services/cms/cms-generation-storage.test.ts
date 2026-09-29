@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { cmsSiteGenerations } from '../../db/schema';
 import type { DbTransaction } from '../../db/types';
 const mocks = vi.hoisted(() => ({ transaction: vi.fn(), execute: vi.fn() }));
 vi.mock('../../db', () => ({ db: { transaction: mocks.transaction, execute: mocks.execute }, withDbExecutor: (_tx: unknown, fn: () => unknown) => fn() }));
@@ -8,8 +9,8 @@ import { cmsGenerationSchemaName, hashCmsDeploymentManifest, withCmsGenerationTr
 
 describe('CMS publication isolation', () => {
   it('reads the active generation once and keeps it for every query in the request', async () => {
-    const limit = vi.fn().mockResolvedValue([{ activeGenerationId: 17 }]);
-    const tx = { select: () => ({ from: () => ({ where: () => ({ limit }) }) }), execute: vi.fn() } as unknown as DbTransaction;
+    const limit = vi.fn().mockResolvedValue([{ id: 17 }]);
+    const tx = { select: () => ({ from: (table: unknown) => ({ where: () => ({ limit: table === cmsSiteGenerations ? limit : async () => [] }) }) }), execute: vi.fn().mockResolvedValue([{ present: 'cms_generation_17.cms_site_projection' }]) } as unknown as DbTransaction;
     mocks.transaction.mockImplementationOnce((fn: (tx: DbTransaction) => unknown) => fn(tx));
     const values = await withCmsPublicGeneration(2, async () => {
       const before = cmsGenerationContext()?.generationId;
@@ -23,7 +24,7 @@ describe('CMS publication isolation', () => {
   });
   it('propagates candidate failure to transaction rollback without activating a pointer', async () => {
     const update = vi.fn();
-    const tx = { execute: vi.fn(), update } as unknown as DbTransaction;
+    const tx = { select: () => ({ from: () => ({ where: () => ({ limit: async () => [] }) }) }), execute: vi.fn().mockResolvedValue([{ present: 'cms_generation_18.cms_site_projection' }]), update } as unknown as DbTransaction;
     mocks.transaction.mockImplementationOnce((fn: (tx: DbTransaction) => unknown) => fn(tx));
     await expect(withCmsGenerationTransaction(2, 18, true, async () => {
       expect(cmsGenerationContext()).toEqual({ siteId: 2, generationId: 18, candidate: true });

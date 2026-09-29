@@ -40,3 +40,9 @@ export * from './release-build';
 export * from './reviews-validation';
 
 export * from './deployment-retention';
+
+export * from './page-image';
+export * from './page-block-quality';
+
+export * from './configuration-state';
+export * from './page-presets';

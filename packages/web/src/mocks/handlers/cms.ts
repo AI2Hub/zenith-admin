@@ -1,5 +1,6 @@
 import { stageMockCmsConfigurationDraft, submitMockCmsContentBatch, submitMockCmsWithdrawal } from './cms-releases';
 import { mockCmsFeedback, mockCmsNoResultKeywords, syncMockCmsFeedbackSubmissions } from '../data/cms-operations';
+import { mockCmsPagePresetVersions } from '../data/cms-page-presets';
 import { getMockCmsWorkingContent, getMockCmsPublishedContent, getMockCmsRevision, getMockCmsReviewContent, bindMockCmsReview, assertMockCmsCas, freezeMockCmsRevision, saveMockCmsWorkingContent, restoreMockCmsRevision } from '@/mocks/utils/cms-revisions';
 import { HttpResponse } from 'msw';
 import type * as z from 'zod';
@@ -43,6 +44,7 @@ import {
   cmsTagContract,
   cmsUploadContract,
   parseCmsLink,
+  validateCmsPagePresetSources,
 } from '@zenith/shared/cms';
 import { SEED_CMS_EDITOR_USER } from '@zenith/shared/seed';
 import {
@@ -232,6 +234,11 @@ function collectMockResourceRefs(res: { id: number; siteId: number; url: string 
     if (link.siteId !== res.siteId) continue;
     if (hit(link.logo)) refs.push({ kind: 'friendLink', id: link.id, title: link.name, field: 'logo' });
     if (hit(link.url)) refs.push({ kind: 'friendLink', id: link.id, title: link.name, field: 'url' });
+  }
+  for (const version of mockCmsPagePresetVersions) {
+    if (version.siteId !== res.siteId) continue;
+    if (hit(JSON.stringify(version.blocks))) refs.push({ kind: 'page_preset_version', id: version.id,
+      title: `${version.name} · v${version.version}`, field: 'blocks', href: `/cms/pages?site=${version.siteId}` });
   }
   return refs;
 }
@@ -2097,6 +2104,8 @@ export const cmsP6Handlers = [
     return ok(paginate(list));
   }),
   mock(cmsPageContract.create, ({ body, ok }) => {
+    try { validateCmsPagePresetSources(body.blocks, mockCmsPagePresetVersions, body.siteId); }
+    catch (error) { return badRequest(error instanceof Error ? error.message : '组合来源无效', { status: 400 }); }
     const now = mockDateTime();
     const row = {
       id: getNextCmsPageId(),

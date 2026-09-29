@@ -24,6 +24,7 @@ import {
 import { hasPermission } from '../../lib/context';
 import { deleteCmsPageWidgetRefs, syncCmsPageWidgetRefs } from './cms-widgets.service';
 import { pickEntity } from '../../lib/entity-map';
+import { assertCmsPagePresetSources } from './cms-page-presets.service';
 
 export function mapCmsPage(row: CmsPageRow, blocks?: CmsPageBlock[]) {
   return pickEntity(cmsPageSchema, row, {
@@ -124,11 +125,13 @@ export async function createCmsPage(input: CmsPageInput) {
   try {
     const mutation = await db.transaction(async (tx) => {
       const site = await lockCmsSiteForMutation(tx, input.siteId);
+      const canonicalBlocks = blocks ? await canonicalizeCmsResourceContent(tx, input.siteId, blocks) : undefined;
+      if (canonicalBlocks) await assertCmsPagePresetSources(tx, input.siteId, canonicalBlocks);
       await assertCustomPagePathFree(tx, input.siteId, input.path);
       if (input.isHome) await clearOtherHome(tx, input.siteId);
       const [row] = await tx.insert(cmsPages).values({
         ...input,
-        ...(blocks ? { blocks: await canonicalizeCmsResourceContent(tx, input.siteId, blocks) } : {}),
+        ...(canonicalBlocks ? { blocks: canonicalBlocks } : {}),
         requiresDynamic,
       }).returning();
       await syncCmsPageWidgetRefs(tx, row.id, row.siteId, (row.blocks ?? []) as CmsPageBlock[]);
@@ -169,13 +172,17 @@ export async function updateCmsPage(id: number, input: Partial<CmsPageInput>) {
       if (hasBaseMutations && !(await hasPermission('cms:page:update'))) {
         throw new HTTPException(403, { message: '无页面编辑权限，只能修改已获授权的区块内容' });
       }
-      if (blocks) await assertCmsPageBlocksUpdateAllowed(current, blocks, tx);
+      const canonicalBlocks = blocks ? await canonicalizeCmsResourceContent(tx, current.siteId, blocks) : undefined;
+      if (canonicalBlocks) {
+        await assertCmsPageBlocksUpdateAllowed(current, canonicalBlocks, tx);
+        await assertCmsPagePresetSources(tx, current.siteId, canonicalBlocks);
+      }
       if (input.path !== undefined) await assertCustomPagePathFree(tx, current.siteId, input.path, id);
       const requiresDynamic = blocks ? cmsPageRequiresDynamic(blocks) : current.requiresDynamic;
       if (rest.isHome) await clearOtherHome(tx, current.siteId, id);
       const [row] = await tx.update(cmsPages).set({
         ...rest,
-        ...(blocks ? { blocks: await canonicalizeCmsResourceContent(tx, current.siteId, blocks) } : {}),
+        ...(canonicalBlocks ? { blocks: canonicalBlocks } : {}),
         requiresDynamic,
       }).where(and(
         eq(cmsPages.id, id),

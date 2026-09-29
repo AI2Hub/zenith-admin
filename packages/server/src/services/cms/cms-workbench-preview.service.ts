@@ -17,7 +17,7 @@ import { resolveEffectiveCmsSiteRow } from './cms-site-inheritance.service';
 import { renderSearchPage, renderSitePath } from './cms-render.service';
 import { cmsReleaseScope } from './cms-release-access.service';
 import { getCmsReleaseDetail } from './cms-releases.service';
-import { prepareCmsWorkbenchHtml } from './cms-workbench-preview-html';
+import { decorateCmsPreviewEditTargets } from './cms-preview-edit-targets';
 import { contentUrl } from './cms-urls';
 
 type PreviewInput = z.output<typeof renderCmsWorkbenchPreviewSchema>;
@@ -43,7 +43,7 @@ async function renderPath(siteId: number, requestedPath: string) {
     const result = url.pathname === '/search'
       ? await renderSearchPage(site, baseUrl, url.searchParams.get('q') ?? '', Math.max(1, Number(url.searchParams.get('page')) || 1))
       : await renderSitePath(site, baseUrl, url.pathname);
-    if (result.status !== 302) return { html: prepareCmsWorkbenchHtml(result.html, baseUrl), status: result.status, path };
+    if (result.status !== 302) return { ...await decorateCmsPreviewEditTargets(siteId, baseUrl, result), status: result.status, path };
     const relative = result.location?.startsWith('/') ? cmsSiteRelativePath(result.location, site.code) : null;
     if (!relative) throw new HTTPException(400, { message: '预览中的外部跳转已禁用，请选择本站页面' });
     path = relative;
