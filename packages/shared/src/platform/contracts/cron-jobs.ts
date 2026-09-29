@@ -255,6 +255,7 @@ export type CronValidateResult = z.infer<typeof cronValidateResultSchema>;
 
 export const cronJobListQuery = paginationQuery.extend({
   keyword: keywordQuery('任务名称'),
+  handler: keywordQuery('处理器'),
   status: entityStatusQuery,
 });
 

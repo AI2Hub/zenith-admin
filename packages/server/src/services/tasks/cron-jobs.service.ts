@@ -78,6 +78,7 @@ export type CronJobListFilter = Omit<QueryOutputOf<typeof cronJobContract.list>,
 export function buildCronJobsWhere(q: CronJobListFilter) {
   return buildWhere(
     keywordCondition(q.keyword, [cronJobs.name]),
+    q.handler ? eq(cronJobs.handler, q.handler) : undefined,
     q.status ? eq(cronJobs.status, q.status) : undefined,
   );
 }
@@ -89,6 +90,7 @@ export const cronJobService = defineCrudService(cronJobContract, {
   list: (q) => ({
     where: [
       keywordCondition(q.keyword, [cronJobs.name]),
+      q.handler ? eq(cronJobs.handler, q.handler) : undefined,
       q.status ? eq(cronJobs.status, q.status) : undefined,
     ],
     orderBy: [desc(cronJobs.id)],

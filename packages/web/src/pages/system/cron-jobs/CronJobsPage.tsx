@@ -359,7 +359,18 @@ export default function CronJobsPage() {
         <Tabs.TabPane tab="任务管理" itemKey="jobs">
           <ListSearchToolbar
             page={page}
-            filters={['keyword', 'status']}
+            filters={['keyword', 'handler', 'status']}
+            overrides={{
+              handler: (p) => (
+                <FilterSelect
+                  placeholder="全部处理器"
+                  items={handlers.map((handler) => ({ value: handler, label: handler }))}
+                  {...p.bind('handler')}
+                  width={180}
+                  filter
+                />
+              ),
+            }}
             create={<CreateButton permission="system:cronjob:create" onClick={openCreate} />}
             actions={(
               <>
