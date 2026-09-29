@@ -1,4 +1,5 @@
-import { Link } from 'react-router-dom';
+import type { CSSProperties } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { Banner, Select, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { CmsStatMetrics, CmsStatReportRow } from '@zenith/shared/cms';
@@ -33,6 +34,7 @@ export default function CmsStatsReport({ query: scopeQuery, dimension, onDrill }
   const search = useListSearch<ReportFilters>({ defaults: { sortBy: defaultSort, sortOrder: 'desc' }, listKey: cmsStatKeys.report, resetKey: JSON.stringify(scopeFilters) });
   const reportQuery = useFilterQuery({ ...scopeQuery, ...search.submittedParams, dimension });
   const report = useCmsStatsReport({ ...reportQuery, siteId: scopeQuery.siteId, page: search.page, pageSize: search.pageSize });
+  const navigate = useNavigate();
   const { hasPermission } = usePermission();
   const createTask = useCreateCmsEditorialTask();
   const editor = useCmsTaskEditor(scopeQuery.siteId);
@@ -40,7 +42,7 @@ export default function CmsStatsReport({ query: scopeQuery, dimension, onDrill }
   /** 指标列宽跟随标题长度：6 字及以上（搜索结果点击、区间访客 UV…）给 140，避免表头换行。 */
   const metricColumnWidth = (field: keyof CmsStatMetrics) => field === 'avgActiveMs' ? 160 : METRIC_LABELS[field].length >= 6 ? 140 : 115;
   const columns: ColumnProps<CmsStatReportRow>[] = [
-    { title: DIMENSION_LABELS[dimension], dataIndex: 'label', minWidth: 220, render: (label: string, row) => dimension === 'content' && /^\d+$/u.test(row.key) ? <Link to={`/cms/contents/edit?id=${row.key}&siteId=${scopeQuery.siteId}`}>{label}</Link> : renderEllipsis(cmsStatsDimensionLabel(dimension, row.key, label)) },
+    { title: DIMENSION_LABELS[dimension], dataIndex: 'label', minWidth: 300, render: (label: string, row) => dimension === 'content' && /^\d+$/u.test(row.key) ? <Typography.Text link ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%', '--semi-color-link': 'var(--semi-color-primary)', '--semi-color-link-hover': 'var(--semi-color-primary-hover)', '--semi-color-link-active': 'var(--semi-color-primary-active)', '--semi-color-link-visited': 'var(--semi-color-primary)' } as CSSProperties} onClick={() => navigate(`/cms/contents/edit?id=${row.key}&siteId=${scopeQuery.siteId}`)}>{label}</Typography.Text> : renderEllipsis(cmsStatsDimensionLabel(dimension, row.key, label)) },
     ...columnsToShow.map((field): ColumnProps<CmsStatReportRow> => ({ title: METRIC_LABELS[field], dataIndex: field, width: metricColumnWidth(field), align: 'right', render: (_value: number, row) => displayCmsMetric(row, field) })),
   ];
   const drillable = ['content', 'channel', 'author', 'contentType', 'release', 'source', 'device'].includes(dimension);
