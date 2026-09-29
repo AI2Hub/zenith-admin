@@ -74,7 +74,16 @@ async function resolveActiveRuleEvents(executor: DbExecutor, ruleId: number, res
 }
 
 // ─── 映射 ────────────────────────────────────────────────────────────────
-export function mapRule(row: MonitorAlertRuleRow) {
+/**
+ * 单条规则的事件数：与 `listRules` 的聚合子查询同一口径（含租户隔离），
+ * 供详情 / 写入响应补齐契约实体上的派生字段 `eventCount`。
+ */
+async function countRuleEvents(ruleId: number): Promise<number> {
+  return db.$count(monitorAlertEvents, and(eq(monitorAlertEvents.ruleId, ruleId), tenantScope(monitorAlertEvents)));
+}
+
+/** 契约实体：`eventCount` 由调用方给出（列表走聚合子查询，单条走 `countRuleEvents`，新建规则为 0） */
+export function mapRule(row: MonitorAlertRuleRow, eventCount: number) {
   return {
     id: row.id,
     name: row.name,
@@ -92,6 +101,7 @@ export function mapRule(row: MonitorAlertRuleRow) {
     state: row.state,
     lastTriggeredAt: formatNullableDateTime(row.lastTriggeredAt),
     lastValue: row.lastValue,
+    eventCount,
     ...formatTimestamps(row),
   };
 }
@@ -157,7 +167,7 @@ export async function listRules(q: MonitorAlertRuleQuery) {
       .from(monitorAlertRules)
       .where(where)
       .orderBy(desc(monitorAlertRules.id)).$dynamic(), page, pageSize),
-    map: (item) => ({ ...mapRule(item.row), eventCount: Number(item.eventCount) }),
+    map: (item) => mapRule(item.row, Number(item.eventCount)),
   });
 }
 
@@ -169,7 +179,7 @@ export async function ensureRuleExists(id: number) {
 }
 
 export async function getMonitorAlertRuleBeforeAudit(id: number) {
-  return mapRule(await ensureRuleExists(id));
+  return mapRule(await ensureRuleExists(id), await countRuleEvents(id));
 }
 
 export async function createRule(input: CreateMonitorAlertRuleInput) {
@@ -203,7 +213,8 @@ export async function createRule(input: CreateMonitorAlertRuleInput) {
       enabled,
     })
     .returning();
-  return mapRule(row);
+  // 新建规则还没有任何告警事件，省掉一次计数查询
+  return mapRule(row, 0);
 }
 
 export async function updateRule(id: number, input: UpdateMonitorAlertRuleInput) {
@@ -245,12 +256,12 @@ export async function updateRule(id: number, input: UpdateMonitorAlertRuleInput)
     return row;
   };
 
-  if (!resetLifecycle) return mapRule(await update(db));
+  if (!resetLifecycle) return mapRule(await update(db), await countRuleEvents(id));
 
   return db.transaction(async (tx) => {
     const row = await update(tx);
     await resolveActiveRuleEvents(tx, id, new Date());
-    return mapRule(row);
+    return mapRule(row, await countRuleEvents(id));
   });
 }
 
@@ -284,7 +295,7 @@ export async function setRuleEnabled(id: number, enabled: boolean) {
       current.tenantId,
     );
   }
-  if (enabled && current.enabled) return mapRule(current);
+  if (enabled && current.enabled) return mapRule(current, await countRuleEvents(id));
 
   return db.transaction(async (tx) => {
     const resolvedAt = new Date();
@@ -294,7 +305,7 @@ export async function setRuleEnabled(id: number, enabled: boolean) {
       .where(eq(monitorAlertRules.id, id))
       .returning();
     await resolveActiveRuleEvents(tx, id, resolvedAt);
-    return mapRule(row);
+    return mapRule(row, await countRuleEvents(id));
   });
 }
 

@@ -6,6 +6,8 @@ vi.mock('../../db', () => {
   const db = {
     select: vi.fn(),
     update: vi.fn(),
+    // 单条规则响应要带上派生的事件数，走 $count；用例只关心事件关闭语义，统一给 0
+    $count: vi.fn(),
     transaction: vi.fn(async (callback: (tx: typeof db) => unknown) => callback(db)),
   };
   return { db };
@@ -77,6 +79,7 @@ function alertRule(overrides: Partial<MonitorAlertRuleRow> = {}): MonitorAlertRu
 
 beforeEach(() => {
   vi.resetAllMocks();
+  dbMock.$count.mockResolvedValue(0);
 });
 
 describe('setRuleEnabled', () => {

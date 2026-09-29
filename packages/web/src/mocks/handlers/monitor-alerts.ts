@@ -14,7 +14,13 @@ import { removeByIds, requireItem } from '@/mocks/utils/crud';
 /** N 分钟前的时间字符串 */
 const minsAgo = (m: number) => mockDateTimeOffset(-m * 60 * 1000);
 
-const rules: MonitorAlertRule[] = [
+/**
+ * 内存态规则：`eventCount` 是派生字段，不在存储里维护，
+ * 每个响应由 `withEventCount` 按事件数现算，与服务端 `listRules` 的聚合口径一致。
+ */
+type StoredAlertRule = Omit<MonitorAlertRule, 'eventCount'>;
+
+const rules: StoredAlertRule[] = [
   {
     id: 1, name: 'CPU 使用率过高', metric: 'cpu', operator: 'gt', threshold: 85, durationMinutes: 5,
     level: 'warning', channels: ['inapp', 'email'], webhookUrl: null, recipientUserIds: [1], recipientEmails: ['ops@example.com'],
@@ -142,7 +148,7 @@ const events: MonitorAlertEvent[] = [
 ];
 
 /** 规则响应补充事件数（与服务端 listRules 的聚合口径一致） */
-function withEventCount(rule: MonitorAlertRule): MonitorAlertRule & { eventCount: number } {
+function withEventCount(rule: StoredAlertRule): MonitorAlertRule {
   return { ...rule, eventCount: events.filter((e) => e.ruleId === rule.id).length };
 }
 
@@ -286,7 +292,7 @@ export const monitorAlertsHandlers = [
 
   mock(monitorAlertContract.create, ({ body, ok }) => {
     const now = mockDateTime();
-    const rule: MonitorAlertRule = {
+    const rule: StoredAlertRule = {
       id: nextIdFrom(rules), name: body.name, metric: body.metric, operator: body.operator,
       threshold: body.threshold, durationMinutes: body.durationMinutes, level: body.level,
       channels: body.channels, webhookUrl: body.webhookUrl ?? null,
