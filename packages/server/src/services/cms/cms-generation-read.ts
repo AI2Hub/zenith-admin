@@ -3,6 +3,7 @@ import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import type { DbExecutor, DbTransaction } from '../../db/types';
 import { cmsDeploymentStorage, cmsSiteGenerations } from '../../db/schema';
+import { isPgError } from '../../lib/db-errors';
 
 export class CmsGenerationReadUnavailable extends HTTPException {
   constructor() { super(409, { message: '部署存储正在切换或已经回收，请刷新后重试' }); }
@@ -12,11 +13,18 @@ export class CmsGenerationReadUnavailable extends HTTPException {
 export async function pinCmsGenerationRead(tx: DbTransaction, generationId: number): Promise<void> {
   if (!Number.isSafeInteger(generationId) || generationId <= 0) throw new CmsGenerationReadUnavailable();
   await tx.execute(sql`select pg_advisory_xact_lock_shared(hashtext('cms-generation-build'),${generationId})`);
-  // Catalog lookup observes a committed DROP even when this transaction's business-data snapshot
-  // predates it. Never let search_path silently fall back to uncommitted public working tables.
-  const [catalog] = await tx.execute<{ present: string | null }>(sql`select to_regclass(${`cms_generation_${generationId}.cms_site_projection`})::text as present`);
+  // A repeatable-read snapshot can retain stale catalog data after a concurrent DROP.
+  // Resolve and lock the actual relation before setting search_path, so a missing generation
+  // cannot silently fall back to public working tables. A failed lock aborts this snapshot;
+  // the caller retries the entire transaction with a fresh generation pointer.
+  try {
+    await tx.execute(sql`lock table ${sql.identifier(`cms_generation_${generationId}`)}.cms_site_projection in access share mode`);
+  } catch (error) {
+    if (isPgError(error, '42P01') || isPgError(error, '3F000')) throw new CmsGenerationReadUnavailable();
+    throw error;
+  }
   const [storage] = await tx.select({ state: cmsDeploymentStorage.storageState }).from(cmsDeploymentStorage).where(eq(cmsDeploymentStorage.deploymentId, generationId)).limit(1);
-  if (!catalog?.present || (storage && storage.state !== 'available')) throw new CmsGenerationReadUnavailable();
+  if (storage && storage.state !== 'available') throw new CmsGenerationReadUnavailable();
 }
 
 /** Retry the entire snapshot when a previously selected public generation has just been reclaimed. */

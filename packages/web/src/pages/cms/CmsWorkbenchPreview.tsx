@@ -51,8 +51,10 @@ export default function CmsWorkbenchPreview({ visible, onClose, siteId, initialP
     setMode(initialMode); setPath(initialPath); setResult(undefined);
     void load(initialMode, initialPath);
   }, [visible, siteId, releaseId, initialMode, initialPath, selectionKey, load]);
-  const nonce = useMemo(() => crypto.randomUUID(), [result]);
-  const document = useMemo(() => result ? cmsPreviewDocument(result.html, nonce) : '', [nonce, result]);
+  const { nonce, document } = useMemo(() => {
+    const nonce = crypto.randomUUID();
+    return { nonce, document: result ? cmsPreviewDocument(result.html, nonce) : '' };
+  }, [result]);
   const positionKey = () => `${siteId}:${result?.mode}:${releaseId ?? ''}:${result?.path}`;
   const sendEditMode = (enabled: boolean) => frame.current?.contentWindow?.postMessage({ type: 'cms-preview-edit-mode', nonce, enabled }, '*');
   const initializeFrame = useEventCallback(() => frame.current?.contentWindow?.postMessage({ type: 'cms-preview-init', nonce, enabled: locate, position: positions.current.get(positionKey()) }, '*'));

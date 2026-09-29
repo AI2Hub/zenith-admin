@@ -37,7 +37,7 @@ export async function cmsDeliveryContentPaths(executor: DbExecutor, siteId: numb
   const rows = await executor.execute<{ id: number; slug: string | null; staticPath: string | null; publishedAt: string | null; createdAt: string | null; channelPath: string; detailPathRule: CmsChannelDetailPathRule }>(sql`
     select p.id,p.slug,p.static_path as "staticPath",p.published_at as "publishedAt",p.created_at as "createdAt",c.path as "channelPath",c.detail_path_rule as "detailPathRule"
     from ${sql.raw(schema)}.cms_content_projection p join ${sql.raw(schema)}.cms_channels c on c.id=p.channel_id
-    where p.site_id=${siteId} and p.id=any(${ids}::integer[])
+    where p.site_id=${siteId} and ${inArray(sql`p.id`, ids)}
   `);
   return rows.map(row => ({ path: contentUrl('', { path: row.channelPath, detailPathRule: row.detailPathRule }, { ...row, publishedAt: row.publishedAt ? new Date(row.publishedAt) : null, createdAt: row.createdAt ? new Date(row.createdAt) : null }), expectedStatus }));
 }
@@ -50,7 +50,7 @@ export async function cmsDeliveryRightsPaths(executor: DbExecutor, siteId: numbe
     join public.cms_content_working_copies w on w.content_id=c.id
     join public.cms_content_revisions r on r.id=w.published_revision_id
     where c.site_id=${siteId} and c.status='published'
-      and exists (select 1 from jsonb_object_keys(coalesce(r.snapshot->'assetVersions','{}'::jsonb)) as asset(id) where asset.id=any(${resourceIds.map(String)}::text[]))
+      and exists (select 1 from jsonb_object_keys(coalesce(r.snapshot->'assetVersions','{}'::jsonb)) as asset(id) where ${inArray(sql`asset.id`, resourceIds.map(String))})
     limit 50
   `);
   const paths = await cmsDeliveryContentPaths(executor, siteId, rows.map(row => row.id), withdrawn ? 'withdrawn' : 'visible');

@@ -11,6 +11,7 @@ import { getMockCmsDeploymentRetentionContext, getMockCmsSiteActivations } from 
 const configurations = new Map<number, CmsDeliveryConfig>();
 const epochs = new Map<number, number>();
 const runs: CmsDeliveryRun[] = [];
+export function resetMockCmsDelivery() { configurations.clear(); epochs.clear(); runs.length = 0; }
 function configuration(siteId: number): CmsDeliveryConfig {
   requireItem(mockCmsSites, siteId, '站点不存在', { status: 404 });
   return configurations.get(siteId) ?? { siteId, version: 0, sourceBaseUrl: null, publicBaseUrl: null, effectiveSourceBaseUrl: null, paths: ['/'] };
@@ -27,7 +28,7 @@ function supersede(siteId: number) {
 }
 
 /** Demo preserves lifecycle and evidence shape, without inventing HTTP or CDN verification results. */
-export function queueMockCmsDelivery(siteId: number, cause: CmsDeliveryRun['cause'], visibilityChanged = false): CmsDeliveryRun {
+export function queueMockCmsDelivery(siteId: number, cause: CmsDeliveryRun['cause'], visibilityChanged = false, paths?: CmsDeliveryRun['paths']): CmsDeliveryRun {
   const config = configuration(siteId);
   if (visibilityChanged) epochs.set(siteId, (epochs.get(siteId) ?? 0) + 1);
   supersede(siteId);
@@ -35,7 +36,7 @@ export function queueMockCmsDelivery(siteId: number, cause: CmsDeliveryRun['caus
   const row: CmsDeliveryRun = { id: nextIdFrom(runs), siteId, ...identity(siteId), cause, status: 'activated', configVersion: config.version,
     taskId: null, sourceBaseUrl: config.sourceBaseUrl, publicBaseUrl: config.publicBaseUrl, sourceHost: null,
     purgeStatus: 'not_configured', purgeHttpStatus: null, purgeMessage: 'Demo 不调用真实缓存刷新服务',
-    paths: config.paths.map(path => ({ path, expectedStatus: 'visible' })), observations: [], error: null,
+    paths: paths ? structuredClone(paths) : config.paths.map(path => ({ path, expectedStatus: 'visible' })), observations: [], error: null,
     startedAt: null, completedAt: null, createdAt: now, updatedAt: now };
   runs.push(row);
   const task = createProgressingMockTask({ taskType: 'cms-delivery-check', title: `CMS 交付检测 #${row.id}`, payload: { siteId, generationId: row.generationId, deliveryRunId: row.id }, totalItems: row.paths.length * 2,
@@ -71,6 +72,6 @@ export const cmsDeliveryHandlers = [
   mock(cmsDeliveryContract.retry, ({ params, ok }) => {
     const row = requireItem(runs, params.id, '交付记录不存在', { status: 404 }), current = identity(row.siteId);
     if (row.generationId !== current.generationId || row.activationId !== current.activationId || row.visibilityEpoch !== current.visibilityEpoch) throw new MockHttpError(conflict('此记录已不属于当前公开版本，请检测当前版本', { status: 409 }));
-    return ok(queueMockCmsDelivery(row.siteId, 'manual'));
+    return ok(queueMockCmsDelivery(row.siteId, 'manual', false, row.paths));
   }),
 ];

@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { Form } from '@douyinfe/semi-ui';
 import type { CmsPageBlock, CmsPagePresetVersion } from '@zenith/shared/cms';
 import CmsPagePresetLibrary from './CmsPagePresetLibrary';
 
@@ -40,6 +41,17 @@ beforeEach(() => {
 });
 
 describe('组合实例升级', () => {
+  it('keeps preset field labels separate from the page editor behind the modal', async () => {
+    render(<><Form><Form.Input field="name" label="页面名称" initValue="原有页面" /></Form><CmsPagePresetLibrary siteId={1} blocks={existingBlocks()} selectedBlockIds={['old_hero']} onApply={vi.fn()} /></>);
+    fireEvent.click(screen.getByRole('button', { name: '组合预设库' }));
+    fireEvent.click(await screen.findByRole('button', { name: '将选中区块存为预设' }));
+    const presetName = await screen.findByRole('textbox', { name: /预设名称/ });
+    expect(presetName.id).not.toBe('name');
+    expect(document.querySelectorAll('#name')).toHaveLength(1);
+    expect(document.getElementById('name')).toHaveValue('原有页面');
+    expect(document.getElementById(presetName.getAttribute('aria-labelledby')!)?.textContent).toContain('预设名称');
+  });
+
   it('replaces the entire source instance when only one member is selected and preserves current parameter values', async () => {
     const apply = vi.fn();
     render(<CmsPagePresetLibrary siteId={1} blocks={existingBlocks()} selectedBlockIds={['old_hero']} onApply={apply} />);

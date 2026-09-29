@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { Banner, Button, Empty, Form, Input, InputNumber, Select, SideSheet, Space, Spin, Tag, Toast, Typography, withField } from '@douyinfe/semi-ui';
 import { Library, Plus, Trash2 } from 'lucide-react';
 import type { BodyOf } from '@zenith/shared/core';
@@ -90,6 +90,7 @@ export default function CmsPagePresetLibrary({ siteId, blocks, selectedBlockIds,
   siteId?: number; blocks: CmsPageBlock[]; selectedBlockIds: string[];
   onApply: (blocks: CmsPageBlock[], mode: 'append' | 'replace-selected', replaceIds?: string[]) => void; disabled?: boolean;
 }>) {
+  const formId = useId();
   const isMobile = useIsMobile();
   const { hasPermission } = usePermission();
   const canSave = !disabled && hasPermission('cms:page:update');
@@ -246,15 +247,15 @@ export default function CmsPagePresetLibrary({ siteId, blocks, selectedBlockIds,
         </> : null}
       </Space>
     </SideSheet>
-    <EditFormModal modal={saveModal} width={isMobile ? '100%' : 760} title={saveModal.isEdit ? '保存预设新版本' : '保存页面组合预设'} okText="保存预设"
+    <EditFormModal modal={saveModal} formProps={{ id: `${formId}-save` }} width={isMobile ? '100%' : 760} title={saveModal.isEdit ? '保存预设新版本' : '保存页面组合预设'} okText="保存预设"
       header={<Banner type="info" description={`将保存 ${saveBlocks.length} 个区块。${saveModal.isEdit ? `基于 v${expectedVersion} 创建新版本，已有页面保留原快照。` : '可声明插入时需要替换的字段。'}`} />}>
-      <Form.Input field="name" label="预设名称" maxLength={100} rules={[{ required: true, message: '请填写预设名称' }]} />
-      <Form.TextArea field="description" label="使用说明" maxLength={500} />
-      {saveModal.isEdit ? <Form.Input field="note" label="版本说明" maxLength={500} /> : null}
+      <Form.Input id={`${formId}-name`} field="name" label="预设名称" maxLength={100} rules={[{ required: true, message: '请填写预设名称' }]} />
+      <Form.TextArea id={`${formId}-description`} field="description" label="使用说明" maxLength={500} />
+      {saveModal.isEdit ? <Form.Input id={`${formId}-note`} field="note" label="版本说明" maxLength={500} /> : null}
       <FormPresetParameters field="parameters" label="可替换参数" blocks={saveBlocks} />
     </EditFormModal>
-    <EditFormModal modal={copyModal} width={520} title="复制为独立预设" okText="创建副本">
-      <Form.Input field="name" label="副本名称" maxLength={100} rules={[{ required: true, message: '请填写副本名称' }]} />
+    <EditFormModal modal={copyModal} formProps={{ id: `${formId}-copy` }} width={520} title="复制为独立预设" okText="创建副本">
+      <Form.Input id={`${formId}-copy-name`} field="name" label="副本名称" maxLength={100} rules={[{ required: true, message: '请填写副本名称' }]} />
     </EditFormModal>
   </>;
 }

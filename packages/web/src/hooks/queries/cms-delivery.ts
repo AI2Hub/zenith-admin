@@ -2,6 +2,7 @@ import { keepPreviousData, type QueryClient } from '@tanstack/react-query';
 import type { QueryOf } from '@zenith/shared/core';
 import { cmsDeliveryContract, type CmsDeliveryRunSummary } from '@zenith/shared/cms';
 import { contractKey, useApiMutation, useApiQuery } from '@/lib/contract-query';
+import { invalidateAsyncTaskState } from './async-tasks';
 
 const running = (row?: CmsDeliveryRunSummary) => !!row && ['activated', 'cache_refreshing', 'checking'].includes(row.status);
 export function invalidateCmsDelivery(qc: QueryClient) {
@@ -17,5 +18,9 @@ export const useCmsDeliveryRun = (id?: number) => useApiQuery(cmsDeliveryContrac
 export const useSaveCmsDeliveryConfig = () => useApiMutation(cmsDeliveryContract.saveConfig, { invalidate: (qc) => {
   void qc.invalidateQueries({ queryKey: contractKey(cmsDeliveryContract.config) }); invalidateCmsDelivery(qc);
 } });
-export const useStartCmsDelivery = () => useApiMutation(cmsDeliveryContract.start, { invalidate: invalidateCmsDelivery });
-export const useRetryCmsDelivery = () => useApiMutation(cmsDeliveryContract.retry, { invalidate: invalidateCmsDelivery });
+function invalidateAfterCmsDeliveryStart(qc: QueryClient) {
+  invalidateCmsDelivery(qc);
+  invalidateAsyncTaskState(qc);
+}
+export const useStartCmsDelivery = () => useApiMutation(cmsDeliveryContract.start, { invalidate: invalidateAfterCmsDeliveryStart });
+export const useRetryCmsDelivery = () => useApiMutation(cmsDeliveryContract.retry, { invalidate: invalidateAfterCmsDeliveryStart });
