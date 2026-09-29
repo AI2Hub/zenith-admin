@@ -1,10 +1,11 @@
 import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { db, withDbExecutor } from '../../db';
 import type { DbTransaction } from '../../db/types';
 import { cmsDeploymentStorage, type CmsDeploymentSnapshot } from '../../db/schema';
+import { cmsDeployments } from '../../db/schema/cms-releases';
 import { cmsDeliverySnapshot, cmsGenerationContext, withCmsDeliverySnapshot, withCmsGenerationContext } from './cms-generation-context';
 import { readCmsGenerationDelivery } from './cms-generation-delivery';
 import { readCmsVisibilityEpoch } from './cms-delivery-state';
@@ -90,7 +91,12 @@ export async function createCmsGenerationStorage(tx: DbTransaction, siteId: numb
   }
   const [directoryOwner] = await tx.execute<{ code: string }>(sql`select code from ${sql.raw(schema)}.cms_site_projection where id=${siteId}`);
   if (!directoryOwner?.code) throw new Error('公开站点快照缺少静态目录标识');
-  await tx.insert(cmsDeploymentStorage).values({ deploymentId: generationId, siteCode: directoryOwner.code }).onConflictDoUpdate({ target: cmsDeploymentStorage.deploymentId, set: { siteCode: sql`coalesce(${cmsDeploymentStorage.siteCode},excluded.site_code)`, updatedAt: new Date() } });
+  // 工作区预览用 nextval 预占命名空间 id 且不建 deployment 行（事务回滚后无残留）：
+  // storage 行以外键挂载 deployment，无行可挂时跳过，避免 FK 500
+  const [deployment] = await tx.select({ id: cmsDeployments.id }).from(cmsDeployments).where(eq(cmsDeployments.id, generationId)).limit(1);
+  if (deployment) {
+    await tx.insert(cmsDeploymentStorage).values({ deploymentId: generationId, siteCode: directoryOwner.code }).onConflictDoUpdate({ target: cmsDeploymentStorage.deploymentId, set: { siteCode: sql`coalesce(${cmsDeploymentStorage.siteCode},excluded.site_code)`, updatedAt: new Date() } });
+  }
 }
 
 export async function withCmsGenerationTransaction<T>(
