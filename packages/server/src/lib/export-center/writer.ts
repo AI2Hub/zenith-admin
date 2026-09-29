@@ -1,5 +1,8 @@
 import { createRequire } from 'node:module';
+import { createWriteStream } from 'node:fs';
+import { once } from 'node:events';
 import { PassThrough } from 'node:stream';
+import { finished } from 'node:stream/promises';
 import type ExcelJS from 'exceljs';
 import { csvEscapeCell } from '../excel-export';
 import { formatDateTime } from '../datetime';
@@ -280,4 +283,57 @@ export async function renderExportCsv(
     lines.push(columns.map((column) => csvEscapeCell(formatExportCell(column, row, ctx))).join(','));
   }
   return Buffer.from('\uFEFF' + lines.join('\n') + '\n', 'utf-8');
+}
+
+/** Disk-backed table output for large snapshot providers; neither CSV nor XLSX accumulates a full Buffer. */
+export async function renderExportToPath(
+  definition: AnyExportDefinition,
+  rows: AsyncIterable<Record<string, unknown>>,
+  ctx: ExportRuntimeContext,
+  filePath: string,
+  total: number,
+): Promise<number> {
+  const output = createWriteStream(filePath, { flags: 'wx' });
+  const done = finished(output);
+  // A query/row failure can precede awaiting the file completion promise.
+  void done.catch(() => undefined);
+  let written = 0;
+  async function* countedRows() {
+    await ctx.progress?.(0, total);
+    for await (const row of rows) {
+      if (ctx.rowLimit && written >= ctx.rowLimit) throw new Error(`导出行数超过上限 ${ctx.rowLimit} 行，请收窄筛选条件`);
+      yield row;
+      written += 1;
+      if (written % 250 === 0) await ctx.progress?.(written, total);
+    }
+  }
+  try {
+    if (ctx.format === 'csv') {
+      const columns = leafColumns(selectedColumns(await resolveDefinitionColumns(definition, ctx), ctx.selectedColumns));
+      const write = async (line: string) => { if (!output.write(line)) await once(output, 'drain'); };
+      // Reader-controlled keywords must remain literal values in spreadsheets.
+      const safeCell = (value: unknown) => {
+        if (typeof value !== 'string') return csvEscapeCell(value);
+        const literal = /^[\s]*[=+\-@\t\r]/u.test(value) ? `'${value}` : value;
+        return `"${literal.replaceAll('"', '""')}"`;
+      };
+      await write('\uFEFF' + columns.map((column) => safeCell(column.header)).join(',') + '\r\n');
+      for await (const row of countedRows()) await write(columns.map((column) => safeCell(formatExportCell(column, row, ctx))).join(',') + '\r\n');
+      output.end();
+    } else {
+      const workbook = new (loadExcelJS().stream.xlsx.WorkbookWriter)({ stream: output, useStyles: true });
+      workbook.creator = 'Zenith Admin';
+      workbook.created = ctx.exportedAt;
+      await writeTableSheetStreaming(workbook, definition, countedRows(), ctx);
+      appendMetadataSheetStreaming(workbook, ctx);
+      await workbook.commit();
+    }
+    await done;
+    await ctx.progress?.(written, total);
+    return written;
+  } catch (error) {
+    output.destroy();
+    await done.catch(() => undefined);
+    throw error;
+  }
 }

@@ -745,3 +745,8 @@ export const CMS_TWITTER_CARD_LABELS: Record<(typeof CMS_TWITTER_CARDS)[number],
 export const CMS_TELEMETRY_ENVIRONMENTS = ['live', 'preview', 'internal-test'] as const;
 export const CMS_TELEMETRY_CLIENT_EVENTS = ['cms.page_view', 'cms.engagement', 'cms.read', 'cms.search', 'cms.search_click', 'cms.component_impression', 'cms.component_click', 'cms.media_start', 'cms.media_progress', 'cms.media_error', 'cms.download_click', 'cms.form_start', 'cms.form_error'] as const;
 export const CMS_TELEMETRY_SERVER_EVENTS = ['cms.form_complete', 'cms.vote_complete', 'cms.comment_complete', 'cms.follow_complete', 'cms.download_delivered'] as const;
+
+export const CMS_TELEMETRY_ATTRIBUTION_STATUSES = ['matched', 'unmatched', 'missing_context'] as const;
+export type CmsTelemetryAttributionStatus = (typeof CMS_TELEMETRY_ATTRIBUTION_STATUSES)[number];
+export const CMS_TELEMETRY_DELIVERY_STATUSES = ['pending', 'retrying', 'processing', 'failed', 'delivered'] as const;
+export const CMS_TELEMETRY_DELIVERY_STATUS_LABELS = { pending: '待投递', retrying: '等待重试', processing: '投递中', failed: '自动重试已停止', delivered: '已入库' } as const;

@@ -2,6 +2,7 @@ import { Toast } from '@douyinfe/semi-ui';
 import { exportJobContract, type ExportJobFormat, type ExportJobRequestMode } from '@zenith/shared/tasks';
 import { urlOf, useApiMutation } from '@/lib/contract-query';
 import { request } from '@/utils/request';
+import { exportJobKeys } from '@/hooks/queries/export-jobs';
 
 interface ExportJobRunOptions {
   entity: string;
@@ -13,7 +14,7 @@ interface ExportJobRunOptions {
 }
 
 export function useExportJobRunner() {
-  const exportMutation = useApiMutation(exportJobContract.create);
+  const exportMutation = useApiMutation(exportJobContract.create, { invalidate: (qc) => void qc.invalidateQueries({ queryKey: exportJobKeys.lists }) });
 
   const runExport = async (options: ExportJobRunOptions) => {
     const { entity, format, query, raw = false, watermark = true, executionMode = 'sync' } = options;

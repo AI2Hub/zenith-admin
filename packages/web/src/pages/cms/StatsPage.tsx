@@ -124,7 +124,7 @@ function StatsWorkspace({ siteId, timeZone }: Readonly<{ siteId: number; timeZon
     <Tabs collapsible="auto" type="line" activeKey={activeTab} onChange={(value) => setActiveTab(value as typeof activeTab)}>
       {TABS.map((tab, index) => <TabPane key={tab} itemKey={tab} tab={['总览', '内容', '来源与入口', '搜索', '互动与转化', '采集质量'][index]} />)}
     </Tabs>
-    {activeTab === 'quality' ? quality.data ? <CmsStatsQuality data={quality.data} refreshing={quality.isFetching} onRefresh={() => void quality.refetch()} /> : <Skeleton active loading placeholder={<Skeleton.Paragraph rows={6} />} /> : !metrics || !overview.data ? overview.isLoading ? <CmsStatsSkeleton /> : <Empty description="尚未取得统计数据，请刷新重试" /> : <>
+    {activeTab === 'quality' ? quality.data ? <CmsStatsQuality siteId={query.siteId} data={quality.data} refreshing={quality.isFetching} onRefresh={() => void quality.refetch()} /> : <Skeleton active loading placeholder={<Skeleton.Paragraph rows={6} />} /> : !metrics || !overview.data ? overview.isLoading ? <CmsStatsSkeleton /> : <Empty description="尚未取得统计数据，请刷新重试" /> : <>
       {metrics.pv === 0 && !overview.isError ? <Banner type="info" description={filtered ? '当前筛选下暂无页面浏览；可以重置内容、栏目或版本条件查看全站数据。行为事件仍单独展示。' : (status?.description ?? '当前区间暂无正式访问事件。')} /> : null}
       {activeTab === 'overview' ? <>
         <StatGrid minItemWidth={180}>{OVERVIEW_METRICS.map((field) => <StatCard key={field} title={METRIC_LABELS[field]} value={displayCmsMetric(metrics, field)} sub={EXPLANATIONS[field]} delta={overview.data?.previousMetrics && ['pv', 'uv', 'sessions', 'reads', 'newVisitors', 'returningVisitors'].includes(field) ? metrics[field] - overview.data.previousMetrics[field] : null} deltaLabel={query.compare === 'previous_year' ? '较去年同期' : '较上一周期'} />)}</StatGrid>

@@ -8,16 +8,24 @@ import { keywordCondition } from '../../lib/where-helpers';
 import { assertSiteAccess, ensureCmsSiteExists } from './cms-sites.service';
 import { assertAllCmsSiteChannelsAccess } from './cms-channels.service';
 import { resolveCmsStatsWindow, type CmsStatsQuery } from './cms-stats-window';
-import { cmsGenerationSchemaName } from './cms-generation-storage.service';
+import { getCmsCollectionCoverage, readCmsCollectionState } from './cms-collection-state';
 
 type ReportQuery = QueryOutputOf<typeof cmsStatContract.report>;
 type Dimension = NonNullable<ReportQuery['dimension']>;
-type SqlMetricRow = Record<keyof CmsStatMetrics, number | string> & { key: string; label: string; clickThroughs: number; readThroughs: number; searchClickThroughs: number };
+export type SqlMetricRow = Record<keyof CmsStatMetrics, number | string> & { key: string; label: string; clickThroughs: number; readThroughs: number; searchClickThroughs: number };
 const conversionNames = sql`('cms.form_complete','cms.vote_complete','cms.comment_complete','cms.follow_complete')`;
 const property = (key: string) => sql`e.properties->>${key}`;
 const textProperty = (key: string, fallback = '未标注') => sql`coalesce(nullif(${property(key)},''),${fallback})`;
 const creditedProperty = (key: string) => sql`coalesce(nullif(${property(`origin${key[0].toUpperCase()}${key.slice(1)}`)},''),nullif(${property(key)},''))`;
 const creditedContentId = creditedProperty('contentId');
+
+/** Immutable facts plus the latest recomputable attribution. Keep raw_properties for indexed scope checks. */
+export function cmsStatisticsSource(): SQL {
+  return sql`(select fact.id,fact.event_id,fact.event_name,fact.created_at,fact.tenant_id,
+    fact.device_type,fact.browser,fact.os,fact.country,fact.ip,fact.properties as raw_properties,
+    fact.properties || coalesce(attribution.origin,'{}'::jsonb) as properties
+    from public.user_events fact left join public.cms_telemetry_attributions attribution on attribution.event_id=fact.event_id)`;
+}
 
 export async function assertCmsStatisticsAccess(siteId: number) {
   await ensureCmsSiteExists(siteId); await assertSiteAccess(siteId); await assertAllCmsSiteChannelsAccess(siteId);
@@ -26,7 +34,7 @@ export async function assertCmsStatisticsAccess(siteId: number) {
 /** The containment predicate uses the existing JSONB GIN index and never accepts untrusted legacy events. */
 export function cmsStatisticsWhere(q: CmsStatsQuery, scope: CmsStatScope): SQL {
   const fingerprint = { cmsSchemaVersion: 2, cmsSiteId: q.siteId, environment: 'live', trustedCms: true };
-  return sql`e.tenant_id is null and e.properties @> ${JSON.stringify(fingerprint)}::jsonb
+  return sql`e.tenant_id is null and e.raw_properties @> ${JSON.stringify(fingerprint)}::jsonb
     and e.created_at >= ${scope.startTime}::timestamptz and e.created_at < ${scope.endTime}::timestamptz
     and coalesce((${property('receivedAt')})::timestamptz,e.created_at)<=${scope.watermark}::timestamptz
     and coalesce(e.device_type::text,'unknown') <> 'bot'
@@ -61,7 +69,7 @@ function grouping(dimension?: Dimension): { key: SQL; label: SQL; condition: SQL
     browser: { key: sql`coalesce(e.browser,'unknown')`, label: sql`coalesce(e.browser,'unknown')`, condition: all },
     os: { key: sql`coalesce(e.os,'unknown')`, label: sql`coalesce(e.os,'unknown')`, condition: all },
     country: { key: sql`coalesce(e.country,'unknown')`, label: sql`coalesce(e.country,'unknown')`, condition: all },
-    search: { key: sql`lower(trim(coalesce(${property('keyword')},'')))`, label: sql`lower(trim(coalesce(${property('keyword')},'')))`, condition: sql`e.event_name in ('cms.search','cms.search_click','cms.read','cms.form_complete','cms.vote_complete','cms.comment_complete','cms.follow_complete') and nullif(trim(${property('keyword')}),'') is not null` },
+    search: { key: sql`lower(trim(coalesce(${property('keyword')},'')))`, label: sql`trim(coalesce(${property('keyword')},''))`, condition: sql`e.event_name in ('cms.search','cms.search_click','cms.read','cms.form_complete','cms.vote_complete','cms.comment_complete','cms.follow_complete') and nullif(trim(${property('keyword')}),'') is not null` },
     media: { key: sql`concat(${textProperty('resourceId')},':',${textProperty('assetVersionId')})`, label: sql`concat(coalesce(nullif(${property('resourceName')},''),'媒体 #' || ${property('resourceId')},'未标注媒体'),' · 版本 ',${textProperty('assetVersionId')})`, condition: sql`e.event_name in ('cms.media_start','cms.media_progress','cms.media_error','cms.download_click','cms.download_delivered')` },
     placement: { key: sql`concat(${textProperty('componentSlot')},':',${textProperty('componentId')})`, label: sql`coalesce(nullif(${property('componentName')},''),${property('componentSlot')},${property('componentId')},'未标注版位')`, condition: sql`e.event_name in ('cms.component_impression','cms.component_click')` },
     form: { key: textProperty('formId'), label: sql`coalesce(nullif(${property('formName')},''),'表单 #' || ${property('formId')},'未标注表单')`, condition: sql`e.event_name in ('cms.form_start','cms.form_error','cms.form_complete')` },
@@ -71,14 +79,14 @@ function grouping(dimension?: Dimension): { key: SQL; label: SQL; condition: SQL
 }
 
 /** All reduction happens in PostgreSQL; only the requested aggregate page reaches Node. */
-function aggregateCte(q: CmsStatsQuery, scope: CmsStatScope, dimension?: Dimension): SQL {
+export function cmsStatsAggregateCte(q: CmsStatsQuery, scope: CmsStatScope, dimension?: Dimension): SQL {
   const group = grouping(dimension);
   const behaviorDimension = Boolean(dimension && ['search','media','placement','form','interaction'].includes(dimension));
   // Resolve late-arriving search clicks from facts at read time instead of trusting a browser hint.
   const source = dimension === 'search' ? sql`(
-    select fact.id,fact.event_name,fact.created_at,fact.tenant_id,fact.device_type,
+    select fact.id,fact.event_name,fact.created_at,fact.tenant_id,fact.device_type,fact.raw_properties,
       fact.properties || case when click.properties is not null then jsonb_build_object('searchId',click.properties->'searchId','keyword',click.properties->'keyword','resultCount',click.properties->'resultCount') else '{}'::jsonb end as properties
-    from (select * from public.user_events e where ${cmsStatisticsWhere(q,scope)}) fact left join lateral (
+    from (select * from ${cmsStatisticsSource()} e where ${cmsStatisticsWhere(q,scope)}) fact left join lateral (
       select c.properties from public.user_events c
       where c.tenant_id is null and c.properties @> ${JSON.stringify({cmsSchemaVersion:2,cmsSiteId:q.siteId,trustedCms:true,environment:'live'})}::jsonb
         and c.event_name='cms.search_click' and coalesce(c.device_type::text,'unknown')<>'bot'
@@ -88,7 +96,7 @@ function aggregateCte(q: CmsStatsQuery, scope: CmsStatScope, dimension?: Dimensi
         and coalesce((c.properties->>'receivedAt')::timestamptz,c.created_at)<=${scope.watermark}::timestamptz
       order by c.created_at desc,c.id desc limit 1
     ) click on fact.event_name in ('cms.read','cms.form_complete','cms.vote_complete','cms.comment_complete','cms.follow_complete')
-  )` : sql`public.user_events`;
+  )` : cmsStatisticsSource();
   return sql`with base as materialized (
     select e.id,e.event_name,e.properties,${group.key} as key,${group.label} as label,
       nullif(${property('visitorId')},'') as visitor,nullif(${property('sessionId')},'') as sid,
@@ -98,7 +106,7 @@ function aggregateCte(q: CmsStatsQuery, scope: CmsStatScope, dimension?: Dimensi
     from ${source} e where ${cmsStatisticsWhere(q, scope)} and ${group.condition}
   ), page_baselines as (
     select ${property('pageViewId')} as view_id,max(greatest(0,coalesce((${property('activeMs')})::numeric,0))) as active_ms
-    from public.user_events e where ${cmsStatisticsWhere(q,{...scope,startTime:'1970-01-01T00:00:00.000Z',endTime:scope.startTime})}
+    from ${cmsStatisticsSource()} e where ${cmsStatisticsWhere(q,{...scope,startTime:'1970-01-01T00:00:00.000Z',endTime:scope.startTime})}
       and e.event_name='cms.engagement' and ${property('pageViewId')} in(select distinct view_id from base where active_ms>0)
     group by 1
   ), pages as (
@@ -178,7 +186,7 @@ export function mapCmsStatMetrics(row?: Partial<SqlMetricRow>): CmsStatMetrics {
 }
 
 async function metrics(tx: DbTransaction, q: CmsStatsQuery, scope: CmsStatScope): Promise<CmsStatMetrics> {
-  const [row] = await tx.execute<SqlMetricRow>(sql`${aggregateCte(q, scope)} select * from metrics`);
+  const [row] = await tx.execute<SqlMetricRow>(sql`${cmsStatsAggregateCte(q, scope)} select * from metrics`);
   return mapCmsStatMetrics(row);
 }
 async function trend(tx: DbTransaction, q: CmsStatsQuery, scope: CmsStatScope): Promise<CmsStatOverview['trend']> {
@@ -197,28 +205,12 @@ async function trend(tx: DbTransaction, q: CmsStatsQuery, scope: CmsStatScope): 
         count(distinct ${property('pageViewId')}) filter(where e.event_name='cms.read')::int as reads,
         count(*) filter(where e.event_name in ${conversionNames})::int as conversions,
         count(distinct ${property('searchId')}) filter(where e.event_name='cms.search')::int as searches
-      from public.user_events e where ${cmsStatisticsWhere(q, scope)} group by 1
+      from ${cmsStatisticsSource()} e where ${cmsStatisticsWhere(q, scope)} group by 1
     ) select b.date,coalesce(c.pv,0) as pv,coalesce(c.uv,0) as uv,coalesce(c.sessions,0) as sessions,coalesce(c.reads,0) as reads,
       coalesce(c.conversions,0) as conversions,coalesce(c.searches,0) as searches from buckets b left join counts c using(date) order by b.date`);
 }
 
-async function telemetryState(tx: DbTransaction, siteId: number) {
-  const [current] = await tx.execute<{ settings: Record<string, unknown>; generationId: number | null }>(sql`
-    select s.settings, g.active_generation_id as "generationId" from public.cms_sites s
-    left join public.cms_site_generations g on g.site_id=s.id where s.id=${siteId}`);
-  let published: Record<string, unknown> = {};
-  if (current?.generationId) {
-    // Deployment manifests contain table hashes/counts; public configuration lives in the sealed projection.
-    const schema = sql.identifier(cmsGenerationSchemaName(current.generationId));
-    const [row] = await tx.execute<{ settings: Record<string, unknown> }>(sql`select settings from ${schema}.cms_site_projection where id=${siteId}`);
-    published = row?.settings ?? {};
-  }
-  const configured = current?.settings?.telemetry as { enabled?: boolean; schemaVersion?: number } | undefined;
-  const active = published.telemetry as { enabled?: boolean; schemaVersion?: number } | undefined;
-  return { configured: configured?.enabled === true && configured.schemaVersion === 2, published: active?.enabled === true && active.schemaVersion === 2,
-    changed: JSON.stringify(configured ?? {}) !== JSON.stringify(active ?? {}) };
-}
-const qualityStatus = (state: Awaited<ReturnType<typeof telemetryState>>, accepted: number, rejected = 0): CmsStatQuality['status'] =>
+const qualityStatus = (state: Awaited<ReturnType<typeof readCmsCollectionState>>, accepted: number, rejected = 0): CmsStatQuality['status'] =>
   state.changed ? 'pending_publication' : !state.configured ? 'disabled' : rejected > 0 ? 'attention' : accepted > 0 ? 'collecting' : 'empty';
 
 export async function getCmsStatsOverview(q: CmsStatsQuery): Promise<CmsStatOverview> {
@@ -227,16 +219,19 @@ export async function getCmsStatsOverview(q: CmsStatsQuery): Promise<CmsStatOver
     const current = await metrics(tx, q, scope);
     const [coverage]=await tx.execute<{since:Date|null}>(sql`select min(e.created_at) as since from public.user_events e where e.tenant_id is null and e.properties @> ${JSON.stringify({cmsSiteId:q.siteId,cmsSchemaVersion:2,trustedCms:true,environment:'live'})}::jsonb and coalesce((e.properties->>'receivedAt')::timestamptz,e.created_at)<=${scope.watermark}::timestamptz`);
     const collectionAvailableSince=coverage?.since?new Date(coverage.since).toISOString():null;
-    const comparisonAvailable=Boolean(scope.comparisonStart&&scope.comparisonEnd&&collectionAvailableSince&&collectionAvailableSince<=scope.comparisonStart);
+    const comparisonCoverage = scope.comparisonStart && scope.comparisonEnd
+      ? await getCmsCollectionCoverage(tx, q.siteId, scope.comparisonStart, scope.comparisonEnd, collectionAvailableSince) : null;
+    const comparisonAvailable = comparisonCoverage?.available ?? false;
+    const coverageMessages = { available: '', not_started: '对比区间尚未开始采集，不将缺失历史视为零流量', unknown: '对比区间的连续采集覆盖未知，暂不计算变化率', paused: '对比区间包含暂停采集时段，暂不计算变化率', retention: '对比区间的事实数据已按保留策略清理，暂不计算变化率' };
     const previousMetrics = comparisonAvailable ? await metrics(tx, q, { ...scope, startTime: scope.comparisonStart!, endTime: scope.comparisonEnd! }) : null;
-    return { scope, status: qualityStatus(await telemetryState(tx, q.siteId), current.pv), metrics: current, previousMetrics, collectionAvailableSince, comparisonAvailable,
-      comparisonUnavailableReason:scope.comparisonStart&&!comparisonAvailable?'统一采集尚未覆盖完整对比区间，不将缺失历史视为零流量':null,trend: await trend(tx, q, scope) };
+    return { scope, status: qualityStatus(await readCmsCollectionState(tx, q.siteId), current.pv), metrics: current, previousMetrics, collectionAvailableSince, comparisonAvailable,
+      comparisonUnavailableReason:comparisonCoverage && !comparisonAvailable ? coverageMessages[comparisonCoverage.reason] : null,trend: await trend(tx, q, scope) };
   });
 }
 
 export async function getCmsStatsReport(q: ReportQuery): Promise<CmsStatReport> {
   await assertCmsStatisticsAccess(q.siteId); const scope = resolveCmsStatsWindow(q); const dimension = q.dimension ?? 'content';
-  const cte = aggregateCte(q, scope, dimension);
+  const cte = cmsStatsAggregateCte(q, scope, dimension);
   const keywordFilter = keywordCondition(q.keyword, [sql`label`], 'ilike');
   const filter = keywordFilter ? sql`where ${keywordFilter}` : sql``;
   // Identifiers are closed contract enums; user strings never enter raw SQL.
@@ -251,8 +246,10 @@ export async function getCmsStatsReport(q: ReportQuery): Promise<CmsStatReport> 
 
 export async function getCmsStatsQuality(q: CmsStatsQuery): Promise<CmsStatQuality> {
   await assertCmsStatisticsAccess(q.siteId); const scope = resolveCmsStatsWindow(q);
+  // Collection health always measures the entire site in the requested time window.
+  const siteQuery: CmsStatsQuery = { ...q, contentId: undefined, channelId: undefined, releaseId: undefined, deploymentId: undefined, author: undefined, contentType: undefined, source: undefined, device: undefined };
   return readSnapshot(async (tx) => {
-    const state = await telemetryState(tx, q.siteId);
+    const state = await readCmsCollectionState(tx, q.siteId);
     const [receipts] = await tx.execute<{ accepted: number; rejected: number; duplicates: number }>(sql`select coalesce(sum(accepted),0)::int as accepted,coalesce(sum(rejected),0)::int as rejected,coalesce(sum(duplicates),0)::int as duplicates from public.cms_telemetry_receipts where site_id=${q.siteId} and created_at>=${scope.startTime}::timestamptz and created_at<${scope.endTime}::timestamptz`);
     const [latest] = await tx.execute<{ received: Date | null }>(sql`select max(created_at) as received from public.cms_telemetry_receipts where site_id=${q.siteId}`);
     const [outbox]=await tx.execute<{pending:number;failed:number}>(sql`select count(*)::int as pending,count(*) filter(where attempts>0)::int as failed from public.cms_telemetry_outbox where site_id=${q.siteId} and delivered_at is null and created_at<=${scope.watermark}::timestamptz`);
@@ -260,8 +257,8 @@ export async function getCmsStatsQuality(q: CmsStatsQuery): Promise<CmsStatQuali
       percentile_cont(0.95) within group(order by greatest(0,extract(epoch from ((${property('receivedAt')})::timestamptz-e.created_at))*1000)) filter(where ${property('receivedAt')} is not null)::text as latency,
       count(*) filter(where nullif(${property('pageViewId')},'') is null)::int as "withoutPage",
       count(*) filter(where nullif(${property('visitorId')},'') is null)::int as "withoutVisitor"
-      from public.user_events e where ${cmsStatisticsWhere(q, scope)}`);
-    const eventTypes = await tx.execute<{ event: string; count: number }>(sql`select e.event_name as event,count(*)::int as count from public.user_events e where ${cmsStatisticsWhere(q, scope)} group by e.event_name order by count desc,event`);
+      from ${cmsStatisticsSource()} e where ${cmsStatisticsWhere(siteQuery, scope)}`);
+    const eventTypes = await tx.execute<{ event: string; count: number }>(sql`select e.event_name as event,count(*)::int as count from ${cmsStatisticsSource()} e where ${cmsStatisticsWhere(siteQuery, scope)} group by e.event_name order by count desc,event`);
     const reasons = await tx.execute<{ reason: string; count: number }>(sql`select coalesce(reason,'未分类') as reason,sum(rejected)::int as count from public.cms_telemetry_receipts where site_id=${q.siteId} and created_at>=${scope.startTime}::timestamptz and created_at<${scope.endTime}::timestamptz and rejected>0 group by reason order by count desc,reason`);
     const accepted = receipts?.accepted ?? 0, rejected = receipts?.rejected ?? 0, duplicates = receipts?.duplicates ?? 0;
     return { scope, status: qualityStatus(state, accepted, rejected+(outbox?.failed??0)), configuredEnabled: state.configured, publishedEnabled: state.published,pendingConversions:outbox?.pending??0,failedConversions:outbox?.failed??0,
@@ -277,7 +274,7 @@ export async function getCmsStatsOptions(q: CmsStatsQuery): Promise<CmsStatOptio
     const result: CmsStatOptions = { content: [], channel: [], author: [], release: [] };
     for (const dimension of ['content','channel','author','release'] as const) {
       const group = grouping(dimension);
-      result[dimension] = await tx.execute<{ value:string;label:string }>(sql`select ${group.key} as value,max(${group.label}) as label from public.user_events e where ${cmsStatisticsWhere(q, scope)} and ${group.condition} group by 1 order by label,value limit 200`);
+      result[dimension] = await tx.execute<{ value:string;label:string }>(sql`select ${group.key} as value,max(${group.label}) as label from ${cmsStatisticsSource()} e where ${cmsStatisticsWhere(q, scope)} and ${group.condition} group by 1 order by label,value limit 200`);
     }
     return result;
   });
@@ -289,13 +286,13 @@ export async function getCmsVisitStatsV2(q: CmsStatsQuery) {
   return readSnapshot(async (tx) => {
     const current = await metrics(tx, q, scope); const rows = await trend(tx, { ...q, granularity: 'day' }, { ...scope, granularity: 'day' });
     const days = await tx.execute<{ day: string; pv: number; uv: number; ips: number }>(sql`select to_char(e.created_at at time zone ${scope.timeZone},'YYYY-MM-DD') as day,
-      count(distinct ${property('pageViewId')})::int as pv,count(distinct ${property('visitorId')})::int as uv,count(distinct e.ip)::int as ips from public.user_events e
+      count(distinct ${property('pageViewId')})::int as pv,count(distinct ${property('visitorId')})::int as uv,count(distinct e.ip)::int as ips from ${cmsStatisticsSource()} e
       where ${cmsStatisticsWhere(q, { ...scope, startTime: new Date(Date.now() - 3 * 86400000).toISOString(), endTime: scope.watermark })} and e.event_name='cms.page_view' group by 1`);
     const labels = await tx.execute<{ today: string; yesterday: string }>(sql`select to_char(${scope.watermark}::timestamptz at time zone ${scope.timeZone},'YYYY-MM-DD') as today,to_char((${scope.watermark}::timestamptz at time zone ${scope.timeZone})-interval '1 day','YYYY-MM-DD') as yesterday`);
     const metric = (key?: string) => { const hit = days.find((row) => row.day === key); return { pv: hit?.pv ?? 0, uv: hit?.uv ?? 0, ips: hit?.ips ?? 0 }; };
-    const contents = await tx.execute<SqlMetricRow>(sql`${aggregateCte(q, scope, 'content')} select * from metrics order by pv desc,key limit 20`);
-    const devices = await tx.execute<{ deviceType: 'pc' | 'mobile' | 'bot'; pv: number }>(sql`select case when e.device_type in ('mobile','tablet') then 'mobile' else 'pc' end as "deviceType",count(distinct ${property('pageViewId')})::int as pv from public.user_events e where ${cmsStatisticsWhere(q, scope)} and e.event_name='cms.page_view' group by 1`);
-    const referrers = await tx.execute<{ host: string; pv: number }>(sql`select ${property('referrerHost')} as host,count(distinct ${property('pageViewId')})::int as pv from public.user_events e where ${cmsStatisticsWhere(q, scope)} and e.event_name='cms.page_view' and nullif(${property('referrerHost')},'') is not null group by 1 order by pv desc,host limit 10`);
+    const contents = await tx.execute<SqlMetricRow>(sql`${cmsStatsAggregateCte(q, scope, 'content')} select * from metrics order by pv desc,key limit 20`);
+    const devices = await tx.execute<{ deviceType: 'pc' | 'mobile' | 'bot'; pv: number }>(sql`select case when e.device_type in ('mobile','tablet') then 'mobile' else 'pc' end as "deviceType",count(distinct ${property('pageViewId')})::int as pv from ${cmsStatisticsSource()} e where ${cmsStatisticsWhere(q, scope)} and e.event_name='cms.page_view' group by 1`);
+    const referrers = await tx.execute<{ host: string; pv: number }>(sql`select ${property('referrerHost')} as host,count(distinct ${property('pageViewId')})::int as pv from ${cmsStatisticsSource()} e where ${cmsStatisticsWhere(q, scope)} and e.event_name='cms.page_view' and nullif(${property('referrerHost')},'') is not null group by 1 order by pv desc,host limit 10`);
     return { today: metric(labels[0]?.today), yesterday: metric(labels[0]?.yesterday), totalPv: current.pv, trend: rows.map(({ date,pv,uv }) => ({ date,pv,uv })), topContents: contents.map((row) => ({ contentId: Number(row.key), title: row.label, pv: Number(row.pv), uv: Number(row.uv) })), devices, referrers };
   });
 }
@@ -306,8 +303,8 @@ export async function getCmsSearchAnalyticsV2(q: CmsStatsQuery) {
     const current = await metrics(tx,q,scope); const rows = await trend(tx,{ ...q, granularity: 'day' },{ ...scope, granularity: 'day' });
     const terms = await tx.execute<{ keyword: string; count: number; avgResults: number; zero: number }>(sql`select lower(trim(${property('keyword')})) as keyword,count(distinct ${property('searchId')})::int as count,
       round(avg((${property('resultCount')})::numeric))::int as "avgResults",count(distinct ${property('searchId')}) filter(where (${property('resultCount')})::int=0)::int as zero
-      from public.user_events e where ${cmsStatisticsWhere(q,scope)} and e.event_name='cms.search' group by 1 order by count desc,keyword limit 20`);
-    const zero = await tx.execute<{ keyword: string; count: number }>(sql`select lower(trim(${property('keyword')})) as keyword,count(distinct ${property('searchId')})::int as count from public.user_events e where ${cmsStatisticsWhere(q,scope)} and e.event_name='cms.search' and (${property('resultCount')})::int=0 group by 1 order by count desc,keyword limit 20`);
+      from ${cmsStatisticsSource()} e where ${cmsStatisticsWhere(q,scope)} and e.event_name='cms.search' group by 1 order by count desc,keyword limit 20`);
+    const zero = await tx.execute<{ keyword: string; count: number }>(sql`select lower(trim(${property('keyword')})) as keyword,count(distinct ${property('searchId')})::int as count from ${cmsStatisticsSource()} e where ${cmsStatisticsWhere(q,scope)} and e.event_name='cms.search' and (${property('resultCount')})::int=0 group by 1 order by count desc,keyword limit 20`);
     return { total: current.searches, trend: rows.map(({date,searches}) => ({date,count:searches})), topKeywords: terms.map(({keyword,count,avgResults}) => ({keyword,count,avgResults})), noResultKeywords: zero };
   });
 }

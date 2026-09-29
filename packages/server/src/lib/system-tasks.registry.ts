@@ -9,6 +9,22 @@ import { registerSystemRecurringJob } from './pg-boss-scheduler';
  * 不要为单张日志表新增独立清理任务。
  */
 export async function registerSystemTasks(): Promise<void> {
+  const { drainCmsTelemetryOutbox, drainCmsTelemetryAttributions } = await import('../services/cms/cms-telemetry-business');
+  await registerSystemRecurringJob({
+    name: 'cms-telemetry-delivery', title: 'CMS 成功转化可靠投递', module: 'CMS内容管理',
+    cronExpression: '* * * * *', allowManualRun: true,
+    description: '按站点公平领取、短事务与指数退避连续排空成功转化；与内容定时发布独立运行。',
+    run: async () => {
+      const result = await drainCmsTelemetryOutbox();
+      return `已投递 ${result.delivered}，幂等去重 ${result.duplicates}，失败 ${result.failed}`;
+    },
+  });
+  await registerSystemRecurringJob({
+    name: 'cms-telemetry-attribution', title: 'CMS 延迟转化归因', module: 'CMS内容管理',
+    cronExpression: '* * * * *', allowManualRun: true,
+    description: '在客户端迟到窗口内重算归因读模型，业务成功事实不变；窗口结束后结算。',
+    run: async () => `重算 ${await drainCmsTelemetryAttributions()} 条成功转化归因`,
+  });
   const { drainEntityWatchEvents } = await import('../services/platform/entity-watch-worker');
   await registerSystemRecurringJob({
     name: 'entity-watch-delivery', title: '对象关注通知补投', module: '跨对象关联',

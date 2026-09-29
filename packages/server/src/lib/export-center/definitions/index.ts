@@ -40,6 +40,7 @@ import { reportAssetsExportDefinition } from './report-assets';
 import { reportFillRecordsExportDefinition } from './report-fill-records';
 import { openApiCallLogsExportDefinition } from './open-api-call-logs';
 import { cmsContentsExportDefinition } from './cms-contents';
+import { cmsStatisticsExportDefinition } from './cms-statistics';
 import { cmsFormSubmissionsExportDefinition } from './cms-form-submissions';
 import { cmsResourceGovernanceExportDefinition } from './cms-resource-governance';
 import { cmsPublishArtifactsExportDefinition } from './cms-publish-artifacts';
@@ -98,6 +99,7 @@ const definitions = [
   reportFillRecordsExportDefinition,
   openApiCallLogsExportDefinition,
   cmsContentsExportDefinition,
+  cmsStatisticsExportDefinition,
   cmsFormSubmissionsExportDefinition,
   cmsResourceGovernanceExportDefinition,
   cmsPublishArtifactsExportDefinition,

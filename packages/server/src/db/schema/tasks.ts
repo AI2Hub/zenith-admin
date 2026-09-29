@@ -29,6 +29,8 @@ export const exportJobs = pgTable('export_jobs', {
   query: jsonb().$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
   columns: jsonb().$type<string[]>(),
   rowCount: integer(),
+  processedRows: integer().notNull().default(0),
+  totalRows: integer(),
   fileId: pgUuid().references(() => managedFiles.id, { onDelete: 'set null' }),
   filename: varchar({ length: 256 }),
   fileSize: integer(),

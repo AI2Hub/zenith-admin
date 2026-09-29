@@ -1,23 +1,20 @@
-import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Banner, Button, Select, Toast, Typography } from '@douyinfe/semi-ui';
+import { Banner, Select, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Download } from 'lucide-react';
-import { cmsStatContract, type CmsStatMetrics, type CmsStatReportRow } from '@zenith/shared/cms';
+import type { CmsStatMetrics, CmsStatReportRow } from '@zenith/shared/cms';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import ExportButton from '@/components/ExportButton';
 import { KeywordInput } from '@/components/search-filters';
 import { ListSearchToolbar, listTableProps } from '@/components/list-page';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { useListSearch } from '@/hooks/useListSearch';
 import { useFilterQuery } from '@/hooks/useFilterQuery';
 import { usePermission } from '@/hooks/usePermission';
-import { api } from '@/lib/contract-query';
 import { useCmsStatsReport, cmsStatKeys, type CmsStatsQuery, type CmsStatsReportQuery } from '@/hooks/queries/cms-stats';
 import { useCreateCmsEditorialTask } from '@/hooks/queries/cms-operations';
-import { downloadBlob } from '@/utils/download';
 import { renderEllipsis } from '@/utils/table-columns';
 import { useCmsTaskEditor } from '../CmsEditorialTasks';
-import { cmsStatsCsv, cmsStatsDimensionLabel, DIMENSION_LABELS, METRIC_LABELS, displayCmsMetric, type CmsStatsDimension } from './cms-stats-presentation';
+import { cmsStatsDimensionLabel, DIMENSION_LABELS, METRIC_LABELS, displayCmsMetric, type CmsStatsDimension } from './cms-stats-presentation';
 
 interface ReportFilters { keyword?: string; sortBy: NonNullable<CmsStatsReportQuery['sortBy']>; sortOrder: 'asc' | 'desc' }
 const STANDARD_COLUMNS: (keyof CmsStatMetrics)[] = ['pv', 'uv', 'sessions', 'reads', 'readRate', 'avgActiveMs', 'engagementRate', 'conversions', 'conversionRate'];
@@ -36,7 +33,6 @@ export default function CmsStatsReport({ query: scopeQuery, dimension, onDrill }
   const search = useListSearch<ReportFilters>({ defaults: { sortBy: defaultSort, sortOrder: 'desc' }, listKey: cmsStatKeys.report, resetKey: JSON.stringify(scopeFilters) });
   const reportQuery = useFilterQuery({ ...scopeQuery, ...search.submittedParams, dimension });
   const report = useCmsStatsReport({ ...reportQuery, siteId: scopeQuery.siteId, page: search.page, pageSize: search.pageSize });
-  const [exporting, setExporting] = useState(false);
   const { hasPermission } = usePermission();
   const createTask = useCreateCmsEditorialTask();
   const editor = useCmsTaskEditor(scopeQuery.siteId);
@@ -55,30 +51,12 @@ export default function CmsStatsReport({ query: scopeQuery, dimension, onDrill }
     } }] : [];
     return onDrill && row.key !== 'unknown' && row.key !== '' ? [{ key: 'drill', label: '按此项筛选', onClick: () => onDrill(dimension, row.key) }] : [];
   } }));
-  async function exportReport() {
-    if (exporting) return;
-    setExporting(true);
-    try {
-      const rows: (string | number)[][] = [[DIMENSION_LABELS[dimension], ...columnsToShow.map((field) => METRIC_LABELS[field])]];
-      let page = 1; let total = 0;
-      do {
-        const data = await api(cmsStatContract.report, { query: { ...reportQuery, siteId: scopeQuery.siteId, page, pageSize: 100 } });
-        total = data.total;
-        rows.push(...data.list.map((row) => [cmsStatsDimensionLabel(dimension, row.key, row.label), ...columnsToShow.map((field) => displayCmsMetric(row, field))]));
-        if (!data.list.length) break;
-        page += 1;
-      } while (rows.length - 1 < total);
-      downloadBlob(new Blob([cmsStatsCsv(rows)], { type: 'text/csv;charset=utf-8' }), `访问统计-${DIMENSION_LABELS[dimension]}.csv`);
-      Toast.success(`已导出 ${rows.length - 1} 条统计记录`);
-    } catch {
-      // 请求层已展示错误；未完成的导出不下载部分文件。
-    } finally { setExporting(false); }
-  }
   return <>
     <ListSearchToolbar onSearch={search.handleSearch} onReset={search.handleReset}
       keyword={<KeywordInput {...search.bindKeyword('keyword')} placeholder={`搜索${DIMENSION_LABELS[dimension]}名称`} />}
       filters={<><Select aria-label="排序指标" {...search.bind('sortBy', (value: unknown) => value as ReportFilters['sortBy'])} optionList={sortFields.map((value) => ({ value, label: `按${METRIC_LABELS[value]}` }))} /><Select aria-label="排序方向" {...search.bind('sortOrder', (value: unknown) => value as ReportFilters['sortOrder'])} optionList={[{ value: 'desc', label: '从高到低' }, { value: 'asc', label: '从低到高' }]} /></>}
-      actions={<Button icon={<Download size={14} />} loading={exporting} disabled={!report.data?.total || report.isError} onClick={() => void exportReport()}>导出全部结果</Button>} />
+      actions={<ExportButton entity="cms.statistics" permission="cms:stat:view" query={reportQuery} executionMode="async" label="后台导出全部结果" />} />
+    <Typography.Paragraph type="tertiary">导出任务在后台生成完整统计快照，关闭页面后继续执行；可在<Link to="/system/export-jobs">导出中心</Link>查看进度、取消、重试和重复下载。</Typography.Paragraph>
     {report.isError ? <Banner type="danger" description={`排行查询失败：${report.error.message}${report.data ? '。下方保留上次成功结果。' : ''}`} /> : null}
     {['search', 'media', 'placement', 'form', 'interaction'].includes(dimension) ? <Typography.Paragraph type="tertiary">此维度的 UV 是发生对应行为的访客数；详情浏览和搜索、媒体、版位行为分别计量，不将点击等同于服务端成功。</Typography.Paragraph> : null}
     <ConfigurableTable columnSettingsKey={`cms-statistics-${dimension}`} columns={columns} {...listTableProps(report, { rowKey: 'key', pagination: search.buildPagination, empty: report.isError ? '查询失败，请刷新重试' : '当前筛选下暂无对应事件' })} />

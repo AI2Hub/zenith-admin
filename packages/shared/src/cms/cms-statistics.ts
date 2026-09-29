@@ -1,4 +1,7 @@
 /** Reporting dimensions and arithmetic shared by API, UI and fixtures. */
+/** Covers a leap-year comparison plus a full 90-day range and delayed delivery. */
+export const CMS_STAT_MIN_RETENTION_DAYS = 550;
+export function normalizeCmsSearchKeyword(value: string): string { return value.trim().toLowerCase(); }
 export const CMS_STAT_DIMENSIONS = ['content', 'channel', 'author', 'contentType', 'release', 'source', 'entry', 'referrer', 'utmSource', 'utmMedium', 'utmCampaign', 'utmTerm', 'utmContent', 'device', 'browser', 'os', 'country', 'search', 'media', 'placement', 'form', 'interaction'] as const;
 export const CMS_STAT_GRANULARITIES = ['day', 'hour'] as const;
 export const CMS_STAT_COMPARISONS = ['previous_period', 'previous_year', 'none'] as const;

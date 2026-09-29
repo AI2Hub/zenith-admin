@@ -1,7 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import type { JwtPayload } from '../../middleware/auth';
 import { DEFAULT_EXPORT_EXECUTION, type AnyExportDefinition, type ExportRuntimeContext } from './types';
-import { renderExportCsv, renderExportWorkbook } from './writer';
+import { renderExportCsv, renderExportWorkbook, renderExportToPath } from './writer';
 
 const definition = {
   entity: 'test.rows',
@@ -117,5 +120,47 @@ describe('导出行数兜底上限（ExportRuntimeContext.rowLimit）', () => {
     const meta = workbook.getWorksheet('导出信息')!;
     expect(meta.state).toBe('hidden');
     expect(meta.getCell(1, 1).value).toBe('任务 ID');
+  });
+});
+
+
+describe('disk-backed snapshot exports', () => {
+  it.each(['csv', 'xlsx'] as const)('writes %s with accurate progress and no full output buffer', async (format) => {
+    const folder = await mkdtemp(join(tmpdir(), 'export-writer-test-'));
+    try {
+      const progress = vi.fn(async () => undefined);
+      const file = join(folder, `rows.${format}`);
+      expect(await renderExportToPath(definition, rowsOf(501), { ...ctx(format, 600), progress }, file, 501)).toBe(501);
+      expect(progress.mock.calls).toEqual([[0, 501], [250, 501], [500, 501], [501, 501]]);
+      const buffer = await readFile(file);
+      expect(buffer.length).toBeGreaterThan(0);
+      if (format === 'csv') expect(buffer.toString()).toContain('row-501');
+      else {
+        const ExcelJS = await import('exceljs');
+        const book = new ExcelJS.Workbook(); await book.xlsx.load(buffer as never);
+        expect(book.worksheets[0].rowCount).toBe(502);
+        expect(book.worksheets[0].getRow(502).getCell(2).value).toBe('row-501');
+      }
+    } finally { await rm(folder, { recursive: true, force: true }); }
+  });
+  it('keeps reader-controlled CSV formula text literal and preserves masking', async () => {
+    const folder = await mkdtemp(join(tmpdir(), 'export-writer-test-'));
+    try {
+      const file = join(folder, 'safe.csv');
+      const source = async function* () { yield { name: '=HYPERLINK("https://invalid")', phone: '13812345678' }; };
+      const masked = { ...definition, columns: [{ key: 'name', header: '名称' }, { key: 'phone', header: '手机', sensitive: 'phone' as const }] };
+      await renderExportToPath(masked, source(), { ...ctx('csv', 5), raw: false, masked: true }, file, 1);
+      const text = await readFile(file, 'utf8');
+      expect(text).toContain("'=HYPERLINK"); expect(text).not.toContain('13812345678'); expect(text).toContain('138****5678');
+    } finally { await rm(folder, { recursive: true, force: true }); }
+  });
+  it('stops row consumption when the persisted job is cancelled', async () => {
+    const folder = await mkdtemp(join(tmpdir(), 'export-writer-test-'));
+    try {
+      let consumed = 0;
+      const source = async function* () { for (let i = 0; i < 1000; i++) { consumed++; yield { id: i }; } };
+      await expect(renderExportToPath(definition, source(), { ...ctx('csv', 1000), progress: async processed => { if (processed === 250) throw new Error('cancelled'); } }, join(folder, 'cancelled.csv'), 1000)).rejects.toThrow('cancelled');
+      expect(consumed).toBe(250);
+    } finally { await rm(folder, { recursive: true, force: true }); }
   });
 });

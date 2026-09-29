@@ -1,3 +1,4 @@
+import { syncCmsCollectionState } from './cms-collection-state';
 import { and, asc, desc, eq, inArray, isNotNull, lte, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { cmsDeploymentSchema, cmsReleaseActivationSchema, cmsReleaseContract, cmsReleaseSchema, type CreateCmsReleaseInput, type CmsRelease } from '@zenith/shared/cms';
@@ -290,6 +291,7 @@ export async function activateCmsRelease(id: number, expectedGenerationId: numbe
     await tx.insert(cmsSiteGenerations).values({ siteId: locked.siteId, activeGenerationId: deployment.id, revision: 1 }).onConflictDoUpdate({ target: cmsSiteGenerations.siteId, set: { activeGenerationId: deployment.id, revision: sql`${cmsSiteGenerations.revision}+1`, updatedAt: now } });
     await tx.update(cmsDeployments).set({ status: 'active', activatedAt: now, error: null }).where(eq(cmsDeployments.id, deployment.id));
     const [updated] = await tx.update(cmsReleases).set({ status: 'active', error: null }).where(eq(cmsReleases.id, id)).returning();
+    await syncCmsCollectionState(tx, locked.siteId, rollback ? 'rollback' : 'activation');
     const actor = currentUserOrNull();
     const [activation] = await tx.insert(cmsReleaseActivations).values({ siteId: locked.siteId, releaseId: locked.id, fromGenerationId: current, toGenerationId: deployment.id, action: rollback ? 'rollback' : 'activate', operatorId: actor?.userId ?? null, operatorName: actor?.username ?? '系统' }).returning();
     const webhooks = [];

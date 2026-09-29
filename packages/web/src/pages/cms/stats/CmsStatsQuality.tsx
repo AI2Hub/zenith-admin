@@ -4,6 +4,7 @@ import type { CmsStatQuality } from '@zenith/shared/cms';
 import { StatCard, StatGrid } from '@/components/charts/StatCard';
 import DateTimeText from '@/components/DateTimeText';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import CmsTelemetryDeliveries from './CmsTelemetryDeliveries';
 
 export const CMS_COLLECTION_STATUS = {
   disabled: { label: '未启用采集', description: '请在采集设置中启用并发布站点配置，启用前的浏览不会补采。', color: 'grey' },
@@ -13,7 +14,7 @@ export const CMS_COLLECTION_STATUS = {
   attention: { label: '采集需要关注', description: '检测到拒收或事件上下文异常，请检查下方质量信息与失败原因。', color: 'red' },
 } as const;
 
-export default function CmsStatsQuality({ data, refreshing, onRefresh }: Readonly<{ data: CmsStatQuality; refreshing: boolean; onRefresh: () => void }>) {
+export default function CmsStatsQuality({ siteId, data, refreshing, onRefresh }: Readonly<{ siteId: number; data: CmsStatQuality; refreshing: boolean; onRefresh: () => void }>) {
   const status = CMS_COLLECTION_STATUS[data.status];
   return <>
     <Banner type={data.status === 'attention' ? 'warning' : 'info'} description={status.description} />
@@ -35,6 +36,7 @@ export default function CmsStatsQuality({ data, refreshing, onRefresh }: Readonl
       <StatCard title="缺少页面上下文" value={data.eventsWithoutPage} />
       <StatCard title="缺少访客身份" value={data.eventsWithoutVisitor} />
     </StatGrid>
+    <CmsTelemetryDeliveries key={siteId} siteId={siteId} />
     <div className="chart-grid">
       <Card title="事件覆盖" bodyStyle={{ padding: 0 }}><ConfigurableTable columnSettingsKey="cms-stats-event-types" columns={[{ title: '事件', dataIndex: 'event', minWidth: 240 }, { title: '有效次数', dataIndex: 'count', width: 110, align: 'right' }]} dataSource={data.eventTypes} rowKey="event" pagination={false} onRefresh={onRefresh} refreshLoading={refreshing} empty="尚无有效事件" /></Card>
       <Card title="拒收与去重原因" bodyStyle={{ padding: 0 }}><ConfigurableTable columnSettingsKey="cms-stats-reasons" columns={[{ title: '原因', dataIndex: 'reason', minWidth: 240 }, { title: '次数', dataIndex: 'count', width: 110, align: 'right' }]} dataSource={data.reasons} rowKey="reason" pagination={false} onRefresh={onRefresh} refreshLoading={refreshing} empty="暂无异常记录" /></Card>

@@ -1,4 +1,4 @@
-import { canTransitionCmsFeedback, CMS_ATTRIBUTION_EVENTS, CMS_WORKSPACE_QUEUES, cmsFeedbackSchema, cmsOperationsContract, type CmsEditorialTask, type CmsWorkspaceItem } from '@zenith/shared/cms';
+import { normalizeCmsSearchKeyword, canTransitionCmsFeedback, CMS_ATTRIBUTION_EVENTS, CMS_WORKSPACE_QUEUES, cmsFeedbackSchema, cmsOperationsContract, type CmsEditorialTask, type CmsWorkspaceItem } from '@zenith/shared/cms';
 import { WORKFLOW_ACTIVE_INSTANCE_STATUSES } from '@zenith/shared/workflow';
 import { mock, MockHttpError } from '../utils/contract';
 import { requireItem } from '../utils/crud';
@@ -88,9 +88,9 @@ export const cmsOperationsHandlers = [
   mock(cmsOperationsContract.taskDetail, ({ params, ok }) => ok(task(requireItem(mockCmsEditorialTasks, params.id, '事项不存在', { status: 404 })))),
   mock(cmsOperationsContract.createTask, ({ body, ok }) => {
     requireItem(mockCmsSites, body.siteId, '站点不存在', { status: 404 }); person(body.ownerId); taskContent(body.siteId, body.contentId);
-    if (body.source === 'search' && !hasMockCmsNoResultKeyword(body.siteId, body.sourceKeyword ?? '') && !mockCmsNoResultKeywords.some((row) => row.keyword === body.sourceKeyword)) return badRequest('无结果搜索词不存在', { status: 400 });
+    if (body.source === 'search' && !hasMockCmsNoResultKeyword(body.siteId, body.sourceKeyword ?? '') && !mockCmsNoResultKeywords.some((row) => normalizeCmsSearchKeyword(row.keyword) === normalizeCmsSearchKeyword(body.sourceKeyword ?? ''))) return badRequest('无结果搜索词不存在', { status: 400 });
     if (body.source === 'submission' && feedback(body.feedbackId!).siteId !== body.siteId) return badRequest('来源来信必须属于本站', { status: 400 });
-    const existing = mockCmsEditorialTasks.find((row) => row.siteId === body.siteId && row.source === body.source && (body.source === 'search' ? row.sourceKeyword === body.sourceKeyword : body.source === 'submission' && row.feedbackId === body.feedbackId));
+    const existing = mockCmsEditorialTasks.find((row) => row.siteId === body.siteId && row.source === body.source && (body.source === 'search' ? normalizeCmsSearchKeyword(row.sourceKeyword ?? '') === normalizeCmsSearchKeyword(body.sourceKeyword ?? '') : body.source === 'submission' && row.feedbackId === body.feedbackId));
     if (existing) return ok(task(existing));
     const row: CmsEditorialTask = { id: nextIdFrom(mockCmsEditorialTasks), siteId: body.siteId, title: body.title, description: body.description, source: body.source, sourceKeyword: body.sourceKeyword ?? null, feedbackId: body.feedbackId ?? null,
       ownerId: body.ownerId ?? null, ownerName: null, dueAt: body.dueAt ?? null, status: 'open', version: 1, contentId: body.contentId ?? null, contentTitle: null, contentStatus: null, editorialStatus: null, publishedRevisionId: null, hasUnpublishedChanges: false, createdAt: mockDateTime(), updatedAt: mockDateTime() };

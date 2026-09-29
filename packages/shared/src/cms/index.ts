@@ -30,3 +30,6 @@ export * from './site-blueprints';
 
 export * from './telemetry';
 export * from './cms-statistics';
+export * from './statistics-coverage';
+
+export * from './cms-stat-report';

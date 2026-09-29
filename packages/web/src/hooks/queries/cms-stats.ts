@@ -81,3 +81,21 @@ export function useCmsDashboardStats(siteId: number | undefined) {
     refetchInterval: 60_000,
   });
 }
+
+export const cmsTelemetryDeliveryKeys = {
+  list: contractKey(cmsTelemetryAdminContract.deliveries),
+  summary: contractKey(cmsTelemetryAdminContract.deliverySummary),
+};
+export function useCmsTelemetryDeliveries(siteId: number, query: QueryOf<typeof cmsTelemetryAdminContract.deliveries>, enabled: boolean) {
+  return useApiQuery(cmsTelemetryAdminContract.deliveries, { params: { id: siteId }, query }, { enabled: siteId > 0 && enabled, refetchInterval: 15_000, placeholderData: keepPreviousData });
+}
+export function useCmsTelemetryDeliverySummary(siteId: number) {
+  return useApiQuery(cmsTelemetryAdminContract.deliverySummary, { params: { id: siteId } }, { enabled: siteId > 0, refetchInterval: 15_000 });
+}
+export function useReplayCmsTelemetryDelivery() {
+  return useApiMutation(cmsTelemetryAdminContract.replay, { invalidate: (qc, _output, { params }) => {
+    void qc.invalidateQueries({ queryKey: contractKey(cmsTelemetryAdminContract.deliveries, { params: { id: params.id } }) });
+    void qc.invalidateQueries({ queryKey: contractKey(cmsTelemetryAdminContract.deliverySummary, { params: { id: params.id } }) });
+    invalidateCmsCollectionStatus(qc, params.id);
+  } });
+}

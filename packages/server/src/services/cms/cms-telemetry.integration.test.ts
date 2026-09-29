@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import postgres from 'postgres';
 import { drizzle } from 'drizzle-orm/postgres-js';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { afterAll, describe, expect, it } from 'vitest';
 import type { CmsTelemetryEvent, CmsTelemetryPageContext } from '@zenith/shared/cms';
 import * as schema from '../../db/schema';
@@ -28,6 +28,11 @@ describe.skipIf(!connection)('CMS signed telemetry collector PostgreSQL', () => 
         const [content] = await tx.insert(schema.cmsContents).values({ siteId: site.id, channelId: channel.id, title: 'QA collector', status: 'published' }).returning();
         const [release] = await tx.insert(schema.cmsReleases).values({ siteId: site.id, name: key }).returning();
         const [deployment] = await tx.insert(schema.cmsDeployments).values({ siteId: site.id, releaseId: release.id, status: 'active', activatedAt: new Date() }).returning();
+        await tx.insert(schema.cmsSiteGenerations).values({siteId:site.id,activeGenerationId:deployment.id});
+        const generation=sql.identifier(`cms_generation_${deployment.id}`);
+        await tx.execute(sql`create schema ${generation}`);
+        await tx.execute(sql`create table ${generation}.cms_site_projection (id integer, settings jsonb)`);
+        await tx.execute(sql`insert into ${generation}.cms_site_projection values (${site.id},${JSON.stringify(site.settings)}::jsonb)`);
         const page: CmsTelemetryPageContext = { version: 2, siteId: site.id, siteKey: key, environment: 'live', canonicalPath: '/qa/slug.html', pageType: 'detail', contentId: content.id, channelId: channel.id, revisionId: null, contentType: 'article', contentTitle: content.title, channelName: channel.name, author: null, deploymentId: deployment.id, releaseId: release.id };
         const contextToken = signCmsTelemetryPage(page).contextToken;
         const event: CmsTelemetryEvent = { eventId: randomUUID(), name: 'cms.page_view', occurredAt: new Date().toISOString(), visitorId: randomUUID(), sessionId: randomUUID(), pageViewId: randomUUID(), properties: { entryPath: '/', entrySource: 'qa', isNewVisitor: true } };

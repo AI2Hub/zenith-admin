@@ -1,4 +1,5 @@
 import { fileContract, managedFileSchema } from '@zenith/shared/platform';
+import { openAsBlob } from 'node:fs';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { buildListResult } from '../../lib/list-query';
 import { requireRow } from '../../lib/db-assert';
@@ -240,8 +241,7 @@ export async function uploadManagedFile(file: File, options: ManagedFileUploadOp
   return mapManagedFile(created, uploadConfig);
 }
 
-export async function saveGeneratedManagedFile(input: {
-  buffer: Buffer | Uint8Array | ArrayBuffer | Blob;
+export async function saveGeneratedManagedFile(input: ({ buffer: Buffer | Uint8Array | ArrayBuffer | Blob; filePath?: never } | { filePath: string; buffer?: never }) & {
   filename: string;
   mimeType: string;
   tenantId: number | null;
@@ -249,7 +249,7 @@ export async function saveGeneratedManagedFile(input: {
   visibility?: FileVisibility;
 }) {
   const bytes = input.buffer instanceof ArrayBuffer ? new Uint8Array(input.buffer) : input.buffer;
-  const blob = new Blob([bytes as BlobPart], { type: input.mimeType });
+  const blob = input.filePath ? await openAsBlob(input.filePath, { type: input.mimeType }) : new Blob([bytes as BlobPart], { type: input.mimeType });
   const file = new File([blob], input.filename, { type: input.mimeType });
   const [maybeDefaultConfig] = await db
     .select()

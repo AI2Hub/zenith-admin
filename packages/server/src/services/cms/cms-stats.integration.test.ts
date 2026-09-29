@@ -82,6 +82,23 @@ describe.skipIf(!connection)('CMS v2 statistics PostgreSQL reconciliation',()=>{
           await tx.execute(sql`create table ${generation}.cms_site_projection (id integer, settings jsonb)`);
           await tx.execute(sql`insert into ${generation}.cms_site_projection values (${site.id},${JSON.stringify(site.settings)}::jsonb)`);
           expect(await getCmsStatsQuality(query)).toMatchObject({ configuredEnabled: true, publishedEnabled: true, status: 'empty' });
+          const quality = await getCmsStatsQuality(query);
+          const filteredQuality = await getCmsStatsQuality({ ...query, contentId: 987654, author: 'not-an-author', source: 'no-source', device: 'mobile' });
+          expect(filteredQuality.eventTypes).toEqual(quality.eventTypes);
+          expect(filteredQuality.eventsWithoutPage).toBe(quality.eventsWithoutPage);
+          // A conversion's derived attribution can move without mutating the business fact.
+          const [conversion] = await tx.select().from(schema.userEvents).where(sql`event_name='cms.form_complete' and properties->>'cmsSiteId'=${String(site.id)}`);
+          await tx.insert(schema.cmsTelemetryAttributions).values({ eventId: conversion.eventId!, siteId: site.id, status: 'matched', computedAt: new Date(), origin: { originContentId: 42, originContentTitle: 'Late attributed content' }, nextRecomputeAt: new Date() });
+          const attributed = await getCmsStatsReport(cmsStatReportQuery.parse({ ...query, dimension: 'content' }));
+          expect(attributed.list.find(row => row.key === '42')).toMatchObject({ label: 'Late attributed content', conversions: 1 });
+          const [untouched] = await tx.select().from(schema.userEvents).where(eq(schema.userEvents.id, conversion.id));
+          expect(untouched.properties).toEqual(conversion.properties);
+          await tx.insert(schema.cmsCollectionStates).values({ siteId: site.id, enabled: true, knownSince: new Date('2025-01-01T00:00:00Z') });
+          await tx.insert(schema.cmsCollectionTransitions).values({ siteId: site.id, enabled: true, reason: 'test', createdAt: new Date('2025-01-01T00:00:00Z') });
+          expect((await getCmsStatsOverview({ ...query, compare: 'previous_period' })).comparisonAvailable).toBe(true);
+          await tx.insert(schema.cmsCollectionTransitions).values({ siteId: site.id, enabled: false, reason: 'test', createdAt: new Date('2026-01-01T00:00:00Z') });
+          expect((await getCmsStatsOverview({ ...query, compare: 'previous_period' })).comparisonUnavailableReason).toContain('暂停');
+
           await tx.update(schema.cmsSites).set({ settings: { telemetry: { enabled: false, schemaVersion: 2, timeZone: 'Asia/Shanghai' } } }).where(eq(schema.cmsSites.id,site.id));
           expect((await getCmsStatsQuality(query)).status).toBe('pending_publication');
 

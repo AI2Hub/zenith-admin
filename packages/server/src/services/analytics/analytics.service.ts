@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { db } from '../../db';
 import { buildListResult } from '../../lib/list-query';
 import { userEvents, analyticsSessions, analyticsDailyRollup } from '../../db/schema';
-import type { DbExecutor } from '../../db/types';
+import type { DbExecutor, DbTransaction } from '../../db/types';
 import type { PaginationQuery, QueryOutputOf } from '@zenith/shared/core';
 import type { TrackEventInput, AnalyticsEventSource, AnalyticsEnvironment, AnalyticsIdentityType, AnalyticsDeviceType } from '@zenith/shared/analytics';
 import { ANALYTICS_RAGE_CLICK_EVENT, ANALYTICS_PATH_EXIT_PAGE, analyticsContract } from '@zenith/shared/analytics';
@@ -29,7 +29,7 @@ import logger from '../../lib/logger';
 // 采集（ingest）
 // ════════════════════════════════════════════════════════════════════════════
 
-export interface IngestReqCtx { ip: string; ua: string; siteKey?: string | null; origin?: string | null; /** Set only by the signed CMS collector, never request JSON. */ cmsVerified?: boolean; onInserted?: (eventIds: string[]) => void; onRejected?: (reason: string) => void; onPersisted?: (tx: DbExecutor, eventIds: string[]) => Promise<void> }
+export interface IngestReqCtx { ip: string; ua: string; siteKey?: string | null; origin?: string | null; /** Set only by the signed CMS collector, never request JSON. */ cmsVerified?: boolean; onInserted?: (eventIds: string[]) => void; onRejected?: (reason: string) => void; onPersisted?: (tx: DbTransaction, eventIds: string[]) => Promise<void> }
 type NormalizedTrackEvent = TrackEventInput & { eventId: string };
 let legacyEventsWithoutId = 0;
 

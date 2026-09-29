@@ -20,6 +20,8 @@ const APPEND_ONLY_SUFFIX = /_(logs|records|events|runs|history|snapshots|deliver
  * 新增豁免需要 reviewer 明确确认。
  */
 const EXEMPT: Record<string, string> = {
+  cms_collection_transitions: '采集覆盖的紧凑状态历史，随站点级联删除；任意时间删除会使连续覆盖判断失真',
+  cms_telemetry_attributions: '派生归因随原始 user_events.event_id 外键级联删除，不独立裁剪',
   cms_content_tombstones: '内容删除墓碑，供站群增量同步比对，删除会导致下游漏同步',
   workflow_jobs: '待执行作业队列，终态行由工作流引擎自身回收',
   payment_settlement_records: '资金结算凭证，属于财务档案而非日志',

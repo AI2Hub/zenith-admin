@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import { db } from '../../db';
 import { systemSettings } from '../../db/schema';
 import { resolveSettings, type SettingsDoc } from '@zenith/shared/settings';
+import { CMS_STAT_MIN_RETENTION_DAYS } from '@zenith/shared/cms';
 import type { RetentionPolicyDefinition, TenantRetentionDays } from './types';
 
 /** system_settings 中 analytics 模块的租户覆盖，平台行作为未覆盖租户的回退。 */
@@ -28,18 +29,32 @@ async function analyticsErrorRetention(): Promise<TenantRetentionDays> {
   return new Map([...settings].map(([tenantId, value]) => [tenantId, value.errorRetentionDays]));
 }
 
-/** CMS comparisons need thirteen months; other apps retain their existing tenant policy. */
+/** CMS keeps a complete 90-day previous-year window; other apps retain their tenant policy. */
 async function analyticsEventExpiry(fallbackDays: number) {
   const policies = await analyticsEventRetention();
   const clauses = [...policies].map(([tenantId, days]) => sql`when ${tenantId === null ? sql`tenant_id is null` : sql`tenant_id=${tenantId}`} then ${days}`);
   const configured = sql`(case ${sql.join(clauses, sql` `)} else ${fallbackDays} end)`;
-  const days = sql`(case when properties @> '{"cmsSchemaVersion":2,"trustedCms":true}'::jsonb then greatest(${configured},400) else ${configured} end)`;
+  const days = sql`(case when properties @> '{"cmsSchemaVersion":2,"trustedCms":true}'::jsonb then greatest(${configured},${CMS_STAT_MIN_RETENTION_DAYS}) else ${configured} end)`;
   return sql`${configured}>0 and created_at < now()-make_interval(days=>${days})`;
 }
 async function purgeAnalyticsEvents(days: number, batchSize: number): Promise<number> {
   const where = await analyticsEventExpiry(days);
-  const deleted = await db.execute<{ id: number }>(sql`delete from user_events where id in (select id from user_events where ${where} limit ${batchSize} for update skip locked) returning id`);
-  return deleted.length;
+  return db.transaction(async tx => {
+    const deleted = await tx.execute<{ id: number; siteId: number | null; createdAt: Date }>(sql`
+      delete from public.user_events where id in (select id from public.user_events where ${where} limit ${batchSize} for update skip locked)
+      returning id,created_at as "createdAt",case when tenant_id is null and properties @> '{"cmsSchemaVersion":2,"trustedCms":true}'::jsonb
+        and properties->>'cmsSiteId' ~ '^[0-9]+$' then (properties->>'cmsSiteId')::int end as "siteId"`);
+    const purged = new Map<number, Date>();
+    for (const row of deleted) if (row.siteId && (!purged.has(row.siteId) || row.createdAt > purged.get(row.siteId)!)) purged.set(row.siteId, row.createdAt);
+    if (purged.size) {
+      const { syncCmsCollectionState } = await import('../../services/cms/cms-collection-state');
+      for (const [siteId, at] of purged) {
+        await syncCmsCollectionState(tx, siteId, 'retention');
+        await tx.execute(sql`update public.cms_collection_states set purged_through=greatest(purged_through,${at.toISOString()}::timestamptz) where site_id=${siteId}`);
+      }
+    }
+    return deleted.length;
+  });
 }
 
 async function analyticsReplayRetention(): Promise<TenantRetentionDays> {

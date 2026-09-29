@@ -65,6 +65,8 @@ export const exportJobSchema = z.object({
   query: z.record(z.string(), z.unknown()),
   columns: z.array(z.string()).nullable(),
   rowCount: z.int().nullable(),
+  processedRows: z.int(),
+  totalRows: z.int().nullable(),
   fileId: z.uuid().nullable(),
   filename: z.string().nullable(),
   fileSize: z.int().nullable(),

@@ -116,6 +116,8 @@ export interface ExportRuntimeContext<TQuery extends Record<string, unknown> = R
   maskRules?: Map<string, ExportMaskRule> | null;
   /** 渲染阶段行数兜底上限（来自执行策略 maxRows）；写入行数超过即中止任务 */
   rowLimit?: number | null;
+  /** Persist progress and stop promptly when the owning export job was cancelled. */
+  progress?: (processed: number, total: number | null) => Promise<void>;
 }
 
 export interface ExportRenderedFile {
@@ -144,6 +146,13 @@ export interface ExportDefinition<
   execution?: Partial<ExportExecutionPolicy>;
   retention?: Partial<ExportRetentionPolicy>;
   columns: ExportColumn<TRow>[];
+  /** Validate/freeze parameters before enqueueing; never persist unvalidated report filters. */
+  prepareQuery?: (query: TQuery, user: JwtPayload) => Promise<TQuery>;
+  /**
+   * Own the snapshot lifetime around row consumption. Providers may materialize once in a
+   * transaction; the export center streams the result to disk before this callback ends.
+   */
+  withSnapshot?: (ctx: ExportRuntimeContext<TQuery>, consume: (rows: AsyncIterable<TRow>, total: number) => Promise<void>) => Promise<void>;
   /**
    * 动态列解析钩子（可选）。用于列结构在运行时才能确定的导出（如报表数据集）。
    * 提供后，writer 渲染时调用它替代静态 `columns`，xlsx / csv 均可用。

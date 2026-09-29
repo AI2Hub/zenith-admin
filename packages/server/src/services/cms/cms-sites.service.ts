@@ -1,3 +1,4 @@
+import { syncCmsCollectionState } from './cms-collection-state';
 import { requireFirstRow, requireRow } from '../../lib/db-assert';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { buildListResult } from '../../lib/list-query';
@@ -734,6 +735,7 @@ export async function updateCmsSite(id: number, data: UpdateCmsSiteInput) {
           eq(cmsSites.id, id),
         )).returning();
       requireRow(updated, '站点不存在');
+      if (data.settings !== undefined || data.status !== undefined) await syncCmsCollectionState(tx, id, 'configuration');
       await syncCmsResourceRefs(tx, 'site', updated.id, updated.id, updated);
       const tasks = await insertEffectiveConfigRebuildTasks(
         tx,

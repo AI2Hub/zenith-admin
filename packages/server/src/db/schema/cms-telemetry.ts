@@ -1,7 +1,8 @@
 import { index, integer, jsonb, pgTable, text, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
-import type { CmsTelemetryBusinessPayload } from '@zenith/shared/cms';
+import type { CmsTelemetryAttributionStatus, CmsTelemetryBusinessPayload } from '@zenith/shared/cms';
 import { idColumn } from './common';
 import { cmsSites } from './cms';
+import { userEvents } from './analytics';
 
 /** Delivery diagnostics are distinct from business events and never counted as PV. */
 export const cmsTelemetryReceipts = pgTable('cms_telemetry_receipts', {
@@ -15,6 +16,18 @@ export const cmsTelemetryOutbox = pgTable('cms_telemetry_outbox', {
   id: idColumn(), siteId: integer().notNull().references(() => cmsSites.id, { onDelete: 'cascade' }),
   eventId: uuid().notNull().unique('cms_telemetry_outbox_event_id_unique'),
   payload: jsonb().$type<CmsTelemetryBusinessPayload>().notNull(), attempts: integer().notNull().default(0),
-  lastError: text(), deliveredAt: timestamp({ withTimezone: true }),
+  lastError: text(), consecutiveFailures: integer().notNull().default(0), replayCount: integer().notNull().default(0),
+  nextAttemptAt: timestamp({ withTimezone: true }).notNull().defaultNow(), lastAttemptAt: timestamp({ withTimezone: true }),
+  leaseOwner: uuid(), leaseExpiresAt: timestamp({ withTimezone: true }), deadLetterAt: timestamp({ withTimezone: true }),
+  deliveredAt: timestamp({ withTimezone: true }),
   createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
-}, (t) => [index('cms_telemetry_outbox_pending_idx').on(t.deliveredAt, t.id)]);
+}, (t) => [index('cms_telemetry_outbox_pending_idx').on(t.deliveredAt, t.deadLetterAt, t.nextAttemptAt, t.id)]);
+
+/** Recomputable attribution; immutable business events are never rewritten by late client events. */
+export const cmsTelemetryAttributions = pgTable('cms_telemetry_attributions', {
+  eventId: uuid().primaryKey().references(() => userEvents.eventId, { onDelete: 'cascade' }), siteId: integer().notNull().references(() => cmsSites.id, { onDelete: 'cascade' }),
+  status: varchar({ length: 32 }).$type<CmsTelemetryAttributionStatus>().notNull(),
+  origin: jsonb().$type<Record<string, unknown>>().notNull().default({}),
+  computedAt: timestamp({ withTimezone: true }).notNull(), nextRecomputeAt: timestamp({ withTimezone: true }),
+  settledAt: timestamp({ withTimezone: true }),
+}, (t) => [index('cms_telemetry_attributions_due_idx').on(t.nextRecomputeAt), index('cms_telemetry_attributions_site_idx').on(t.siteId)]);

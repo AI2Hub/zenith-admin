@@ -1,3 +1,4 @@
+import { observeCmsCollectionState, readCmsCollectionState } from './cms-collection-state';
 import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 import type * as z from 'zod';
 import { HTTPException } from 'hono/http-exception';
@@ -13,9 +14,7 @@ import { verifyCmsTelemetryPageToken } from './cms-telemetry-context';
 import { detectDeviceType } from './cms-stats.service';
 
 export async function isCmsTelemetryEnabled(siteId: number): Promise<boolean> {
-  const [site] = await db.select({ settings: cmsSites.settings, status: cmsSites.status }).from(cmsSites).where(eq(cmsSites.id, siteId)).limit(1);
-  const settings = site?.settings?.telemetry as { enabled?: boolean; schemaVersion?: number } | undefined;
-  return site?.status === 'enabled' && settings?.enabled === true && settings.schemaVersion === 2;
+  return (await readCmsCollectionState(db, siteId)).enabled;
 }
 
 /** Capture and publish like every other public setting; disabling also stops cached pages immediately. */
@@ -108,6 +107,7 @@ export async function collectCmsTelemetry(input: z.output<typeof cmsTelemetryBat
     let insertedIds: string[] = [];
     let rejectedReason: string | undefined;
     await batchInsertEvents(events, { ip: request.ip, ua: request.userAgent, origin: request.origin, siteKey: page.siteKey, cmsVerified: true, onRejected: reason => { rejectedReason = reason; }, onInserted: ids => { insertedIds = ids; }, onPersisted: async (tx, ids) => {
+      await observeCmsCollectionState(tx, site.id);
       if (!page.contentId) return;
       const fresh = new Set(ids);
       const count = valid.filter(event => event.name === 'cms.page_view' && fresh.has(event.eventId)).length;

@@ -3,7 +3,7 @@ import type { QueryOutputOf } from '@zenith/shared/core';
 import { CMS_ATTRIBUTION_EVENTS, cmsOperationsContract, cmsStatsQuery, type CmsAttribution } from '@zenith/shared/cms';
 import { readSnapshot } from '../../db';
 import { ensureCmsSiteExists } from './cms-sites.service';
-import { assertCmsStatisticsAccess, cmsStatisticsWhere } from './cms-stats-query';
+import { assertCmsStatisticsAccess, cmsStatisticsSource, cmsStatisticsWhere } from './cms-stats-query';
 import { resolveCmsStatsWindow } from './cms-stats-window';
 
 /** A compact workbench projection of v2 facts. Full dimension lists use the paginated statistics report. */
@@ -19,7 +19,7 @@ export async function getCmsAttribution(q: QueryOutputOf<typeof cmsOperationsCon
     select e.*,${content} as content_id,
       case e.event_name when 'cms.page_view' then 'cms.entry' when 'cms.component_click' then 'cms.topic_click'
         when 'cms.download_delivered' then 'cms.download' else e.event_name end as event
-    from public.user_events e where ${cmsStatisticsWhere(query,scope)} ${selected}
+    from ${cmsStatisticsSource()} e where ${cmsStatisticsWhere(query,scope)} ${selected}
       and e.event_name in ('cms.page_view','cms.read','cms.component_click','cms.download_delivered','cms.form_complete','cms.vote_complete')
   )`;
   return readSnapshot(async (tx) => {

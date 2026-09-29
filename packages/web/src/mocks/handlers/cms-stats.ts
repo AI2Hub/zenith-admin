@@ -6,6 +6,7 @@ import type { QueryOf } from '@zenith/shared/core';
 import { mock } from '../utils/contract';
 import { matchesFilter } from '../utils/filter';
 import { requireItem } from '../utils/crud';
+import { notFound } from '../utils/handlers';
 import { mockCmsSites, mockCmsContents, mockCmsChannels } from '../data/cms';
 import { getMockCmsPublishedTelemetry, stageMockCmsConfigurationDraft } from './cms-releases';
 
@@ -66,7 +67,21 @@ function reportRows(query: ReportQuery) {
   if (['media', 'placement', 'interaction'].includes(query.dimension)) return [];
   return [...groups.entries()].map(([key, group]) => ({ key, label: group.label, ...sum(group.rows) }));
 }
+export function getMockCmsStatsReportRows(query: ReportQuery): CmsStatReportRow[] {
+  const sortBy = query.sortBy ?? 'pv'; const order = query.sortOrder === 'asc' ? 1 : -1;
+  return reportRows(query).filter((row) => !query.keyword || row.label.toLocaleLowerCase().includes(query.keyword.toLocaleLowerCase())).sort((a, b) => (a[sortBy] - b[sortBy]) * order || a.key.localeCompare(b.key));
+}
+
 export const cmsStatsHandlers = [
+  mock(cmsTelemetryAdminContract.deliveries, ({ params, query, ok }) => {
+    requireItem(mockCmsSites, params.id, '站点不存在', { status: 404 });
+    return ok({ list: [], total: 0, page: query.page ?? 1, pageSize: query.pageSize ?? 20 });
+  }),
+  mock(cmsTelemetryAdminContract.deliverySummary, ({ params, ok }) => {
+    requireItem(mockCmsSites, params.id, '站点不存在', { status: 404 });
+    return ok({ pending: 0, retrying: 0, processing: 0, failed: 0, oldestPendingAt: null, oldestPendingAgeSeconds: 0, missingContext: 0, pendingAttribution: 0 });
+  }),
+  mock(cmsTelemetryAdminContract.replay, () => notFound('投递记录不存在')),
   mock(cmsStatContract.overview, ({ query, ok }) => {
     const currentScope = scope(query); const totals = metrics(query); const start = dayjs(currentScope.startTime).tz(currentScope.timeZone); const end = dayjs(currentScope.endTime).tz(currentScope.timeZone); const unit = query.granularity === 'hour' ? 'hour' : 'day';
     const trend = Array.from({ length: Math.max(0, end.diff(start, unit)) }, (_, index) => {
@@ -76,8 +91,7 @@ export const cmsStatsHandlers = [
     return ok({ scope: currentScope, status: status(query).status, metrics: totals, previousMetrics: null, collectionAvailableSince: totals.pv ? dayjs().startOf('day').toISOString() : null, comparisonAvailable: false, comparisonUnavailableReason: query.compare === 'none' ? null : '对比周期早于统一采集数据起点，不能将未采集期间视作零流量。', trend });
   }),
   mock(cmsStatContract.report, ({ query, ok }) => {
-    const sortBy = query.sortBy ?? 'pv'; const order = query.sortOrder === 'asc' ? 1 : -1;
-    const rows = reportRows(query).filter((row) => !query.keyword || row.label.includes(query.keyword)).sort((a, b) => (a[sortBy] - b[sortBy]) * order || a.key.localeCompare(b.key));
+    const rows = getMockCmsStatsReportRows(query);
     const page = query.page ?? 1; const pageSize = query.pageSize ?? 20;
     return ok({ scope: scope(query), dimension: query.dimension ?? 'content', list: rows.slice((page - 1) * pageSize, page * pageSize), total: rows.length, page, pageSize });
   }),

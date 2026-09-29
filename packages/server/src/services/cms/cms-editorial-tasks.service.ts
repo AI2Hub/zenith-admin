@@ -2,7 +2,7 @@ import { and, desc, eq, isNull, or, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import type * as z from 'zod';
 import type { QueryOutputOf } from '@zenith/shared/core';
-import { cmsContentContract, cmsEditorialTaskSchema, cmsOperationsContract, createCmsEditorialTaskSchema, updateCmsEditorialTaskSchema } from '@zenith/shared/cms';
+import { cmsContentContract, cmsEditorialTaskSchema, cmsOperationsContract, createCmsEditorialTaskSchema, updateCmsEditorialTaskSchema, normalizeCmsSearchKeyword } from '@zenith/shared/cms';
 import { db } from '../../db';
 import { cmsContents, cmsContentWorkingCopies, cmsEditorialTasks, userEvents, users } from '../../db/schema';
 import { pickEntity } from '../../lib/entity-map';
@@ -57,9 +57,9 @@ export async function createCmsEditorialTask(input: z.output<typeof createCmsEdi
     await assertAllCmsSiteChannelsAccess(input.siteId);
     const [search] = await db.select({ id: userEvents.id }).from(userEvents).where(and(
       eq(userEvents.eventName, 'cms.search'), sql`${userEvents.properties} @> ${JSON.stringify({ cmsSchemaVersion: 2, trustedCms: true, environment: 'live', cmsSiteId: input.siteId })}::jsonb`,
-      sql`${userEvents.properties}->>'keyword'=${input.sourceKeyword!}`, sql`${userEvents.properties}->>'resultCount'='0'`,
+      sql`lower(trim(${userEvents.properties}->>'keyword'))=${normalizeCmsSearchKeyword(input.sourceKeyword!)}`, sql`${userEvents.properties}->>'resultCount'='0'`,
     )).limit(1);
-    requireRow(search, '该搜索词不存在于本站无结果搜索记录'); sourceKey = input.sourceKeyword!;
+    requireRow(search, '该搜索词不存在于本站无结果搜索记录'); sourceKey = normalizeCmsSearchKeyword(input.sourceKeyword!);
   }
   if (input.source === 'submission') {
     if (!await hasPermission('cms:form:list')) throw new HTTPException(403, { message: '没有查看来信的权限' });
