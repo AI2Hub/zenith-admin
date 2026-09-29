@@ -39,8 +39,9 @@ import { useUrlTabState } from '@/hooks/useUrlTabState';
 import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 const CmsReleasesPanel = lazy(() => import('./CmsReleasesPanel'));
+const CmsDeploymentCapacityPanel = lazy(() => import('./CmsDeploymentCapacityPanel'));
 
-type TabKey = 'releases' | 'queue' | 'history' | 'artifacts' | 'failed';
+type TabKey = 'releases' | 'queue' | 'history' | 'artifacts' | 'failed' | 'capacity';
 
 interface Filters {
   siteId?: number;
@@ -69,7 +70,7 @@ export default function PublishingPage() {
   const sitesQuery = useAllCmsSites();
   const sites = sitesQuery.data ?? [];
   const siteOptions = sites.map((site) => ({ value: site.id, label: site.name }));
-  const [activeTab, setActiveTab] = useUrlTabState(['releases', 'queue', 'history', 'artifacts', 'failed'] as const, 'releases');
+  const [activeTab, setActiveTab] = useUrlTabState(['releases', 'queue', 'history', 'artifacts', 'failed', 'capacity'] as const, 'releases');
   const [selected, setSelected] = useState<number[]>([]);
   // 同一组筛选驱动任务列表与产物列表：任务列表分页由 useListSearch 托管，产物列表另有独立分页，查询 / 重置时同步回首页
   const artifactPagination = usePagination();
@@ -107,7 +108,7 @@ export default function PublishingPage() {
     page: taskPagination.page,
     pageSize: taskPagination.pageSize,
     ...taskFilterQuery,
-  }, activeTab !== 'artifacts' && activeTab !== 'releases');
+  }, activeTab !== 'artifacts' && activeTab !== 'releases' && activeTab !== 'capacity');
   const artifactListQuery = useCmsPublishArtifactList({
     page: artifactPagination.page,
     pageSize: artifactPagination.pageSize,
@@ -181,13 +182,11 @@ export default function PublishingPage() {
 
   const taskColumns: ColumnProps<CmsPublishingTask>[] = [
     { title: '任务ID', dataIndex: 'id', width: 90 },
-    {
-      title: '任务', dataIndex: 'title', width: 240,
-      render: (_: string, record) => <div><Typography.Text strong>{record.title}</Typography.Text><div><Typography.Text type="tertiary" size="small">{record.taskType}</Typography.Text></div></div>,
-    },
-    { title: '站点', dataIndex: 'siteName', minWidth: 140, render: renderEllipsis },
+    { title: '任务标题', dataIndex: 'title', minWidth: 220, render: (value: string) => <Typography.Text strong ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{value}</Typography.Text> },
+    { title: '任务类型', dataIndex: 'taskType', width: 180, render: (value: string) => <Typography.Text type="tertiary" size="small" ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{value}</Typography.Text> },
+    { title: '站点', dataIndex: 'siteName', width: 140, render: renderEllipsis },
     { title: '目标', dataIndex: 'targetType', width: 120, render: (value: CmsPublishTargetType) => CMS_PUBLISH_TARGET_TYPE_LABELS[value] },
-    { title: '进度', width: 220, render: (_: unknown, record) => <AsyncTaskProgress task={record} /> },
+    { title: '进度', width: 280, render: (_: unknown, record) => <AsyncTaskProgress task={record} noteDisplay="tooltip" fluid /> },
     { title: '产物', width: 110, render: (_: unknown, record) => record.failedArtifactCount ? <Typography.Text type="danger">{record.artifactCount}（失败 {record.failedArtifactCount}）</Typography.Text> : record.artifactCount },
     { title: '创建人', dataIndex: 'createdByName', width: 120, render: (value: string | null) => value || EMPTY_PLACEHOLDER },
     createdAtColumn,
@@ -328,6 +327,7 @@ export default function PublishingPage() {
           />
         </TabPane>
         <TabPane tab="失败" itemKey="failed">{taskPane}</TabPane>
+        <TabPane tab="部署容量" itemKey="capacity"><Suspense fallback={<Typography.Text>正在加载部署容量…</Typography.Text>}>{activeTab === 'capacity' ? <CmsDeploymentCapacityPanel /> : null}</Suspense></TabPane>
       </Tabs>
 
       <AppModal title="新建 CMS 发布" visible={submitVisible} onCancel={() => setSubmitVisible(false)} onOk={() => void submitBuild()} confirmLoading={submitMutation.isPending} width={560} closeOnEsc>
