@@ -12,7 +12,7 @@ import { useCmsSiteDetail } from '@/hooks/queries/cms-sites';
  * SiteMoveModal（移动）/ SiteInheritanceSheet（继承配置）/ SiteStaticSheet（静态化）。
  * settings JSONB ⇄ 表单映射的纯函数与单测见 ./sites/site-form-mapping.ts。
  */
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Modal, SideSheet, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Upload as UploadIcon, ChevronsDownUp, ChevronsUpDown, ListTree, List as ListIcon } from 'lucide-react';
@@ -87,6 +87,10 @@ export default function SitesPage() {
   const [workspaceSiteId, setWorkspaceSiteId] = useState<number>();
   const workspaceSite = useCmsSiteDetail(workspaceSiteId);
   useListDeepLink(['siteId', 'site'], (picked) => { const id = Number(picked.siteId ?? picked.site); if (Number.isSafeInteger(id) && id > 0) setWorkspaceSiteId(id); });
+  const [editorTarget, setEditorTarget] = useState<{ id: number; section?: string; block?: string }>();
+  const editorSite = useCmsSiteDetail(editorTarget?.id);
+  useListDeepLink(['editSite','section','homeBlock'], picked => { const id = Number(picked.editSite); if (hasPermission('cms:site:update') && Number.isSafeInteger(id) && id > 0) setEditorTarget({ id, section: picked.section, block: picked.homeBlock }); });
+  useEffect(() => { if (editorSite.data && editorSite.data.id === editorTarget?.id) { setEditingSite(editorSite.data); setEditSheetOpen(true); } }, [editorSite.data, editorTarget?.id]);
   const [editSheetOpen, setEditSheetOpen] = useState(false);
   const [editingSite, setEditingSite] = useState<CmsSite | null>(null);
   const [usersSite, setUsersSite] = useState<CmsSite | null>(null);
@@ -107,6 +111,7 @@ export default function SitesPage() {
   }
 
   function openEdit(record: CmsSite) {
+    setEditorTarget(undefined);
     setEditingSite(record);
     setEditSheetOpen(true);
   }
@@ -114,6 +119,7 @@ export default function SitesPage() {
   function closeEditSheet() {
     setEditSheetOpen(false);
     setEditingSite(null);
+    setEditorTarget(undefined);
   }
 
   function handleGroupPublish(record: CmsSite) {
@@ -318,7 +324,7 @@ export default function SitesPage() {
       <SideSheet title="站点工作区" visible={!!workspaceSiteId} onCancel={() => setWorkspaceSiteId(undefined)} width={880}>
         <CmsSiteWorkspace siteId={workspaceSiteId} bare onEdit={() => { if (workspaceSite.data) openEdit(workspaceSite.data); }} />
       </SideSheet>
-      <SiteEditSheet open={editSheetOpen} site={editingSite} onClose={closeEditSheet} />
+      <SiteEditSheet initialSection={editorTarget?.section} focusBlockId={editorTarget?.block} open={editSheetOpen} site={editingSite} onClose={closeEditSheet} />
       <SiteUsersModal site={usersSite} onClose={() => setUsersSite(null)} />
       <SiteOpenGrantsModal site={grantsSite} onClose={() => setGrantsSite(null)} />
       <SiteMoveModal site={moveSite} onClose={() => setMoveSite(null)} />
@@ -328,4 +334,3 @@ export default function SitesPage() {
     </div>
   );
 }
-
