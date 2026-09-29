@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { eq, gt, inArray, lte, sql } from 'drizzle-orm';
+import { eq, gt, inArray, lte } from 'drizzle-orm';
 import type { BodyOf } from '@zenith/shared/core';
 import { CMS_CONTENT_REVIEW_ISSUE_LABELS, CMS_RESOURCE_URI_PREFIX, cmsContentReviewContract, serializeCmsBodyDocument, type CmsContentReviewIssue } from '@zenith/shared/cms';
 import { db, readSnapshot } from '../../db';

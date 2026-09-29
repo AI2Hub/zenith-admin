@@ -25,7 +25,7 @@ export const cmsTelemetryAdminContract = defineContract('/api/cms/telemetry', {
   deliverySummary: op.get('/{id}/deliveries/summary', { access: { permission: 'cms:stat:view' }, params: idParam,
     response: cmsTelemetryDeliverySummarySchema, summary: '站点当前投递积压和缺失上下文' }),
   replay: op.post('/{id}/deliveries/{deliveryId}/replay', { access: { permission: 'cms:site:update' }, audit: '重放 CMS 转化投递或重算归因',
-    params: idParam.extend({ deliveryId: z.coerce.number().int().positive() }),
+    params: idParam.extend({ deliveryId: z.coerce.number().int().positive().meta({ description: '投递记录 ID' }) }),
     response: z.object({ queued: z.literal(true), eventId: z.uuid(), mode: z.enum(['delivery', 'attribution']) }), summary: '按原事件 ID 重新排队；已成功事件仅重算归因' }),
   configure: op.put('/{id}', { access: { permission: 'cms:site:update' }, audit: '更新 CMS 采集设置', params: idParam, body: cmsTelemetrySettingsSchema,
     response: cmsTelemetrySettingsSchema.extend({ siteId: z.int(), requiresPublication: z.literal(true) }), summary: '配置站点统一行为采集与统计时区' }),

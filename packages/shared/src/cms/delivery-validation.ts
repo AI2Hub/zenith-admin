@@ -2,6 +2,8 @@ import * as z from 'zod';
 
 /** Every probe stays beneath a configured base URL; no path can select another origin. */
 export const cmsDeliveryPathSchema = z.string().trim().min(1).max(1000).refine(value => {
+  // 控制字符（NUL / 换行 / 制表 / DEL）会被浏览器与代理静默剔除或截断，可能绕过路径判定
+  // eslint-disable-next-line no-control-regex
   if (!value.startsWith('/') || value.startsWith('//') || /[\\?#\u0000-\u0020\u007f]/u.test(value) || /%(?:2f|5c|00)/iu.test(value)) return false;
   try { return !decodeURIComponent(value).split('/').some(part => part === '.' || part === '..'); } catch { return false; }
 }, '验证路径须为本站绝对路径，不能包含查询参数、控制字符或路径跳转');

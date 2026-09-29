@@ -15,7 +15,7 @@ import { formatIso8601 } from '../../lib/datetime';
 import type { CmsContentPublishSnapshot, CmsStaticMode } from '@zenith/shared/cms';
 import { TaskCancelledError } from '../../lib/task-center';
 import {
-  renderSitePath, renderHomePage, renderChannelPage, renderDetailPage, renderTagPage, renderCustomPage,
+  renderHomePage, renderChannelPage, renderDetailPage, renderTagPage, renderCustomPage,
   channelUrl, contentUrl, tagUrl, customPageUrl, customPagePath, siteOrigin, listSiteTags, generateRssXml, countContentBodyPages, splitBodyPages,
 } from './cms-render.service';
 import { triggerCdnPurge, triggerCdnPurgeAll } from './cms-cdn.service';
@@ -565,20 +565,6 @@ export function isChannelDynamic(
 function listPageCap(site: Pick<CmsSiteRow, 'settings'>): number {
   const cap = resolveCmsSiteOpsSettings(site.settings).maxPageOnContentPublish;
   return cap > 0 ? Math.min(cap, MAX_LIST_PAGES) : MAX_LIST_PAGES;
-}
-
-async function writeRenderedPath(site: CmsSiteRow, relPath: string): Promise<boolean> {
-  const result = await renderSitePath(site, '', relPath);
-  if (result.status === 200) {
-    await writeStaticFile(site.code, relPath, result.html);
-    return true;
-  }
-  if (cmsGenerationContext()?.candidate) throw new Error(`候选页面 ${relPath} 渲染失败（${result.status}）`);
-
-  if (result.status === 404) {
-    await deleteStaticFile(site.code, relPath);
-  }
-  return false;
 }
 
 export async function refreshHomeStatic(site: CmsSiteRow): Promise<boolean> {

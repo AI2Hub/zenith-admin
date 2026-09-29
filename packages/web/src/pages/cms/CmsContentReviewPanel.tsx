@@ -9,6 +9,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { useMyAsyncTasks } from '@/hooks/useAsyncTasks';
 import { useAsyncTaskAction } from '@/hooks/queries/async-tasks';
 import AsyncTaskProgress from '@/components/AsyncTaskProgress';
+import DateTimeText from '@/components/DateTimeText';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
 
 type PolicyValues = BodyOf<typeof cmsContentReviewContract.save>;
@@ -67,6 +68,6 @@ export default function CmsContentReviewPanel({ content }: Readonly<{ content?: 
     </> : null}
     <Divider margin={16} /><Typography.Title heading={6}>复核记录</Typography.Title>
     {records.isError ? <Banner type="danger" description="复核记录读取失败，请刷新重试。" /> : null}
-    {(records.data ?? []).map(record => <div key={record.id} style={{ marginBottom: 12 }}><Space wrap><Tag>修订 #{record.revisionId}</Tag><Typography.Text>{record.actorName} · {formatDateTime(record.createdAt)}</Typography.Text></Space><Typography.Paragraph>{record.note}</Typography.Paragraph><Typography.Text type="tertiary">下次复核：{formatDateTime(record.nextReviewAt)}</Typography.Text></div>)}
+    {(records.data ?? []).map(record => <div key={record.id} style={{ marginBottom: 12 }}><Space wrap><Tag>修订 #{record.revisionId}</Tag><Typography.Text>{record.actorName} · <DateTimeText value={record.createdAt} /></Typography.Text></Space><Typography.Paragraph>{record.note}</Typography.Paragraph><Typography.Text type="tertiary">下次复核：<DateTimeText value={record.nextReviewAt} mode="absolute" /></Typography.Text></div>)}
   </div>;
 }

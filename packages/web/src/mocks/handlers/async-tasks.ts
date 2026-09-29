@@ -608,8 +608,13 @@ function tickTask(task: AsyncTask) {
   task.updatedAt = mockDateTime();
 }
 
+let ticking = false;
+
+/** 按流逝时间推进所有任务；完成回调可能再次读取任务列表，故加锁避免重入递归 */
 function tickAll() {
-  for (const task of tasks) tickTask(task);
+  if (ticking) return;
+  ticking = true;
+  try { for (const task of tasks) tickTask(task); } finally { ticking = false; }
 }
 
 function serialResumeStage(task: AsyncTask): number {
@@ -643,7 +648,8 @@ export function refreshMockAsyncTask(id: number) {
   return task;
 }
 
-export function getMockActiveAsyncTasks() { return tasks.filter(task => ['pending', 'running'].includes(task.status)); }
+/** 读取仍在占用资源的任务；先推进模拟进度，避免把已经跑完的任务当成执行中 */
+export function getMockActiveAsyncTasks() { tickAll(); return tasks.filter(task => ['pending', 'running'].includes(task.status)); }
 
 type TaskListQuery = QueryOutputOf<typeof asyncTaskContract.list>;
 

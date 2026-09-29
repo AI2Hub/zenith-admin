@@ -45,6 +45,8 @@ describe('CMS deployment capacity Demo lifecycle', () => {
     const target = ready.data.candidates[0];
     const submitted = await call<AsyncTask>('POST', cleanupPath, { fingerprint: ready.data.fingerprint, deploymentIds: [target.id] });
     await call('POST', urlOf(asyncTaskContract.cancel, { params: { id: submitted.data.id } }));
+    // running 任务是协作式取消：轮询一次后 handler 才会退出并落为 cancelled，此时才允许断点恢复
+    await call('GET', urlOf(asyncTaskContract.detail, { params: { id: submitted.data.id } }));
     await call('POST', urlOf(asyncTaskContract.resume, { params: { id: submitted.data.id } }));
     await vi.advanceTimersByTimeAsync(2500);
     await call('GET', urlOf(asyncTaskContract.detail, { params: { id: submitted.data.id } }));

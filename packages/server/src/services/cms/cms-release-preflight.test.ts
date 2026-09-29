@@ -5,11 +5,21 @@ import { assertCmsReleaseDependencies } from './cms-release-preflight.service';
 
 function executor(overrides: Array<[unknown, unknown[]]>) {
   const data = new Map<unknown, unknown[]>([[cmsPages, []], [cmsWidgets, []], [cmsChannels, []], [cmsTags, []], [cmsWidgetRefs, []], [cmsContents, []], ...overrides]);
-  return { select: () => ({ from: (table: unknown) => ({ where: async () => data.get(table) ?? [] }) }) } as unknown as DbExecutor;
+  // `where(...)` 既要能直接 await，也要支持继续链上 `.limit(...)`
+  const rows = (table: unknown) => {
+    const value = data.get(table) ?? [];
+    return { limit: async () => value, then: (resolve: (v: unknown[]) => unknown) => Promise.resolve(value).then(resolve) };
+  };
+  return { select: () => ({ from: (table: unknown) => ({ where: () => rows(table) }) }) } as unknown as DbExecutor;
 }
 describe('CMS candidate dependency checks', () => {
   it('blocks a selected page when its widget was not included in the candidate', async () => {
     const tx = executor([[cmsPages, [{ id: 1, name: 'Home', blocks: [{ id: 'recommendations', type: 'widget-ref', props: { widgetId: 9 } }] }]]]);
+    // 部件不在候选集合中时，页面区块体检先报错（同样是阻塞发布，只是文案不同）
+    await expect(assertCmsReleaseDependencies(tx, 2)).rejects.toThrow('页面「Home」发布检查失败');
+  });
+  it('blocks a theme slot whose widget was not included in the candidate', async () => {
+    const tx = executor([[cmsWidgetRefs, [{ siteId: 2, ownerType: 'theme_slot', field: 'home-aside', widgetId: 9 }]]]);
     await expect(assertCmsReleaseDependencies(tx, 2)).rejects.toThrow('请将依赖一并加入发布单');
   });
   it('checks widget content against the candidate public set', async () => {

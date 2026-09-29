@@ -1,6 +1,7 @@
 import { cmsDeliveryContract, type CmsDeliveryConfig, type CmsDeliveryRun } from '@zenith/shared/cms';
 import { mock, MockHttpError } from '../utils/contract';
 import { requireItem } from '../utils/crud';
+import { matchesFilter } from '../utils/filter';
 import { conflict, nextIdFrom } from '../utils/handlers';
 import { mockDateTime } from '../utils/date';
 import { mockCmsSites } from '../data/cms';
@@ -63,7 +64,7 @@ export const cmsDeliveryHandlers = [
   }),
   mock(cmsDeliveryContract.list, ({ query, ok, paginate }) => {
     configuration(query.siteId); getMockActiveAsyncTasks();
-    return ok(paginate(runs.filter(row => row.siteId === query.siteId && (!query.releaseId || row.releaseId === query.releaseId)).sort((a, b) => b.id - a.id).map(({ paths: _paths, observations: _observations, ...row }) => row)));
+    return ok(paginate(runs.filter(row => row.siteId === query.siteId && matchesFilter(row.releaseId, query.releaseId)).sort((a, b) => b.id - a.id).map(({ paths: _paths, observations: _observations, ...row }) => row)));
   }),
   mock(cmsDeliveryContract.detail, ({ params, ok }) => { getMockActiveAsyncTasks(); return ok(requireItem(runs, params.id, '交付记录不存在', { status: 404 })); }),
   mock(cmsDeliveryContract.start, ({ body, ok }) => ok(queueMockCmsDelivery(body.siteId, 'manual'))),

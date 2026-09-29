@@ -37,6 +37,9 @@ export const explicitCrudRoutes: Readonly<Record<string, readonly ExplicitCrudEn
   'cms/contents.ts': [
     { contract: 'cmsContentContract', ops: ['update'], reason: 'handler 含自定义逻辑（非「取参 → 服务 → 包络」）' },
   ],
+  'cms/deployment-retention.ts': [
+    { contract: 'cmsDeploymentRetentionContract', ops: ['list'], reason: '同路由组以自定义操作（容量概览 / 清理预览 / 测量与清理任务提交）为主，list 与其余操作同表显式书写' },
+  ],
   'cms/distributions.ts': [
     { contract: 'cmsDistributionContract', ops: ['create', 'update'], reason: '需记录审计 after 数据' },
   ],
@@ -51,6 +54,9 @@ export const explicitCrudRoutes: Readonly<Record<string, readonly ExplicitCrudEn
   ],
   'cms/resources.ts': [
     { contract: 'cmsResourceContract', ops: ['update'], reason: 'handler 含自定义逻辑（非「取参 → 服务 → 包络」）' },
+  ],
+  'cms/reviews.ts': [
+    { contract: 'cmsContentReviewContract', ops: ['list', 'detail'], reason: '同路由组以自定义操作（复核记录 / 完成复核 / 扫描任务提交）为主，list 与 detail 与其余操作同表显式书写' },
   ],
   'drive/drive-access-requests.ts': [
     { contract: 'driveAccessRequestContract', ops: ['create'], reason: 'handler 含自定义逻辑（非「取参 → 服务 → 包络」）' },

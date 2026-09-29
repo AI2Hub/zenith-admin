@@ -19,7 +19,7 @@ export const cmsPageQualityHandlers = [mock(cmsPageContract.quality, ({ params, 
     }
     for (const key of ['buttonUrl', 'linkUrl']) {
       const value = block.props[key]; const ref = parseCmsLink(typeof value === 'string' ? value : ''); if (!ref || ref.kind === 'external') continue;
-      let found = false;
+      let found: boolean;
       if (ref.kind === 'entity') found = ref.entityType === 'content'
         ? ref.id !== null && getMockCmsPublishedContent(ref.id)?.siteId === page.siteId
         : mockCmsChannels.some(row => row.siteId === page.siteId && row.status === 'enabled' && (ref.id !== null ? row.id === ref.id : row.code === ref.code));

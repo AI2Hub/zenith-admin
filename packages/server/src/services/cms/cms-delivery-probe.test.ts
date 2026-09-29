@@ -64,12 +64,12 @@ describe('CMS delivery HTTP evidence', () => {
       publicRequests.push(req); res.writeHead(200, { 'Content-Type': 'text/html', ...markerHeaders(16), 'X-Cache': 'HIT', Age: '600' }); res.end(html(16));
     });
     const [origin, cached] = await Promise.all([
-      probeCmsDeliveryTarget(input(`${source}/deploy`, { sourceHost: 'site.example' }), { allowlist: ['127.0.0.1'] }),
+      probeCmsDeliveryTarget(input(`${source}/deploy`), { allowlist: ['127.0.0.1'] }),
       probeCmsDeliveryTarget(input(`${publicUrl}/deploy`, { target: 'public', sourceHost: 'must-not-be-used.example' }), { allowlist: ['127.0.0.1'] }),
     ]);
     expect(origin).toMatchObject({ status: 'passed', httpStatus: 200, generationId: 17, releaseId: 31, visibilityEpoch: 4, cacheStatus: 'MISS', age: '0' });
     expect(cached).toMatchObject({ status: 'failed', httpStatus: 200, generationId: 16, cacheStatus: 'HIT', age: '600' });
-    expect(sourceRequests[0].headers.host).toBe('site.example');
+    expect(sourceRequests[0].headers.host).toBe(new URL(source).host);
     expect(publicRequests[0].headers.host).toBe(new URL(publicUrl).host);
     for (const request of [...sourceRequests, ...publicRequests]) {
       expect(request.url).toBe('/deploy/page');
@@ -193,6 +193,15 @@ describe('CMS delivery destination boundaries', () => {
     vi.stubEnv('NODE_ENV', 'production');
     expect((await probeCmsDeliveryTarget(input(base, { target: 'public' }), { allowlist: ['127.0.0.1'] })).status).toBe('failed');
     expect(seen).not.toHaveBeenCalled();
+  });
+
+  it('reports an unverified source probe when a Host override cannot be sent', async () => {
+    const request = vi.fn<typeof httpRequest>();
+    const result = await probeCmsDeliveryTarget(input('https://source.example', { sourceHost: 'site.example' }), { request });
+    // fetch 会静默丢弃 Host：与其打到默认 vhost 后给出「通过」，不如如实说明没验证到
+    expect(result.status).toBe('unverified');
+    expect(result.message).toContain('Host');
+    expect(request).not.toHaveBeenCalled();
   });
 
   it('rejects unsafe source Host values and ignores Host overrides for public targets', async () => {

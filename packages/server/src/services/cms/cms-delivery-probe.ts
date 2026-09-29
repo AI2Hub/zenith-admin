@@ -177,7 +177,13 @@ export async function probeCmsDeliveryTarget(
     if (!Number.isSafeInteger(input.expectedVisibilityEpoch) || input.expectedVisibilityEpoch < 0) throw new ProbeFailure('探测期望可见性纪元无效');
     const url = targetUrl(input.baseUrl, input.path);
     observation.url = url.toString();
-    const host = input.target === 'source' && input.sourceHost ? sourceHostHeader(input.sourceHost) : undefined;
+    if (input.target === 'source' && input.sourceHost) {
+      // 取值先按原口径校验：非法 / 带头部注入的配置仍应以「失败」报出，而不是被降级成未验证
+      sourceHostHeader(input.sourceHost);
+      // 源站探测需要用站点域名发请求（覆盖 Host），但出站客户端基于 fetch，Host 属违禁头会被静默丢弃：
+      // 照原样发出去只会打到默认 vhost，却产出看似通过的交付证据。这里如实标记「未验证」，待出站层支持 Host 覆盖后再放开。
+      return finish('unverified', '当前出站客户端无法覆盖 Host 头，源站探测不能按站点域名发起');
+    }
     // 源站私网许可由调用方校验其配置来源后显式传入；公开生产请求永远不能使用私网 allowlist。
     const allowlist = input.target === 'source' || process.env.NODE_ENV === 'test' ? options.allowlist ?? [] : [];
     const request = options.request ?? httpRequest;
@@ -189,7 +195,7 @@ export async function probeCmsDeliveryTarget(
       response = await request(url.toString(), {
         method: 'GET', redirect: 'error', credentials: 'omit', timeout: TIMEOUT_MS, signal: controller.signal,
         retries: 0, circuitBreaker: false, ssrfProtection: true, ssrfAllowlist: allowlist,
-        headers: host ? { Host: host } : undefined, logBodyLimit: 0, httpLog: { level: 'access', logResponseBody: false },
+        logBodyLimit: 0, httpLog: { level: 'access', logResponseBody: false },
       });
       if (controller.signal.aborted) {
         if (response.raw.body) void response.raw.body.cancel().catch(() => undefined);

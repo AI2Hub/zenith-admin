@@ -29,5 +29,7 @@ export const cmsStatisticsExportDefinition = defineExport<Record<string, unknown
   withSnapshot: (ctx, consume) => withCmsStatisticsExportSnapshot(ctx.query, consume),
   // Snapshot providers count inside the worker transaction, never during an HTTP submission.
   countRows: async () => 0,
+  // 生成器只用于满足定义类型；统计报表的行必须由快照执行器读取，走到这里说明装配错了
+  // eslint-disable-next-line require-yield -- 故意不在生成器里 yield，调用即报错
   streamRows: async function* () { throw new Error('统计报表必须在快照导出执行器中读取'); },
 });
