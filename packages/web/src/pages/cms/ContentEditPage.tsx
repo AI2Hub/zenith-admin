@@ -45,6 +45,7 @@ import CmsContentMediaFields from './components/CmsContentMediaFields';
 import { adoptCmsSavedResourceValues, createCmsResourceSelections } from './cms-resource-selections';
 import { CMS_EDITORIAL_STATUS_LABELS, CMS_EDITORIAL_STATUS_COLORS } from './cms-content-view-state';
 import CmsEditorialPanel from './CmsEditorialPanel';
+import CmsContentReviewPanel from './CmsContentReviewPanel';
 import { useAllUsers } from '@/hooks/queries/users';
 import { ApiError } from '@/lib/query';
 import { copyTextWithToast } from '@/utils/clipboard';
@@ -210,7 +211,7 @@ export default function ContentEditPage() {
   const [selectedModelId, setSelectedModelId] = useState<number | null | undefined>(undefined);
   const { data: users } = useAllUsers();
   const [selectedChannelId, setSelectedChannelId] = useState<number | undefined>(channelIdParam);
-  const [activeTab, setActiveTab] = useUrlTabState(['content', 'workflow', 'collaboration', 'snapshot'] as const, 'content');
+  const [activeTab, setActiveTab] = useUrlTabState(['content', 'workflow', 'collaboration', 'reviews', 'snapshot'] as const, 'content');
   const [selectedWorkflowInstanceId, setSelectedWorkflowInstanceId] = useState<number>();
   const [workflowTitle, setWorkflowTitle] = useState<string>();
   const scheduleWorkflowTitle = useDebouncedCallback((title: string) => setWorkflowTitle(title), { wait: 500 });
@@ -852,7 +853,7 @@ export default function ContentEditPage() {
       ) : null}
 
       <Tabs collapsible="auto" className="cms-content-edit__tabs" activeKey={activeTab}
-        onChange={(tab) => setActiveTab(tab as 'content' | 'workflow' | 'collaboration' | 'snapshot')} keepDOM>
+        onChange={(tab) => setActiveTab(tab as 'content' | 'workflow' | 'collaboration' | 'reviews' | 'snapshot')} keepDOM>
       <TabPane tab="内容" itemKey="content">
       <Spin spinning={loading} wrapperClassName="cms-content-edit__spin">
         <Form
@@ -1233,6 +1234,7 @@ export default function ContentEditPage() {
         ) : null}
       </TabPane>
       <TabPane tab="协作与质量" itemKey="collaboration"><div className="cms-content-edit__scroll-pane"><CmsEditorialPanel content={detail} disabled={saveState !== 'saved'} models={models ?? []} onChanged={() => { dirtyRef.current = false; recovery.clear(); void detailQuery.refetch().then(() => baseline.adoptLatest()); }} onOpen={(contentId) => navigate(`/cms/contents/edit?id=${contentId}&siteId=${siteId}`)} /></div></TabPane>
+      <TabPane tab="上线复核" itemKey="reviews"><div className="cms-content-edit__scroll-pane">{activeTab === 'reviews' ? <CmsContentReviewPanel key={detail?.id} content={detail} /> : null}</div></TabPane>
       <TabPane tab="已保存稿件" itemKey="snapshot"><div className="cms-content-edit__scroll-pane">{detail ? <ContentRevisionViewer content={detail} fields={modelFields} heading="已保存工作稿" /> : <Typography.Text>保存后可查看完整稿件。</Typography.Text>}</div></TabPane>
       </Tabs>
 

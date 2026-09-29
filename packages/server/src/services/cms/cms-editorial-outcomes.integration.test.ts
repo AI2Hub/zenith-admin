@@ -1,0 +1,73 @@
+import { randomUUID } from 'node:crypto';
+import postgres from 'postgres';
+import { drizzle } from 'drizzle-orm/postgres-js';
+import { and, eq } from 'drizzle-orm';
+import { afterAll, describe, expect, it } from 'vitest';
+import { createCmsEditorialTaskSchema, type CmsEditorialGoal } from '@zenith/shared/cms';
+import * as schema from '../../db/schema';
+import { withDbExecutor } from '../../db';
+import { runWithCurrentUser } from '../../lib/context';
+import { freezeCmsContentRevision, initializeCmsContentWorkingCopy } from './cms-content-revisions.service';
+import { approveCmsContentForRelease } from './cms-contents-write.service';
+import { createCmsEditorialTask, getCmsEditorialTaskDetail } from './cms-editorial-tasks.service';
+import { completeCmsEditorialTask, recordCmsEditorialActivation, refreshCmsEditorialObservations, reopenCmsEditorialTask, verifyCmsEditorialTask } from './cms-editorial-outcomes.service';
+const connection=process.env.TEST_DATABASE_URL;
+const client=connection?postgres(connection,{max:1,onnotice:()=>undefined}):null;
+afterAll(async()=>{await client?.end();});
+const goal:CmsEditorialGoal={metric:'no_result_rate',targetValue:20,minSample:30,description:'搜索无结果率降至20%以下'};
+describe.skipIf(!connection)('CMS editorial solution and evidence lifecycle',()=>{
+  it('rejects drafts, binds exact activation, gates verification, and retains previous rounds on reopening',async()=>{
+    const url=new URL(connection!);if(!['localhost','127.0.0.1','[::1]'].includes(url.hostname)||url.pathname!=='/zenith_review')throw new Error('Requires disposable local zenith_review database');
+    const testDb=drizzle(client!,{schema,casing:'snake_case'});const rollback=new Error('rollback editorial fixture');
+    try{await testDb.transaction(async tx=>withDbExecutor(tx,async()=>{
+      const suffix=randomUUID().slice(0,8);const [user]=await tx.insert(schema.users).values({username:`qa-outcome-${suffix}`,nickname:'Outcome QA',password:'unused',userDataScope:'all'}).returning();
+      await runWithCurrentUser({userId:user.id,username:user.username,roles:['super_admin'],tenantId:null},async()=>{
+        const now=Date.now(),day=86400000;const activatedAt=new Date(now-32*day);
+        const [site]=await tx.insert(schema.cmsSites).values({name:'QA Outcome',code:`qa-outcome-${suffix}`,theme:'default'}).returning();
+        const [channel]=await tx.insert(schema.cmsChannels).values({siteId:site.id,name:'Guides',code:'guides',slug:'guides',path:'guides'}).returning();
+        const [content]=await tx.insert(schema.cmsContents).values({siteId:site.id,channelId:channel.id,title:'API指南',slug:'api-guide',body:'<p>API指南正文</p>',status:'draft'}).returning();
+        const working=await initializeCmsContentWorkingCopy(tx,content);
+        const unapproved=await freezeCmsContentRevision(tx,content,working,'checkpoint');
+        await tx.insert(schema.cmsCollectionStates).values({siteId:site.id,enabled:true,knownSince:new Date(now-70*day)});
+        await tx.insert(schema.cmsCollectionTransitions).values({siteId:site.id,enabled:true,reason:'fixture',createdAt:new Date(now-70*day)});
+        const props={cmsSchemaVersion:2,cmsSiteId:site.id,trustedCms:true,environment:'live',keyword:'API'};
+        await tx.insert(schema.userEvents).values(Array.from({length:60},(_,i)=>({eventId:randomUUID(),eventType:'custom' as const,eventName:'cms.search',pagePath:'/search',createdAt:new Date(i<30?now-35*day:now-31*day),properties:{...props,searchId:randomUUID(),visitorId:randomUUID(),sessionId:randomUUID(),resultCount:i<30?0:3,receivedAt:new Date(now-day).toISOString()}})));
+        const task=await createCmsEditorialTask(createCmsEditorialTaskSchema.parse({siteId:site.id,title:'补齐API指南',source:'search',sourceKeyword:'API',contentId:content.id,sourceWindow:{startTime:new Date(now-65*day).toISOString(),endTime:new Date(now).toISOString(),watermark:new Date(now).toISOString(),timeZone:'UTC'}}));
+        expect(task.roundNo).toBe(1);
+        await expect(completeCmsEditorialTask(task.id,{expectedVersion:task.version,revisionId:unapproved.id,goal,note:'编辑完成'})).rejects.toMatchObject({status:409});
+        await expect(completeCmsEditorialTask(task.id,{expectedVersion:task.version,revisionId:unapproved.id,goal:{...goal,metric:'manual'},note:'尝试绕过'})).rejects.toMatchObject({status:400});
+        const approved=await approveCmsContentForRelease(content.id,working.version);
+        const [revision]=await tx.select().from(schema.cmsContentRevisions).where(eq(schema.cmsContentRevisions.id,approved.approvedRevisionId!));
+        const completed=await completeCmsEditorialTask(task.id,{expectedVersion:task.version,revisionId:revision.id,goal,note:'完成API指南'});
+        expect(completed.status).toBe('edit_done');expect(completed.observations).toHaveLength(0);
+        await expect(verifyCmsEditorialTask(task.id,{expectedVersion:completed.version,observationId:null,note:'尚未上线不能验证'})).rejects.toMatchObject({status:409});
+        const [release]=await tx.insert(schema.cmsReleases).values({siteId:site.id,name:'QA release'}).returning();
+        const revisions=[{contentId:content.id,revisionId:revision.id,hash:revision.hash}];
+        const [deployment]=await tx.insert(schema.cmsDeployments).values({siteId:site.id,releaseId:release.id,status:'active',activatedAt,snapshot:{tables:{},revisions,sitePublicRevision:1,createdAt:activatedAt.toISOString()}}).returning();
+        const [activation]=await tx.insert(schema.cmsReleaseActivations).values({siteId:site.id,releaseId:release.id,toGenerationId:deployment.id,action:'activate',operatorName:'QA',createdAt:activatedAt}).returning();
+        await tx.insert(schema.cmsSiteGenerations).values({siteId:site.id,activeGenerationId:deployment.id});
+        await tx.update(schema.cmsContents).set({status:'published'}).where(eq(schema.cmsContents.id,content.id));
+        const fact={siteId:site.id,releaseId:release.id,deploymentId:deployment.id,activationId:activation.id,activatedAt,revisions};
+        await recordCmsEditorialActivation(tx,{...fact,revisions:[{...revisions[0],hash:'wrong'}]});
+        expect((await getCmsEditorialTaskDetail(task.id)).status).toBe('edit_done');
+        await recordCmsEditorialActivation(tx,fact);
+        let detail=await getCmsEditorialTaskDetail(task.id);expect(detail.status).toBe('online');expect(detail.observations).toHaveLength(2);
+        detail=await refreshCmsEditorialObservations(task.id,{expectedVersion:detail.version});
+        expect(detail.observations.every(row=>row.outcome==='improved')).toBe(true);
+        const week=detail.observations.find(row=>row.windowDays===7)!;const month=detail.observations.find(row=>row.windowDays===30)!;
+        await expect(verifyCmsEditorialTask(task.id,{expectedVersion:detail.version,observationId:week.id,note:'中期不代表完整观察'})).rejects.toMatchObject({status:409});
+        await tx.update(schema.cmsCollectionStates).set({purgedThrough:new Date(now-30*day)}).where(eq(schema.cmsCollectionStates.siteId,site.id));
+        await expect(verifyCmsEditorialTask(task.id,{expectedVersion:detail.version,observationId:month.id,note:'已过期证据不能验证'})).rejects.toMatchObject({status:409});
+        await tx.update(schema.cmsCollectionStates).set({purgedThrough:null}).where(eq(schema.cmsCollectionStates.siteId,site.id));
+        const verified=await verifyCmsEditorialTask(task.id,{expectedVersion:detail.version,observationId:month.id,note:'窗口完整且无结果率已达标'});
+        expect(verified.status).toBe('verified');expect(verified.history.some(row=>row.action==='verified')).toBe(true);
+        const reopened=await reopenCmsEditorialTask(task.id,{expectedVersion:verified.version,reason:'再次收到类似问题'});
+        expect(reopened.status).toBe('open');expect(reopened.roundNo).toBe(2);expect(reopened.rounds).toHaveLength(2);expect(reopened.rounds.find(row=>row.roundNo===1)?.verifiedAt).toBeTruthy();expect(reopened.rounds[0].solutionRevisionId).toBeNull();
+        await expect(reopenCmsEditorialTask(task.id,{expectedVersion:verified.version,reason:'过期并发请求'})).rejects.toMatchObject({status:409});
+        // A new round retains history and cannot reinterpret the older deployed revision as a fresh fix.
+        await tx.update(schema.cmsEditorialTaskRounds).set({createdAt:new Date()}).where(and(eq(schema.cmsEditorialTaskRounds.taskId,task.id),eq(schema.cmsEditorialTaskRounds.roundNo,2)));
+        await expect(completeCmsEditorialTask(task.id,{expectedVersion:reopened.version,revisionId:revision.id,goal,note:'不能借用旧上线版本'})).rejects.toMatchObject({status:409});
+      });throw rollback;
+    }));}catch(error){if(error!==rollback)throw error;}
+  },120000);
+});

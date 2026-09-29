@@ -6,6 +6,7 @@ import { StatCard, StatGrid } from '@/components/charts/StatCard';
 import DateTimeText from '@/components/DateTimeText';
 import { DateRangeFilter, FilterSelect } from '@/components/search-filters';
 import { ListSearchToolbar } from '@/components/list-page';
+import { useListDeepLink } from '@/hooks/useListDeepLink';
 import { useListSearch } from '@/hooks/useListSearch';
 import { useFilterQuery } from '@/hooks/useFilterQuery';
 import { useUrlTabState } from '@/hooks/useUrlTabState';
@@ -68,6 +69,10 @@ function StatsWorkspace({ siteId, timeZone }: Readonly<{ siteId: number; timeZon
   const settings = useCmsTelemetrySettings();
   const { hasPermission } = usePermission();
   const filters = useListSearch<Filters>({ defaults: () => ({ range: cmsStatsDateRange(timeZone), timeZone, granularity: 'day', compare: 'previous_period' }), listKey: contractKey(cmsStatContract.overview), extraKeys: [cmsStatKeys.report, cmsStatKeys.quality, cmsStatKeys.options] });
+  useListDeepLink(['contentId'], picked => {
+    const contentId = Number(picked.contentId);
+    if (Number.isSafeInteger(contentId) && contentId > 0) filters.applySearch({ ...filters.submittedParams, contentId });
+  });
   const { range, ...submitted } = filters.submittedParams;
   const filterQuery = useFilterQuery({ ...submitted, ...formatDateRangeForApi(range) });
   const query = useMemo(() => ({ ...filterQuery, siteId }), [filterQuery, siteId]);

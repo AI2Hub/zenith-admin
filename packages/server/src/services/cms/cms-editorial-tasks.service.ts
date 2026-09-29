@@ -2,9 +2,10 @@ import { and, desc, eq, isNull, or, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import type * as z from 'zod';
 import type { QueryOutputOf } from '@zenith/shared/core';
-import { cmsContentContract, cmsEditorialTaskSchema, cmsOperationsContract, createCmsEditorialTaskSchema, updateCmsEditorialTaskSchema, normalizeCmsSearchKeyword } from '@zenith/shared/cms';
+import { cmsContentContract, cmsEditorialTaskSchema, cmsEditorialTaskRoundSchema, cmsEditorialTaskObservationSchema, cmsEditorialTaskHistorySchema, cmsOperationsContract, type CmsEditorialSourceEvidence, createCmsEditorialTaskSchema, updateCmsEditorialTaskSchema, normalizeCmsSearchKeyword } from '@zenith/shared/cms';
 import { db } from '../../db';
-import { cmsContents, cmsContentWorkingCopies, cmsEditorialTasks, userEvents, users } from '../../db/schema';
+import type { DbTransaction } from '../../db/types';
+import { cmsContents, cmsContentWorkingCopies, cmsEditorialTasks, cmsEditorialTaskRounds, cmsEditorialTaskObservations, cmsEditorialTaskHistory, users } from '../../db/schema';
 import { pickEntity } from '../../lib/entity-map';
 import { requireRow } from '../../lib/db-assert';
 import { buildListResult } from '../../lib/list-query';
@@ -14,6 +15,7 @@ import { hasPermission } from '../../lib/context';
 import { assertSiteAccess } from './cms-sites.service';
 import { assertAllCmsSiteChannelsAccess } from './cms-channels.service';
 import { buildCmsContentListWhere, getCmsContent } from './cms-contents-query.service';
+import { appendCmsEditorialTaskHistory, createCmsEditorialRound, readCmsEditorialMetricSnapshot } from './cms-editorial-outcomes-shared';
 import { getCmsFeedbackDetail, requireCmsOperationsAssignee } from './cms-feedback.service';
 
 export async function cmsEditorialTaskVisibility(siteId: number) {
@@ -49,36 +51,78 @@ async function validateTaskContent(siteId: number, contentId?: number | null) {
   if (content.siteId !== siteId) throw new HTTPException(400, { message: '关联稿件必须属于本站' });
 }
 export async function createCmsEditorialTask(input: z.output<typeof createCmsEditorialTaskSchema>) {
-  await assertSiteAccess(input.siteId); await validateTaskContent(input.siteId, input.contentId);
-  if (input.ownerId) await requireCmsOperationsAssignee(input.ownerId, '事项负责人不存在或已停用');
-  let sourceKey: string | null = null;
-  if (input.source === 'search') {
-    if (!await hasPermission('cms:stat:view')) throw new HTTPException(403, { message: '没有查看搜索反馈的权限' });
-    await assertAllCmsSiteChannelsAccess(input.siteId);
-    const [search] = await db.select({ id: userEvents.id }).from(userEvents).where(and(
-      eq(userEvents.eventName, 'cms.search'), sql`${userEvents.properties} @> ${JSON.stringify({ cmsSchemaVersion: 2, trustedCms: true, environment: 'live', cmsSiteId: input.siteId })}::jsonb`,
-      sql`lower(trim(${userEvents.properties}->>'keyword'))=${normalizeCmsSearchKeyword(input.sourceKeyword!)}`, sql`${userEvents.properties}->>'resultCount'='0'`,
-    )).limit(1);
-    requireRow(search, '该搜索词不存在于本站无结果搜索记录'); sourceKey = normalizeCmsSearchKeyword(input.sourceKeyword!);
+  await assertSiteAccess(input.siteId); await validateTaskContent(input.siteId,input.contentId);
+  if(input.ownerId)await requireCmsOperationsAssignee(input.ownerId,'事项负责人不存在或已停用');
+  let sourceKey:string|null=null;
+  const evidence:CmsEditorialSourceEvidence={kind:input.source,summary:input.title,capturedAt:new Date().toISOString(),snapshot:null,metadata:{}};
+  if(input.source==='search'){
+    await assertCmsEditorialMetricsAccess(input.siteId);
+    sourceKey=normalizeCmsSearchKeyword(input.sourceKeyword!);evidence.summary=`无结果搜索词：${input.sourceKeyword}`;evidence.metadata.keyword=sourceKey;
   }
-  if (input.source === 'submission') {
-    if (!await hasPermission('cms:form:list')) throw new HTTPException(403, { message: '没有查看来信的权限' });
-    const feedback = await getCmsFeedbackDetail(input.feedbackId!);
-    if (feedback.siteId !== input.siteId) throw new HTTPException(400, { message: '来源来信必须属于本站' });
-    sourceKey = String(feedback.id);
+  if(input.source==='submission'){
+    if(!await hasPermission('cms:form:list'))throw new HTTPException(403,{message:'没有查看来信的权限'});
+    const feedback=await getCmsFeedbackDetail(input.feedbackId!);
+    if(feedback.siteId!==input.siteId)throw new HTTPException(400,{message:'来源来信必须属于本站'});
+    sourceKey=String(feedback.id);evidence.summary=feedback.title;evidence.metadata={feedbackId:feedback.id,formName:feedback.formName,feedbackStatus:feedback.status};
   }
-  const [created] = await db.insert(cmsEditorialTasks).values({ ...input, sourceKey, dueAt: input.dueAt ? parseDateTimeInput(input.dueAt) : null }).onConflictDoNothing({ target: [cmsEditorialTasks.siteId, cmsEditorialTasks.source, cmsEditorialTasks.sourceKey] }).returning();
-  if (created) return getCmsEditorialTask(created.id);
-  const [existing] = await db.select({ id: cmsEditorialTasks.id }).from(cmsEditorialTasks).where(and(eq(cmsEditorialTasks.siteId, input.siteId), eq(cmsEditorialTasks.source, input.source), eq(cmsEditorialTasks.sourceKey, sourceKey!))).limit(1);
-  return getCmsEditorialTask(requireRow(existing, '事项创建冲突，请重试', 409).id);
-}
-export async function updateCmsEditorialTask(id: number, input: z.output<typeof updateCmsEditorialTaskSchema>) {
-  const current = await getCmsEditorialTask(id);
-  await validateTaskContent(current.siteId, input.contentId);
-  if (input.ownerId) await requireCmsOperationsAssignee(input.ownerId, '事项负责人不存在或已停用');
-  if ((input.status ?? current.status) === 'done' && current.source !== 'manual' && !(input.contentId === undefined ? current.contentId : input.contentId)) throw new HTTPException(400, { message: '请先关联处理该反馈的稿件，再完成编辑事项' });
-  const { expectedVersion, dueAt, ...patch } = input;
-  const [row] = await db.update(cmsEditorialTasks).set({ ...patch, ...(dueAt !== undefined ? { dueAt: dueAt ? parseDateTimeInput(dueAt) : null } : {}), version: sql`${cmsEditorialTasks.version} + 1` }).where(and(eq(cmsEditorialTasks.id, id), eq(cmsEditorialTasks.version, expectedVersion))).returning({ id: cmsEditorialTasks.id });
-  if (!row) throw new HTTPException(409, { message: '编辑事项已被更新，请刷新后重试' });
+  const {sourceWindow,...values}=input;
+  const id=await db.transaction(async tx=>{
+    if(input.source==='search'){
+      const now=new Date();
+      const window=sourceWindow??{startTime:new Date(now.getTime()-30*86400000).toISOString(),endTime:now.toISOString(),watermark:now.toISOString(),timeZone:'Asia/Shanghai'};
+      if(Date.parse(window.watermark)>Date.now())throw new HTTPException(400,{message:'来源证据不能使用未来的统计截点'});
+      evidence.snapshot=await readCmsEditorialMetricSnapshot(tx,input.siteId,null,sourceKey,window);evidence.metadata.timeZone=window.timeZone;
+      if(!evidence.snapshot.metrics.noResultSearches)throw new HTTPException(400,{message:'该搜索词在所选证据窗口内没有可信无结果搜索记录'});
+    }
+    const [created]=await tx.insert(cmsEditorialTasks).values({...values,sourceKey,dueAt:input.dueAt?parseDateTimeInput(input.dueAt):null}).onConflictDoNothing({target:[cmsEditorialTasks.siteId,cmsEditorialTasks.source,cmsEditorialTasks.sourceKey]}).returning();
+    if(created){await createCmsEditorialRound(tx,created,evidence);await appendCmsEditorialTaskHistory(tx,created,'created',null,{sourceEvidence:evidence});return created.id;}
+    const [existing]=await tx.select({id:cmsEditorialTasks.id}).from(cmsEditorialTasks).where(and(eq(cmsEditorialTasks.siteId,input.siteId),eq(cmsEditorialTasks.source,input.source),eq(cmsEditorialTasks.sourceKey,sourceKey!))).limit(1);
+    return requireRow(existing,'事项创建冲突，请重试',409).id;
+  },{isolationLevel:'repeatable read'});
   return getCmsEditorialTask(id);
+}
+export async function assertCmsEditorialMetricsAccess(siteId:number){
+  if(!await hasPermission('cms:stat:view'))throw new HTTPException(403,{message:'查看或验证效果指标需要访问统计权限'});
+  await assertAllCmsSiteChannelsAccess(siteId);
+}
+export async function getCmsEditorialTaskDetail(id:number){
+  const task=await getCmsEditorialTask(id);
+  let canViewMetrics=false;
+  if(await hasPermission('cms:stat:view')){
+    try{await assertAllCmsSiteChannelsAccess(task.siteId);canViewMetrics=true;}catch(error){if(!(error instanceof HTTPException)||error.status!==403)throw error;}
+  }
+  const [rounds,observations,history]=await Promise.all([
+    db.select().from(cmsEditorialTaskRounds).where(eq(cmsEditorialTaskRounds.taskId,id)).orderBy(desc(cmsEditorialTaskRounds.roundNo)),
+    db.select().from(cmsEditorialTaskObservations).where(eq(cmsEditorialTaskObservations.taskId,id)).orderBy(desc(cmsEditorialTaskObservations.id)),
+    db.select().from(cmsEditorialTaskHistory).where(eq(cmsEditorialTaskHistory.taskId,id)).orderBy(desc(cmsEditorialTaskHistory.id)),
+  ]);
+  return {...task,canViewMetrics,
+    rounds:rounds.map(row=>pickEntity(cmsEditorialTaskRoundSchema,row,{sourceEvidence:canViewMetrics?row.sourceEvidence:{...row.sourceEvidence,snapshot:null}})),
+    observations:observations.map(row=>pickEntity(cmsEditorialTaskObservationSchema,row,canViewMetrics?{}:{before:null,after:null,otherActivationIds:[]})),
+    history:history.map(row=>pickEntity(cmsEditorialTaskHistorySchema,row,{snapshot:!canViewMetrics&&['created','reopened','observation'].includes(row.action)?{restricted:true}:row.snapshot})),
+  };
+}
+export async function updateCmsEditorialTask(id:number,input:z.output<typeof updateCmsEditorialTaskSchema>){
+  const current=await getCmsEditorialTask(id);await validateTaskContent(current.siteId,input.contentId);
+  if(input.ownerId)await requireCmsOperationsAssignee(input.ownerId,'事项负责人不存在或已停用');
+  await db.transaction(async tx=>{
+    const row=requireRow((await tx.select().from(cmsEditorialTasks).where(eq(cmsEditorialTasks.id,id)).for('update').limit(1))[0],'编辑事项不存在');
+    if(row.version!==input.expectedVersion)throw new HTTPException(409,{message:'编辑事项已被更新，请刷新后重试'});
+    const editable=['open','in_progress'].includes(row.status);
+    if(!editable&&input.contentId!==undefined&&input.contentId!==row.contentId)throw new HTTPException(409,{message:'本轮已锁定解决修订；需要变更稿件时请重开事项'});
+    if(input.status!==undefined&&!editable&&(input.status!=='cancelled'||['verified','cancelled'].includes(row.status)))throw new HTTPException(409,{message:'本轮已进入效果观察或已结束；重新处理请重开事项'});
+    const {expectedVersion:_expectedVersion,dueAt,...patch}=input;
+    const [updated]=await tx.update(cmsEditorialTasks).set({...patch,...(dueAt!==undefined?{dueAt:dueAt?parseDateTimeInput(dueAt):null}:{}),version:row.version+1}).where(eq(cmsEditorialTasks.id,id)).returning();
+    if(input.status==='cancelled')await tx.update(cmsEditorialTaskRounds).set({closedAt:new Date()}).where(and(eq(cmsEditorialTaskRounds.taskId,id),eq(cmsEditorialTaskRounds.roundNo,row.roundNo)));
+    await appendCmsEditorialTaskHistory(tx,updated,input.status==='cancelled'?'cancelled':'updated',null,{changedFields:Object.keys(patch)});
+  });
+  return getCmsEditorialTask(id);
+}
+/** Internal scanner already owns the site/content policy transaction; it never supplies browser evidence. */
+export async function createCmsEditorialTaskFromReview(tx:DbTransaction,input:{siteId:number;contentId:number;title:string;description:string;ownerId:number|null;dueAt:Date|null;sourceKey:string;evidence:{summary:string;reviewKind:string;metadata:Record<string,string|number|boolean|null>}}){
+  const {evidence,...values}=input;
+  const [created]=await tx.insert(cmsEditorialTasks).values({...values,source:'review'}).onConflictDoNothing({target:[cmsEditorialTasks.siteId,cmsEditorialTasks.source,cmsEditorialTasks.sourceKey]}).returning();
+  if(!created)return requireRow((await tx.select().from(cmsEditorialTasks).where(and(eq(cmsEditorialTasks.siteId,input.siteId),eq(cmsEditorialTasks.source,'review'),eq(cmsEditorialTasks.sourceKey,input.sourceKey))).limit(1))[0],'复核事项创建冲突',409);
+  const sourceEvidence:CmsEditorialSourceEvidence={kind:'review',summary:evidence.summary,capturedAt:new Date().toISOString(),snapshot:null,metadata:{...evidence.metadata,reviewKind:evidence.reviewKind}};
+  await createCmsEditorialRound(tx,created,sourceEvidence);await appendCmsEditorialTaskHistory(tx,created,'created',null,{sourceEvidence},true);return created;
 }

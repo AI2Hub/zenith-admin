@@ -7,6 +7,7 @@ import { mockDateTime } from '../utils/date';
 import { mockCmsContents, mockCmsSites, mockCmsPages, mockCmsWidgets, mockCmsChannels, mockCmsWidgetRefs, mockCmsFriendLinkGroups, mockCmsFriendLinks, mockCmsLinkWords, mockCmsRedirects, mockCmsSearchWords, mockCmsResources } from '../data/cms';
 import { activateMockCmsRevision, getMockCmsPublishedContent, getMockCmsRevision, getMockCmsRevisionContent, getMockCmsWorkingContent, withdrawMockCmsContent } from '../utils/cms-revisions';
 import { escapeHtml, stableStringify, type OutputOf } from '@zenith/shared/core';
+import { recordMockEditorialActivation } from '../utils/cms-editorial-outcomes';
 
 const releases: CmsRelease[] = [];
 const deployments: (CmsDeployment & { siteId: number; revisions: Map<number, number> })[] = [];
@@ -16,6 +17,21 @@ const suppressed = new Set<number>();
 const activations: (OutputOf<typeof cmsReleaseContract.detail>['activations'][number] & { releaseId: number })[] = [];
 const configurations = new Map<number, CmsConfigurationSnapshot>();
 const requireRelease = (id: number) => requireItem(releases, id, '发布单不存在', { status: 404 });
+
+export function getMockCmsSiteActivations(siteId: number) {
+  return activations.filter(row => releases.some(release => release.id === row.releaseId && release.siteId === siteId));
+}
+/** Read the same deployment pointer and pinned revisions that Demo release activation uses. */
+export function getMockCmsActivePublication(contentId: number) {
+  const content = getMockCmsPublishedContent(contentId);
+  if (!content || content.archivedAt || suppressed.has(contentId)) return null;
+  const deployment = deployments.find(row => row.id === active.get(content.siteId));
+  const revisionId = deployment?.revisions.get(contentId);
+  const revision = revisionId ? getMockCmsRevision(revisionId) : undefined;
+  const activation = deployment ? activations.findLast(row => row.toGenerationId === deployment.id) : undefined;
+  if (!deployment || !revision || !activation) return null;
+  return { revisionId: revision.id, hash: revision.hash, releaseId: activation.releaseId, deploymentId: deployment.id, activationId: activation.id, activatedAt: activation.createdAt };
+}
 
 export function getMockCmsPublishedTelemetry(siteId: number): { enabled?: boolean; timeZone?: string } | undefined {
   const id = active.get(siteId);
@@ -80,8 +96,10 @@ function activate(id: number, expectedGenerationId: number | null, rollback = fa
   for (const old of releases.filter((item) => item.siteId === release.siteId && item.status === 'active')) old.status = 'superseded';
   for (const old of deployments.filter((item) => item.siteId === release.siteId && item.status === 'active')) old.status = 'retired';
   active.set(release.siteId, deployment.id);
-  activations.push({ id: nextIdFrom(activations), releaseId: release.id, fromGenerationId: current, toGenerationId: deployment.id, action: rollback ? 'rollback' : 'activate', operatorId: 1, operatorName: '演示管理员', createdAt: mockDateTime() });
+  const activation = { id: nextIdFrom(activations), releaseId: release.id, fromGenerationId: current, toGenerationId: deployment.id, action: rollback ? 'rollback' as const : 'activate' as const, operatorId: 1, operatorName: '演示管理员', createdAt: mockDateTime() };
+  activations.push(activation);
   deployment.status = 'active'; deployment.activatedAt = mockDateTime();
+  recordMockEditorialActivation({ siteId: release.siteId, releaseId: release.id, deploymentId: deployment.id, activationId: activation.id, activatedAt: activation.createdAt, revisions: deployment.revisions });
   return updateItem(releases, release.id, { status: 'active' as const, error: null }, { notFoundMessage: '发布单不存在', now: mockDateTime });
 }
 

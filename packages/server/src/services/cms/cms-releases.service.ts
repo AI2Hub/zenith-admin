@@ -1,4 +1,5 @@
 import { syncCmsCollectionState } from './cms-collection-state';
+import { recordCmsEditorialActivation } from './cms-editorial-outcomes.service';
 import { and, asc, desc, eq, inArray, isNotNull, lte, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { cmsDeploymentSchema, cmsReleaseActivationSchema, cmsReleaseContract, cmsReleaseSchema, type CreateCmsReleaseInput, type CmsRelease } from '@zenith/shared/cms';
@@ -294,6 +295,7 @@ export async function activateCmsRelease(id: number, expectedGenerationId: numbe
     await syncCmsCollectionState(tx, locked.siteId, rollback ? 'rollback' : 'activation');
     const actor = currentUserOrNull();
     const [activation] = await tx.insert(cmsReleaseActivations).values({ siteId: locked.siteId, releaseId: locked.id, fromGenerationId: current, toGenerationId: deployment.id, action: rollback ? 'rollback' : 'activate', operatorId: actor?.userId ?? null, operatorName: actor?.username ?? '系统' }).returning();
+    await recordCmsEditorialActivation(tx, { siteId: locked.siteId, releaseId: locked.id, deploymentId: deployment.id, activationId: activation.id, activatedAt: now, revisions: deployment.snapshot.revisions });
     const webhooks = [];
     const notifications = [];
     const effects = [];

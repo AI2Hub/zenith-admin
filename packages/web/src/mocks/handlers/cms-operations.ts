@@ -1,18 +1,18 @@
-import { normalizeCmsSearchKeyword, canTransitionCmsFeedback, CMS_ATTRIBUTION_EVENTS, CMS_WORKSPACE_QUEUES, cmsFeedbackSchema, cmsOperationsContract, type CmsEditorialTask, type CmsWorkspaceItem } from '@zenith/shared/cms';
+import { normalizeCmsSearchKeyword, canTransitionCmsFeedback, CMS_ATTRIBUTION_EVENTS, CMS_WORKSPACE_QUEUES, cmsFeedbackSchema, cmsOperationsContract, type CmsEditorialSourceEvidence, type CmsEditorialTask, type CmsWorkspaceItem } from '@zenith/shared/cms';
 import { WORKFLOW_ACTIVE_INSTANCE_STATUSES } from '@zenith/shared/workflow';
 import { mock, MockHttpError } from '../utils/contract';
 import { requireItem } from '../utils/crud';
 import { badRequest, conflict, nextIdFrom } from '../utils/handlers';
 import { mockDateTime } from '../utils/date';
 import { matchesFilter } from '../utils/filter';
-import { hasMockCmsNoResultKeyword } from './cms-stats';
 import { mockCmsContents, mockCmsForms, mockCmsSites } from '../data/cms';
 import { mockUsers } from '../data/users';
 import { mockWorkflowDefinitions } from '../data/workflow';
-import { appendMockCmsFeedbackHistory, mockCmsAttributionReads, mockCmsEditorialTasks, mockCmsFeedback, mockCmsHandlingPolicies, mockCmsNoResultKeywords, syncMockCmsFeedbackSubmissions } from '../data/cms-operations';
+import { appendMockCmsFeedbackHistory, mockCmsAttributionReads, mockCmsEditorialTasks, mockCmsFeedback, mockCmsHandlingPolicies, syncMockCmsFeedbackSubmissions } from '../data/cms-operations';
 import { getMockBusinessContext, previewMockBusinessWorkflow, requireMockBusinessInstance, startMockBusinessWorkflow } from '../utils/workflow-business';
 import { getMockCmsWorkingContent } from '../utils/cms-revisions';
 import { getMockCmsUnresolvedNoteContentIds } from './cms-editorial';
+import { appendMockEditorialHistory, closeMockEditorialRound, completeMockEditorialTask, createMockEditorialRound, mockEditorialDetail, mockEditorialMetrics, refreshMockEditorialObservations, reopenMockEditorialTask, verifyMockEditorialTask } from '../utils/cms-editorial-outcomes';
 
 const active = (status?: string | null) => WORKFLOW_ACTIVE_INSTANCE_STATUSES.some((value) => value === status);
 const person = (id?: number | null) => {
@@ -85,28 +85,46 @@ export const cmsOperationsHandlers = [
     appendMockCmsFeedbackHistory(row, 'workflow:submitted', body.note); return ok(row);
   }),
   mock(cmsOperationsContract.tasks, ({ query, ok, paginate }) => ok(paginate(mockCmsEditorialTasks.filter((row) => row.siteId === query.siteId && matchesFilter(row.status, query.status) && matchesFilter(row.ownerId, query.ownerId) && (!query.keyword || row.title.includes(query.keyword))).sort((a, b) => b.id - a.id).map(task)))),
-  mock(cmsOperationsContract.taskDetail, ({ params, ok }) => ok(task(requireItem(mockCmsEditorialTasks, params.id, '事项不存在', { status: 404 })))),
+  mock(cmsOperationsContract.taskDetail, ({ params, ok }) => ok(mockEditorialDetail(task(requireItem(mockCmsEditorialTasks, params.id, '事项不存在', { status: 404 }))))),
   mock(cmsOperationsContract.createTask, ({ body, ok }) => {
     requireItem(mockCmsSites, body.siteId, '站点不存在', { status: 404 }); person(body.ownerId); taskContent(body.siteId, body.contentId);
-    if (body.source === 'search' && !hasMockCmsNoResultKeyword(body.siteId, body.sourceKeyword ?? '') && !mockCmsNoResultKeywords.some((row) => normalizeCmsSearchKeyword(row.keyword) === normalizeCmsSearchKeyword(body.sourceKeyword ?? ''))) return badRequest('无结果搜索词不存在', { status: 400 });
     if (body.source === 'submission' && feedback(body.feedbackId!).siteId !== body.siteId) return badRequest('来源来信必须属于本站', { status: 400 });
+    const now = new Date().toISOString();
+    const window = body.sourceWindow ?? { startTime: new Date(Date.now() - 30 * 86400000).toISOString(), endTime: now, watermark: now, timeZone: 'Asia/Shanghai' };
+    if (body.source === 'search' && Date.parse(window.watermark) > Date.now()) return badRequest('来源证据不能使用未来的统计截点', { status: 400 });
+    const snapshot = body.source === 'search' ? mockEditorialMetrics({ siteId: body.siteId, source: body.source, sourceKeyword: body.sourceKeyword ?? null, contentId: body.contentId ?? null }, window) : null;
+    if (body.source === 'search' && !snapshot?.metrics.noResultSearches) return badRequest('该搜索词在所选证据窗口内没有无结果搜索记录', { status: 400 });
     const existing = mockCmsEditorialTasks.find((row) => row.siteId === body.siteId && row.source === body.source && (body.source === 'search' ? normalizeCmsSearchKeyword(row.sourceKeyword ?? '') === normalizeCmsSearchKeyword(body.sourceKeyword ?? '') : body.source === 'submission' && row.feedbackId === body.feedbackId));
     if (existing) return ok(task(existing));
     const row: CmsEditorialTask = { id: nextIdFrom(mockCmsEditorialTasks), siteId: body.siteId, title: body.title, description: body.description, source: body.source, sourceKeyword: body.sourceKeyword ?? null, feedbackId: body.feedbackId ?? null,
-      ownerId: body.ownerId ?? null, ownerName: null, dueAt: body.dueAt ?? null, status: 'open', version: 1, contentId: body.contentId ?? null, contentTitle: null, contentStatus: null, editorialStatus: null, publishedRevisionId: null, hasUnpublishedChanges: false, createdAt: mockDateTime(), updatedAt: mockDateTime() };
-    mockCmsEditorialTasks.push(row); return ok(task(row));
+      ownerId: body.ownerId ?? null, ownerName: null, dueAt: body.dueAt ?? null, status: 'open', version: 1, roundNo: 1, contentId: body.contentId ?? null, contentTitle: null, contentStatus: null, editorialStatus: null, publishedRevisionId: null, hasUnpublishedChanges: false, createdAt: mockDateTime(), updatedAt: mockDateTime() };
+    mockCmsEditorialTasks.push(row);
+    const sourceFeedback = body.source === 'submission' ? feedback(body.feedbackId!) : null;
+    const evidence: CmsEditorialSourceEvidence = { kind: row.source, summary: sourceFeedback?.title ?? body.title, capturedAt: now, snapshot,
+      metadata: sourceFeedback ? { feedbackId: sourceFeedback.id, formName: sourceFeedback.formName, feedbackStatus: sourceFeedback.status } : body.source === 'search' ? { keyword: normalizeCmsSearchKeyword(body.sourceKeyword!), timeZone: window.timeZone } : {} };
+    createMockEditorialRound(row, evidence); appendMockEditorialHistory(row, 'created', null, { sourceEvidence: evidence });
+    return ok(task(row));
   }),
   mock(cmsOperationsContract.updateTask, ({ params, body, ok }) => {
     const row = requireItem(mockCmsEditorialTasks, params.id, '事项不存在', { status: 404 }); assertVersion(row.version, body.expectedVersion); person(body.ownerId); taskContent(row.siteId, body.contentId);
-    if ((body.status ?? row.status) === 'done' && row.source !== 'manual' && !(body.contentId === undefined ? row.contentId : body.contentId)) return badRequest('完成事项前请关联稿件', { status: 400 });
-    const { expectedVersion: _, ...patch } = body; Object.assign(row, patch, { version: row.version + 1, updatedAt: mockDateTime() }); return ok(task(row));
+    const editable = ['open', 'in_progress'].includes(row.status);
+    if (!editable && body.contentId !== undefined && body.contentId !== row.contentId) return conflict('本轮已锁定解决修订；需要变更稿件时请重开事项', { status: 409 });
+    if (body.status !== undefined && !editable && (body.status !== 'cancelled' || ['verified', 'cancelled'].includes(row.status))) return conflict('本轮已进入效果观察或已结束；重新处理请重开事项', { status: 409 });
+    const { expectedVersion: _, ...patch } = body; Object.assign(row, patch, { version: row.version + 1, updatedAt: mockDateTime() });
+    if (body.status === 'cancelled') closeMockEditorialRound(row);
+    appendMockEditorialHistory(row, body.status === 'cancelled' ? 'cancelled' : 'updated', null, { changedFields: Object.keys(patch) });
+    return ok(task(row));
   }),
+  mock(cmsOperationsContract.completeTask, ({ params, body, ok }) => { const row = requireItem(mockCmsEditorialTasks, params.id, '事项不存在', { status: 404 }); completeMockEditorialTask(row, body); return ok(mockEditorialDetail(task(row))); }),
+  mock(cmsOperationsContract.verifyTask, ({ params, body, ok }) => { const row = requireItem(mockCmsEditorialTasks, params.id, '事项不存在', { status: 404 }); verifyMockEditorialTask(row, body); return ok(mockEditorialDetail(task(row))); }),
+  mock(cmsOperationsContract.reopenTask, ({ params, body, ok }) => { const row = requireItem(mockCmsEditorialTasks, params.id, '事项不存在', { status: 404 }); reopenMockEditorialTask(row, body); return ok(mockEditorialDetail(task(row))); }),
+  mock(cmsOperationsContract.refreshTaskObservations, ({ params, body, ok }) => { const row = requireItem(mockCmsEditorialTasks, params.id, '事项不存在', { status: 404 }); refreshMockEditorialObservations(row, body); return ok(mockEditorialDetail(task(row))); }),
   mock(cmsOperationsContract.workspace, ({ query, ok, paginate }) => {
     syncMockCmsFeedbackSubmissions();
     const contents = mockCmsContents.filter((item) => item.siteId === query.siteId).map((item) => getMockCmsWorkingContent(item.id));
     const noteIds = getMockCmsUnresolvedNoteContentIds();
     const items = (queue: typeof CMS_WORKSPACE_QUEUES[number]): CmsWorkspaceItem[] => queue === 'feedback' ? mockCmsFeedback.filter((row) => row.siteId === query.siteId && ['new', 'processing'].includes(row.status) && (!row.ownerId || row.ownerId === 1)).map((row) => ({ id: row.id, title: row.title, status: row.status, dueAt: row.dueAt, kind: 'feedback' as const, ownerName: ownerName(row.ownerId), href: `/cms/forms?site=${row.siteId}&feedback=${row.id}` }))
-      : queue === 'tasks' ? mockCmsEditorialTasks.filter((row) => row.siteId === query.siteId && ['open', 'in_progress'].includes(row.status) && (!row.ownerId || row.ownerId === 1)).map((row) => ({ id: row.id, title: row.title, status: row.status, dueAt: row.dueAt, kind: 'task' as const, ownerName: ownerName(row.ownerId), href: `/cms/workspace?siteId=${row.siteId}&task=${row.id}` }))
+      : queue === 'tasks' || queue === 'reviews' ? mockCmsEditorialTasks.filter((row) => row.siteId === query.siteId && !['verified', 'cancelled'].includes(row.status) && (queue !== 'reviews' || row.source === 'review') && (!row.ownerId || row.ownerId === 1)).map((row) => ({ id: row.id, title: row.title, status: row.status, dueAt: row.dueAt, kind: 'task' as const, ownerName: ownerName(row.ownerId), href: `/cms/workspace?siteId=${row.siteId}&task=${row.id}` }))
       : contents.filter((row) => queue === 'mine' ? row.ownerId === 1 : queue === 'review' ? row.editorialStatus === 'pending' : queue === 'overdue' ? !!row.dueAt && row.dueAt < mockDateTime() && row.editorialStatus !== 'clean' : queue === 'notes' ? noteIds.has(row.id) : row.editorialStatus !== 'clean').map((row) => ({ id: row.id, title: row.title, kind: 'content' as const, status: row.editorialStatus, ownerName: ownerName(row.ownerId), dueAt: row.dueAt, href: `/cms/contents/edit?id=${row.id}&site=${query.siteId}` }));
     return ok({ ...paginate(items(query.queue ?? 'mine').filter((row) => !query.keyword || row.title.includes(query.keyword))), counters: CMS_WORKSPACE_QUEUES.map((queue) => ({ queue, count: items(queue).length, available: true })) });
   }),

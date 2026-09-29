@@ -455,13 +455,13 @@ export const CMS_MODEL_DISPLAY_OPTIONS = createLabelOptionsFromMap(CMS_MODEL_DIS
 export const CMS_FEEDBACK_STATUSES = ['new', 'processing', 'resolved', 'closed'] as const;
 export const CMS_FEEDBACK_STATUS_LABELS = { new: '待处理', processing: '处理中', resolved: '已处理', closed: '已关闭' };
 export const CMS_FEEDBACK_STATUS_OPTIONS = createLabelOptionsFromMap(CMS_FEEDBACK_STATUS_LABELS);
-export const CMS_EDITORIAL_TASK_STATUSES = ['open', 'in_progress', 'done', 'cancelled'] as const;
-export const CMS_EDITORIAL_TASK_STATUS_LABELS = { open: '待开始', in_progress: '进行中', done: '已完成', cancelled: '已取消' };
+export const CMS_EDITORIAL_TASK_STATUSES = ['open', 'in_progress', 'edit_done', 'online', 'observing', 'verified', 'cancelled'] as const;
+export const CMS_EDITORIAL_TASK_STATUS_LABELS = { open: '待开始', in_progress: '进行中', edit_done: '编辑完成待上线', online: '已上线', observing: '效果观察中', verified: '已验证', cancelled: '已取消' };
 export const CMS_EDITORIAL_TASK_STATUS_OPTIONS = createLabelOptionsFromMap(CMS_EDITORIAL_TASK_STATUS_LABELS);
-export const CMS_EDITORIAL_TASK_SOURCES = ['manual', 'search', 'submission'] as const;
-export const CMS_EDITORIAL_TASK_SOURCE_LABELS = { manual: '手工事项', search: '无结果搜索', submission: '表单来信' };
-export const CMS_WORKSPACE_QUEUES = ['mine', 'review', 'overdue', 'notes', 'unpublished', 'feedback', 'tasks'] as const;
-export const CMS_WORKSPACE_QUEUE_LABELS = { mine: '我的稿件', review: '待审核', overdue: '逾期稿件', notes: '未解决批注', unpublished: '待发布修改', feedback: '待办理反馈', tasks: '编辑事项' };
+export const CMS_EDITORIAL_TASK_SOURCES = ['manual', 'search', 'submission', 'review'] as const;
+export const CMS_EDITORIAL_TASK_SOURCE_LABELS = { manual: '手工事项', search: '无结果搜索', submission: '表单来信', review: '内容复核' };
+export const CMS_WORKSPACE_QUEUES = ['mine', 'review', 'overdue', 'notes', 'unpublished', 'feedback', 'tasks', 'reviews'] as const;
+export const CMS_WORKSPACE_QUEUE_LABELS = { mine: '我的稿件', review: '待审核', overdue: '逾期稿件', notes: '未解决批注', unpublished: '待发布修改', feedback: '待办理反馈', tasks: '编辑事项', reviews: '内容复核' };
 export const CMS_WORKSPACE_QUEUE_OPTIONS = createLabelOptionsFromMap(CMS_WORKSPACE_QUEUE_LABELS);
 export const CMS_ATTRIBUTION_EVENT_NAMES = { entry: 'cms.entry', read: 'cms.read', topicClick: 'cms.topic_click', download: 'cms.download', formComplete: 'cms.form_complete', voteComplete: 'cms.vote_complete' } as const;
 export const CMS_ATTRIBUTION_EVENTS = [CMS_ATTRIBUTION_EVENT_NAMES.entry, CMS_ATTRIBUTION_EVENT_NAMES.read, CMS_ATTRIBUTION_EVENT_NAMES.topicClick, CMS_ATTRIBUTION_EVENT_NAMES.download, CMS_ATTRIBUTION_EVENT_NAMES.formComplete, CMS_ATTRIBUTION_EVENT_NAMES.voteComplete] as const;
@@ -750,3 +750,13 @@ export const CMS_TELEMETRY_ATTRIBUTION_STATUSES = ['matched', 'unmatched', 'miss
 export type CmsTelemetryAttributionStatus = (typeof CMS_TELEMETRY_ATTRIBUTION_STATUSES)[number];
 export const CMS_TELEMETRY_DELIVERY_STATUSES = ['pending', 'retrying', 'processing', 'failed', 'delivered'] as const;
 export const CMS_TELEMETRY_DELIVERY_STATUS_LABELS = { pending: '待投递', retrying: '等待重试', processing: '投递中', failed: '自动重试已停止', delivered: '已入库' } as const;
+
+export const CMS_EDITORIAL_GOAL_METRICS = ['no_result_rate', 'read_rate', 'conversion_rate', 'manual'] as const;
+export const CMS_EDITORIAL_GOAL_METRIC_LABELS = { no_result_rate: '无结果率', read_rate: '有效阅读率', conversion_rate: '访客转化率', manual: '人工核验' } as const;
+export const CMS_EDITORIAL_OBSERVATION_OUTCOMES = ['pending', 'incomplete_coverage', 'insufficient_sample', 'interrupted', 'not_improved', 'improved', 'manual_review'] as const;
+export const CMS_EDITORIAL_OBSERVATION_LABELS = { pending: '观察窗口尚未结束', incomplete_coverage: '采集覆盖不足', insufficient_sample: '样本不足', interrupted: '解决修订已被替换或撤下', not_improved: '尚未达到改善目标', improved: '指标达到改善目标', manual_review: '需人工核验' } as const;
+
+export const CMS_CONTENT_REVIEW_ISSUE_KINDS = ['review_due','validity_expired','validity_expiring','asset_revoked','asset_expired','asset_expiring','broken_link'] as const;
+export const CMS_CONTENT_REVIEW_ISSUE_LABELS = { review_due:'复核到期',validity_expired:'资料已失效',validity_expiring:'资料即将失效',asset_revoked:'素材已撤权',asset_expired:'素材授权已到期',asset_expiring:'素材授权临近到期',broken_link:'失效链接' } as const;
+
+export const CMS_EDITORIAL_TASK_HISTORY_ACTION_LABELS: Record<string, string> = { baseline: '建立追踪基准', created: '创建事项', updated: '更新事项', edit_completed: '完成编辑', activated: '实际发布上线', observing: '开始观察', observation: '更新观察证据', verified: '确认复盘验证', reopened: '开启新一轮', cancelled: '取消处理', interrupted: '观察中断', review_confirmed: '确认定期复核' };

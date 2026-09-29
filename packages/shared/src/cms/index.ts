@@ -33,3 +33,7 @@ export * from './cms-statistics';
 export * from './statistics-coverage';
 
 export * from './cms-stat-report';
+
+export * from './editorial-outcomes';
+
+export * from './reviews-validation';

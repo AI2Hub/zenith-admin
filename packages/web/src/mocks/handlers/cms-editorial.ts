@@ -10,6 +10,7 @@ import { getMockCmsWorkingContent, getMockCmsDistributionConflict, resolveMockCm
 const notes: CmsEditorialNote[] = [];
 export const getMockCmsUnresolvedNoteContentIds = () => new Set(notes.filter((note) => !note.resolved).map((note) => note.contentId));
 const rights: (OutputOf<typeof cmsResourceContract.rights> & { id: number })[] = [];
+export const getMockCmsAssetRights = (resourceId: number): OutputOf<typeof cmsResourceContract.rights> => rights.find(row => row.resourceId === resourceId) ?? { resourceId, source: null, license: null, expiresAt: null, revoked: false, tags: [], alt: null };
 const modelVersions: CmsModelVersion[] = [];
 const initialModelFields = new Map(mockCmsModels.map((row) => [row.id, structuredClone(row.fields ?? [])]));
 const publishedModelIds = new Set(initialModelFields.keys());
@@ -122,7 +123,7 @@ export const cmsEditorialHandlers = [
   }),
   mock(cmsResourceContract.rights, ({ params, ok }) => {
     requireItem(mockCmsResources, params.id, '素材不存在', { status: 404 });
-    return ok(rights.find((row) => row.resourceId === params.id) ?? { resourceId: params.id, source: null, license: null, expiresAt: null, revoked: false, tags: [], alt: null });
+    return ok(getMockCmsAssetRights(params.id));
   }),
   mock(cmsResourceContract.updateRights, ({ params, body, ok }) => {
     requireItem(mockCmsResources, params.id, '素材不存在', { status: 404 });

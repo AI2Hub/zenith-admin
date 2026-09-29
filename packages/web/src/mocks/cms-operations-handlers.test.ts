@@ -6,10 +6,13 @@ import { mockWorkflowDefinitions, mockWorkflowInstances, mockWorkflowTasks } fro
 import { cmsOperationsHandlers } from './handlers/cms-operations';
 import { syncMockWorkflowBusinessResult } from './utils/workflow-business';
 import { resetMockCmsRevisions } from './utils/cms-revisions';
+import { getMockCmsWorkingContent } from './utils/cms-revisions';
+import { resetMockEditorialOutcomes } from './utils/cms-editorial-outcomes';
 
 const snapshots = { contents: structuredClone(mockCmsContents), submissions: structuredClone(mockCmsFormSubmissions), instances: structuredClone(mockWorkflowInstances), tasks: structuredClone(mockWorkflowTasks) };
 afterEach(() => {
   resetMockCmsRevisions();
+  resetMockEditorialOutcomes();
   mockCmsContents.splice(0, mockCmsContents.length, ...structuredClone(snapshots.contents));
   mockCmsFeedback.length = 0; mockCmsEditorialTasks.length = 0; mockCmsHandlingPolicies.length = 0;
   mockCmsFormSubmissions.splice(0, mockCmsFormSubmissions.length, ...structuredClone(snapshots.submissions));
@@ -48,10 +51,15 @@ describe('CMS feedback and editorial operations', () => {
     expect((await call('PUT', `/tasks/${created.body.data.id}`, { expectedVersion: 1, status: 'done' })).status).toBe(400);
     const foreign = mockCmsContents.find((content) => content.siteId !== feedback.siteId)!;
     expect((await call('PUT', `/tasks/${created.body.data.id}`, { expectedVersion: 1, contentId: foreign.id })).status).toBe(400);
-    const own = mockCmsContents.find((content) => content.siteId === feedback.siteId)!;
-    const done = await call<CmsEditorialTask>('PUT', `/tasks/${created.body.data.id}`, { expectedVersion: 1, status: 'done', contentId: own.id });
-    expect(done.status).toBe(200);
-    expect((await call('PUT', `/tasks/${created.body.data.id}`, { expectedVersion: done.body.data.version, contentId: null })).status).toBe(400);
+    const own = mockCmsContents.find((content) => content.siteId === feedback.siteId && content.status === 'published')!;
+    const working = getMockCmsWorkingContent(own.id);
+    const linked = await call<CmsEditorialTask>('PUT', `/tasks/${created.body.data.id}`, { expectedVersion: 1, status: 'in_progress', contentId: own.id });
+    expect(linked.status).toBe(200);
+    // A draft or an arbitrary status update cannot replace approved-revision completion.
+    const completed = await call<CmsEditorialTask>('POST', `/tasks/${created.body.data.id}/complete`, { expectedVersion: linked.body.data.version, revisionId: working.approvedRevisionId ?? 999999, goal: { metric: 'manual', targetValue: 0, minSample: 30, description: '人工核验读者问题' }, note: '编辑完成，等待上线核验' });
+    expect(completed.status).toBe(200);
+    expect(completed.body.data.status).toBe('edit_done');
+    expect((await call('PUT', `/tasks/${created.body.data.id}`, { expectedVersion: completed.body.data.version, contentId: null })).status).toBe(409);
     expect((await call('PUT', `/tasks/${created.body.data.id}`, { expectedVersion: 1, title: '陈旧保存' })).status).toBe(409);
   });
   it('applies policy only to new submissions, blocks edits in approval, and permits a new round after rejection', async () => {

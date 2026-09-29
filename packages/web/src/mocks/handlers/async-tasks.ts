@@ -19,6 +19,7 @@ import { recordMockSubjects, mockEntitySubjects } from '@/mocks/data/entity-subj
  */
 
 const taskTypes: AsyncTaskTypeMeta[] = [
+  { taskType: 'cms-content-review-scan', title: 'CMS 内容复核巡检', module: 'CMS内容管理', description: '检查在线修订、有效期和素材风险并创建编辑事项；Demo 不探测外网', allowConcurrent: true, enabled: true, maxAttempts: 3, retryDelayMs: 5000, retentionDays: 30 },
   { taskType: 'cms-media-processing', title: 'CMS 媒体处理', module: 'CMS内容管理', description: '提取媒体信息、生成海报与图片变体并关联字幕', allowConcurrent: true, enabled: true, maxAttempts: 2, retryDelayMs: 5000, retentionDays: 30 },
   {
     taskType: 'messaging-broadcast',
@@ -428,12 +429,14 @@ export function createImmediateMockTask(input: {
   return task;
 }
 
+const completionEffects = new Map<number, (task: AsyncTask) => void>();
 export function createProgressingMockTask(input: {
-  taskType: 'cms-media-processing' | 'report-dq-rule-run' | 'report-dataset-materialize' | 'report-sla-rule-evaluate' | 'report-fill-sync' | 'analytics-rollup-rebuild' | 'analytics-segment-materialize' | 'analytics-campaign-execute' | 'cms-search-reindex' | 'cms-deadlink-check' | 'cms-collect-run' | 'cms-content-import' | 'cms-resource-governance' | 'cms-resource-ref-rebuild' | 'cms-publish-build' | 'cms-widget-batch' | 'cms-widget-refresh' | 'cms-ad-events-cleanup' | 'cms-interactions-batch-status' | 'cms-subscription-notify' | 'cms-distribution-sync' | 'messaging-broadcast';
+  taskType: 'cms-content-review-scan' | 'cms-media-processing' | 'report-dq-rule-run' | 'report-dataset-materialize' | 'report-sla-rule-evaluate' | 'report-fill-sync' | 'analytics-rollup-rebuild' | 'analytics-segment-materialize' | 'analytics-campaign-execute' | 'cms-search-reindex' | 'cms-deadlink-check' | 'cms-collect-run' | 'cms-content-import' | 'cms-resource-governance' | 'cms-resource-ref-rebuild' | 'cms-publish-build' | 'cms-widget-batch' | 'cms-widget-refresh' | 'cms-ad-events-cleanup' | 'cms-interactions-batch-status' | 'cms-subscription-notify' | 'cms-distribution-sync' | 'messaging-broadcast';
   title: string;
   payload?: Record<string, unknown>;
   totalItems?: number;
   itemDelayMs?: number;
+  onSuccess?: (task: AsyncTask) => void;
 }): AsyncTask {
   const meta = taskTypes.find((item) => item.taskType === input.taskType);
   if (!meta) throw new Error(`未注册任务类型：${input.taskType}`);
@@ -467,6 +470,7 @@ export function createProgressingMockTask(input: {
     updatedAt: now,
   };
   tasks.unshift(task);
+  if (input.onSuccess) completionEffects.set(task.id, input.onSuccess);
   startSim(task);
   return task;
 }
@@ -494,6 +498,11 @@ function upsertItem(taskId: number, itemKey: string, patch: Omit<AsyncTaskItem, 
 }
 
 function finalize(task: AsyncTask, status: AsyncTaskStatus) {
+  if (status === 'success') {
+    try { completionEffects.get(task.id)?.(task); completionEffects.delete(task.id); }
+    catch (error) { status = 'failed'; task.errorMessage = error instanceof Error ? error.message : '任务结果处理失败'; }
+  }
+  if (status === 'cancelled') completionEffects.delete(task.id);
   task.status = status;
   task.completedAt = mockDateTime();
   task.updatedAt = task.completedAt;

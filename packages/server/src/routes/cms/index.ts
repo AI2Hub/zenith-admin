@@ -4,6 +4,7 @@ import {
   cmsCollectContract,
   cmsCommentContract,
   cmsContentContract,
+  cmsContentReviewContract,
   cmsEditorialContract,
   cmsDashboardContract,
   cmsDistributionContract,
@@ -37,6 +38,7 @@ import cmsChannelsRoutes from './channels';
 import cmsCollectRoutes from './collect';
 import cmsCommentsRoutes from './comments';
 import cmsContentsRoutes from './contents';
+import cmsContentReviewsRoutes from './reviews';
 import cmsEditorialRoutes from './editorial';
 import cmsDashboardRoutes from './dashboard';
 import cmsDistributionRoutes from './distributions';
@@ -72,6 +74,7 @@ export default defineRouteDomain({
     [cmsModelContract.basePath, cmsModelsRoutes, { feature: 'cms' }],
     [cmsChannelContract.basePath, cmsChannelsRoutes, { feature: 'cms' }],
     [cmsContentContract.basePath, cmsContentsRoutes, { feature: 'cms' }],
+    [cmsContentReviewContract.basePath, cmsContentReviewsRoutes, { feature: 'cms' }],
     [cmsEditorialContract.basePath, cmsEditorialRoutes, { feature: 'cms' }],
     [cmsTagContract.basePath, cmsTagsRoutes, { feature: 'cms' }],
     [cmsFriendLinkContract.basePath, cmsFriendLinksRoutes, { feature: 'cms' }],

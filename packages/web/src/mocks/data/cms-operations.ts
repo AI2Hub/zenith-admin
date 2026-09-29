@@ -1,4 +1,4 @@
-import type { CmsEditorialTask, CmsFeedbackDetail, CmsFormHandlingPolicy } from '@zenith/shared/cms';
+import type { CmsEditorialTask, CmsEditorialTaskDetail, CmsEditorialTaskRound, CmsEditorialTaskObservation, CmsFeedbackDetail, CmsFormHandlingPolicy } from '@zenith/shared/cms';
 import type { WorkflowInstance } from '@zenith/shared/workflow';
 import { mockCmsContents, mockCmsForms, mockCmsFormSubmissions } from './cms';
 import { mockDateTime } from '../utils/date';
@@ -6,6 +6,9 @@ import { nextIdFrom } from '../utils/handlers';
 
 export const mockCmsFeedback: CmsFeedbackDetail[] = [];
 export const mockCmsEditorialTasks: CmsEditorialTask[] = [];
+export const mockCmsEditorialRounds: CmsEditorialTaskRound[] = [];
+export const mockCmsEditorialObservations: CmsEditorialTaskObservation[] = [];
+export const mockCmsEditorialHistory: CmsEditorialTaskDetail['history'] = [];
 export const mockCmsHandlingPolicies: CmsFormHandlingPolicy[] = [];
 export const mockCmsNoResultKeywords = [{ keyword: '小程序模板', count: 9 }, { keyword: '价格表', count: 5 }];
 /** 归因演示从现有内容浏览量派生一次快照，可按内容和日期筛选。 */

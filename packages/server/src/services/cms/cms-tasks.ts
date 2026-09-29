@@ -1,6 +1,7 @@
 import { registerTaskHandler } from '../../lib/task-center';
 import { rebuildSearchIndex } from './cms-search.service';
 import { registerCmsDeadlinkTaskHandler } from './cms-deadlink.service';
+import { registerCmsContentReviewTaskHandler } from './cms-content-review-tasks';
 import { registerCmsCollectTaskHandler } from './cms-collect.service';
 import { isCmsPlatformAdmin } from './cms-access';
 import { assertAllCmsSiteChannelsAccess } from './cms-channels.service';
@@ -18,6 +19,7 @@ import type { CmsCapturedConfiguration } from './cms-configuration-snapshot.serv
 /** CMS 任务中心 handler 注册（index.ts 启动流程中、registerSystemTasks 之前调用） */
 export function registerCmsTaskHandlers(): void {
   registerCmsDeadlinkTaskHandler();
+  registerCmsContentReviewTaskHandler();
   registerCmsCollectTaskHandler();
   registerCmsResourceTaskHandler();
   registerCmsPublishingTaskHandler();

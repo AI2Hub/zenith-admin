@@ -9,6 +9,16 @@ import { registerSystemRecurringJob } from './pg-boss-scheduler';
  * 不要为单张日志表新增独立清理任务。
  */
 export async function registerSystemTasks(): Promise<void> {
+  const { dispatchCmsContentReviewScans } = await import('../services/cms/cms-content-review-tasks');
+  await registerSystemRecurringJob({
+    name: 'cms-content-review-scan', title: 'CMS 内容定期复核巡检', module: 'CMS内容管理', cronExpression: '10 * * * *', allowManualRun: true,
+    description: '按策略检查当前在线修订、资料有效期、素材授权和失效链接，将风险分派至编辑事项，不自动发布。', run: dispatchCmsContentReviewScans,
+  });
+  const { observeCmsEditorialTaskOutcomes } = await import('../services/cms/cms-editorial-outcomes.service');
+  await registerSystemRecurringJob({
+    name:'cms-editorial-outcome-observation',title:'CMS 编辑事项效果复盘',module:'CMS内容管理',cronExpression:'*/15 * * * *',allowManualRun:true,
+    description:'按实际解决修订的激活时点建立7天/30天观察，覆盖不足或样本不足不认定改善。',run:observeCmsEditorialTaskOutcomes,
+  });
   const { drainCmsTelemetryOutbox, drainCmsTelemetryAttributions } = await import('../services/cms/cms-telemetry-business');
   await registerSystemRecurringJob({
     name: 'cms-telemetry-delivery', title: 'CMS 成功转化可靠投递', module: 'CMS内容管理',

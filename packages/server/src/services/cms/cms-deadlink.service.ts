@@ -29,6 +29,16 @@ const require = createRequire(import.meta.url);
 const load: typeof import('cheerio')['load'] = (...args: Parameters<typeof import('cheerio')['load']>) =>
   (require('cheerio') as typeof import('cheerio')).load(...args);
 
+/** Shared by site scans and content review policies; each caller retains its own content reference. */
+export function extractCmsContentLinks(body: string): string[] {
+  const links = new Set<string>(); const $ = load(body);
+  $('a[href]').each((_, element) => {
+    const href = String($(element).attr('href') ?? '').trim();
+    if (href && !/^(?:#|mailto:|tel:)/iu.test(href)) links.add(href);
+  });
+  return [...links];
+}
+
 async function collectSiteLinks(siteId: number): Promise<LinkItem[]> {
   const links: LinkItem[] = [];
   let afterId = 0;
@@ -69,7 +79,7 @@ async function collectSiteLinks(siteId: number): Promise<LinkItem[]> {
 }
 
 /** 站内链接校验：解析栏目页/详情页路径是否存在 */
-async function checkInternalLink(siteId: number, path: string): Promise<boolean> {
+export async function checkCmsInternalLink(siteId: number, path: string): Promise<boolean> {
   const cleaned = path.split(/[?#]/)[0].replace(/^\/+|\/+$/g, '');
   if (cleaned === '' || cleaned === 'index.html' || cleaned === 'search' || cleaned === 'rss.xml' || cleaned === 'sitemap.xml' || cleaned === 'robots.txt') return true;
   if (cleaned.startsWith('tag/')) {
@@ -93,14 +103,16 @@ async function checkInternalLink(siteId: number, path: string): Promise<boolean>
   return !!(await findChannelByPath(siteId, cleaned));
 }
 
-async function checkExternalLink(url: string): Promise<{ ok: boolean; status: number | null }> {
+export async function checkCmsExternalLink(url: string): Promise<{ ok: boolean; status: number | null }> {
   try {
-    const res = await httpRequest(url, { method: 'HEAD', timeout: 10_000, ssrfProtection: true });
+    const res = await httpRequest(url, { method: 'HEAD', timeout: 10_000, ssrfProtection: true, httpLog: { logResponseBody: false } });
     if (res.status === 405 || res.status === 501) {
       // 部分站点不支持 HEAD，回退 GET
-      const getRes = await httpRequest(url, { method: 'GET', timeout: 10_000, ssrfProtection: true });
+      const getRes = await httpRequest(url, { method: 'GET', timeout: 10_000, ssrfProtection: true, headers: { Range: 'bytes=0-0' }, logBodyLimit: 0, httpLog: { logResponseBody: false } });
+      await getRes.raw.body?.cancel();
       return { ok: getRes.status < 400, status: getRes.status };
     }
+    await res.raw.body?.cancel();
     return { ok: res.status < 400, status: res.status };
   } catch {
     return { ok: false, status: null };
@@ -133,7 +145,7 @@ export function registerCmsDeadlinkTaskHandler(): void {
       for (let index = 0; index < pending.length; index += LINK_CHECK_BATCH) {
         const batch = pending.slice(index, index + LINK_CHECK_BATCH);
         const results = await mapWithConcurrency(batch, 5, async (link) => {
-          const result = link.url.startsWith('/') ? { ok: await checkInternalLink(siteId, link.url), status: null } : await checkExternalLink(link.url);
+          const result = link.url.startsWith('/') ? { ok: await checkCmsInternalLink(siteId, link.url), status: null } : await checkCmsExternalLink(link.url);
           return { link, result };
         });
         for (const { link, result } of results) {

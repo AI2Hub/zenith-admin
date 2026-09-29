@@ -55,3 +55,5 @@ export * from './schema/drive';
 export * from './schema/relations';
 
 export * from './schema/entity-watches';
+
+export * from './schema/cms-content-reviews';

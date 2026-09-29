@@ -6,7 +6,9 @@ import { getCmsEditorialWorkspace } from '../../services/cms/cms-editorial-works
 import { getCmsAttribution } from '../../services/cms/cms-attribution.service';
 import { getCmsFeedbackDetail, getCmsFormHandlingPolicy, handleCmsFeedback, listCmsFeedback, listCmsOperationsAssignees, listCmsHandlingWorkflows, saveCmsFormHandlingPolicy } from '../../services/cms/cms-feedback.service';
 import { getCmsFeedbackWorkflowContext, previewCmsFeedbackWorkflow, submitCmsFeedbackWorkflow } from '../../services/cms/cms-feedback-workflow.service';
-import { createCmsEditorialTask, getCmsEditorialTask, listCmsEditorialTasks, updateCmsEditorialTask } from '../../services/cms/cms-editorial-tasks.service';
+import { createCmsEditorialTask, getCmsEditorialTaskDetail, listCmsEditorialTasks, updateCmsEditorialTask } from '../../services/cms/cms-editorial-tasks.service';
+
+import { completeCmsEditorialTask, verifyCmsEditorialTask, reopenCmsEditorialTask, refreshCmsEditorialObservations } from '../../services/cms/cms-editorial-outcomes.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 router.openapiRoutes([
@@ -23,9 +25,13 @@ router.openapiRoutes([
   defineContractRoute(cmsOperationsContract.submitWorkflow, { handler: async (c) => c.json(okBody(await submitCmsFeedbackWorkflow(c.req.valid('param').id, c.req.valid('json'))), 200) }),
   defineContractRoute(cmsOperationsContract.approvalDetail, { handler: async (c) => c.json(okBody(await getCmsFeedbackDetail(c.req.valid('param').id, { approvalInstanceId: c.req.valid('query').instanceId })), 200) }),
   defineContractRoute(cmsOperationsContract.tasks, { handler: async (c) => c.json(okBody(await listCmsEditorialTasks(c.req.valid('query'))), 200) }),
-  defineContractRoute(cmsOperationsContract.taskDetail, { handler: async (c) => c.json(okBody(await getCmsEditorialTask(c.req.valid('param').id)), 200) }),
+  defineContractRoute(cmsOperationsContract.taskDetail, { handler: async (c) => c.json(okBody(await getCmsEditorialTaskDetail(c.req.valid('param').id)), 200) }),
   defineContractRoute(cmsOperationsContract.createTask, { handler: async (c) => c.json(okBody(await createCmsEditorialTask(c.req.valid('json'))), 200) }),
   defineContractRoute(cmsOperationsContract.updateTask, { handler: async (c) => c.json(okBody(await updateCmsEditorialTask(c.req.valid('param').id, c.req.valid('json'))), 200) }),
+  defineContractRoute(cmsOperationsContract.completeTask, { handler:async c=>c.json(okBody(await completeCmsEditorialTask(c.req.valid('param').id,c.req.valid('json'))),200) }),
+  defineContractRoute(cmsOperationsContract.verifyTask, { handler:async c=>c.json(okBody(await verifyCmsEditorialTask(c.req.valid('param').id,c.req.valid('json'))),200) }),
+  defineContractRoute(cmsOperationsContract.reopenTask, { handler:async c=>c.json(okBody(await reopenCmsEditorialTask(c.req.valid('param').id,c.req.valid('json'))),200) }),
+  defineContractRoute(cmsOperationsContract.refreshTaskObservations, { handler:async c=>c.json(okBody(await refreshCmsEditorialObservations(c.req.valid('param').id,c.req.valid('json'))),200) }),
   defineContractRoute(cmsOperationsContract.attribution, { handler: async (c) => c.json(okBody(await getCmsAttribution(c.req.valid('query'))), 200) }),
 ]);
 export default router;

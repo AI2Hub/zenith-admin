@@ -1,5 +1,8 @@
 import { pgTable, pgEnum, integer, varchar, text, jsonb, timestamp, uniqueIndex, index } from 'drizzle-orm/pg-core';
 import { CMS_EDITORIAL_TASK_SOURCES, CMS_EDITORIAL_TASK_STATUSES, CMS_FEEDBACK_STATUSES } from '@zenith/shared/cms';
+import type { CmsEditorialGoal, CmsEditorialMetricSnapshot, CmsEditorialSourceEvidence, CmsEditorialObservationOutcome } from '@zenith/shared/cms';
+import { cmsContentRevisions } from './cms-revisions';
+import { cmsDeployments, cmsReleases, cmsReleaseActivations } from './cms-releases';
 import type { WorkflowInstanceStatus } from '@zenith/shared/workflow';
 import { idColumn, timestampColumns } from './common';
 import { auditColumns, users } from './core';
@@ -40,8 +43,31 @@ export const cmsEditorialTasks = pgTable('cms_editorial_tasks', {
   source: cmsEditorialTaskSourceEnum().notNull().default('manual'), sourceKey: varchar({ length: 100 }), sourceKeyword: varchar({ length: 64 }),
   feedbackId: integer().references(() => cmsFeedbackCases.id, { onDelete: 'restrict' }),
   ownerId: integer().references(() => users.id, { onDelete: 'set null' }), dueAt: timestamp(),
-  contentId: integer().references(() => cmsContents.id, { onDelete: 'set null' }), status: cmsEditorialTaskStatusEnum().notNull().default('open'), version: integer().notNull().default(1),
+  contentId: integer().references(() => cmsContents.id, { onDelete: 'set null' }), status: cmsEditorialTaskStatusEnum().notNull().default('open'), version: integer().notNull().default(1), roundNo: integer().notNull().default(1),
   ...auditColumns(), ...timestampColumns(),
 }, (t) => [uniqueIndex('cms_editorial_tasks_source_uq').on(t.siteId, t.source, t.sourceKey), index('cms_editorial_tasks_site_status_idx').on(t.siteId, t.status, t.id), index('cms_editorial_tasks_owner_due_idx').on(t.ownerId, t.dueAt)]);
 export type CmsFeedbackCaseRow = typeof cmsFeedbackCases.$inferSelect;
 export type CmsEditorialTaskRow = typeof cmsEditorialTasks.$inferSelect;
+
+/** A new processing round preserves earlier evidence, solution and activation identity. */
+export const cmsEditorialTaskRounds=pgTable('cms_editorial_task_rounds',{
+  id:idColumn(),taskId:integer().notNull().references(()=>cmsEditorialTasks.id,{onDelete:'restrict'}),roundNo:integer().notNull(),
+  sourceEvidence:jsonb().$type<CmsEditorialSourceEvidence>().notNull(),goal:jsonb().$type<CmsEditorialGoal>(),
+  solutionRevisionId:integer().references(()=>cmsContentRevisions.id,{onDelete:'restrict'}),solutionHash:varchar({length:64}),
+  releaseId:integer().references(()=>cmsReleases.id,{onDelete:'restrict'}),deploymentId:integer().references(()=>cmsDeployments.id,{onDelete:'restrict'}),activationId:integer().references(()=>cmsReleaseActivations.id,{onDelete:'restrict'}),
+  activatedAt:timestamp({withTimezone:true}),interruptedAt:timestamp({withTimezone:true}),interruptionReason:text(),verifiedAt:timestamp({withTimezone:true}),closedAt:timestamp({withTimezone:true}),
+  createdAt:timestamp({withTimezone:true}).notNull().defaultNow(),
+},t=>[uniqueIndex('cms_editorial_task_rounds_task_round_uq').on(t.taskId,t.roundNo)]);
+export const cmsEditorialTaskObservations=pgTable('cms_editorial_task_observations',{
+  id:idColumn(),taskId:integer().notNull().references(()=>cmsEditorialTasks.id,{onDelete:'restrict'}),roundId:integer().notNull().references(()=>cmsEditorialTaskRounds.id,{onDelete:'restrict'}),
+  windowDays:integer().$type<7|30>().notNull(),dueAt:timestamp({withTimezone:true}).notNull(),settlesAt:timestamp({withTimezone:true}).notNull(),
+  outcome:varchar({length:40}).$type<CmsEditorialObservationOutcome>().notNull().default('pending'),
+  before:jsonb().$type<CmsEditorialMetricSnapshot>(),after:jsonb().$type<CmsEditorialMetricSnapshot>(),
+  otherActivationIds:jsonb().$type<number[]>().notNull().default([]),computedAt:timestamp({withTimezone:true}),
+},t=>[uniqueIndex('cms_editorial_observations_round_window_uq').on(t.roundId,t.windowDays),index('cms_editorial_observations_due_idx').on(t.outcome,t.settlesAt)]);
+/** Append-only action/evidence ledger. Enforce immutability in the migration. */
+export const cmsEditorialTaskHistory=pgTable('cms_editorial_task_history',{
+  id:idColumn(),taskId:integer().notNull().references(()=>cmsEditorialTasks.id,{onDelete:'restrict'}),roundNo:integer().notNull(),version:integer().notNull(),
+  action:varchar({length:40}).notNull(),note:text(),actorId:integer(),actorName:varchar({length:100}),snapshot:jsonb().$type<Record<string,unknown>>().notNull(),
+  createdAt:timestamp({withTimezone:true}).notNull().defaultNow(),
+},t=>[index('cms_editorial_history_task_idx').on(t.taskId,t.id)]);

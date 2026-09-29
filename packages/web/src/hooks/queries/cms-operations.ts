@@ -1,5 +1,5 @@
 import { keepPreviousData, type QueryClient } from '@tanstack/react-query';
-import { cmsOperationsContract } from '@zenith/shared/cms';
+import { cmsOperationsContract, cmsContentReviewContract } from '@zenith/shared/cms';
 import { WORKFLOW_ACTIVE_INSTANCE_STATUSES } from '@zenith/shared/workflow';
 import type { QueryOf, BodyOf } from '@zenith/shared/core';
 import { contractKey, useApiMutation, useApiQuery, useSaveMutation } from '@/lib/contract-query';
@@ -25,6 +25,8 @@ export function invalidateCmsEditorialTasks(qc: QueryClient, id?: number) {
 /** 稿件标题、工作稿与发布状态出现在事项列表和详情，内容变更同时刷新这些派生视图。 */
 export function invalidateCmsOperationsContentViews(qc: QueryClient) {
   invalidateCmsEditorialTasks(qc);
+  void qc.invalidateQueries({ queryKey: contractKey(cmsContentReviewContract.detail) });
+  void qc.invalidateQueries({ queryKey: contractKey(cmsContentReviewContract.list) });
   void qc.invalidateQueries({ queryKey: contractKey(cmsOperationsContract.taskDetail) });
 }
 export function useCmsEditorialWorkspace(query: QueryOf<typeof cmsOperationsContract.workspace>, enabled = true) {
@@ -60,3 +62,8 @@ export function useCreateCmsEditorialTask() { return useApiMutation(cmsOperation
 export function useUpdateCmsEditorialTask() { return useApiMutation(cmsOperationsContract.updateTask, { invalidate: (qc, row) => invalidateCmsEditorialTasks(qc, row.id) }); }
 export function useSaveCmsEditorialTask() { return useSaveMutation(cmsOperationsContract.createTask, cmsOperationsContract.updateTask, { invalidate: (qc, row) => invalidateCmsEditorialTasks(qc, row.id) }); }
 export type CmsFeedbackUpdate = BodyOf<typeof cmsOperationsContract.handleFeedback>;
+
+export const useCompleteCmsEditorialTask = () => useApiMutation(cmsOperationsContract.completeTask, { invalidate: (qc, row) => invalidateCmsEditorialTasks(qc, row.id) });
+export const useVerifyCmsEditorialTask = () => useApiMutation(cmsOperationsContract.verifyTask, { invalidate: (qc, row) => invalidateCmsEditorialTasks(qc, row.id) });
+export const useReopenCmsEditorialTask = () => useApiMutation(cmsOperationsContract.reopenTask, { invalidate: (qc, row) => invalidateCmsEditorialTasks(qc, row.id) });
+export const useRefreshCmsEditorialObservations = () => useApiMutation(cmsOperationsContract.refreshTaskObservations, { invalidate: (qc, row) => invalidateCmsEditorialTasks(qc, row.id) });

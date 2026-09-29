@@ -15,17 +15,19 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { ListSearchToolbar } from '@/components/list-page';
 import { FilterSelect } from '@/components/search-filters';
 import { dateTimeColumn } from '@/utils/table-columns';
+import CmsEditorialTaskSheet from './CmsEditorialTaskSheet';
 import { formatDateTimeForApi } from '@/utils/date';
 
 type TaskValues = Partial<BodyOf<typeof cmsOperationsContract.createTask> & BodyOf<typeof cmsOperationsContract.updateTask>>;
 
 export function useCmsTaskEditor(siteId?: number) {
+  const navigate = useNavigate();
   const { hasPermission } = usePermission();
   const save = useSaveCmsEditorialTask();
   const modal = useEditModal<CmsEditorialTask, TaskValues>({
     entityName: '编辑事项', save, useDetail: useCmsEditorialTaskDetail,
     defaults: { source: 'manual', description: '' },
-    toValues: (record) => ({ title: record.title, description: record.description, ownerId: record.ownerId, dueAt: record.dueAt, contentId: record.contentId, status: record.status, expectedVersion: record.version }),
+    toValues: (record) => ({ title: record.title, description: record.description, ownerId: record.ownerId, dueAt: record.dueAt, contentId: record.contentId, status: ['open', 'in_progress'].includes(record.status) ? record.status as 'open' | 'in_progress' | 'cancelled' : undefined, expectedVersion: record.version }),
     beforeSave: (values, { editing }) => ({ ...values, ownerId: values.ownerId ?? null, contentId: values.contentId ?? null,
       dueAt: values.dueAt ? formatDateTimeForApi(values.dueAt) : null,
       ...(editing ? { expectedVersion: values.expectedVersion } : { siteId, source: 'manual' as const }),
@@ -38,25 +40,27 @@ export function useCmsTaskEditor(siteId?: number) {
   if (modal.editing?.contentId && !options.some((option) => option.value === modal.editing?.contentId)) options.push({ value: modal.editing.contentId, label: modal.editing.contentTitle ?? `稿件 #${modal.editing.contentId}` });
   return { ...modal, editor: <EditFormSheet modal={modal} width={760}>
     {modal.editing ? <Typography.Paragraph type="secondary">来源：{CMS_EDITORIAL_TASK_SOURCE_LABELS[modal.editing.source]}{modal.editing.sourceKeyword ? ` · ${modal.editing.sourceKeyword}` : ''}{modal.editing.feedbackId ? ` · 来信 #${modal.editing.feedbackId}` : ''}</Typography.Paragraph> : null}
+    {modal.editing ? <Space><Tag>{CMS_EDITORIAL_TASK_STATUS_LABELS[modal.editing.status]}</Tag><Button theme="borderless" onClick={() => { modal.modalProps.onCancel(); navigate(`/cms/workspace?siteId=${modal.editing!.siteId}&task=${modal.editing!.id}`); }}>前往事项复盘</Button></Space> : null}
     <Form.Input field="title" label="事项标题" maxLength={255} rules={[{ required: true, message: '请输入事项标题' }]} />
     <Form.TextArea field="description" label="选题与处理说明" maxCount={5000} rows={4} />
     <Form.Select field="ownerId" label="负责人" showClear filter optionList={(assignees.data ?? []).map((user) => ({ value: user.id, label: user.name }))} loading={assignees.isFetching} style={{ width: '100%' }} />
     <Form.DatePicker field="dueAt" label="截止时间" type="dateTime" showClear style={{ width: '100%' }} />
-    <Form.Select field="contentId" label="关联稿件" showClear remote filter onSearch={setKeyword} optionList={options} loading={contents.isFetching} disabled={!hasPermission('cms:content:list')} style={{ width: '100%' }} extraText="输入标题搜索本站稿件。来自搜索或来信的事项，完成前须关联处理稿件。" />
-    {modal.isEdit ? <Form.Select field="status" label="事项状态" optionList={CMS_EDITORIAL_TASK_STATUS_OPTIONS} style={{ width: '100%' }} /> : null}
+    <Form.Select field="contentId" label="关联稿件" showClear remote filter onSearch={setKeyword} optionList={options} loading={contents.isFetching} disabled={!hasPermission('cms:content:list') || (modal.isEdit && !['open','in_progress'].includes(modal.editing?.status ?? ''))} style={{ width: '100%' }} extraText="输入标题搜索本站稿件；完成编辑后在复盘侧栏绑定已审核修订，发布激活后开始观察。" />
+    {modal.isEdit && !['verified','cancelled'].includes(modal.editing?.status ?? '') ? <Form.Select field="status" label="事项状态" optionList={CMS_EDITORIAL_TASK_STATUS_OPTIONS.filter(option => ['open', 'in_progress', 'cancelled'].includes(option.value) && (['open','in_progress'].includes(modal.editing?.status ?? '') || option.value === 'cancelled'))} style={{ width: '100%' }} /> : null}
     {assignees.isError || contents.isError ? <Banner type="warning" description="人员或稿件选项加载失败，请关闭后重试。" /> : null}
   </EditFormSheet> };
 }
 
 export default function CmsEditorialTasks({ siteId, initialTaskId, onTaskOpened }: Readonly<{ siteId: number; initialTaskId?: number; onTaskOpened?: () => void }>) {
   const navigate = useNavigate();
+  const [taskId, setTaskId] = useState<number>();
   const { hasPermission } = usePermission();
   const editor = useCmsTaskEditor(siteId);
   const selected = useCmsEditorialTaskDetail(initialTaskId, !!initialTaskId && hasPermission('cms:editorial-task:manage'));
   const opened = useRef<number | undefined>(undefined);
   useEffect(() => {
     if (!initialTaskId) { opened.current = undefined; return; }
-    if (selected.data && selected.data.siteId === siteId && selected.data.id !== opened.current) { opened.current = selected.data.id; editor.openEdit(selected.data); onTaskOpened?.(); }
+    if (selected.data && selected.data.siteId === siteId && selected.data.id !== opened.current) { opened.current = selected.data.id; setTaskId(selected.data.id); onTaskOpened?.(); }
   }, [initialTaskId, selected.data, siteId, editor.openEdit, onTaskOpened]);
   const page = useListPage({ op: cmsOperationsContract.tasks, useList: useCmsEditorialTasks, params: { siteId }, resetKey: siteId, table: { empty: '暂无编辑事项' } });
   return <>
@@ -69,8 +73,9 @@ export default function CmsEditorialTasks({ siteId, initialTaskId, onTaskOpened 
       { title: '负责人', dataIndex: 'ownerName', width: 100, render: (value) => value ?? '未分派' },
       dateTimeColumn('截止时间', 'dueAt'),
       { title: '关联稿件', width: 240, render: (_, row) => row.contentId ? <Space vertical align="start" spacing={4}><Button theme="borderless" onClick={() => navigate(`/cms/contents/edit?id=${row.contentId}&site=${siteId}`)}>{row.contentTitle ?? `稿件 #${row.contentId}`}</Button><Typography.Text type="tertiary">{row.contentStatus === 'published' ? '已上线' : '尚未上线'}{row.hasUnpublishedChanges ? ' · 有未发布修改' : ''}</Typography.Text></Space> : '未关联' },
-      createOperationColumn<CmsEditorialTask>({ width: 90, desktopInlineKeys: ['edit'], actions: (row) => hasPermission('cms:editorial-task:manage') ? [{ key: 'edit', label: '编辑', onClick: () => editor.openEdit(row) }] : [] }),
+      createOperationColumn<CmsEditorialTask>({ width: 145, desktopInlineKeys: ['review', 'edit'], actions: (row) => hasPermission('cms:editorial-task:manage') ? [{ key: 'review', label: '查看复盘', onClick: () => setTaskId(row.id) }, { key: 'edit', label: '编辑', onClick: () => editor.openEdit(row) }] : [] }),
     ]} {...page.tableProps} />
     {editor.editor}
+    <CmsEditorialTaskSheet id={taskId} onClose={() => setTaskId(undefined)} onEdit={editor.openEdit} />
   </>;
 }

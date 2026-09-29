@@ -20,6 +20,8 @@ const APPEND_ONLY_SUFFIX = /_(logs|records|events|runs|history|snapshots|deliver
  * 新增豁免需要 reviewer 明确确认。
  */
 const EXEMPT: Record<string, string> = {
+  cms_editorial_task_history: '事项处理过程的追加账本，数据库拒绝修改与删除，属于业务证据',
+  cms_content_review_records: '内容人工复核凭证，随内容生命周期级联回收，属于业务记录',
   cms_collection_transitions: '采集覆盖的紧凑状态历史，随站点级联删除；任意时间删除会使连续覆盖判断失真',
   cms_telemetry_attributions: '派生归因随原始 user_events.event_id 外键级联删除，不独立裁剪',
   cms_content_tombstones: '内容删除墓碑，供站群增量同步比对，删除会导致下游漏同步',

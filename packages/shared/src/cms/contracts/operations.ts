@@ -3,7 +3,8 @@ import { auditFieldsSchema, dateRangeQuery, idParam, idQuery, keywordQuery, pagi
 import { defineContract, op } from '../../core/contract';
 import { workflowBusinessContextSchema, workflowBusinessPreviewSchema, WORKFLOW_INSTANCE_STATUSES } from '../../workflow';
 import { CMS_ATTRIBUTION_EVENTS, CMS_EDITORIAL_TASK_SOURCES, CMS_EDITORIAL_TASK_STATUSES, CMS_FEEDBACK_STATUSES, CMS_WORKSPACE_QUEUES } from '../constants';
-import { createCmsEditorialTaskSchema, previewCmsFeedbackWorkflowSchema, saveCmsFormHandlingPolicySchema, submitCmsFeedbackWorkflowSchema, updateCmsEditorialTaskSchema, updateCmsFeedbackSchema } from '../operations-validation';
+import { cmsEditorialGoalSchema, cmsEditorialMetricSnapshotSchema, cmsEditorialSourceEvidenceSchema, cmsEditorialObservationOutcomeSchema } from '../editorial-outcomes';
+import { createCmsEditorialTaskSchema, previewCmsFeedbackWorkflowSchema, saveCmsFormHandlingPolicySchema, submitCmsFeedbackWorkflowSchema, updateCmsEditorialTaskSchema, updateCmsFeedbackSchema, completeCmsEditorialTaskSchema, verifyCmsEditorialTaskSchema, reopenCmsEditorialTaskSchema, refreshCmsEditorialObservationsSchema } from '../operations-validation';
 
 export const cmsFeedbackHistorySchema = z.object({
   id: z.int(), feedbackId: z.int(), version: z.int(), action: z.string(), note: z.string().nullable(),
@@ -21,11 +22,26 @@ export type CmsFeedbackDetail = z.infer<typeof cmsFeedbackDetailSchema>;
 export const cmsFormHandlingPolicySchema = z.object({ formId: z.int(), version: z.int(), workflowDefinitionId: z.int().nullable(), workflowName: z.string().nullable(), defaultOwnerId: z.int().nullable() }).meta({ id: 'CmsFormHandlingPolicy' });
 export const cmsEditorialTaskSchema = z.object({
   id: z.int(), siteId: z.int(), title: z.string(), description: z.string(), source: z.enum(CMS_EDITORIAL_TASK_SOURCES), sourceKeyword: z.string().nullable(), feedbackId: z.int().nullable(),
-  ownerId: z.int().nullable(), ownerName: z.string().nullable(), dueAt: z.string().nullable(), status: z.enum(CMS_EDITORIAL_TASK_STATUSES), version: z.int(),
+  ownerId: z.int().nullable(), ownerName: z.string().nullable(), dueAt: z.string().nullable(), status: z.enum(CMS_EDITORIAL_TASK_STATUSES), version: z.int(), roundNo: z.int(),
   contentId: z.int().nullable(), contentTitle: z.string().nullable(), contentStatus: z.string().nullable(), editorialStatus: z.string().nullable(), publishedRevisionId: z.int().nullable(), hasUnpublishedChanges: z.boolean(),
   createdAt: z.string(), updatedAt: z.string(), ...auditFieldsSchema,
 }).meta({ id: 'CmsEditorialTask' });
 export type CmsEditorialTask = z.infer<typeof cmsEditorialTaskSchema>;
+export const cmsEditorialTaskRoundSchema=z.object({
+  id:z.int(),taskId:z.int(),roundNo:z.int(),sourceEvidence:cmsEditorialSourceEvidenceSchema,goal:cmsEditorialGoalSchema.nullable(),
+  solutionRevisionId:z.int().nullable(),solutionHash:z.string().nullable(),releaseId:z.int().nullable(),deploymentId:z.int().nullable(),activationId:z.int().nullable(),
+  activatedAt:z.string().nullable(),interruptedAt:z.string().nullable(),interruptionReason:z.string().nullable(),verifiedAt:z.string().nullable(),closedAt:z.string().nullable(),createdAt:z.string(),
+}).meta({id:'CmsEditorialTaskRound'});
+export const cmsEditorialTaskObservationSchema=z.object({
+  id:z.int(),taskId:z.int(),roundId:z.int(),windowDays:z.union([z.literal(7),z.literal(30)]),dueAt:z.string(),settlesAt:z.string(),
+  outcome:cmsEditorialObservationOutcomeSchema,before:cmsEditorialMetricSnapshotSchema.nullable(),after:cmsEditorialMetricSnapshotSchema.nullable(),
+  otherActivationIds:z.array(z.int()),computedAt:z.string().nullable(),
+}).meta({id:'CmsEditorialTaskObservation'});
+export const cmsEditorialTaskHistorySchema=z.object({id:z.int(),taskId:z.int(),roundNo:z.int(),version:z.int(),action:z.string(),note:z.string().nullable(),actorId:z.int().nullable(),actorName:z.string().nullable(),snapshot:z.record(z.string(),z.unknown()),createdAt:z.string()}).meta({id:'CmsEditorialTaskHistory'});
+export const cmsEditorialTaskDetailSchema=cmsEditorialTaskSchema.extend({canViewMetrics:z.boolean(),rounds:z.array(cmsEditorialTaskRoundSchema),observations:z.array(cmsEditorialTaskObservationSchema),history:z.array(cmsEditorialTaskHistorySchema)}).meta({id:'CmsEditorialTaskDetail'});
+export type CmsEditorialTaskDetail=z.infer<typeof cmsEditorialTaskDetailSchema>;
+export type CmsEditorialTaskRound=z.infer<typeof cmsEditorialTaskRoundSchema>;
+export type CmsEditorialTaskObservation=z.infer<typeof cmsEditorialTaskObservationSchema>;
 export const cmsWorkspaceItemSchema = z.object({ id: z.int(), kind: z.enum(['content', 'feedback', 'task']), title: z.string(), status: z.string(), ownerName: z.string().nullable(), dueAt: z.string().nullable(), href: z.string() }).meta({ id: 'CmsWorkspaceItem' });
 export type CmsWorkspaceItem = z.infer<typeof cmsWorkspaceItemSchema>;
 export type CmsFormHandlingPolicy = z.infer<typeof cmsFormHandlingPolicySchema>;
@@ -50,8 +66,12 @@ export const cmsOperationsContract = defineContract('/api/cms/operations', {
   submitWorkflow: op.post('/feedback/{id}/submit', { access: { permission: 'cms:feedback:manage' }, audit: '提交 CMS 反馈办理审批', params: idParam, body: submitCmsFeedbackWorkflowSchema, response: cmsFeedbackDetailSchema, summary: '将办理结果提交现有工作流审批' }),
   approvalDetail: op.get('/feedback/{id}/approval-detail', { access: 'authenticated', params: idParam, query: z.object({ instanceId: requiredIdQuery() }), response: cmsFeedbackDetailSchema, summary: '按工作流参与者权限读取办理资料' }),
   tasks: op.get('/tasks', { access: { permission: 'cms:editorial-task:manage' }, query: paginationQuery.extend({ ...siteScope, status: queryEnum(CMS_EDITORIAL_TASK_STATUSES), ownerId: idQuery(), keyword: keywordQuery('事项标题') }), response: paginated(cmsEditorialTaskSchema), summary: '编辑事项及关联稿件发布状态' }),
-  taskDetail: op.get('/tasks/{id}', { access: { permission: 'cms:editorial-task:manage' }, params: idParam, response: cmsEditorialTaskSchema, summary: '编辑事项详情' }),
+  taskDetail: op.get('/tasks/{id}', { access: { permission: 'cms:editorial-task:manage' }, params: idParam, response: cmsEditorialTaskDetailSchema, summary: '编辑事项详情、处理轮次与效果证据' }),
   createTask: op.post('/tasks', { access: { permission: 'cms:editorial-task:manage' }, audit: '创建 CMS 编辑事项', body: createCmsEditorialTaskSchema, response: cmsEditorialTaskSchema, summary: '从来信或无结果词转为编辑事项' }),
   updateTask: op.put('/tasks/{id}', { access: { permission: 'cms:editorial-task:manage' }, audit: '更新 CMS 编辑事项', params: idParam, body: updateCmsEditorialTaskSchema, response: cmsEditorialTaskSchema, summary: '更新事项负责人、期限与稿件关系' }),
+  completeTask: op.post('/tasks/{id}/complete', { access:{permission:'cms:editorial-task:manage'}, audit:'完成 CMS 事项编辑并绑定解决修订', params:idParam, body:completeCmsEditorialTaskSchema,response:cmsEditorialTaskDetailSchema,summary:'绑定已审核修订与不可变处理目标' }),
+  verifyTask: op.post('/tasks/{id}/verify', { access:{permission:'cms:editorial-task:manage'}, audit:'验证 CMS 编辑事项效果',params:idParam,body:verifyCmsEditorialTaskSchema,response:cmsEditorialTaskDetailSchema,summary:'按充分观察证据或人工核验验证事项' }),
+  reopenTask: op.post('/tasks/{id}/reopen', { access:{permission:'cms:editorial-task:manage'}, audit:'重开 CMS 编辑事项',params:idParam,body:reopenCmsEditorialTaskSchema,response:cmsEditorialTaskDetailSchema,summary:'保留处理历史并开启新一轮' }),
+  refreshTaskObservations: op.post('/tasks/{id}/observations/refresh', {access:{permission:'cms:editorial-task:manage'},audit:'复算 CMS 事项效果证据',params:idParam,body:refreshCmsEditorialObservationsSchema,response:cmsEditorialTaskDetailSchema,summary:'按固定的7天30天窗口重算，不绕过覆盖和样本限制'}),
   attribution: op.get('/attribution', { access: { permission: 'cms:stat:view' }, query: z.object({ ...siteScope, ...dateRangeQuery('事件时间'), contentId: idQuery(), releaseId: idQuery(), deploymentId: idQuery() }), response: cmsAttributionSchema, summary: '内容与发布版本的入口转化归因' }),
 }, { auditModule: 'CMS内容管理', tags: ['CMS-运营工作区'] });

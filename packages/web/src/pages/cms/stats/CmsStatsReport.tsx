@@ -46,7 +46,7 @@ export default function CmsStatsReport({ query: scopeQuery, dimension, onDrill }
   const drillable = ['content', 'channel', 'author', 'contentType', 'release', 'source', 'device'].includes(dimension);
   if (drillable || dimension === 'search') columns.push(createOperationColumn<CmsStatReportRow>({ width: dimension === 'search' ? 150 : 110, desktopInlineKeys: ['drill', 'task'], actions: (row) => {
     if (dimension === 'search') return row.noResultSearches > 0 && hasPermission('cms:editorial-task:manage') ? [{ key: 'task', label: '转为编辑事项', disabled: createTask.isPending, onClick: async () => {
-      const task = await createTask.mutateAsync({ body: { siteId: scopeQuery.siteId, title: `补充内容：${row.label}`, description: `读者搜索“${row.label}”出现 ${row.noResultSearches} 次无结果。`, source: 'search', sourceKeyword: row.label } });
+      const task = await createTask.mutateAsync({ body: { siteId: scopeQuery.siteId, title: `补充内容：${row.label}`, description: `读者搜索“${row.label}”出现 ${row.noResultSearches} 次无结果。`, source: 'search', sourceKeyword: row.label, ...(report.data?.scope ? { sourceWindow: { startTime: report.data.scope.startTime, endTime: report.data.scope.endTime, watermark: report.data.scope.watermark, timeZone: report.data.scope.timeZone } } : {}) } });
       Toast.success('已打开对应编辑事项'); editor.openEdit(task);
     } }] : [];
     return onDrill && row.key !== 'unknown' && row.key !== '' ? [{ key: 'drill', label: '按此项筛选', onClick: () => onDrill(dimension, row.key) }] : [];
@@ -60,6 +60,7 @@ export default function CmsStatsReport({ query: scopeQuery, dimension, onDrill }
     {report.isError ? <Banner type="danger" description={`排行查询失败：${report.error.message}${report.data ? '。下方保留上次成功结果。' : ''}`} /> : null}
     {['search', 'media', 'placement', 'form', 'interaction'].includes(dimension) ? <Typography.Paragraph type="tertiary">此维度的 UV 是发生对应行为的访客数；详情浏览和搜索、媒体、版位行为分别计量，不将点击等同于服务端成功。</Typography.Paragraph> : null}
     <ConfigurableTable columnSettingsKey={`cms-statistics-${dimension}`} columns={columns} {...listTableProps(report, { rowKey: 'key', pagination: search.buildPagination, empty: report.isError ? '查询失败，请刷新重试' : '当前筛选下暂无对应事件' })} />
+    {dimension === 'search' ? <Typography.Paragraph type="tertiary">转为事项时保存当前时间区间的全站关键词证据，后续按同一关键词跟踪发布前后效果。</Typography.Paragraph> : null}
     {editor.editor}
   </>;
 }
