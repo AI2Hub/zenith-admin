@@ -141,7 +141,7 @@ export default function FriendLinksPage() {
       title: '链接地址',
       dataIndex: 'url',
       minWidth: 300,
-      render: (v: string) => <a href={v} target="_blank" rel="noopener noreferrer">{v}</a>,
+      render: (v: string) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }} link={{ href: v, target: '_blank', rel: 'noopener noreferrer' }}>{v}</Typography.Text>,
     },
     { title: '排序', dataIndex: 'sort', width: 80 },
     createdAtColumn,
