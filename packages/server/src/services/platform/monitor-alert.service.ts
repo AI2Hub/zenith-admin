@@ -19,7 +19,7 @@ import { currentUserId, currentUsername } from '../../lib/context';
 import { buildWhere, dateRangeConditions, keywordCondition, withPagination } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
 import { requireFirstRow } from '../../lib/db-assert';
-import { buildListResult, listRows } from '../../lib/list-query';
+import { buildListResult } from '../../lib/list-query';
 import { getMetricSnapshotsByTenant } from './monitor-history.service';
 import { validateAlertDelivery } from '../../lib/alert-validation';
 import { dispatchAlertChannels, type AlertDispatchResult } from '../../lib/alert-dispatch';
@@ -144,13 +144,20 @@ export function buildRuleListWhere(q: MonitorAlertRuleQuery) {
 export async function listRules(q: MonitorAlertRuleQuery) {
   const { page, pageSize } = q;
   const where = buildRuleListWhere(q);
-  return listRows({
+  return buildListResult({
     page,
     pageSize,
-    table: monitorAlertRules,
-    where,
-    orderBy: [desc(monitorAlertRules.id)],
-        map: mapRule,
+    count: () => db.$count(monitorAlertRules, where),
+    rows: () => withPagination(db
+      .select({
+        row: monitorAlertRules,
+        // 事件数按规则聚合（含租户隔离），避免逐行查询
+        eventCount: sql<number>`(select count(*) from ${monitorAlertEvents} where ${and(eq(monitorAlertEvents.ruleId, monitorAlertRules.id), tenantScope(monitorAlertEvents))})`,
+      })
+      .from(monitorAlertRules)
+      .where(where)
+      .orderBy(desc(monitorAlertRules.id)).$dynamic(), page, pageSize),
+    map: (item) => ({ ...mapRule(item.row), eventCount: Number(item.eventCount) }),
   });
 }
 

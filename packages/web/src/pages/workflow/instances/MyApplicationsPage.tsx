@@ -15,7 +15,7 @@ import {
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { ExternalLink, Megaphone, Plus, Undo2 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { WORKFLOW_INSTANCE_PRIORITIES, WORKFLOW_INSTANCE_STATUSES, workflowInstanceContract, type WorkflowDefinition, type WorkflowInstance } from '@zenith/shared/workflow';
+import { WORKFLOW_INSTANCE_PRIORITIES, WORKFLOW_INSTANCE_STATUSES, WORKFLOW_INSTANCE_STATUS_OPTIONS, workflowInstanceContract, type WorkflowDefinition, type WorkflowInstance } from '@zenith/shared/workflow';
 import { buildWorkflowSummaryItems } from '@zenith/shared/workflow';
 import { enumValueOf } from '@zenith/shared/core';
 import SavedViewsBar from '@/components/workflow/SavedViewsBar';
@@ -655,6 +655,12 @@ export default function MyApplicationsPage() {
       <ListSearchToolbar
         page={page}
         filters={['status', 'priority']}
+        overrides={{
+          // 派生 FilterSelect 宽 120 装不下 6 字占位「全部实例状态」，此处仅加宽（占位与契约 description 保持一致）
+          status: (p) => (
+            <FilterSelect placeholder="全部实例状态" items={WORKFLOW_INSTANCE_STATUS_OPTIONS} {...p.bind('status')} width={140} />
+          ),
+        }}
         create={(
           <Button type="primary" icon={<Plus size={14} />} onClick={() => { void openApply(); }}>
             发起申请

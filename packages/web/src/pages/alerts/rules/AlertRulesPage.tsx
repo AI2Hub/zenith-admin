@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Form, Toast, Tag, Row, Col, Select, SideSheet, withField } from '@douyinfe/semi-ui';
+import { Form, Toast, Tag, Row, Col, Select, SideSheet, Typography, withField } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { batchStatusHandler, confirmAndDelete, ListSearchToolbar, useStatusToggle, useRowSelection, useCrudOperationColumn } from '@/components/list-page';
@@ -217,6 +217,10 @@ export default function AlertRulesPage() {
       render: (v: number | null, r: MonitorAlertRule) => v === null ? EMPTY_PLACEHOLDER : formatMonitorMetricValue(r.metric, v),
     },
     dateTimeColumn('最近触发', 'lastTriggeredAt', { empty: '从未' }),
+    {
+      title: '事件次数', dataIndex: 'eventCount', width: 90, align: 'right',
+      render: (v: number) => v > 0 ? <Typography.Text strong>{v}</Typography.Text> : EMPTY_PLACEHOLDER,
+    },
     {
       title: '告警状态', dataIndex: 'state', width: 100, fixed: 'right',
       render: (state: string) => <MonitorAlertStateTag state={state} okText="未触发" />,

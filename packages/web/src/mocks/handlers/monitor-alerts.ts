@@ -141,6 +141,11 @@ const events: MonitorAlertEvent[] = [
   },
 ];
 
+/** 规则响应补充事件数（与服务端 listRules 的聚合口径一致） */
+function withEventCount(rule: MonitorAlertRule): MonitorAlertRule & { eventCount: number } {
+  return { ...rule, eventCount: events.filter((e) => e.ruleId === rule.id).length };
+}
+
 /** 关闭规则所有未恢复事件，与服务端「停用即解除告警」的语义保持一致 */
 function resolveRuleEvents(ruleId: number) {
   for (const event of events.filter((item) => item.ruleId === ruleId && item.status === 'firing')) {
@@ -276,7 +281,7 @@ export const monitorAlertsHandlers = [
     if (level) filtered = filtered.filter((r) => r.level === level);
     if (enabled !== undefined) filtered = filtered.filter((r) => r.enabled === enabled);
     if (state) filtered = filtered.filter((r) => r.state === state);
-    return ok(paginate(filtered), 'success');
+    return ok(paginate(filtered.map(withEventCount)), 'success');
   }),
 
   mock(monitorAlertContract.create, ({ body, ok }) => {
@@ -290,7 +295,7 @@ export const monitorAlertsHandlers = [
       lastTriggeredAt: null, lastValue: null, createdAt: now, updatedAt: now,
     };
     rules.unshift(rule);
-    return ok(rule, '创建成功');
+    return ok(withEventCount(rule), '创建成功');
   }),
 
   // 批量路由必须先于 `/{id}` 注册，否则会被匹配成 id="batch"
@@ -334,7 +339,7 @@ export const monitorAlertsHandlers = [
       rule.state = 'ok';
       resolveRuleEvents(params.id);
     }
-    return ok(rule, '更新成功');
+    return ok(withEventCount(rule), '更新成功');
   }),
 
   mock(monitorAlertContract.setEnabled, ({ params, body, ok }) => {
@@ -345,7 +350,7 @@ export const monitorAlertsHandlers = [
       resolveRuleEvents(params.id);
     }
     rule.updatedAt = mockDateTime();
-    return ok(rule, '操作成功');
+    return ok(withEventCount(rule), '操作成功');
   }),
 
   mock(monitorAlertContract.remove, ({ params, ok }) => {

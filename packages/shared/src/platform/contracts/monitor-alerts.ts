@@ -38,6 +38,7 @@ export const monitorAlertRuleSchema = z.object({
   state: z.enum(MONITOR_ALERT_STATES).meta({ description: '运行态：ok / firing' }),
   lastTriggeredAt: z.string().nullable(),
   lastValue: z.number().nullable(),
+  eventCount: z.int().meta({ description: '该规则累计产生的告警事件数' }),
   createdAt: z.string(),
   updatedAt: z.string(),
 }).meta({ id: 'MonitorAlertRule' });
