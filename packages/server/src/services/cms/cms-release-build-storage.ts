@@ -4,6 +4,7 @@ import { db, withDbExecutor, withoutDbExecutor } from '../../db';
 import type { DbTransaction } from '../../db/types';
 import { cmsGenerationSchemaName, CMS_GENERATION_TABLES } from './cms-generation-storage.service';
 import { withCmsGenerationContext } from './cms-generation-context';
+import { readCmsGenerationDelivery } from './cms-generation-delivery';
 import { cmsBuildDigest, type CmsBuildTarget, type CmsBuildContentDependencies } from './cms-release-build-artifacts';
 import { canonicalCmsJson } from './cms-content-revisions.service';
 import { resolveCmsThemeSlotsForRender } from './cms-widgets.service';
@@ -44,7 +45,8 @@ export async function withCmsBuildTransaction<T>(siteId: number, generationId: n
     await tx.execute(sql`select set_config('search_path', ${`${cmsBuildSchema(generationId)},${cmsGenerationSchemaName(generationId)},public`}, true)`);
     await tx.execute(sql`select set_config('cms.preview','true',true)`);
     await tx.execute(sql`select set_config('statement_timeout','60000',true)`);
-    return withDbExecutor(tx, () => withCmsGenerationContext({ siteId, generationId, candidate: true, buildAt }, () => fn(tx)));
+    const delivery = await readCmsGenerationDelivery(tx, siteId, generationId, true);
+    return withDbExecutor(tx, () => withCmsGenerationContext({ siteId, generationId, candidate: true, buildAt, ...delivery }, () => fn(tx)));
   }, { isolationLevel });
 }
 
@@ -52,7 +54,8 @@ export async function withCmsBuildTransaction<T>(siteId: number, generationId: n
 export async function withCmsBuildReadTransaction<T>(siteId: number, generationId: number, buildAt: Date, fn: () => Promise<T>): Promise<T> {
   return withoutDbExecutor(() => db.transaction(async tx => {
     await tx.execute(sql`select set_config('search_path', ${`${cmsBuildSchema(generationId)},${cmsGenerationSchemaName(generationId)},public`}, true), set_config('cms.preview','true',true), set_config('statement_timeout','60000',true)`);
-    return withDbExecutor(tx, () => withCmsGenerationContext({ siteId, generationId, candidate: true, buildAt }, fn));
+    const delivery = await readCmsGenerationDelivery(tx, siteId, generationId, true);
+    return withDbExecutor(tx, () => withCmsGenerationContext({ siteId, generationId, candidate: true, buildAt, ...delivery }, fn));
   }, { isolationLevel: 'repeatable read', accessMode: 'read only' }));
 }
 

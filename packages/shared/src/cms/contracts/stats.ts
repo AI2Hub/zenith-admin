@@ -55,7 +55,7 @@ export type CmsStatReportRow = z.infer<typeof cmsStatReportRowSchema>;
 export const cmsStatOverviewSchema = z.object({
   scope: cmsStatScopeSchema, status: z.enum(CMS_STAT_STATUSES), metrics: cmsStatMetricsSchema,
   previousMetrics: cmsStatMetricsSchema.nullable(),
-  collectionAvailableSince: z.string().nullable(), comparisonAvailable: z.boolean(), comparisonUnavailableReason: z.string().nullable(),
+  earliestRetainedEventAt: z.string().nullable(), comparisonAvailable: z.boolean(), comparisonUnavailableReason: z.string().nullable(),
   trend: z.array(z.object({ date: z.string(), pv: z.int(), uv: z.int(), sessions: z.int(), reads: z.int(), conversions: z.int(), searches: z.int() })),
 });
 export type CmsStatOverview = z.infer<typeof cmsStatOverviewSchema>;

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const redis = vi.hoisted(() => ({
+  get: vi.fn(),
   incr: vi.fn(),
   scan: vi.fn(),
   del: vi.fn(),
@@ -8,11 +9,13 @@ const redis = vi.hoisted(() => ({
 
 vi.mock('../../lib/redis', () => ({ default: redis }));
 
-import { invalidateCmsSiteCaches } from './cms-cache.service';
+import { invalidateCmsSiteCaches, readCmsCacheEpoch } from './cms-cache.service';
+import { withCmsGenerationContext } from './cms-generation-context';
 
 describe('CMS public cache invalidation', () => {
   beforeEach(() => {
     redis.scan.mockReset();
+    redis.get.mockReset().mockResolvedValue('unchanged-redis');
     redis.incr.mockReset().mockResolvedValue(1);
     redis.del.mockReset().mockResolvedValue(3);
     redis.scan
@@ -37,5 +40,10 @@ describe('CMS public cache invalidation', () => {
     redis.scan.mockReset().mockRejectedValue(new Error('redis unavailable'));
     await expect(invalidateCmsSiteCaches(3)).resolves.toBeUndefined();
     expect(redis.del).not.toHaveBeenCalled();
+  });
+  it('partitions cache keys by the persisted visibility epoch even when Redis invalidation has not advanced', async () => {
+    const epoch = (visibilityEpoch: number) => withCmsGenerationContext({ siteId: 3, generationId: 17, candidate: false,
+      releaseId: 8, visibilityEpoch, capturedVisibilityEpoch: 2 }, () => readCmsCacheEpoch(3));
+    expect(await epoch(2)).not.toBe(await epoch(4));
   });
 });

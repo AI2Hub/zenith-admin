@@ -27,7 +27,7 @@ function wrapper({ children }: { children: ReactNode }) { return <QueryClientPro
 beforeEach(() => {
   const metrics = cmsStatMetricsSchema.parse(Object.fromEntries(Object.keys(cmsStatMetricsSchema.shape).map((key) => [key, 0])));
   const scope = { startTime: '2026-09-01T00:00:00Z', endTime: '2026-09-28T00:00:00Z', watermark: '2026-09-28T00:00:00Z', comparisonStart: null, comparisonEnd: null, timeZone: 'Asia/Shanghai', granularity: 'day' as const };
-  state.overview = { scope, status: 'collecting', metrics: { ...metrics, pv: 15, uv: 3, noResultKeywords: 25, searches: 40, noResultSearches: 30 }, previousMetrics: null, collectionAvailableSince: null, comparisonAvailable: false, comparisonUnavailableReason: null, trend: [] };
+  state.overview = { scope, status: 'collecting', metrics: { ...metrics, pv: 15, uv: 3, noResultKeywords: 25, searches: 40, noResultSearches: 30 }, previousMetrics: null, earliestRetainedEventAt: null, comparisonAvailable: false, comparisonUnavailableReason: null, trend: [] };
   state.quality = { scope, status: 'collecting', configuredEnabled: true, publishedEnabled: true, acceptedEvents: 55, rejectedEvents: 0, duplicateEvents: 0, rejectionRate: 0, duplicateRate: 0, lastReceivedAt: scope.watermark, lastEventAt: scope.watermark, latencyP95Ms: 100, eventsWithoutPage: 0, eventsWithoutVisitor: 0, pendingConversions: 0, failedConversions: 0, eventTypes: [], reasons: [] };
   state.failure = false; state.queries.length = 0;
 });
@@ -58,7 +58,7 @@ describe('CMS statistics workspace', () => {
     expect(screen.getByText(/采集配置与线上版本尚未一致/)).toBeInTheDocument();
   });
   it('explains missing comparison coverage instead of showing a fabricated improvement over zero', () => {
-    state.overview = { ...state.overview!, comparisonUnavailableReason: '对比期间尚未开启采集，无法计算同比。', collectionAvailableSince: '2026-09-28T00:00:00Z' };
+    state.overview = { ...state.overview!, comparisonUnavailableReason: '对比期间尚未开启采集，无法计算同比。', earliestRetainedEventAt: '2026-09-28T00:00:00Z' };
     const view = render(<StatsPage />, { wrapper });
     fireEvent.click(screen.getByRole('button', { name: '选择测试站点' }));
     expect(screen.getByText('对比期间尚未开启采集，无法计算同比。')).toBeInTheDocument();

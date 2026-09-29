@@ -46,3 +46,4 @@ export * from './page-block-quality';
 
 export * from './configuration-state';
 export * from './page-presets';
+export * from './delivery-validation';

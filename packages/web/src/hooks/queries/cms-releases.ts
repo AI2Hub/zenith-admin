@@ -1,3 +1,4 @@
+import { invalidateCmsDelivery } from './cms-delivery';
 import { invalidateCmsCollectionStatus } from './cms-stats';
 import { keepPreviousData, type QueryClient } from '@tanstack/react-query';
 import { cmsReleaseContract, cmsWorkbenchContract } from '@zenith/shared/cms';
@@ -9,6 +10,7 @@ import { invalidateCmsDeploymentRetention } from './cms-deployment-retention';
 
 export const cmsReleaseKeys = { lists: contractKey(cmsReleaseContract.list), details: contractKey(cmsReleaseContract.detail) };
 export function invalidateCmsReleases(qc: QueryClient) {
+  invalidateCmsDelivery(qc);
   invalidateCmsDeploymentRetention(qc);
   void qc.invalidateQueries({ queryKey: cmsReleaseKeys.lists });
   void qc.invalidateQueries({ queryKey: cmsReleaseKeys.details });

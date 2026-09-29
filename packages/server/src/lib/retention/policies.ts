@@ -64,6 +64,13 @@ async function analyticsReplayRetention(): Promise<TenantRetentionDays> {
   return new Map([...settings].map(([tenantId, value]) => [tenantId, value.replayRetentionDays]));
 }
 
+/** Current delivery evidence and unfinished runs must survive both age cleanup and its preview. */
+function cmsDeliveryRunExpiry(days: number) {
+  return sql`r.created_at < now()-make_interval(days=>${days})
+    and r.status not in ('activated', 'cache_refreshing', 'checking')
+    and not exists (select 1 from cms_delivery_states s where s.latest_run_id = r.id)`;
+}
+
 /**
  * 全库数据保留策略声明（SSOT）。
  *
@@ -72,6 +79,24 @@ async function analyticsReplayRetention(): Promise<TenantRetentionDays> {
  * 之后管理员在后台调整的值不会被重启覆盖。
  */
 export const RETENTION_POLICIES: readonly RetentionPolicyDefinition[] = [
+  {
+    key: 'cms_delivery_runs', title: 'CMS 交付验证记录', module: 'CMS内容管理', tableName: 'cms_delivery_runs',
+    timeColumn: 'created_at', defaultDays: 365, mode: 'custom',
+    run: async (days, batchSize) => {
+      if (days <= 0) return 0;
+      const rows = await db.execute<{ id: number }>(sql`delete from cms_delivery_runs where id in (
+        select r.id from cms_delivery_runs r where ${cmsDeliveryRunExpiry(days)}
+        order by r.id limit ${batchSize} for update skip locked
+      ) returning id`);
+      return rows.length;
+    },
+    previewPending: async days => {
+      if (days <= 0) return 0;
+      const [row] = await db.execute<{ count: number }>(sql`select count(*)::int as count from cms_delivery_runs r where ${cmsDeliveryRunExpiry(days)}`);
+      return row?.count ?? 0;
+    },
+    description: '交付探测与缓存刷新历史保留一年；仅清理历史终态记录，保护各站点最新验证记录及激活、缓存刷新、探测中的记录。',
+  },
   { key: 'cms_telemetry_receipts', title: 'CMS 采集接收记录', module: 'CMS内容管理', tableName: 'cms_telemetry_receipts', timeColumn: 'created_at', defaultDays: 90, description: '采集接收、拒绝与重复诊断，不参与业务访问统计。' },
   { key: 'cms_telemetry_outbox', title: 'CMS 转化投递记录', module: 'CMS内容管理', tableName: 'cms_telemetry_outbox', timeColumn: 'created_at', defaultDays: 90, mode: 'custom',
     run: async (days, batchSize) => { if (days <= 0) return 0; const rows = await db.execute<{ id: number }>(sql`delete from cms_telemetry_outbox where id in (select id from cms_telemetry_outbox where delivered_at is not null and created_at < now()-make_interval(days=>${days}) limit ${batchSize}) returning id`); return rows.length; },

@@ -32,11 +32,13 @@ describe('CMS durable build artifacts', () => {
   it('reuses only verified bytes, changes attribution and leaves the public base immutable', async () => {
     const { root, filename, target } = await fixture();
     const before = await fs.readFile(filename, 'utf8');
-    const artifacts = await reuseCmsBuildTarget({ root, siteCode: 'example', sourceGenerationId: 1, generationId: 2, releaseId: 4, target, assertCurrent: async () => {} });
+    const artifacts = await reuseCmsBuildTarget({ root, siteCode: 'example', sourceGenerationId: 1, generationId: 2, releaseId: 4, visibilityEpoch: 7, target, assertCurrent: async () => {} });
     expect(artifacts).not.toBeNull();
     const copied = await fs.readFile(await cmsBuildArtifactFile('example', 2, 'news/1.html', root), 'utf8');
     expect(copied).toContain('name="cms-release-id" content="4"');
     expect(copied).toContain('name="cms-deployment-id" content="2"');
+    expect(copied).toContain('name="cms-generation-id" content="2"');
+    expect(copied).toContain('name="cms-visibility-epoch" content="7"');
     expect(await fs.readFile(filename, 'utf8')).toBe(before);
     expect(artifacts![0].checksum).not.toBe(target.artifacts[0].checksum);
     await fs.writeFile(filename, 'corrupted base');
@@ -62,7 +64,7 @@ describe('CMS durable build artifacts', () => {
     expect(fingerprint('stable', '~site|4|000000000009', changed)).toBe(fingerprint('stable', '~site|4|000000000009'));
     for (const key of ['~site|0|000000000000', '~site|1|000000000002', '~site|2|000000000003', '~site|3|000000000004', '~meta|0|000000000001']) expect(fingerprint('changed-global', key)).not.toBe(fingerprint('stable', key));
     expect(cmsBuildTargetFingerprint('stable', '~meta|0|000000000001', first, 'later')).not.toBe(fingerprint('stable', '~meta|0|000000000001'));
-    expect(rebindCmsArtifactAttribution('<p>cms-release-id</p>', 3, 4)).toBe('<p>cms-release-id</p>');
+    expect(rebindCmsArtifactAttribution('<p>cms-release-id</p>', 3, 4)).toContain('<p>cms-release-id</p>');
   });
   it('keeps unrelated default details when one body changes, while collection metadata and slots invalidate their consumers', () => {
     const pages = new Map<number, string>();

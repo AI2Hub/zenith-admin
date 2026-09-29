@@ -4,6 +4,7 @@ import path from 'node:path';
 import { CMS_STATIC_ROOT, isStrictlyWithin, pathToStaticFile } from './cms-static-path';
 import { signCmsTelemetryPage, verifyCmsTelemetryPageToken } from './cms-telemetry-context';
 import { memoCmsBuild } from './cms-build-context';
+import { stampCmsDeliveryMarkers } from './cms-delivery-markers';
 
 export interface CmsBuildArtifact { path: string; checksum: string; size: number }
 export interface CmsBuildTarget { key: string; fingerprint: string; artifacts: CmsBuildArtifact[] }
@@ -34,7 +35,7 @@ export function cmsBuildTargetFingerprint(globalHash: string, key: string, pages
   return cmsBuildDigest([globalHash, key, contentDependency, scope === '~site' && phase === '4' ? pages.get(Number(id)) ?? null : null, scope === '~meta' ? frozenAt ?? null : null]);
 }
 
-export function rebindCmsArtifactAttribution(html: string, releaseId: number, deploymentId: number): string {
+export function rebindCmsArtifactAttribution(html: string, releaseId: number, deploymentId: number, visibilityEpoch = 0): string {
   html = html.replace(/(<meta\b[^>]*\bname=["']cms-telemetry-context["'][^>]*\bcontent=["'])([^"']*)(["'][^>]*>)/gi, (tag, before: string, token: string, after: string) => {
     const page = verifyCmsTelemetryPageToken(token);
     return page ? `${before}${signCmsTelemetryPage({ ...page, releaseId, deploymentId }).contextToken}${after}` : tag;
@@ -42,7 +43,7 @@ export function rebindCmsArtifactAttribution(html: string, releaseId: number, de
   for (const [name, value] of [['cms-release-id', releaseId], ['cms-deployment-id', deploymentId]] as const) {
     html = html.replace(new RegExp(`(<meta\\b[^>]*\\bname=["']${name}["'][^>]*\\bcontent=["'])[^"']*(["'][^>]*>)`, 'gi'), (_tag, before: string, after: string) => `${before}${value}${after}`);
   }
-  return html;
+  return stampCmsDeliveryMarkers(html, { releaseId, generationId: deploymentId, visibilityEpoch });
 }
 
 /** Every read/write rejects symbolic links, including intermediate site/generation directories. */
@@ -81,13 +82,13 @@ export async function validateCmsBuildTarget(siteCode: string, generationId: num
 }
 
 /** Copy bytes only after verifying the immutable base; never hard-link a public generation. */
-export async function reuseCmsBuildTarget(input: { siteCode: string; sourceGenerationId: number; generationId: number; releaseId: number; target: CmsBuildTarget; assertCurrent: () => Promise<void>; root?: string }): Promise<CmsBuildArtifact[] | null> {
+export async function reuseCmsBuildTarget(input: { siteCode: string; sourceGenerationId: number; generationId: number; releaseId: number; visibilityEpoch?: number; target: CmsBuildTarget; assertCurrent: () => Promise<void>; root?: string }): Promise<CmsBuildArtifact[] | null> {
   const output: CmsBuildArtifact[] = [];
   for (const artifact of input.target.artifacts) {
     let bytes: Buffer;
     try { bytes = await fs.readFile(await cmsBuildArtifactFile(input.siteCode, input.sourceGenerationId, artifact.path, input.root)); } catch { return null; }
     if (bytes.length !== artifact.size || createHash('sha256').update(bytes).digest('hex') !== artifact.checksum) return null;
-    if (artifact.path.endsWith('.html')) bytes = Buffer.from(rebindCmsArtifactAttribution(bytes.toString('utf8'), input.releaseId, input.generationId));
+    if (artifact.path.endsWith('.html')) bytes = Buffer.from(rebindCmsArtifactAttribution(bytes.toString('utf8'), input.releaseId, input.generationId, input.visibilityEpoch));
     const destination = await cmsBuildArtifactFile(input.siteCode, input.generationId, artifact.path, input.root);
     await ensureCmsBuildArtifactDirectory(destination);
     const temporary = `${destination}.${randomUUID()}.tmp`;

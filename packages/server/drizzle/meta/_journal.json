@@ -176,6 +176,13 @@
       "when": 1790661432278,
       "tag": "0024_romantic_talos",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1790665477858,
+      "tag": "0025_familiar_silver_sable",
+      "breakpoints": true
     }
   ]
 }

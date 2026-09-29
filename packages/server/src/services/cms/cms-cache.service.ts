@@ -1,7 +1,7 @@
 import { config } from '../../config';
 import redis from '../../lib/redis';
 import logger from '../../lib/logger';
-import { cmsGenerationContext } from './cms-generation-context';
+import { cmsDeliverySnapshot, cmsGenerationContext } from './cms-generation-context';
 
 const PAGE_CACHE_PREFIX = `${config.redis.keyPrefix}cms:page:`;
 const META_CACHE_PREFIX = `${config.redis.keyPrefix}cms:sitemap:`;
@@ -10,7 +10,8 @@ const CACHE_EPOCH_PREFIX = `${config.redis.keyPrefix}cms:epoch:`;
 export async function readCmsCacheEpoch(siteId: number): Promise<string> {
   const epoch = String(await redis.get(`${CACHE_EPOCH_PREFIX}${siteId}`).catch(() => '0') ?? '0');
   const generation = cmsGenerationContext();
-  return generation ? `${generation.generationId}:${epoch}` : epoch;
+  const visibilityEpoch = cmsDeliverySnapshot().visibilityEpoch;
+  return `${generation?.generationId ?? 'null'}:${visibilityEpoch}:${epoch}`;
 }
 
 function pageKey(siteId: number, path: string): string {

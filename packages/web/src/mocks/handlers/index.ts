@@ -1,3 +1,4 @@
+import { cmsDeliveryHandlers } from './cms-delivery';
 import { businessFileDetailHandlers } from './business-file-details';
 import { entityWatchesHandlers } from './entity-watches';
 import { workflowAttachmentHandlers } from './workflow-attachments';
@@ -308,6 +309,7 @@ export const handlers = [
   ...cmsPagePresetHandlers,
   ...cmsConfigurationStateHandlers,
   ...cmsDeploymentRetentionHandlers,
+  ...cmsDeliveryHandlers,
   ...cmsReleaseHandlers,
   ...cmsBlueprintHandlers,
   ...cmsStage4Handlers,

@@ -796,3 +796,11 @@ export const CMS_PAGE_PRESET_FIELDS: readonly {
   { value: 'linkUrl', label: '图片链接', kind: 'link', blockTypes: ['image'] },
   { value: 'linkLabel', label: '链接说明', kind: 'text', blockTypes: ['image'] },
 ];
+
+export const CMS_DELIVERY_STATUSES = ['activated', 'cache_refreshing', 'checking', 'passed', 'unverified', 'failed', 'superseded'] as const;
+export const CMS_DELIVERY_CAUSES = ['activate', 'rollback', 'withdraw', 'restore', 'rights', 'expiry', 'manual'] as const;
+export const CMS_DELIVERY_OBSERVATION_STATUSES = ['passed', 'unverified', 'failed'] as const;
+export const CMS_DELIVERY_PURGE_STATUSES = ['pending', 'not_configured', 'accepted', 'failed'] as const;
+export const CMS_DELIVERY_STATUS_LABELS = { activated: '已激活，等待交付', cache_refreshing: '缓存刷新中', checking: '正在检测页面', passed: '交付检测通过', unverified: '尚未完整验证', failed: '交付异常', superseded: '已被新版本替代' } as const;
+export const CMS_DELIVERY_CAUSE_LABELS = { activate: '发布激活', rollback: '版本回滚', withdraw: '内容撤下', restore: '恢复可见', rights: '素材授权变更', expiry: '有效期到期', manual: '主动检测' } as const;
+export const CMS_DELIVERY_PURGE_LABELS = { pending: '等待刷新', not_configured: '未配置刷新服务', accepted: '已接受刷新请求', failed: '刷新请求失败' } as const;

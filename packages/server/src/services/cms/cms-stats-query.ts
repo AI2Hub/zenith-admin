@@ -219,13 +219,13 @@ export async function getCmsStatsOverview(q: CmsStatsQuery): Promise<CmsStatOver
   return readCmsGenerationSnapshot(q.siteId, async (tx) => {
     const current = await metrics(tx, q, scope);
     const [coverage]=await tx.execute<{since:Date|null}>(sql`select min(e.created_at) as since from public.user_events e where e.tenant_id is null and e.properties @> ${JSON.stringify({cmsSiteId:q.siteId,cmsSchemaVersion:2,trustedCms:true,environment:'live'})}::jsonb and coalesce((e.properties->>'receivedAt')::timestamptz,e.created_at)<=${scope.watermark}::timestamptz`);
-    const collectionAvailableSince=coverage?.since?new Date(coverage.since).toISOString():null;
+    const earliestRetainedEventAt=coverage?.since?new Date(coverage.since).toISOString():null;
     const comparisonCoverage = scope.comparisonStart && scope.comparisonEnd
-      ? await getCmsCollectionCoverage(tx, q.siteId, scope.comparisonStart, scope.comparisonEnd, collectionAvailableSince) : null;
+      ? await getCmsCollectionCoverage(tx, q.siteId, scope.comparisonStart, scope.comparisonEnd, earliestRetainedEventAt) : null;
     const comparisonAvailable = comparisonCoverage?.available ?? false;
     const coverageMessages = { available: '', not_started: '对比区间尚未开始采集，不将缺失历史视为零流量', unknown: '对比区间的连续采集覆盖未知，暂不计算变化率', paused: '对比区间包含暂停采集时段，暂不计算变化率', retention: '对比区间的事实数据已按保留策略清理，暂不计算变化率' };
     const previousMetrics = comparisonAvailable ? await metrics(tx, q, { ...scope, startTime: scope.comparisonStart!, endTime: scope.comparisonEnd! }) : null;
-    return { scope, status: qualityStatus(await readCmsCollectionState(tx, q.siteId), current.pv), metrics: current, previousMetrics, collectionAvailableSince, comparisonAvailable,
+    return { scope, status: qualityStatus(await readCmsCollectionState(tx, q.siteId), current.pv), metrics: current, previousMetrics, earliestRetainedEventAt, comparisonAvailable,
       comparisonUnavailableReason:comparisonCoverage && !comparisonAvailable ? coverageMessages[comparisonCoverage.reason] : null,trend: await trend(tx, q, scope) };
   });
 }

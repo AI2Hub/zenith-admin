@@ -14,6 +14,7 @@ import { registerCmsWebhookTaskHandler } from './cms-webhook.service';
 import { registerCmsWidgetTaskHandlers } from './cms-widget-tasks';
 import { registerCmsReleaseTaskHandler } from './cms-releases.service';
 import { registerCmsCdnTaskHandler } from './cms-cdn.service';
+import { registerCmsDeliveryTasks } from './cms-delivery-tasks';
 import { registerCmsPublicationEffectTasks } from './cms-publication-effects.service';
 import type { CmsCapturedConfiguration } from './cms-configuration-snapshot.service';
 
@@ -31,6 +32,7 @@ export function registerCmsTaskHandlers(): void {
   registerCmsWidgetTaskHandlers();
   registerCmsReleaseTaskHandler();
   registerCmsCdnTaskHandler();
+  registerCmsDeliveryTasks();
   registerCmsPublicationEffectTasks();
 
   registerTaskHandler({

@@ -33,6 +33,7 @@ export const cmsDeployments = pgTable('cms_deployments', {
   id: idColumn(), siteId: integer().notNull().references(() => cmsSites.id, { onDelete: 'cascade' }),
   releaseId: integer().notNull().references(() => cmsReleases.id, { onDelete: 'restrict' }),
   status: cmsDeploymentStatusEnum().notNull().default('building'),
+  visibilityEpoch: integer().notNull().default(0),
   snapshot: jsonb().$type<CmsDeploymentSnapshot>(), manifestHash: varchar({ length: 64 }),
   artifactCount: integer().notNull().default(0), error: text(), activatedAt: timestamp({ withTimezone: true }),
   taskIds: jsonb().$type<number[]>().notNull().default([]),

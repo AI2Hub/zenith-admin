@@ -8,6 +8,7 @@ import { APP_TIME_ZONE } from '../../lib/datetime';
 import { offlineExpiredCmsContents, cancelExpiredTopContents } from './cms-contents.service';
 import { publishCmsContent } from './cms-contents.service';
 import { activateScheduledCmsReleases } from './cms-releases.service';
+import { scheduleCmsExpiredDelivery } from './cms-delivery-expiry';
 
 const LOCK_KEY = `${config.redis.keyPrefix}cms:scheduled-publish-lock`;
 const LOCK_TTL_SECONDS = 300;
@@ -47,16 +48,17 @@ export async function publishScheduledCmsContents(): Promise<string> {
 
     // 过期下线
     const expired = await offlineExpiredCmsContents(now);
+    const expiryDeliveries = await scheduleCmsExpiredDelivery(now);
 
     // 置顶到期自动取消（刷新静态页恢复正常排序）
     const untopIds = await cancelExpiredTopContents(now).catch((err) => {
       logger.error('[CMS] 置顶到期取消失败', err);
       return [] as number[];
     });
-    if (due.length === 0 && activatedReleases === 0 && expired.offlined.length === 0 && expired.blocked.length === 0 && untopIds.length === 0) {
+    if (due.length === 0 && activatedReleases === 0 && expired.offlined.length === 0 && expired.blocked.length === 0 && untopIds.length === 0 && expiryDeliveries === 0) {
       return '无到期的定时发布/过期内容';
     }
-    return `定时激活发布单 ${activatedReleases} 个，提交发布 ${published}/${due.length} 条，过期下线 ${expired.offlined.length} 条，部件引用阻塞 ${expired.blocked.length} 条，置顶到期取消 ${untopIds.length} 条`;
+    return `定时激活发布单 ${activatedReleases} 个，提交发布 ${published}/${due.length} 条，过期下线 ${expired.offlined.length} 条，部件引用阻塞 ${expired.blocked.length} 条，置顶到期取消 ${untopIds.length} 条，到期交付验证 ${expiryDeliveries} 项`;
   } finally {
     await redis.del(LOCK_KEY).catch(() => undefined);
   }

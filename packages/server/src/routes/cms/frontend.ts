@@ -13,7 +13,8 @@ import {
 } from '../../services/cms/cms-render.service';
 import { resolveCmsPreviewRevision } from '../../services/cms/cms-preview.service';
 import { cmsGenerationNeedsDynamicDelivery, withCmsPublicGeneration } from '../../services/cms/cms-generation-storage.service';
-import { cmsGenerationContext } from '../../services/cms/cms-generation-context';
+import { cmsDeliverySnapshot, cmsGenerationContext } from '../../services/cms/cms-generation-context';
+import { cmsDeliveryEpochRequiresDynamic, cmsDeliveryHeaders, cmsHtmlMatchesDelivery } from '../../services/cms/cms-delivery-markers';
 import { readStaticFile, writeStaticFile, generateSitemapXml, buildRobotsTxt, isCmsStaticArtifactCurrent, assertCmsHybridWriteSafe } from '../../services/cms/cms-static.service';
 import { generateRssXml, findChannelByPath, ensureSiteThemeCssAsset, ensureSiteIslandsAsset } from '../../services/cms/cms-render.service';
 import { withCmsTelemetryEnvironment } from '../../services/cms/cms-telemetry-context';
@@ -137,8 +138,10 @@ export function createCmsFrontendRoutes(): Hono {
     const deliver = async () => {
     const site = await resolveSiteByCode(target.site.code) ?? target.site;
     const generation = cmsGenerationContext();
-    if (generation) c.header('X-Cms-Generation', String(generation.generationId));
-    const runtimeBlocked = generation ? await cmsGenerationNeedsDynamicDelivery(site.id) : false;
+    const delivery = cmsDeliverySnapshot();
+    for (const [name, value] of Object.entries(cmsDeliveryHeaders(delivery))) c.header(name, value);
+    const runtimeBlocked = cmsDeliveryEpochRequiresDynamic(delivery) || (generation ? await cmsGenerationNeedsDynamicDelivery(site.id) : false);
+    if (runtimeBlocked) c.header('Cache-Control', 'no-cache');
     const dynamicPage = await resolveDynamicCmsPageForPath(site.id, sitePath);
     const memberViewer = c.get('member')?.memberId != null;
 
@@ -259,7 +262,7 @@ export function createCmsFrontendRoutes(): Hono {
         logger.warn(`[CMS] 静态产物状态校验失败，回退 SSR site=${site.code} path=${sitePath}`, error);
         return false;
       });
-      if (cached !== null && artifactCurrent) {
+      if (cached !== null && artifactCurrent && await cmsHtmlMatchesDelivery(cached, delivery)) {
         return htmlResponse(c, cached, PAGE_CACHE_TTL_DEFAULT_SECONDS, { 'X-Cms-Cache': 'static' });
       }
     }
@@ -269,7 +272,7 @@ export function createCmsFrontendRoutes(): Hono {
     const cacheKey = `${PAGE_CACHE_PREFIX}${site.id}:${cacheEpoch}:${sitePath}`;
     if (!runtimeBlocked && !dynamicPage && !isPreview && site.staticMode === 'dynamic') {
       const cached = await redis.get(cacheKey).catch(() => null);
-      if (cached) {
+      if (cached && await cmsHtmlMatchesDelivery(cached, delivery)) {
         return htmlResponse(c, cached, PAGE_CACHE_TTL_DEFAULT_SECONDS, { 'X-Cms-Cache': 'redis' });
       }
     }

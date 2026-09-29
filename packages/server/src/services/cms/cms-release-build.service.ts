@@ -9,11 +9,12 @@ import { createConcurrencyLimiter } from '../../lib/concurrency';
 import { TaskCancelledError } from '../../lib/task-center';
 import type { TaskRunContext } from '../../lib/task-center/types';
 import { applyCmsRevisionProjection, loadCmsPublishableRevision } from './cms-content-revisions.service';
-import { withCmsGenerationContext } from './cms-generation-context';
+import { cmsDeliverySnapshot, withCmsGenerationContext } from './cms-generation-context';
+import { readCmsVisibilityEpoch } from './cms-delivery-state';
 import { cmsGenerationManifest, cmsGenerationSchemaName, collectCmsGenerationArtifacts, createCmsGenerationStorage, hashCmsDeploymentManifest, sealCmsGenerationStorage, verifyCmsGenerationArtifacts } from './cms-generation-storage.service';
 import { assertCmsReleaseDependencies } from './cms-release-preflight.service';
 import { buildSiteStatic, writeStaticFile } from './cms-static.service';
-import { withCmsStaticWriteFence } from './cms-site-publish-lock.service';
+import { acquireCmsSitePublishLock, withCmsStaticWriteFence } from './cms-site-publish-lock.service';
 import { rebuildSearchIndex, reloadCmsSearchDict, releaseCmsGenerationSearchDictionary } from './cms-search.service';
 import { cmsBuildDependencyHashes, cmsBuildRuntimeHash, createCmsBuildStorage, loadCmsBuildTargets, saveCmsBuildTargets, withCmsBuildTransaction, withCmsBuildReadTransaction } from './cms-release-build-storage';
 import { cmsBuildTargetFingerprint, cmsBuildTargetMatchesManifest, inspectCmsBuildArtifacts, reuseCmsBuildTarget, validateCmsBuildTarget, type CmsBuildTarget } from './cms-release-build-artifacts';
@@ -127,7 +128,10 @@ async function buildCandidate(release: CmsReleaseRow, deployment: CmsDeploymentR
       await progress('projection', '冻结发布输入与公开投影', 0, 1);
       const buildAt = new Date();
       await db.transaction(async (tx) => {
+        await acquireCmsSitePublishLock(tx, release.siteId);
         await tx.execute(sql`select pg_advisory_xact_lock(hashtext('cms-generation-build'), ${generationId})`);
+        const visibilityEpoch = await readCmsVisibilityEpoch(tx, release.siteId);
+        await tx.update(cmsDeployments).set({ visibilityEpoch }).where(eq(cmsDeployments.id, generationId));
         await createCmsGenerationStorage(tx, release.siteId, generationId, release.baseGenerationId, release.configurationSnapshot);
         const revisions: Awaited<ReturnType<typeof loadCmsPublishableRevision>>[] = [];
         for (const item of release.items) if (item.revisionId) revisions.push(await loadCmsPublishableRevision(tx, item.revisionId));
@@ -144,7 +148,8 @@ async function buildCandidate(release: CmsReleaseRow, deployment: CmsDeploymentR
           await tx.execute(sql`INSERT INTO ${sql.raw(`"${schema}".cms_contents (${names})`)} OVERRIDING SYSTEM VALUE SELECT ${sql.raw(names)} FROM public.cms_contents WHERE id IN (${sql.join(revisions.map((revision) => sql`${revision.contentId}`), sql`,`)}) ON CONFLICT (id) DO NOTHING`);
         }
         await tx.execute(sql`select set_config('search_path', ${`${schema},public`}, true)`);
-        await withDbExecutor(tx, () => withCmsGenerationContext({ siteId: release.siteId, generationId, candidate: true, buildAt }, async () => {
+        await withDbExecutor(tx, () => withCmsGenerationContext({ siteId: release.siteId, generationId, candidate: true, buildAt,
+          releaseId: release.id, visibilityEpoch, capturedVisibilityEpoch: visibilityEpoch }, async () => {
           for (const revision of revisions) {
             const [channel] = await tx.select({ id: cmsChannels.id }).from(cmsChannels).where(and(eq(cmsChannels.siteId, release.siteId), eq(cmsChannels.id, revision.payload.channelId), eq(cmsChannels.status, 'enabled'))).limit(1);
             if (!channel) throw new HTTPException(409, { message: '修订目标栏目未包含在候选公开配置中，请将栏目配置一并发布' });
@@ -206,7 +211,7 @@ async function buildCandidate(release: CmsReleaseRow, deployment: CmsDeploymentR
           }
           const base = baseTargets.get(key);
           let artifacts = base?.fingerprint === fingerprint && release.baseGenerationId
-            ? await measureCmsBuildWork('fileMs', () => reuseCmsBuildTarget({ siteCode: site.code, sourceGenerationId: release.baseGenerationId!, generationId, releaseId: release.id, target: base, assertCurrent })) : null;
+            ? await measureCmsBuildWork('fileMs', () => reuseCmsBuildTarget({ siteCode: site.code, sourceGenerationId: release.baseGenerationId!, generationId, releaseId: release.id, visibilityEpoch: cmsDeliverySnapshot().visibilityEpoch, target: base, assertCurrent })) : null;
           if (artifacts) { metrics.reusedArtifacts = (metrics.reusedArtifacts ?? 0) + artifacts.length; targetMetrics.outcome = 'reused'; }
           else {
             await assertCurrent();

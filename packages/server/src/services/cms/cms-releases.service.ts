@@ -24,7 +24,8 @@ import { ensureSiteThemeCssAsset, renderSitePath } from './cms-render.service';
 import { stripCmsPreviewScripts } from './cms-preview';
 import { resolveEffectiveCmsSiteRow } from './cms-site-inheritance.service';
 import { enqueueCmsWebhookEvents, insertCmsContentWebhookOutbox } from './cms-webhook.service';
-import { insertCmsCdnPurgeOutbox } from './cms-cdn.service';
+import { cmsDeliveryContentPaths, insertCmsDeliveryRun } from './cms-delivery-records';
+import { bumpCmsVisibilityEpoch } from './cms-delivery-state';
 import { insertCmsSubscriptionNotificationOutbox, enqueueCmsSubscriptionNotification } from './cms-stage4-tasks';
 import { logContentOp } from './cms-content-op-logs.service';
 import { requireCmsContentAccess } from './cms-content-access.service';
@@ -265,6 +266,7 @@ export async function activateCmsRelease(id: number, expectedGenerationId: numbe
     const affectedIds = rollback ? [...new Set([...rollbackAffected.map((row) => row.id),
       ...[...new Set([...oldRevisions.keys(), ...nextRevisions.keys()])].filter((contentId) => oldRevisions.get(contentId) !== nextRevisions.get(contentId)),
     ])] : locked.items.map((item) => item.contentId);
+    const oldDeliveryPaths = await cmsDeliveryContentPaths(tx, locked.siteId, affectedIds.filter(contentId => !nextRevisions.has(contentId)), 'withdrawn');
     if (rollback) await tx.select({ id: cmsContentWorkingCopies.contentId }).from(cmsContentWorkingCopies)
       .where(sql`${cmsContentWorkingCopies.contentId} IN (SELECT ${cmsContents.id} FROM ${cmsContents} WHERE ${cmsContents.siteId}=${locked.siteId})`)
       .orderBy(asc(cmsContentWorkingCopies.contentId)).for('update');
@@ -315,10 +317,16 @@ export async function activateCmsRelease(id: number, expectedGenerationId: numbe
         effects.push(await persistAsyncTask(tx, { taskType: 'cms-publication-effects', title: `内容交付：${content.title}`, tenantId: null, payload: { contentId: content.id, contentVersion: content.version, activationId: activation.id, siteId: locked.siteId }, idempotencyKey: `cms-publication-effects:${activation.id}:${content.id}` }));
       }
     }
-    const cdnTask = await insertCmsCdnPurgeOutbox(tx, locked.siteId, `activation:${activation.id}`);
-    const deliveryIds = [...webhooks, ...notifications, ...effects, cdnTask].flatMap((task) => task ? [task.id] : []);
+    const visibleIds = affectedIds.filter(contentId => nextRevisions.has(contentId));
+    const withdrawnIds = affectedIds.filter(contentId => !nextRevisions.has(contentId));
+    const delivery = await insertCmsDeliveryRun(tx, locked.siteId, { eventKey: `activation:${activation.id}`, cause: rollback ? 'rollback' : 'activate', paths: [
+      ...oldDeliveryPaths,
+      ...await cmsDeliveryContentPaths(tx, locked.siteId, withdrawnIds, 'withdrawn'),
+      ...await cmsDeliveryContentPaths(tx, locked.siteId, visibleIds, 'visible'),
+    ] });
+    const deliveryIds = [...webhooks, ...notifications, ...effects].flatMap((task) => task ? [task.id] : []).concat(delivery.taskId);
     await tx.update(cmsDeployments).set({ taskIds: [...new Set([...(deployment.taskIds ?? []), ...deliveryIds])] }).where(eq(cmsDeployments.id, deployment.id));
-    return { release: updated, webhooks, notifications, effects, cdnTaskId: cdnTask.id };
+    return { release: updated, webhooks, notifications, effects, cdnTaskId: delivery.taskId };
   });
   invalidateSiteCache();
   await invalidateCmsSiteCaches(release.siteId);
@@ -344,10 +352,13 @@ export async function suppressCmsContent(contentId: number, reason: string, supp
     else await tx.delete(cmsContentSuppressions).where(eq(cmsContentSuppressions.contentId, contentId));
     // A visibility-only change still advances incremental delivery cursors.
     await tx.update(cmsContents).set({ version: sql`${cmsContents.version}` }).where(eq(cmsContents.id, contentId));
-    return insertCmsCdnPurgeOutbox(tx, row.siteId, `visibility:${contentId}:${Date.now()}`);
+    const epoch = await bumpCmsVisibilityEpoch(tx, row.siteId);
+    return insertCmsDeliveryRun(tx, row.siteId, { eventKey: `visibility:${contentId}:${epoch}`, cause: suppressed ? 'withdraw' : 'restore',
+      paths: await cmsDeliveryContentPaths(tx, row.siteId, [contentId], suppressed ? 'withdrawn' : 'visible'),
+    });
   });
   await invalidateCmsSiteCaches(row.siteId);
-  await enqueueAsyncTask(task.id).catch(() => undefined);
+  await enqueueAsyncTask(task.taskId).catch(() => undefined);
 }
 
 export async function activateScheduledCmsReleases(): Promise<number> {

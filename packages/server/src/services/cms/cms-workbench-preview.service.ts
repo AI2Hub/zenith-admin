@@ -13,6 +13,7 @@ import { applyCmsRevisionProjection, canonicalCmsJson, freezeCmsContentRevision,
 import { captureCmsConfiguration } from './cms-configuration-snapshot.service';
 import { createCmsGenerationStorage, cmsGenerationSchemaName, sealCmsGenerationStorage, withCmsPublicGeneration, withCmsGenerationTransaction } from './cms-generation-storage.service';
 import { withCmsGenerationContext } from './cms-generation-context';
+import { readCmsVisibilityEpoch } from './cms-delivery-state';
 import { resolveEffectiveCmsSiteRow } from './cms-site-inheritance.service';
 import { renderSearchPage, renderSitePath } from './cms-render.service';
 import { cmsReleaseScope } from './cms-release-access.service';
@@ -119,7 +120,8 @@ export async function renderCmsWorkbenchPreview(input: PreviewInput): Promise<Cm
       }
       await tx.execute(sql`SELECT set_config('search_path', ${`${cmsGenerationSchemaName(namespace.id)},public`}, true)`);
       await tx.execute(sql`SELECT set_config('cms.preview', 'true', true)`);
-      const result = await withDbExecutor(tx, () => withCmsGenerationContext({ siteId: input.siteId, generationId: namespace.id, candidate: true }, async () => {
+      const visibilityEpoch = await readCmsVisibilityEpoch(tx, input.siteId);
+      const result = await withDbExecutor(tx, () => withCmsGenerationContext({ siteId: input.siteId, generationId: namespace.id, candidate: true, visibilityEpoch, capturedVisibilityEpoch: visibilityEpoch }, async () => {
         for (const revision of revisions) {
           const [previous] = await tx.select({ publishedAt: cmsContents.publishedAt, status: cmsContents.status }).from(cmsContents).where(eq(cmsContents.id, revision.contentId)).limit(1);
           await applyCmsRevisionProjection(tx, revision, { generationId: namespace.id, candidate: true, publishedAt: previous?.status === 'published' && previous.publishedAt ? previous.publishedAt : new Date() });

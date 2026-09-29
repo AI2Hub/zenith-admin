@@ -19,6 +19,7 @@ import { recordMockSubjects, mockEntitySubjects } from '@/mocks/data/entity-subj
  */
 
 const taskTypes: AsyncTaskTypeMeta[] = [
+  { taskType: 'cms-delivery-check', title: 'CMS 交付验证', module: 'CMS内容管理', description: '记录源站和公开入口交付证据；Demo 不发起真实网络检测', allowConcurrent: true, enabled: true, maxAttempts: 3, retryDelayMs: 15000, retentionDays: 30 },
   { taskType: 'cms-deployment-measure', title: 'CMS 部署容量测量', module: 'CMS内容管理', description: '模拟部署占用测量', allowConcurrent: true, enabled: true, maxAttempts: 2, retryDelayMs: 5000, retentionDays: 30 },
   { taskType: 'cms-deployment-cleanup', title: 'CMS 历史部署存储回收', module: 'CMS内容管理', description: '按策略和当前保护状态回收部署存储', allowConcurrent: true, enabled: true, maxAttempts: 3, retryDelayMs: 5000, retentionDays: 30 },
   { taskType: 'cms-content-review-scan', title: 'CMS 内容复核巡检', module: 'CMS内容管理', description: '检查在线修订、有效期和素材风险并创建编辑事项；Demo 不探测外网', allowConcurrent: true, enabled: true, maxAttempts: 3, retryDelayMs: 5000, retentionDays: 30 },
@@ -433,7 +434,7 @@ export function createImmediateMockTask(input: {
 
 const completionEffects = new Map<number, (task: AsyncTask) => void>();
 export function createProgressingMockTask(input: {
-  taskType: 'cms-deployment-measure' | 'cms-deployment-cleanup' | 'cms-content-review-scan' | 'cms-media-processing' | 'report-dq-rule-run' | 'report-dataset-materialize' | 'report-sla-rule-evaluate' | 'report-fill-sync' | 'analytics-rollup-rebuild' | 'analytics-segment-materialize' | 'analytics-campaign-execute' | 'cms-search-reindex' | 'cms-deadlink-check' | 'cms-collect-run' | 'cms-content-import' | 'cms-resource-governance' | 'cms-resource-ref-rebuild' | 'cms-publish-build' | 'cms-widget-batch' | 'cms-widget-refresh' | 'cms-ad-events-cleanup' | 'cms-interactions-batch-status' | 'cms-subscription-notify' | 'cms-distribution-sync' | 'messaging-broadcast';
+  taskType: 'cms-delivery-check' | 'cms-deployment-measure' | 'cms-deployment-cleanup' | 'cms-content-review-scan' | 'cms-media-processing' | 'report-dq-rule-run' | 'report-dataset-materialize' | 'report-sla-rule-evaluate' | 'report-fill-sync' | 'analytics-rollup-rebuild' | 'analytics-segment-materialize' | 'analytics-campaign-execute' | 'cms-search-reindex' | 'cms-deadlink-check' | 'cms-collect-run' | 'cms-content-import' | 'cms-resource-governance' | 'cms-resource-ref-rebuild' | 'cms-publish-build' | 'cms-widget-batch' | 'cms-widget-refresh' | 'cms-ad-events-cleanup' | 'cms-interactions-batch-status' | 'cms-subscription-notify' | 'cms-distribution-sync' | 'messaging-broadcast';
   title: string;
   payload?: Record<string, unknown>;
   totalItems?: number;

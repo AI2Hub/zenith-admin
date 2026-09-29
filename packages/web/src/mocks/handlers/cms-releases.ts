@@ -1,3 +1,4 @@
+import { queueMockCmsDelivery } from './cms-delivery';
 import { matchesFilter } from '../utils/filter';
 import { cmsReleaseContract, cmsWorkbenchContract, CMS_PREVIEW_MODE_LABELS, cmsReleaseFieldDiffs, mergeCmsConfigurationSnapshots, type CmsPreviewEditTarget, type CmsPageBlock, type CmsReleaseChange, type CmsConfigurationSnapshot, type CmsRelease, type CmsDeployment, type CreateCmsReleaseInput } from '@zenith/shared/cms';
 import { mock, MockHttpError } from '../utils/contract';
@@ -114,6 +115,7 @@ function activate(id: number, expectedGenerationId: number | null, rollback = fa
   const activation = { id: nextIdFrom(activations), releaseId: release.id, fromGenerationId: current, toGenerationId: deployment.id, action: rollback ? 'rollback' as const : 'activate' as const, operatorId: 1, operatorName: '演示管理员', createdAt: mockDateTime() };
   activations.push(activation);
   deployment.status = 'active'; deployment.activatedAt = mockDateTime();
+  queueMockCmsDelivery(release.siteId, rollback ? 'rollback' : 'activate');
   recordMockEditorialActivation({ siteId: release.siteId, releaseId: release.id, deploymentId: deployment.id, activationId: activation.id, activatedAt: activation.createdAt, revisions: deployment.revisions });
   return updateItem(releases, release.id, { status: 'active' as const, error: null }, { notFoundMessage: '发布单不存在', now: mockDateTime });
 }
@@ -313,11 +315,12 @@ export const cmsReleaseHandlers = [
     if (row.status === 'active') return conflict('已激活发布不能取消', { status: 409 });
     return ok(updateItem(releases, params.id, { status: 'cancelled' as const }, { notFoundMessage: '发布单不存在', now: mockDateTime }));
   }),
-  mock(cmsReleaseContract.suppress, ({ params, ok }) => { getMockCmsWorkingContent(params.id); suppressed.add(params.id); withdrawMockCmsContent(params.id); return ok(null); }),
+  mock(cmsReleaseContract.suppress, ({ params, ok }) => { const row = getMockCmsWorkingContent(params.id); suppressed.add(params.id); withdrawMockCmsContent(params.id); queueMockCmsDelivery(row.siteId, 'withdraw', true); return ok(null); }),
   mock(cmsReleaseContract.unsuppress, ({ params, ok }) => {
     const row = getMockCmsWorkingContent(params.id); suppressed.delete(params.id);
     const revisionId = deployments.find((item) => item.id === active.get(row.siteId))?.revisions.get(row.id);
     if (revisionId) activateMockCmsRevision(revisionId);
+    queueMockCmsDelivery(row.siteId, 'restore', true);
     return ok(null);
   }),
 ];

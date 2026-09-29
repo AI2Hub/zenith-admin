@@ -16,6 +16,7 @@ export const CMS_RENDER_RUNTIME_MODULES = new Set([
   'cms-comments.service', 'cms-ads.service', 'cms-ad-render-proof', 'cms-forms.service', 'cms-widgets.service',
   'cms-pages.service', 'cms-page-blocks', 'cms-preview', 'cms-html-sanitizer', 'cms-frozen-media',
   'cms-site-inheritance.service', 'cms-site-settings', 'cms-public-settings', 'cms-generation-context', 'cms-generation-read',
+  'cms-delivery-markers', 'cms-generation-delivery', 'cms-delivery-state',
   'cms-telemetry-render', 'cms-telemetry-context', 'cms-static.service', 'cms-static-path', 'cms-sitemap', 'cms-build-context',
   'cms-access', 'cms-cache.service', 'cms-captcha-adapter.service', 'cms-content-access.service',
   'cms-content-publish-snapshot.service', 'cms-content-revisions.service', 'cms-design-versions.service',

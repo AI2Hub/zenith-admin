@@ -2,6 +2,7 @@ import { relations } from 'drizzle-orm';
 import { cmsAssetRights, cmsAssetVersions, cmsModelVersions, cmsEditorialNotes, cmsDistributionSyncStates, cmsModelUniqueValues } from './cms-design';
 import { cmsContentRevisions, cmsContentWorkingCopies, cmsContentRevisionApprovals, cmsContentReviewRevisions, cmsContentPreviewGrants } from './cms-revisions';
 import { cmsReleases, cmsDeployments, cmsSiteGenerations, cmsContentSuppressions } from './cms-releases';
+import { cmsDeliveryExpiryReceipts, cmsDeliveryRuns, cmsDeliveryStates } from './cms-delivery';
 import { paymentBankMatches, paymentReconAdjustments, paymentReconCaseEvents, paymentReconCases, paymentReconRuns, paymentStatementEntries, paymentStatementFiles, paymentStatementPeriods, paymentStatements } from './payment-reconciliation';
 import { departments, menus, positions, roleDeptScopes, roleMenus, roles, tenantPackageFeatures, tenantPackages, tenants, userDeptScopes, userGroupMembers, userGroupRoles, userGroups, userMenus, userPositions, userRoles, users } from './core';
 import { domainEventSubjects, domainEvents, entityRelationEdges } from './entity-relations';
@@ -1468,6 +1469,20 @@ export const cmsSitesRelations = relations(cmsSites, ({ one, many }) => ({
   widgets: many(cmsWidgets),
   sourceDistributionRules: many(cmsDistributionRules, { relationName: 'cmsDistributionSourceSite' }),
   targetDistributionRules: many(cmsDistributionRules, { relationName: 'cmsDistributionTargetSite' }),
+}));
+
+export const cmsDeliveryStatesRelations = relations(cmsDeliveryStates, ({ one }) => ({
+  site: one(cmsSites, { fields: [cmsDeliveryStates.siteId], references: [cmsSites.id] }),
+  latestRun: one(cmsDeliveryRuns, { fields: [cmsDeliveryStates.latestRunId], references: [cmsDeliveryRuns.id] }),
+}));
+export const cmsDeliveryRunsRelations = relations(cmsDeliveryRuns, ({ one }) => ({
+  site: one(cmsSites, { fields: [cmsDeliveryRuns.siteId], references: [cmsSites.id] }),
+  release: one(cmsReleases, { fields: [cmsDeliveryRuns.releaseId], references: [cmsReleases.id] }),
+  generation: one(cmsDeployments, { fields: [cmsDeliveryRuns.generationId], references: [cmsDeployments.id] }),
+  task: one(asyncTasks, { fields: [cmsDeliveryRuns.taskId], references: [asyncTasks.id] }),
+}));
+export const cmsDeliveryExpiryReceiptsRelations = relations(cmsDeliveryExpiryReceipts, ({ one }) => ({
+  resource: one(cmsResources, { fields: [cmsDeliveryExpiryReceipts.resourceId], references: [cmsResources.id] }),
 }));
 
 export const cmsSiteInheritancesRelations = relations(cmsSiteInheritances, ({ one }) => ({

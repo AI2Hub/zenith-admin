@@ -33,3 +33,4 @@ export * from './reviews';
 
 export * from './deployment-retention';
 export * from './page-presets';
+export * from './delivery';

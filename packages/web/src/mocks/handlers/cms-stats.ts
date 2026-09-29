@@ -88,7 +88,7 @@ export const cmsStatsHandlers = [
       const date = start.add(index, unit); const active = date.isSame(dayjs(), unit); const values = active ? totals : zero();
       return { date: date.format(unit === 'hour' ? 'YYYY-MM-DD HH:00' : 'YYYY-MM-DD'), pv: values.pv, uv: values.uv, sessions: values.sessions, reads: values.reads, conversions: values.conversions, searches: values.searches };
     });
-    return ok({ scope: currentScope, status: status(query).status, metrics: totals, previousMetrics: null, collectionAvailableSince: totals.pv ? dayjs().startOf('day').toISOString() : null, comparisonAvailable: false, comparisonUnavailableReason: query.compare === 'none' ? null : '对比周期早于统一采集数据起点，不能将未采集期间视作零流量。', trend });
+    return ok({ scope: currentScope, status: status(query).status, metrics: totals, previousMetrics: null, earliestRetainedEventAt: totals.pv ? dayjs().startOf('day').toISOString() : null, comparisonAvailable: false, comparisonUnavailableReason: query.compare === 'none' ? null : '对比周期早于统一采集数据起点，不能将未采集期间视作零流量。', trend });
   }),
   mock(cmsStatContract.report, ({ query, ok }) => {
     const rows = getMockCmsStatsReportRows(query);

@@ -40,8 +40,9 @@ import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 const CmsReleasesPanel = lazy(() => import('./CmsReleasesPanel'));
 const CmsDeploymentCapacityPanel = lazy(() => import('./CmsDeploymentCapacityPanel'));
+const CmsDeliveryPanel = lazy(() => import('./CmsDeliveryPanel'));
 
-type TabKey = 'releases' | 'queue' | 'history' | 'artifacts' | 'failed' | 'capacity';
+type TabKey = 'releases' | 'queue' | 'history' | 'artifacts' | 'failed' | 'capacity' | 'delivery';
 
 interface Filters {
   siteId?: number;
@@ -70,7 +71,7 @@ export default function PublishingPage() {
   const sitesQuery = useAllCmsSites();
   const sites = sitesQuery.data ?? [];
   const siteOptions = sites.map((site) => ({ value: site.id, label: site.name }));
-  const [activeTab, setActiveTab] = useUrlTabState(['releases', 'queue', 'history', 'artifacts', 'failed', 'capacity'] as const, 'releases');
+  const [activeTab, setActiveTab] = useUrlTabState(['releases', 'queue', 'history', 'artifacts', 'failed', 'capacity', 'delivery'] as const, 'releases');
   const [selected, setSelected] = useState<number[]>([]);
   // 同一组筛选驱动任务列表与产物列表：任务列表分页由 useListSearch 托管，产物列表另有独立分页，查询 / 重置时同步回首页
   const artifactPagination = usePagination();
@@ -108,7 +109,7 @@ export default function PublishingPage() {
     page: taskPagination.page,
     pageSize: taskPagination.pageSize,
     ...taskFilterQuery,
-  }, activeTab !== 'artifacts' && activeTab !== 'releases' && activeTab !== 'capacity');
+  }, activeTab !== 'artifacts' && activeTab !== 'releases' && activeTab !== 'capacity' && activeTab !== 'delivery');
   const artifactListQuery = useCmsPublishArtifactList({
     page: artifactPagination.page,
     pageSize: artifactPagination.pageSize,
@@ -327,6 +328,7 @@ export default function PublishingPage() {
           />
         </TabPane>
         <TabPane tab="失败" itemKey="failed">{taskPane}</TabPane>
+        <TabPane tab="交付验证" itemKey="delivery"><Suspense fallback={<Typography.Text>正在加载交付记录…</Typography.Text>}>{activeTab === 'delivery' ? <CmsDeliveryPanel /> : null}</Suspense></TabPane>
         <TabPane tab="部署容量" itemKey="capacity"><Suspense fallback={<Typography.Text>正在加载部署容量…</Typography.Text>}>{activeTab === 'capacity' ? <CmsDeploymentCapacityPanel /> : null}</Suspense></TabPane>
       </Tabs>
 

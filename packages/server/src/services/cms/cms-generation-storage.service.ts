@@ -5,7 +5,10 @@ import { sql } from 'drizzle-orm';
 import { db, withDbExecutor } from '../../db';
 import type { DbTransaction } from '../../db/types';
 import { cmsDeploymentStorage, type CmsDeploymentSnapshot } from '../../db/schema';
-import { cmsGenerationContext, withCmsGenerationContext } from './cms-generation-context';
+import { cmsDeliverySnapshot, cmsGenerationContext, withCmsDeliverySnapshot, withCmsGenerationContext } from './cms-generation-context';
+import { readCmsGenerationDelivery } from './cms-generation-delivery';
+import { readCmsVisibilityEpoch } from './cms-delivery-state';
+import { cmsDeliveryEpochRequiresDynamic } from './cms-delivery-markers';
 import { CMS_STATIC_ROOT, isStrictlyWithin } from './cms-static-path';
 import { canonicalCmsJson } from './cms-content-revisions.service';
 import type { CmsConfigurationSnapshot } from '@zenith/shared/cms';
@@ -99,7 +102,8 @@ export async function withCmsGenerationTransaction<T>(
     await tx.execute(sql`select set_config('search_path', ${`${cmsGenerationSchemaName(generationId)},public`}, true)`);
     await tx.execute(sql`select set_config('cms.preview', ${candidate ? 'true' : 'false'}, true)`);
     await tx.execute(sql`select set_config('statement_timeout', '60000', true)`);
-    return withDbExecutor(tx, () => withCmsGenerationContext({ siteId, generationId, candidate }, () => fn(tx)));
+    const delivery = await readCmsGenerationDelivery(tx, siteId, generationId, candidate);
+    return withDbExecutor(tx, () => withCmsGenerationContext({ siteId, generationId, candidate, ...delivery }, () => fn(tx)));
   }, { isolationLevel: 'repeatable read', ...(candidate ? {} : { accessMode: 'read only' as const }) });
 }
 
@@ -107,10 +111,13 @@ export async function withCmsGenerationTransaction<T>(
 export async function withCmsPublicGeneration<T>(siteId: number, fn: () => Promise<T>): Promise<T> {
   if (cmsGenerationContext()) return fn();
   return readCmsGenerationSnapshot(siteId, async (tx, generationId) => {
-    if (!generationId) return withDbExecutor(tx, fn);
+    if (!generationId) return withDbExecutor(tx, async () => withCmsDeliverySnapshot({
+      generationId: null, releaseId: null, visibilityEpoch: await readCmsVisibilityEpoch(tx, siteId), capturedVisibilityEpoch: null,
+    }, fn));
     await tx.execute(sql`select set_config('search_path', ${`${cmsGenerationSchemaName(generationId)},public`}, true)`);
     await tx.execute(sql`select set_config('statement_timeout', '15000', true)`);
-    return withDbExecutor(tx, () => withCmsGenerationContext({ siteId, generationId, candidate: false }, fn));
+    const delivery = await readCmsGenerationDelivery(tx, siteId, generationId, false);
+    return withDbExecutor(tx, () => withCmsGenerationContext({ siteId, generationId, candidate: false, ...delivery }, fn));
   });
 }
 
@@ -152,6 +159,7 @@ export async function sealCmsGenerationStorage(tx: DbTransaction, generationId: 
 export async function cmsGenerationNeedsDynamicDelivery(siteId: number): Promise<boolean> {
   const context = cmsGenerationContext();
   if (!context) return false;
+  if (cmsDeliveryEpochRequiresDynamic(cmsDeliverySnapshot())) return true;
   const schema = identifier(cmsGenerationSchemaName(context.generationId));
   const rows = await db.execute<{ blocked: boolean }>(sql`
     SELECT EXISTS (

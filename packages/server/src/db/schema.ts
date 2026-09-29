@@ -59,3 +59,4 @@ export * from './schema/entity-watches';
 export * from './schema/cms-content-reviews';
 
 export * from './schema/cms-deployment-retention';
+export * from './schema/cms-delivery';

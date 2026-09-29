@@ -16,7 +16,9 @@ import { assertSiteAccess } from './cms-sites.service';
 import { ensureCmsAssetVersion } from './cms-design-versions.service';
 import { releaseManagedFiles } from '../files/file-gc.service';
 import { randomUUID } from 'node:crypto';
-import { insertCmsCdnPurgeOutbox } from './cms-cdn.service';
+import { cmsDeliveryRightsPaths, insertCmsDeliveryRun } from './cms-delivery-records';
+import { bumpCmsVisibilityEpoch } from './cms-delivery-state';
+import { acquireCmsSitePublishLock } from './cms-site-publish-lock.service';
 import { enqueueAsyncTask } from '../../lib/task-center';
 import { invalidateCmsSiteCaches } from './cms-cache.service';
 import { removeUnusedCmsMedia } from './cms-media.service';
@@ -46,6 +48,7 @@ export async function updateCmsAssetRights(id: number, input: BodyOf<typeof cmsR
   const values = { ...fields, ...(expiresAt !== undefined ? { expiresAt: parseDateTimeInput(expiresAt) } : {}) };
   const eventKey = `resource:${id}:rights:${randomUUID()}`;
   const task = await db.transaction(async (tx) => {
+    await acquireCmsSitePublishLock(tx, resource.siteId);
     await ensureCmsAssetVersion(tx, id, resource.siteId);
     const [existing] = await tx.select().from(cmsAssetRights).where(eq(cmsAssetRights.resourceId, id)).limit(1);
     if (existing) await tx.update(cmsAssetRights).set(values).where(eq(cmsAssetRights.resourceId, id));
@@ -53,10 +56,15 @@ export async function updateCmsAssetRights(id: number, input: BodyOf<typeof cmsR
     await tx.update(cmsContents).set({ version: sql`${cmsContents.version}` }).where(sql`${cmsContents.id} IN (
       SELECT ${cmsContentRevisions.contentId} FROM ${cmsContentRevisions} WHERE ${cmsContentRevisions.snapshot}->'assetVersions' ? ${String(id)}
     )`);
-    return insertCmsCdnPurgeOutbox(tx, resource.siteId, eventKey);
+    await bumpCmsVisibilityEpoch(tx, resource.siteId);
+    const effectiveExpiresAt = values.expiresAt === undefined ? existing?.expiresAt : values.expiresAt;
+    const blocked = (values.revoked ?? existing?.revoked ?? false) || (effectiveExpiresAt?.getTime() ?? Infinity) <= Date.now();
+    return insertCmsDeliveryRun(tx, resource.siteId, { eventKey, cause: blocked ? 'rights' : 'restore',
+      paths: await cmsDeliveryRightsPaths(tx, resource.siteId, [id], blocked),
+    });
   });
   await invalidateCmsSiteCaches(resource.siteId);
-  await enqueueAsyncTask(task.id).catch(() => undefined);
+  await enqueueAsyncTask(task.taskId).catch(() => undefined);
   return getCmsAssetRights(id);
 }
 

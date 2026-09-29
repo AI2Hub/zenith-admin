@@ -41,6 +41,10 @@ import { requireCmsContentAccess, requireCmsContentsAccess } from './cms-content
 import { approveCmsRevision, assertCmsContentVersion, bindCmsReviewRevision, buildCmsRevisionSnapshot, cmsRevisionToContentRow, freezeCmsContentRevision, initializeCmsContentWorkingCopy, loadCmsRevision, requireCmsWorkingCopy } from './cms-content-revisions.service';
 import { normalizeCmsContentDocument, renderCmsContentDocument } from './cms-document.service';
 import { refreshCmsContentResourcePins } from './cms-content-resource-selection';
+import { cmsDeliveryContentPaths, insertCmsDeliveryRun } from './cms-delivery-records';
+import { bumpCmsVisibilityEpoch } from './cms-delivery-state';
+import { enqueueAsyncTask } from '../../lib/task-center';
+import { invalidateCmsSiteCaches } from './cms-cache.service';
 
 // ─── 写入辅助 ─────────────────────────────────────────────────────────────────
 
@@ -407,10 +411,16 @@ export async function offlineCmsContent(id: number, options?: { skipAccessCheck?
     await logContentOp(tx, id, 'offlined');
     const task = await insertContentPublishOutbox(tx, site, updated, 'offline', old.deletePaths, { build: false });
     const webhookTask = await insertCmsContentWebhookOutbox(tx, 'cms.content.offline', updated);
-    return { task, webhookTask };
+    const epoch = await bumpCmsVisibilityEpoch(tx, current.siteId);
+    const delivery = await insertCmsDeliveryRun(tx, current.siteId, { eventKey: `offline:${id}:${epoch}`, cause: options?.expireAtBefore ? 'expiry' : 'withdraw',
+      paths: await cmsDeliveryContentPaths(tx, current.siteId, [id], 'withdrawn'),
+    });
+    return { task, webhookTask, delivery };
   });
   await enqueueCmsPublishOutboxes([mutation.task], `内容 #${id} 下线`);
   await enqueueCmsWebhookEvents([mutation.webhookTask]);
+  await invalidateCmsSiteCaches(current.siteId);
+  await enqueueAsyncTask(mutation.delivery.taskId).catch(() => undefined);
   return getCmsContent(id, { skipAccessCheck: options?.skipAccessCheck });
 }
 

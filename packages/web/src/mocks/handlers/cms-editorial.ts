@@ -1,3 +1,4 @@
+import { queueMockCmsDelivery } from './cms-delivery';
 import type { OutputOf } from '@zenith/shared/core';
 import { cmsEditorialContract, cmsModelContract, cmsResourceContract, validateCmsStructuredFields, type CmsEditorialNote, type CmsModelVersion } from '@zenith/shared/cms';
 import { mock } from '../utils/contract';
@@ -128,7 +129,9 @@ export const cmsEditorialHandlers = [
   mock(cmsResourceContract.updateRights, ({ params, body, ok }) => {
     requireItem(mockCmsResources, params.id, '素材不存在', { status: 404 });
     if (!rights.some((row) => row.id === params.id)) rights.push({ id: params.id, resourceId: params.id, source: null, license: null, expiresAt: null, revoked: false, tags: [], alt: null });
-    return ok(updateItem(rights, params.id, body, { notFoundMessage: '素材授权不存在' }));
+    const updated = updateItem(rights, params.id, body, { notFoundMessage: '素材授权不存在' });
+    queueMockCmsDelivery(requireItem(mockCmsResources, params.id, '素材不存在', { status: 404 }).siteId, 'rights', true);
+    return ok(updated);
   }),
 ];
 

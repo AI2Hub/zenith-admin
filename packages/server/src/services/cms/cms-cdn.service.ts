@@ -47,9 +47,9 @@ function normalizePath(p: string): string {
   return cleaned.startsWith('/') ? cleaned : `/${cleaned}`;
 }
 
-async function sendPurge(site: CmsSiteRow, paths: string[], purgeAll: boolean): Promise<void> {
+export async function sendCmsCdnPurge(site: CmsSiteRow, paths: string[], purgeAll: boolean, idempotencyKey?: string): Promise<{ status: 'not_configured' | 'accepted'; httpStatus: number | null; message: string }> {
   const cfg = cdnConfig(site);
-  if (!cfg) return;
+  if (!cfg) return { status: 'not_configured', httpStatus: null, message: '未配置 CDN 刷新入口；实际页面验证单独判定' };
   const origin = siteOrigin(site);
   const unique = [...new Set(paths.map(normalizePath))];
   const body = {
@@ -63,13 +63,16 @@ async function sendPurge(site: CmsSiteRow, paths: string[], purgeAll: boolean): 
     headers: {
       'Content-Type': 'application/json',
       ...(cfg.token ? { Authorization: `Bearer ${cfg.token}` } : {}),
+      ...(idempotencyKey ? { 'X-Idempotency-Key': idempotencyKey } : {}),
     },
     timeout: 10_000,
     ...CMS_CDN_HTTP_SAFETY_OPTIONS,
   });
+  await res.raw.body?.cancel();
   if (!res.ok) {
     throw new Error(`CDN purge webhook 响应 ${res.status}`);
   }
+  return { status: 'accepted', httpStatus: res.status, message: '刷新请求已受理，尚需逐路径验证实际页面' };
 }
 
 export async function insertCmsCdnPurgeOutbox(tx: DbTransaction, siteId: number, eventKey: string) {
@@ -80,8 +83,8 @@ export function registerCmsCdnTaskHandler(): void {
     async run(ctx) {
       const site = await resolveEffectiveCmsSiteRow(Number(ctx.payload.siteId));
       const paths = Array.isArray(ctx.payload.paths) ? ctx.payload.paths.filter((item): item is string => typeof item === 'string') : [];
-      await sendPurge(site, paths, ctx.payload.purgeAll === true);
-      return { siteId: site.id, paths: paths.length, purgeAll: ctx.payload.purgeAll === true };
+      const purge = await sendCmsCdnPurge(site, paths, ctx.payload.purgeAll === true, `cms-cdn-task:${ctx.taskId}`);
+      return { siteId: site.id, paths: paths.length, purgeAll: ctx.payload.purgeAll === true, ...purge, deliveryVerified: false };
     },
   });
 }

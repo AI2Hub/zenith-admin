@@ -29,7 +29,8 @@ import { buildCmsModelFieldValues, buildCmsListModelFieldValues, loadCmsListMode
 import { listCmsChannelTree } from './cms-channels.service';
 import { channelUrl, tagUrl, contentUrl, customPageUrl, type CmsUrlChannel } from './cms-urls';
 import { buildCmsLinkResolver, resolveCmsLink, type CmsLinkResolver } from './cms-link.service';
-import { cmsGenerationContext } from './cms-generation-context';
+import { cmsDeliverySnapshot, cmsGenerationContext } from './cms-generation-context';
+import { stampCmsDeliveryMarkers } from './cms-delivery-markers';
 import { buildCmsPagination } from './cms-render-pagination';
 import {
   listPublishedContents, listHomeContents, getPublishedContent, getAdjacentContents, listContentTags,
@@ -86,7 +87,7 @@ export type RenderResult =
   | { status: 302; location: string };
 
 function renderDoc<P extends object>(component: ComponentType<P>, props: P): string {
-  return '<!DOCTYPE html>' + renderToStaticMarkup(createElement(component, props));
+  return stampCmsDeliveryMarkers('<!DOCTYPE html>' + renderToStaticMarkup(createElement(component, props)), cmsDeliverySnapshot());
 }
 
 // ─── 模板解析链 ───────────────────────────────────────────────────────────────

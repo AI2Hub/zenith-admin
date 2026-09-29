@@ -1,3 +1,4 @@
+import { CmsReleaseDelivery } from './CmsDeliveryPanel';
 import { useState } from 'react';
 import { useQueries } from '@tanstack/react-query';
 import { Banner, Button, Checkbox, DatePicker, Descriptions, Input, Select, SideSheet, Space, Switch, Tag, Typography } from '@douyinfe/semi-ui';
@@ -117,6 +118,7 @@ export default function CmsReleasesPanel() {
         {/* 单列键值对：row（双行）模式会把值渲染成大字并让 64 位摘要溢出抽屉边界 */}
         <Descriptions data={[{ key: '当前公开代次', value: detail.data.activeGenerationId ?? '尚未上线' }, { key: '候选部署', value: detail.data.deploymentId ?? '待构建' }, { key: '基础代次', value: detail.data.baseGenerationId ?? '首次部署' }, { key: '排期', value: detail.data.activateAt ? `${detail.data.activateAt}（${detail.data.timeZone}）` : '无' }, { key: '产物数', value: detail.data.deployment?.artifactCount ?? 0 }, { key: '部署摘要', value: detail.data.deployment?.manifestHash ? <Typography.Text code style={{ wordBreak: 'break-all' }}>{detail.data.deployment.manifestHash}</Typography.Text> : '构建后生成' }]} />
         {detail.data.error ? <Banner type="danger" description={detail.data.error} /> : null}
+        <CmsReleaseDelivery siteId={detail.data.siteId} releaseId={detail.data.id} />
         <CmsDeploymentProgress deployment={detail.data.deployment} siteId={detail.data.siteId} />
         {detail.data.blockingChecks.map((message) => <Banner key={message} type="warning" description={message} />)}
         <CmsReleaseReviewPanel canPreview={detail.data.deployment?.storageState === 'available' && !!detail.data.deployment.manifestHash} releaseId={detail.data.id} onRecreated={setDetailId} onPreview={(path) => { setPreviewPath(path); setPreviewOpen(true); }} />
