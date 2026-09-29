@@ -24,7 +24,7 @@ import { dateTimeColumn, enabledStatusColumn } from '@/utils/table-columns';
 import { DEFAULT_TIMEZONE } from '@/utils/timezones';
 import { FilterSelect } from '@/components/search-filters';
 import { useListPage } from '@/hooks/useListPage';
-import { EditFormModal } from '@/components/EditFormModal';
+import { EditFormSheet } from '@/components/EditFormModal';
 
 type ScheduleStatus = WorkflowSchedule['status'];
 
@@ -243,7 +243,7 @@ export default function WorkflowSchedulesPage() {
         {...tableProps}
       />
 
-      <EditFormModal modal={scheduleModal} title={editing ? '编辑定时发起规则' : '新建定时发起规则'} okText={editing ? '保存' : '创建'} width={620} formProps={{ onValueChange: (v) => {
+      <EditFormSheet modal={scheduleModal} title={editing ? '编辑定时发起规则' : '新建定时发起规则'} okText={editing ? '保存' : '创建'} width={680} formProps={{ onValueChange: (v) => {
             if (typeof v.cronExpression === 'string') setCronExprValue(v.cronExpression);
             const defId = typeof v.definitionId === 'number' ? v.definitionId : null;
             setModalDefinitionId((prev) => (prev === defId ? prev : defId));
@@ -325,7 +325,7 @@ export default function WorkflowSchedulesPage() {
           rules={[{ required: true, message: '请选择状态' }]}
           initValue="enabled"
         />
-      </EditFormModal>
+      </EditFormSheet>
     </div>
   );
 }
