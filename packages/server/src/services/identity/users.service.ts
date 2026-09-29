@@ -245,13 +245,14 @@ export async function listAlertRecipientUsers(): Promise<AlertRecipientUser[]> {
 export type UsersListFilter = Omit<QueryOutputOf<typeof userContract.list>, 'page' | 'pageSize'>;
 
 export async function buildUsersListWhere(q: UsersListFilter, user: JwtPayload): Promise<SQL | undefined> {
-  const { keyword, phone, departmentId, status, startTime, endTime } = q;
+  const { keyword, phone, email, departmentId, status, startTime, endTime } = q;
   const scopeCondition = await getDataScopeCondition({
     currentUserId: user.userId, deptColumn: users.departmentId, ownerColumn: users.id,
   });
   return buildWhere(
-    keywordCondition(keyword, [users.username, users.nickname, users.email]),
+    keywordCondition(keyword, [users.username, users.nickname]),
     keywordCondition(phone, [users.phone]),
+    keywordCondition(email, [users.email]),
     departmentId ? eq(users.departmentId, departmentId) : undefined,
     status ? eq(users.status, status) : undefined,
     ...dateRangeConditions(users.createdAt, startTime, endTime),

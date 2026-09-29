@@ -115,8 +115,9 @@ export type UserEffectivePermissions = z.infer<typeof userEffectivePermissionsSc
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const userListQuery = paginationQuery.extend({
-  keyword: keywordQuery('用户名 / 昵称 / 邮箱'),
+  keyword: keywordQuery('用户名 / 昵称'),
   phone: keywordQuery('手机号'),
+  email: keywordQuery('邮箱'),
   departmentId: idQuery(),
   status: entityStatusQuery,
   ...dateRangeQuery('创建时间'),

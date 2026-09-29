@@ -68,6 +68,7 @@ import { DEFAULT_IMPERSONATE_VALUES, type ImpersonateFormValues } from './impers
 interface SearchParams {
   keyword: string;
   phone: string;
+  email: string;
   status?: string;
   timeRange: [Date, Date] | null;
   /** 部门树选中的部门；undefined = 全部部门 */
@@ -89,7 +90,7 @@ interface ResetPasswordFormValues {
   confirmPassword: string;
 }
 
-const defaultSearchParams: SearchParams = { keyword: '', phone: '', status: undefined, timeRange: null, departmentId: undefined };
+const defaultSearchParams: SearchParams = { keyword: '', phone: '', email: '', status: undefined, timeRange: null, departmentId: undefined };
 const EMPTY_USERS: User[] = [];
 const EMPTY_ROLES: Role[] = [];
 const EMPTY_DEPARTMENTS: Department[] = [];
@@ -148,6 +149,7 @@ export default function UsersPage() {
   const filterQuery = useFilterQuery({
     keyword: submittedParams.keyword,
     phone: submittedParams.phone,
+    email: submittedParams.email,
     departmentId: submittedParams.departmentId,
     status: enumValueOf(USER_STATUSES, submittedParams.status),
     ...formatDateTimeRangeForApi(submittedParams.timeRange),
@@ -647,10 +649,11 @@ export default function UsersPage() {
         detail={
         <div className="users-content">
       <ListSearchToolbar
-        keyword={<KeywordInput placeholder="搜索用户名/昵称/邮箱" {...bindKeyword('keyword')} width={260} />}
+        keyword={<KeywordInput placeholder="搜索用户名/昵称" {...bindKeyword('keyword')} width={260} />}
         filters={(
           <>
             <KeywordInput placeholder="搜索手机号码" {...bindKeyword('phone')} width={180} />
+            <KeywordInput placeholder="搜索邮箱" {...bindKeyword('email')} width={180} />
             <StatusSelect
               items={statusItems}
               {...bind('status')}

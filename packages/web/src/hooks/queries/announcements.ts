@@ -170,7 +170,7 @@ export function useAnnouncementRecipientOptions(enabled = true) {
   };
 }
 
-/** 用户列表按 keyword 匹配用户名 / 昵称 / 邮箱；选项形状由 select 派生，缓存里仍是用户列表本身 */
+/** 用户列表按 keyword 匹配用户名 / 昵称；选项形状由 select 派生，缓存里仍是用户列表本身 */
 export function useAnnouncementUserSearch(keyword: string, enabled = true) {
   return useApiQuery(userContract.list, { query: { ...USER_SEARCH_PAGE, keyword } }, {
     staleTime: LOOKUP_STALE_TIME,
