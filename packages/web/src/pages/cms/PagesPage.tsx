@@ -394,7 +394,7 @@ export default function PagesPage() {
           getFormApi={(api) => { baseFormApi.current = api; }}
           allowEmpty
           labelPosition="left"
-          labelWidth={90}
+          labelWidth={110}
           initValues={formSeed ? {
             name: formSeed.name,
             slug: formSeed.slug,
