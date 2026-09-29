@@ -1,4 +1,4 @@
-import { Banner, Form, Tag } from '@douyinfe/semi-ui';
+import { Form, Tag } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -62,7 +62,6 @@ export default function ErrorProneWordsPage() {
 
   return (
     <div className="page-container">
-      <Banner type="info" closeIcon={null} style={{ marginBottom: 12 }} description="易错词库用于内容编辑辅助：在内容编辑页点击「内容检查」可标出正文中的易错词，并支持一键替换为正确写法。" />
       <ListSearchToolbar
         page={page}
         filters={['keyword']}
