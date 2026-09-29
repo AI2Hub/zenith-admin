@@ -359,6 +359,101 @@ export default function PagesPage() {
   const editingBlockType = blockModal?.block.type;
   const allBlocksManageable = blocks.every((block) => block.canManage !== false);
 
+  /** 区块编辑容器按类型分档：富文本（320 高编辑器）、单图与多列卡片（纵向很高的预览/嵌套列表）用全高抽屉；其余用弹窗并按字段量定宽 */
+  const useBlockSheet = editingBlockType === 'richtext' || editingBlockType === 'columns' || editingBlockType === 'image';
+  const blockSheetWidth = editingBlockType === 'richtext' ? 780 : editingBlockType === 'image' ? 720 : 680;
+  const blockModalWidth = editingBlockType === 'hero' || editingBlockType === 'content-list' ? 720 : 560;
+  const blockTitle = blockModal ? `编辑区块：${BLOCK_TYPE_LABEL[blockModal.block.type]}` : '编辑区块';
+
+  const blockForm = blockModal ? (
+    <Form
+      key={blockModal.block.id}
+      getFormApi={(api) => { blockFormApi.current = api; }}
+      allowEmpty
+      labelPosition="left"
+      labelWidth={100}
+      initValues={{
+        ...blockModal.block.props,
+        displayAudience: blockModal.block.displayCondition?.audience ?? 'always',
+        displayStartAt: blockModal.block.displayCondition?.startAt ?? undefined,
+        displayEndAt: blockModal.block.displayCondition?.endAt ?? undefined,
+      }}
+    >
+      <Form.Select
+        field="displayAudience"
+        label="展示受众"
+        style={{ width: '100%' }}
+        optionList={CMS_PAGE_BLOCK_AUDIENCE_OPTIONS}
+        extraText="游客/会员条件会自动强制页面动态渲染，敏感内容不可放入公开区块"
+      />
+      <Form.DatePicker
+        field="displayStartAt"
+        label="展示开始"
+        type="dateTime"
+        style={{ width: '100%' }}
+        placeholder="不限制"
+      />
+      <Form.DatePicker
+        field="displayEndAt"
+        label="展示结束"
+        type="dateTime"
+        style={{ width: '100%' }}
+        placeholder="不限制"
+      />
+      {editingBlockType === 'hero' || editingBlockType === 'richtext' || editingBlockType === 'image'
+        ? <CmsPageBlockFields type={editingBlockType} siteId={siteId} /> : null}
+      {editingBlockType === 'content-list' ? (
+        <>
+          <Form.Input field="title" label="标题" />
+          <Form.TreeSelect field="channelCode" label="栏目" style={{ width: '100%' }} showClear
+            treeData={channelsToSelectTree(treeQuery.data ?? [])} placeholder="留空取全站" />
+          <Form.Select field="tagSlug" label="标签聚合" style={{ width: '100%' }} showClear filter
+            placeholder="选择后跨栏目聚合该标签内容（优先于栏目）"
+            loading={tagOptionsQuery.isFetching}
+            optionList={(tagOptionsQuery.data?.list ?? []).map((t) => ({ value: t.slug, label: `${t.name}（${t.contentCount}）` }))} />
+          <Form.Select field="mode" label="取数模式" style={{ width: '100%' }}
+            optionList={[
+              { value: 'latest', label: '最新发布' },
+              { value: 'recommend', label: '推荐' },
+              { value: 'hot', label: '热门' },
+            ]} />
+          <Form.InputNumber field="count" label="条数" min={1} max={20} style={{ width: '100%' }} />
+        </>
+      ) : null}
+      {editingBlockType === 'columns' ? (
+        <Form.Slot label="列卡片">
+          <ColumnsEditor formApi={blockFormApi} initItems={(blockModal.block.props.items as { title?: string; description?: string }[]) ?? []} />
+        </Form.Slot>
+      ) : null}
+      {editingBlockType === 'widget-ref' ? (
+        <>
+          <Form.Select
+            field="widgetId"
+            label="页面部件"
+            filter
+            loading={widgetOptionsQuery.isFetching}
+            optionList={(widgetOptionsQuery.data ?? []).map((widget) => ({
+              value: widget.id,
+              label: `${widget.name}（${widget.code}）`,
+            }))}
+            rules={[{ required: true, message: '请选择已发布页面部件' }]}
+            style={{ width: '100%' }}
+          />
+          <Form.Select
+            field="rendererKey"
+            label="展示模板"
+            optionList={(widgetRenderersQuery.data ?? []).map((renderer) => ({
+              value: renderer.key,
+              label: renderer.label,
+            }))}
+            rules={[{ required: true, message: '请选择展示模板' }]}
+            style={{ width: '100%' }}
+          />
+        </>
+      ) : null}
+    </Form>
+  ) : null;
+
   return (
     <div className="page-container">
       <ListSearchToolbar
@@ -530,104 +625,31 @@ export default function PagesPage() {
           if (target.kind === 'page' && page?.id === target.id) { if (!builderVisible || editingPage?.id !== page.id) openBuilder(page); setLocateBlockId(target.blockId ?? undefined); }
           else navigate(target.href);
         }} />
-      {/* 区块属性编辑 */}
-      <AppModal
-        title={blockModal ? `编辑区块：${BLOCK_TYPE_LABEL[blockModal.block.type]}` : '编辑区块'}
-        visible={!!blockModal}
-        onOk={handleBlockModalOk}
-        onCancel={() => setBlockModal(null)}
-        width={560}
-        closeOnEsc
-      >
-        {blockModal ? (
-          <Form
-            key={blockModal.block.id}
-            getFormApi={(api) => { blockFormApi.current = api; }}
-            allowEmpty
-            labelPosition="left"
-            labelWidth={100}
-            initValues={{
-              ...blockModal.block.props,
-              displayAudience: blockModal.block.displayCondition?.audience ?? 'always',
-              displayStartAt: blockModal.block.displayCondition?.startAt ?? undefined,
-              displayEndAt: blockModal.block.displayCondition?.endAt ?? undefined,
-            }}
+      {/* 区块属性编辑：容器按类型分档（见 useBlockSheet / blockModalWidth），表单共用 blockForm */}
+      {blockModal ? (
+        useBlockSheet ? (
+          <SideSheet
+            title={blockTitle}
+            visible
+            onCancel={() => setBlockModal(null)}
+            width={blockSheetWidth}
+            footer={<ModalFooter onCancel={() => setBlockModal(null)} onOk={() => handleBlockModalOk()} okText="确定" />}
           >
-            <Form.Select
-              field="displayAudience"
-              label="展示受众"
-              style={{ width: '100%' }}
-              optionList={CMS_PAGE_BLOCK_AUDIENCE_OPTIONS}
-              extraText="游客/会员条件会自动强制页面动态渲染，敏感内容不可放入公开区块"
-            />
-            <Form.DatePicker
-              field="displayStartAt"
-              label="展示开始"
-              type="dateTime"
-              style={{ width: '100%' }}
-              placeholder="不限制"
-            />
-            <Form.DatePicker
-              field="displayEndAt"
-              label="展示结束"
-              type="dateTime"
-              style={{ width: '100%' }}
-              placeholder="不限制"
-            />
-            {editingBlockType === 'hero' || editingBlockType === 'richtext' || editingBlockType === 'image'
-              ? <CmsPageBlockFields type={editingBlockType} siteId={siteId} /> : null}
-            {editingBlockType === 'content-list' ? (
-              <>
-                <Form.Input field="title" label="标题" />
-                <Form.TreeSelect field="channelCode" label="栏目" style={{ width: '100%' }} showClear
-                  treeData={channelsToSelectTree(treeQuery.data ?? [])} placeholder="留空取全站" />
-                <Form.Select field="tagSlug" label="标签聚合" style={{ width: '100%' }} showClear filter
-                  placeholder="选择后跨栏目聚合该标签内容（优先于栏目）"
-                  loading={tagOptionsQuery.isFetching}
-                  optionList={(tagOptionsQuery.data?.list ?? []).map((t) => ({ value: t.slug, label: `${t.name}（${t.contentCount}）` }))} />
-                <Form.Select field="mode" label="取数模式" style={{ width: '100%' }}
-                  optionList={[
-                    { value: 'latest', label: '最新发布' },
-                    { value: 'recommend', label: '推荐' },
-                    { value: 'hot', label: '热门' },
-                  ]} />
-                <Form.InputNumber field="count" label="条数" min={1} max={20} style={{ width: '100%' }} />
-              </>
-            ) : null}
-            {editingBlockType === 'columns' ? (
-              <Form.Slot label="列卡片">
-                <ColumnsEditor formApi={blockFormApi} initItems={(blockModal.block.props.items as { title?: string; description?: string }[]) ?? []} />
-              </Form.Slot>
-            ) : null}
-            {editingBlockType === 'widget-ref' ? (
-              <>
-                <Form.Select
-                  field="widgetId"
-                  label="页面部件"
-                  filter
-                  loading={widgetOptionsQuery.isFetching}
-                  optionList={(widgetOptionsQuery.data ?? []).map((widget) => ({
-                    value: widget.id,
-                    label: `${widget.name}（${widget.code}）`,
-                  }))}
-                  rules={[{ required: true, message: '请选择已发布页面部件' }]}
-                  style={{ width: '100%' }}
-                />
-                <Form.Select
-                  field="rendererKey"
-                  label="展示模板"
-                  optionList={(widgetRenderersQuery.data ?? []).map((renderer) => ({
-                    value: renderer.key,
-                    label: renderer.label,
-                  }))}
-                  rules={[{ required: true, message: '请选择展示模板' }]}
-                  style={{ width: '100%' }}
-                />
-              </>
-            ) : null}
-          </Form>
-        ) : null}
-      </AppModal>
+            {blockForm}
+          </SideSheet>
+        ) : (
+          <AppModal
+            title={blockTitle}
+            visible
+            onOk={handleBlockModalOk}
+            onCancel={() => setBlockModal(null)}
+            width={blockModalWidth}
+            closeOnEsc
+          >
+            {blockForm}
+          </AppModal>
+        )
+      ) : null}
 
       <SideSheet
         title={aclBlock ? `区块权限：${BLOCK_TYPE_LABEL[aclBlock.type]}` : '区块权限'}
