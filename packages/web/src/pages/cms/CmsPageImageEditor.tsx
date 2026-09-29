@@ -17,7 +17,12 @@ function useImageSource(siteId: number | undefined, value: unknown) {
   return resource.data?.url ?? (source && !source.startsWith(CMS_RESOURCE_URI_PREFIX) && isValidCmsAssetUrl(source) ? source : '');
 }
 
-/** Crop previews use exactly the same aspect ratio and object-position values as public block rendering. */
+/**
+ * Crop previews use exactly the same aspect ratio and object-position values as public block rendering.
+ * Semi 的 withField 以字段自身的 initValue 优先于外层 Form 的 initValues，因此这里一律用 presentation
+ * （已存值优先、缺省回落到 cmsPageImageDefaults）作为 initValue：否则编辑已保存区块时会被默认值覆盖，
+ * 保存回去就把替代文本、裁切比例与焦点丢掉。
+ */
 export default function CmsPageImageEditor({ type, siteId, allowUpload }: Readonly<{ type: 'hero' | 'image'; siteId?: number; allowUpload: boolean }>) {
   const form = useFormApi(); const state = useFormState(); const props = state.values as Record<string, unknown>;
   const defaults = cmsPageImageDefaults(type); const presentation = cmsPageImagePresentation(props, type);
@@ -25,10 +30,10 @@ export default function CmsPageImageEditor({ type, siteId, allowUpload }: Readon
   const mobileSource = useImageSource(siteId, props.mobileImage) || desktopSource;
   const decorative = typeof props.imageDecorative === 'boolean' ? props.imageDecorative : defaults.imageDecorative;
   return <>
-    <FormAsset field="mobileImage" label="手机图片（可选）" initValue="" siteId={siteId} type="image" allowUpload={allowUpload} placeholder="不选择时复用桌面图片，可分别设置裁切焦点" />
-    <Form.Switch field="imageDecorative" label="纯装饰图片，不传达正文信息" initValue={defaults.imageDecorative} />
-    <Form.Input field="imageAlt" label="图片替代文本" initValue="" maxLength={500} disabled={decorative} extraText={decorative ? '发布时采用空替代文本，辅助阅读工具会跳过这张装饰图片。' : '说明图片表达的内容或用途，供看不到图片的读者使用。发布前必填。'} />
-    {type === 'image' && decorative ? <Form.Input field="linkLabel" label="图片链接说明" initValue="" maxLength={200} extraText="装饰图片带点击链接时填写，例如“查看活动日程”。" /> : null}
+    <FormAsset field="mobileImage" label="手机图片（可选）" initValue={presentation.mobileImage} siteId={siteId} type="image" allowUpload={allowUpload} placeholder="不选择时复用桌面图片，可分别设置裁切焦点" />
+    <Form.Switch field="imageDecorative" label="纯装饰图片，不传达正文信息" initValue={presentation.imageDecorative} />
+    <Form.Input field="imageAlt" label="图片替代文本" initValue={presentation.imageAlt} maxLength={500} disabled={decorative} extraText={decorative ? '发布时采用空替代文本，辅助阅读工具会跳过这张装饰图片。' : '说明图片表达的内容或用途，供看不到图片的读者使用。发布前必填。'} />
+    {type === 'image' && decorative ? <Form.Input field="linkLabel" label="图片链接说明" initValue={presentation.linkLabel} maxLength={200} extraText="装饰图片带点击链接时填写，例如“查看活动日程”。" /> : null}
     <div className="auto-grid cms-page-image-editor" style={{ '--auto-grid-cols': 2 } as CSSProperties}>
       {(['desktop', 'mobile'] as const).map(device => {
         const label = device === 'desktop' ? '桌面' : '手机'; const source = device === 'desktop' ? desktopSource : mobileSource;
@@ -37,7 +42,7 @@ export default function CmsPageImageEditor({ type, siteId, allowUpload }: Readon
         const point = device === 'desktop' ? presentation.desktopFocalPoint : presentation.mobileFocalPoint;
         return <div key={device} className="cms-page-image-editor__device">
           <Typography.Text strong>{label}裁切预览</Typography.Text>
-          <Form.Select field={`${device}Ratio`} label={`${label}图片比例`} initValue={defaults[`${device}Ratio`]} optionList={CMS_PAGE_IMAGE_RATIO_OPTIONS} style={{ width: '100%' }} />
+          <Form.Select field={`${device}Ratio`} label={`${label}图片比例`} initValue={device === 'desktop' ? presentation.desktopRatio : presentation.mobileRatio} optionList={CMS_PAGE_IMAGE_RATIO_OPTIONS} style={{ width: '100%' }} />
           {source ? <>
             <div className={`cms-page-image-editor__preview${ratio === 'auto' ? ' cms-page-image-editor__preview--auto' : ''}`} style={{ aspectRatio: ratio }}>
               <img src={source} alt={`${label}裁切预览`} style={{ objectPosition: position }} />
@@ -50,8 +55,8 @@ export default function CmsPageImageEditor({ type, siteId, allowUpload }: Readon
               form.setValue(`${device}FocalPoint.x`, Math.round(x * 100) / 100); form.setValue(`${device}FocalPoint.y`, Math.round(y * 100) / 100);
             }}><img src={source} alt="" /><span aria-hidden="true" className="cms-page-image-editor__point" style={{ left: `${point.x * 100}%`, top: `${point.y * 100}%` }} /></button>
           </> : <Typography.Paragraph type="tertiary">选择图片后可预览裁切效果。</Typography.Paragraph>}
-          <FormFocalAxis field={`${device}FocalPoint.x`} label={`${label}水平焦点`} inputLabel={`${label}水平焦点`} initValue={0.5} />
-          <FormFocalAxis field={`${device}FocalPoint.y`} label={`${label}垂直焦点`} inputLabel={`${label}垂直焦点`} initValue={0.5} />
+          <FormFocalAxis field={`${device}FocalPoint.x`} label={`${label}水平焦点`} inputLabel={`${label}水平焦点`} initValue={point.x} />
+          <FormFocalAxis field={`${device}FocalPoint.y`} label={`${label}垂直焦点`} inputLabel={`${label}垂直焦点`} initValue={point.y} />
         </div>;
       })}
     </div>
