@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { HTTPException } from 'hono/http-exception';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { eq, sql } from 'drizzle-orm';
@@ -220,7 +221,12 @@ export async function collectCmsGenerationArtifacts(siteCode: string, generation
   return artifacts.sort((left, right) => left.path.localeCompare(right.path));
 }
 export async function verifyCmsGenerationArtifacts(generationId: number, snapshot: CmsDeploymentSnapshot): Promise<void> {
-  if (!snapshot.siteCode || !snapshot.artifacts?.length) throw new Error('部署缺少完整产物清单');
-  const actual = await collectCmsGenerationArtifacts(snapshot.siteCode, generationId);
-  if (canonicalCmsJson(actual) !== canonicalCmsJson(snapshot.artifacts)) throw new Error('部署产物缺失或校验和变化，拒绝激活');
+  if (!snapshot.siteCode || !snapshot.artifacts?.length) throw new HTTPException(409, { message: '部署缺少完整产物清单，请重新构建后再激活或回滚' });
+  let actual: NonNullable<CmsDeploymentSnapshot['artifacts']>;
+  try { actual = await collectCmsGenerationArtifacts(snapshot.siteCode, generationId); }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') throw new HTTPException(409, { message: '部署产物目录或文件缺失，请重新构建后再激活或回滚' });
+    throw error;
+  }
+  if (canonicalCmsJson(actual) !== canonicalCmsJson(snapshot.artifacts)) throw new HTTPException(409, { message: '部署产物缺失、存在额外文件或校验和变化，请重新构建后再激活或回滚' });
 }
