@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Banner, Select, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { CmsStatMetrics, CmsStatReportRow } from '@zenith/shared/cms';
@@ -58,7 +58,7 @@ export default function CmsStatsReport({ query: scopeQuery, dimension, onDrill }
       keyword={<KeywordInput {...search.bindKeyword('keyword')} placeholder={`搜索${DIMENSION_LABELS[dimension]}名称`} />}
       filters={<><Select aria-label="排序指标" {...search.bind('sortBy', (value: unknown) => value as ReportFilters['sortBy'])} optionList={sortFields.map((value) => ({ value, label: `按${METRIC_LABELS[value]}` }))} /><Select aria-label="排序方向" {...search.bind('sortOrder', (value: unknown) => value as ReportFilters['sortOrder'])} optionList={[{ value: 'desc', label: '从高到低' }, { value: 'asc', label: '从低到高' }]} /></>}
       actions={<ExportButton entity="cms.statistics" permission="cms:stat:view" query={reportQuery} executionMode="async" label="后台导出全部结果" />} />
-    <Typography.Paragraph type="tertiary">导出任务在后台生成完整统计快照，关闭页面后继续执行；可在<Link to="/system/export-jobs">导出中心</Link>查看进度、取消、重试和重复下载。</Typography.Paragraph>
+    <Typography.Paragraph type="tertiary">导出任务在后台生成完整统计快照，关闭页面后继续执行；可在<Typography.Text link onClick={() => navigate('/system/export-jobs')}>导出中心</Typography.Text>查看进度、取消、重试和重复下载。</Typography.Paragraph>
     {report.isError ? <Banner type="danger" description={`排行查询失败：${report.error.message}${report.data ? '。下方保留上次成功结果。' : ''}`} /> : null}
     {['search', 'media', 'placement', 'form', 'interaction'].includes(dimension) ? <Typography.Paragraph type="tertiary">此维度的 UV 是发生对应行为的访客数；详情浏览和搜索、媒体、版位行为分别计量，不将点击等同于服务端成功。</Typography.Paragraph> : null}
     <ConfigurableTable columnSettingsKey={`cms-statistics-${dimension}`} columns={columns} {...listTableProps(report, { rowKey: 'key', pagination: search.buildPagination, empty: report.isError ? '查询失败，请刷新重试' : '当前筛选下暂无对应事件' })} />
