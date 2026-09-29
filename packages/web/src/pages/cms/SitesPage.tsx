@@ -13,7 +13,7 @@ import { useCmsSiteDetail } from '@/hooks/queries/cms-sites';
  * settings JSONB ⇄ 表单映射的纯函数与单测见 ./sites/site-form-mapping.ts。
  */
 import React, { useMemo, useRef, useState } from 'react';
-import { Button, Modal, SideSheet, Tag, Toast } from '@douyinfe/semi-ui';
+import { Button, Modal, SideSheet, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Upload as UploadIcon, ChevronsDownUp, ChevronsUpDown, ListTree, List as ListIcon } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -40,7 +40,7 @@ import SiteInheritanceSheet from './sites/SiteInheritanceSheet';
 import SiteStaticSheet from './sites/SiteStaticSheet';
 import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { useFilterQuery } from '@/hooks/useFilterQuery';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useCmsTelemetrySettings } from './stats/CmsTelemetrySettings';
 
 interface SearchParams {
@@ -51,6 +51,7 @@ interface SearchParams {
 const defaultSearchParams: SearchParams = { keyword: '', status: undefined };
 
 export default function SitesPage() {
+  const navigate = useNavigate();
   const { hasPermission } = usePermission();
   const { items: statusItems } = useDictItems('common_status');
 
@@ -185,7 +186,7 @@ export default function SitesPage() {
       render: (v: string | null) => v || <span style={{ color: 'var(--semi-color-text-2)' }}>未绑定</span>,
     },
     { title: '有效主题', width: 110, render: (_: unknown, record) => record.effectiveTheme ?? record.theme },
-    { title: '访问采集配置', width: 160, render: (_: unknown, record) => <Link to={`/cms/stats?siteId=${record.id}&tab=quality`}>{(record.settings.telemetry as { enabled?: boolean } | undefined)?.enabled ? '已启用 · 查看生效状态' : '未启用 · 查看详情'}</Link> },
+    { title: '访问采集配置', width: 200, render: (_: unknown, record) => <Typography.Text link ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%', '--semi-color-link': 'var(--semi-color-primary)', '--semi-color-link-hover': 'var(--semi-color-primary-hover)', '--semi-color-link-active': 'var(--semi-color-primary-active)', '--semi-color-link-visited': 'var(--semi-color-primary)' } as React.CSSProperties} onClick={() => navigate(`/cms/stats?siteId=${record.id}&tab=quality`)}>{(record.settings.telemetry as { enabled?: boolean } | undefined)?.enabled ? '已启用 · 查看生效状态' : '未启用 · 查看详情'}</Typography.Text> },
     {
       title: '静态化模式',
       dataIndex: 'staticMode',
