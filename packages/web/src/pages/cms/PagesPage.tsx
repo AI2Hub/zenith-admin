@@ -438,7 +438,8 @@ export default function PagesPage() {
 
         <Tag color={dirty || !editingPage ? 'orange' : 'green'} style={{ marginBottom: 12 }}>{!editingPage ? '新页面尚未保存' : dirty ? '尚有未保存修改' : '当前编辑内容已保存'}</Tag>
         <CmsPagePresetLibrary siteId={siteId} blocks={blocks} selectedBlockIds={selectedBlockIds} onApply={applyPreset} disabled={!canEditPage} />
-        {issues.length ? <Banner type="warning" style={{ marginBlock: 12 }} description={<><Typography.Text>内容检查：{issues.length} 项待处理（{dirty ? '当前工作稿，保存后可检查引用目标' : '已保存页面'}）</Typography.Text>{issues.map((issue, index) => <div key={`${issue.blockId}:${issue.rule}:${index}`}><Button theme="borderless" type={issue.severity === 'error' ? 'danger' : 'warning'} onClick={() => setLocateBlockId(issue.blockId)}>{issue.message}</Button></div>)}</>} /> : null}
+        {/* 新建未保存时内容检查与上线状态都是噪音（空区块是必然状态）：保存后 editingPage 有值再展示 */}
+        {editingPage && issues.length ? <Banner type="warning" style={{ marginBlock: 12 }} description={<><Typography.Text>内容检查：{issues.length} 项待处理（{dirty ? '当前工作稿，保存后可检查引用目标' : '已保存页面'}）</Typography.Text>{issues.map((issue, index) => <div key={`${issue.blockId}:${issue.rule}:${index}`}><Button theme="borderless" type={issue.severity === 'error' ? 'danger' : 'warning'} onClick={() => setLocateBlockId(issue.blockId)}>{issue.message}</Button></div>)}</>} /> : null}
         {blocks.length === 0 ? (
           <Empty title="尚无区块" description="点击「添加区块」开始搭建页面" style={{ padding: 24 }} />
         ) : (
@@ -516,7 +517,7 @@ export default function PagesPage() {
           </div>
         )}
 
-        <CmsConfigurationNotice siteId={siteId} kind="page" objectId={editingPage?.id} />
+        {editingPage ? <CmsConfigurationNotice siteId={siteId} kind="page" objectId={editingPage?.id} /> : null}
         <Button loading={saveMutation.isPending} onClick={() => void handleSavePage(true)}>保存后预览工作稿</Button>
       </SideSheet>
 
