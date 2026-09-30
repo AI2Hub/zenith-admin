@@ -207,15 +207,17 @@ export default function InboxPage() {
                           <ArrowUpRight size={13} />
                         </span>
                       )}
-                      <Text style={{ fontSize: 12, color: 'var(--semi-color-text-3)', marginLeft: 'auto', flexShrink: 0 }}>
-                        {item.senderName ?? '系统'} · <DateTimeText value={item.createdAt} />
-                      </Text>
                     </div>
-                    {item.content && (
-                      <div style={{ fontSize: 12, color: 'var(--semi-color-text-2)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {item.content}
-                      </div>
-                    )}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 12, marginTop: 2, minWidth: 0 }}>
+                      {item.content && (
+                        <span style={{ color: 'var(--semi-color-text-2)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {item.content}
+                        </span>
+                      )}
+                      <span style={{ color: 'var(--semi-color-text-3)', marginLeft: 'auto', flexShrink: 0 }}>
+                        {item.senderName ?? '系统'} · <DateTimeText value={item.createdAt} />
+                      </span>
+                    </div>
                   </div>
                   <Button
                     theme="borderless"
