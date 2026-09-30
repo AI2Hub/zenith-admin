@@ -86,7 +86,7 @@ function RepeatableField({ definition, common, siteId, depth }: Readonly<{ defin
   };
   return <Form.Section text={common.label}><ArrayField field={common.field} initValue={Array.isArray(common.initValue) ? common.initValue : undefined}>
     {({ arrayFields, addWithInitValue }) => <Space vertical align="start" style={{ width: '100%' }}>
-      {arrayFields.map(({ field: item, key, remove }, index) => <div key={key} style={{ width: '100%', padding: 12, border: '1px solid var(--semi-color-border)', borderRadius: 6 }}>
+      {arrayFields.map(({ field: item, key, remove }, index) => <div key={key} style={{ width: '100%', padding: 12, border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)' }}>
         <Space spacing={4}>
           <Button aria-label="上移组件" icon={<ArrowUp size={14} />} disabled={index === 0} onClick={() => move(index, -1)} />
           <Button aria-label="下移组件" icon={<ArrowDown size={14} />} disabled={index === arrayFields.length - 1} onClick={() => move(index, 1)} />

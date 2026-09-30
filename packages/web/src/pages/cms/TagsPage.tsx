@@ -35,10 +35,10 @@ export default function TagsPage({ vocabulary }: Readonly<{ vocabulary?: CmsVoca
     entityName: '标签',
     save: saveMutation,
     toValues: (record) => ({ name: record.name, slug: record.slug, groupName: record.groupName ?? '', parentId: record.parentId ?? undefined, aliases: record.aliases ?? [], localeLabels: JSON.stringify(record.localeLabels ?? {}, null, 2) }),
-    beforeSave: (values, { isEdit }) => {
+    beforeSave: (values, { isEdit, editing }) => {
       if (!isEdit && !siteId) abortSubmit('validation');
       return {
-        ...values, vocabularyId: vocabulary?.id ?? modal.editing?.vocabularyId ?? null,
+        ...values, vocabularyId: vocabulary?.id ?? editing?.vocabularyId ?? null,
         aliases: Array.isArray(values.aliases) ? values.aliases : [],
         localeLabels: typeof values.localeLabels === 'string' ? JSON.parse(values.localeLabels || '{}') : values.localeLabels ?? {},
         ...(!isEdit ? { siteId } : {}),

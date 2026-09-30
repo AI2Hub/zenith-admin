@@ -1,5 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query';
-import type { BodyOf } from '@zenith/shared/core';
+import type { BodyOf, QueryOf } from '@zenith/shared/core';
 import { cmsComponentContract } from '@zenith/shared/cms';
 import { contractKey, createResourceQueries, useApiMutation, useApiQuery } from '@/lib/contract-query';
 import { LOOKUP_STALE_TIME } from '@/lib/query';
@@ -14,7 +14,9 @@ const resource = createResourceQueries(cmsComponentContract, {
   },
 });
 export const cmsComponentKeys = resource.keys;
-export const useCmsComponentList = resource.useList;
+export function useCmsComponentList(query: QueryOf<typeof cmsComponentContract.list>, enabled = true) {
+  return useApiQuery(cmsComponentContract.list, { query }, { enabled });
+}
 export const useCmsComponentDetail = resource.useDetail;
 export function useAllCmsComponents(siteId?: number) {
   return useApiQuery(cmsComponentContract.all, { query: { siteId } }, { enabled: siteId !== undefined, staleTime: LOOKUP_STALE_TIME });

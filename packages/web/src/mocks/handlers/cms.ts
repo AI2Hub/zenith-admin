@@ -385,7 +385,7 @@ export const cmsHandlers = [
   mock(cmsModelContract.all, ({ query, ok }) => ok(mockCmsModels.filter((m) => m.status === 'enabled' && (query.siteId === undefined || m.ownerSiteId == null || m.ownerSiteId === query.siteId)).map((model) => ({ ...model, fields: getMockCmsPublishedModelFields(model.id) })))),
   mock(cmsModelContract.list, ({ query, ok, paginate }) => {
     const { keyword } = query;
-    let list = mockCmsModels.filter(model => (query.siteId === undefined || model.ownerSiteId === null || model.ownerSiteId === query.siteId) && (!query.status || model.status === query.status));
+    let list = mockCmsModels.filter(model => (query.siteId === undefined || model.ownerSiteId === null || model.ownerSiteId === query.siteId) && matchesFilter(model.status, query.status));
     list = filterByKeyword(list, keyword, [(m) => m.name, (m) => m.code]);
     return ok(paginate(list));
   }),
@@ -892,7 +892,7 @@ export const cmsHandlers = [
   mock(cmsTagContract.remove, ({ params, ok }) => {
     const current = requireItem(mockCmsTags, params.id, '标签不存在', { status: 404 });
     if (mockCmsTags.some(term => term.parentId === current.id)) return conflict('请先处理子词条', { status: 409 });
-    if (mockCmsContents.some(content => content.tagIds.includes(current.id) || getMockCmsPublishedContent(content.id)?.tagIds.includes(current.id))) return conflict('标签或词条仍被内容使用，请先调整内容分类', { status: 409 });
+    if (mockCmsContents.some(content => content.tagIds.includes(current.id) || getMockCmsPublishedContent(content.id)?.tagIds?.includes(current.id))) return conflict('标签或词条仍被内容使用，请先调整内容分类', { status: 409 });
     const tag = removeItem(mockCmsTags, params.id, '标签不存在', { status: 404 });
     stageMockCmsConfigurationDraft(tag.siteId);
     return ok(null, '删除成功');
@@ -1936,7 +1936,7 @@ export const cmsP3Handlers = [
   mock(cmsContentContract.batchTag, ({ body, ok }) => {
     for (const id of body.ids) { const item = assertMockCmsCas(id, body.expectedVersions[String(id)]); if (item.lockedAt) return locked('内容已被持久锁定', { status: 423 }); }
     const { ids, tagIds } = body;
-    const candidates = ids.map(id => { const content = getMockCmsWorkingContent(id); return { content, tagIds: [...new Set([...content.tagIds, ...tagIds])] }; });
+    const candidates = ids.map(id => { const content = getMockCmsWorkingContent(id); return { content, tagIds: [...new Set([...(content.tagIds ?? []), ...tagIds])] }; });
     for (const candidate of candidates) validateMockCmsTaxonomySelection({ ...candidate.content, tagIds: candidate.tagIds }, false);
     for (const candidate of candidates) saveMockCmsWorkingContent(candidate.content.id, { tagIds: candidate.tagIds }, body.expectedVersions[String(candidate.content.id)]);
     return ok(null, `已打标 ${ids.length} 条内容`);

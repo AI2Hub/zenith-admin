@@ -4,7 +4,7 @@ import { cmsContentCollectionSchema, cmsCollectionDefinitionSchema, validateCmsC
 import type { BodyOf, QueryOutputOf } from '@zenith/shared/core';
 import { db, withDbExecutor } from '../../db';
 import { cmsContentCollections, cmsContentCollectionVersions } from '../../db/schema/cms-content-collections';
-import { cmsChannels, cmsContents, cmsContentTags, cmsModelVersions, cmsModels, cmsPages, cmsSites, cmsTags } from '../../db/schema';
+import { cmsChannels, cmsContents, cmsContentTags, cmsModelVersions, cmsModels, cmsPages, cmsSites, cmsTags, cmsSiteGenerations } from '../../db/schema';
 import type { DbExecutor } from '../../db/types';
 import { requireRow } from '../../lib/db-assert';
 import { pickEntity } from '../../lib/entity-map';
@@ -53,7 +53,8 @@ async function validateDefinition(siteId: number, definition: CmsCollectionDefin
   else definition.modelVersionId = null;
 }
 async function stage(executor: Parameters<typeof stageCmsConfigurationDraft>[0], siteId: number) {
-  await stageCmsConfigurationDraft(executor, siteId, await captureCmsConfiguration(executor, siteId, { configurationTables: ['cms_content_collections'] }));
+  const [active] = await executor.select({ generationId: cmsSiteGenerations.activeGenerationId }).from(cmsSiteGenerations).where(eq(cmsSiteGenerations.siteId, siteId)).limit(1);
+  await stageCmsConfigurationDraft(executor, siteId, { ...await captureCmsConfiguration(executor, siteId, { configurationTables: ['cms_content_collections'] }), baseGenerationId: active?.generationId ?? null });
 }
 export async function listCmsContentCollections(q: QueryOutputOf<typeof cmsContentCollectionContract.list>) {
   await assertSiteAccess(q.siteId);
@@ -113,7 +114,7 @@ export async function resolveCmsCollection(siteId: number, id: number, options: 
   if (!enabled.length) return [];
   const base = buildWhere(eq(cmsContents.siteId, siteId), eq(cmsContents.status, 'published'), isNull(cmsContents.deletedAt), isNull(cmsContents.archivedAt), inArray(cmsContents.channelId, enabled), or(isNull(cmsContents.expireAt), gt(cmsContents.expireAt, cmsGenerationNow())), definition.excludedIds.length ? notInArray(cmsContents.id, definition.excludedIds) : undefined, options.contentScope);
   // Immutable versions may be newer than the online generation when previewing a working collection.
-  const [modelVersion] = definition.modelVersionId ? await executor.select({ fields: cmsModelVersions.fields }).from(sql`public.cms_model_versions AS cms_model_versions`).where(and(eq(cmsModelVersions.id, definition.modelVersionId), eq(cmsModelVersions.modelId, definition.modelId!))).limit(1) : [];
+  const [modelVersion] = definition.modelVersionId ? await executor.execute<{ fields: typeof cmsModelVersions.$inferSelect['fields'] }>(sql`select fields from public.cms_model_versions where id=${definition.modelVersionId} and model_id=${definition.modelId} limit 1`) : [];
   if (definition.modelVersionId && !modelVersion) throw new HTTPException(409, { message: '集合固定模型版本已缺失，请重新保存集合' });
   const filters = definition.filters.map(filter => {
     const field = sql`${cmsContents.extend}->>${filter.field}`;

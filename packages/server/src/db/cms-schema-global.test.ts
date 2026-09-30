@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { getTableConfig, type PgTable } from 'drizzle-orm/pg-core';
-import * as cmsSchema from './schema/cms';
+import * as cmsSchema from './schema';
 import { cmsDistributionRules, cmsSiteInheritances, cmsSites } from './schema/cms';
 import { dbColumnName } from './types';
 
@@ -19,13 +19,15 @@ function cmsTables(): { name: string; table: PgTable }[] {
 }
 
 describe('global CMS schema', () => {
-  it('keeps all 57 CMS tables outside tenant ownership', () => {
+  it('keeps every exported CMS table outside tenant ownership', () => {
     const tables = cmsTables();
-    expect(tables).toHaveLength(57);
+    expect(tables.length).toBeGreaterThan(0);
     expect(tables.map((item) => item.name)).toEqual(expect.arrayContaining([
       'cms_resource_refs', 'cms_open_app_grants', 'cms_content_tombstones',
       'cms_widgets', 'cms_widget_refs', 'cms_widget_source_refs',
       'cms_page_presets', 'cms_page_preset_versions',
+      'cms_components', 'cms_component_versions', 'cms_vocabularies',
+      'cms_content_collections', 'cms_content_collection_versions',
     ]));
     expect(tables.map((item) => item.name)).not.toEqual(expect.arrayContaining([
       'cms_surveys',

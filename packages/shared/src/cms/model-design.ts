@@ -87,7 +87,8 @@ export function normalizeCmsFieldDefinitions<T extends CmsFieldDefinition>(field
 export function createCmsFieldDefaultValue(field: CmsFieldDefinition): unknown {
   let value = field.defaultValue;
   if (typeof value === 'string' && ['number', 'switch', 'checkbox', 'reference', 'references', 'object', 'array', 'blocks'].includes(field.fieldType)) {
-    try { value = JSON.parse(value); } catch { if (field.fieldType === 'checkbox') value = value.split(',').map((item) => item.trim()).filter(Boolean); }
+    const text = value;
+    try { value = JSON.parse(text); } catch { if (field.fieldType === 'checkbox') value = text.split(',').map((item) => item.trim()).filter(Boolean); }
   }
   if (value !== undefined && value !== null) return normalizeCmsStructuredValues([{ ...field, defaultValue: undefined }], { [field.name]: structuredClone(value) })[field.name];
   if (field.fieldType === 'object') {

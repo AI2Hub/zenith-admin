@@ -65,7 +65,10 @@ export function useCmsContentCalendar(siteId: number | undefined, month: string,
     placeholderData: keepPreviousData,
   });
 }
-export const useSaveCmsContent = resource.useSave;
+export function useSaveCmsContent() {
+  const save = resource.useSave();
+  return { ...save, mutateAsync: (input: { id?: number; values: Partial<BodyOf<typeof cmsContentContract.create>> & Partial<BodyOf<typeof cmsContentContract.update>> }) => save.mutateAsync(input) };
+}
 
 /** 审批中的业务记录持续回源，直到工作流订阅者完成 CMS 状态回写。与普通详情共用契约缓存。 */
 export function useCmsContentWorkflowRecord(contentId: number | undefined, enabled = true) {

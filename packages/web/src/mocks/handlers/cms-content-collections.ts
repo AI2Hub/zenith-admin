@@ -45,7 +45,7 @@ export function previewMockCmsCollection(id: number) {
     .flatMap(content => { const published = getMockCmsPublishedContent(content.id); return published ? [published] : []; })
     .filter(content => !content.archivedAt && (!content.expireAt || content.expireAt > mockDateTime()) && channelVisible(row.siteId, content.channelId));
   const fields = row.definition.modelId && row.definition.modelVersionId ? getMockCmsModelVersionFields(row.definition.modelId, row.definition.modelVersionId) : [];
-  return { version: row.version, items: selectCmsCollectionCandidates(candidates, row.definition, fields).map(content => ({
+  return { version: row.version, items: selectCmsCollectionCandidates(candidates.map(row => ({ ...row, tagIds: row.tagIds ?? [] })), row.definition, fields).map(content => ({
     id: content.id, title: content.title, reason: row.definition.pinnedIds.includes(content.id) ? '人工固定' : '匹配集合筛选', canonicalUrl: content.canonicalUrl ?? null,
   })) };
 }

@@ -19,7 +19,7 @@ export default function TaxonomyPage() {
   const models = useAllCmsModels(siteId);
   const page = useListPage({ contract: cmsVocabularyContract, useList: useCmsVocabularyList, params: { siteId: siteId ?? 0 }, enabled: siteId !== undefined, table: { empty: '暂无受控词表' } });
   const save = useSaveCmsVocabulary(); const remove = useDeleteCmsVocabularies();
-  const modal = useEditModal<CmsVocabulary, Partial<CreateCmsVocabularyInput>>({ entityName: '词表', save,
+  const modal = useEditModal<CmsVocabulary, Partial<CreateCmsVocabularyInput>>({ entityName: '词表', save, defaults: { status: 'enabled', required: false, maxSelections: 10, modelIds: [] },
     labelWidth: 110,
     toValues: row => ({ ...row, description: row.description ?? undefined }), beforeSave: (values, { isEdit }) => ({ ...values, ...(!isEdit ? { siteId } : {}) }),
   });
@@ -42,8 +42,8 @@ export default function TaxonomyPage() {
       <Form.TextArea field="description" label="用途说明" />
       <Form.Select field="modelIds" label="适用内容模型" multiple optionList={(models.data ?? []).map(model => ({ value: model.id, label: model.name }))} extraText="留空适用于所有模型" style={{ width: '100%' }} />
       <Form.Switch field="required" label="发布必须选择" />
-      <Form.InputNumber field="maxSelections" label="最多选择词条" initValue={10} min={1} max={100} style={{ width: '100%' }} />
-      <Form.Select field="status" label="状态" initValue="enabled" optionList={[{ value: 'enabled', label: '启用' }, { value: 'disabled', label: '停用' }]} style={{ width: '100%' }} />
+      <Form.InputNumber field="maxSelections" label="最多选择词条" min={1} max={100} style={{ width: '100%' }} />
+      <Form.Select field="status" label="状态" optionList={[{ value: 'enabled', label: '启用' }, { value: 'disabled', label: '停用' }]} style={{ width: '100%' }} />
     </EditFormModal>
     <SideSheet title={selected ? `${selected.name} · 分类词条` : '分类词条'} visible={!!selected} onCancel={() => setSelected(undefined)} width="min(1100px, 95vw)" footer={<Button onClick={() => setSelected(undefined)}>关闭</Button>}>
       {selected ? <TagsPage key={selected.id} vocabulary={selected} /> : null}

@@ -20,7 +20,7 @@ function NoteThread({ note, content, canNote, onLocate }: Readonly<{ note: CmsEd
       {note.anchorStatus !== 'current' && <Banner type="warning" description={note.anchorStatus === 'missing' ? '原段落已删除，保留引用文字供审稿追溯。' : '该段落文字已更新，引用范围需要复核。'} />}
     </>}
     <Typography.Paragraph style={{ whiteSpace: 'pre-wrap', marginTop: 8 }}>{note.message}</Typography.Paragraph>
-    {note.replies.map((item) => <div key={item.id} style={{ margin: '8px 0 8px 16px', padding: 12, background: 'var(--surface-card)', borderRadius: 6 }}>
+    {note.replies.map((item) => <div key={item.id} style={{ margin: '8px 0 8px 16px', padding: 12, background: 'var(--surface-card)', borderRadius: 'var(--semi-border-radius-medium)' }}>
       <Space><Typography.Text strong>{item.createdByName ?? '审稿人'}</Typography.Text><Typography.Text type="tertiary">{item.createdAt}</Typography.Text></Space>
       <Typography.Paragraph style={{ whiteSpace: 'pre-wrap', marginBottom: 0 }}>{item.message}</Typography.Paragraph>
     </div>)}

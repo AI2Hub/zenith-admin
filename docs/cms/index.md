@@ -41,7 +41,9 @@ graph LR
 | 站点管理 | `/cms/sites` | 父子站群、显式继承、域名路由、主题选择与主题参数、审核模式、Webhook；站点行内工作区提供建站检查与配置快捷入口 | [站群与分发](./site-groups-and-distribution) · [主题](./themes) |
 | 栏目管理 | `/cms/channels` | 左树右编辑，树形栏目（列表/单页/外链），栏目标识 code + 级联 path，批量建栏目 | [内容管线](./content-pipeline) |
 | 内容管理 | `/cms/contents` | 5 态状态机、多形态内容（图文/图集/音视频/外链）、批量状态流转、导入导出、回收站、内容日历 | [内容管线](./content-pipeline) |
-| 内容模型 | `/cms/models` | 12 种自定义字段、选项绑字典、默认值、发布必填、列表/详情展示配置、站群归属治理 | [内容模型](./content-models) |
+| 内容模型 | `/cms/models` | 17 种字段、递归组件、可复用组件固定版本、默认值、发布影响、列表/详情展示与站群治理 | [内容模型](./content-models) · [内容组织](./content-organization) |
+| 受控分类 | `/cms/taxonomy` | 词表、层级词条、适用模型、必选/数量规则、别名与语言名称 | [内容组织](./content-organization) |
+| 内容集合 | `/cms/content-collections` | 固定模型版本的字段筛选、人工固定/排除、排序、定义版本及配置发布 | [内容组织](./content-organization) |
 | 标签管理 | `/cms/tags` | 站点级标签（名称自动生成拼音 slug）+ 前台聚合页 | [内容管线](./content-pipeline) |
 | 友情链接 | `/cms/friend-links` | 前台页脚友链，支持分组管理与按组渲染 | [互动与运营](./interaction) |
 | 素材中心 | `/cms/resources` | 文件夹树、句柄化引用索引、素材替换/裁剪、孤立素材治理与报告导出 | [内容管线](./content-pipeline) |

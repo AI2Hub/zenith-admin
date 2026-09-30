@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { mockCmsContents, mockCmsContentVersions } from './data/cms';
+import { mockCmsContents, mockCmsContentVersions, mockCmsTags } from './data/cms';
 import {
   activateMockCmsRevision, assertMockCmsCas, bindMockCmsReview, freezeMockCmsRevision,
   getMockCmsDistributionConflict, getMockCmsPublishedContent, getMockCmsReviewContent, getMockCmsWorkingContent,
@@ -37,12 +37,13 @@ describe('CMS Demo 修订一致性', () => {
     const content = getMockCmsWorkingContent(1);
     const original = freezeMockCmsRevision(1);
     const originalVersion = content.version;
-    saveMockCmsWorkingContent(1, { titleStyle: { bold: true }, attachments: [{ name: '临时附件', url: '/temp.pdf', size: 1, ext: 'pdf', sort: 0 }], tagIds: [999], extraChannelIds: [3], relatedIds: [2] }, originalVersion);
+    saveMockCmsWorkingContent(1, { titleStyle: { bold: true }, attachments: [{ name: '临时附件', url: '/temp.pdf', size: 1, ext: 'pdf', sort: 0 }], tagIds: mockCmsTags.filter(tag => tag.siteId === content.siteId).map(tag => tag.id), extraChannelIds: [3], relatedIds: [2] }, originalVersion);
     expect(() => assertMockCmsCas(1, originalVersion)).toThrow();
     restoreMockCmsRevision(1, original.id, content.version);
     for (const field of ['titleStyle', 'attachments', 'tagIds', 'extraChannelIds', 'relatedIds'] as const) expect(content[field]).toEqual(original.snapshot[field]);
     expect(content.version).toBeGreaterThan(originalVersion);
-    expect(content.editorialStatus).toBe('draft');
+    expect(content.editorialStatus).toBe('clean');
+    expect(content.hasUnpublishedChanges).toBe(false);
   });
 
   it('surfaces three-way conflicts and applies the selected side without silently changing public content', () => {

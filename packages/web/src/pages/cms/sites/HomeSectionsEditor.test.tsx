@@ -5,6 +5,7 @@ import type { CmsHomeSection } from '@zenith/shared/cms';
 import HomeSectionsEditor from './HomeSectionsEditor';
 
 vi.mock('@/hooks/queries/cms-channels', () => ({ useCmsChannelTree: () => ({ data: [], isFetching: false, isError: false }) }));
+vi.mock('@/hooks/queries/cms-content-collections', () => ({ useAllCmsCollections: () => ({ data: [], isFetching: false, isError: false }) }));
 const rows: CmsHomeSection[] = ['甲区', '乙区'].map((title, index) => ({ id: `region-${index}`, title, source: 'latest', channelId: null, count: index + 3, style: 'compact', imageRatio: 'wide', focusX: 50, focusY: 50 }));
 
 function Editor({ changed }: { changed: (value: CmsHomeSection[]) => void }) {

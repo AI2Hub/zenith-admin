@@ -5,7 +5,7 @@ import CmsValueDiff from './CmsValueDiff';
 import CmsBodyDiff from './CmsBodyDiff';
 import CmsContentConflictView from './CmsContentConflictView';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Button, Divider, Dropdown, Form, Spin, Toast, Tooltip, Row, Col, Banner, SideSheet, Space, Timeline, Modal, Upload, Typography, Tag, Input, Tabs, TabPane, withField, Pagination } from '@douyinfe/semi-ui';
+import { Button, Dropdown, Form, Spin, Toast, Tooltip, Row, Col, Banner, SideSheet, Space, Timeline, Modal, Upload, Typography, Tag, Input, Tabs, TabPane, withField, Pagination } from '@douyinfe/semi-ui';
 import { EntityContextSheet } from '@/components/entity-relations/EntityRelationButton';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
 import { supportsEntityRelations } from '@zenith/shared/platform/entity-catalog';
@@ -406,7 +406,7 @@ export default function ContentEditPage() {
       lastLocatedField.current = fieldLocation;
       highlighted.scrollIntoView({ behavior: 'auto', block: 'center' });
       highlighted.classList.add('cms-content-edit__field-highlight');
-      const control = highlighted.querySelector<HTMLElement>('input:not([disabled]):not([type="hidden"]), textarea:not([disabled]), [contenteditable="true"], [role="combobox"]:not([aria-disabled="true"]), button:not([disabled])');
+      const control = highlighted.querySelector<HTMLElement>('input:not([disabled]):not([type="hidden"]), textarea:not([disabled]), [contenteditable="true"], [role="combobox"]:not([aria-disabled="true"])');
       if (control) control.focus({ preventScroll: true });
       else { highlighted.tabIndex = -1; highlighted.focus({ preventScroll: true }); }
     };

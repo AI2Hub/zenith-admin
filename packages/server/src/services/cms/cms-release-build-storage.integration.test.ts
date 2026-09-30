@@ -3,10 +3,13 @@ import postgres from 'postgres';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { eq, sql } from 'drizzle-orm';
 import { afterAll, describe, expect, it } from 'vitest';
+import { cmsCollectionDefinitionSchema } from '@zenith/shared/cms';
 import * as schema from '../../db/schema';
 import { withDbExecutor } from '../../db';
 import { withCmsGenerationContext } from './cms-generation-context';
-import { createCmsGenerationStorage, cmsGenerationSchemaName, sealCmsGenerationStorage } from './cms-generation-storage.service';
+import { createCmsGenerationStorage, cmsGenerationSchemaName, hasCmsGenerationTable, readCmsGenerationConfigurationRows, sealCmsGenerationStorage } from './cms-generation-storage.service';
+import { readPublicCmsCollection, resolveCmsCollection } from './cms-content-collections.service';
+import { inspectCmsReleaseReadiness } from './cms-release-readiness.service';
 import { cmsBuildSchema, createCmsBuildStorage, cmsBuildDependencyHashes } from './cms-release-build-storage';
 
 const connection = process.env.TEST_DATABASE_URL;
@@ -25,6 +28,7 @@ describe.skipIf(!connection)('CMS frozen release build inputs', () => {
         const [parent] = await tx.insert(schema.cmsSites).values({ name: 'Inherited custom theme', code: `qa-parent-${suffix}`, theme: 'docs' }).returning();
         const [site] = await tx.insert(schema.cmsSites).values({ name: 'Build snapshot fixture', code: `qa-build-${suffix}`, theme: 'default' }).returning();
         const [channel] = await tx.insert(schema.cmsChannels).values({ siteId: site.id, name: 'News', code: 'news', slug: 'news', path: 'news' }).returning();
+        const [tag] = await tx.insert(schema.cmsTags).values({ siteId: site.id, name: 'Frozen tag', slug: `frozen-${suffix}` }).returning();
         const [content, otherContent] = await tx.insert(schema.cmsContents).values([
           { siteId: site.id, channelId: channel.id, title: 'Immutable base title', status: 'published', summary: 'Stable explicit summary', body: '<p>Approved base</p>' },
           { siteId: site.id, channelId: channel.id, title: 'Other detail', status: 'published', summary: 'Another summary', body: '<p>Unchanged body</p>' },
@@ -37,9 +41,42 @@ describe.skipIf(!connection)('CMS frozen release build inputs', () => {
         await tx.execute(sql.raw(`DROP VIEW "${cmsGenerationSchemaName(base.id)}".cms_contents`));
         await tx.execute(sql.raw(`ALTER TABLE "${cmsGenerationSchemaName(base.id)}".cms_content_projection DROP COLUMN media`));
         await tx.execute(sql.raw(`CREATE VIEW "${cmsGenerationSchemaName(base.id)}".cms_contents AS SELECT * FROM "${cmsGenerationSchemaName(base.id)}".cms_content_projection`));
+        // Simulate an older sealed generation: new tables/columns must not be backfilled from working data.
+        await tx.execute(sql.raw(`DROP TABLE "${cmsGenerationSchemaName(base.id)}".cms_content_collections`));
+        await tx.execute(sql.raw(`DROP TABLE "${cmsGenerationSchemaName(base.id)}".cms_vocabularies`));
+        await tx.execute(sql.raw(`ALTER TABLE "${cmsGenerationSchemaName(base.id)}".cms_tags DROP COLUMN vocabulary_id, DROP COLUMN parent_id`));
+        const [workingCollection] = await tx.insert(schema.cmsContentCollections).values({ siteId: site.id, name: 'Unselected working collection', code: `working-${suffix}`, definition: cmsCollectionDefinitionSchema.parse({}) }).returning();
+        expect(await readCmsGenerationConfigurationRows(tx, base.id, 'cms_content_collections')).toEqual([]);
+        expect((await inspectCmsReleaseReadiness(tx, { ...release, baseGenerationId: base.id })).checks).toEqual([]);
+        await tx.execute(sql`select set_config('search_path', ${`${cmsGenerationSchemaName(base.id)},public`}, true)`);
+        try {
+          await withDbExecutor(tx, () => withCmsGenerationContext({ siteId: site.id, generationId: base.id, candidate: false }, async () => {
+            expect(await resolveCmsCollection(site.id, workingCollection.id)).toEqual([]);
+            await expect(readPublicCmsCollection(site.id, workingCollection.id)).rejects.toMatchObject({ status: 404 });
+          }));
+        } finally { await tx.execute(sql`select set_config('search_path','public',true)`); }
         await tx.update(schema.cmsContents).set({ title: 'Unrelated newer public title' }).where(eq(schema.cmsContents.id, content.id));
         const [candidate] = await tx.insert(schema.cmsDeployments).values({ siteId: site.id, releaseId: release.id }).returning();
         await createCmsGenerationStorage(tx, site.id, candidate.id, base.id);
+        const [newDefinitions] = await tx.execute<{ collections: number; vocabularies: number }>(sql.raw(`SELECT (SELECT count(*)::int FROM "${cmsGenerationSchemaName(candidate.id)}".cms_content_collections) AS collections,(SELECT count(*)::int FROM "${cmsGenerationSchemaName(candidate.id)}".cms_vocabularies) AS vocabularies`));
+        expect(newDefinitions).toEqual({ collections: 0, vocabularies: 0 });
+        const [copiedTag] = await tx.execute<{ vocabularyId: number | null; parentId: number | null }>(sql`SELECT vocabulary_id AS "vocabularyId",parent_id AS "parentId" FROM ${sql.raw(`"${cmsGenerationSchemaName(candidate.id)}".cms_tags`)} WHERE id=${tag.id}`);
+        expect(copiedTag).toEqual({ vocabularyId: null, parentId: null });
+        expect(await hasCmsGenerationTable(tx, base.id, 'cms_content_collections')).toBe(false);
+        const [explicit] = await tx.insert(schema.cmsDeployments).values({ siteId: site.id, releaseId: release.id }).returning();
+        await createCmsGenerationStorage(tx, site.id, explicit.id, base.id, { replaceAll: ['cms_content_collections'], tables: { cms_content_collections: [{ id: workingCollection.id, site_id: site.id, name: 'Explicit fixed collection', code: workingCollection.code, definition: workingCollection.definition }] } });
+        const [fixedCollection] = await tx.execute<{ name: string; version: number }>(sql`SELECT name,version FROM ${sql.raw(`"${cmsGenerationSchemaName(explicit.id)}".cms_content_collections`)} WHERE id=${workingCollection.id}`);
+        expect(fixedCollection).toEqual({ name: 'Explicit fixed collection', version: 1 });
+        await sealCmsGenerationStorage(tx, explicit.id, []);
+        await tx.update(schema.cmsContentCollections).set({ definition: cmsCollectionDefinitionSchema.parse({ excludedIds: [content.id, otherContent.id] }), version: 2 }).where(eq(schema.cmsContentCollections.id, workingCollection.id));
+        await tx.execute(sql`select set_config('search_path', ${`${cmsGenerationSchemaName(explicit.id)},public`}, true)`);
+        try {
+          await withDbExecutor(tx, () => withCmsGenerationContext({ siteId: site.id, generationId: explicit.id, candidate: false }, async () => {
+            const publishedCollection = await readPublicCmsCollection(site.id, workingCollection.id);
+            expect(publishedCollection.version).toBe(1);
+            expect(publishedCollection.items.map(item => item.title).sort()).toEqual(['Immutable base title', 'Other detail']);
+          }));
+        } finally { await tx.execute(sql`select set_config('search_path','public',true)`); }
         const [frozen] = await tx.execute<{ title: string }>(sql`SELECT title FROM ${sql.raw(`"${cmsGenerationSchemaName(candidate.id)}".cms_contents`)} WHERE id=${content.id}`);
         expect(frozen.title).toBe('Immutable base title');
         await tx.insert(schema.cmsComments).values({ siteId: site.id, contentId: content.id, nickname: 'Reader', content: 'Before freeze', status: 'approved' });

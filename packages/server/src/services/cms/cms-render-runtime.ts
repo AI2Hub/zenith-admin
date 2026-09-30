@@ -24,6 +24,7 @@ export const CMS_RENDER_RUNTIME_MODULES = new Set([
   'cms-page-acl.service', 'cms-search-dictionary', 'cms-site-tree', 'cms-sites.service', 'cms-sensitive-words.service',
   'cms-submit-guard', 'cms-static-build-plan',
   'cms-document.service', 'cms-revision-dependencies.service', 'cms-site-hierarchy-policy', 'cms-cdn-policy', 'cms-word-check.service',
+  'cms-content-collections.service',
 ]);
 export function isCmsRenderRuntimeFile(filename: string): boolean {
   return /\.(?:ts|tsx|js|mjs)$/.test(filename) && CMS_RENDER_RUNTIME_MODULES.has(filename.replace(/\.(?:ts|tsx|js|mjs)$/, ''));
@@ -37,11 +38,13 @@ export const CMS_RENDER_NON_OUTPUT_DEPENDENCIES = new Set([
   'cms-build-concurrency', 'cms-publish-artifact-tracker', 'cms-release-build-artifacts', 'cms-site-publish-lock.service', 'cms-deployment-storage-state', // Ownership, file integrity and storage lifecycle.
   'cms-page-presets.service', // Combinations are instantiated into page snapshots before rendering.
   'cms-media.service', // Frozen revision preparation; resulting derivative fields enter the persisted content dependency hash.
+  'cms-content-change-state', 'cms-vocabularies.service', 'cms-model-compiler', 'cms-components.service',
+  'cms-configuration-snapshot.service', 'cms-configuration-drafts.service',
 ]);
 
 const SHARED_RENDER_MODULES = new Set(['page-image', 'page-block-quality', 'configuration-state', 'constants', 'link', 'resource-selection', 'model-design', 'site-composition', 'cms-media', 'cms-media-validation', 'telemetry', 'document', 'validation', 'design-validation', 'content-revision', 'types',
   // Entity contracts participate in renderer service mapping/defaults; reporting/editorial contracts do not.
-  'contents', 'channels', 'pages', 'widgets', 'forms', 'ads', 'interactions', 'resources', 'models', 'search', 'sites', 'words', 'friend-links', 'comments', 'public-cms']);
+  'contents', 'channels', 'pages', 'widgets', 'forms', 'ads', 'interactions', 'resources', 'models', 'search', 'sites', 'words', 'friend-links', 'comments', 'public-cms', 'content-collections', 'channel-visibility']);
 export function isCmsSharedRenderFile(filename: string): boolean {
   return /\.(?:ts|tsx|js|mjs)$/.test(filename) && SHARED_RENDER_MODULES.has(filename.replace(/\.(?:ts|tsx|js|mjs)$/, ''));
 }

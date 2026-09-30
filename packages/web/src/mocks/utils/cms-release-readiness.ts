@@ -14,15 +14,15 @@ export function inspectMockCmsReleaseReadiness(release: CmsRelease, configuratio
   const byId = new Map(published.map(row => [row.id, row]));
   for (const row of revisions) byId.set(row.content.id, { ...row.content, status: 'published' });
   for (const item of release.items) if (item.action === 'withdraw') byId.delete(item.contentId);
-  const visibleContentIds = new Set([...byId.values()].filter(row => row.status === 'published' && !row.deletedAt && !row.archivedAt && !suppressed.has(row.id)
+  const visibleContentIds = new Set([...byId.values()].filter(row => row.status === 'published' && !('deleted' in row && row.deleted) && !row.archivedAt && !suppressed.has(row.id)
     && (!row.expireAt || new Date(row.expireAt.replace(' ', 'T')).getTime() > at) && enabledChannelIds.has(row.channelId)).map(row => row.id));
   const uniqueClaims: { contentId: number; modelId: number; key: string; value: string; fieldPath: string; fieldLabel: string; object: CmsReleaseCheck['object'] }[] = [];
   for (const { item, revision, content } of revisions) {
     const object = { kind: 'content' as const, id: content.id, title: content.title, revisionId: item.revisionId };
     const working = getMockCmsWorkingContent(content.id);
-    checks.push(...inspectCmsReleaseTaxonomy(siteId, object, configuration, content.modelId, content.tagIds));
+    checks.push(...inspectCmsReleaseTaxonomy(siteId, object, configuration, content.modelId, content.tagIds ?? []));
     if (!revision || ![working.approvedRevisionId, working.publishedRevisionId].includes(item.revisionId)) checks.push(makeCmsReleaseCheck({ siteId, object, code: 'approval', recommendedAction: 'review', message: '固定修订尚未批准' }));
-    if (working.deletedAt || working.archivedAt || working.lockedAt) checks.push(makeCmsReleaseCheck({ siteId, object, code: 'content-state', message: '内容已回收、归档或锁定，不能发布' }));
+    if (('deleted' in working && working.deleted) || working.archivedAt || working.lockedAt) checks.push(makeCmsReleaseCheck({ siteId, object, code: 'content-state', message: '内容已回收、归档或锁定，不能发布' }));
     if (!enabledChannelIds.has(content.channelId)) checks.push(makeCmsReleaseCheck({ siteId, object, code: 'content-channel', fieldPath: 'channelId', message: '所属栏目未有效启用' }));
     if (suppressed.has(content.id)) checks.push(makeCmsReleaseCheck({ siteId, object, code: 'suppression', message: '内容仍处于紧急撤下状态' }));
     if (content.expireAt && new Date(content.expireAt.replace(' ', 'T')).getTime() <= at) checks.push(makeCmsReleaseCheck({ siteId, object, kind: 'quality', code: 'content-expiry', fieldPath: 'expireAt', message: '内容在本次上线时已过期' }));
@@ -52,7 +52,7 @@ export function inspectMockCmsReleaseReadiness(release: CmsRelease, configuratio
     if (release.items.some(item => item.contentId === id)) continue;
     try {
       const content = getMockCmsWorkingContent(id);
-      if (content.siteId !== siteId || content.deletedAt || content.archivedAt || content.lockedAt || suppressed.has(id)) continue;
+      if (content.siteId !== siteId || ('deleted' in content && content.deleted) || content.archivedAt || content.lockedAt || suppressed.has(id)) continue;
       for (const revisionId of new Set([content.approvedRevisionId, content.publishedRevisionId])) {
         const revision = revisionId ? getMockCmsRevision(revisionId) : null;
         if (revision) dependencyOptions.push({ contentId: id, revisionId: revision.id, revisionVersion: revision.version, title: revision.title, hash: revision.hash });

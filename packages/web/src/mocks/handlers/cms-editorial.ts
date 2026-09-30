@@ -119,7 +119,7 @@ export const cmsEditorialHandlers = [
     if (source.locale === body.locale || mockCmsContents.some((row) => row.translationOfId === source.id && row.locale === body.locale)) return conflict('该语言的变体已存在', { status: 409 });
     const revision = freezeMockCmsRevision(source.id, 'checkpoint');
     const { revisionId: _revisionId, contentHash: _contentHash, ...snapshot } = getMockCmsRevisionContent(revision.id);
-    const created = { ...structuredClone(snapshot), id: getNextCmsContentId(), ...body, translationOfId: source.id,
+    const created = { ...structuredClone(snapshot), tagIds: snapshot.tagIds ?? [], id: getNextCmsContentId(), ...body, translationOfId: source.id,
       sourceRevisionId: revision.id,
       status: 'draft' as const, editorialStatus: 'draft' as const, version: 1, publishedRevisionId: null, approvedRevisionId: null, submittedRevisionId: null, hasUnpublishedChanges: true,
       slug: null, staticPath: null, scheduledAt: null, expireAt: null, createdAt: mockDateTime(), updatedAt: mockDateTime() };

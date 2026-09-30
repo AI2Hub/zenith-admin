@@ -5,7 +5,7 @@ import { compileMockCmsFields, mockCmsDefinitionHash } from '../utils/cms-model-
 import { mock } from '../utils/contract';
 import { requireItem, removeItem } from '../utils/crud';
 import { mockDateTime } from '../utils/date';
-import { filterByKeyword } from '../utils/filter';
+import { filterByKeyword, matchesFilter } from '../utils/filter';
 import { badRequest, conflict, nextIdFrom, notFound } from '../utils/handlers';
 import { getMockCmsPublishedModelFields } from './cms-editorial';
 
@@ -17,7 +17,7 @@ function usesVersions(fields: readonly CmsFieldDefinition[], ids: Set<number>): 
 }
 export const cmsComponentHandlers = [
   mock(cmsComponentContract.list, ({ query, paginate, ok }) => {
-    const rows = filterByKeyword(mockCmsComponents.filter(row => visible(row.ownerSiteId, query.siteId) && (!query.status || row.status === query.status)), query.keyword, [row => row.name, row => row.code]);
+    const rows = filterByKeyword(mockCmsComponents.filter(row => visible(row.ownerSiteId, query.siteId) && matchesFilter(row.status, query.status)), query.keyword, [row => row.name, row => row.code]);
     return ok(paginate(rows.map(row => cmsComponentListItemSchema.parse(row))));
   }),
   mock(cmsComponentContract.all, ({ query, ok }) => ok(mockCmsComponents.filter(row => visible(row.ownerSiteId, query.siteId) && row.status === 'enabled' && row.publishedVersionId != null).map(row => ({

@@ -9,8 +9,8 @@ export function validateMockCmsVocabularyModels(siteId: number, modelIds: readon
   requireItem(mockCmsSites, siteId, '站点不存在', { status: 404 });
   if (modelIds.some(id => !mockCmsModels.some(model => model.id === id && (model.ownerSiteId === null || model.ownerSiteId === siteId)))) throw new MockHttpError(badRequest('词表内容模型不存在或不属于本站', { status: 400 }));
 }
-export function validateMockCmsTaxonomySelection(content: { siteId: number; modelId: number | null; tagIds: readonly number[] }, strict: boolean) {
-  const ids = [...new Set(content.tagIds)];
+export function validateMockCmsTaxonomySelection(content: { siteId: number; modelId: number | null; tagIds?: readonly number[] }, strict: boolean) {
+  const ids = [...new Set(content.tagIds ?? [])];
   const terms = mockCmsTags.filter(term => term.siteId === content.siteId && ids.includes(term.id));
   if (terms.length !== ids.length) throw new MockHttpError(badRequest('标签或分类词条不存在或不属于本站', { status: 400 }));
   const issues = validateCmsVocabularySelection(mockCmsVocabularies.filter(row => row.siteId === content.siteId), terms, content.modelId, strict);
