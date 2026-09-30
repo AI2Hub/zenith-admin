@@ -11,8 +11,11 @@ const CHANGE_LABELS = { added: '新增', removed: '删除', type_changed: '类�
 function Changes({ changes, breaking }: Readonly<{ changes: CmsModelFieldChange[]; breaking: boolean }>) {
   return <Space vertical align="start" style={{ width: '100%' }}>
     {breaking ? <Banner type="warning" description="存在结构或必填规则变化。发布后，新工作稿按新定义校验；已有修订仍使用原版本。" /> : null}
-    <ConfigurableTable<CmsModelFieldChange> rowKey="path" pagination={false} dataSource={changes}
-      columns={[{ title: '字段路径', dataIndex: 'path', minWidth: 180 }, { title: '变更', dataIndex: 'kind', width: 100, render: (value: CmsModelFieldChange['kind']) => <Tag>{CHANGE_LABELS[value]}</Tag> }, { title: '原类型', dataIndex: 'beforeType', width: 120 }, { title: '新类型', dataIndex: 'afterType', width: 120 }]} />
+    {/* Space 是 inline-flex 且无 stretch 选项：表格直放会被按内容收缩（空表只剩表头宽），外套 width: 100% 的块级容器才能占满整行 */}
+    <div style={{ width: '100%' }}>
+      <ConfigurableTable<CmsModelFieldChange> rowKey="path" pagination={false} dataSource={changes}
+        columns={[{ title: '字段路径', dataIndex: 'path', minWidth: 180 }, { title: '变更', dataIndex: 'kind', width: 100, render: (value: CmsModelFieldChange['kind']) => <Tag>{CHANGE_LABELS[value]}</Tag> }, { title: '原类型', dataIndex: 'beforeType', width: 120 }, { title: '新类型', dataIndex: 'afterType', width: 120 }]} />
+    </div>
   </Space>;
 }
 
