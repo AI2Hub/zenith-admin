@@ -32,3 +32,5 @@ packages/server/assets/fonts/*.subset.otf
 release_artifacts/
 
 .freebuff/
+
+.tmp/
