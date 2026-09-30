@@ -4,6 +4,7 @@ import { cmsContents } from './cms';
 import { auditColumns, users } from './core';
 import { idColumn, timestampColumns } from './common';
 import { sql } from 'drizzle-orm';
+import { cmsPublicationDigestSql } from '../cms-content-hash';
 
 export const cmsEditorialStatusEnum = pgEnum('cms_editorial_status', CMS_EDITORIAL_STATUSES);
 export const cmsRevisionKindEnum = pgEnum('cms_revision_kind', CMS_REVISION_KINDS);
@@ -33,6 +34,8 @@ export const cmsContentWorkingCopies = pgTable('cms_content_working_copies', {
   version: integer().notNull().default(1),
   editorialStatus: cmsEditorialStatusEnum().notNull().default('draft'),
   snapshot: jsonb().$type<CmsContentRevisionSnapshot>().notNull(),
+  publicationHash: varchar({ length: 32 }).generatedAlwaysAs(cmsPublicationDigestSql(sql` snapshot `)),
+  publishedHash: varchar({ length: 32 }),
   submittedRevisionId: integer().references(() => cmsContentRevisions.id, { onDelete: 'restrict' }),
   approvedRevisionId: integer().references(() => cmsContentRevisions.id, { onDelete: 'restrict' }),
   publishedRevisionId: integer().references(() => cmsContentRevisions.id, { onDelete: 'restrict' }),

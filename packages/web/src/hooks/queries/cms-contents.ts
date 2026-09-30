@@ -22,6 +22,7 @@ const resource = createResourceQueries(cmsContentContract, {
     invalidateCmsDashboardStats(qc);
     void qc.invalidateQueries({ queryKey: contractKey(cmsEditorialContract.metrics) });
     void qc.invalidateQueries({ queryKey: contractKey(cmsEditorialContract.quality, { params: { id: saved.id } }) });
+    void qc.invalidateQueries({ queryKey: contractKey(cmsEditorialContract.translations) });
   },
 });
 

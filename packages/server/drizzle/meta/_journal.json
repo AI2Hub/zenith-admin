@@ -183,6 +183,13 @@
       "when": 1790665477858,
       "tag": "0025_familiar_silver_sable",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1790732552583,
+      "tag": "0026_stormy_the_stranger",
+      "breakpoints": true
     }
   ]
 }

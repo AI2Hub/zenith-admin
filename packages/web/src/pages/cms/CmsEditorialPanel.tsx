@@ -4,14 +4,15 @@ import type { CmsContent, CmsModel } from '@zenith/shared/cms';
 import { usePermission } from '@/hooks/usePermission';
 import UserSelect from '@/components/UserSelect';
 import { confirmDanger } from '@/utils/confirm';
+import { cmsEditorFieldLabel, getCmsEditorFieldLocation } from './cms-editor-fields';
 import {
   useCmsEditorialNotes, useAddCmsEditorialNote, useResolveCmsEditorialNote, useCmsQuality,
   useCmsTranslations, useCreateCmsTranslation, useCmsDistributionConflict, useResolveCmsDistribution,
   usePreviewCmsTypeConversion, useConvertCmsType,
 } from '@/hooks/queries/cms-editorial';
 
-export default function CmsEditorialPanel({ content, models, onChanged, onOpen, disabled = false }: Readonly<{
-  content?: CmsContent; models: CmsModel[]; onChanged: () => void; onOpen: (id: number) => void; disabled?: boolean;
+export default function CmsEditorialPanel({ content, models, onChanged, onOpen, onLocateField, disabled = false }: Readonly<{
+  content?: CmsContent; models: CmsModel[]; onChanged: () => void; onOpen: (id: number) => void; onLocateField?: (fieldPath: string) => void; disabled?: boolean;
 }>) {
   const { hasPermission } = usePermission();
   const notes = useCmsEditorialNotes(content?.id);
@@ -45,14 +46,21 @@ export default function CmsEditorialPanel({ content, models, onChanged, onOpen, 
           <Space><Typography.Text>检查已保存工作稿 v{quality.data?.version ?? content.version}</Typography.Text><Button loading={quality.isFetching} onClick={() => void quality.refetch()}>重新检查</Button></Space>
           {quality.isError ? <Banner type="danger" description="质量检查失败，请重试。" /> : null}
           {quality.data?.issues.length === 0 ? <Banner type="success" description="当前稿件通过质量检查。发布前仍会重新校验修订与依赖。" /> : null}
-          {quality.data?.issues.map((issue, index) => <Banner key={`${issue.rule}-${issue.fieldPath}-${index}`} type={issue.severity === 'error' ? 'danger' : 'warning'} closeIcon={null} description={<Space wrap><Typography.Text strong>{issue.fieldPath || '稿件'}</Typography.Text><span>{issue.message}</span></Space>} />)}
+          {quality.data?.issues.map((issue, index) => {
+            const field = getCmsEditorFieldLocation(issue.fieldPath, content.modelFields, content.contentType, content.extend);
+            return <Banner key={`${issue.rule}-${issue.fieldPath}-${index}`} type={issue.severity === 'error' ? 'danger' : 'warning'} closeIcon={null} description={<Space wrap>
+              <Typography.Text strong>{field?.label ?? cmsEditorFieldLabel(issue.fieldPath, content.modelFields, content.extend)}</Typography.Text>
+              <span>{issue.message}</span>
+              {field && onLocateField ? <Button size="small" theme="borderless" onClick={() => onLocateField(issue.fieldPath)}>定位字段</Button> : null}
+            </Space>} />;
+          })}
         </Space>
       </TabPane>
       <TabPane tab={`审稿批注（${notes.data?.filter((note) => !note.resolved).length ?? 0}）`} itemKey="notes">
         <Space vertical align="start" spacing={16} style={{ width: '100%' }}>
           {notes.isError ? <Banner type="danger" description="批注加载失败" /> : null}
           {(notes.data ?? []).map((note) => <div key={note.id} style={{ width: '100%', paddingBottom: 12, borderBottom: '1px solid var(--semi-color-border)' }}>
-            <Space wrap><Tag color={note.resolved ? 'green' : 'orange'}>{note.resolved ? '已处理' : '待处理'}</Tag><Typography.Text strong>{note.createdByName ?? '审稿人'}</Typography.Text><Typography.Text type="tertiary">{note.createdAt} · {note.fieldPath ?? '整篇'}{note.revisionId ? ` · 修订 #${note.revisionId}` : ' · 工作稿'}</Typography.Text></Space>
+            <Space wrap><Tag color={note.resolved ? 'green' : 'orange'}>{note.resolved ? '已处理' : '待处理'}</Tag><Typography.Text strong>{note.createdByName ?? '审稿人'}</Typography.Text><Typography.Text type="tertiary">{note.createdAt} · {cmsEditorFieldLabel(note.fieldPath, content.modelFields, content.extend)}{note.revisionId ? ` · 修订 #${note.revisionId}` : ' · 工作稿'}</Typography.Text></Space>
             <Typography.Paragraph style={{ whiteSpace: 'pre-wrap', marginTop: 8 }}>{note.message}</Typography.Paragraph>
             {canNote ? <Button size="small" loading={resolveNote.isPending} onClick={() => void resolveNote.mutateAsync({ params: { id: content.id, noteId: note.id }, body: { resolved: !note.resolved } })}>{note.resolved ? '重新打开' : '标为已处理'}</Button> : null}
           </div>)}
@@ -80,17 +88,17 @@ export default function CmsEditorialPanel({ content, models, onChanged, onOpen, 
           {conflict.data?.conflicts.length ? <Button type="primary" disabled={!canEdit || conflict.data.conflicts.some((item) => !choices[item.field])} loading={resolveDistribution.isPending} onClick={async () => { await resolveDistribution.mutateAsync({ params: { id: content.id }, body: { expectedVersion: conflict.data!.version, choices } }); setChoices({}); onChanged(); Toast.success('已生成合并工作稿'); }}>确认合并到工作稿</Button> : null}
         </Space>
       </TabPane> : null}
-      <TabPane tab="类型转换" itemKey="conversion">
+      <TabPane tab="切换内容模型" itemKey="conversion">
         <Space vertical align="start" spacing={16} style={{ width: '100%' }}>
-          <Banner type="info" description="栏目移动不会改变内容类型。需要切换模型时，请先预览字段映射、校验问题与字段损失。转换结果保存为工作稿。" />
+          <Banner type="info" description="切换内容模型会重新映射扩展字段；图文、图集、音视频、外链属于创建时确定的内容形态。请先预览字段映射、校验问题与移除影响，再保存模型切换工作稿。" />
           <Select placeholder="目标模型" value={targetModel} style={{ width: 280 }} onChange={(value) => { setTargetModel(Number(value)); setFieldMapping({}); setAcknowledgeLoss(false); previewConversion.reset(); }} optionList={models.map((model) => ({ value: model.id, label: model.name }))} />
           {targetFields.map((field) => <Space key={field.name} wrap><Typography.Text>{field.label}</Typography.Text><Select showClear placeholder="来源字段（空则按同名映射）" style={{ width: 260 }} value={fieldMapping[field.name]} onChange={(value) => { setFieldMapping((previous) => { const next = { ...previous }; if (value) next[field.name] = String(value); else delete next[field.name]; return next; }); previewConversion.reset(); }} optionList={(content.modelFields ?? []).map((source) => ({ value: source.name, label: source.label }))} /></Space>)}
-          <Button disabled={!canEdit || !targetModel} loading={previewConversion.isPending} onClick={() => targetModel && void previewConversion.mutateAsync({ params: { id: content.id }, body: { modelId: targetModel, fieldMapping } })}>预览转换</Button>
+          <Button disabled={!canEdit || !targetModel} loading={previewConversion.isPending} onClick={() => targetModel && void previewConversion.mutateAsync({ params: { id: content.id }, body: { modelId: targetModel, fieldMapping } })}>预览模型切换</Button>
           {previewConversion.data ? <>
-            {previewConversion.data.issues.map((issue, index) => <Banner key={`${issue.fieldPath}-${index}`} type={issue.severity === 'error' ? 'danger' : 'warning'} description={`${issue.fieldPath}：${issue.message}`} />)}
-            <Typography.Text>将移除字段：{previewConversion.data.droppedFields.join('、') || '无'}</Typography.Text>
+            {previewConversion.data.issues.map((issue, index) => <Banner key={`${issue.fieldPath}-${index}`} type={issue.severity === 'error' ? 'danger' : 'warning'} description={`${cmsEditorFieldLabel(issue.fieldPath, targetFields, previewConversion.data?.values)}：${issue.message}`} />)}
+            <Typography.Text>将移除字段：{previewConversion.data.droppedFields.map((name) => cmsEditorFieldLabel(`extend.${name}`, content.modelFields)).join('、') || '无'}</Typography.Text>
             <Checkbox checked={acknowledgeLoss} onChange={(event) => setAcknowledgeLoss(!!event.target.checked)}>已确认字段映射及移除影响</Checkbox>
-            <Button type="warning" disabled={!canEdit || !acknowledgeLoss} loading={convertType.isPending} onClick={() => confirmDanger({ title: '转换为目标模型？', content: '将生成新的工作稿，已发布修订保持不变。', onOk: async () => { await convertType.mutateAsync({ params: { id: content.id }, body: { modelId: targetModel!, fieldMapping, expectedVersion: previewConversion.data!.version, acknowledgeLoss } }); previewConversion.reset(); onChanged(); Toast.success('类型转换工作稿已保存'); } })}>应用转换</Button>
+            <Button type="warning" disabled={!canEdit || !acknowledgeLoss || previewConversion.data.issues.some((issue) => issue.severity === 'error')} loading={convertType.isPending} onClick={() => confirmDanger({ title: '切换为目标内容模型？', content: '将按确认的字段映射生成工作稿，完成审核与发布后生效。', onOk: async () => { await convertType.mutateAsync({ params: { id: content.id }, body: { modelId: targetModel!, fieldMapping, expectedVersion: previewConversion.data!.version, acknowledgeLoss } }); previewConversion.reset(); onChanged(); Toast.success('内容模型切换工作稿已保存'); } })}>应用模型切换</Button>
           </> : null}
         </Space>
       </TabPane>

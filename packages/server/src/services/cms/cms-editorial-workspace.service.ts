@@ -10,6 +10,7 @@ import { buildListResult } from '../../lib/list-query';
 import { buildWhere, keywordCondition, withPagination } from '../../lib/where-helpers';
 import { assertSiteAccess } from './cms-sites.service';
 import { buildCmsContentListWhere } from './cms-contents-query.service';
+import { cmsWorkingHasUnpublishedChanges } from './cms-content-change-state';
 import { cmsEditorialTaskVisibility } from './cms-editorial-tasks.service';
 
 type Queue = (typeof CMS_WORKSPACE_QUEUES)[number];
@@ -26,7 +27,7 @@ export async function getCmsEditorialWorkspace(q: QueryOutputOf<typeof cmsOperat
     mine: or(eq(workingOwner, actor), and(isNull(workingOwner), eq(cmsContents.createdBy, actor))), review: eq(cmsContentWorkingCopies.editorialStatus, 'pending'),
     overdue: and(ne(cmsContentWorkingCopies.editorialStatus, 'clean'), sql`nullif(${due},'')::timestamp < (now() at time zone ${APP_TIME_ZONE})`),
     notes: sql`exists (select 1 from ${cmsEditorialNotes} where ${cmsEditorialNotes.contentId}=${cmsContents.id} and ${cmsEditorialNotes.resolved}=false)`,
-    unpublished: ne(cmsContentWorkingCopies.editorialStatus, 'clean'), feedback: undefined, tasks: undefined,
+    unpublished: cmsWorkingHasUnpublishedChanges(), feedback: undefined, tasks: undefined,
     reviews: buildWhere(eq(cmsContents.status, 'published'), sql`exists(select 1 from ${cmsContentReviewPolicies} where ${cmsContentReviewPolicies.contentId}=${cmsContents.id}
       and ${cmsContentReviewPolicies.enabled}=true and (${cmsContentReviewPolicies.ownerId} is null or ${cmsContentReviewPolicies.ownerId}=${actor})
       and (${cmsContentReviewPolicies.nextReviewAt}<=now() or jsonb_array_length(${cmsContentReviewPolicies.issues})>0))`),

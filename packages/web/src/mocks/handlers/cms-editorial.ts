@@ -1,12 +1,12 @@
 import { queueMockCmsDelivery } from './cms-delivery';
 import type { OutputOf } from '@zenith/shared/core';
-import { cmsEditorialContract, cmsModelContract, cmsResourceContract, validateCmsStructuredFields, type CmsEditorialNote, type CmsModelVersion } from '@zenith/shared/cms';
+import { cmsEditorialContract, cmsModelContract, cmsResourceContract, cmsTranslationSourceChanged, validateCmsStructuredFields, type CmsEditorialNote, type CmsModelVersion } from '@zenith/shared/cms';
 import { mock } from '../utils/contract';
 import { requireItem, updateItem } from '../utils/crud';
 import { badRequest, conflict, nextIdFrom } from '../utils/handlers';
 import { mockDateTime } from '../utils/date';
 import { getNextCmsContentId, mockCmsChannels, mockCmsContents, mockCmsContentVersions, mockCmsModels, mockCmsResources } from '../data/cms';
-import { getMockCmsWorkingContent, getMockCmsDistributionConflict, resolveMockCmsDistribution, saveMockCmsWorkingContent } from '../utils/cms-revisions';
+import { freezeMockCmsRevision, getMockCmsRevision, getMockCmsRevisionContent, getMockCmsWorkingContent, getMockCmsDistributionConflict, resolveMockCmsDistribution, saveMockCmsWorkingContent } from '../utils/cms-revisions';
 
 const notes: CmsEditorialNote[] = [];
 export const getMockCmsUnresolvedNoteContentIds = () => new Set(notes.filter((note) => !note.resolved).map((note) => note.contentId));
@@ -71,13 +71,14 @@ export const cmsEditorialHandlers = [
     return ok({ version: row.version, issues });
   }),
   mock(cmsEditorialContract.translations, ({ params, ok }) => {
-    const source = content(params.id);
-    const sourceId = source.translationOfId ?? source.id;
-    const latest = mockCmsContentVersions.filter((version) => version.contentId === sourceId).at(-1)?.id;
-    return ok(mockCmsContents.filter((row) => row.siteId === source.siteId && (row.id === sourceId || row.translationOfId === sourceId)).map((row) => ({
-      id: row.id, title: row.title, locale: row.locale ?? 'zh-CN', status: row.status, sourceRevisionId: row.sourceRevisionId ?? null,
-      sourceChanged: row.id !== sourceId && Boolean(latest && row.sourceRevisionId !== latest),
-    })));
+    const current = content(params.id);
+    const source = content(current.translationOfId ?? current.id);
+    return ok(mockCmsContents.filter((row) => row.siteId === source.siteId && (row.id === source.id || row.translationOfId === source.id)).map((row) => {
+      const revision = row.sourceRevisionId ? getMockCmsRevision(row.sourceRevisionId) : undefined;
+      const baseline = revision?.contentId === source.id ? getMockCmsRevisionContent(revision.id) : null;
+      return { id: row.id, title: row.title, locale: row.locale ?? 'zh-CN', status: row.status, sourceRevisionId: row.sourceRevisionId ?? null,
+        sourceChanged: row.id !== source.id && cmsTranslationSourceChanged(source, baseline, source.modelFields, baseline?.modelFields) };
+    }));
   }),
   mock(cmsEditorialContract.createTranslation, ({ params, body, ok }) => {
     const original = content(params.id);
@@ -85,8 +86,10 @@ export const cmsEditorialHandlers = [
     const channel = requireItem(mockCmsChannels, body.channelId, '栏目不存在', { status: 404 });
     if (channel.siteId !== source.siteId) return badRequest('栏目不属于来源站点', { status: 400 });
     if (source.locale === body.locale || mockCmsContents.some((row) => row.translationOfId === source.id && row.locale === body.locale)) return conflict('该语言的变体已存在', { status: 409 });
-    const created = { ...structuredClone(source), tagIds: [...(source.tagIds ?? [])], id: getNextCmsContentId(), ...body, translationOfId: source.id,
-      sourceRevisionId: mockCmsContentVersions.filter((version) => version.contentId === source.id).at(-1)?.id ?? null,
+    const revision = freezeMockCmsRevision(source.id, 'checkpoint');
+    const { revisionId: _revisionId, contentHash: _contentHash, ...snapshot } = getMockCmsRevisionContent(revision.id);
+    const created = { ...structuredClone(snapshot), id: getNextCmsContentId(), ...body, translationOfId: source.id,
+      sourceRevisionId: revision.id,
       status: 'draft' as const, editorialStatus: 'draft' as const, version: 1, publishedRevisionId: null, approvedRevisionId: null, submittedRevisionId: null, hasUnpublishedChanges: true,
       slug: null, staticPath: null, scheduledAt: null, expireAt: null, createdAt: mockDateTime(), updatedAt: mockDateTime() };
     mockCmsContents.push(created);

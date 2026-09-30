@@ -10,6 +10,7 @@ export function formatExportValue<TRow extends Record<string, unknown>>(
   const value = column.transform ? column.transform(raw, row) : raw;
   if (value == null) return '';
   if (column.enumMap && typeof value === 'string') return column.enumMap[value] ?? value;
+  if ((column.type === 'date' || column.type === 'datetime') && typeof value === 'string' && value.trim() === '') return '';
   if (column.type === 'datetime') return formatDateTime(value as Date | string | number);
   if (column.type === 'date') return formatDate(value as Date | string | number);
   if (column.type === 'boolean') return value ? '是' : '否';

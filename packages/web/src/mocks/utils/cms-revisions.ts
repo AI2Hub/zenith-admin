@@ -1,5 +1,6 @@
 import type { CmsContent, CmsContentVersion } from '@zenith/shared/cms';
-import { cmsEditorialStatusAfterPublication } from '@zenith/shared/cms';
+import { cmsEditorialStatusAfterPublication, cmsEditorialStatusAfterEdit, cmsPublicationValuesEqual, cmsContentRevisionSnapshotSchema } from '@zenith/shared/cms';
+import { stableStringify } from '@zenith/shared/core';
 import { mockCmsContents, mockCmsContentVersions, mockCmsModels, mockCmsTags, mockCmsChannels, mockCmsResources } from '../data/cms';
 import { MockHttpError } from './contract';
 import { conflict, locked, notFound } from './handlers';
@@ -9,6 +10,7 @@ const publicContents = new Map<number, CmsContent>();
 const reviewRevisions = new Map<number, number>();
 const distributionBases = new Map<number, Record<string, unknown>>();
 const resourcePins = new Map<number, Map<number, string>>();
+const workingSnapshot = (content: Record<string, unknown>) => cmsContentRevisionSnapshotSchema.parse(content);
 
 function resolveSelectedResources(content: CmsContent, refreshIds: readonly number[] = []) {
   const pins = resourcePins.get(content.id) ?? new Map<number, string>();
@@ -104,7 +106,7 @@ export function activateMockCmsRevision(revisionId: number): CmsContent {
   content.status = 'published';
   content.publishedRevisionId = revisionId;
   content.publishedAt = published.publishedAt;
-  content.hasUnpublishedChanges = content.version !== revision.sourceVersion;
+  content.hasUnpublishedChanges = !cmsPublicationValuesEqual(workingSnapshot(content), workingSnapshot(revision.snapshot));
   content.editorialStatus = cmsEditorialStatusAfterPublication(content.editorialStatus, !content.hasUnpublishedChanges);
   return content;
 }
@@ -114,8 +116,17 @@ export function saveMockCmsWorkingContent(contentId: number, values: Record<stri
   const content = assertMockCmsCas(contentId, expectedVersion);
   if (content.lockedAt) throw new MockHttpError(locked('内容已被持久锁定', { status: 423 }));
   const { expectedVersion: _version, saveMode: _mode, status: _status, editorialStatus: _editorialStatus, refreshResourceIds, ...patch } = values;
-  Object.assign(content, structuredClone(patch), { version: content.version + 1, editorialStatus: 'draft', hasUnpublishedChanges: true, updatedAt: mockDateTime() });
-  resolveSelectedResources(content, Array.isArray(refreshResourceIds) ? refreshResourceIds.filter((id): id is number => typeof id === 'number') : []);
+  const candidate = { ...content, ...structuredClone(patch) };
+  resolveSelectedResources(candidate, Array.isArray(refreshResourceIds) ? refreshResourceIds.filter((id): id is number => typeof id === 'number') : []);
+  const before = workingSnapshot(content);
+  const next = workingSnapshot(candidate);
+  if (stableStringify(before) === stableStringify(next)) return content;
+  const publicValuesChanged = !cmsPublicationValuesEqual(before, next);
+  const published = content.publishedRevisionId ? getMockCmsRevision(content.publishedRevisionId) : undefined;
+  const hasUnpublishedChanges = !published || !cmsPublicationValuesEqual(next, workingSnapshot(published.snapshot));
+  Object.assign(content, candidate, { version: content.version + 1,
+    editorialStatus: cmsEditorialStatusAfterEdit(content.editorialStatus, publicValuesChanged, !hasUnpublishedChanges),
+    hasUnpublishedChanges, ...(publicValuesChanged ? { rejectReason: null } : {}), updatedAt: mockDateTime() });
   if (mode === 'manual') freezeMockCmsRevision(contentId);
   return content;
 }

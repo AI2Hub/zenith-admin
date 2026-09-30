@@ -10,6 +10,22 @@
   min-width: 0;
 }
 
+.cms-content-edit__publication-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 16px;
+  padding: 4px 0 8px;
+}
+
+.cms-content-edit__field-highlight {
+  outline: 2px solid var(--semi-color-primary);
+  outline-offset: 2px;
+  border-radius: var(--semi-border-radius-small);
+  scroll-margin: 12px;
+}
+
 /* 正文列各区块（图集 / 编辑器 / 附件）贴紧：Semi 表单项默认上下各 12px padding */
 .cms-content-edit__main .semi-form-field {
   padding-top: 4px;

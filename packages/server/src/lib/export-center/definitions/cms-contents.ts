@@ -1,15 +1,10 @@
-import { and, desc, eq } from 'drizzle-orm';
-import { enumValueOf } from '@zenith/shared/core';
-import { CMS_CONTENT_STATUS_LABELS, CMS_CONTENT_STATUSES, CMS_CONTENT_TYPES } from '@zenith/shared/cms';
+import { CMS_CONTENT_STATUS_LABELS, cmsContentListQuery } from '@zenith/shared/cms';
 import { db } from '../../../db';
-import { cmsContents, cmsChannels } from '../../../db/schema';
-import { formatDateTime, formatNullableDateTime } from '../../datetime';
-import { cmsContentListColumns } from '../../../services/cms/cms-content-columns';
-import { buildCmsContentListWhere, type CmsContentListFilter } from '../../../services/cms/cms-contents-query.service';
-import { asBoolean, asPositiveInt, asString } from '../query-normalize';
+import { cmsContents } from '../../../db/schema';
+import { buildCmsContentListWhere, loadCmsContentListRows, type CmsContentListFilter } from '../../../services/cms/cms-contents-query.service';
 import { defineExport } from '../registry';
 import { RETENTION_7_DAYS } from '../presets';
-import type { ExportColumn } from '../types';
+import { DEFAULT_EXPORT_EXECUTION, type ExportColumn } from '../types';
 
 interface CmsContentExportRow extends Record<string, unknown> {
   id: number;
@@ -20,7 +15,7 @@ interface CmsContentExportRow extends Record<string, unknown> {
   statusText: string;
   flags: string;
   viewCount: number;
-  publishedAt: string;
+  publishedAt: string | null;
   createdAt: string;
 }
 
@@ -37,39 +32,18 @@ const columns: ExportColumn[] = [
   { key: 'createdAt', header: '创建时间', width: 22, type: 'datetime' },
 ];
 
-/** 页面透传的原始 query → 契约筛选类型；访问控制与 where 拼装复用列表 service，不在导出侧另写一份 */
+const filterSchema = cmsContentListQuery.omit({ page: true, pageSize: true });
+
+/** JSON 导出参数按 HTTP 查询的标量形式解析；筛选集合直接派生自列表契约，避免逐字段漏传。 */
 function normalizeQuery(query: Record<string, unknown>): CmsContentListFilter {
-  const siteId = asPositiveInt(query.siteId);
-  if (!siteId) throw new Error('导出内容必须指定站点');
-  return {
-    siteId,
-    channelId: asPositiveInt(query.channelId),
-    status: enumValueOf(CMS_CONTENT_STATUSES, query.status),
-    contentType: enumValueOf(CMS_CONTENT_TYPES, query.contentType),
-    keyword: asString(query.keyword),
-    isTop: asBoolean(query.isTop),
-    isRecommend: asBoolean(query.isRecommend),
-    isHot: asBoolean(query.isHot),
-    isOriginal: asBoolean(query.isOriginal),
-    overdue: asBoolean(query.overdue),
-    scheduled: asBoolean(query.scheduled),
-    hasUnresolvedNotes: asBoolean(query.hasUnresolvedNotes),
-    deleted: asBoolean(query.deleted),
-    archived: asBoolean(query.archived),
-    startTime: asString(query.startTime),
-    endTime: asString(query.endTime),
-  };
+  return filterSchema.parse(Object.fromEntries(Object.entries(query)
+    .filter(([, value]) => value != null && value !== '')
+    .map(([key, value]) => [key, typeof value === 'boolean' ? String(value) : value])));
 }
 
 async function loadRows(query: Record<string, unknown>): Promise<CmsContentExportRow[]> {
-  const where = await buildCmsContentListWhere(normalizeQuery(query));
-  // 列表投影：不拉正文 / 检索向量 / 附件三个 TOAST 大列
-  const rows = await db.select({ ...cmsContentListColumns, channelName: cmsChannels.name })
-    .from(cmsContents)
-    .leftJoin(cmsChannels, and(eq(cmsContents.channelId, cmsChannels.id), eq(cmsChannels.siteId, cmsContents.siteId)))
-    .where(where)
-    .orderBy(desc(cmsContents.id))
-    .limit(50_000);
+  // 比导出上限多读一行，让 writer 拒绝期间新增导致的超量，不能静默截断成成功导出。
+  const rows = await loadCmsContentListRows(normalizeQuery(query), { limit: DEFAULT_EXPORT_EXECUTION.maxRows + 1 });
   return rows.map((content) => ({
     id: content.id,
     title: content.title,
@@ -79,8 +53,8 @@ async function loadRows(query: Record<string, unknown>): Promise<CmsContentExpor
     statusText: CMS_CONTENT_STATUS_LABELS[content.status] ?? content.status,
     flags: [content.isTop ? '置顶' : '', content.isRecommend ? '推荐' : '', content.isHot ? '热门' : ''].filter(Boolean).join('/'),
     viewCount: content.viewCount,
-    publishedAt: formatNullableDateTime(content.publishedAt) ?? '',
-    createdAt: formatDateTime(content.createdAt),
+    publishedAt: content.publishedAt,
+    createdAt: content.createdAt,
   }));
 }
 
@@ -95,6 +69,7 @@ export const cmsContentsExportDefinition = defineExport<Record<string, unknown>,
   execution: { mode: 'sync', syncMaxRows: 5000, syncModeOverridesAsyncPolicies: true },
   retention: RETENTION_7_DAYS,
   columns,
-  countRows: async (query) => loadRows(query).then((rows) => rows.length),
+  prepareQuery: async (query) => normalizeQuery(query),
+  countRows: async (query) => db.$count(cmsContents, await buildCmsContentListWhere(normalizeQuery(query))),
   streamRows: async (query) => loadRows(query),
 });

@@ -17,7 +17,7 @@ import { isWorkflowAuditEnabled, startCmsContentWorkflow, assertNoActiveContentW
 import { enqueueCmsWebhookEvents, insertCmsContentWebhookOutbox } from './cms-webhook.service';
 import { assertContentTemplateBySite } from './cms-template-refs.service';
 import type { CmsContentAttachment, CmsSiteOpsSettings, CreateCmsContentInput, UpdateCmsContentInput, CmsContentStatus } from '@zenith/shared/cms';
-import { buildCmsEntityLink, isCmsEntityLink, createCmsContentSchema, updateCmsContentSchema } from '@zenith/shared/cms';
+import { buildCmsEntityLink, isCmsEntityLink, createCmsContentSchema, updateCmsContentSchema, cmsPublicationValuesEqual, cmsEditorialStatusAfterEdit } from '@zenith/shared/cms';
 import { ensureCmsLinkTargetExists } from './cms-link.service';
 import { extractFirstImage, normalizeAttachments } from './cms-body.service';
 import { resolveCmsSiteOpsSettings } from './cms-site-settings';
@@ -45,6 +45,8 @@ import { cmsDeliveryContentPaths, insertCmsDeliveryRun } from './cms-delivery-re
 import { bumpCmsVisibilityEpoch } from './cms-delivery-state';
 import { enqueueAsyncTask } from '../../lib/task-center';
 import { invalidateCmsSiteCaches } from './cms-cache.service';
+import { freezeCmsRevisionDependencies } from './cms-revision-dependencies.service';
+import { canonicalCmsJson } from './cms-content-revisions.service';
 
 // ─── 写入辅助 ─────────────────────────────────────────────────────────────────
 
@@ -184,8 +186,19 @@ export async function applyCmsContentPolicies<T extends CmsContentPolicyInput>(
 }
 
 /** New content starts as a non-public identity plus an independently editable working copy. */
-export async function createCmsContent(input: CreateCmsContentInput) {
-  const data = createCmsContentSchema.parse(input);
+export async function createCmsContent(input: CreateCmsContentInput, options?: { fromRevisionId: number }) {
+  const sourceRevision = options ? await loadCmsRevision(db, options.fromRevisionId) : null;
+  if (sourceRevision) {
+    await requireCmsContentAccess(sourceRevision.contentId);
+    if (input.siteId !== sourceRevision.siteId || input.translationOfId !== sourceRevision.contentId) {
+      throw new HTTPException(400, { message: '翻译来源修订不属于所选内容或站点' });
+    }
+  }
+  const data = createCmsContentSchema.parse(sourceRevision ? {
+    ...sourceRevision.snapshot, siteId: sourceRevision.siteId, channelId: input.channelId,
+    title: input.title, locale: input.locale, translationOfId: sourceRevision.contentId,
+    sourceRevisionId: sourceRevision.id, slug: null, staticPath: null, scheduledAt: null, expireAt: null,
+  } : input);
   const site = await ensureCmsSiteExists(data.siteId);
   await assertSiteAccess(data.siteId);
   await assertChannelAccess(data.channelId);
@@ -208,15 +221,17 @@ export async function createCmsContent(input: CreateCmsContentInput) {
     if (source.siteId !== data.siteId || (data.translationOfId && source.contentId !== data.translationOfId)) throw new HTTPException(400, { message: '来源修订不属于所选来源内容或站点' });
   }
   const prepared = await applyCmsContentPolicies({ ...data, ...(data.bodyDocument ? { body: renderCmsContentDocument(data.bodyDocument) } : {}) }, site);
-  prepared.extend = await applyCmsModelFieldDefaults(modelId, prepared.extend ?? {});
-  await validateCmsModelExtend(modelId, prepared.extend, 'draft');
+  if (!sourceRevision) prepared.extend = await applyCmsModelFieldDefaults(modelId, prepared.extend ?? {});
+  await validateCmsModelExtend(modelId, prepared.extend, 'draft', sourceRevision?.snapshot.modelVersionId);
   const creator = currentUserOrNull();
   const owner = creator ? await db.query.users.findFirst({ where: eq(users.id, creator.userId), columns: { departmentId: true } }) : null;
   const created = await db.transaction(async (tx) => {
     await lockCmsSiteForMutation(tx, data.siteId);
     await assertContentStaticPathFree(tx, data.siteId, prepared.staticPath);
     const canonical = await canonicalizeCmsResourceFields(tx, data.siteId, prepared, 'content');
-    const snapshot = buildCmsRevisionSnapshot({ ...canonical, modelId: modelId ?? null, bodyDocument: normalizeCmsContentDocument(canonical.body ?? '', data.bodyDocument ?? undefined) });
+    const snapshot = buildCmsRevisionSnapshot({ ...canonical, modelId: modelId ?? null,
+      ...(sourceRevision ? { modelVersionId: sourceRevision.snapshot.modelVersionId, assetVersions: sourceRevision.snapshot.assetVersions, media: sourceRevision.snapshot.media } : {}),
+      bodyDocument: normalizeCmsContentDocument(canonical.body ?? '', data.bodyDocument ?? undefined) });
     const [identity] = await tx.insert(cmsContents).values({ siteId: data.siteId, channelId: data.channelId, modelId: modelId ?? null, title: data.title, contentType: data.contentType ?? 'article', deptId: owner?.departmentId ?? null, status: 'draft' }).returning();
     requireRow(identity, '内容创建失败');
     const working = await initializeCmsContentWorkingCopy(tx, identity, snapshot);
@@ -258,7 +273,7 @@ export async function updateCmsContent(id: number, input: UpdateCmsContentInput,
   if (patch.externalLink !== undefined) await ensureCmsLinkTargetExists(identity.siteId, patch.externalLink);
   if (isCmsEntityLink(patch.externalLink) && patch.externalLink === buildCmsEntityLink('content', id)) throw new HTTPException(400, { message: '内部链接不能指向内容自身' });
   const before = await requireCmsWorkingCopy(db, id);
-  if (patch.modelId !== undefined && patch.modelId !== before.snapshot.modelId) throw new HTTPException(400, { message: '内容类型不可直接更换，请使用类型转换' });
+  if (patch.modelId !== undefined && patch.modelId !== before.snapshot.modelId) throw new HTTPException(400, { message: '请在切换内容模型中预览映射后更换模型' });
   assertCmsContentVersion(before, expectedVersion);
   await requireCmsScheduledAtMutationPermission({ current: parseDateTimeInput(before.snapshot.scheduledAt), requested: patch.scheduledAt === undefined ? undefined : parseDateTimeInput(patch.scheduledAt) });
   const policied = await applyCmsContentPolicies(patch, site, { body: before.snapshot.body, coverImage: before.snapshot.coverImage });
@@ -274,13 +289,21 @@ export async function updateCmsContent(id: number, input: UpdateCmsContentInput,
     const canonical = await canonicalizeCmsResourceFields(tx, identity.siteId, policied, 'content');
     const assetVersions = await refreshCmsContentResourcePins(tx, identity.siteId, working.snapshot.assetVersions, patch, refreshResourceIds);
     const media = Object.fromEntries(Object.entries(working.snapshot.media ?? {}).filter(([id]) => !refreshResourceIds?.includes(Number(id))));
-    const snapshot = buildCmsRevisionSnapshot({ ...working.snapshot, ...canonical, assetVersions, media, modelId: working.snapshot.modelId, ...(canonical.body !== undefined ? { bodyDocument: normalizeCmsContentDocument(canonical.body ?? '', patch.bodyDocument ?? working.snapshot.bodyDocument ?? undefined) } : {}) });
+    const values = buildCmsRevisionSnapshot({ ...working.snapshot, ...canonical, assetVersions, media, modelId: working.snapshot.modelId, ...(canonical.body !== undefined ? { bodyDocument: normalizeCmsContentDocument(canonical.body ?? '', patch.bodyDocument ?? working.snapshot.bodyDocument ?? undefined) } : {}) });
+    const frozen = await freezeCmsRevisionDependencies(tx, identity.siteId, values.modelId, values, { strict: false });
+    const snapshot = buildCmsRevisionSnapshot(frozen.snapshot);
+    if (canonicalCmsJson(snapshot) === canonicalCmsJson(working.snapshot)) return;
     await assertContentStaticPathFree(tx, identity.siteId, snapshot.staticPath);
     if (snapshot.tagIds.length) {
       const tags = await tx.select({ id: cmsTags.id }).from(cmsTags).where(and(eq(cmsTags.siteId, identity.siteId), inArray(cmsTags.id, snapshot.tagIds)));
       assertCompleteCmsBatch(snapshot.tagIds, tags.map((tag) => tag.id), '标签');
     }
-    await tx.update(cmsContentWorkingCopies).set({ snapshot, version: sql`${cmsContentWorkingCopies.version} + 1`, editorialStatus: 'draft', rejectReason: null }).where(and(eq(cmsContentWorkingCopies.contentId, id), eq(cmsContentWorkingCopies.version, expectedVersion)));
+    const publicValuesChanged = !cmsPublicationValuesEqual(snapshot, working.snapshot);
+    const published = publicValuesChanged && working.publishedRevisionId ? await loadCmsRevision(tx, working.publishedRevisionId) : null;
+    const editorialStatus = cmsEditorialStatusAfterEdit(working.editorialStatus, publicValuesChanged, Boolean(published && cmsPublicationValuesEqual(snapshot, published.snapshot)));
+    await tx.update(cmsContentWorkingCopies).set({ snapshot, version: sql`${cmsContentWorkingCopies.version} + 1`, editorialStatus,
+      ...(publicValuesChanged ? { rejectReason: null } : {}),
+    }).where(and(eq(cmsContentWorkingCopies.contentId, id), eq(cmsContentWorkingCopies.version, expectedVersion)));
     if (saveMode === 'manual') {
       const saved = await requireCmsWorkingCopy(tx, id);
       await freezeCmsContentRevision(tx, identity, saved, 'checkpoint', '人工保存工作稿');

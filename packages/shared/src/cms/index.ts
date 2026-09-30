@@ -13,6 +13,7 @@ export * from './validation';
 export * from './link';
 export * from './permissions';
 export * from './content-revision';
+export * from './translation-content';
 export * from './release-validation';
 export * from './release-configuration';
 export * from './document';

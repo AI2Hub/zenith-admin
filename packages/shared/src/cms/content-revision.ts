@@ -2,6 +2,7 @@ import * as z from 'zod';
 import { createCmsContentSchema } from './validation';
 import { cmsBodyDocumentSchema } from './document';
 import { cmsFrozenMediaSchema } from './cms-media';
+import { stableStringify } from '../core/json';
 
 export const CMS_EDITORIAL_STATUSES = ['draft', 'pending', 'rejected', 'approved', 'clean'] as const;
 export const CMS_REVISION_KINDS = ['checkpoint', 'submission', 'publication', 'restore', 'preview'] as const;
@@ -18,6 +19,23 @@ export const cmsContentRevisionSnapshotSchema = createCmsContentSchema.omit({ si
 export type CmsContentRevisionSnapshot = z.output<typeof cmsContentRevisionSnapshotSchema>;
 export type CmsEditorialStatus = (typeof CMS_EDITORIAL_STATUSES)[number];
 export type CmsRevisionKind = (typeof CMS_REVISION_KINDS)[number];
+
+/** Editorial metadata and the derived document identity do not change public content. */
+export const CMS_NON_PUBLICATION_FIELDS = ['ownerId', 'dueAt', 'scheduledAt', 'translationOfId', 'sourceRevisionId', 'bodyDocument'] as const;
+
+export function cmsPublicationValues(snapshot: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(snapshot).filter(([key]) => !(CMS_NON_PUBLICATION_FIELDS as readonly string[]).includes(key)));
+}
+
+/** Separate from the immutable revision digest used by approval/integrity checks. */
+export function cmsPublicationValuesEqual(left: Record<string, unknown>, right: Record<string, unknown>): boolean {
+  return stableStringify(cmsPublicationValues(left)) === stableStringify(cmsPublicationValues(right));
+}
+
+export function cmsEditorialStatusAfterEdit(current: CmsEditorialStatus, publicValuesChanged: boolean, matchesPublished: boolean): CmsEditorialStatus {
+  if (!publicValuesChanged) return current;
+  return matchesPublished ? 'clean' : 'draft';
+}
 
 /** A public pointer can move back while the editor keeps a newer document. */
 export function cmsEditorialStatusAfterPublication(current: CmsEditorialStatus, matchesPublished: boolean): CmsEditorialStatus {

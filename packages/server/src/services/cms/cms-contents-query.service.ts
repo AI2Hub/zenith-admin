@@ -1,4 +1,5 @@
 import { cmsGenerationNow } from './cms-generation-context';
+import { cmsWorkingHasUnpublishedChanges } from './cms-content-change-state';
 import { cmsModelVersions } from '../../db/schema/cms-design';
 import { requireFirstRow, requireRow } from '../../lib/db-assert';
 import type { QueryOutputOf } from '@zenith/shared/core';
@@ -119,7 +120,7 @@ async function loadAuthorizedCmsContent(identity: CmsContentRow, revisionSnapsho
   const [modelVersion] = snapshot.modelVersionId ? await db.select().from(cmsModelVersions).where(eq(cmsModelVersions.id, snapshot.modelVersionId)).limit(1) : [];
   return { ...mapCmsContent({ ...resolved, version: working.version, updatedAt: working.updatedAt, rejectReason: working.rejectReason,
     editorialStatus: working.editorialStatus, publishedRevisionId: working.publishedRevisionId, submittedRevisionId: working.submittedRevisionId,
-    approvedRevisionId: working.approvedRevisionId, hasUnpublishedChanges: working.editorialStatus !== 'clean',
+    approvedRevisionId: working.approvedRevisionId, hasUnpublishedChanges: working.publishedRevisionId == null || working.publicationHash !== working.publishedHash,
     bodyDocument: snapshot.bodyDocument, modelVersionId: snapshot.modelVersionId, assetVersions: snapshot.assetVersions,
   }, { channelName: channel?.name, ...urls, tags, extraChannelIds: snapshot.extraChannelIds, relatedIds: snapshot.relatedIds }), modelFields: modelVersion?.fields ?? [] };
 }
@@ -152,7 +153,7 @@ export async function buildCmsContentListWhere(q: CmsContentListFilter): Promise
     q.modelId ? sql`(${cmsContentWorkingCopies.snapshot}->>'modelId')::integer = ${q.modelId}` : undefined,
     q.ownerId ? sql`(${cmsContentWorkingCopies.snapshot}->>'ownerId')::integer = ${q.ownerId}` : undefined,
     q.locale ? sql`${cmsContentWorkingCopies.snapshot}->>'locale' = ${q.locale}` : undefined,
-    q.hasUnpublishedChanges !== undefined ? (q.hasUnpublishedChanges ? ne(cmsContentWorkingCopies.editorialStatus, 'clean') : eq(cmsContentWorkingCopies.editorialStatus, 'clean')) : undefined,
+    q.hasUnpublishedChanges !== undefined ? (q.hasUnpublishedChanges ? cmsWorkingHasUnpublishedChanges() : sql`not ${cmsWorkingHasUnpublishedChanges()}`) : undefined,
     q.tags ? sql`${cmsContentWorkingCopies.snapshot}->'tagIds' @> ${JSON.stringify(q.tags.split(',').map(Number))}::jsonb` : undefined,
     keywordCondition(q.keyword, [sql`${cmsContentWorkingCopies.snapshot}->>'title'`, sql`${cmsContentWorkingCopies.snapshot}->>'author'`], 'ilike'),
     q.isTop !== undefined ? sql`(${cmsContentWorkingCopies.snapshot}->>'isTop')::boolean = ${q.isTop}` : undefined,
@@ -184,59 +185,63 @@ export async function buildCmsContentListWhere(q: CmsContentListFilter): Promise
   );
 }
 
-export async function listCmsContents(q: QueryOutputOf<typeof cmsContentContract.list>) {
+/** One authorized working-copy projection for the UI, batch selection and exports. */
+export async function loadCmsContentListRows(q: CmsContentListFilter, options: { limit: number; offset?: number }) {
   const site = await ensureCmsSiteExists(q.siteId);
   const where = await buildCmsContentListWhere(q);
+  const { extend: _extend, mediaData: _mediaData, ...adminColumns } = cmsContentListColumns;
+  // Explicit joins preserve the working-copy subquery's table identity.
+  // Relational findMany remaps every column in raw SQL to its root alias.
+  const rows = await db.select({ ...adminColumns,
+    channel: { name: cmsChannels.name, path: cmsChannels.path, detailPathRule: cmsChannels.detailPathRule },
+    lockedByUser: { nickname: users.nickname },
+  }).from(cmsContents).leftJoin(cmsChannels, eq(cmsChannels.id, cmsContents.channelId))
+    .leftJoin(users, eq(users.id, cmsContents.lockedBy)).where(where)
+    .orderBy(desc(cmsContents.isTop), desc(cmsContents.topWeight), desc(cmsContents.id)).limit(options.limit).offset(options.offset ?? 0);
+  if (!rows.length) return [];
+  const drafts = await db.select({
+    publicationHash: cmsContentWorkingCopies.publicationHash, publishedHash: cmsContentWorkingCopies.publishedHash,
+    contentId: cmsContentWorkingCopies.contentId, version: cmsContentWorkingCopies.version,
+    editorialStatus: cmsContentWorkingCopies.editorialStatus, updatedAt: cmsContentWorkingCopies.updatedAt,
+    rejectReason: cmsContentWorkingCopies.rejectReason, publishedRevisionId: cmsContentWorkingCopies.publishedRevisionId,
+    submittedRevisionId: cmsContentWorkingCopies.submittedRevisionId, approvedRevisionId: cmsContentWorkingCopies.approvedRevisionId,
+    snapshot: sql<Omit<CmsContentRevisionSnapshot, 'body' | 'bodyDocument'>>`jsonb_set(
+      ${cmsContentWorkingCopies.snapshot} - 'body' - 'bodyDocument' - 'mediaData' - 'attachments', '{extend}',
+      coalesce((select jsonb_object_agg(entry.key, entry.value)
+        from jsonb_each(coalesce(${cmsContentWorkingCopies.snapshot}->'extend', '{}'::jsonb)) entry
+        where exists (select 1 from ${cmsModelVersions} model_version,
+          jsonb_array_elements(model_version.fields) field
+          where model_version.id = (${cmsContentWorkingCopies.snapshot}->>'modelVersionId')::integer
+            and field->>'name' = entry.key and field->>'showInList' = 'true')), '{}'::jsonb))`,
+  }).from(cmsContentWorkingCopies).where(inArray(cmsContentWorkingCopies.contentId, rows.map((row) => row.id)));
+  const draftMap = new Map(drafts.map((draft) => [draft.contentId, draft]));
+  const channels = await db.select().from(cmsChannels).where(inArray(cmsChannels.id, [...new Set(drafts.map((draft) => draft.snapshot.channelId))]));
+  const channelMap = new Map(channels.map((channel) => [channel.id, channel]));
+  const modelVersionIds = [...new Set(drafts.flatMap((draft) => draft.snapshot.modelVersionId ? [draft.snapshot.modelVersionId] : []))];
+  const modelVersions = modelVersionIds.length ? await db.select({ id: cmsModelVersions.id, fields: cmsModelVersions.fields }).from(cmsModelVersions).where(inArray(cmsModelVersions.id, modelVersionIds)) : [];
+  const listFieldsByVersion = new Map(modelVersions.map((version) => [version.id, version.fields.filter((field) => field.showInList).map((field) => field.name)]));
+  const modelFieldsByVersion = new Map(modelVersions.map((version) => [version.id, version.fields]));
+  const editorialRows = rows.map((row) => {
+    const draft = requireRow(draftMap.get(row.id), '内容缺少工作稿', 409);
+    return { ...cmsRevisionToContentRow({ ...row, body: null, searchVector: null, extend: {}, mediaData: {}, attachments: [] }, { ...draft.snapshot, body: null, bodyDocument: null, mediaData: {}, attachments: [] }), body: null,
+      version: draft.version, editorialStatus: draft.editorialStatus, publishedRevisionId: draft.publishedRevisionId,
+      submittedRevisionId: draft.submittedRevisionId, approvedRevisionId: draft.approvedRevisionId,
+      hasUnpublishedChanges: draft.publishedRevisionId == null || draft.publicationHash !== draft.publishedHash, updatedAt: draft.updatedAt, rejectReason: draft.rejectReason };
+  });
+  const resolvedRows = await resolveCmsContentRows(editorialRows, q.siteId);
+  return resolvedRows.map((row) => {
+    const channel = channelMap.get(row.channelId);
+    const listFields = Object.fromEntries((listFieldsByVersion.get(row.modelVersionId ?? 0) ?? []).map((name) => [name, row.extend[name]]));
+    return mapCmsContentListItem(row, { listFields, modelFields: modelFieldsByVersion.get(row.modelVersionId ?? 0) ?? [], channelName: channel?.name, ...buildCmsContentUrls(row, { siteCode: site.code, channelPath: channel?.path, detailPathRule: channel?.detailPathRule }) });
+  });
+}
+
+export async function listCmsContents(q: QueryOutputOf<typeof cmsContentContract.list>) {
+  const where = await buildCmsContentListWhere(q);
   return buildListResult({
-    page: q.page,
-    pageSize: q.pageSize,
+    page: q.page, pageSize: q.pageSize,
     count: () => db.$count(cmsContents, where),
-    rows: async () => {
-      const { extend: _extend, mediaData: _mediaData, ...adminColumns } = cmsContentListColumns;
-      // Explicit joins preserve the working-copy subquery's table identity.
-      // Relational findMany remaps every column in raw SQL to its root alias.
-      const rows = await withPagination(db.select({ ...adminColumns,
-        channel: { name: cmsChannels.name, path: cmsChannels.path, detailPathRule: cmsChannels.detailPathRule },
-        lockedByUser: { nickname: users.nickname },
-      }).from(cmsContents).leftJoin(cmsChannels, eq(cmsChannels.id, cmsContents.channelId))
-        .leftJoin(users, eq(users.id, cmsContents.lockedBy)).where(where)
-        .orderBy(desc(cmsContents.isTop), desc(cmsContents.topWeight), desc(cmsContents.id)).$dynamic(), q.page, q.pageSize);
-      if (!rows.length) return [];
-      const drafts = await db.select({
-        contentId: cmsContentWorkingCopies.contentId, version: cmsContentWorkingCopies.version,
-        editorialStatus: cmsContentWorkingCopies.editorialStatus, updatedAt: cmsContentWorkingCopies.updatedAt,
-        rejectReason: cmsContentWorkingCopies.rejectReason, publishedRevisionId: cmsContentWorkingCopies.publishedRevisionId,
-        submittedRevisionId: cmsContentWorkingCopies.submittedRevisionId, approvedRevisionId: cmsContentWorkingCopies.approvedRevisionId,
-        snapshot: sql<Omit<CmsContentRevisionSnapshot, 'body' | 'bodyDocument'>>`jsonb_set(
-          ${cmsContentWorkingCopies.snapshot} - 'body' - 'bodyDocument' - 'mediaData' - 'attachments', '{extend}',
-          coalesce((select jsonb_object_agg(entry.key, entry.value)
-            from jsonb_each(coalesce(${cmsContentWorkingCopies.snapshot}->'extend', '{}'::jsonb)) entry
-            where exists (select 1 from ${cmsModelVersions} model_version,
-              jsonb_array_elements(model_version.fields) field
-              where model_version.id = (${cmsContentWorkingCopies.snapshot}->>'modelVersionId')::integer
-                and field->>'name' = entry.key and field->>'showInList' = 'true')), '{}'::jsonb))`,
-      }).from(cmsContentWorkingCopies).where(inArray(cmsContentWorkingCopies.contentId, rows.map((row) => row.id)));
-      const draftMap = new Map(drafts.map((draft) => [draft.contentId, draft]));
-      const channels = await db.select().from(cmsChannels).where(inArray(cmsChannels.id, [...new Set(drafts.map((draft) => draft.snapshot.channelId))]));
-      const channelMap = new Map(channels.map((channel) => [channel.id, channel]));
-      const modelVersionIds = [...new Set(drafts.flatMap((draft) => draft.snapshot.modelVersionId ? [draft.snapshot.modelVersionId] : []))];
-      const modelVersions = modelVersionIds.length ? await db.select({ id: cmsModelVersions.id, fields: cmsModelVersions.fields }).from(cmsModelVersions).where(inArray(cmsModelVersions.id, modelVersionIds)) : [];
-      const listFieldsByVersion = new Map(modelVersions.map((version) => [version.id, version.fields.filter((field) => field.showInList).map((field) => field.name)]));
-      const modelFieldsByVersion = new Map(modelVersions.map((version) => [version.id, version.fields]));
-      const editorialRows = rows.map((row) => {
-        const draft = requireRow(draftMap.get(row.id), '内容缺少工作稿', 409);
-        return { ...cmsRevisionToContentRow({ ...row, body: null, searchVector: null, extend: {}, mediaData: {}, attachments: [] }, { ...draft.snapshot, body: null, bodyDocument: null, mediaData: {}, attachments: [] }), body: null,
-          version: draft.version, editorialStatus: draft.editorialStatus, publishedRevisionId: draft.publishedRevisionId,
-          submittedRevisionId: draft.submittedRevisionId, approvedRevisionId: draft.approvedRevisionId,
-          hasUnpublishedChanges: draft.editorialStatus !== 'clean', updatedAt: draft.updatedAt, rejectReason: draft.rejectReason };
-      });
-      const resolvedRows = await resolveCmsContentRows(editorialRows, q.siteId);
-      return resolvedRows.map((row) => {
-        const channel = channelMap.get(row.channelId);
-        const listFields = Object.fromEntries((listFieldsByVersion.get(row.modelVersionId ?? 0) ?? []).map((name) => [name, row.extend[name]]));
-        return mapCmsContentListItem(row, { listFields, modelFields: modelFieldsByVersion.get(row.modelVersionId ?? 0) ?? [], channelName: channel?.name, ...buildCmsContentUrls(row, { siteCode: site.code, channelPath: channel?.path, detailPathRule: channel?.detailPathRule }) });
-      });
-    },
+    rows: () => loadCmsContentListRows(q, { limit: q.pageSize, offset: (q.page - 1) * q.pageSize }),
   });
 }
 

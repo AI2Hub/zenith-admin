@@ -27,7 +27,7 @@ import {
   useCmsContentWorkflowPreview, useCmsContentWorkflowContext,
 } from '@/hooks/queries/cms';
 import { EMPTY_PLACEHOLDER } from '@/utils/table-columns';
-import { CMS_CONTENT_STATUS_LABELS, CMS_CONTENT_TYPE_LABELS, CMS_CONTENT_TYPES, CMS_TITLE_STYLE_COLORS, CMS_RESOURCE_URI_PREFIX } from '@zenith/shared/cms';
+import { CMS_CONTENT_TYPE_LABELS, CMS_CONTENT_TYPES, CMS_TITLE_STYLE_COLORS, CMS_RESOURCE_URI_PREFIX } from '@zenith/shared/cms';
 import type { CmsContent, CmsPreviewLink, CmsModelField, CmsEditLock, CmsTextCheckResult, CmsContentType, CmsAlbumImage, CmsContentAttachment, CmsResource } from '@zenith/shared/cms';
 import { useCmsLinkPicker } from './CmsLinkInput';
 import { formatBytes } from '@zenith/shared/core';
@@ -44,6 +44,7 @@ import { CmsResourcePicker } from './components/CmsResourcePicker';
 import CmsContentMediaFields from './components/CmsContentMediaFields';
 import { adoptCmsSavedResourceValues, createCmsResourceSelections } from './cms-resource-selections';
 import { CMS_EDITORIAL_STATUS_LABELS, CMS_EDITORIAL_STATUS_COLORS } from './cms-content-view-state';
+import { getCmsEditorFieldLocation, normalizeCmsEditorFieldPath, type CmsEditorFieldLocation } from './cms-editor-fields';
 import CmsEditorialPanel from './CmsEditorialPanel';
 import CmsContentReviewPanel from './CmsContentReviewPanel';
 import { useAllUsers } from '@/hooks/queries/users';
@@ -129,19 +130,6 @@ function ModelFieldControl({ field, applyDefault, canUpload, siteId, onResourceC
     />
   );
 }
-
-/** 版本差异值展示（布尔/对象友好化） */
-
-/** 右侧属性面板字段 → 所属标签页，校验失败时自动切到出错分组 */
-const SIDE_TAB_BY_FIELD: Record<string, string> = {
-  channelId: 'basic', title: 'basic', subTitle: 'basic', shortTitle: 'basic', summary: 'basic',
-  tagIds: 'basic', coverImage: 'basic', isTop: 'basic', isOriginal: 'basic', isRecommend: 'basic', isHot: 'basic',
-  extraChannelIds: 'attribution', relatedIds: 'attribution',
-  author: 'attribution', editor: 'attribution', source: 'attribution', sourceUrl: 'attribution',
-  seoTitle: 'seo', seoKeywords: 'seo', seoDescription: 'seo', socialImageAlt: 'seo', twitterCreator: 'seo',
-  topWeight: 'schedule', topExpireAt: 'schedule', sort: 'schedule', scheduledAt: 'schedule', expireAt: 'schedule',
-  slug: 'advanced', detailTemplate: 'advanced',
-};
 
 /** 展平 Semi 校验错误对象（含 extend.xxx 嵌套），提取字段路径与提示文案 */
 function flattenFormErrors(errors: unknown, prefix = ''): { field: string; message: string }[] {
@@ -254,6 +242,10 @@ export default function ContentEditPage() {
   const diffQuery = useCmsVersionDiff(id, diffVersionId);
   // 右侧属性面板当前标签页（受控：校验失败时自动切到出错分组）
   const [sideTab, setSideTab] = useState('basic');
+  const [sideCollapsed, setSideCollapsed] = useState(false);
+  const editorRootRef = useRef<HTMLDivElement>(null);
+  const [fieldLocation, setFieldLocation] = useState<CmsEditorFieldLocation | null>(null);
+  const lastLocatedField = useRef<CmsEditorFieldLocation | null>(null);
   const [opLogsVisible, setOpLogsVisible] = useState(false);
   const opLogsQuery = useCmsContentOpLogs(id, opLogsVisible);
   const checkMutation = useCmsCheckText();
@@ -385,6 +377,41 @@ export default function ContentEditPage() {
   );
   const modelFields = formRecord?.modelFields ?? detail?.modelFields ?? currentModel?.fields ?? [];
 
+  function locateEditorField(fieldPath: string) {
+    const location = getCmsEditorFieldLocation(fieldPath, modelFields, contentType, formApi.current?.getValue('extend'));
+    if (!location) return;
+    setActiveTab('content');
+    if (location.sideTab) { setSideTab(location.sideTab); setSideCollapsed(false); }
+    setShowEditorOnNarrow(!location.sideTab);
+    setFieldLocation(location);
+  }
+
+  useLayoutEffect(() => {
+    if (!fieldLocation || lastLocatedField.current === fieldLocation || activeTab !== 'content') return;
+    let highlighted: HTMLElement | undefined;
+    const frame = requestAnimationFrame(() => {
+      const root = editorRootRef.current;
+      if (!root) return;
+      // Semi 数组字段使用 [0]，服务端问题路径使用 .0；先找精确控件，再回落到所属编辑区块。
+      const fields = Array.from(root.querySelectorAll<HTMLElement>('[x-field-id]'));
+      const exact = fields.find((element) => normalizeCmsEditorFieldPath(element.getAttribute('x-field-id') ?? '') === fieldLocation.field);
+      const anchors = Array.from(root.querySelectorAll<HTMLElement>('[data-cms-field]'));
+      const anchor = anchors.filter((element) => {
+        const path = element.dataset.cmsField;
+        return path && (fieldLocation.field === path || fieldLocation.field.startsWith(`${path}.`));
+      }).sort((a, b) => (b.dataset.cmsField?.length ?? 0) - (a.dataset.cmsField?.length ?? 0))[0];
+      highlighted = exact ?? anchor;
+      if (!highlighted) return;
+      lastLocatedField.current = fieldLocation;
+      highlighted.scrollIntoView({ behavior: 'auto', block: 'center' });
+      highlighted.classList.add('cms-content-edit__field-highlight');
+      const control = highlighted.querySelector<HTMLElement>('input:not([disabled]):not([type="hidden"]), textarea:not([disabled]), [contenteditable="true"], [role="combobox"]:not([aria-disabled="true"]), button:not([disabled])');
+      if (control) control.focus({ preventScroll: true });
+      else { highlighted.tabIndex = -1; highlighted.focus({ preventScroll: true }); }
+    });
+    return () => { cancelAnimationFrame(frame); highlighted?.classList.remove('cms-content-edit__field-highlight'); };
+  }, [fieldLocation, activeTab, sideTab, showEditorOnNarrow]);
+
   /** 模板试穿：以选中详情模板打开预览（?__template= 仅预览路径生效，不影响线上） */
   function handleTemplateTryOn() {
     if (!detail || detail.status !== 'published') {
@@ -464,16 +491,10 @@ export default function ContentEditPage() {
       if (!String(values.title ?? '').trim()) values.title = '未命名内容';
     } catch (err) {
       if (!opts?.silent) {
-        setActiveTab('content');
         const issues = flattenFormErrors(err);
-        // 出错字段可能藏在未激活的属性面板标签页里，自动切过去
-        // （link 型的外链地址在左侧主区域常驻可见，无需切换）
-        const firstTab = issues.map(({ field }) => (
-          field === 'externalLink'
-            ? (contentType === 'link' ? undefined : 'advanced')
-            : SIDE_TAB_BY_FIELD[field]
-        )).find(Boolean);
-        if (firstTab) setSideTab(firstTab);
+        const firstIssue = issues.find(({ field }) => getCmsEditorFieldLocation(field, modelFields, contentType));
+        if (firstIssue) locateEditorField(firstIssue.field);
+        else setActiveTab('content');
         const hints = issues.slice(0, 3).map((i) => i.message).join('；');
         Toast.error({
           content: hints ? `请完善必填项：${hints}${issues.length > 3 ? ' 等' : ''}` : '请完善必填项后再保存',
@@ -727,7 +748,7 @@ export default function ContentEditPage() {
   const viewedVersion = viewedVersionQuery.data;
 
   return (
-    <div className="page-container page-tabs-page cms-content-edit" onInputCapture={() => { editorTouchedRef.current = true; }} onKeyDownCapture={() => { editorTouchedRef.current = true; }} onPointerDownCapture={() => { editorTouchedRef.current = true; }}>
+    <div ref={editorRootRef} className="page-container page-tabs-page cms-content-edit" onInputCapture={() => { editorTouchedRef.current = true; }} onKeyDownCapture={() => { editorTouchedRef.current = true; }} onPointerDownCapture={() => { editorTouchedRef.current = true; }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4, flexWrap: 'wrap' }}>
         <Tooltip content="返回">
           <Button aria-label="返回" icon={<ArrowLeft size={16} />} theme="borderless" type="tertiary" onClick={() => navigate(-1)} />
@@ -735,35 +756,13 @@ export default function ContentEditPage() {
         <h3 style={{ margin: 0, flex: 1, minWidth: 200 }}>
           {id ? '编辑内容' : '新增内容'}
           <Tag size="small" color="blue" style={{ marginLeft: 12, verticalAlign: 'middle' }}>{CMS_CONTENT_TYPE_LABELS[contentType]}</Tag>
-          {detail ? <Space spacing={8}><Tag>{detail.status === 'published' ? '线上已发布' : CMS_CONTENT_STATUS_LABELS[detail.status]}</Tag><Tag color={CMS_EDITORIAL_STATUS_COLORS[detail.editorialStatus]}>{CMS_EDITORIAL_STATUS_LABELS[detail.editorialStatus]}</Tag>{detail.hasUnpublishedChanges ? <Tag color="orange">有未发布修改</Tag> : null}</Space> : null}
-          {autoSavedAt ? <span style={{ marginLeft: 12, fontSize: 12, fontWeight: 'normal', color: 'var(--semi-color-text-2)' }}>已自动保存 {autoSavedAt}</span> : null}
         </h3>
         <Space spacing={8} wrap>
-          <Tag color={saveState === 'error' || saveState === 'conflict' ? 'red' : saveState === 'saved' ? 'green' : 'orange'}>{({ saved: '已保存工作稿', dirty: '有未保存修改', saving: '正在保存', error: '保存失败', conflict: '版本冲突' })[saveState]}</Tag>
-          <Typography.Text type="tertiary">保存不改变线上内容；提审会冻结当前修订。</Typography.Text>
+          <Typography.Text type={saveState === 'error' || saveState === 'conflict' ? 'danger' : saveState === 'saved' ? 'tertiary' : 'warning'} role="status">
+            {saveState === 'saved' ? (detail ? `工作稿已保存${autoSavedAt ? ` · ${autoSavedAt}` : ''}` : '尚未保存') : saveState === 'dirty' ? '有未保存修改' : saveState === 'saving' ? '正在保存工作稿…' : saveState === 'error' ? '工作稿保存失败' : '工作稿版本冲突'}
+          </Typography.Text>
           {saveState === 'error' ? <Button size="small" onClick={() => void handleSaveDraft()}>重试保存</Button> : null}
           {saveState === 'conflict' ? <Button size="small" onClick={() => setConflictVisible(true)}>处理冲突</Button> : null}
-          <Divider layout="vertical" />
-          <Workflow size={15} />
-          {workflowContext?.instance ? (
-            <>
-              <Typography.Text>{workflowContext.instance.definitionName}</Typography.Text>
-              <Tag color={INSTANCE_STATUS_MAP[workflowContext.instance.status]?.color}>
-                {INSTANCE_STATUS_MAP[workflowContext.instance.status]?.text ?? workflowContext.instance.status}
-              </Tag>
-              {workflowContext.instance.currentNodeNames?.length ? (
-                <Typography.Text type="tertiary">当前节点：{workflowContext.instance.currentNodeNames.join('、')}</Typography.Text>
-              ) : null}
-            </>
-          ) : (
-            <Typography.Text type="tertiary">
-              {workflowBusy ? '正在加载审批流程…'
-                : workflowPreviewQuery.error || workflowContextQuery.error ? '审批流程加载失败'
-                : workflowPreview?.definition ? `${workflowPreview.definition.name} · 本次提审预览`
-                : !selectedChannelId ? '选择栏目后查看审批流程'
-                : '本站采用普通内容审核'}
-            </Typography.Text>
-          )}
         </Space>
         <Space spacing={8}>
           {isLayoutNarrow ? <Tooltip content="信息与发布设置"><Button theme="borderless" icon={<PanelRight size={14} />} onClick={() => setShowEditorOnNarrow(false)} /></Tooltip> : null}
@@ -799,6 +798,27 @@ export default function ContentEditPage() {
               <Tooltip content="更多"><Button theme="borderless" icon={<MoreHorizontal size={14} />} /></Tooltip>
             </span>
           </Dropdown>
+        </Space>
+      </div>
+
+      <div className="cms-content-edit__publication-status">
+        <Space spacing={12} wrap>
+          <Space spacing={6}><Typography.Text type="tertiary">线上</Typography.Text><Tag color={detail?.status === 'published' ? 'green' : 'grey'}>{detail?.status === 'published' ? '已发布' : detail?.status === 'offline' ? '已下线' : '未发布'}</Tag></Space>
+          {detail ? <Space spacing={6}><Typography.Text type="tertiary">工作稿</Typography.Text><Tag color={CMS_EDITORIAL_STATUS_COLORS[detail.editorialStatus]}>{detail.editorialStatus === 'draft' ? '编辑中' : CMS_EDITORIAL_STATUS_LABELS[detail.editorialStatus]}</Tag>{detail.status === 'published' && detail.hasUnpublishedChanges ? <Typography.Text type="warning">有修改待发布</Typography.Text> : null}</Space> : null}
+          <Typography.Text type="tertiary" size="small">保存后留在工作稿，完成审核与发布后上线。</Typography.Text>
+        </Space>
+        <Space spacing={8} wrap>
+          <Workflow size={15} />
+          <Typography.Text type="tertiary" size="small">
+            {workflowContext?.instance
+              ? `${workflowContext.instance.definitionName} · ${INSTANCE_STATUS_MAP[workflowContext.instance.status]?.text ?? workflowContext.instance.status}${workflowContext.instance.currentNodeNames?.length ? ` · ${workflowContext.instance.currentNodeNames.join('、')}` : ''}`
+              : workflowBusy ? '正在加载审批流程…'
+              : workflowPreviewQuery.error || workflowContextQuery.error ? '审批流程加载失败'
+              : workflowPreview?.definition ? `${workflowPreview.definition.name} · 本次提审预览`
+              : !selectedChannelId ? '选择栏目后查看审批流程'
+              : '普通内容审核'}
+          </Typography.Text>
+          {workflowMode || workflowContext?.instance ? <Button size="small" theme="borderless" onClick={() => setActiveTab('workflow')}>查看流程</Button> : null}
         </Space>
       </div>
 
@@ -881,6 +901,8 @@ export default function ContentEditPage() {
             maxSize={520}
             style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}
             showDetail={showEditorOnNarrow}
+            collapsed={sideCollapsed}
+            onCollapseChange={setSideCollapsed}
             onMasterBack={() => setShowEditorOnNarrow(true)}
             masterBackLabel="返回编辑"
             onResponsiveChange={setIsLayoutNarrow}
@@ -901,7 +923,7 @@ export default function ContentEditPage() {
               ) : null}
               {contentType === 'album' ? (
                 <Form.Slot noLabel>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div data-cms-field="mediaData.images" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                       <Typography.Text strong>图集图片（{albumImages.length}）</Typography.Text>
                       <Upload
@@ -954,10 +976,10 @@ export default function ContentEditPage() {
                   </div>
                 </Form.Slot>
               ) : null}
-              {contentType === 'media' ? <CmsContentMediaFields siteId={siteId} disabled={isReadOnly} allowUpload={canUploadResources} onResourceChange={selectResource} /> : null}
+              {contentType === 'media' ? <div data-cms-field="mediaData"><CmsContentMediaFields siteId={siteId} disabled={isReadOnly} allowUpload={canUploadResources} onResourceChange={selectResource} /></div> : null}
               {contentType !== 'link' ? (
                 <Form.Slot noLabel>
-                  <div ref={bodyBlockRef}>
+                  <div ref={bodyBlockRef} data-cms-field="body">
                     <Suspense fallback={editorLoadingFallback(bodyEditorHeight)}>
                       <RichTextEditor
                         value={body}
@@ -976,7 +998,7 @@ export default function ContentEditPage() {
               ) : null}
               {contentType !== 'link' ? (
                 <Form.Slot noLabel>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div data-cms-field="attachments" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <Typography.Text strong>附件（{attachments.length}）</Typography.Text>
                       <Upload
@@ -1036,14 +1058,18 @@ export default function ContentEditPage() {
               ) : null}
               {modelFields.length > 0 ? (
                 <Form.Slot noLabel>
+                  <div data-cms-field="extend">
                   <Typography.Text strong style={{ display: 'block', marginBottom: 8 }}>模型字段（{currentModel?.name}）</Typography.Text>
                   <Row gutter={16}>
                     {modelFields.map((f) => (
                       <Col key={f.name} span={f.fieldType === 'textarea' || f.fieldType === 'richtext' ? 24 : 12}>
+                        <div data-cms-field={`extend.${f.name}`}>
                         <ModelFieldControl field={f} applyDefault={!detail} canUpload={canUploadResources} siteId={siteId} onResourceChange={selectResource} />
+                        </div>
                       </Col>
                     ))}
                   </Row>
+                  </div>
                 </Form.Slot>
               ) : null}
             </div>}
@@ -1058,7 +1084,7 @@ export default function ContentEditPage() {
                     treeData={channelsToSelectTree(treeQuery.data ?? [])}
                     rules={[{ required: true, message: '请选择栏目' }]}
                   />
-                  <Form.Select field="modelId" label="内容模型" disabled={!!id} showClear optionList={(models ?? []).map((model) => ({ value: model.id, label: model.name }))} onChange={(value) => setSelectedModelId(value == null ? null : Number(value))} style={{ width: '100%' }} extraText={id ? '类型转换在协作面板中预览字段映射后执行' : '内容类型独立于栏目，移动栏目不会改变模型'} />
+                  <Form.Select field="modelId" label="内容模型" disabled={!!id} showClear optionList={(models ?? []).map((model) => ({ value: model.id, label: model.name }))} onChange={(value) => setSelectedModelId(value == null ? null : Number(value))} style={{ width: '100%' }} extraText={id ? '在「协作与质量 → 切换内容模型」中预览字段映射后切换' : '内容模型独立于栏目，移动栏目不会改变模型'} />
                   <Form.Input
                     field="title" label="标题" size="small"
                     rules={[{ required: true, message: '请输入标题' }]}
@@ -1233,7 +1259,7 @@ export default function ContentEditPage() {
           </Suspense>
         ) : null}
       </TabPane>
-      <TabPane tab="协作与质量" itemKey="collaboration"><div className="cms-content-edit__scroll-pane"><CmsEditorialPanel content={detail} disabled={saveState !== 'saved'} models={models ?? []} onChanged={() => { dirtyRef.current = false; recovery.clear(); void detailQuery.refetch().then(() => baseline.adoptLatest()); }} onOpen={(contentId) => navigate(`/cms/contents/edit?id=${contentId}&siteId=${siteId}`)} /></div></TabPane>
+      <TabPane tab="协作与质量" itemKey="collaboration"><div className="cms-content-edit__scroll-pane"><CmsEditorialPanel content={detail} disabled={saveState !== 'saved'} models={models ?? []} onLocateField={locateEditorField} onChanged={() => { dirtyRef.current = false; recovery.clear(); void detailQuery.refetch().then(() => baseline.adoptLatest()); }} onOpen={(contentId) => navigate(`/cms/contents/edit?id=${contentId}&siteId=${siteId}`)} /></div></TabPane>
       <TabPane tab="上线复核" itemKey="reviews"><div className="cms-content-edit__scroll-pane">{activeTab === 'reviews' ? <CmsContentReviewPanel key={detail?.id} content={detail} /> : null}</div></TabPane>
       <TabPane tab="已保存稿件" itemKey="snapshot"><div className="cms-content-edit__scroll-pane">{detail ? <ContentRevisionViewer content={detail} fields={modelFields} heading="已保存工作稿" /> : <Typography.Text>保存后可查看完整稿件。</Typography.Text>}</div></TabPane>
       </Tabs>

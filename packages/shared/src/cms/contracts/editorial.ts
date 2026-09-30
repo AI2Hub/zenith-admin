@@ -9,7 +9,11 @@ export const cmsEditorialNoteSchema = z.object({
   mentionedUserIds: z.array(z.int()), resolved: z.boolean(), createdBy: z.int().nullable(), createdByName: z.string().nullable(), createdAt: z.string(), updatedAt: z.string(),
 }).meta({ id: 'CmsEditorialNote' });
 export type CmsEditorialNote = z.infer<typeof cmsEditorialNoteSchema>;
-export const cmsTranslationSchema = z.object({ id: z.int(), title: z.string(), locale: z.string(), status: z.string(), sourceRevisionId: z.int().nullable(), sourceChanged: z.boolean() }).meta({ id: 'CmsTranslation' });
+export const cmsTranslationSchema = z.object({
+  id: z.int(), title: z.string(), locale: z.string(), status: z.string(),
+  sourceRevisionId: z.int().nullable().meta({ description: '创建译稿时实际复制的冻结来源修订' }),
+  sourceChanged: z.boolean().meta({ description: '来源当前工作稿的可翻译内容是否偏离该冻结基线；预览、修订编号及运营字段不计入' }),
+}).meta({ id: 'CmsTranslation' });
 export const cmsEditorialMetricsSchema = z.object({ total: z.int(), working: z.int(), pending: z.int(), overdue: z.int(), scheduled: z.int(), unpublishedChanges: z.int(), unresolvedNotes: z.int() }).meta({ id: 'CmsEditorialMetrics' });
 
 export const cmsEditorialContract = defineContract('/api/cms/editorial', {

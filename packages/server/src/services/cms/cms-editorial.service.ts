@@ -1,12 +1,12 @@
 import { and, desc, eq, inArray, or, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import type { BodyOf } from '@zenith/shared/core';
-import { cmsEditorialContract, cmsEditorialNoteSchema, mergeCmsDistributionFields, validateCmsStructuredFields, type CmsQualityIssue, type CmsDocumentNode } from '@zenith/shared/cms';
+import { cmsEditorialContract, cmsEditorialNoteSchema, cmsTranslationContentKey, mergeCmsDistributionFields, validateCmsStructuredFields, type CmsQualityIssue, type CmsDocumentNode } from '@zenith/shared/cms';
 import { db, readSnapshot } from '../../db';
 import { cmsContents, cmsContentWorkingCopies, cmsContentRevisions } from '../../db/schema';
 import { cmsEditorialNotes, cmsDistributionSyncStates, cmsModelVersions } from '../../db/schema/cms-design';
 import { requireCmsContentAccess } from './cms-content-access.service';
-import { requireCmsWorkingCopy, writeCmsSystemWorkingCopy, assertCmsContentVersion } from './cms-content-revisions.service';
+import { requireCmsWorkingCopy, writeCmsSystemWorkingCopy, assertCmsContentVersion, cmsRevisionHash, freezeCmsContentRevision } from './cms-content-revisions.service';
 import { buildCmsContentListWhere } from './cms-contents-query.service';
 import { createCmsContent } from './cms-contents-write.service';
 import { pickEntity } from '../../lib/entity-map';
@@ -18,6 +18,8 @@ import { freezeCmsRevisionDependencies } from './cms-revision-dependencies.servi
 import { notifyWithin } from '../messaging/notification-outbox.service';
 import { lockCmsSiteForMutation } from './cms-site-publish-lock.service';
 import { getCmsModel } from './cms-models.service';
+import { getPgConstraintName, isPgUniqueViolation } from '../../lib/db-errors';
+import { cmsWorkingHasUnpublishedChanges } from './cms-content-change-state';
 
 async function mapNotes(rows: (typeof cmsEditorialNotes.$inferSelect)[]) {
   const names = await resolveUserNames(rows.flatMap((row) => row.createdBy ? [row.createdBy] : []));
@@ -93,13 +95,29 @@ export async function listCmsTranslations(id: number) {
   const content = await requireCmsContentAccess(id);
   const current = await requireCmsWorkingCopy(db, id);
   const sourceId = current.snapshot.translationOfId ?? content.id;
+  if (sourceId !== id) await requireCmsContentAccess(sourceId);
   const scope = await buildCmsContentListWhere({ siteId: content.siteId });
-  const rows = await db.select({ id: cmsContents.id, status: cmsContents.status, snapshot: sql<typeof cmsContentWorkingCopies.$inferSelect['snapshot']>`${cmsContentWorkingCopies.snapshot} - 'body' - 'bodyDocument'` })
-    .from(cmsContents).innerJoin(cmsContentWorkingCopies, eq(cmsContentWorkingCopies.contentId, cmsContents.id))
-    .where(buildWhere(scope, or(eq(cmsContents.id, sourceId), sql`(${cmsContentWorkingCopies.snapshot}->>'translationOfId')::integer = ${sourceId}`)));
-  const [latest] = await db.select({ id: cmsContentRevisions.id }).from(cmsContentRevisions).where(eq(cmsContentRevisions.contentId, sourceId)).orderBy(desc(cmsContentRevisions.id)).limit(1);
-  return rows.map((row) => ({ id: row.id, title: row.snapshot.title, locale: row.snapshot.locale, status: row.status,
-    sourceRevisionId: row.snapshot.sourceRevisionId ?? null, sourceChanged: row.id !== sourceId && Boolean(latest && latest.id !== row.snapshot.sourceRevisionId) }));
+  return readSnapshot(async (tx) => {
+    const source = await requireCmsWorkingCopy(tx, sourceId);
+    const rows = await tx.select({ id: cmsContents.id, status: cmsContents.status,
+      title: sql<string>`${cmsContentWorkingCopies.snapshot}->>'title'`,
+      locale: sql<string>`${cmsContentWorkingCopies.snapshot}->>'locale'`,
+      sourceRevisionId: sql<number | null>`(${cmsContentWorkingCopies.snapshot}->>'sourceRevisionId')::integer`,
+    }).from(cmsContents).innerJoin(cmsContentWorkingCopies, eq(cmsContentWorkingCopies.contentId, cmsContents.id))
+      .where(buildWhere(scope, or(eq(cmsContents.id, sourceId), sql`(${cmsContentWorkingCopies.snapshot}->>'translationOfId')::integer = ${sourceId}`)));
+    const baselineIds = [...new Set(rows.flatMap((row) => row.id !== sourceId && row.sourceRevisionId ? [row.sourceRevisionId] : []))];
+    const baselines = baselineIds.length ? await tx.select({ id: cmsContentRevisions.id, snapshot: cmsContentRevisions.snapshot, hash: cmsContentRevisions.hash })
+      .from(cmsContentRevisions).where(and(eq(cmsContentRevisions.contentId, sourceId), inArray(cmsContentRevisions.id, baselineIds))) : [];
+    for (const revision of baselines) {
+      if (cmsRevisionHash(revision.snapshot) !== revision.hash) throw new HTTPException(409, { message: '翻译来源修订完整性校验失败' });
+    }
+    const modelVersionIds = [...new Set([source.snapshot, ...baselines.map((revision) => revision.snapshot)].flatMap((snapshot) => snapshot.modelVersionId ? [snapshot.modelVersionId] : []))];
+    const models = modelVersionIds.length ? await tx.select({ id: cmsModelVersions.id, fields: cmsModelVersions.fields }).from(cmsModelVersions).where(inArray(cmsModelVersions.id, modelVersionIds)) : [];
+    const fieldsByVersion = new Map(models.map((model) => [model.id, model.fields]));
+    const sourceKey = cmsTranslationContentKey(source.snapshot, fieldsByVersion.get(source.snapshot.modelVersionId ?? 0));
+    const baselineKeys = new Map(baselines.map((revision) => [revision.id, cmsTranslationContentKey(revision.snapshot, fieldsByVersion.get(revision.snapshot.modelVersionId ?? 0))]));
+    return rows.map((row) => ({ ...row, sourceChanged: row.id !== sourceId && baselineKeys.get(row.sourceRevisionId ?? 0) !== sourceKey }));
+  });
 }
 
 export async function createCmsTranslation(id: number, input: BodyOf<typeof cmsEditorialContract.createTranslation>) {
@@ -107,17 +125,27 @@ export async function createCmsTranslation(id: number, input: BodyOf<typeof cmsE
   const current = await requireCmsWorkingCopy(db, id);
   const sourceId = current.snapshot.translationOfId ?? id;
   const source = await requireCmsContentAccess(sourceId);
-  const working = await requireCmsWorkingCopy(db, sourceId);
-  const [existing] = await db.select({ id: cmsContentWorkingCopies.contentId }).from(cmsContentWorkingCopies).where(and(
-    sql`(${cmsContentWorkingCopies.snapshot}->>'translationOfId')::integer = ${sourceId}`,
-    sql`${cmsContentWorkingCopies.snapshot}->>'locale' = ${input.locale}`,
-  )).limit(1);
-  if (existing || working.snapshot.locale === input.locale) throw new HTTPException(409, { message: '该语言的内容变体已存在' });
-  const [revision] = await db.select({ id: cmsContentRevisions.id }).from(cmsContentRevisions).where(eq(cmsContentRevisions.contentId, sourceId)).orderBy(desc(cmsContentRevisions.id)).limit(1);
-  const { bodyDocument: _document, assetVersions: _assets, modelVersionId: _modelVersion, ...fields } = working.snapshot;
-  const created = await createCmsContent({ ...fields, ...input, siteId: source.siteId, translationOfId: sourceId, sourceRevisionId: revision?.id ?? null,
-    slug: null, staticPath: null, scheduledAt: null, expireAt: null, tagIds: [...working.snapshot.tagIds] });
-  return { id: created.id };
+  const revision = await db.transaction(async (tx) => {
+    await lockCmsSiteForMutation(tx, source.siteId);
+    const [identity] = await tx.select().from(cmsContents).where(eq(cmsContents.id, sourceId)).for('update').limit(1);
+    requireRow(identity, '翻译来源内容不存在');
+    const working = await requireCmsWorkingCopy(tx, sourceId, true);
+    const [existing] = await tx.select({ id: cmsContentWorkingCopies.contentId }).from(cmsContentWorkingCopies).where(and(
+      sql`(${cmsContentWorkingCopies.snapshot}->>'translationOfId')::integer = ${sourceId}`,
+      sql`${cmsContentWorkingCopies.snapshot}->>'locale' = ${input.locale}`,
+    )).limit(1);
+    if (existing || working.snapshot.locale === input.locale) throw new HTTPException(409, { message: '该语言的内容变体已存在' });
+    return freezeCmsContentRevision(tx, identity, working, 'checkpoint', `冻结 ${input.locale} 翻译来源`);
+  });
+  // The source transaction has committed: creation must not open a second connection while holding its site lock.
+  try {
+    const created = await createCmsContent({ ...revision.snapshot, ...input, siteId: source.siteId, translationOfId: sourceId, sourceRevisionId: revision.id,
+      slug: null, staticPath: null, scheduledAt: null, expireAt: null }, { fromRevisionId: revision.id });
+    return { id: created.id };
+  } catch (error) {
+    if (isPgUniqueViolation(error) && getPgConstraintName(error) === 'cms_working_translation_locale_uq') throw new HTTPException(409, { message: '该语言的内容变体已存在' });
+    throw error;
+  }
 }
 
 export async function getCmsEditorialMetrics(siteId: number) {
@@ -129,7 +157,7 @@ export async function getCmsEditorialMetrics(siteId: number) {
     pending: sql<number>`count(*) filter (where ${cmsContentWorkingCopies.editorialStatus} = 'pending')::integer`,
     overdue: sql<number>`count(*) filter (where (${cmsContentWorkingCopies.snapshot}->>'dueAt')::timestamp < now() and ${cmsContentWorkingCopies.editorialStatus} != 'clean')::integer`,
     scheduled: sql<number>`count(*) filter (where (${cmsContentWorkingCopies.snapshot}->>'scheduledAt')::timestamp > now())::integer`,
-    unpublishedChanges: sql<number>`count(*) filter (where ${cmsContentWorkingCopies.editorialStatus} != 'clean')::integer`,
+    unpublishedChanges: sql<number>`count(*) filter (where ${cmsWorkingHasUnpublishedChanges()})::integer`,
   }).from(cmsContents).innerJoin(cmsContentWorkingCopies, eq(cmsContentWorkingCopies.contentId, cmsContents.id)).where(where);
   const unresolvedNotes = await tx.$count(cmsEditorialNotes, and(eq(cmsEditorialNotes.resolved, false), inArray(cmsEditorialNotes.contentId, tx.select({ id: cmsContents.id }).from(cmsContents).where(where))));
   return { ...row, unresolvedNotes };

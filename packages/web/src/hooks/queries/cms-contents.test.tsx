@@ -37,7 +37,9 @@ import {
   useCmsContentWorkflowPreview,
   useCmsContentApprovalDetail,
   useDuplicateCmsContent,
+  useSaveCmsContent,
 } from './cms-contents';
+import { useCmsTranslations } from './cms-editorial';
 import { cmsDashboardKeys, useCmsDashboardStats } from './cms-stats';
 import { cmsTagKeys, useAllCmsTags } from './cms-tags';
 
@@ -143,6 +145,28 @@ describe('useCmsContentAction —— 状态流转按真实副作用失效', () =
     expect(api.countOf('GET', '/api/cms/channels/tree')).toBe(0);
 
     fetches.stop();
+  });
+});
+
+describe('CMS 翻译来源缓存', () => {
+  it('refreshes source and variant translation views after an autosaved source edit', async () => {
+    const qc = createTestQueryClient();
+    let changed = false;
+    const variants = () => [{ id: 8, title: 'Translation', locale: 'en-US', status: 'draft', sourceRevisionId: 10, sourceChanged: changed }];
+    api.on('GET', '/api/cms/editorial/7/translations', variants)
+      .on('GET', '/api/cms/editorial/8/translations', variants)
+      .on('PUT', '/api/cms/contents/7', () => { changed = true; return { ...CONTENT, title: '新源稿', version: 2 }; });
+    const hook = renderHook(() => ({ source: useCmsTranslations(7), translation: useCmsTranslations(8), save: useSaveCmsContent() }), { wrapper: createWrapper(qc) });
+    await waitFor(() => { expect(hook.result.current.source.isSuccess).toBe(true); expect(hook.result.current.translation.isSuccess).toBe(true); });
+    expect(hook.result.current.translation.data?.[0].sourceChanged).toBe(false);
+    api.resetCalls();
+    await hook.result.current.save.mutateAsync({ id: 7, values: { title: '新源稿', expectedVersion: 1, saveMode: 'autosave' } });
+    await waitFor(() => {
+      expect(hook.result.current.source.data?.[0].sourceChanged).toBe(true);
+      expect(hook.result.current.translation.data?.[0].sourceChanged).toBe(true);
+    });
+    expect(api.countOf('GET', '/api/cms/editorial/7/translations')).toBe(1);
+    expect(api.countOf('GET', '/api/cms/editorial/8/translations')).toBe(1);
   });
 });
 

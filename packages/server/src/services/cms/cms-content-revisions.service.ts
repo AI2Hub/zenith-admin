@@ -2,7 +2,7 @@ import { cmsModelVersions } from '../../db/schema/cms-design';
 import { createHash } from 'node:crypto';
 import { and, eq, max, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import { cmsContentRevisionSnapshotSchema, cmsEditorialStatusAfterPublication, type CmsContentRevisionSnapshot, type CmsRevisionKind } from '@zenith/shared/cms';
+import { cmsContentRevisionSnapshotSchema, cmsEditorialStatusAfterPublication, cmsEditorialStatusAfterEdit, cmsPublicationValuesEqual, type CmsContentRevisionSnapshot, type CmsRevisionKind } from '@zenith/shared/cms';
 import { db } from '../../db';
 import { cmsContents, cmsContentTags, cmsContentChannels, cmsContentRelations, cmsContentRevisions, cmsContentWorkingCopies, cmsContentReviewRevisions, cmsContentRevisionApprovals } from '../../db/schema';
 import type { CmsContentRow, CmsContentRevisionRow, CmsContentWorkingCopyRow } from '../../db/schema';
@@ -15,6 +15,7 @@ import { contentSearchVector, extendSearchTexts } from './cms-search.service';
 import { claimCmsUniqueModelValues, freezeCmsRevisionDependencies } from './cms-revision-dependencies.service';
 import { normalizeCmsContentDocument } from './cms-document.service';
 import { stableStringify } from '@zenith/shared/core';
+import { cmsPublicationDigestSql } from '../../db/cms-content-hash';
 
 const DATE_FIELDS = ['scheduledAt', 'expireAt', 'topExpireAt', 'dueAt'] as const;
 
@@ -117,7 +118,10 @@ export async function markCmsRevisionPublished(tx: DbTransaction, contentId: num
   const working = await requireCmsWorkingCopy(tx, contentId, true);
   const revision = revisionId ? await loadCmsRevision(tx, revisionId) : null;
   if (revision && revision.contentId !== contentId) throw new HTTPException(409, { message: '发布修订不属于当前内容' });
-  await tx.update(cmsContentWorkingCopies).set({ publishedRevisionId: revisionId, editorialStatus: cmsEditorialStatusAfterPublication(working.editorialStatus, Boolean(revision && cmsRevisionHash(working.snapshot) === revision.hash)) }).where(eq(cmsContentWorkingCopies.contentId, contentId));
+  await tx.update(cmsContentWorkingCopies).set({ publishedRevisionId: revisionId,
+    publishedHash: revision ? cmsPublicationDigestSql(sql`${JSON.stringify(revision.snapshot)}::jsonb`) : null,
+    editorialStatus: cmsEditorialStatusAfterPublication(working.editorialStatus, Boolean(revision && cmsPublicationValuesEqual(working.snapshot, revision.snapshot))),
+  }).where(eq(cmsContentWorkingCopies.contentId, contentId));
 }
 
 /** Trusted import/collection/member/distribution boundaries still carry a captured CAS token. */
@@ -130,7 +134,13 @@ export async function writeCmsSystemWorkingCopy(tx: DbTransaction, identity: Cms
   });
   const frozen = await freezeCmsRevisionDependencies(tx, identity.siteId, snapshot.modelId, snapshot, { strict: false });
   const normalized = cmsContentRevisionSnapshotSchema.parse(frozen.snapshot);
-  const [updated] = await tx.update(cmsContentWorkingCopies).set({ snapshot: normalized, editorialStatus: 'draft', version: sql`${cmsContentWorkingCopies.version} + 1` }).where(and(eq(cmsContentWorkingCopies.contentId, identity.id), eq(cmsContentWorkingCopies.version, expectedVersion))).returning();
+  if (canonicalCmsJson(normalized) === canonicalCmsJson(working.snapshot)) return working;
+  const publicValuesChanged = !cmsPublicationValuesEqual(normalized, working.snapshot);
+  const published = publicValuesChanged && working.publishedRevisionId ? await loadCmsRevision(tx, working.publishedRevisionId) : null;
+  const editorialStatus = cmsEditorialStatusAfterEdit(working.editorialStatus, publicValuesChanged, Boolean(published && cmsPublicationValuesEqual(normalized, published.snapshot)));
+  const [updated] = await tx.update(cmsContentWorkingCopies).set({ snapshot: normalized, editorialStatus,
+    ...(publicValuesChanged ? { rejectReason: null } : {}), version: sql`${cmsContentWorkingCopies.version} + 1`,
+  }).where(and(eq(cmsContentWorkingCopies.contentId, identity.id), eq(cmsContentWorkingCopies.version, expectedVersion))).returning();
   requireRow(updated, '内容已被其他人修改', 409);
   await syncCmsResourceRefs(tx, 'content', identity.id, identity.siteId, normalized);
   return updated;
