@@ -1,5 +1,5 @@
-import { useState, type CSSProperties } from 'react';
-import { ArrayField, Banner, Button, Form, Select, Space, Typography, useFormApi, useFormState } from '@douyinfe/semi-ui';
+import { Fragment, useState, type CSSProperties } from 'react';
+import { ArrayField, Banner, Button, Divider, Form, Select, Space, Typography, useFormApi, useFormState } from '@douyinfe/semi-ui';
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react';
 import { getByPath } from '@zenith/shared/core';
 import { CMS_FIELD_OPTION_SOURCE_LABELS, CMS_FIELD_OPTION_SOURCES, CMS_FIELD_TYPES, CMS_FIELD_TYPES_WITH_OPTIONS, CMS_FIELD_TYPE_LABELS, CMS_MODEL_MAX_DEPTH, type CmsFieldDefinition, type CmsNestedFieldDefinition } from '@zenith/shared/cms';
@@ -24,15 +24,18 @@ export function CmsFieldDefinitionsEditor({ field, siteId, depth = 1, root = fal
     api.setValue(field, values);
   };
   return <ArrayField field={field}>{({ arrayFields, addWithInitValue }) => <Space vertical align="start" style={{ width: '100%' }}>
-    {arrayFields.map(({ field: path, key, remove }, index) => <div key={key} style={{ width: '100%', border: '1px solid var(--semi-color-border)', padding: 12, borderRadius: 6 }}>
-      <Space spacing={4}>
-        <Typography.Text strong>字段 {index + 1}</Typography.Text>
-        <Button aria-label="上移字段" icon={<ArrowUp size={14} />} disabled={index === 0} onClick={() => move(index, -1)} />
-        <Button aria-label="下移字段" icon={<ArrowDown size={14} />} disabled={index === arrayFields.length - 1} onClick={() => move(index, 1)} />
-        <Button aria-label="删除字段" theme="borderless" type="danger" icon={<Trash2 size={14} />} onClick={remove} />
-      </Space>
-      <FieldDefinitionRow field={path} siblingsPath={field} siteId={siteId} depth={depth} root={root} />
-    </div>)}
+    {arrayFields.map(({ field: path, key, remove }, index) => <Fragment key={key}>
+      {index > 0 ? <Divider margin={16} /> : null}
+      <div style={{ width: '100%' }}>
+        <Space spacing={4}>
+          <Typography.Text strong>字段 {index + 1}</Typography.Text>
+          <Button aria-label="上移字段" icon={<ArrowUp size={14} />} disabled={index === 0} onClick={() => move(index, -1)} />
+          <Button aria-label="下移字段" icon={<ArrowDown size={14} />} disabled={index === arrayFields.length - 1} onClick={() => move(index, 1)} />
+          <Button aria-label="删除字段" theme="borderless" type="danger" icon={<Trash2 size={14} />} onClick={remove} />
+        </Space>
+        <FieldDefinitionRow field={path} siblingsPath={field} siteId={siteId} depth={depth} root={root} />
+      </div>
+    </Fragment>)}
     <Button icon={<Plus size={14} />} disabled={arrayFields.length >= 100} onClick={() => addWithInitValue({ ...(root ? {} : { id: crypto.randomUUID() }), fieldType: 'text', configuration: {}, optionSource: 'manual' })}>添加字段</Button>
   </Space>}</ArrayField>;
 }
@@ -50,7 +53,7 @@ function FieldDefinitionRow({ field, siblingsPath, siteId, depth, root }: Readon
     <div className="auto-grid" style={{ '--auto-grid-cols': 2 } as CSSProperties}>
       <Form.Input field={`${field}.name`} label="字段标识" placeholder="小写字母，如 venue" maxLength={50} rules={[{ required: true, message: '请输入字段标识' }, { pattern: /^[a-z][a-z0-9_]*$/, message: '使用小写字母、数字与下划线' }]} />
       <Form.Input field={`${field}.label`} label="字段名称" maxLength={100} rules={[{ required: true, message: '请输入字段名称' }]} />
-      <Form.Select field={`${field}.fieldType`} label="字段类型" initValue="text" optionList={availableTypes}
+      <Form.Select field={`${field}.fieldType`} label="字段类型" optionList={availableTypes}
         onChange={(next) => {
           if (next !== type) api.setValue(field, { ...definition, fieldType: next, defaultValue: undefined, optionsText: undefined, options: null, resolvedOptions: undefined, optionSource: 'manual', dictCode: null, configuration: {} });
         }} />
@@ -89,7 +92,7 @@ function FieldOptionSource({ field }: Readonly<{ field: string }>) {
   const dictionaries = useDictList({ page: 1, pageSize: 200 }, withOptions);
   if (!withOptions) return null;
   return <div className="auto-grid" style={{ '--auto-grid-cols': 2 } as CSSProperties}>
-    <Form.Select field={`${field}.optionSource`} label="选项来源" initValue="manual" optionList={optionSources} />
+    <Form.Select field={`${field}.optionSource`} label="选项来源" optionList={optionSources} />
     {definition?.optionSource === 'dict'
       ? <Form.Select field={`${field}.dictCode`} label="系统字典" filter optionList={(dictionaries.data?.list ?? []).map((dict) => ({ value: dict.code, label: `${dict.name}（${dict.code}）` }))} rules={[{ required: true, message: '请选择字典' }]} />
       : <Form.TextArea field={`${field}.optionsText`} label="选项" autosize={{ minRows: 2, maxRows: 6 }} placeholder="每行一个：值|名称" rules={[{ required: true, message: '请配置选项' }]} />}
@@ -149,7 +152,7 @@ export default function ModelFieldRules({ field, siteId, siblingsPath = 'fields'
       <div hidden={!!definition?.configuration?.componentVersionId}><CmsFieldDefinitionsEditor field={`${field}.configuration.fields`} siteId={siteId} depth={depth + 1} /></div>
     </>}
     {type === 'blocks' && <ArrayField field={`${field}.configuration.blockTypes`}>{({ arrayFields, addWithInitValue }) => <Space vertical align="start" style={{ width: '100%' }}>
-      {arrayFields.map(({ field: block, key, remove }) => <div key={key} style={{ width: '100%', padding: 12, background: 'var(--surface-card)', borderRadius: 6 }}>
+      {arrayFields.map(({ field: block, key, remove }) => <div key={key} style={{ width: '100%', padding: 12, background: 'var(--surface-card)', borderRadius: 'var(--semi-border-radius-medium)' }}>
         <Space wrap><Form.Input field={`${block}.code`} label="区块标识" maxLength={50} rules={[{ required: true }, { pattern: /^[a-z][a-z0-9_]*$/, message: '使用小写字母、数字与下划线' }]} />
           <Form.Input field={`${block}.label`} label="区块名称" maxLength={100} rules={[{ required: true }]} /><Button type="danger" theme="borderless" onClick={remove}>删除区块</Button></Space>
         <ComponentVersionPicker field={`${block}.componentVersionId`} fieldsPath={`${block}.fields`} siteId={siteId} />

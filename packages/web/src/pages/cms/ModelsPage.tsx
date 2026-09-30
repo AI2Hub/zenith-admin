@@ -2,9 +2,7 @@ import { Form, Tag, Tabs, Toast, Tooltip, Banner } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { useState, type CSSProperties } from 'react';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { createdAtColumn, renderEllipsis, renderEnabledStatusTag } from '@/utils/table-columns';
-import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import { useCmsModelList, useSaveCmsModel, useDeleteCmsModel, type CmsModelSaveValues } from '@/hooks/queries/cms-models';
 import { cmsModelContract, validateCmsFieldDefinitions, type CmsModel } from '@zenith/shared/cms';
@@ -12,7 +10,7 @@ import { CreateButton } from '@/components/toolbar-controls';
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { abortSubmit } from '@/lib/abort-submit';
 import { KeywordInput } from '@/components/search-filters';
-import { deleteAction, ListSearchToolbar } from '@/components/list-page';
+import { useCrudOperationColumn, ListSearchToolbar } from '@/components/list-page';
 import { FormStatusRadioGroup } from '@/components/FormStatusRadioGroup';
 import { useListPage } from '@/hooks/useListPage';
 import { useUrlTabState } from '@/hooks/useUrlTabState';
@@ -29,7 +27,6 @@ function useModelEditorDetail(id: number | undefined, enabled = true, record?: S
 }
 
 export default function ModelsPage() {
-  const { hasPermission } = usePermission();
   const [siteId, setSiteId] = useState<number | undefined>();
   const [tab, setTab] = useUrlTabState(['models', 'components'] as const, 'models');
   const [publishing, setPublishing] = useState<CmsModel | null>(null);
@@ -51,21 +48,24 @@ export default function ModelsPage() {
     },
   });
   const deleteMutation = useDeleteCmsModel(siteId);
+  const operationColumn = useCrudOperationColumn<CmsModel>({
+    permission: 'cms:model', width: 220, desktopInlineKeys: ['edit', 'impact'],
+    edit: row => modal.openEdit({ ...row, scopeSiteId: siteId }),
+    remove: row => deleteMutation.mutateAsync(row.id),
+    hidden: { remove: row => row.isSystem }, label: row => row.name,
+    extraBetween: row => [{ key: 'impact', label: '发布影响', onClick: () => setPublishing(row) }],
+  });
   const columns: ColumnProps<CmsModel>[] = [
     { title: '模型名称', dataIndex: 'name', width: 160, render: (value: string, record) => <span>{value}{record.isSystem && <Tag size="small" style={{ marginLeft: 6 }}>内置</Tag>}</span> },
     { title: '标识', dataIndex: 'code', width: 180, render: renderEllipsis },
     { title: '模型版本', dataIndex: 'hasUnpublishedChanges', width: 160, render: (_value, record) => <Tag color={record.hasUnpublishedChanges ? 'orange' : 'green'}>{record.publishedVersionId ? record.hasUnpublishedChanges ? '有待发布修改' : '已发布' : '尚未发布'}</Tag> },
-    { title: '归属', dataIndex: 'ownerSiteId', width: 180, render: (_value, record) => {
+    { title: '归属', dataIndex: 'ownerSiteId', width: 220, render: (_value, record) => {
       const text = record.ownerSiteId == null ? '平台共享' : record.ownerSiteName ?? `站点 #${record.ownerSiteId}`;
-      return <Tooltip content={text} position="topLeft"><Tag size="small" color={record.ownerSiteId == null ? 'blue' : 'teal'}>{text}</Tag></Tooltip>;
+      return <Tooltip content={text} position="topLeft"><Tag size="small" color={record.ownerSiteId == null ? 'blue' : 'teal'} style={{ maxWidth: '100%' }}>{text}</Tag></Tooltip>;
     } },
     { title: '描述', dataIndex: 'description', minWidth: 220, render: renderEllipsis }, createdAtColumn,
     { title: '状态', dataIndex: 'status', width: 80, fixed: 'right', render: renderEnabledStatusTag },
-    createOperationColumn<CmsModel>({ width: 210, desktopInlineKeys: ['edit', 'impact'], actions: (record) => [
-      { key: 'impact', label: '发布影响', onClick: () => setPublishing(record) },
-      { key: 'edit', label: '编辑', hidden: !hasPermission('cms:model:update'), onClick: () => modal.openEdit({ ...record, scopeSiteId: siteId }) },
-      deleteAction({ hidden: !hasPermission('cms:model:delete') || record.isSystem, title: '确定要删除该模型吗？', content: '被栏目或内容引用时不可删除', run: () => deleteMutation.mutateAsync(record.id) }),
-    ] }),
+    operationColumn,
   ];
   return <div className="page-container page-tabs-page">
     <Tabs activeKey={tab} onChange={(next) => setTab(next as 'models' | 'components')} collapsible="auto">
@@ -87,7 +87,7 @@ export default function ModelsPage() {
       </div>
       <Form.Input field="description" label="描述" maxLength={500} />
       <FormStatusRadioGroup />
-      <Form.RadioGroup field="ownerScope" label="归属" disabled={modal.isEdit} extraText={modal.isEdit ? '归属创建后不可变更' : '专属模型仅当前站点可用；共享模型全部站点可用'}><Form.Radio value="site">当前站点专属</Form.Radio><Form.Radio value="shared">平台共享</Form.Radio></Form.RadioGroup>
+      <Form.RadioGroup name="cms-definition-owner-scope" field="ownerScope" label="归属" disabled={modal.isEdit} extraText={modal.isEdit ? '归属创建后不可变更' : '专属模型仅当前站点可用；共享模型全部站点可用'}><Form.Radio value="site">当前站点专属</Form.Radio><Form.Radio value="shared">平台共享</Form.Radio></Form.RadioGroup>
       <Form.Section text="扩展字段（标题、摘要、正文、封面、作者已内置）"><CmsFieldDefinitionsEditor field="fields" siteId={siteId} root /></Form.Section>
     </EditFormSheet>
     <CmsModelPublishSheet model={publishing} siteId={siteId} onClose={() => setPublishing(null)} />
