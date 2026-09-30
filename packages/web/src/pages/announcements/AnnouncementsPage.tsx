@@ -169,15 +169,17 @@ export default function AnnouncementsPage() {
                         <Tag color={PRIORITY_COLOR[item.priority] ?? 'blue'} size="small" style={{ flexShrink: 0 }}>
                           {priorityLabel(item.priority)}
                         </Tag>
-                        <Typography.Text style={{ fontSize: 12, color: 'var(--semi-color-text-3)', marginLeft: 'auto', flexShrink: 0 }}>
-                          发布于 <DateTimeText value={item.publishTime ?? item.createdAt} />
-                        </Typography.Text>
                       </div>
-                      {preview && (
-                        <div style={{ fontSize: 12, color: 'var(--semi-color-text-2)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {preview}
-                        </div>
-                      )}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 12, marginTop: 2, minWidth: 0 }}>
+                        {preview && (
+                          <span style={{ color: 'var(--semi-color-text-2)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {preview}
+                          </span>
+                        )}
+                        <span style={{ color: 'var(--semi-color-text-3)', marginLeft: 'auto', flexShrink: 0 }}>
+                          发布于 <DateTimeText value={item.publishTime ?? item.createdAt} />
+                        </span>
+                      </div>
                     </div>
                   </List.Item>
                 );
