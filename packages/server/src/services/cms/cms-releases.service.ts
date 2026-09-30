@@ -1,4 +1,6 @@
 import { syncCmsCollectionState } from './cms-collection-state';
+import { inspectCmsReleaseReadiness } from './cms-release-readiness.service';
+import { cmsReleaseBlockingMessage } from '@zenith/shared/cms';
 import { recordCmsEditorialActivation } from './cms-editorial-outcomes.service';
 import { and, asc, desc, eq, inArray, isNotNull, lte, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
@@ -158,6 +160,9 @@ export async function buildCmsRelease(id: number): Promise<CmsRelease> {
       [locked] = await tx.update(cmsReleases).set({ baseGenerationId: currentGenerationId }).where(eq(cmsReleases.id, id)).returning();
     }
     if (locked.baseGenerationId) await assertCmsDeploymentStorageAvailable(tx, locked.baseGenerationId);
+    const readiness = await inspectCmsReleaseReadiness(tx, locked);
+    const blocking = cmsReleaseBlockingMessage(readiness.checks);
+    if (blocking) throw new HTTPException(409, { message: blocking });
     const [deployment] = await tx.insert(cmsDeployments).values({ siteId: locked.siteId, releaseId: id, buildPlan: newCmsDeploymentBuildPlan() }).returning();
     const [updated] = await tx.update(cmsReleases).set({ status: 'building', deploymentId: deployment.id, error: null }).where(eq(cmsReleases.id, id)).returning();
     const task = await persistAsyncTask(tx, { taskType: RELEASE_BUILD_TASK, title: `CMS 发布单：${locked.name}`, tenantId: null, payload: { siteId: locked.siteId, releaseId: id, deploymentId: deployment.id }, idempotencyKey: `cms-release:${id}:deployment:${deployment.id}` });

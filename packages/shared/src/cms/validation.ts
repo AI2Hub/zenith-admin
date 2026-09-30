@@ -204,7 +204,7 @@ export const cmsModelFieldSchema = z.object({
   /** 详情展示排序（组内） */
   detailSort: z.number().int().default(0),
   placeholder: z.string().max(200).nullable().optional(),
-  defaultValue: z.string().max(1000).nullable().optional(),
+  defaultValue: z.string().max(200_000).nullable().optional(),
   /** 选项来源：manual=手工 options；dict=引用系统字典 */
   optionSource: z.enum(CMS_FIELD_OPTION_SOURCES).default('manual'),
   dictCode: z.string().max(64).nullable().optional(),
@@ -374,6 +374,10 @@ export const createCmsTagSchema = z.object({
   name: z.string().min(1, '标签名称不能为空').max(50),
   slug: z.string().min(1, 'URL 标识不能为空').max(100).regex(cmsSlugRegex, '标识仅支持小写字母、数字、中划线'),
   groupName: z.string().max(50).nullable().optional(),
+  vocabularyId: z.int().positive().nullable().optional(),
+  parentId: z.int().positive().nullable().optional(),
+  aliases: z.array(z.string().trim().min(1).max(100)).max(50).default([]),
+  localeLabels: z.record(z.string().max(35), z.string().min(1).max(100)).default({}),
 });
 
 export const updateCmsTagSchema = partialForUpdate(createCmsTagSchema).omit({ siteId: true });
@@ -792,6 +796,7 @@ export const cmsPageBlockSchema = z.strictObject({
   displayCondition: cmsPageBlockDisplayConditionSchema.optional(),
   presetSource: cmsPagePresetSourceSchema.optional(),
 }).superRefine((block, ctx) => {
+  if (block.type === 'content-list' && block.props.collectionId != null && (!Number.isSafeInteger(block.props.collectionId) || Number(block.props.collectionId) <= 0)) ctx.addIssue({ code: 'custom', path: ['props', 'collectionId'], message: '请选择有效的内容集合' });
   if (block.type === 'hero' || block.type === 'image') {
     const imageOptions = cmsPageImageOptionsSchema.safeParse(block.props);
     if (!imageOptions.success) for (const issue of imageOptions.error.issues) ctx.addIssue({ code: 'custom', path: ['props', ...issue.path], message: issue.message });

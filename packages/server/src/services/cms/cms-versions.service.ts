@@ -2,7 +2,7 @@ import { eq, desc, getTableColumns } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { cmsContentRevisions, cmsModelVersions, users } from '../../db/schema';
-import { cmsContentContract, cmsContentVersionSchema, cmsContentVersionSummarySchema } from '@zenith/shared/cms';
+import { cmsContentContract, cmsContentVersionSchema, cmsContentVersionSummarySchema, diffCmsDocumentBlocks } from '@zenith/shared/cms';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { buildListResult } from '../../lib/list-query';
 import { withPagination } from '../../lib/where-helpers';
@@ -57,5 +57,7 @@ export async function diffContentVersion(contentId: number, versionId: number) {
   return [...new Set([...Object.keys(before), ...Object.keys(after)])]
     .filter((field) => field !== 'bodyDocument')
     .filter((field) => canonicalCmsJson(before[field]) !== canonicalCmsJson(after[field]))
-    .map((field) => ({ field, label: LABELS[field] ?? field, before: before[field] ?? null, after: after[field] ?? null }));
+    .map((field) => ({ field, label: LABELS[field] ?? field, before: before[field] ?? null, after: after[field] ?? null,
+      ...(field === 'body' ? { bodyChanges: diffCmsDocumentBlocks(revision.snapshot.bodyDocument, working.snapshot.bodyDocument) } : {}),
+    }));
 }

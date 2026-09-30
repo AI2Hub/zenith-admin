@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { eq, sql } from 'drizzle-orm';
 import { db, withDbExecutor } from '../../db';
-import type { DbTransaction } from '../../db/types';
+import type { DbExecutor, DbTransaction } from '../../db/types';
 import { cmsDeploymentStorage, type CmsDeploymentSnapshot } from '../../db/schema';
 import { cmsDeployments } from '../../db/schema/cms-releases';
 import { cmsDeliverySnapshot, cmsGenerationContext, withCmsDeliverySnapshot, withCmsGenerationContext } from './cms-generation-context';
@@ -21,7 +21,7 @@ import { pinCmsGenerationRead, readCmsGenerationSnapshot } from './cms-generatio
 
 /** Only publication definitions are copied. Sessions, permissions, submissions and telemetry remain live. */
 const SITE_TABLES = [
-  'cms_channels', 'cms_contents', 'cms_tags', 'cms_resources', 'cms_resource_folders',
+  'cms_channels', 'cms_contents', 'cms_tags', 'cms_vocabularies', 'cms_content_collections', 'cms_resources', 'cms_resource_folders',
   'cms_pages', 'cms_widgets', 'cms_widget_refs', 'cms_widget_source_refs',
   'cms_friend_link_groups', 'cms_friend_links', 'cms_link_words', 'cms_redirects', 'cms_search_words',
   'cms_asset_versions',
@@ -39,6 +39,24 @@ function identifier(value: string): string {
   return `"${value}"`;
 }
 
+/** Old sealed generations remain immutable; an absent new definition is an empty published set. */
+export async function hasCmsGenerationTable(executor: DbExecutor, generationId: number, table: typeof CMS_GENERATION_TABLES[number]): Promise<boolean> {
+  const [row] = await executor.execute<{ present: boolean }>(sql`SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema=${cmsGenerationSchemaName(generationId)} AND table_name=${table}) AS present`);
+  return row?.present === true;
+}
+
+/** Read only columns actually frozen in the base; never fall back to working public configuration. */
+export async function readCmsGenerationConfigurationRows(executor: DbExecutor, generationId: number, table: typeof CMS_CONFIGURATION_TABLES[number], selectedColumns?: readonly string[]): Promise<Record<string, unknown>[]> {
+  const namespace = cmsGenerationSchemaName(generationId);
+  const sourceTable = table === 'cms_sites' ? 'cms_site_projection' : table === 'cms_resources' ? 'cms_resource_projection' : table;
+  const columns = await executor.execute<{ name: string }>(sql`SELECT column_name AS name FROM information_schema.columns WHERE table_schema=${namespace} AND table_name=${sourceTable} ORDER BY ordinal_position`);
+  if (!columns.length) return [];
+  const selected = columns.filter(column => !selectedColumns || selectedColumns.includes(column.name)).map(column => identifier(column.name));
+  if (!selected.length) return [];
+  const rows = await executor.execute<{ row: Record<string, unknown> }>(sql.raw(`SELECT to_jsonb(candidate) AS row FROM (SELECT ${selected.join(',')} FROM ${identifier(namespace)}.${identifier(sourceTable)}) candidate`));
+  return rows.map(row => row.row);
+}
+
 /** All identifiers come from a closed list or a server-generated positive database id. */
 export async function createCmsGenerationStorage(tx: DbTransaction, siteId: number, generationId: number, baseGenerationId?: number | null, configuration: CmsConfigurationSnapshot = { tables: {}, replaceAll: [] }): Promise<void> {
   await assertCmsDeploymentStorageAvailable(tx, generationId);
@@ -53,14 +71,6 @@ export async function createCmsGenerationStorage(tx: DbTransaction, siteId: numb
       WHERE table_schema = 'public' AND table_name = ${table} AND is_generated = 'NEVER'
       ORDER BY ordinal_position
     `);
-    const names = columns.map((column) => identifier(column.name)).join(',');
-    const baseMedia = table === 'cms_contents' && baseGenerationId
-      ? await tx.execute<{ present: boolean }>(sql`SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=${cmsGenerationSchemaName(baseGenerationId)} AND table_name='cms_content_projection' AND column_name='media') AS present`)
-      : null;
-    const selected = columns.map((column) => table === 'cms_sites' && column.name === 'settings'
-      ? `jsonb_strip_nulls(jsonb_build_object(${CMS_PUBLIC_SITE_SETTINGS.map((key) => `'${key}', settings->'${key}'`).join(',')}))`
-      : table === 'cms_contents' && column.name === 'media' && baseMedia && !baseMedia[0]?.present ? `'{}'::jsonb`
-      : identifier(column.name)).join(',');
     const scope = (GLOBAL_DEFINITION_TABLES as readonly string[]).includes(table)
       ? sql``
       : (CONTENT_RELATION_TABLES as readonly string[]).includes(table)
@@ -68,9 +78,18 @@ export async function createCmsGenerationStorage(tx: DbTransaction, siteId: numb
         : sql` WHERE site_id = ${siteId}`;
     const configTable = (CMS_CONFIGURATION_TABLES as readonly string[]).includes(table);
     const useBase = baseGenerationId && (configTable || table === 'cms_contents' || (CONTENT_RELATION_TABLES as readonly string[]).includes(table));
-    const source = useBase ? `${identifier(cmsGenerationSchemaName(baseGenerationId!))}.${table === 'cms_sites' ? 'cms_site_projection' : table === 'cms_resources' ? 'cms_resource_projection' : table === 'cms_contents' ? 'cms_content_projection' : name}` : `public.${name}`;
-    if (baseGenerationId || !['cms_pages', 'cms_widgets', 'cms_widget_refs', 'cms_widget_source_refs'].includes(table)) {
-      await tx.execute(sql`${sql.raw(`INSERT INTO ${schema}.${name} (${names}) OVERRIDING SYSTEM VALUE SELECT ${selected} FROM ${source}`)}${scope}`);
+    const sourceTable = useBase && table === 'cms_sites' ? 'cms_site_projection' : useBase && table === 'cms_resources' ? 'cms_resource_projection' : useBase && table === 'cms_contents' ? 'cms_content_projection' : table;
+    const sourceNamespace = useBase ? cmsGenerationSchemaName(baseGenerationId!) : 'public';
+    const sourceColumns = useBase ? await tx.execute<{ name: string }>(sql`SELECT column_name AS name FROM information_schema.columns WHERE table_schema=${sourceNamespace} AND table_name=${sourceTable}`) : columns;
+    const available = new Set(sourceColumns.map(column => column.name));
+    // Omitted target columns receive their declared defaults; missing new tables receive no working rows.
+    const copied = columns.filter(column => available.has(column.name));
+    if (copied.length && (baseGenerationId || !['cms_content_collections', 'cms_pages', 'cms_widgets', 'cms_widget_refs', 'cms_widget_source_refs'].includes(table))) {
+      const names = copied.map(column => identifier(column.name)).join(',');
+      const selected = copied.map(column => table === 'cms_sites' && column.name === 'settings'
+        ? `jsonb_strip_nulls(jsonb_build_object(${CMS_PUBLIC_SITE_SETTINGS.map(key => `'${key}', settings->'${key}'`).join(',')}))`
+        : identifier(column.name)).join(',');
+      await tx.execute(sql`${sql.raw(`INSERT INTO ${schema}.${name} (${names}) OVERRIDING SYSTEM VALUE SELECT ${selected} FROM ${identifier(sourceNamespace)}.${identifier(sourceTable)}`)}${scope}`);
     }
     const frozen = configuration.tables[table];
     if (configTable && frozen) {
@@ -80,7 +99,13 @@ export async function createCmsGenerationStorage(tx: DbTransaction, siteId: numb
       else if (frozen.length) await tx.execute(sql`DELETE FROM ${sql.raw(`${schema}.${name}`)} WHERE id IN (${sql.join(frozen.map((row) => sql`${Number(row.id)}`), sql`,`)})`);
       const removedIds = configuration.deleteIds?.[table] ?? [];
       if (removedIds.length) await tx.execute(sql`DELETE FROM ${sql.raw(`${schema}.${name}`)} WHERE id IN (${sql.join(removedIds.map((id) => sql`${id}`), sql`,`)})`);
-      if (frozen.length) await tx.execute(sql`INSERT INTO ${sql.raw(`${schema}.${name} (${names})`)} OVERRIDING SYSTEM VALUE SELECT ${sql.raw(names)} FROM jsonb_populate_recordset(NULL::${sql.raw(`public.${name}`)}, ${JSON.stringify(frozen)}::jsonb)`);
+      const groups = new Map<string, Record<string, unknown>[]>();
+      for (const row of frozen) {
+        const names = columns.filter(column => Object.hasOwn(row, column.name)).map(column => identifier(column.name)).join(',');
+        if (!names) throw new HTTPException(409, { message: '固定配置缺少可用字段，请重新准备发布单' });
+        const batch = groups.get(names) ?? []; batch.push(row); groups.set(names, batch);
+      }
+      for (const [names, rows] of groups) await tx.execute(sql`INSERT INTO ${sql.raw(`${schema}.${name} (${names})`)} OVERRIDING SYSTEM VALUE SELECT ${sql.raw(names)} FROM jsonb_populate_recordset(NULL::${sql.raw(`public.${name}`)}, ${JSON.stringify(rows)}::jsonb)`);
     }
     if (table === 'cms_sites') {
       await tx.execute(sql.raw(`ALTER TABLE ${schema}.cms_sites RENAME TO cms_site_projection`));

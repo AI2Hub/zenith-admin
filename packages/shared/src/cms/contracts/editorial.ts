@@ -1,11 +1,20 @@
 import * as z from 'zod';
 import { idParam, requiredIdQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
-import { createCmsEditorialNoteSchema, createCmsTranslationSchema, resolveCmsEditorialNoteSchema, cmsTypeConversionSchema, applyCmsTypeConversionSchema } from '../design-validation';
+import { createCmsEditorialNoteSchema, createCmsTranslationSchema, resolveCmsEditorialNoteSchema, replyCmsEditorialNoteSchema, cmsTypeConversionSchema, applyCmsTypeConversionSchema } from '../design-validation';
 import { cmsQualityIssueSchema } from '../model-design';
+import { cmsDocumentAnchorSchema } from '../document';
+
+export const cmsEditorialNoteReplySchema = z.object({
+  id: z.int(), noteId: z.int(), message: z.string(), mentionedUserIds: z.array(z.int()),
+  createdBy: z.int().nullable(), createdByName: z.string().nullable(), createdAt: z.string(), updatedAt: z.string(),
+}).meta({ id: 'CmsEditorialNoteReply' });
+export type CmsEditorialNoteReply = z.infer<typeof cmsEditorialNoteReplySchema>;
 
 export const cmsEditorialNoteSchema = z.object({
   id: z.int(), contentId: z.int(), revisionId: z.int().nullable(), fieldPath: z.string().nullable(), message: z.string(),
+  anchor: cmsDocumentAnchorSchema.nullable(), anchorStatus: z.enum(['current', 'changed', 'missing']).nullable(),
+  replies: z.array(cmsEditorialNoteReplySchema), resolvedBy: z.int().nullable(), resolvedByName: z.string().nullable(), resolvedAt: z.string().nullable(),
   mentionedUserIds: z.array(z.int()), resolved: z.boolean(), createdBy: z.int().nullable(), createdByName: z.string().nullable(), createdAt: z.string(), updatedAt: z.string(),
 }).meta({ id: 'CmsEditorialNote' });
 export type CmsEditorialNote = z.infer<typeof cmsEditorialNoteSchema>;
@@ -27,6 +36,7 @@ export const cmsEditorialContract = defineContract('/api/cms/editorial', {
   notes: op.get('/{id}/notes', { access: { permission: 'cms:content:list' }, params: idParam, response: z.array(cmsEditorialNoteSchema), summary: '内容审稿批注' }),
   addNote: op.post('/{id}/notes', { access: { permission: ['cms:content:update', 'cms:content:audit'] }, params: idParam, body: createCmsEditorialNoteSchema, response: cmsEditorialNoteSchema, audit: '添加 CMS 审稿批注', summary: '添加字段或修订批注' }),
   resolveNote: op.put('/{id}/notes/{noteId}', { access: { permission: ['cms:content:update', 'cms:content:audit'] }, params: idParam.extend({ noteId: idParam.shape.id }), body: resolveCmsEditorialNoteSchema, response: cmsEditorialNoteSchema, audit: '处理 CMS 审稿批注', summary: '处理或重新打开批注' }),
+  replyNote: op.post('/{id}/notes/{noteId}/replies', { access: { permission: ['cms:content:update', 'cms:content:audit'] }, params: idParam.extend({ noteId: idParam.shape.id }), body: replyCmsEditorialNoteSchema, response: cmsEditorialNoteReplySchema, audit: '回复 CMS 审稿批注', summary: '回复批注会话（已解决会话须先重新打开）' }),
   quality: op.get('/{id}/quality', { access: { permission: 'cms:content:list' }, params: idParam, response: z.object({ version: z.int(), issues: z.array(cmsQualityIssueSchema) }), summary: '当前工作稿质量检查' }),
   translations: op.get('/{id}/translations', { access: { permission: 'cms:content:list' }, params: idParam, response: z.array(cmsTranslationSchema), summary: '人工语言变体与源稿变化' }),
   createTranslation: op.post('/{id}/translations', { access: { permission: 'cms:content:create' }, params: idParam, body: createCmsTranslationSchema, response: z.object({ id: z.int() }), audit: '创建 CMS 人工翻译稿', summary: '创建独立审核发布的语言变体' }),

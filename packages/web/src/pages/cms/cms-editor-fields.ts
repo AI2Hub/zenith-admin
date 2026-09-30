@@ -1,10 +1,12 @@
-import type { CmsContentType, CmsModelField } from '@zenith/shared/cms';
+import type { CmsContentType, CmsModelField, CmsFieldDefinition } from '@zenith/shared/cms';
+import { isPlainObject } from '@zenith/shared/core';
 
 type SideTab = 'basic' | 'attribution' | 'seo' | 'schedule' | 'advanced';
 export interface CmsEditorFieldLocation {
   label: string;
   field: string;
   sideTab?: SideTab;
+  nodeId?: string;
 }
 
 /** 编辑表单的位置和业务名称；模型字段继续使用当前稿件冻结的定义。 */
@@ -55,6 +57,29 @@ export function normalizeCmsEditorFieldPath(path: string): string {
   return path.replace(/\[(\d+)\]/g, '.$1');
 }
 
+/** Rebase a repeatable instance's path after reorder, using its persisted identity. */
+export function rebaseCmsEditorFieldPath(path: string, blockId: string | undefined, extend: Record<string, unknown>): string {
+  const normalized = normalizeCmsEditorFieldPath(path);
+  if (!blockId || !normalized.startsWith('extend.')) return normalized;
+  const find = (value: unknown, prefix: string): string | undefined => {
+    if (Array.isArray(value)) {
+      for (const [index, item] of value.entries()) {
+        const match = isPlainObject(item) && item._id === blockId ? `${prefix}.${index}` : find(item, `${prefix}.${index}`);
+        if (match) return match;
+      }
+    } else if (isPlainObject(value)) {
+      for (const [name, child] of Object.entries(value)) { const match = find(child, `${prefix}.${name}`); if (match) return match; }
+    }
+    return undefined;
+  };
+  const current = find(extend, 'extend');
+  if (!current) return normalized;
+  const parts = normalized.split('.');
+  let lastIndex = -1;
+  parts.forEach((part, index) => { if (/^\d+$/.test(part)) lastIndex = index; });
+  return lastIndex < 0 ? current : [current, ...parts.slice(lastIndex + 1)].join('.');
+}
+
 export function getCmsEditorFieldLocation(
   path: string,
   fields: readonly CmsModelField[] = [],
@@ -68,17 +93,15 @@ export function getCmsEditorFieldLocation(
     const definition = fields.find((field) => field.name === name);
     if (!definition) return null;
     const labels = [definition.label];
-    const index = tail[0] && /^\d+$/.test(tail[0]) ? Number(tail[0]) : undefined;
-    const childName = index === undefined ? tail[0] : tail[1];
-    if (index !== undefined) labels.push(`第 ${index + 1} 项`);
-    if (childName) {
-      const items = extend[name];
-      const item = Array.isArray(items) && index !== undefined ? items[index] : undefined;
-      const blockType = item && typeof item === 'object' ? (item as Record<string, unknown>).blockType : undefined;
-      const children = definition.configuration?.blockTypes?.find((block) => block.code === blockType)?.fields
-        ?? definition.configuration?.fields;
-      const child = children?.find((field) => field.name === childName);
-      labels.push(childName === 'blockType' ? '区块类型' : child?.label ?? '子字段');
+    let current: CmsFieldDefinition = definition;
+    let value: unknown = extend[name];
+    for (const part of tail) {
+      if (/^\d+$/.test(part)) { const index = Number(part); labels.push(`第 ${index + 1} 项`); value = Array.isArray(value) ? value[index] : undefined; continue; }
+      const children = current.configuration?.blockTypes?.find((block) => block.code === (isPlainObject(value) ? value.blockType : undefined))?.fields ?? current.configuration?.fields;
+      const child = children?.find((field) => field.name === part);
+      labels.push(part === 'blockType' ? '区块类型' : part === '_id' ? '组件标识' : child?.label ?? '子字段');
+      if (child) current = child;
+      value = isPlainObject(value) ? value[part] : undefined;
     }
     return { label: labels.join(' / '), field: normalized };
   }

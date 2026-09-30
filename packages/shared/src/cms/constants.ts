@@ -440,8 +440,8 @@ export const CMS_WIDGET_REF_OWNER_TYPES = ['page', 'theme_slot'] as const;
 
 export const CMS_WIDGET_SLOT_KEYS = ['home.main', 'home.sidebar', 'detail.related', 'footer'] as const;
 
-export const CMS_HOME_SECTION_SOURCES = ['channel', 'latest', 'recommended', 'hot'] as const;
-export const CMS_HOME_SECTION_SOURCE_LABELS = { channel: '指定栏目', latest: '全站最新', recommended: '推荐内容', hot: '热门内容' };
+export const CMS_HOME_SECTION_SOURCES = ['channel', 'latest', 'recommended', 'hot', 'collection'] as const;
+export const CMS_HOME_SECTION_SOURCE_LABELS = { channel: '指定栏目', latest: '全站最新', recommended: '推荐内容', hot: '热门内容', collection: '内容集合' };
 export const CMS_HOME_SECTION_SOURCE_OPTIONS = createLabelOptionsFromMap(CMS_HOME_SECTION_SOURCE_LABELS);
 export const CMS_HOME_SECTION_STYLES = ['feature-list', 'cards', 'compact'] as const;
 export const CMS_HOME_SECTION_STYLE_LABELS = { 'feature-list': '首条图文，其余标题', cards: '图文卡片', compact: '紧凑标题' };
@@ -634,7 +634,9 @@ export const CMS_CONTENT_OP_ACTION_LABELS: Record<(typeof CMS_CONTENT_OP_ACTIONS
 };
 
 export const CMS_FIELD_TYPES = ['text', 'textarea', 'richtext', 'number', 'date', 'datetime', 'image', 'file', 'select', 'radio', 'checkbox', 'switch', 'reference', 'references', 'object', 'array', 'blocks'] as const;
-export const CMS_COMPONENT_FIELD_TYPES = ['text', 'textarea', 'richtext', 'number', 'date', 'datetime', 'switch'] as const;
+export const CMS_COMPONENT_FIELD_TYPES = CMS_FIELD_TYPES;
+export const CMS_MODEL_MAX_DEPTH = 6;
+export const CMS_MODEL_MAX_FIELDS = 500;
 
 export const CMS_FIELD_TYPE_LABELS: Record<(typeof CMS_FIELD_TYPES)[number], string> = {
   text: '单行文本',
@@ -655,11 +657,17 @@ export const CMS_FIELD_TYPE_LABELS: Record<(typeof CMS_FIELD_TYPES)[number], str
   array: '重复组件',
   blocks: '动态区块',
 };
+export const CMS_FIELD_TYPE_OPTIONS = createLabelOptionsFromMap(CMS_FIELD_TYPE_LABELS);
+export const CMS_FIELD_OPTION_SOURCE_OPTIONS = createLabelOptionsFromMap({ manual: '手工选项', dict: '系统字典' } as const);
 
 /** CMS 前台预览路径前缀（无域名绑定时通过 /__cms/{siteCode}/... 访问站点） */
 export const CMS_PREVIEW_PREFIX = '/__cms';
 export const CMS_RELEASE_SOURCES = ['manual', 'content', 'configuration'] as const;
 export const CMS_PREVIEW_MODES = ['working', 'candidate', 'online'] as const;
+export const CMS_RELEASE_CHECK_KINDS = ['release', 'quality', 'dependency', 'unique'] as const;
+export const CMS_RELEASE_CHECK_OBJECT_KINDS = ['release', 'site', 'content', 'channel', 'page', 'widget', 'resource', 'model', 'tag'] as const;
+export const CMS_RELEASE_CHECK_ACTIONS = ['edit', 'select-approved', 'review', 'rebuild', 'recreate'] as const;
+export const CMS_RELEASE_CHECK_ACTION_LABELS = { edit: '编辑后重新准备', 'select-approved': '选择已批准依赖', review: '完成审核后重新检查', rebuild: '构建候选部署', recreate: '重新准备发布单' };
 export const CMS_PREVIEW_MODE_LABELS = { working: '已保存工作稿', candidate: '本次候选部署', online: '当前线上版本' } as const;
 export const CMS_RELEASE_CHANGE_KINDS = ['content', 'site', 'channel', 'page', 'widget', 'resource', 'navigation'] as const;
 export const CMS_RELEASE_CHANGE_LABELS = { content: '内容', site: '站点', channel: '栏目', page: '页面', widget: '部件', resource: '素材', navigation: '配置关联' } as const;

@@ -22,6 +22,7 @@ const resource = createResourceQueries(cmsContentContract, {
     invalidateCmsDashboardStats(qc);
     void qc.invalidateQueries({ queryKey: contractKey(cmsEditorialContract.metrics) });
     void qc.invalidateQueries({ queryKey: contractKey(cmsEditorialContract.quality, { params: { id: saved.id } }) });
+    void qc.invalidateQueries({ queryKey: contractKey(cmsEditorialContract.notes, { params: { id: saved.id } }) });
     void qc.invalidateQueries({ queryKey: contractKey(cmsEditorialContract.translations) });
   },
 });
@@ -114,6 +115,7 @@ export function invalidateAfterCmsContentChange(qc: QueryClient, ids?: readonly 
   void invalidateEntityRelations(qc);
   void qc.invalidateQueries({ queryKey: contractKey(cmsEditorialContract.metrics) });
   void qc.invalidateQueries({ queryKey: contractKey(cmsEditorialContract.quality) });
+  void qc.invalidateQueries({ queryKey: contractKey(cmsEditorialContract.notes) });
   void qc.invalidateQueries({ queryKey: contractKey(cmsEditorialContract.translations) });
   void qc.invalidateQueries({ queryKey: contractKey(cmsReleaseContract.list) });
   void qc.invalidateQueries({ queryKey: cmsContentKeys.lists });

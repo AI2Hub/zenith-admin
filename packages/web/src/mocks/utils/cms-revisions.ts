@@ -5,6 +5,8 @@ import { mockCmsContents, mockCmsContentVersions, mockCmsModels, mockCmsTags, mo
 import { MockHttpError } from './contract';
 import { conflict, locked, notFound } from './handlers';
 import { mockDateTime } from './date';
+import { validateMockCmsTaxonomySelection } from './cms-taxonomy';
+import { normalizeMockCmsDocument } from './cms-document';
 
 const publicContents = new Map<number, CmsContent>();
 const reviewRevisions = new Map<number, number>();
@@ -45,6 +47,7 @@ function initialize() {
     content.approvedRevisionId ??= null;
     content.hasUnpublishedChanges ??= content.status !== 'published';
     content.modelFields ??= structuredClone(mockCmsModels.find((model) => model.id === content.modelId)?.fields ?? []);
+    content.bodyDocument ??= normalizeMockCmsDocument(content.body ?? '');
     if (content.status === 'published') {
       const revision = freezeMockCmsRevision(content.id, 'publication');
       content.publishedRevisionId = revision.id;
@@ -57,6 +60,7 @@ export function getMockCmsWorkingContent(id: number): CmsContent {
   initialize();
   const content = mockCmsContents.find((item) => item.id === id);
   if (!content) throw new MockHttpError(notFound('内容不存在', { status: 404 }));
+  content.bodyDocument ??= normalizeMockCmsDocument(content.body ?? '');
   content.channelName = mockCmsChannels.find((channel) => channel.id === content.channelId)?.name ?? null;
   content.tags = mockCmsTags.filter((tag) => content.tagIds.includes(tag.id));
   return content;
@@ -68,6 +72,7 @@ export function assertMockCmsCas(id: number, expectedVersion: number): CmsConten
 }
 export function freezeMockCmsRevision(contentId: number, kind = 'checkpoint'): CmsContentVersion {
   const content = getMockCmsWorkingContent(contentId);
+  validateMockCmsTaxonomySelection(content, false);
   resolveSelectedResources(content);
   const revision: CmsContentVersion = {
     id: Math.max(0, ...mockCmsContentVersions.map((item) => item.id)) + 1,
@@ -117,6 +122,8 @@ export function saveMockCmsWorkingContent(contentId: number, values: Record<stri
   if (content.lockedAt) throw new MockHttpError(locked('内容已被持久锁定', { status: 423 }));
   const { expectedVersion: _version, saveMode: _mode, status: _status, editorialStatus: _editorialStatus, refreshResourceIds, ...patch } = values;
   const candidate = { ...content, ...structuredClone(patch) };
+  if (typeof patch.body === 'string') candidate.bodyDocument = normalizeMockCmsDocument(patch.body, content.bodyDocument);
+  validateMockCmsTaxonomySelection(candidate, false);
   resolveSelectedResources(candidate, Array.isArray(refreshResourceIds) ? refreshResourceIds.filter((id): id is number => typeof id === 'number') : []);
   const before = workingSnapshot(content);
   const next = workingSnapshot(candidate);

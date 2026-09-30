@@ -41,6 +41,7 @@ export * from './schema/report';
 export * from './schema/report-platform';
 export * from './schema/cms';
 export * from './schema/cms-design';
+export * from './schema/cms-components';
 export * from './schema/cms-media';
 export * from './schema/cms-telemetry';
 export * from './schema/cms-collection';
@@ -60,3 +61,4 @@ export * from './schema/cms-content-reviews';
 
 export * from './schema/cms-deployment-retention';
 export * from './schema/cms-delivery';
+export * from './schema/cms-content-collections';

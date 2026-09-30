@@ -11,3 +11,4 @@ export const useCmsReleaseReview = (id?: number) => useApiQuery(cmsReleaseContra
   enabled: Boolean(id), refetchInterval: (query) => query.state.data?.tasks.some((task) => task.status === 'pending' || task.status === 'running') ? 3000 : false,
 });
 export const useRecreateCmsRelease = () => useApiMutation(cmsReleaseContract.recreate, { invalidate: invalidateCmsReleases });
+export const useResolveCmsReleaseDependencies = () => useApiMutation(cmsReleaseContract.resolveDependencies, { invalidate: invalidateCmsReleases });

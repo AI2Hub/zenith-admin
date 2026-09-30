@@ -1,5 +1,6 @@
 import { cmsContentCasSchema } from '../content-revision';
 import * as z from 'zod';
+import { cmsCollectionResultSchema } from './content-collections';
 import { dateRangeBound, idParam, paginated } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import {
@@ -149,6 +150,7 @@ export const openCmsContentIdOrSlugParam = z.object({
 // ─── 契约（开放网关 CMS 子端点，鉴权 / 计量 / 限流由网关中间件统一施加） ────────
 
 export const openCmsContract = defineContract('/api/open', {
+  collection: op.get('/v1/cms/collections/{id}', { security: 'open-gateway', params: idParam, query: openCmsSiteCodeQuery, response: cmsCollectionResultSchema, summary: '当前公开版本的内容集合', description: '所需 scope：cms:read；仅返回公开内容，按固定集合规则排序。' }),
   channels: op.get('/v1/cms/channels', {
     security: 'open-gateway',
     query: openCmsSiteCodeQuery,

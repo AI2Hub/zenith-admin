@@ -3,7 +3,7 @@ import { HTTPException } from 'hono/http-exception';
 import { cmsHomeSectionsSchema, cmsModelDisplaysSchema, validateCmsHomeSections, validateCmsModelDisplay } from '@zenith/shared/cms';
 import { db } from '../../db';
 import type { DbExecutor } from '../../db/types';
-import { cmsChannels, cmsModels, cmsModelVersions } from '../../db/schema';
+import { cmsChannels, cmsModels, cmsModelVersions, cmsContentCollections } from '../../db/schema';
 import { getThemeSettingsSchema } from '../../cms/themes/registry';
 
 /** Runs inside the authorized site mutation, including its transaction and effective settings. */
@@ -22,6 +22,8 @@ export async function assertCmsSiteComposition(theme: string, settings: Record<s
   }
   // The pre-insert check validates shape. References are checked again after assigning the new site id.
   if (siteId === undefined) return;
+  const collectionIds = sections.data.flatMap(section => section.source === 'collection' && section.collectionId ? [section.collectionId] : []);
+  if (collectionIds.length && await executor.$count(cmsContentCollections, and(eq(cmsContentCollections.siteId, siteId), inArray(cmsContentCollections.id, collectionIds))) !== new Set(collectionIds).size) throw new HTTPException(400, { message: '首页内容集合不存在或不属于本站' });
   const channelIds = sections.data.flatMap((row) => row.channelId ? [row.channelId] : []);
   const modelIds = displays.data.map((row) => row.modelId);
   const [channels, models] = await Promise.all([

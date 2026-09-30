@@ -228,6 +228,7 @@ export interface CmsHomeContext extends CmsBaseContext {
 
 /** contents.list 查询（白名单参数；limit 上限 100，排序固定 置顶优先 → 发布时间倒序） */
 export interface CmsThemeContentQuery {
+  collectionId?: number;
   /** 栏目标识（站内 code）；留空取全站 */
   channelCode?: string;
   channelId?: number;

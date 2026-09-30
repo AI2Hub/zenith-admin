@@ -1,17 +1,18 @@
 import { asc, eq, inArray, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import type * as z from 'zod';
-import { cmsReleaseFieldDiffs, type CmsReleaseChange, type CmsReleaseReview, recreateCmsReleaseSchema } from '@zenith/shared/cms';
+import { CMS_RELEASE_CHECK_RULE_VERSION, cmsReleaseFieldDiffs, makeCmsReleaseCheck, type CmsReleaseChange, type CmsReleaseReview, recreateCmsReleaseSchema, resolveCmsReleaseDependenciesSchema } from '@zenith/shared/cms';
 import { readSnapshot, withDbExecutor } from '../../db';
 import { asyncTasks, cmsChannels, cmsContents, cmsDeployments, cmsDeploymentStorage } from '../../db/schema';
 import { createCmsRelease, getCmsReleaseDetail, requireRelease } from './cms-releases.service';
 import { loadCmsRevision } from './cms-content-revisions.service';
 import { cmsReleaseInputFingerprint } from './cms-release-fingerprint';
-import { cmsGenerationSchemaName } from './cms-generation-storage.service';
+import { cmsGenerationSchemaName, readCmsGenerationConfigurationRows, withCmsGenerationTransaction } from './cms-generation-storage.service';
 import { CMS_CONFIGURATION_TABLES, CMS_PUBLIC_SITE_SETTINGS } from './cms-public-settings';
-import { isCmsRevisionAssetVisible } from './cms-asset-rights.service';
-import { validateCmsModelExtend } from './cms-model-extend';
 import { channelUrl, contentUrl, customPagePath } from './cms-urls';
+import { inspectCmsReleaseReadiness, suggestCmsReleaseDependencies } from './cms-release-readiness.service';
+import { inspectCmsReleaseDependencies, uniqueCmsReleaseChecks } from './cms-release-preflight.service';
+import { formatDateTime } from '../../lib/datetime';
 
 const CONFIGURATION_KINDS: Record<string, CmsReleaseChange['kind']> = { cms_sites: 'site', cms_channels: 'channel', cms_pages: 'page', cms_widgets: 'widget', cms_resources: 'resource' };
 const kindOf = (table: string): CmsReleaseChange['kind'] => CONFIGURATION_KINDS[table] ?? 'navigation';
@@ -32,7 +33,7 @@ function rowPath(table: string, row: Record<string, unknown> | null): string[] {
 
 export async function getCmsReleaseReview(id: number): Promise<CmsReleaseReview> {
   await requireRelease(id);
-  return readSnapshot((tx) => withDbExecutor(tx, async () => {
+  const inspected = await readSnapshot((tx) => withDbExecutor(tx, async () => {
     const release = await requireRelease(id);
     const detail = await getCmsReleaseDetail(id);
     const historical = ['active', 'superseded'].includes(release.status);
@@ -44,9 +45,11 @@ export async function getCmsReleaseReview(id: number): Promise<CmsReleaseReview>
     const oldRevisions = new Map(current?.snapshot?.revisions.map((entry) => [entry.contentId, entry.revisionId]) ?? []);
     const report: CmsReleaseReview = { releaseId: id, fingerprint: cmsReleaseInputFingerprint(release), baseGenerationId: release.baseGenerationId,
       currentGenerationId: detail.activeGenerationId, comparisonGenerationId, stale: !historical && detail.activeGenerationId !== release.baseGenerationId,
-      changes: [], checks: [], affectedPaths: [], wholeSiteAffected: false, tasks: [] };
-    if (comparisonGenerationId && !comparisonAvailable) report.checks.push({ severity: 'warning', code: 'comparison-storage', message: '比较代次存储已回收；内容修订差异仍可查看，配置差异和历史路径不再重算。', objectTitle: `部署 #${comparisonGenerationId}`, editPath: null });
-    for (const message of detail.blockingChecks) if (!historical || !message.includes('公开代次已变化')) report.checks.push({ severity: release.status === 'draft' && message.includes('尚未成功构建') ? 'warning' : 'error', code: 'release', message, objectTitle: release.name, editPath: null });
+      changes: [], checks: [], affectedPaths: [], wholeSiteAffected: false, tasks: [], dependencyOptions: [],
+      validation: { inputFingerprint: cmsReleaseInputFingerprint(release), ruleVersion: CMS_RELEASE_CHECK_RULE_VERSION, checkedAt: formatDateTime(new Date()) } };
+    const releaseObject = { kind: 'release' as const, id, title: release.name, revisionId: null };
+    if (comparisonGenerationId && !comparisonAvailable) report.checks.push(makeCmsReleaseCheck({ siteId: release.siteId, object: releaseObject, kind: 'release', severity: 'warning', code: 'comparison-storage', message: '比较代次存储已回收；内容修订差异仍可查看，配置差异和历史路径不再重算。', recommendedAction: 'recreate' }));
+    for (const message of detail.blockingChecks) if (!historical || !message.includes('公开代次已变化')) report.checks.push(makeCmsReleaseCheck({ siteId: release.siteId, object: releaseObject, kind: 'release', severity: release.status === 'draft' && message.includes('尚未成功构建') ? 'warning' : 'error', code: 'release', message, recommendedAction: message.includes('公开代次') ? 'recreate' : 'rebuild' }));
     const channels = comparisonAvailable
       ? await tx.execute<{ id: number; path: string; detailPathRule: typeof cmsChannels.$inferSelect.detailPathRule }>(sql.raw(`SELECT id,path,detail_path_rule AS "detailPathRule" FROM "${cmsGenerationSchemaName(comparisonGenerationId)}".cms_channels`))
       : comparisonGenerationId ? [] : await tx.select({ id: cmsChannels.id, path: cmsChannels.path, detailPathRule: cmsChannels.detailPathRule }).from(cmsChannels).where(eq(cmsChannels.siteId, release.siteId));
@@ -75,16 +78,6 @@ export async function getCmsReleaseReview(id: number): Promise<CmsReleaseReview>
       });
       if (fields.length) report.changes.push({ kind: 'content', id: item.contentId, title: item.title,
         operation: after ? before ? 'update' : 'create' : 'remove', fields, paths: [...new Set(paths)], editPath: hrefOf('content', release.siteId, item.contentId) });
-      if (after) {
-        try {
-          await validateCmsModelExtend(after.modelId, after.extend, 'publish', after.modelVersionId);
-          if (!await isCmsRevisionAssetVisible(after, tx)) throw new HTTPException(409, { message: '固定修订包含已撤权或过期素材' });
-        } catch (error) {
-          if (!(error instanceof HTTPException)) throw error;
-          report.checks.push({ severity: 'error', code: 'content-dependency', message: error.message, objectTitle: item.title, editPath: hrefOf('content', release.siteId, item.contentId) });
-        }
-        if (!after.summary) report.checks.push({ severity: 'warning', code: 'summary', message: '建议填写摘要，便于检索和分享', objectTitle: item.title, editPath: hrefOf('content', release.siteId, item.contentId) });
-      }
     }
     for (const table of CMS_CONFIGURATION_TABLES) {
       if (comparisonGenerationId && !comparisonAvailable) continue;
@@ -98,8 +91,8 @@ export async function getCmsReleaseReview(id: number): Promise<CmsReleaseReview>
           return value == null ? [] : [[key, value]];
         })) });
       const after = scopeRows(incoming);
-      const previous = comparisonGenerationId ? await tx.execute<{ row: Record<string, unknown> }>(sql.raw(`SELECT to_jsonb(t) AS row FROM "${cmsGenerationSchemaName(comparisonGenerationId)}"."${table}" t`)) : [];
-      const before = scopeRows(previous.map((entry) => entry.row));
+      const previous = comparisonGenerationId ? await readCmsGenerationConfigurationRows(tx, comparisonGenerationId, table) : [];
+      const before = scopeRows(previous);
       const rowKey = (row: Record<string, unknown>) => String(row.id ?? `${row.site_id}:${row.component}`);
       const beforeMap = new Map(before.map((row) => [rowKey(row), row])); const afterMap = new Map(after.map((row) => [rowKey(row), row]));
       const keys = new Set([...afterMap.keys(), ...(release.configurationSnapshot.deleteIds?.[table] ?? []).map(String), ...(release.configurationSnapshot.replaceAll.includes(table) ? beforeMap.keys() : [])]);
@@ -113,15 +106,38 @@ export async function getCmsReleaseReview(id: number): Promise<CmsReleaseReview>
         if (['site', 'channel', 'widget', 'navigation'].includes(kind)) report.wholeSiteAffected = true;
       }
     }
-    if (!await isCmsRevisionAssetVisible(release.configurationSnapshot, tx)) report.checks.push({ severity: 'error', code: 'configuration-assets', message: '候选配置素材已撤权或过期', objectTitle: '站点配置', editPath: hrefOf('site', release.siteId, release.siteId) });
     report.affectedPaths = [...new Set(['/', ...report.changes.flatMap((change) => change.paths)])].sort();
     const deployments = await tx.select({ taskIds: cmsDeployments.taskIds }).from(cmsDeployments).where(eq(cmsDeployments.releaseId, id));
     const taskIds = [...new Set(deployments.flatMap((deployment) => deployment.taskIds))];
     if (taskIds.length) report.tasks = await tx.select({ id: asyncTasks.id, taskType: asyncTasks.taskType, title: asyncTasks.title, status: asyncTasks.status,
       processedCount: asyncTasks.processedCount, totalCount: asyncTasks.totalCount, progressNote: asyncTasks.progressNote, errorMessage: asyncTasks.errorMessage,
     }).from(asyncTasks).where(inArray(asyncTasks.id, taskIds)).orderBy(asc(asyncTasks.id));
-    return report;
+    const readiness = await inspectCmsReleaseReadiness(tx, release);
+    report.validation = readiness.validation;
+    report.checks.push(...readiness.checks);
+    if (candidateAvailable && release.deploymentId && release.configurationItems.length) {
+      report.checks.push(...await withCmsGenerationTransaction(release.siteId, release.deploymentId, true, candidate => inspectCmsReleaseDependencies(candidate, release.siteId)));
+    }
+    report.checks = uniqueCmsReleaseChecks(report.checks);
+    return { report, release, historical };
   }));
+  // Suggestions require current object ACLs, while checks above inspect one consistent fixed input.
+  if (!inspected.historical) inspected.report.dependencyOptions = await suggestCmsReleaseDependencies(inspected.release, inspected.report.checks);
+  return inspected.report;
+}
+
+export async function resolveCmsReleaseDependencies(id: number, input: z.output<typeof resolveCmsReleaseDependenciesSchema>) {
+  const release = await requireRelease(id);
+  const review = await getCmsReleaseReview(id);
+  if (review.stale || review.fingerprint !== input.expectedFingerprint || review.currentGenerationId !== input.expectedGenerationId || release.baseGenerationId !== input.expectedGenerationId) throw new HTTPException(409, { message: '发布范围或线上版本已变化，请刷新检查后重新准备' });
+  if (['active', 'superseded', 'cancelled'].includes(release.status)) throw new HTTPException(409, { message: '仅待发布的发布单可以补充依赖' });
+  const choices = [...new Set(input.revisionIds)];
+  if (choices.some(revisionId => !review.dependencyOptions.some(option => option.revisionId === revisionId))) throw new HTTPException(409, { message: '依赖修订已变化、未批准或无权访问，请刷新检查后选择' });
+  return createCmsRelease({ siteId: release.siteId, name: `${release.name.slice(0, 175)}（补充依赖）`,
+    revisionIds: [...release.items.flatMap(item => item.revisionId ? [item.revisionId] : []), ...choices],
+    withdrawContentIds: release.items.filter(item => item.action === 'withdraw').map(item => item.contentId),
+    pageIds: [], widgetIds: [], includeSiteConfiguration: false, timeZone: release.timeZone, autoActivate: false,
+  }, { snapshot: structuredClone(release.configurationSnapshot), items: structuredClone(release.configurationItems), baseGenerationId: release.baseGenerationId }, 'manual', input.expectedGenerationId, { id, fingerprint: input.expectedFingerprint });
 }
 
 export async function recreateCmsRelease(id: number, input: z.output<typeof recreateCmsReleaseSchema>) {

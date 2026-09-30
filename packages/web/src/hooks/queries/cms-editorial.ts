@@ -26,6 +26,11 @@ export function useResolveCmsEditorialNote() {
     void qc.invalidateQueries({ queryKey: cmsEditorialKeys.metrics });
   } });
 }
+export function useReplyCmsEditorialNote() {
+  return useApiMutation(cmsEditorialContract.replyNote, { invalidate: (qc, _data, input) => {
+    void qc.invalidateQueries({ queryKey: cmsEditorialKeys.notes(input.params.id) });
+  } });
+}
 export function useCreateCmsTranslation() {
   return useApiMutation(cmsEditorialContract.createTranslation, { invalidate: (qc) => {
     invalidateAfterCmsContentChange(qc);

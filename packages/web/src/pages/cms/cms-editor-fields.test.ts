@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CmsModelField } from '@zenith/shared/cms';
 import { mockCmsModels } from '@/mocks/data/cms';
-import { cmsEditorFieldLabel, getCmsEditorFieldLocation, normalizeCmsEditorFieldPath } from './cms-editor-fields';
+import { cmsEditorFieldLabel, getCmsEditorFieldLocation, normalizeCmsEditorFieldPath, rebaseCmsEditorFieldPath } from './cms-editor-fields';
 
 const fieldBase = mockCmsModels.flatMap((model) => model.fields ?? [])[0];
 
@@ -33,5 +33,14 @@ describe('CMS 质量问题编辑定位', () => {
     expect(getCmsEditorFieldLocation('extend', [fieldBase])?.field).toBe('extend');
     expect(getCmsEditorFieldLocation('assetVersions.123')).toBeNull();
     expect(cmsEditorFieldLabel(null)).toBe('整篇稿件');
+  });
+  it('locates a nested field after its containing component has moved', () => {
+    const field: CmsModelField = { ...fieldBase, name: 'sections', label: '内容区块', fieldType: 'array', configuration: { fields: [
+      { name: 'profile', label: '人物资料', fieldType: 'object', configuration: { fields: [{ name: 'name', label: '姓名', fieldType: 'text' }] } },
+    ] } };
+    const values = { sections: [{ _id: 'new', profile: { name: '乙' } }, { _id: 'original', profile: { name: '甲' } }] };
+    const path = rebaseCmsEditorFieldPath('extend.sections.0.profile.name', 'original', values);
+    expect(path).toBe('extend.sections.1.profile.name');
+    expect(getCmsEditorFieldLocation(path, [field], 'article', values)?.label).toBe('内容区块 / 第 2 项 / 人物资料 / 姓名');
   });
 });

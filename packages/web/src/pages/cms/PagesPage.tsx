@@ -1,3 +1,4 @@
+import { useAllCmsCollections } from '@/hooks/queries/cms-content-collections';
 /** 页面搭建：区块 JSON 装配（P3 Batch6）——列表 + 区块搭建器 SideSheet */
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { Banner, Checkbox, Button, Dropdown, Form, Input, Select, SideSheet, Tag, Toast, Typography, Empty } from '@douyinfe/semi-ui';
@@ -95,6 +96,7 @@ export default function PagesPage() {
   });
 
   const { data: sitesPage } = useCmsSiteList({ page: 1, pageSize: 100 });
+  const collectionsQuery = useAllCmsCollections(siteId);
   const treeQuery = useCmsChannelTree(siteId);
   const tagOptionsQuery = useCmsTagList({ page: 1, pageSize: 200, siteId: siteId ?? 0 }, siteId !== undefined);
   const saveMutation = useSaveCmsPage();
@@ -405,6 +407,7 @@ export default function PagesPage() {
       {editingBlockType === 'content-list' ? (
         <>
           <Form.Input field="title" label="标题" />
+          <Form.Select field="collectionId" label="内容集合" showClear optionList={(collectionsQuery.data ?? []).map(row => ({ value: row.id, label: row.name }))} extraText="选择集合后统一使用集合的筛选和排序，条数作为展示上限" />
           <Form.TreeSelect field="channelCode" label="栏目" style={{ width: '100%' }} showClear
             treeData={channelsToSelectTree(treeQuery.data ?? [])} placeholder="留空取全站" />
           <Form.Select field="tagSlug" label="标签聚合" style={{ width: '100%' }} showClear filter

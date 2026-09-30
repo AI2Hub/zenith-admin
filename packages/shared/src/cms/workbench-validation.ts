@@ -19,3 +19,4 @@ export const renderCmsWorkbenchPreviewSchema = z.object({
   if (value.mode === 'working' && !value.includeSiteConfiguration && !value.contentIds.length && !value.pageIds.length && !value.widgetIds.length) ctx.addIssue({ code: 'custom', path: ['contentIds'], message: '请选择需要预览的工作稿或配置' });
 });
 export const recreateCmsReleaseSchema = z.object({ expectedGenerationId: z.int().positive().nullable(), expectedFingerprint: z.string().regex(/^[a-f0-9]{64}$/) });
+export const resolveCmsReleaseDependenciesSchema = recreateCmsReleaseSchema.extend({ revisionIds: z.array(z.int().positive()).min(1).max(1000) });

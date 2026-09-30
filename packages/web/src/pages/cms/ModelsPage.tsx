@@ -1,16 +1,13 @@
-import { Button, Form, Tag, ArrayField, Row, Col, useFormApi, Toast, Tooltip } from '@douyinfe/semi-ui';
+import { Form, Tag, Tabs, Toast, Tooltip, Banner } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { useState } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { useState, type CSSProperties } from 'react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { createdAtColumn, overflowTagColumn, renderEllipsis, renderEnabledStatusTag } from '@/utils/table-columns';
+import { createdAtColumn, renderEllipsis, renderEnabledStatusTag } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
-import { useCmsModelList, useSaveCmsModel, useDeleteCmsModel } from '@/hooks/queries/cms';
-import { useDictList } from '@/hooks/queries/dicts';
-import { CMS_FIELD_OPTION_SOURCE_LABELS, CMS_FIELD_OPTION_SOURCES, CMS_FIELD_TYPES, CMS_FIELD_TYPES_WITH_OPTIONS, CMS_FIELD_TYPE_LABELS, cmsModelContract } from '@zenith/shared/cms';
-import type { CmsModel } from '@zenith/shared/cms';
+import { useCmsModelList, useSaveCmsModel, useDeleteCmsModel, type CmsModelSaveValues } from '@/hooks/queries/cms-models';
+import { cmsModelContract, validateCmsFieldDefinitions, type CmsModel } from '@zenith/shared/cms';
 import { CreateButton } from '@/components/toolbar-controls';
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { abortSubmit } from '@/lib/abort-submit';
@@ -18,275 +15,81 @@ import { KeywordInput } from '@/components/search-filters';
 import { deleteAction, ListSearchToolbar } from '@/components/list-page';
 import { FormStatusRadioGroup } from '@/components/FormStatusRadioGroup';
 import { useListPage } from '@/hooks/useListPage';
+import { useUrlTabState } from '@/hooks/useUrlTabState';
+import { useApiQuery } from '@/lib/contract-query';
 import { EditFormSheet } from '@/components/EditFormModal';
-import ModelFieldRules from './ModelFieldRules';
-import { usePublishCmsModel } from '@/hooks/queries/cms-models';
+import { CmsFieldDefinitionsEditor } from './ModelFieldRules';
+import { serializeCmsModelFields, toCmsFieldEditorValues, type CmsFieldEditorValue } from './model-field-editor-values';
+import { CmsModelPublishSheet } from './CmsSchemaPublishSheet';
+import CmsComponentsPanel from './CmsComponentsPanel';
 
-const FIELD_TYPE_OPTIONS = CMS_FIELD_TYPES.map((t) => ({ value: t, label: CMS_FIELD_TYPE_LABELS[t] }));
-const OPTION_SOURCE_OPTIONS = CMS_FIELD_OPTION_SOURCES.map((s) => ({ value: s, label: CMS_FIELD_OPTION_SOURCE_LABELS[s] }));
-
-/**
- * 选项来源配置行：仅 select/radio/checkbox 需要，其余类型不渲染避免干扰。
- * 选「引用系统字典」后由服务端按字典编码解析，字典项变更自动同步，无需回来改模型。
- */
-function FieldOptionSource({ field }: { field: string }) {
-  const formApi = useFormApi();
-  const fieldType = formApi.getValue(`${field}[fieldType]`) as string | undefined;
-  const optionSource = formApi.getValue(`${field}[optionSource]`) as string | undefined;
-  const dictQuery = useDictList({ page: 1, pageSize: 200 });
-  const dictOptions = (dictQuery.data?.list ?? []).map((d) => ({ value: d.code, label: `${d.name}（${d.code}）` }));
-
-  if (!CMS_FIELD_TYPES_WITH_OPTIONS.includes(fieldType as (typeof CMS_FIELD_TYPES_WITH_OPTIONS)[number])) return null;
-  return (
-    <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', width: '100%', marginBottom: 8 }}>
-      <Form.Select field={`${field}[optionSource]`} noLabel initValue="manual" style={{ width: 150 }} optionList={OPTION_SOURCE_OPTIONS} />
-      {optionSource === 'dict' ? (
-        <Form.Select
-          field={`${field}[dictCode]`}
-          noLabel
-          filter
-          showClear
-          style={{ width: 260 }}
-          placeholder="选择字典"
-          loading={dictQuery.isFetching}
-          optionList={dictOptions}
-          rules={[{ required: true, message: '请选择字典' }]}
-        />
-      ) : (
-        <Form.TextArea
-          field={`${field}[optionsText]`}
-          noLabel
-          autosize={{ minRows: 2, maxRows: 6 }}
-          style={{ width: 320 }}
-          placeholder={'每行一个选项，格式：值|显示名（显示名可省略）\n如 pc|PC 或直接 PC'}
-          rules={[{ required: true, message: '请输入选项（每行一个）' }]}
-        />
-      )}
-    </div>
-  );
+type ScopedModel = CmsModel & { scopeSiteId?: number };
+function useModelEditorDetail(id: number | undefined, enabled = true, record?: ScopedModel) {
+  return useApiQuery(cmsModelContract.detail, { params: { id: id ?? 0 }, query: { siteId: record?.scopeSiteId } }, { enabled: enabled && id !== undefined });
 }
 
 export default function ModelsPage() {
   const { hasPermission } = usePermission();
-  const [siteId, setSiteId] = useState<number | undefined>(undefined);
-  const page = useListPage({
-    contract: cmsModelContract,
-    useList: useCmsModelList,
-    params: { siteId },
-    enabled: siteId !== undefined,
-    table: { empty: siteId ? '暂无内容模型' : '请先选择站点' },
-  });
-  const { setPage, tableProps } = page;
-
+  const [siteId, setSiteId] = useState<number | undefined>();
+  const [tab, setTab] = useUrlTabState(['models', 'components'] as const, 'models');
+  const [publishing, setPublishing] = useState<CmsModel | null>(null);
+  const page = useListPage({ contract: cmsModelContract, useList: useCmsModelList, params: { siteId }, enabled: siteId !== undefined && tab === 'models',
+    table: { empty: siteId ? '暂无内容模型' : '请先选择站点' } });
   const saveMutation = useSaveCmsModel(siteId);
-  const publishModel = usePublishCmsModel();
-  const modal = useEditModal<CmsModel, Record<string, unknown>, Record<string, unknown>>({
-    entityName: '模型',
-    save: saveMutation,
+  const modal = useEditModal<ScopedModel, Record<string, unknown>, CmsModelSaveValues>({
+    entityName: '模型', save: saveMutation, useDetail: useModelEditorDetail,
     defaults: { status: 'enabled', fields: [], ownerScope: 'site' },
-    toValues: (record) => ({
-      name: record.name,
-      code: record.code,
-      description: record.description ?? '',
-      status: record.status,
-      ownerScope: record.ownerSiteId == null ? 'shared' : 'site',
-      fields: (record.fields ?? []).map((f) => ({
-        name: f.name, label: f.label, fieldType: f.fieldType, required: f.required, searchable: f.searchable, showInList: f.showInList,
-        showInDetail: f.showInDetail, detailGroup: f.detailGroup ?? '', defaultValue: f.defaultValue ?? '',
-        placeholder: f.placeholder ?? '', optionSource: f.optionSource ?? 'manual', dictCode: f.dictCode ?? '', options: f.options ?? null,
-        configuration: f.configuration ?? {},
-        optionsText: (f.options ?? []).map((o) => (o.label === o.value ? o.value : `${o.value}|${o.label}`)).join('\n'),
-      })),
-    }),
+    toValues: (record) => ({ name: record.name, code: record.code, description: record.description ?? '', status: record.status,
+      ownerScope: record.ownerSiteId == null ? 'shared' : 'site', fields: toCmsFieldEditorValues(record.fields ?? []) }),
     beforeSave: (values) => {
-      const { ownerScope, ...rest } = values;
-      if (ownerScope !== 'shared' && !siteId) abortSubmit('validation');
-      return {
-        ...rest,
-        // 归属仅创建时生效（更新 schema 已 omit ownerSiteId，服务端自动忽略）
-        ownerSiteId: ownerScope === 'shared' ? null : siteId!,
-        // sort 与 detailSort 均按行序落库：模型编辑器内的顺序即后台表单与详情字段表的顺序
-        fields: (((rest.fields as unknown) as Record<string, unknown>[]) ?? []).map((f, i) => {
-          // 手工选项：optionsText（每行 值|显示名）→ options 数组；引用字典时选项由服务端解析
-          const { optionsText, ...fieldRest } = f;
-          const withOptions = fieldRest.optionSource === 'dict'
-            ? { ...fieldRest, options: null }
-            : {
-                ...fieldRest,
-                options: typeof optionsText === 'string' && optionsText.trim()
-                  ? optionsText.split('\n').map((line) => line.trim()).filter(Boolean).map((line) => {
-                      const [value, label] = line.split('|').map((s) => s.trim());
-                      return { value, label: label || value };
-                    })
-                  : null,
-              };
-          const configuration = { ...(fieldRest.configuration as Record<string, unknown> | undefined) };
-          if (!(configuration.requiredWhen as { field?: string } | undefined)?.field) delete configuration.requiredWhen;
-          return { ...withOptions, configuration, sort: i, detailSort: i };
-        }),
-      };
+      if (values.ownerScope !== 'shared' && !siteId) { Toast.warning('请先选择站点'); abortSubmit('validation'); }
+      const fields = serializeCmsModelFields((values.fields ?? []) as CmsFieldEditorValue[]);
+      const issues = validateCmsFieldDefinitions(fields);
+      if (issues.length) { Toast.warning(`${issues[0].fieldPath}: ${issues[0].message}`); abortSubmit('validation'); }
+      return { name: String(values.name), code: String(values.code), description: values.description ? String(values.description) : null,
+        status: values.status as 'enabled' | 'disabled', ownerSiteId: values.ownerScope === 'shared' ? null : siteId!, fields };
     },
   });
   const deleteMutation = useDeleteCmsModel(siteId);
-
   const columns: ColumnProps<CmsModel>[] = [
-    {
-      title: '模型名称',
-      dataIndex: 'name',
-      width: 160,
-      render: (v: string, record) => (
-        <span>
-          {v}
-          {record.isSystem ? <Tag size="small" style={{ marginLeft: 6 }}>内置</Tag> : null}
-        </span>
-      ),
-    },
+    { title: '模型名称', dataIndex: 'name', width: 160, render: (value: string, record) => <span>{value}{record.isSystem && <Tag size="small" style={{ marginLeft: 6 }}>内置</Tag>}</span> },
     { title: '标识', dataIndex: 'code', width: 180, render: renderEllipsis },
-    { title: '模型版本', dataIndex: 'hasUnpublishedChanges', width: 160, render: (_value, record) => <Tag color={record.hasUnpublishedChanges ? 'orange' : 'green'}>{record.hasUnpublishedChanges ? '有待发布修改' : '已发布'}</Tag> },
-    {
-      title: '归属',
-      dataIndex: 'ownerSiteId',
-      width: 180,
-      render: (_v: number | null, record) => {
-        const text = record.ownerSiteId == null ? '平台共享' : (record.ownerSiteName ?? `站点 #${record.ownerSiteId}`);
-        return <Tooltip content={text} position="topLeft"><Tag size="small" color={record.ownerSiteId == null ? 'blue' : 'teal'} style={{ maxWidth: '100%' }}>{text}</Tag></Tooltip>;
-      },
-    },
-    overflowTagColumn<CmsModel>({
-      title: '自定义字段',
-      dataIndex: 'fields',
-      width: 300,
-      contentWidth: 268,
-      getItems: (fields) => ((fields as CmsModel['fields'] | undefined) ?? []).map((f) => ({
-        key: f.name,
-        label: f.label,
-      })),
-      tagSize: 'small',
-      popoverWidth: 280,
-      empty: <span style={{ color: 'var(--semi-color-text-2)' }}>无（仅基础字段）</span>,
-    }),
-    { title: '描述', dataIndex: 'description', minWidth: 220, render: renderEllipsis },
-    createdAtColumn,
-    {
-      title: '状态',
-      dataIndex: 'status',
-      width: 80,
-      fixed: 'right',
-      render: renderEnabledStatusTag,
-    },
-    createOperationColumn<CmsModel>({
-      width: 210,
-      desktopInlineKeys: ['edit', 'publish'],
-      actions: (record) => [
-        { key: 'publish', label: '发布版本', hidden: !hasPermission('cms:model:update') || !record.hasUnpublishedChanges,
-          onClick: async () => { await publishModel.mutateAsync({ params: { id: record.id }, query: { siteId } }); Toast.success('模型版本已发布'); } },
-        ...(hasPermission('cms:model:update') ? [{
-          key: 'edit',
-          label: '编辑',
-          onClick: () => modal.openEdit(record),
-        }] : []),
-        deleteAction({
-          hidden: !hasPermission('cms:model:delete') || record.isSystem,
-          title: '确定要删除该模型吗？',
-          content: '被栏目或内容引用时不可删除',
-          run: () => deleteMutation.mutateAsync(record.id),
-        }),
-      ],
-    }),
+    { title: '模型版本', dataIndex: 'hasUnpublishedChanges', width: 160, render: (_value, record) => <Tag color={record.hasUnpublishedChanges ? 'orange' : 'green'}>{record.publishedVersionId ? record.hasUnpublishedChanges ? '有待发布修改' : '已发布' : '尚未发布'}</Tag> },
+    { title: '归属', dataIndex: 'ownerSiteId', width: 180, render: (_value, record) => {
+      const text = record.ownerSiteId == null ? '平台共享' : record.ownerSiteName ?? `站点 #${record.ownerSiteId}`;
+      return <Tooltip content={text} position="topLeft"><Tag size="small" color={record.ownerSiteId == null ? 'blue' : 'teal'}>{text}</Tag></Tooltip>;
+    } },
+    { title: '描述', dataIndex: 'description', minWidth: 220, render: renderEllipsis }, createdAtColumn,
+    { title: '状态', dataIndex: 'status', width: 80, fixed: 'right', render: renderEnabledStatusTag },
+    createOperationColumn<CmsModel>({ width: 210, desktopInlineKeys: ['edit', 'impact'], actions: (record) => [
+      { key: 'impact', label: '发布影响', onClick: () => setPublishing(record) },
+      { key: 'edit', label: '编辑', hidden: !hasPermission('cms:model:update'), onClick: () => modal.openEdit({ ...record, scopeSiteId: siteId }) },
+      deleteAction({ hidden: !hasPermission('cms:model:delete') || record.isSystem, title: '确定要删除该模型吗？', content: '被栏目或内容引用时不可删除', run: () => deleteMutation.mutateAsync(record.id) }),
+    ] }),
   ];
-
-  return (
-    <div className="page-container">
-      {/* 站点是列表的作用域而非筛选条件：契约模式无排序机制（extraFilters/overrides 只能追加），故用槽位写法把站点与关键字拼进主区（占位取派生回退「搜索关键字」，契约 keywordQuery() 未声明匹配字段）；两者桌面与移动主区都在关键字之前 */}
-      <ListSearchToolbar
-        keyword={<><CmsSiteSelect value={siteId} onChange={(value) => { setSiteId(value); setPage(1); }} width={200} /><KeywordInput placeholder="搜索关键字" {...page.bindKeyword('keyword')} /></>}
-        onSearch={page.toolbarProps.onSearch}
-        onReset={page.toolbarProps.onReset}
-        create={<CreateButton permission="cms:model:create" onClick={modal.openCreate} disabled={!siteId} />}
-      />
-
-      <ConfigurableTable<CmsModel>
-        columns={columns}
-        {...tableProps}
-      />
-
-      <EditFormSheet modal={modal} width={860}>
-        <Row gutter={16}>
-          <Col span={12}>
-            <Form.Input field="name" label="模型名称" rules={[{ required: true, message: '请输入模型名称' }]} />
-          </Col>
-          <Col span={12}>
-            <Form.Input field="code" label="模型标识" disabled={modal.isEdit} placeholder="如 article" rules={[{ required: true, message: '请输入模型标识' }]} />
-          </Col>
-          <Col span={24}>
-            <Form.Input field="description" label="描述" />
-          </Col>
-          <Col span={12}>
-            <FormStatusRadioGroup />
-          </Col>
-          <Col span={24}>
-            <Form.RadioGroup
-              field="ownerScope"
-              label="归属"
-              disabled={modal.isEdit}
-              extraText={modal.isEdit ? '归属创建后不可变更' : '专属模型仅当前站点可见、可绑定；共享模型全部站点可用'}
-            >
-              <Form.Radio value="site">当前站点专属</Form.Radio>
-              <Form.Radio value="shared">平台共享</Form.Radio>
-            </Form.RadioGroup>
-          </Col>
-        </Row>
-        <Form.Section text="自定义字段（基础字段：标题/摘要/正文/封面/作者等已内置，此处配置扩展字段）">
-          <ArrayField field="fields">
-            {({ add, arrayFields }) => (
-              <>
-                {arrayFields.map(({ field, key, remove }, index) => (
-                  <div
-                    key={key}
-                    style={index === arrayFields.length - 1
-                      ? { position: 'relative', paddingBottom: 4 }
-                      : { position: 'relative', borderBottom: '1px solid var(--semi-color-border)', paddingBottom: 16, marginBottom: 16 }}
-                  >
-                    <Button type="danger" theme="borderless" icon={<Trash2 size={14} />} onClick={() => remove()} aria-label="删除字段" style={{ position: 'absolute', top: 0, right: 0 }} />
-                    <Row gutter={16} style={{ paddingRight: 40 }}>
-                      <Col span={12}>
-                        <Form.Input field={`${field}[name]`} label="字段标识" placeholder="英文，如 venue"
-                          rules={[{ required: true, message: '必填' }, { pattern: /^[a-z][a-z0-9_]*$/, message: '小写字母开头' }]} />
-                      </Col>
-                      <Col span={12}>
-                        <Form.Input field={`${field}[label]`} label="字段名称"
-                          rules={[{ required: true, message: '必填' }]} />
-                      </Col>
-                      <Col span={12}>
-                        <Form.Select field={`${field}[fieldType]`} label="字段类型" initValue="text" optionList={FIELD_TYPE_OPTIONS} />
-                      </Col>
-                      <Col span={12}>
-                        <Form.Input field={`${field}[placeholder]`} label="提示文案" />
-                      </Col>
-                      <Col span={12}>
-                        <Form.Input field={`${field}[defaultValue]`} label="默认值" placeholder="新建内容自动填充" />
-                      </Col>
-                      <Col span={12}>
-                        <Form.Input field={`${field}[detailGroup]`} label="详情分组" placeholder="如 活动信息" />
-                      </Col>
-                    </Row>
-                    <FieldOptionSource field={field} />
-                    <ModelFieldRules field={field} siteId={siteId} />
-                    <div style={{ display: 'flex', gap: 16, alignItems: 'center', margin: '4px 0' }}>
-                      <Form.Checkbox field={`${field}[required]`} noLabel>必填</Form.Checkbox>
-                      <Form.Checkbox field={`${field}[searchable]`} noLabel>检索</Form.Checkbox>
-                      <Form.Checkbox field={`${field}[showInList]`} noLabel>列表显示</Form.Checkbox>
-                      <Form.Checkbox field={`${field}[showInDetail]`} noLabel>详情展示</Form.Checkbox>
-                      <Form.Checkbox field={`${field}.configuration.unique`} noLabel>站内唯一</Form.Checkbox>
-                    </div>
-                  </div>
-                ))}
-                <Button icon={<Plus size={14} />} onClick={() => add()}>添加字段</Button>
-              </>
-            )}
-          </ArrayField>
-        </Form.Section>
-      </EditFormSheet>
-    </div>
-  );
+  return <div className="page-container page-tabs-page">
+    <Tabs activeKey={tab} onChange={(next) => setTab(next as 'models' | 'components')} collapsible="auto">
+      <Tabs.TabPane tab="内容模型" itemKey="models">
+        <ListSearchToolbar keyword={<><CmsSiteSelect value={siteId} onChange={(value) => { setSiteId(value); page.setPage(1); }} width={200} /><KeywordInput placeholder="搜索模型" {...page.bindKeyword('keyword')} /></>}
+          onSearch={page.toolbarProps.onSearch} onReset={page.toolbarProps.onReset}
+          create={<CreateButton permission="cms:model:create" onClick={modal.openCreate} disabled={!siteId} />} />
+        <ConfigurableTable<CmsModel> columns={columns} {...page.tableProps} />
+      </Tabs.TabPane>
+      <Tabs.TabPane tab="可复用组件" itemKey="components">
+        <div style={{ marginBottom: 16 }}><CmsSiteSelect value={siteId} onChange={setSiteId} width={200} /></div>
+        <CmsComponentsPanel key={siteId ?? 'none'} siteId={siteId} />
+      </Tabs.TabPane>
+    </Tabs>
+    <EditFormSheet modal={modal} width={980} header={<Banner type="info" description="先保存工作稿，再通过发布影响预览生成不可变模型版本。新内容使用发布版本，历史审核修订保留原定义。" />}>
+      <div className="auto-grid" style={{ '--auto-grid-cols': 2 } as CSSProperties}>
+        <Form.Input field="name" label="模型名称" maxLength={100} rules={[{ required: true, message: '请输入模型名称' }]} />
+        <Form.Input field="code" label="模型标识" disabled={modal.isEdit} placeholder="如 article" maxLength={50} rules={[{ required: true, message: '请输入模型标识' }]} />
+      </div>
+      <Form.Input field="description" label="描述" maxLength={500} />
+      <FormStatusRadioGroup />
+      <Form.RadioGroup field="ownerScope" label="归属" disabled={modal.isEdit} extraText={modal.isEdit ? '归属创建后不可变更' : '专属模型仅当前站点可用；共享模型全部站点可用'}><Form.Radio value="site">当前站点专属</Form.Radio><Form.Radio value="shared">平台共享</Form.Radio></Form.RadioGroup>
+      <Form.Section text="扩展字段（标题、摘要、正文、封面、作者已内置）"><CmsFieldDefinitionsEditor field="fields" siteId={siteId} root /></Form.Section>
+    </EditFormSheet>
+    <CmsModelPublishSheet model={publishing} siteId={siteId} onClose={() => setPublishing(null)} />
+  </div>;
 }

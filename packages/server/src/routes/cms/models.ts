@@ -11,7 +11,7 @@ import {
   updateCmsModel,
   deleteCmsModel,
   getCmsModelRefs,
-  publishCmsModel, listCmsModelVersions,
+  publishCmsModel, listCmsModelVersions, getCmsModelPublishImpact,
 } from '../../services/cms/cms-models.service';
 import { mountCrud } from '../_crud';
 
@@ -60,6 +60,7 @@ mountCrud(router, cmsModelContract,
   [allRoute, getOneRoute, refsRoute, updateRouteDef, deleteRouteDef,
     defineContractRoute(cmsModelContract.versions, { handler: async (c) => c.json(okBody(await listCmsModelVersions(c.req.valid('param').id, c.req.valid('query').siteId)), 200) }),
     defineContractRoute(cmsModelContract.publish, { handler: async (c) => c.json(okBody(await publishCmsModel(c.req.valid('param').id, c.req.valid('query').siteId), '模型版本已发布'), 200) }),
+    defineContractRoute(cmsModelContract.publishImpact, { handler: async (c) => c.json(okBody(await getCmsModelPublishImpact(c.req.valid('param').id, c.req.valid('query').siteId)), 200) }),
   ],
 );
 

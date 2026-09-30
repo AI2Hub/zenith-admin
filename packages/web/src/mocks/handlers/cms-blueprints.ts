@@ -8,7 +8,7 @@ import { stageMockCmsConfigurationDraft } from './cms-releases';
 
 export const cmsBlueprintHandlers = [
   mock(cmsSiteContract.blueprints, ({ ok }) => ok(CMS_SITE_BLUEPRINTS.map((item) => ({ ...item })))),
-  mock(cmsSiteContract.fromBlueprint, ({ body, ok }) => {
+  mock(cmsSiteContract.fromBlueprint, async ({ body, ok }) => {
     const pkg = buildCmsSiteBlueprint(body); const siteId = data.getNextCmsSiteId();
     let code = body.code; let suffix = 1;
     while (data.mockCmsSites.some((site) => site.code === code)) code = `${body.code}-${++suffix}`;
@@ -18,7 +18,7 @@ export const cmsBlueprintHandlers = [
       const id = data.getNextCmsModelId(); modelMap.set(model.id, id);
       const fields = pkg.modelFields.filter((field) => field.modelId === model.id).map((field, index) => cmsModelFieldViewSchema.parse({ searchable: false, showInList: false, detailGroup: null, detailSort: index, placeholder: null, defaultValue: null, dictCode: null, sort: index, ...times, ...field, id: data.getNextCmsModelFieldId(), modelId: id }));
       data.mockCmsModels.push(cmsModelSchema.parse({ ...model, id, code: `${model.code}-${siteId}`, ownerSiteId: siteId, ownerSiteName: body.name, description: null, isSystem: false, status: 'enabled', sort: 0, fields, ...times }));
-      publishMockCmsModelVersion(id);
+      await publishMockCmsModelVersion(id);
     }
     for (const channel of pkg.channels) {
       const id = data.getNextCmsChannelId(); channelMap.set(channel.id, id);

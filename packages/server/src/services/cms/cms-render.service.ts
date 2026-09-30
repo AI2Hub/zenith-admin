@@ -1,3 +1,4 @@
+import { resolveCmsCollection } from './cms-content-collections.service';
 import { buildCmsTelemetryContext, findCmsRenderedMediaAsset } from './cms-telemetry-render';
 import { verifyCmsTelemetryPageToken } from './cms-telemetry-context';
 import { cmsGenerationNow } from './cms-generation-context';
@@ -522,7 +523,7 @@ export async function renderCustomPage(
     const tagSlug = typeof block.props.tagSlug === 'string' && block.props.tagSlug.trim() ? block.props.tagSlug.trim() : undefined;
     const count = Math.min(20, Math.max(1, Number(block.props.count) || 5));
     const mode = block.props.mode === 'recommend' || block.props.mode === 'hot' ? block.props.mode : 'latest';
-    const rows = await listBlockContents(site.id, { channelId, tagSlug, count, mode });
+    const rows = block.props.collectionId ? await resolveCmsCollection(site.id, Number(block.props.collectionId), { limit: count }) : await listBlockContents(site.id, { channelId, tagSlug, count, mode });
     const resolveLink = await buildCmsLinkResolver(site.id, baseUrl, rows.map((r) => r.externalLink));
     const listFieldDefs = await loadCmsListModelFieldDefs(rows);
     contentListData.set(block.id, rows.map((row) => toContentItem(row, baseUrl, channelPathMap.get(row.channelId) ?? FALLBACK_URL_CHANNEL, resolveLink, listFieldDefs)));
@@ -631,7 +632,7 @@ export function createCmsThemeDataApi(site: CmsSiteRow, baseUrl: string): CmsThe
   return {
     contents: {
       list: (query) => {
-        const key = JSON.stringify(['contents', query.channelId ?? null, query.channelCode ?? '', query.limit, query.recommend ?? false, query.hot ?? false]);
+        const key = JSON.stringify(['contents', query.collectionId ?? null, query.channelId ?? null, query.channelCode ?? '', query.limit, query.recommend ?? false, query.hot ?? false]);
         const cached = memo.get(key);
         if (cached) return cached;
         if (++calls > THEME_DATA_MAX_CALLS) {
@@ -653,7 +654,7 @@ export function createCmsThemeDataApi(site: CmsSiteRow, baseUrl: string): CmsThe
             channel = row;
           }
           const mode = query.recommend ? 'recommend' : (query.hot ? 'hot' : 'latest');
-          const rows = await listBlockContents(site.id, { channelId: channel?.id, count: limit, mode });
+          const rows = query.collectionId ? await resolveCmsCollection(site.id, query.collectionId, { limit }) : await listBlockContents(site.id, { channelId: channel?.id, count: limit, mode });
           const channelPathMap = await loadChannelPathMap(site.id);
           const resolveLink = await buildCmsLinkResolver(site.id, baseUrl, rows.map((r) => r.externalLink));
           const listFieldDefs = await loadCmsListModelFieldDefs(rows);

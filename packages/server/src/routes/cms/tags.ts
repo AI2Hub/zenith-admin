@@ -6,7 +6,7 @@ import {
   listCmsTags,
   listAllCmsTags,
   getCmsTag,
-  cmsTagService,
+  cmsTagService, createCmsTag, updateCmsTag, deleteCmsTag,
 } from '../../services/cms/cms-tags.service';
 import { mountCrud } from '../_crud';
 
@@ -18,7 +18,7 @@ const allRoute = defineContractRoute(cmsTagContract.all, {
 });
 
 mountCrud(router, cmsTagContract,
-  { ...cmsTagService, list: listCmsTags, get: getCmsTag },
+  { ...cmsTagService, list: listCmsTags, get: getCmsTag, create: createCmsTag, update: updateCmsTag, remove: deleteCmsTag },
   {},
   [allRoute],
 );

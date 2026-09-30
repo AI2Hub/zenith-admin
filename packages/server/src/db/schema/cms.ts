@@ -705,7 +705,16 @@ export const cmsContentRelations = pgTable('cms_content_relations', {
 
 export type CmsContentRelationRow = typeof cmsContentRelations.$inferSelect;
 
-// ─── CMS 标签（按站点隔离，带 slug 供生成 tag 聚合页；可选分组便于归类管理）──────
+/** Vocabularies govern terms; unbound tags remain free-form editorial labels. */
+export const cmsVocabularies = pgTable('cms_vocabularies', {
+  id: idColumn(), siteId: integer().notNull().references(() => cmsSites.id, { onDelete: 'cascade' }),
+  name: varchar({ length: 100 }).notNull(), code: varchar({ length: 80 }).notNull(), description: text(),
+  modelIds: jsonb().$type<number[]>().notNull().default([]), required: boolean().notNull().default(false),
+  maxSelections: integer().notNull().default(10), status: statusColumn(), sort: sortColumn(),
+  ...auditColumns(), ...timestampColumns(),
+}, t => [uniqueIndex('cms_vocabularies_site_code_uq').on(t.siteId, t.code)]);
+
+// ─── CMS 标签 / 受控词条（复用稳定内容关系和公开聚合路径）────────────────────
 export const cmsTags = pgTable('cms_tags', {
   id: idColumn(),
   siteId: integer().notNull().references(() => cmsSites.id, { onDelete: 'cascade' }),
@@ -713,6 +722,10 @@ export const cmsTags = pgTable('cms_tags', {
   slug: varchar({ length: 100 }).notNull(),
   /** 标签分组（可空；同组标签在管理页聚合展示） */
   groupName: varchar({ length: 50 }),
+  vocabularyId: integer().references(() => cmsVocabularies.id, { onDelete: 'restrict' }),
+  parentId: integer().references((): AnyPgColumn => cmsTags.id, { onDelete: 'restrict' }),
+  aliases: jsonb().$type<string[]>().notNull().default([]),
+  localeLabels: jsonb().$type<Record<string, string>>().notNull().default({}),
   /** 冗余计数（打标/移除时由 service 维护） */
   contentCount: integer().notNull().default(0),
   ...auditColumns(),

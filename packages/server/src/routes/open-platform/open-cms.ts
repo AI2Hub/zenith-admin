@@ -25,6 +25,7 @@ import {
 import type { CmsSiteRow } from '../../db/schema';
 import { withCmsPublicGeneration } from '../../services/cms/cms-generation-storage.service';
 import { cmsGenerationContext } from '../../services/cms/cms-generation-context';
+import { readPublicCmsCollection } from '../../services/cms/cms-content-collections.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -205,6 +206,10 @@ const deleteContentRoute = defineContractRoute(openCmsContract.recycleContent, {
 // 路径注册顺序有意义：/contents/sync 与 /contents/cursor 必须先于 /contents/{idOrSlug}，
 // 否则会被通配参数吞掉
 router.openapiRoutes([
+  defineContractRoute(openCmsContract.collection, { middleware: [requireScope('cms:read')], responses: forbidden, handler: async c => {
+    const site = await requireSite(c.req.valid('query').siteCode);
+    return c.json(okBody(await readPublished(c, site, publishedSite => readPublicCmsCollection(publishedSite.id, c.req.valid('param').id))), 200);
+  } }),
   channelsRoute, contentsRoute, contentsCursorRoute, syncRoute, contentDetailRoute,
   createContentRoute, updateContentRoute, submitContentRoute, publishContentRoute, deleteContentRoute,
 ] as const);

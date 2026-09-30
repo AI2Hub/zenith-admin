@@ -1,4 +1,4 @@
-import { cmsBodyDocumentSchema } from '../document';
+import { cmsBodyDocumentSchema, cmsDocumentBlockDiffSchema } from '../document';
 import * as z from 'zod';
 import { dateRangeQuery, dateRangeBound, idParam, idQuery, keywordQuery, paginated, paginationQuery, queryBool, queryEnum, requiredIdQuery } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
@@ -198,6 +198,7 @@ export const cmsContentVersionDiffSchema = z.object({
   label: z.string().meta({ example: '标题' }),
   before: z.unknown().nullable(),
   after: z.unknown().nullable(),
+  bodyChanges: z.array(cmsDocumentBlockDiffSchema).optional(),
 }).meta({ id: 'CmsContentVersionDiff' });
 
 export type CmsContentVersionDiff = z.infer<typeof cmsContentVersionDiffSchema>;

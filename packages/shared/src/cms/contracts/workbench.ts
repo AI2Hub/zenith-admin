@@ -2,7 +2,7 @@ import * as z from 'zod';
 import { defineContract, op } from '../../core/contract';
 import { idQuery, queryEnum, requiredIdQuery } from '../../core/api-schemas';
 import { ASYNC_TASK_STATUSES } from '../../tasks/constants';
-import { CMS_PREVIEW_MODES, CMS_RELEASE_CHANGE_KINDS, CMS_PREVIEW_EDIT_TARGET_KINDS, CMS_CONFIGURATION_OBJECT_KINDS, CMS_CONFIGURATION_STATES } from '../constants';
+import { CMS_PREVIEW_MODES, CMS_RELEASE_CHANGE_KINDS, CMS_PREVIEW_EDIT_TARGET_KINDS, CMS_CONFIGURATION_OBJECT_KINDS, CMS_CONFIGURATION_STATES, CMS_RELEASE_CHECK_KINDS, CMS_RELEASE_CHECK_OBJECT_KINDS, CMS_RELEASE_CHECK_ACTIONS } from '../constants';
 import { CMS_RELEASE_STATUSES } from '../release-validation';
 import { renderCmsWorkbenchPreviewSchema } from '../workbench-validation';
 
@@ -24,9 +24,17 @@ export const cmsReleaseChangeSchema = z.object({
   fields: z.array(cmsReleaseFieldDiffSchema), editPath: z.string(), paths: z.array(z.string()),
 });
 export type CmsReleaseChange = z.infer<typeof cmsReleaseChangeSchema>;
+export const cmsReleaseCheckObjectSchema = z.object({ kind: z.enum(CMS_RELEASE_CHECK_OBJECT_KINDS), id: z.int(), title: z.string(), revisionId: z.int().nullable() });
 export const cmsReleaseCheckSchema = z.object({
-  severity: z.enum(['error', 'warning']), code: z.string(), message: z.string(), objectTitle: z.string().nullable(), editPath: z.string().nullable(),
+  kind: z.enum(CMS_RELEASE_CHECK_KINDS), severity: z.enum(['error', 'warning']), code: z.string(), message: z.string(),
+  object: cmsReleaseCheckObjectSchema,
+  reference: z.object({ kind: z.enum(CMS_RELEASE_CHECK_OBJECT_KINDS), id: z.int() }).nullable(),
+  fieldPath: z.string().nullable(), fieldLabel: z.string().nullable(), nodeId: z.string().nullable(),
+  editTarget: z.object({ href: z.string(), label: z.string() }).nullable(), recommendedAction: z.enum(CMS_RELEASE_CHECK_ACTIONS),
 });
+export type CmsReleaseCheck = z.infer<typeof cmsReleaseCheckSchema>;
+export const cmsReleaseDependencyOptionSchema = z.object({ contentId: z.int(), revisionId: z.int(), revisionVersion: z.int(), title: z.string(), hash: z.string() });
+export type CmsReleaseDependencyOption = z.infer<typeof cmsReleaseDependencyOptionSchema>;
 export const cmsReleaseTaskSummarySchema = z.object({
   id: z.int(), taskType: z.string(), title: z.string(), status: z.enum(ASYNC_TASK_STATUSES),
   totalCount: z.int().nullable(), processedCount: z.int(), progressNote: z.string().nullable(), errorMessage: z.string().nullable(),
@@ -34,6 +42,8 @@ export const cmsReleaseTaskSummarySchema = z.object({
 export const cmsReleaseReviewSchema = z.object({
   releaseId: z.int(), fingerprint: z.string(), baseGenerationId: z.int().nullable(), currentGenerationId: z.int().nullable(),
   comparisonGenerationId: z.int().nullable(), stale: z.boolean(),
+  validation: z.object({ inputFingerprint: z.string(), ruleVersion: z.string(), checkedAt: z.string() }),
+  dependencyOptions: z.array(cmsReleaseDependencyOptionSchema),
   changes: z.array(cmsReleaseChangeSchema), checks: z.array(cmsReleaseCheckSchema),
   affectedPaths: z.array(z.string()), wholeSiteAffected: z.boolean(), tasks: z.array(cmsReleaseTaskSummarySchema),
 }).meta({ id: 'CmsReleaseReview' });

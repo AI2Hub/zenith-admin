@@ -1,5 +1,6 @@
 import { relations } from 'drizzle-orm';
-import { cmsAssetRights, cmsAssetVersions, cmsModelVersions, cmsEditorialNotes, cmsDistributionSyncStates, cmsModelUniqueValues } from './cms-design';
+import { cmsComponents, cmsComponentVersions } from './cms-components';
+import { cmsAssetRights, cmsAssetVersions, cmsModelVersions, cmsEditorialNotes, cmsEditorialNoteReplies, cmsDistributionSyncStates, cmsModelUniqueValues } from './cms-design';
 import { cmsContentRevisions, cmsContentWorkingCopies, cmsContentRevisionApprovals, cmsContentReviewRevisions, cmsContentPreviewGrants } from './cms-revisions';
 import { cmsReleases, cmsDeployments, cmsSiteGenerations, cmsContentSuppressions } from './cms-releases';
 import { cmsDeliveryExpiryReceipts, cmsDeliveryRuns, cmsDeliveryStates } from './cms-delivery';
@@ -63,7 +64,7 @@ import {
   cmsPageBlockAcls, cmsPages, cmsPagePresets, cmsPagePresetVersions, cmsPublishArtifacts, cmsPushLogs,
   cmsRedirects, cmsResourceFolders, cmsResourceRefs, cmsResources, cmsSearchWords, cmsSiteInheritances, cmsSites, cmsSiteUsers,
   cmsOpenAppGrants, cmsContentTombstones, cmsWidgets, cmsWidgetRefs, cmsWidgetSourceRefs,
-  cmsTags,
+  cmsTags, cmsVocabularies,
 } from './cms';
 import { wikiComments, wikiDocFavorites, wikiDocReadReceipts, wikiDocSubscriptions, wikiDocTags, wikiDocVersions, wikiDocViews, wikiDocs, wikiReviewRecords, wikiSpaceMembers, wikiSpaces, wikiTags } from './wiki';
 import {
@@ -1497,6 +1498,14 @@ export const cmsPublishArtifactsRelations = relations(cmsPublishArtifacts, ({ on
   page: one(cmsPages, { fields: [cmsPublishArtifacts.pageId], references: [cmsPages.id] }),
 }));
 
+export const cmsComponentsRelations = relations(cmsComponents, ({ one, many }) => ({
+  ownerSite: one(cmsSites, { fields: [cmsComponents.ownerSiteId], references: [cmsSites.id] }),
+  versions: many(cmsComponentVersions),
+}));
+export const cmsComponentVersionsRelations = relations(cmsComponentVersions, ({ one }) => ({
+  component: one(cmsComponents, { fields: [cmsComponentVersions.componentId], references: [cmsComponents.id] }),
+}));
+
 export const cmsModelsRelations = relations(cmsModels, ({ many }) => ({
   fields: many(cmsModelFields),
   channels: many(cmsChannels),
@@ -1624,9 +1633,17 @@ export const cmsContentTagsRelations = relations(cmsContentTags, ({ one }) => ({
   tag: one(cmsTags, { fields: [cmsContentTags.tagId], references: [cmsTags.id] }),
 }));
 
+export const cmsVocabulariesRelations = relations(cmsVocabularies, ({ one, many }) => ({
+  site: one(cmsSites, { fields: [cmsVocabularies.siteId], references: [cmsSites.id] }),
+  terms: many(cmsTags),
+}));
+
 export const cmsTagsRelations = relations(cmsTags, ({ one, many }) => ({
   site: one(cmsSites, { fields: [cmsTags.siteId], references: [cmsSites.id] }),
   contentTags: many(cmsContentTags),
+  vocabulary: one(cmsVocabularies, { fields: [cmsTags.vocabularyId], references: [cmsVocabularies.id] }),
+  parent: one(cmsTags, { fields: [cmsTags.parentId], references: [cmsTags.id], relationName: 'cmsTermTree' }),
+  children: many(cmsTags, { relationName: 'cmsTermTree' }),
 }));
 
 export const cmsFriendLinksRelations = relations(cmsFriendLinks, ({ one }) => ({
@@ -1752,7 +1769,8 @@ export const cmsContentWorkingCopiesRelations = relations(cmsContentWorkingCopie
 export const cmsContentRevisionApprovalsRelations = relations(cmsContentRevisionApprovals, ({ one }) => ({ revision: one(cmsContentRevisions, { fields: [cmsContentRevisionApprovals.revisionId], references: [cmsContentRevisions.id] }) }));
 export const cmsContentReviewRevisionsRelations = relations(cmsContentReviewRevisions, ({ one }) => ({ revision: one(cmsContentRevisions, { fields: [cmsContentReviewRevisions.revisionId], references: [cmsContentRevisions.id] }) }));
 export const cmsContentPreviewGrantsRelations = relations(cmsContentPreviewGrants, ({ one }) => ({ revision: one(cmsContentRevisions, { fields: [cmsContentPreviewGrants.revisionId], references: [cmsContentRevisions.id] }) }));
-export const cmsEditorialNotesRelations = relations(cmsEditorialNotes, ({ one }) => ({ content: one(cmsContents, { fields: [cmsEditorialNotes.contentId], references: [cmsContents.id] }) }));
+export const cmsEditorialNotesRelations = relations(cmsEditorialNotes, ({ one, many }) => ({ content: one(cmsContents, { fields: [cmsEditorialNotes.contentId], references: [cmsContents.id] }), replies: many(cmsEditorialNoteReplies) }));
+export const cmsEditorialNoteRepliesRelations = relations(cmsEditorialNoteReplies, ({ one }) => ({ note: one(cmsEditorialNotes, { fields: [cmsEditorialNoteReplies.noteId], references: [cmsEditorialNotes.id] }) }));
 export const cmsDistributionSyncStatesRelations = relations(cmsDistributionSyncStates, ({ one }) => ({ content: one(cmsContents, { fields: [cmsDistributionSyncStates.contentId], references: [cmsContents.id] }) }));
 export const cmsModelUniqueValuesRelations = relations(cmsModelUniqueValues, ({ one }) => ({ model: one(cmsModels, { fields: [cmsModelUniqueValues.modelId], references: [cmsModels.id] }) }));
 export const cmsReleasesRelations = relations(cmsReleases, ({ one, many }) => ({ site: one(cmsSites, { fields: [cmsReleases.siteId], references: [cmsSites.id] }), deployments: many(cmsDeployments) }));

@@ -1,7 +1,8 @@
 import { stageMockCmsConfigurationDraft, submitMockCmsContentBatch, submitMockCmsWithdrawal } from './cms-releases';
+import { cmsBodyDocumentSchema, diffCmsDocumentBlocks } from '@zenith/shared/cms';
 import { mockCmsFeedback, mockCmsNoResultKeywords, syncMockCmsFeedbackSubmissions } from '../data/cms-operations';
 import { mockCmsPagePresetVersions } from '../data/cms-page-presets';
-import { getMockCmsWorkingContent, getMockCmsPublishedContent, getMockCmsRevision, getMockCmsReviewContent, bindMockCmsReview, assertMockCmsCas, freezeMockCmsRevision, saveMockCmsWorkingContent, restoreMockCmsRevision } from '@/mocks/utils/cms-revisions';
+import { getMockCmsWorkingContent, getMockCmsPublishedContent, getMockCmsRevision, getMockCmsRevisionContent, getMockCmsReviewContent, bindMockCmsReview, assertMockCmsCas, freezeMockCmsRevision, saveMockCmsWorkingContent, restoreMockCmsRevision } from '@/mocks/utils/cms-revisions';
 import { HttpResponse } from 'msw';
 import type * as z from 'zod';
 import { badRequest, notFound, conflict, locked } from '@/mocks/utils/handlers';
@@ -45,6 +46,7 @@ import {
   cmsUploadContract,
   parseCmsLink,
   validateCmsPagePresetSources,
+  normalizeCmsFieldDefinitions,
 } from '@zenith/shared/cms';
 import { SEED_CMS_EDITOR_USER } from '@zenith/shared/seed';
 import {
@@ -108,7 +110,9 @@ import { createProgressingMockTask } from './async-tasks';
 import { mockCmsResourceWithMedia, mockCmsResourceVersions } from './cms-media';
 import { submitMockCmsWidgetSourceRefresh } from './cms-widgets';
 import { assertMockCmsSiteComposition } from '../utils/cms-site-composition';
-import { getMockCmsPublishedModelFields, getMockCmsUnresolvedNoteContentIds } from './cms-editorial';
+import { getMockCmsPublishedModelFields, getMockCmsUnresolvedNoteContentIds, publishMockCmsModelVersion } from './cms-editorial';
+import { compileMockCmsFields } from '../utils/cms-model-compiler';
+import { validateMockCmsTaxonomySelection, validateMockCmsTermPlacement } from '../utils/cms-taxonomy';
 import { CMS_SITE_COMPOSITION_SETTING_FIELDS } from '@zenith/shared/cms';
 import { mockDateTime, mockDate } from '../utils/date';
 import { filterByKeyword, matchesFilter } from '@/mocks/utils/filter';
@@ -245,13 +249,14 @@ function collectMockResourceRefs(res: { id: number; siteId: number; url: string 
 
 type ModelFieldInput = z.output<typeof cmsModelFieldSchema>;
 
-function buildMockModelFields(modelId: number, fields: ModelFieldInput[], now: string): CmsModelField[] {
-  return fields.map((f, i) => ({
-    id: getNextCmsModelFieldId(),
+function buildMockModelFields(modelId: number, fields: ModelFieldInput[], now: string, previous: CmsModelField[] = []): CmsModelField[] {
+  return normalizeCmsFieldDefinitions(fields.map((f, i) => ({
+    id: f.id ?? previous.find(field => field.name === f.name)?.id ?? getNextCmsModelFieldId(),
     modelId,
     name: f.name,
     label: f.label,
     fieldType: f.fieldType,
+    configuration: f.configuration ?? null,
     required: f.required,
     searchable: f.searchable,
     showInList: f.showInList,
@@ -259,14 +264,14 @@ function buildMockModelFields(modelId: number, fields: ModelFieldInput[], now: s
     detailGroup: f.detailGroup || null,
     detailSort: i,
     placeholder: f.placeholder ?? null,
-    defaultValue: null,
+    defaultValue: f.defaultValue ?? null,
     optionSource: f.optionSource,
     dictCode: f.dictCode ?? null,
     options: f.options ?? null,
     sort: i,
     createdAt: now,
     updatedAt: now,
-  }));
+  })), previous);
 }
 
 function authorizedEditorUsers() {
@@ -380,7 +385,7 @@ export const cmsHandlers = [
   mock(cmsModelContract.all, ({ query, ok }) => ok(mockCmsModels.filter((m) => m.status === 'enabled' && (query.siteId === undefined || m.ownerSiteId == null || m.ownerSiteId === query.siteId)).map((model) => ({ ...model, fields: getMockCmsPublishedModelFields(model.id) })))),
   mock(cmsModelContract.list, ({ query, ok, paginate }) => {
     const { keyword } = query;
-    let list = [...mockCmsModels];
+    let list = mockCmsModels.filter(model => (query.siteId === undefined || model.ownerSiteId === null || model.ownerSiteId === query.siteId) && (!query.status || model.status === query.status));
     list = filterByKeyword(list, keyword, [(m) => m.name, (m) => m.code]);
     return ok(paginate(list));
   }),
@@ -388,9 +393,10 @@ export const cmsHandlers = [
     const model = requireItem(mockCmsModels, params.id, '内容模型不存在', { status: 404 });
     return ok(model);
   }),
-  mock(cmsModelContract.create, ({ body, ok }) => {
+  mock(cmsModelContract.create, async ({ body, ok }) => {
     const now = mockDateTime();
     const modelId = getNextCmsModelId();
+    const { fields } = await compileMockCmsFields(buildMockModelFields(modelId, body.fields, now), body.ownerSiteId);
     const model: CmsModel = {
       id: modelId,
       ownerSiteId: body.ownerSiteId,
@@ -401,19 +407,21 @@ export const cmsHandlers = [
       isSystem: false,
       status: body.status,
       sort: 0,
-      fields: buildMockModelFields(modelId, body.fields, now),
+      fields,
       createdAt: now,
       updatedAt: now,
     };
     mockCmsModels.push(model);
-    return ok(model, '创建成功');
+    return ok(await publishMockCmsModelVersion(modelId), '创建成功');
   }),
-  mock(cmsModelContract.update, ({ params, body, ok }) => {
+  mock(cmsModelContract.update, async ({ params, body, ok }) => {
     const item = requireItem(mockCmsModels, params.id, '内容模型不存在', { status: 404 });
     const now = mockDateTime();
     const { fields, ...rest } = body;
+    const nextFields = fields ? (await compileMockCmsFields(buildMockModelFields(item.id, fields, now, item.fields), item.ownerSiteId)).fields : undefined;
     Object.assign(item, rest, { updatedAt: now });
-    if (fields) item.fields = buildMockModelFields(item.id, fields, now);
+    if (nextFields) item.fields = nextFields;
+    item.hasUnpublishedChanges = true;
     return ok(item, '更新成功');
   }),
   mock(cmsModelContract.remove, ({ params, ok }) => {
@@ -705,6 +713,7 @@ export const cmsHandlers = [
     if (content.lockedAt) return locked('内容已被持久锁定', { status: 423 });
     if (action === 'submit') {
       if (content.editorialStatus === 'pending') return badRequest('该工作稿已在审核中', { status: 400 });
+      validateMockCmsTaxonomySelection(content, true);
       startMockCmsWorkflow(content);
       content.version += 1;
       const revision = freezeMockCmsRevision(content.id, 'submission');
@@ -726,6 +735,7 @@ export const cmsHandlers = [
     return ok(content, '操作已提交');
   })),
   mock(cmsContentContract.create, ({ body, ok }) => {
+    validateMockCmsTaxonomySelection({ siteId: body.siteId, modelId: body.modelId ?? null, tagIds: body.tagIds }, false);
     const now = mockDateTime();
     const content: MockContent = {
       id: getNextCmsContentId(),
@@ -802,6 +812,7 @@ export const cmsHandlers = [
     assertMockCmsManualAudit(content);
     if (content.lockedAt || content.archivedAt) return conflict('内容已锁定或归档', { status: 409 });
     const revisionId = content.editorialStatus === 'pending' ? content.submittedRevisionId : content.editorialStatus === 'approved' ? content.approvedRevisionId : null;
+    validateMockCmsTaxonomySelection(revisionId ? getMockCmsRevisionContent(revisionId) : content, true);
     content.approvedRevisionId = revisionId ?? freezeMockCmsRevision(params.id, 'publication').id;
     content.editorialStatus = 'approved'; content.version += 1; content.hasUnpublishedChanges = true;
     return ok(content, '已批准，待加入发布单');
@@ -851,8 +862,8 @@ export const cmsHandlers = [
   // ═══ 标签 ═══════════════════════════════════════════════════════════════
   mock(cmsTagContract.all, ({ query, ok }) => ok(mockCmsTags.filter((t) => t.siteId === query.siteId))),
   mock(cmsTagContract.list, ({ query, ok, paginate }) => {
-    const { siteId, keyword, groupName } = query;
-    let list = mockCmsTags.filter((t) => t.siteId === siteId);
+    const { siteId, keyword, groupName, vocabularyId } = query;
+    let list = mockCmsTags.filter((t) => t.siteId === siteId && (vocabularyId === undefined || t.vocabularyId === vocabularyId));
     list = filterByKeyword(list, keyword, [(t) => t.name, (t) => t.slug]);
     list = filterByKeyword(list, groupName, [(t) => t.groupName]);
     return ok(paginate(list));
@@ -860,20 +871,28 @@ export const cmsHandlers = [
   ...mockResource(cmsTagContract, {
     store: mockCmsTags,
     notFound: '标签不存在',
-    exclude: ['list', 'create', 'remove'],
-    update: (item, body, now) => {
-      Object.assign(item, body, { updatedAt: now });
-      stageMockCmsConfigurationDraft(item.siteId);
-    },
+    exclude: ['list', 'create', 'update', 'remove'],
   }),
-  mock(cmsTagContract.create, ({ body, ok }) => {
+  mock(cmsTagContract.create, async ({ body, ok }) => {
+    await validateMockCmsTermPlacement(body.siteId, body);
+    if (mockCmsTags.some(row => row.siteId === body.siteId && (row.name === body.name || row.slug === body.slug))) return conflict('同站点下名称或标识已存在', { status: 409 });
     const now = mockDateTime();
-    const row = { id: getNextCmsTagId(), siteId: body.siteId, name: body.name, slug: body.slug, groupName: body.groupName ?? null, contentCount: 0, createdAt: now, updatedAt: now };
+    const row = { ...body, id: getNextCmsTagId(), groupName: body.groupName ?? null, vocabularyId: body.vocabularyId ?? null, parentId: body.parentId ?? null, contentCount: 0, createdAt: now, updatedAt: now };
     mockCmsTags.push(row);
     stageMockCmsConfigurationDraft(row.siteId);
     return ok(row, '创建成功');
   }),
+  mock(cmsTagContract.update, async ({ params, body, ok }) => {
+    const row = requireItem(mockCmsTags, params.id, '标签不存在', { status: 404 });
+    const candidate = { ...row, ...body };
+    await validateMockCmsTermPlacement(row.siteId, candidate, row.id);
+    if (mockCmsTags.some(item => item.id !== row.id && item.siteId === row.siteId && (item.name === candidate.name || item.slug === candidate.slug))) return conflict('同站点下名称或标识已存在', { status: 409 });
+    Object.assign(row, body, { updatedAt: mockDateTime() }); stageMockCmsConfigurationDraft(row.siteId); return ok(row);
+  }),
   mock(cmsTagContract.remove, ({ params, ok }) => {
+    const current = requireItem(mockCmsTags, params.id, '标签不存在', { status: 404 });
+    if (mockCmsTags.some(term => term.parentId === current.id)) return conflict('请先处理子词条', { status: 409 });
+    if (mockCmsContents.some(content => content.tagIds.includes(current.id) || getMockCmsPublishedContent(content.id)?.tagIds.includes(current.id))) return conflict('标签或词条仍被内容使用，请先调整内容分类', { status: 409 });
     const tag = removeItem(mockCmsTags, params.id, '标签不存在', { status: 404 });
     stageMockCmsConfigurationDraft(tag.siteId);
     return ok(null, '删除成功');
@@ -1111,7 +1130,10 @@ export const cmsP2Handlers = [
     const revision = getMockCmsRevision(params.versionId);
     if (!revision || revision.contentId !== params.id) return notFound('版本不存在', { status: 404 });
     const current = content as unknown as Record<string, unknown>;
-    return ok(Object.entries(revision.snapshot).filter(([field, value]) => JSON.stringify(value) !== JSON.stringify(current[field])).map(([field, value]) => ({ field, label: field, before: value ?? null, after: current[field] ?? null })));
+    const previousDocument = cmsBodyDocumentSchema.safeParse(revision.snapshot.bodyDocument);
+    return ok(Object.entries(revision.snapshot).filter(([field, value]) => field !== 'bodyDocument' && JSON.stringify(value) !== JSON.stringify(current[field])).map(([field, value]) => ({ field, label: field, before: value ?? null, after: current[field] ?? null,
+      ...(field === 'body' ? { bodyChanges: diffCmsDocumentBlocks(previousDocument.success ? previousDocument.data : null, content.bodyDocument) } : {}),
+    })));
   }),
 
   // ─── SEO：重定向 ────────────────────────────────────────────────────────────
@@ -1913,11 +1935,10 @@ export const cmsP3Handlers = [
   }),
   mock(cmsContentContract.batchTag, ({ body, ok }) => {
     for (const id of body.ids) { const item = assertMockCmsCas(id, body.expectedVersions[String(id)]); if (item.lockedAt) return locked('内容已被持久锁定', { status: 423 }); }
-    for (const id of body.ids) { const item = getMockCmsWorkingContent(id); item.version += 1; item.hasUnpublishedChanges = true; }
     const { ids, tagIds } = body;
-    for (const c of mockCmsContents) {
-      if (ids.includes(c.id)) c.tagIds = Array.from(new Set([...c.tagIds, ...tagIds]));
-    }
+    const candidates = ids.map(id => { const content = getMockCmsWorkingContent(id); return { content, tagIds: [...new Set([...content.tagIds, ...tagIds])] }; });
+    for (const candidate of candidates) validateMockCmsTaxonomySelection({ ...candidate.content, tagIds: candidate.tagIds }, false);
+    for (const candidate of candidates) saveMockCmsWorkingContent(candidate.content.id, { tagIds: candidate.tagIds }, body.expectedVersions[String(candidate.content.id)]);
     return ok(null, `已打标 ${ids.length} 条内容`);
   }),
   mock(cmsContentContract.batchStatus, async ({ body, ok }) => {
@@ -1935,7 +1956,7 @@ export const cmsP3Handlers = [
       if (content.lockedAt) { failed.push({ id, reason: '内容已被持久锁定' }); continue; }
       if (action === 'submit') {
         if (content.editorialStatus !== 'pending') {
-          try { startMockCmsWorkflow(content); } catch (error) {
+          try { validateMockCmsTaxonomySelection(content, true); startMockCmsWorkflow(content); } catch (error) {
             const message = error instanceof MockHttpError
               ? String((await error.response.clone().json() as { message: string }).message)
               : '工作流发起失败';
@@ -1952,6 +1973,10 @@ export const cmsP3Handlers = [
         }
       } else if (action === 'publish') {
         try { assertMockCmsManualAudit(content); } catch { failed.push({ id, reason: '内容正在工作流审核中，请在流程中处理' }); continue; }
+        try { validateMockCmsTaxonomySelection(content.submittedRevisionId ? getMockCmsRevisionContent(content.submittedRevisionId) : content, true); } catch (error) {
+          const message = error instanceof MockHttpError ? String((await error.response.clone().json() as { message: string }).message) : '分类校验失败';
+          failed.push({ id, reason: message }); continue;
+        }
         if (!content.archivedAt) {
           content.approvedRevisionId = content.submittedRevisionId ?? freezeMockCmsRevision(id, 'publication').id;
           content.editorialStatus = 'approved';

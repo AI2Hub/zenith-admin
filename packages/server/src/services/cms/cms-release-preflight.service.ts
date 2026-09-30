@@ -1,53 +1,61 @@
 import { and, eq, inArray } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import type { CmsPageBlock } from '@zenith/shared/cms';
+import { cmsReleaseBlockingMessage, uniqueCmsReleaseChecks, inspectCmsReleaseConfiguration, makeCmsReleaseCheck, type CmsConfigurationSnapshot, type CmsPageBlock, type CmsReleaseCheck } from '@zenith/shared/cms';
 import type { DbExecutor } from '../../db/types';
-import { cmsChannels, cmsContents, cmsPages, cmsTags, cmsWidgets, cmsWidgetRefs } from '../../db/schema';
+import { cmsChannels, cmsContents, cmsPages, cmsTags, cmsWidgets, cmsWidgetRefs, cmsContentCollections } from '../../db/schema';
 import { resolveEffectivelyEnabledChannelIds } from './cms-channel-visibility.service';
 import { sanitizeCmsPageBlocks } from './cms-page-blocks';
 import { inspectCmsPageBlockTargets } from './cms-page-quality.service';
+import { cmsGenerationContext, cmsGenerationNow } from './cms-generation-context';
+import { hasCmsGenerationTable } from './cms-generation-storage.service';
 
-/** Runs against the candidate executor, never against a later working configuration. */
-export async function assertCmsReleaseDependencies(executor: DbExecutor, siteId: number): Promise<void> {
-  const [pages, widgets, channels, tags, placements] = await Promise.all([
+export { uniqueCmsReleaseChecks } from '@zenith/shared/cms';
+
+/** Runs against the candidate executor. Every page and dependency is inspected before deciding whether to block. */
+export async function inspectCmsReleaseDependencies(executor: DbExecutor, siteId: number): Promise<CmsReleaseCheck[]> {
+  const generation = cmsGenerationContext();
+  const hasCollections = !generation || await hasCmsGenerationTable(executor, generation.generationId, 'cms_content_collections');
+  const [pages, widgets, channels, tags, placements, collections] = await Promise.all([
     executor.select().from(cmsPages).where(and(eq(cmsPages.siteId, siteId), eq(cmsPages.status, 'enabled'))),
-    executor.select().from(cmsWidgets).where(eq(cmsWidgets.siteId, siteId)),
-    executor.select().from(cmsChannels).where(eq(cmsChannels.siteId, siteId)),
-    executor.select({ slug: cmsTags.slug }).from(cmsTags).where(eq(cmsTags.siteId, siteId)),
+    executor.select({ id: cmsWidgets.id, name: cmsWidgets.name, publishedName: cmsWidgets.publishedName, status: cmsWidgets.status, publishedData: cmsWidgets.publishedData }).from(cmsWidgets).where(eq(cmsWidgets.siteId, siteId)),
+    executor.select({ id: cmsChannels.id, name: cmsChannels.name, code: cmsChannels.code, parentId: cmsChannels.parentId, status: cmsChannels.status }).from(cmsChannels).where(eq(cmsChannels.siteId, siteId)),
+    executor.select({ id: cmsTags.id, slug: cmsTags.slug }).from(cmsTags).where(eq(cmsTags.siteId, siteId)),
     executor.select().from(cmsWidgetRefs).where(and(eq(cmsWidgetRefs.siteId, siteId), eq(cmsWidgetRefs.ownerType, 'theme_slot'))),
+    hasCollections ? executor.select({ id: cmsContentCollections.id, siteId: cmsContentCollections.siteId }).from(cmsContentCollections).where(eq(cmsContentCollections.siteId, siteId)) : [],
   ]);
   const enabledChannels = resolveEffectivelyEnabledChannelIds(channels);
-  const widgetById = new Map(widgets.map((row) => [row.id, row]));
-  const requireWidget = (id: number, owner: string) => {
-    const widget = widgetById.get(id);
-    if (!widget || widget.status !== 'published' || !widget.publishedData) throw new HTTPException(409, { message: `${owner} 引用的部件 #${id} 未包含在候选公开集合中，请将依赖一并加入发布单` });
-  };
-  for (const placement of placements) requireWidget(placement.widgetId, `主题插槽 ${placement.field}`);
+  const ids = [...new Set([
+    ...widgets.flatMap(widget => widget.publishedData?.items.filter(item => item.sourceType === 'content').flatMap(item => item.sourceId ? [item.sourceId] : []) ?? []),
+    ...[...JSON.stringify(pages.map(page => page.blocks)).matchAll(/entity:content\/(\d+)/g)].map(match => Number(match[1])),
+  ])];
+  const contents = ids.length ? await executor.select({ id: cmsContents.id, channelId: cmsContents.channelId, status: cmsContents.status, deletedAt: cmsContents.deletedAt, archivedAt: cmsContents.archivedAt, expireAt: cmsContents.expireAt }).from(cmsContents).where(and(eq(cmsContents.siteId, siteId), inArray(cmsContents.id, ids))) : [];
+  const visibleContentIds = new Set(contents.filter(row => row.status === 'published' && !row.deletedAt && !row.archivedAt && (!row.expireAt || row.expireAt > cmsGenerationNow()) && enabledChannels.has(row.channelId)).map(row => row.id));
+  const configuration: CmsConfigurationSnapshot = { replaceAll: [], tables: {
+    cms_pages: pages,
+    cms_widgets: widgets.map(row => ({ id: row.id, name: row.name, published_name: row.publishedName, status: row.status, published_data: row.publishedData })),
+    cms_channels: channels, cms_tags: tags,
+    cms_content_collections: collections.map(row => ({ id: row.id, site_id: row.siteId })),
+    cms_widget_refs: placements.map(row => ({ owner_type: row.ownerType, field: row.field, widget_id: row.widgetId })),
+  } };
+  const checks = inspectCmsReleaseConfiguration({ siteId, configuration, enabledChannelIds: enabledChannels, visibleContentIds });
   for (const page of pages) {
-    const blocks = sanitizeCmsPageBlocks(page.blocks) as CmsPageBlock[];
-    const issues = (await inspectCmsPageBlockTargets(executor, siteId, blocks)).filter(issue => issue.severity === 'error');
-    if (issues.length) throw new HTTPException(409, { message: `页面「${page.name}」发布检查失败：${issues.map(issue => `区块「${issue.blockId || '页面'}」${issue.fieldPath}：${issue.message}`).join('；')}` });
-    for (const block of blocks) {
-      if (block.type === 'widget-ref') requireWidget(Number(block.props.widgetId), `页面「${page.name}」`);
-      if (block.type === 'content-list') {
-        const channel = typeof block.props.channelCode === 'string' && block.props.channelCode
-          ? channels.find((row) => row.code === block.props.channelCode)
-          : block.props.channelId ? channels.find((row) => row.id === Number(block.props.channelId)) : undefined;
-        if ((block.props.channelCode || block.props.channelId) && (!channel || !enabledChannels.has(channel.id))) throw new HTTPException(409, { message: `页面「${page.name}」引用的栏目不存在或未启用` });
-        if (block.props.tagSlug && !tags.some((tag) => tag.slug === block.props.tagSlug)) throw new HTTPException(409, { message: `页面「${page.name}」引用的标签不存在` });
-      }
+    const object = { kind: 'page' as const, id: page.id, title: page.name, revisionId: null };
+    let blocks: CmsPageBlock[];
+    try { blocks = sanitizeCmsPageBlocks(page.blocks); }
+    catch (error) {
+      if (!(error instanceof HTTPException)) throw error;
+      checks.push(makeCmsReleaseCheck({ siteId, object, kind: 'quality', code: 'page-shape', fieldPath: 'blocks', message: error.message }));
+      continue;
+    }
+    for (const issue of await inspectCmsPageBlockTargets(executor, siteId, blocks)) {
+      if (checks.some(check => check.object.kind === 'page' && check.object.id === page.id && check.nodeId === (issue.blockId || null) && check.code === issue.rule && check.fieldPath === issue.fieldPath)) continue;
+      checks.push(makeCmsReleaseCheck({ siteId, object, code: issue.rule, fieldPath: issue.fieldPath, nodeId: issue.blockId || null, severity: issue.severity, message: issue.message }));
     }
   }
-  for (const widget of widgets.filter((row) => row.status === 'published' && row.publishedData)) {
-    const items = widget.publishedData!.items;
-    const ids = items.filter((item) => item.sourceType === 'content').map((item) => item.sourceId).filter((id): id is number => typeof id === 'number');
-    const contents = ids.length ? await executor.select().from(cmsContents).where(and(eq(cmsContents.siteId, siteId), inArray(cmsContents.id, ids))) : [];
-    for (const item of items) {
-      if (item.sourceType === 'channel' && !enabledChannels.has(Number(item.sourceId))) throw new HTTPException(409, { message: `部件「${widget.name}」引用了不存在或未启用的栏目` });
-      if (item.sourceType === 'content') {
-        const content = contents.find((row) => row.id === item.sourceId);
-        if (!content || content.status !== 'published' || content.deletedAt || content.archivedAt || (content.expireAt && content.expireAt <= new Date()) || !enabledChannels.has(content.channelId)) throw new HTTPException(409, { message: `部件「${widget.name}」引用的内容 #${item.sourceId} 不在候选公开集合中` });
-      }
-    }
-  }
+  return uniqueCmsReleaseChecks(checks);
+}
+
+export async function assertCmsReleaseDependencies(executor: DbExecutor, siteId: number): Promise<void> {
+  const message = cmsReleaseBlockingMessage(await inspectCmsReleaseDependencies(executor, siteId));
+  if (message) throw new HTTPException(409, { message });
 }

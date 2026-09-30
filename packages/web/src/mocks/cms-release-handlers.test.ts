@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { CmsRelease, CmsReleaseDetail } from '@zenith/shared/cms';
+import { cmsReleaseReviewSchema, type CmsRelease, type CmsReleaseDetail, type CmsReleaseReview } from '@zenith/shared/cms';
 import { cmsReleaseHandlers, resetMockCmsReleases } from './handlers/cms-releases';
 import { mockCmsContents, mockCmsContentVersions, mockCmsPages } from './data/cms';
 import { freezeMockCmsRevision, getMockCmsPublishedContent, getMockCmsWorkingContent, resetMockCmsRevisions, saveMockCmsWorkingContent } from './utils/cms-revisions';
@@ -32,6 +32,7 @@ describe('发布单 Demo 契约', () => {
     const revision = freezeMockCmsRevision(1, 'submission');
     working.approvedRevisionId = revision.id;
     const page = mockCmsPages.find((item) => item.siteId === working.siteId)!;
+    page.blocks = [{ id: 'intro', type: 'richtext', props: { html: '<p>固定页面正文</p>' } }];
     const pageName = page.name;
     const created = await call<CmsRelease>('POST', '/api/cms/releases', { siteId: working.siteId, name: '活动上线', revisionIds: [revision.id], pageIds: [page.id], autoActivate: false });
     expect(created.status).toBe(200);
@@ -65,5 +66,44 @@ describe('发布单 Demo 契约', () => {
     expect(rejected.status).toBe(409);
     const detail = await call<CmsReleaseDetail>('GET', `/api/cms/releases/${first.body.data.id}`);
     expect(detail.body.data.activeGenerationId).toBe(activated.body.data.deploymentId);
+  });
+
+  it('requires explicit approved dependencies and preserves the original fixed configuration', async () => {
+    const source = getMockCmsWorkingContent(1);
+    mockCmsContents.push({ ...structuredClone(source), id: 98765, title: '已批准的依赖', status: 'draft', editorialStatus: 'draft', publishedRevisionId: null, approvedRevisionId: null, submittedRevisionId: null, modelId: null, modelFields: [], extend: {}, tagIds: [], relatedIds: [] });
+    const target = getMockCmsWorkingContent(98765);
+    const targetRevision = freezeMockCmsRevision(target.id, 'submission');
+    target.approvedRevisionId = targetRevision.id;
+    saveMockCmsWorkingContent(source.id, { modelId: null, modelFields: [], extend: {}, tagIds: [], relatedIds: [target.id] }, source.version);
+    const sourceRevision = freezeMockCmsRevision(source.id, 'submission');
+    source.approvedRevisionId = sourceRevision.id;
+    const page = mockCmsPages.find(row => row.siteId === source.siteId)!;
+    page.blocks = [{ id: 'intro', type: 'richtext', props: { html: '<p>固定页面</p>' } }];
+    const originalName = page.name;
+    const release = (await call<CmsRelease>('POST', '/api/cms/releases', { siteId: source.siteId, name: '依赖选择', revisionIds: [sourceRevision.id], pageIds: [page.id] })).body.data;
+    const review = (await call<CmsReleaseReview>('GET', `/api/cms/releases/${release.id}/review`)).body.data;
+    expect(cmsReleaseReviewSchema.safeParse(review).success).toBe(true);
+    expect(review.validation.inputFingerprint).toBe(review.fingerprint);
+    expect(review.checks).toEqual(expect.arrayContaining([expect.objectContaining({ code: 'content-reference', reference: { kind: 'content', id: target.id }, recommendedAction: 'select-approved' })]));
+    expect(review.dependencyOptions).toEqual(expect.arrayContaining([expect.objectContaining({ revisionId: targetRevision.id })]));
+    expect((await call('POST', `/api/cms/releases/${release.id}/build`)).status).toBe(409);
+
+    page.name = '后来保存但不应混入的页面';
+    saveMockCmsWorkingContent(target.id, { title: '未批准的后续工作稿' }, target.version);
+    const unapproved = freezeMockCmsRevision(target.id, 'checkpoint');
+    const body = { expectedGenerationId: review.currentGenerationId, expectedFingerprint: review.fingerprint, revisionIds: [targetRevision.id] };
+    expect((await call('POST', `/api/cms/releases/${release.id}/resolve-dependencies`, { ...body, revisionIds: [unapproved.id] })).status).toBe(409);
+    expect((await call('POST', `/api/cms/releases/${release.id}/resolve-dependencies`, { ...body, expectedFingerprint: '0'.repeat(64) })).status).toBe(409);
+    const resolved = await call<CmsRelease>('POST', `/api/cms/releases/${release.id}/resolve-dependencies`, body);
+    expect(resolved.status).toBe(200);
+    expect(resolved.body.data.id).not.toBe(release.id);
+    expect(resolved.body.data.items.map(item => item.revisionId)).toEqual([sourceRevision.id, targetRevision.id]);
+    expect(resolved.body.data.autoActivate).toBe(false);
+    const nextReview = (await call<CmsReleaseReview>('GET', `/api/cms/releases/${resolved.body.data.id}/review`)).body.data;
+    expect(nextReview.checks.some(check => check.code === 'content-reference')).toBe(false);
+    expect(nextReview.changes.find(change => change.kind === 'page')?.fields).toEqual(expect.arrayContaining([expect.objectContaining({ path: 'name', after: originalName })]));
+    expect((await call<CmsRelease>('GET', `/api/cms/releases/${release.id}`)).body.data.items).toHaveLength(1);
+    expect(target.title).toBe('未批准的后续工作稿');
+    expect(target.approvedRevisionId).toBe(targetRevision.id);
   });
 });

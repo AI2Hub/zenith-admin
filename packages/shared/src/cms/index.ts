@@ -18,6 +18,8 @@ export * from './release-validation';
 export * from './release-configuration';
 export * from './document';
 export * from './model-design';
+export * from './model-compiler';
+export * from './component-validation';
 export * from './design-validation';
 export * from './distribution-merge';
 export * from './content-import';
@@ -26,6 +28,7 @@ export * from './cms-media';
 export * from './cms-media-validation';
 export * from './workbench-validation';
 export * from './release-review';
+export * from './release-checks';
 
 export * from './site-blueprints';
 
@@ -48,3 +51,5 @@ export * from './page-block-quality';
 export * from './configuration-state';
 export * from './page-presets';
 export * from './delivery-validation';
+export * from './taxonomy';
+export * from './content-collections';

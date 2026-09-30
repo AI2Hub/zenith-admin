@@ -208,7 +208,7 @@ export const HomeTemplate = defineHomeTemplate({
     const parsed = cmsHomeSectionsSchema.safeParse(site.themeConfig.homeSections ?? []);
     const sections = parsed.success ? parsed.data : [];
     const channelBlocks = await Promise.all(sections.map(async (section) => ({
-      ...await cms.contents.list({ channelId: section.channelId ?? undefined, limit: section.count, recommend: section.source === 'recommended', hot: section.source === 'hot' }), section,
+      ...await cms.contents.list({ channelId: section.channelId ?? undefined, collectionId: section.source === 'collection' ? section.collectionId ?? undefined : undefined, limit: section.count, recommend: section.source === 'recommended', hot: section.source === 'hot' }), section,
     })));
     return { channelBlocks };
   },

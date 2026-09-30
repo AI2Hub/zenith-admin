@@ -30,9 +30,13 @@ export function useCmsModelVersions(id?: number, siteId?: number) {
   return useApiQuery(cmsModelContract.versions, { params: { id: id ?? 0 }, query: { siteId } }, { enabled: id !== undefined });
 }
 
+export function useCmsModelPublishImpact(id?: number, siteId?: number) {
+  return useApiQuery(cmsModelContract.publishImpact, { params: { id: id ?? 0 }, query: { siteId } }, { enabled: id !== undefined });
+}
+
 /** 全部启用模型；siteId 提供时按站群可见性过滤（平台共享 + 该站点专属） */
-export function useAllCmsModels(siteId?: number) {
-  return useApiQuery(cmsModelContract.all, { query: { siteId } }, { staleTime: LOOKUP_STALE_TIME });
+export function useAllCmsModels(siteId?: number, enabled = true) {
+  return useApiQuery(cmsModelContract.all, { query: { siteId } }, { enabled, staleTime: LOOKUP_STALE_TIME });
 }
 
 /**
@@ -41,7 +45,11 @@ export function useAllCmsModels(siteId?: number) {
  */
 export function invalidateAfterCmsModelChange(qc: QueryClient, id?: number) {
   void qc.invalidateQueries({ queryKey: cmsModelKeys.lists });
-  if (id !== undefined) void qc.invalidateQueries({ queryKey: cmsModelKeys.detail(id) });
+  if (id !== undefined) {
+    void qc.invalidateQueries({ queryKey: cmsModelKeys.detail(id) });
+    void qc.invalidateQueries({ queryKey: contractKey(cmsModelContract.publishImpact, { params: { id } }) });
+    void qc.invalidateQueries({ queryKey: contractKey(cmsModelContract.versions, { params: { id } }) });
+  }
   void qc.invalidateQueries({ queryKey: cmsModelKeys.lookup });
   void qc.invalidateQueries({ queryKey: cmsChannelKeys.trees });
 }

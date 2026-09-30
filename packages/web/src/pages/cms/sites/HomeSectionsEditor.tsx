@@ -1,3 +1,4 @@
+import { useAllCmsCollections } from '@/hooks/queries/cms-content-collections';
 import { useEffect, useRef, useState } from 'react';
 import { Banner, Button, Input, InputNumber, Select, Space, Typography } from '@douyinfe/semi-ui';
 import { ArrowDown, ArrowUp, GripVertical, Plus, Trash2 } from 'lucide-react';
@@ -23,6 +24,7 @@ export default function HomeSectionsEditor({ siteId, value = [], onChange, disab
     if (element) { focused.current = key; element.scrollIntoView({ block: 'center' }); element.focus(); }
   }, [focusBlockId, siteId, value]);
   const channels = useCmsChannelTree(siteId);
+  const collections = useAllCmsCollections(siteId);
   const [dragging, setDragging] = useState<number | null>(null);
   const options = flatten(channels.data ?? []).filter((row) => row.type === 'list' && row.status === 'enabled').map((row) => ({ value: row.id, label: row.name }));
   const patch = (index: number, values: Partial<CmsHomeSection>) => onChange(value.map((row, position) => position === index ? { ...row, ...values } : row));
@@ -40,8 +42,9 @@ export default function HomeSectionsEditor({ siteId, value = [], onChange, disab
         <Button icon={<Trash2 size={14} />} aria-label={`删除区域 ${index + 1}`} disabled={disabled} onClick={() => onChange(value.filter((_, position) => position !== index))} />
       </Space>
       <div className="cms-composition-grid">
-        <label>内容来源<Select aria-label={`区域 ${index + 1} 内容来源`} value={row.source} optionList={CMS_HOME_SECTION_SOURCE_OPTIONS} disabled={disabled} onChange={(source) => patch(index, { source: source as CmsHomeSection['source'], channelId: null })} /></label>
+        <label>内容来源<Select aria-label={`区域 ${index + 1} 内容来源`} value={row.source} optionList={CMS_HOME_SECTION_SOURCE_OPTIONS} disabled={disabled} onChange={(source) => patch(index, { source: source as CmsHomeSection['source'], channelId: null, collectionId: null })} /></label>
         {row.source === 'channel' ? <label>本站栏目<Select aria-label={`区域 ${index + 1} 栏目`} value={row.channelId ?? undefined} loading={channels.isFetching} filter disabled={disabled || !siteId} optionList={options} placeholder={siteId ? '选择启用的列表栏目' : '请先保存站点，再创建栏目'} onChange={(id) => patch(index, { channelId: Number(id) })} /></label> : null}
+        {row.source === 'collection' ? <label>内容集合<Select aria-label={`区域 ${index + 1} 集合`} value={row.collectionId ?? undefined} loading={collections.isFetching} disabled={disabled || !siteId} optionList={(collections.data ?? []).map(item => ({ value: item.id, label: item.name }))} onChange={id => patch(index, { collectionId: Number(id) })} /></label> : null}
         <label>区域标题<Input aria-label={`区域 ${index + 1} 标题`} value={row.title} disabled={disabled} placeholder="留空使用来源名称" maxLength={80} onChange={(title) => patch(index, { title })} /></label>
         <label>展示条数<InputNumber aria-label={`区域 ${index + 1} 条数`} min={1} max={24} value={row.count} disabled={disabled} onChange={(count) => { if (typeof count === 'number') patch(index, { count }); }} /></label>
         <label>展示样式<Select aria-label={`区域 ${index + 1} 样式`} value={row.style} optionList={CMS_HOME_SECTION_STYLE_OPTIONS} disabled={disabled} onChange={(style) => patch(index, { style: style as CmsHomeSection['style'] })} /></label>

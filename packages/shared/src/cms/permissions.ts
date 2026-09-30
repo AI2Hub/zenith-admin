@@ -6,6 +6,10 @@ import { definePermissions } from '../core/permissions';
  * `uiOnly` = 服务端没有任何接口检查该码（纯前端门控或待清理）。
  */
 export const CMS_PERMISSIONS = definePermissions({
+  'cms:taxonomy:list': { label: '查询受控分类', menu: 'CmsTaxonomy' },
+  'cms:taxonomy:manage': { label: '管理受控分类', menu: 'CmsTaxonomy' },
+  'cms:collection:list': { label: '查询内容集合', menu: 'CmsCollections' },
+  'cms:collection:manage': { label: '管理内容集合', menu: 'CmsCollections' },
   'cms:dashboard:view': { label: '查询', menu: 'CmsDashboard' },
   'cms:site:list': { label: '查询', menu: ['CmsSites', 'CmsDashboard', 'CmsStats', 'CmsWorkspace'] },
   'cms:site:create': { label: '新增站点', menu: 'CmsSites' },

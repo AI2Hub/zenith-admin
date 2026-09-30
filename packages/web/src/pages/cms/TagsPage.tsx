@@ -6,8 +6,8 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { EMPTY_PLACEHOLDER, createdAtColumn } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
-import { useCmsTagList, useSaveCmsTag, useDeleteCmsTags } from '@/hooks/queries/cms';
-import { cmsTagContract, type CmsTag, type CreateCmsTagInput } from '@zenith/shared/cms';
+import { useCmsTagList, useSaveCmsTag, useDeleteCmsTags, useAllCmsTags } from '@/hooks/queries/cms';
+import { cmsTagContract, type CmsTag, type CmsVocabulary, type CreateCmsTagInput } from '@zenith/shared/cms';
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { CreateButton } from '@/components/toolbar-controls';
 import { deleteAction, ListSearchToolbar } from '@/components/list-page';
@@ -17,27 +17,30 @@ import { useListPage } from '@/hooks/useListPage';
 import { EditFormModal } from '@/components/EditFormModal';
 import { KeywordInput } from '@/components/search-filters';
 
-export default function TagsPage() {
+export default function TagsPage({ vocabulary }: Readonly<{ vocabulary?: CmsVocabulary }> = {}) {
   const { hasPermission } = usePermission();
-  const [siteId, setSiteId] = useState<number | undefined>(undefined);
+  const [siteId, setSiteId] = useState<number | undefined>(vocabulary?.siteId);
   const page = useListPage({
     contract: cmsTagContract,
     useList: useCmsTagList,
-    params: { siteId: siteId ?? 0 },
+    params: { siteId: siteId ?? 0, vocabularyId: vocabulary?.id },
     enabled: siteId !== undefined,
     table: { empty: '暂无标签' },
   });
   const { setPage, tableProps } = page;
 
+  const allTags = useAllCmsTags(siteId);
   const saveMutation = useSaveCmsTag();
-  const modal = useEditModal<CmsTag, Partial<CmsTag>, Partial<CreateCmsTagInput>>({
+  const modal = useEditModal<CmsTag, Omit<Partial<CreateCmsTagInput>, 'localeLabels'> & { localeLabels?: string }, Partial<CreateCmsTagInput>>({
     entityName: '标签',
     save: saveMutation,
-    toValues: (record) => ({ name: record.name, slug: record.slug, groupName: record.groupName ?? '' }),
+    toValues: (record) => ({ name: record.name, slug: record.slug, groupName: record.groupName ?? '', parentId: record.parentId ?? undefined, aliases: record.aliases ?? [], localeLabels: JSON.stringify(record.localeLabels ?? {}, null, 2) }),
     beforeSave: (values, { isEdit }) => {
       if (!isEdit && !siteId) abortSubmit('validation');
       return {
-        ...values,
+        ...values, vocabularyId: vocabulary?.id ?? modal.editing?.vocabularyId ?? null,
+        aliases: Array.isArray(values.aliases) ? values.aliases : [],
+        localeLabels: typeof values.localeLabels === 'string' ? JSON.parse(values.localeLabels || '{}') : values.localeLabels ?? {},
         ...(!isEdit ? { siteId } : {}),
         groupName: typeof values.groupName === 'string' && values.groupName.trim() === '' ? null : values.groupName,
       };
@@ -68,13 +71,13 @@ export default function TagsPage() {
       width: 150,
       desktopInlineKeys: ['edit', 'delete'],
       actions: (record) => [
-        ...(hasPermission('cms:tag:update') ? [{
+        ...((hasPermission('cms:tag:update') || !!vocabulary && hasPermission('cms:taxonomy:manage')) ? [{
           key: 'edit',
           label: '编辑',
           onClick: () => modal.openEdit(record),
         }] : []),
         deleteAction({
-          hidden: !hasPermission('cms:tag:delete'),
+          hidden: !(hasPermission('cms:tag:delete') || !!vocabulary && hasPermission('cms:taxonomy:manage')),
           title: '确定要删除该标签吗？',
           content: '删除后关联内容的打标关系将一并移除',
           run: () => deleteMutation.mutateAsync([record.id]),
@@ -89,14 +92,14 @@ export default function TagsPage() {
       <ListSearchToolbar
         keyword={(
           <>
-            <CmsSiteSelect value={siteId} onChange={(v) => { setSiteId(v); setPage(1); }} width={180} />
+            {!vocabulary && <CmsSiteSelect value={siteId} onChange={(v) => { setSiteId(v); setPage(1); }} width={180} />}
             <KeywordInput placeholder="搜索关键字" {...page.bindKeyword('keyword')} />
           </>
         )}
         filters={<KeywordInput placeholder="搜索分组" {...page.bindKeyword('groupName')} width={160} />}
         onSearch={page.toolbarProps.onSearch}
         onReset={page.toolbarProps.onReset}
-        create={<CreateButton permission="cms:tag:create" onClick={modal.openCreate} />}
+        create={<CreateButton permission={vocabulary ? 'cms:taxonomy:manage' : 'cms:tag:create'} onClick={modal.openCreate} />}
       />
 
       <ConfigurableTable<CmsTag>
@@ -108,6 +111,11 @@ export default function TagsPage() {
         <Form.Input field="name" label="标签名称" onChange={(v) => handleNameChange(String(v ?? ''))} rules={[{ required: true, message: '请输入标签名称' }]} />
         <Form.Input field="slug" label="URL 标识" placeholder="输入名称自动生成，可修改" rules={[{ required: true, message: '请输入 URL 标识' }]} />
         <Form.Input field="groupName" label="分组" placeholder="可选，如「产品」「行业」，便于归类管理" maxLength={50} />
+        {vocabulary ? <>
+          <Form.Select field="parentId" label="父词条" showClear optionList={(allTags.data ?? []).filter(term => term.vocabularyId === vocabulary.id && term.id !== modal.editing?.id).map(term => ({ value: term.id, label: term.name }))} />
+          <Form.TagInput field="aliases" label="别名" />
+          <Form.TextArea field="localeLabels" label="多语言名称" placeholder={'{"en-US":"Beijing"}'} rules={[{ validator: (_rule, value) => { try { const parsed = JSON.parse(value || '{}'); return parsed && typeof parsed === 'object' && !Array.isArray(parsed); } catch { return false; } }, message: '请输入语言代码到名称的 JSON 对象' }]} />
+        </> : null}
       </EditFormModal>
     </div>
   );

@@ -16,6 +16,13 @@ describe('canonical CMS document', () => {
     expect(moved.nodes[0].id).toBe(first.nodes[1].id);
     expect(moved.nodes[1].id).toBe(first.nodes[0].id);
   });
+  it('does not assign an existing paragraph identity to an inserted paragraph', () => {
+    const first = normalizeCmsContentDocument('<p>第一段</p><p>第二段</p>');
+    const inserted = normalizeCmsContentDocument('<p>新增开头</p><p>第一段</p><p>第二段</p>', first);
+    expect(inserted.nodes[1].id).toBe(first.nodes[0].id);
+    expect(inserted.nodes[2].id).toBe(first.nodes[1].id);
+    expect(inserted.nodes[0].id).not.toBe(first.nodes[0].id);
+  });
   it('cleans unsafe imports before creating the authority tree', () => {
     const document = normalizeCmsContentDocument('<p onclick="alert(1)">ok<script>alert(1)</script><a href="javascript:alert(2)">link</a></p>');
     const html = renderCmsContentDocument(document);

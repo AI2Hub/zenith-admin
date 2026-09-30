@@ -1,6 +1,6 @@
 import { and, eq, inArray } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import { validateCmsStructuredFields, type CmsContentRevisionSnapshot } from '@zenith/shared/cms';
+import { normalizeCmsStructuredValues, validateCmsStructuredFields, walkCmsStructuredValues, type CmsFieldDefinition, type CmsContentRevisionSnapshot } from '@zenith/shared/cms';
 import { cmsModelVersions, cmsAssetVersions, cmsAssetRights, cmsModelUniqueValues } from '../../db/schema/cms-design';
 import { cmsModels, cmsContents } from '../../db/schema/cms';
 import type { DbExecutor } from '../../db/types';
@@ -10,9 +10,11 @@ import { cmsSnapshotHash, ensureCmsAssetVersion } from './cms-design-versions.se
 import { normalizeCmsContentDocument, renderCmsContentDocument, sanitizeCmsModelValues } from './cms-document.service';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { freezeCmsMediaForAssets } from './cms-media.service';
+import { validateCmsTaxonomyTags } from './cms-vocabularies.service';
 
 /** Freeze definitions and binary identities before the immutable revision is inserted. */
 export async function freezeCmsRevisionDependencies(tx: DbExecutor, siteId: number, modelId: number | null, snapshot: CmsContentRevisionSnapshot, options: { strict?: boolean } = {}) {
+  await validateCmsTaxonomyTags(tx, siteId, modelId, snapshot.tagIds, options.strict ?? false);
   let schemaVersionId: number | null = null;
   if (modelId) {
     const [model] = await tx.select().from(cmsModels).where(eq(cmsModels.id, modelId)).limit(1);
@@ -22,16 +24,20 @@ export async function freezeCmsRevisionDependencies(tx: DbExecutor, siteId: numb
     if (!schemaVersionId) throw new HTTPException(400, { message: '请先发布内容模型版本' });
     const [version] = await tx.select().from(cmsModelVersions).where(and(eq(cmsModelVersions.id, schemaVersionId), eq(cmsModelVersions.modelId, modelId))).limit(1);
     requireRow(version, '模型版本不存在');
-    const issues = validateCmsStructuredFields(version.fields, snapshot.extend ?? {}, options.strict ?? false);
+    const values = normalizeCmsStructuredValues(version.fields, snapshot.extend ?? {});
+    const issues = validateCmsStructuredFields(version.fields, values, options.strict ?? false);
     if (issues.length) throw new HTTPException(400, { message: issues.map((issue) => `${issue.fieldPath}: ${issue.message}`).join('；') });
-    snapshot = { ...snapshot, extend: sanitizeCmsModelValues(version.fields, snapshot.extend ?? {}) };
-    for (const field of version.fields.filter((field) => field.fieldType === 'reference' || field.fieldType === 'references')) {
-      const value = snapshot.extend?.[field.name];
+    snapshot = { ...snapshot, extend: sanitizeCmsModelValues(version.fields, values) };
+    const references: { field: CmsFieldDefinition; value: unknown; path: string }[] = [];
+    walkCmsStructuredValues(version.fields, snapshot.extend, (field, value, path) => {
+      if (field.fieldType === 'reference' || field.fieldType === 'references') references.push({ field, value, path });
+    });
+    for (const { field, value, path } of references) {
       const ids = typeof value === 'number' ? [value] : Array.isArray(value) ? value.filter((id): id is number => typeof id === 'number') : [];
       if (!ids.length) continue;
       const targets = await tx.select({ id: cmsContents.id, modelId: cmsContents.modelId }).from(cmsContents).where(and(eq(cmsContents.siteId, siteId), inArray(cmsContents.id, ids)));
       if (targets.length !== new Set(ids).size || targets.some((target) => field.configuration?.referenceModelIds?.length && (!target.modelId || !field.configuration.referenceModelIds.includes(target.modelId)))) {
-        throw new HTTPException(400, { message: `引用字段「${field.label}」目标不存在、不属于本站或类型不符合约束` });
+        throw new HTTPException(400, { message: `${path}：引用字段「${field.label}」目标不存在、不属于本站或类型不符合约束` });
       }
     }
   }
@@ -69,8 +75,13 @@ export async function claimCmsUniqueModelValues(tx: DbExecutor, siteId: number, 
   if (!snapshot.modelVersionId || !snapshot.modelId) return;
   const [version] = await tx.select().from(cmsModelVersions).where(eq(cmsModelVersions.id, snapshot.modelVersionId)).limit(1);
   if (!version) return;
-  const values = version.fields.filter((field) => field.configuration?.unique && snapshot.extend?.[field.name] != null)
-    .map((field) => ({ siteId, contentId, modelId: snapshot.modelId!, field: field.name, valueHash: cmsSnapshotHash(snapshot.extend![field.name]) }));
+  const values: (typeof cmsModelUniqueValues.$inferInsert)[] = [];
+  walkCmsStructuredValues(version.fields, snapshot.extend ?? {}, (field, value, _path, definitionPath) => {
+    if (!field.configuration?.unique || value == null || value === '' || (Array.isArray(value) && !value.length)) return;
+    // Repeated instances share the definition's uniqueness domain, independent of ordering.
+    const key = definitionPath.replace(/^extend\./, '');
+    values.push({ siteId, contentId, modelId: snapshot.modelId!, field: key.length <= 500 ? key : `${key.slice(0, 430)}#${cmsSnapshotHash(key)}`, valueHash: cmsSnapshotHash(value) });
+  });
   try { if (values.length) await tx.insert(cmsModelUniqueValues).values(values); }
   catch (error) { rethrowPgUniqueViolation(error, '模型唯一字段值已被其他内容使用'); }
 }

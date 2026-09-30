@@ -1,6 +1,8 @@
+import CmsTaxonomyInput from './CmsTaxonomyInput';
 import CmsWorkbenchPreview from './CmsWorkbenchPreview';
 import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import CmsValueDiff from './CmsValueDiff';
+import CmsBodyDiff from './CmsBodyDiff';
 import CmsContentConflictView from './CmsContentConflictView';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, Divider, Dropdown, Form, Spin, Toast, Tooltip, Row, Col, Banner, SideSheet, Space, Timeline, Modal, Upload, Typography, Tag, Input, Tabs, TabPane, withField, Pagination } from '@douyinfe/semi-ui';
@@ -12,6 +14,7 @@ import { ArrowLeft, Save, Send, ImageUp, Eye, GitCompare, Images, Paperclip, Wor
 import { useDebouncedCallback } from '@tanstack/react-pacer';
 import { formatDateTimeForApi } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
+import { useEventCallback } from '@/hooks/useEventCallback';
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import { useElementSize } from '@/hooks/useElementSize';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
@@ -27,8 +30,8 @@ import {
   useCmsContentWorkflowPreview, useCmsContentWorkflowContext,
 } from '@/hooks/queries/cms';
 import { EMPTY_PLACEHOLDER } from '@/utils/table-columns';
-import { CMS_CONTENT_TYPE_LABELS, CMS_CONTENT_TYPES, CMS_TITLE_STYLE_COLORS, CMS_RESOURCE_URI_PREFIX } from '@zenith/shared/cms';
-import type { CmsContent, CmsPreviewLink, CmsModelField, CmsEditLock, CmsTextCheckResult, CmsContentType, CmsAlbumImage, CmsContentAttachment, CmsResource } from '@zenith/shared/cms';
+import { CMS_CONTENT_TYPE_LABELS, CMS_CONTENT_TYPES, CMS_TITLE_STYLE_COLORS, CMS_RESOURCE_URI_PREFIX, createCmsFieldDefaultValue } from '@zenith/shared/cms';
+import type { CmsContent, CmsPreviewLink, CmsModelField, CmsEditLock, CmsTextCheckResult, CmsContentType, CmsAlbumImage, CmsContentAttachment, CmsResource, CmsDocumentAnchor } from '@zenith/shared/cms';
 import { useCmsLinkPicker } from './CmsLinkInput';
 import { formatBytes } from '@zenith/shared/core';
 import { channelsToSelectTree } from './channel-tree';
@@ -44,8 +47,9 @@ import { CmsResourcePicker } from './components/CmsResourcePicker';
 import CmsContentMediaFields from './components/CmsContentMediaFields';
 import { adoptCmsSavedResourceValues, createCmsResourceSelections } from './cms-resource-selections';
 import { CMS_EDITORIAL_STATUS_LABELS, CMS_EDITORIAL_STATUS_COLORS } from './cms-content-view-state';
-import { getCmsEditorFieldLocation, normalizeCmsEditorFieldPath, type CmsEditorFieldLocation } from './cms-editor-fields';
+import { getCmsEditorFieldLocation, normalizeCmsEditorFieldPath, rebaseCmsEditorFieldPath, type CmsEditorFieldLocation } from './cms-editor-fields';
 import CmsEditorialPanel from './CmsEditorialPanel';
+import { captureCmsBodyAnchor, findCmsBodyAnchorElement } from './cms-body-anchors';
 import CmsContentReviewPanel from './CmsContentReviewPanel';
 import { useAllUsers } from '@/hooks/queries/users';
 import { ApiError } from '@/lib/query';
@@ -55,6 +59,7 @@ import './ContentEditPage.css';
 
 // 富文本引擎（wangeditor）压缩后约 266 KB。静态导入会阻塞整个编辑页 chunk 的加载，
 // 且「链接」类型内容不渲染正文编辑器；改为懒加载后表单先出，编辑器再补。
+const FormTaxonomyInput = withField(CmsTaxonomyInput);
 const RichTextEditor = lazy(() => import('@/components/RichTextEditor'));
 const FormContentReference = withField(CmsContentReferenceInput);
 const FormCmsAsset = withField(CmsAssetField);
@@ -82,31 +87,7 @@ const AUTO_SAVE_INTERVAL_MS = 5_000;
 const EDIT_LOCK_HEARTBEAT_MS = 30_000;
 
 /** 解析模型字段 defaultValue 为表单控件初值（与服务端 applyCmsModelFieldDefaults 同一口径） */
-function parseFieldDefault(field: CmsModelField): unknown {
-  const raw = field.defaultValue?.trim();
-  if (!raw) return undefined;
-  switch (field.fieldType) {
-    case 'switch':
-      return raw === 'true';
-    case 'checkbox': {
-      if (raw.startsWith('[')) {
-        try {
-          const parsed: unknown = JSON.parse(raw);
-          return Array.isArray(parsed) ? parsed.map(String) : [raw];
-        } catch {
-          return [raw];
-        }
-      }
-      return raw.split(',').map((v) => v.trim()).filter(Boolean);
-    }
-    case 'number': {
-      const num = Number(raw);
-      return Number.isNaN(num) ? undefined : num;
-    }
-    default:
-      return raw;
-  }
-}
+const parseFieldDefault = createCmsFieldDefaultValue;
 
 /** 按模型字段元数据渲染动态表单控件（值写入 extend.{name}）；applyDefault 仅新建内容时生效 */
 function ModelFieldControl({ field, applyDefault, canUpload, siteId, onResourceChange }: Readonly<{ field: CmsModelField; applyDefault?: boolean; canUpload: boolean; siteId?: number; onResourceChange?: (resource: CmsResource | null) => void }>) {
@@ -153,6 +134,9 @@ export default function ContentEditPage() {
   const id = searchParams.get('id') ? Number(searchParams.get('id')) : undefined;
   const siteIdParam = searchParams.get('siteId') ? Number(searchParams.get('siteId')) : undefined;
   const channelIdParam = searchParams.get('channelId') ? Number(searchParams.get('channelId')) : undefined;
+  const deepLinkField = searchParams.get('field');
+  const deepLinkBlock = searchParams.get('block');
+  const consumedFieldLink = useRef<string | undefined>(undefined);
   // 内容形态由列表页「新增」分裂按钮指定，创建后不可变更
   const contentTypeParam = searchParams.get('contentType');
   const newContentType: CmsContentType = CMS_CONTENT_TYPES.includes(contentTypeParam as CmsContentType)
@@ -196,6 +180,9 @@ export default function ContentEditPage() {
   }
 
   const [body, setBody] = useState('');
+  const [selectedBodyAnchor, setSelectedBodyAnchor] = useState<CmsDocumentAnchor | null>(null);
+  const [annotationAnchor, setAnnotationAnchor] = useState<CmsDocumentAnchor | null>(null);
+  useEffect(() => { setSelectedBodyAnchor(null); setAnnotationAnchor(null); }, [id]);
   const [selectedModelId, setSelectedModelId] = useState<number | null | undefined>(undefined);
   const { data: users } = useAllUsers();
   const [selectedChannelId, setSelectedChannelId] = useState<number | undefined>(channelIdParam);
@@ -377,19 +364,29 @@ export default function ContentEditPage() {
   );
   const modelFields = formRecord?.modelFields ?? detail?.modelFields ?? currentModel?.fields ?? [];
 
-  function locateEditorField(fieldPath: string) {
-    const location = getCmsEditorFieldLocation(fieldPath, modelFields, contentType, formApi.current?.getValue('extend'));
+  const locateEditorField = useEventCallback((fieldPath: string, nodeId?: string) => {
+    const extend = formApi.current?.getValue('extend') ?? {};
+    const location = getCmsEditorFieldLocation(rebaseCmsEditorFieldPath(fieldPath, nodeId, extend), modelFields, contentType, extend);
     if (!location) return;
     setActiveTab('content');
     if (location.sideTab) { setSideTab(location.sideTab); setSideCollapsed(false); }
     setShowEditorOnNarrow(!location.sideTab);
-    setFieldLocation(location);
-  }
+    setFieldLocation({ ...location, nodeId: location.field === 'body' ? nodeId ?? (fieldPath.startsWith('body.') ? fieldPath.slice(5) : undefined) : undefined });
+  });
+
+  useEffect(() => {
+    if (!deepLinkField || (id && detail?.id !== id)) return;
+    const key = `${id ?? 'new'}:${deepLinkField}:${deepLinkBlock ?? ''}`;
+    if (consumedFieldLink.current === key) return;
+    consumedFieldLink.current = key;
+    locateEditorField(deepLinkField, deepLinkBlock ?? undefined);
+  }, [id, detail?.id, deepLinkField, deepLinkBlock, locateEditorField]);
 
   useLayoutEffect(() => {
     if (!fieldLocation || lastLocatedField.current === fieldLocation || activeTab !== 'content') return;
     let highlighted: HTMLElement | undefined;
-    const frame = requestAnimationFrame(() => {
+    let observer: MutationObserver | undefined;
+    const locate = () => {
       const root = editorRootRef.current;
       if (!root) return;
       // Semi 数组字段使用 [0]，服务端问题路径使用 .0；先找精确控件，再回落到所属编辑区块。
@@ -400,17 +397,25 @@ export default function ContentEditPage() {
         const path = element.dataset.cmsField;
         return path && (fieldLocation.field === path || fieldLocation.field.startsWith(`${path}.`));
       }).sort((a, b) => (b.dataset.cmsField?.length ?? 0) - (a.dataset.cmsField?.length ?? 0))[0];
-      highlighted = exact ?? anchor;
+      const paragraph = fieldLocation.nodeId ? findCmsBodyAnchorElement(root, formRecord?.bodyDocument ?? detail?.bodyDocument, fieldLocation.nodeId) : undefined;
+      if (fieldLocation.nodeId && !paragraph && !root.querySelector('[contenteditable]')) return;
+      highlighted = paragraph ?? exact ?? anchor;
       if (!highlighted) return;
+      if (fieldLocation.nodeId && !paragraph) Toast.info('原段落已变化或被删除，已定位正文，请复核引用文字。');
+      observer?.disconnect();
       lastLocatedField.current = fieldLocation;
       highlighted.scrollIntoView({ behavior: 'auto', block: 'center' });
       highlighted.classList.add('cms-content-edit__field-highlight');
       const control = highlighted.querySelector<HTMLElement>('input:not([disabled]):not([type="hidden"]), textarea:not([disabled]), [contenteditable="true"], [role="combobox"]:not([aria-disabled="true"]), button:not([disabled])');
       if (control) control.focus({ preventScroll: true });
       else { highlighted.tabIndex = -1; highlighted.focus({ preventScroll: true }); }
+    };
+    const frame = requestAnimationFrame(() => {
+      locate();
+      if (!highlighted && editorRootRef.current && typeof MutationObserver === 'function') { observer = new MutationObserver(locate); observer.observe(editorRootRef.current, { childList: true, subtree: true }); }
     });
-    return () => { cancelAnimationFrame(frame); highlighted?.classList.remove('cms-content-edit__field-highlight'); };
-  }, [fieldLocation, activeTab, sideTab, showEditorOnNarrow]);
+    return () => { cancelAnimationFrame(frame); observer?.disconnect(); highlighted?.classList.remove('cms-content-edit__field-highlight'); };
+  }, [fieldLocation, activeTab, sideTab, showEditorOnNarrow, formRecord?.bodyDocument, detail?.bodyDocument]);
 
   /** 模板试穿：以选中详情模板打开预览（?__template= 仅预览路径生效，不影响线上） */
   function handleTemplateTryOn() {
@@ -979,11 +984,12 @@ export default function ContentEditPage() {
               {contentType === 'media' ? <div data-cms-field="mediaData"><CmsContentMediaFields siteId={siteId} disabled={isReadOnly} allowUpload={canUploadResources} onResourceChange={selectResource} /></div> : null}
               {contentType !== 'link' ? (
                 <Form.Slot noLabel>
-                  <div ref={bodyBlockRef} data-cms-field="body">
+                  <div ref={bodyBlockRef} data-cms-field="body" onMouseUp={() => { if (bodyBlockRef.current) { const selected = captureCmsBodyAnchor(bodyBlockRef.current, formRecord?.bodyDocument ?? detail?.bodyDocument); if (selected) setSelectedBodyAnchor(selected); } }}>
+                    {selectedBodyAnchor && <Space style={{ marginBottom: 8 }}><Typography.Text type="tertiary">已选中段落文字</Typography.Text><Button size="small" disabled={saveState !== 'saved'} onClick={() => { setAnnotationAnchor({ ...selectedBodyAnchor }); setActiveTab('collaboration'); }}>批注所选文字</Button></Space>}
                     <Suspense fallback={editorLoadingFallback(bodyEditorHeight)}>
                       <RichTextEditor
                         value={body}
-                        onChange={(v) => { setBody(v); markDirty(); }}
+                        onChange={(v) => { setBody(v); setSelectedBodyAnchor(null); markDirty(); }}
                         /* 保存中不锁定编辑器：readOnly 翻转会触发 wangeditor disable/enable + 工具栏显隐，
                         每次自动保存（5s 一次）编辑区闪一次、还会丢光标；保存中的并发输入由 editSequence 与 CAS 版本兜底 */
                         readOnly={isReadOnly}
@@ -1122,14 +1128,7 @@ export default function ContentEditPage() {
                   <Form.Input field="subTitle" label="副标题" size="small" placeholder="可选" />
                   <Form.Input field="shortTitle" label="短标题" size="small" placeholder="列表窄位展示（可选）" />
                   <Form.TextArea field="summary" label="摘要" rows={2} placeholder="留空时前台自动截取正文" />
-                  <Form.Select
-                    field="tagIds"
-                    label="标签"
-                    multiple
-                    size="small"
-                    style={{ width: '100%' }}
-                    optionList={(tags ?? []).map((t) => ({ value: t.id, label: t.name }))}
-                  />
+                  <FormTaxonomyInput field="tagIds" label="分类与标签" siteId={siteId} modelId={selectedModelId ?? formRecord?.modelId} disabled={isReadOnly} />
                   <FormCmsAsset field="coverImage" label="内容封面" siteId={siteId} type="image" disabled={isReadOnly} allowUpload={canUploadResources} onResourceChange={selectResource} />
                   <Row gutter={12}>
                     <Col span={6}><Form.Switch field="isTop" label="置顶" size="small" /></Col>
@@ -1259,7 +1258,7 @@ export default function ContentEditPage() {
           </Suspense>
         ) : null}
       </TabPane>
-      <TabPane tab="协作与质量" itemKey="collaboration"><div className="cms-content-edit__scroll-pane"><CmsEditorialPanel content={detail} disabled={saveState !== 'saved'} models={models ?? []} onLocateField={locateEditorField} onChanged={() => { dirtyRef.current = false; recovery.clear(); void detailQuery.refetch().then(() => baseline.adoptLatest()); }} onOpen={(contentId) => navigate(`/cms/contents/edit?id=${contentId}&siteId=${siteId}`)} /></div></TabPane>
+      <TabPane tab="协作与质量" itemKey="collaboration"><div className="cms-content-edit__scroll-pane"><CmsEditorialPanel content={detail} disabled={saveState !== 'saved'} models={models ?? []} initialAnchor={annotationAnchor} onAnchorUsed={() => setAnnotationAnchor(null)} onLocateField={locateEditorField} onChanged={() => { dirtyRef.current = false; recovery.clear(); void detailQuery.refetch().then(() => baseline.adoptLatest()); }} onOpen={(contentId) => navigate(`/cms/contents/edit?id=${contentId}&siteId=${siteId}`)} /></div></TabPane>
       <TabPane tab="上线复核" itemKey="reviews"><div className="cms-content-edit__scroll-pane">{activeTab === 'reviews' ? <CmsContentReviewPanel key={detail?.id} content={detail} /> : null}</div></TabPane>
       <TabPane tab="已保存稿件" itemKey="snapshot"><div className="cms-content-edit__scroll-pane">{detail ? <ContentRevisionViewer content={detail} fields={modelFields} heading="已保存工作稿" /> : <Typography.Text>保存后可查看完整稿件。</Typography.Text>}</div></TabPane>
       </Tabs>
@@ -1373,7 +1372,7 @@ export default function ContentEditPage() {
               {diffQuery.data.map((d) => (
                 <div key={d.field} style={{ marginBottom: 16 }}>
                   <Typography.Title heading={6} style={{ marginBottom: 8 }}>{d.label}</Typography.Title>
-                  <CmsValueDiff before={d.before} after={d.after} html={d.field === 'body'} />
+                  {d.bodyChanges?.length ? <CmsBodyDiff changes={d.bodyChanges} onLocate={(nodeId) => { setDiffVersionId(undefined); locateEditorField('body', nodeId); }} /> : <CmsValueDiff before={d.before} after={d.after} html={d.field === 'body'} />}
                 </div>
               ))}
             </div>

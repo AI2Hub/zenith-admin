@@ -5,6 +5,7 @@ export const cmsHomeSectionSchema = z.object({
   id: z.string().trim().min(1).max(80),
   source: z.enum(CMS_HOME_SECTION_SOURCES),
   channelId: z.int().positive().nullable(),
+  collectionId: z.int().positive().nullable().optional(),
   title: z.string().trim().max(80),
   count: z.int().min(1).max(24),
   style: z.enum(CMS_HOME_SECTION_STYLES),
@@ -13,6 +14,7 @@ export const cmsHomeSectionSchema = z.object({
   focusY: z.number().min(0).max(100),
 }).superRefine((row, ctx) => {
   if (row.source === 'channel' && row.channelId === null) ctx.addIssue({ code: 'custom', path: ['channelId'], message: '请选择栏目' });
+  if (row.source === 'collection' && !row.collectionId) ctx.addIssue({ code: 'custom', path: ['collectionId'], message: '请选择内容集合' });
   if (row.source !== 'channel' && row.channelId !== null) ctx.addIssue({ code: 'custom', path: ['channelId'], message: '全站来源不能绑定单个栏目' });
 });
 export type CmsHomeSection = z.infer<typeof cmsHomeSectionSchema>;

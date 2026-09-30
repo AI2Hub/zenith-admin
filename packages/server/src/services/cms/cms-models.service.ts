@@ -1,11 +1,11 @@
 import { requireFirstRow, requireRow } from '../../lib/db-assert';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { buildListResult } from '../../lib/list-query';
-import { eq, asc, and, or, inArray, isNull, type SQL } from 'drizzle-orm';
+import { eq, asc, and, or, count, inArray, isNull, sql, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import { cmsModelContract, cmsModelFieldViewSchema, cmsModelSchema, cmsModelVersionSchema, type CmsModel, type CmsModelField } from '@zenith/shared/cms';
+import { cmsModelContract, cmsModelFieldViewSchema, cmsModelSchema, cmsModelVersionSchema, normalizeCmsFieldDefinitions, diffCmsFieldDefinitions, hasBreakingCmsFieldChanges, type CmsModel, type CmsModelField } from '@zenith/shared/cms';
 import { pickEntity } from '../../lib/entity-map';
-import { db } from '../../db';
+import { db, readSnapshot } from '../../db';
 import { cmsModels, cmsModelFields, cmsChannels, cmsContents, cmsSites, dicts, dictItems } from '../../db/schema';
 import type { CmsModelRow, CmsModelFieldRow } from '../../db/schema';
 import type { DbExecutor } from '../../db/types';
@@ -17,6 +17,8 @@ import { acquireCmsGlobalThemeLifecycleLock, lockCmsSiteForMutation } from './cm
 import { isCmsPlatformAdmin } from './cms-access';
 import { cmsModelVersions } from '../../db/schema/cms-design';
 import { captureCmsModelVersion } from './cms-design-versions.service';
+import { compileCmsFieldDefinitions } from './cms-model-compiler';
+import { cmsContentWorkingCopies } from '../../db/schema/cms-revisions';
 import { parseDateTimeInput } from '../../lib/datetime';
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
@@ -279,15 +281,22 @@ export async function getCmsModelRefs(id: number, siteId?: number) {
   };
 }
 
-/** 先删后插，原子性替换模型字段（保留 id 不变的字段做 update，避免外部引用失效） */
+/** Replace the designer definition while preserving existing field and nested identities. */
 async function replaceModelFields(executor: DbExecutor, modelId: number, fields: CmsModelFieldInput[]): Promise<void> {
   const names = fields.map((f) => f.name);
   if (new Set(names).size !== names.length) {
     throw new HTTPException(400, { message: '字段标识重复' });
   }
-  await executor.delete(cmsModelFields).where(eq(cmsModelFields.modelId, modelId));
-  if (fields.length > 0) {
-    await executor.insert(cmsModelFields).values(fields.map((f, i) => ({
+  const existing = await executor.select().from(cmsModelFields).where(eq(cmsModelFields.modelId, modelId));
+  const model = await requireFirstRow(executor.select({ ownerSiteId: cmsModels.ownerSiteId }).from(cmsModels).where(eq(cmsModels.id, modelId)).limit(1), '内容模型不存在');
+  const retained = new Set<number>();
+  const prepared = fields.map((field, index) => {
+    const previous = field.id ? existing.find(item => item.id === field.id) : existing.find(item => item.name === field.name);
+    if (field.id && !previous) throw new HTTPException(400, { message: '字段 ID 不属于此模型' });
+    if (previous && retained.has(previous.id)) throw new HTTPException(400, { message: '字段 ID 重复' });
+    if (previous) retained.add(previous.id);
+    const [f] = normalizeCmsFieldDefinitions([{ ...field, fieldType: field.fieldType ?? 'text', id: previous?.id ?? 0 }], previous ? [{ ...previous, name: field.name }] : []);
+    return { id: previous?.id, value: {
       modelId,
       name: f.name,
       label: f.label,
@@ -305,8 +314,22 @@ async function replaceModelFields(executor: DbExecutor, modelId: number, fields:
       // 手动来源时清空 dictCode，避免切换来源后残留脏引用
       dictCode: f.optionSource === 'dict' ? (f.dictCode ?? null) : null,
       options: f.options ?? null,
-      sort: f.sort ?? i,
-    })));
+      sort: f.sort ?? index,
+    } };
+  });
+  const compiled = await compileCmsFieldDefinitions(executor, prepared.map(item => item.value), { ownerSiteId: model.ownerSiteId });
+  prepared.forEach((field, index) => { field.value.configuration = compiled.fields[index].configuration ?? null; });
+  const removed = existing.filter(field => !retained.has(field.id)).map(field => field.id);
+  if (removed.length) await executor.delete(cmsModelFields).where(inArray(cmsModelFields.id, removed));
+  // Free old names before applying simultaneous renames, while retaining stable numeric IDs.
+  for (const field of prepared) {
+    if (field.id && existing.find(previous => previous.id === field.id)?.name !== field.value.name) {
+      await executor.update(cmsModelFields).set({ name: `_cms_field_${field.id}` }).where(eq(cmsModelFields.id, field.id));
+    }
+  }
+  for (const field of prepared) {
+    if (field.id) await executor.update(cmsModelFields).set(field.value).where(eq(cmsModelFields.id, field.id));
+    else await executor.insert(cmsModelFields).values(field.value);
   }
 }
 
@@ -392,6 +415,26 @@ export async function listCmsModelVersions(id: number, siteId?: number) {
   await ensureCmsModelReadable(id, siteId);
   const rows = await db.select().from(cmsModelVersions).where(eq(cmsModelVersions.modelId, id)).orderBy(asc(cmsModelVersions.version));
   return rows.map((row) => pickEntity(cmsModelVersionSchema, row));
+}
+
+export async function getCmsModelPublishImpact(id: number, siteId?: number) {
+  const readable = await ensureCmsModelReadable(id, siteId);
+  const scope = await resolveCmsModelScope(siteId);
+  return readSnapshot(async tx => {
+    const model = await requireFirstRow(tx.select().from(cmsModels).where(eq(cmsModels.id, id)).limit(1), '内容模型不存在');
+    const rows = await tx.select().from(cmsModelFields).where(eq(cmsModelFields.modelId, id)).orderBy(asc(cmsModelFields.sort), asc(cmsModelFields.id));
+    const compiled = await compileCmsFieldDefinitions(tx, rows, { ownerSiteId: readable.ownerSiteId });
+    const [published] = model.publishedVersionId ? await tx.select({ fields: cmsModelVersions.fields }).from(cmsModelVersions).where(eq(cmsModelVersions.id, model.publishedVersionId)).limit(1) : [];
+    const changes = diffCmsFieldDefinitions(published?.fields ?? [], compiled.fields);
+    const { channelWhere, siteWhere } = cmsModelRefWheres(id, scope);
+    const [workingCount] = await tx.select({ total: count() }).from(cmsContentWorkingCopies).innerJoin(cmsContents, eq(cmsContents.id, cmsContentWorkingCopies.contentId))
+      .where(buildWhere(sql`(${cmsContentWorkingCopies.snapshot}->>'modelId')::integer = ${id}`, isNull(cmsContents.deletedAt), scope == null ? undefined : eq(cmsContents.siteId, scope)));
+    const workingCopies = workingCount.total;
+    const publishedContents = await tx.$count(cmsContents, buildWhere(eq(cmsContents.modelId, id), eq(cmsContents.status, 'published'), isNull(cmsContents.deletedAt), scope == null ? undefined : eq(cmsContents.siteId, scope)));
+    return { modelId: id, publishedVersionId: model.publishedVersionId, changes, breaking: hasBreakingCmsFieldChanges(published?.fields ?? [], compiled.fields), affected: {
+      workingCopies, publishedContents, channels: await tx.$count(cmsChannels, channelWhere), sites: await tx.$count(cmsSites, siteWhere),
+    } };
+  });
 }
 
 // ─── 删除 ─────────────────────────────────────────────────────────────────────

@@ -1,10 +1,10 @@
-import { and, desc, eq, inArray, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, or, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import type { BodyOf } from '@zenith/shared/core';
-import { cmsEditorialContract, cmsEditorialNoteSchema, cmsTranslationContentKey, mergeCmsDistributionFields, validateCmsStructuredFields, type CmsQualityIssue, type CmsDocumentNode } from '@zenith/shared/cms';
+import { cmsEditorialContract, cmsEditorialNoteSchema, cmsEditorialNoteReplySchema, cmsDocumentAnchorStatus, cmsTranslationContentKey, mergeCmsDistributionFields, validateCmsStructuredFields, type CmsQualityIssue, type CmsDocumentNode, type CmsBodyDocument } from '@zenith/shared/cms';
 import { db, readSnapshot } from '../../db';
 import { cmsContents, cmsContentWorkingCopies, cmsContentRevisions } from '../../db/schema';
-import { cmsEditorialNotes, cmsDistributionSyncStates, cmsModelVersions } from '../../db/schema/cms-design';
+import { cmsEditorialNotes, cmsEditorialNoteReplies, cmsDistributionSyncStates, cmsModelVersions } from '../../db/schema/cms-design';
 import { requireCmsContentAccess } from './cms-content-access.service';
 import { requireCmsWorkingCopy, writeCmsSystemWorkingCopy, assertCmsContentVersion, cmsRevisionHash, freezeCmsContentRevision } from './cms-content-revisions.service';
 import { buildCmsContentListWhere } from './cms-contents-query.service';
@@ -20,40 +20,69 @@ import { lockCmsSiteForMutation } from './cms-site-publish-lock.service';
 import { getCmsModel } from './cms-models.service';
 import { getPgConstraintName, isPgUniqueViolation } from '../../lib/db-errors';
 import { cmsWorkingHasUnpublishedChanges } from './cms-content-change-state';
+import { currentUserId } from '../../lib/context';
 
-async function mapNotes(rows: (typeof cmsEditorialNotes.$inferSelect)[]) {
-  const names = await resolveUserNames(rows.flatMap((row) => row.createdBy ? [row.createdBy] : []));
-  return rows.map((row) => pickEntity(cmsEditorialNoteSchema, row, { createdByName: row.createdBy ? names.get(row.createdBy) ?? null : null }));
+async function mapNotes(rows: (typeof cmsEditorialNotes.$inferSelect)[], document: CmsBodyDocument | null) {
+  const replies = rows.length ? await db.select().from(cmsEditorialNoteReplies).where(inArray(cmsEditorialNoteReplies.noteId, rows.map((row) => row.id))).orderBy(asc(cmsEditorialNoteReplies.id)) : [];
+  const names = await resolveUserNames([...rows.flatMap((row) => [row.createdBy, row.resolvedBy]), ...replies.map((reply) => reply.createdBy)]);
+  const mappedReplies = replies.map((reply) => pickEntity(cmsEditorialNoteReplySchema, reply, { createdByName: reply.createdBy ? names.get(reply.createdBy) ?? null : null }));
+  return rows.map((row) => pickEntity(cmsEditorialNoteSchema, row, {
+    createdByName: row.createdBy ? names.get(row.createdBy) ?? null : null,
+    resolvedByName: row.resolvedBy ? names.get(row.resolvedBy) ?? null : null,
+    anchorStatus: cmsDocumentAnchorStatus(document, row.anchor), replies: mappedReplies.filter((reply) => reply.noteId === row.id),
+  }));
 }
 
 export async function listCmsEditorialNotes(id: number) {
   await requireCmsContentAccess(id);
   const rows = await db.select().from(cmsEditorialNotes).where(eq(cmsEditorialNotes.contentId, id)).orderBy(desc(cmsEditorialNotes.id));
-  return mapNotes(rows);
+  return mapNotes(rows, (await requireCmsWorkingCopy(db, id)).snapshot.bodyDocument);
 }
 
 export async function addCmsEditorialNote(id: number, input: BodyOf<typeof cmsEditorialContract.addNote>) {
   await requireCmsContentAccess(id);
-  if (input.revisionId) {
-    const [revision] = await db.select({ id: cmsContentRevisions.id }).from(cmsContentRevisions).where(and(eq(cmsContentRevisions.id, input.revisionId), eq(cmsContentRevisions.contentId, id))).limit(1);
-    requireRow(revision, '批注修订不属于当前内容');
-  }
   for (const userId of input.mentionedUserIds ?? []) await requireTenantUser(userId, '被提及用户不存在或已停用', { enabledOnly: true });
   const row = await db.transaction(async (tx) => {
-    const [created] = await tx.insert(cmsEditorialNotes).values({ ...input, contentId: id }).returning();
+    const working = await requireCmsWorkingCopy(tx, id, true);
+    let target = working.snapshot;
+    if (input.revisionId) {
+      const [revision] = await tx.select().from(cmsContentRevisions).where(and(eq(cmsContentRevisions.id, input.revisionId), eq(cmsContentRevisions.contentId, id))).limit(1);
+      target = requireRow(revision, '批注修订不属于当前内容').snapshot;
+    } else if (input.anchor) assertCmsContentVersion(working, input.expectedVersion);
+    if (input.anchor && cmsDocumentAnchorStatus(target.bodyDocument, input.anchor) !== 'current') throw new HTTPException(409, { message: '批注所选段落或引用文本已变化，请刷新后重新选择' });
+    const { expectedVersion: _expectedVersion, ...values } = input;
+    const [created] = await tx.insert(cmsEditorialNotes).values({ ...values, contentId: id }).returning();
     await notifyWithin(tx, 'cms.content.mentioned', {
       recipients: [...new Set(input.mentionedUserIds ?? [])].map((userId) => ({ type: 'user' as const, id: userId })),
-      vars: { contentId: id, noteId: created.id }, dedupeKey: `cms:note:${created.id}`, link: `/cms/contents/edit?id=${id}`,
+      vars: { contentId: id, noteId: created.id }, dedupeKey: `cms:note:${created.id}`, link: `/cms/contents/edit?id=${id}${input.anchor ? `&field=body&block=${encodeURIComponent(input.anchor.nodeId)}` : input.fieldPath ? `&field=${encodeURIComponent(input.fieldPath)}` : ''}`,
     });
     return created;
   });
-  return (await mapNotes([row]))[0];
+  return (await mapNotes([row], (await requireCmsWorkingCopy(db, id)).snapshot.bodyDocument))[0];
 }
 
 export async function resolveCmsEditorialNote(id: number, noteId: number, input: BodyOf<typeof cmsEditorialContract.resolveNote>) {
   await requireCmsContentAccess(id);
-  const [row] = await db.update(cmsEditorialNotes).set({ resolved: input.resolved }).where(and(eq(cmsEditorialNotes.id, noteId), eq(cmsEditorialNotes.contentId, id))).returning();
-  return (await mapNotes([requireRow(row, '批注不存在')]))[0];
+  const [row] = await db.update(cmsEditorialNotes).set({ resolved: input.resolved, resolvedBy: input.resolved ? currentUserId() : null, resolvedAt: input.resolved ? new Date() : null }).where(and(eq(cmsEditorialNotes.id, noteId), eq(cmsEditorialNotes.contentId, id))).returning();
+  return (await mapNotes([requireRow(row, '批注不存在')], (await requireCmsWorkingCopy(db, id)).snapshot.bodyDocument))[0];
+}
+
+export async function replyCmsEditorialNote(id: number, noteId: number, input: BodyOf<typeof cmsEditorialContract.replyNote>) {
+  await requireCmsContentAccess(id);
+  for (const userId of input.mentionedUserIds ?? []) await requireTenantUser(userId, '被提及用户不存在或已停用', { enabledOnly: true });
+  const reply = await db.transaction(async (tx) => {
+    const [found] = await tx.select().from(cmsEditorialNotes).where(and(eq(cmsEditorialNotes.id, noteId), eq(cmsEditorialNotes.contentId, id))).for('update').limit(1);
+    const note = requireRow(found, '批注不存在');
+    if (note.resolved) throw new HTTPException(409, { message: '请先重新打开批注会话，再添加回复' });
+    const [created] = await tx.insert(cmsEditorialNoteReplies).values({ ...input, noteId }).returning();
+    await notifyWithin(tx, 'cms.content.mentioned', {
+      recipients: [...new Set(input.mentionedUserIds ?? [])].map((userId) => ({ type: 'user' as const, id: userId })),
+      vars: { contentId: id, noteId }, dedupeKey: `cms:note-reply:${created.id}`, link: `/cms/contents/edit?id=${id}${note.anchor ? `&field=body&block=${encodeURIComponent(note.anchor.nodeId)}` : ''}`,
+    });
+    return created;
+  });
+  const names = await resolveUserNames([reply.createdBy]);
+  return pickEntity(cmsEditorialNoteReplySchema, reply, { createdByName: reply.createdBy ? names.get(reply.createdBy) ?? null : null });
 }
 
 export async function checkCmsWorkingQuality(id: number) {

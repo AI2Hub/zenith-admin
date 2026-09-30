@@ -1,7 +1,7 @@
 import { integer, pgTable, jsonb, varchar, timestamp, uuid, uniqueIndex, index, boolean, text } from 'drizzle-orm/pg-core';
-import type { CmsModelField, CmsFieldConfiguration } from '@zenith/shared/cms';
+import type { CmsModelField, CmsFieldConfiguration, CmsDocumentAnchor } from '@zenith/shared/cms';
 import { idColumn, timestampColumns } from './common';
-import { auditColumns } from './core';
+import { auditColumns, users } from './core';
 import { cmsModels, cmsResources, cmsSites, cmsContents } from './cms';
 import { cmsContentRevisions } from './cms-revisions';
 import { managedFiles } from './files';
@@ -34,7 +34,7 @@ export const cmsAssetRights = pgTable('cms_asset_rights', {
 export const cmsModelUniqueValues = pgTable('cms_model_unique_values', {
   id: idColumn(), siteId: integer().notNull().references(() => cmsSites.id, { onDelete: 'cascade' }),
   modelId: integer().notNull().references(() => cmsModels.id, { onDelete: 'cascade' }),
-  contentId: integer().notNull(), field: varchar({ length: 50 }).notNull(), valueHash: varchar({ length: 64 }).notNull(),
+  contentId: integer().notNull(), field: varchar({ length: 500 }).notNull(), valueHash: varchar({ length: 64 }).notNull(),
 }, (t) => [uniqueIndex('cms_model_unique_value_uq').on(t.siteId, t.modelId, t.field, t.valueHash), index('cms_model_unique_content_idx').on(t.contentId)]);
 
 export type CmsDesignFieldConfiguration = CmsFieldConfiguration;
@@ -43,9 +43,17 @@ export const cmsEditorialNotes = pgTable('cms_editorial_notes', {
   id: idColumn(), contentId: integer().notNull().references(() => cmsContents.id, { onDelete: 'cascade' }),
   revisionId: integer().references(() => cmsContentRevisions.id, { onDelete: 'restrict' }),
   fieldPath: varchar({ length: 200 }), message: text().notNull(),
+  anchor: jsonb().$type<CmsDocumentAnchor>(),
   mentionedUserIds: jsonb().$type<number[]>().notNull().default([]),
+  resolvedBy: integer().references(() => users.id, { onDelete: 'set null' }), resolvedAt: timestamp(),
   resolved: boolean().notNull().default(false), ...auditColumns(), ...timestampColumns(),
 }, (t) => [index('cms_editorial_notes_content_idx').on(t.contentId, t.id)]);
+
+export const cmsEditorialNoteReplies = pgTable('cms_editorial_note_replies', {
+  id: idColumn(), noteId: integer().notNull().references(() => cmsEditorialNotes.id, { onDelete: 'cascade' }),
+  message: text().notNull(), mentionedUserIds: jsonb().$type<number[]>().notNull().default([]),
+  ...auditColumns(), ...timestampColumns(),
+}, (t) => [index('cms_editorial_note_replies_note_idx').on(t.noteId, t.id)]);
 
 export const cmsDistributionSyncStates = pgTable('cms_distribution_sync_states', {
   contentId: integer().primaryKey().references(() => cmsContents.id, { onDelete: 'cascade' }),

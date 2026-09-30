@@ -1,33 +1,30 @@
-import { useState } from 'react';
-import { Banner, Button, Checkbox, Empty, Input, Select, Space, TabPane, Tabs, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
-import type { CmsContent, CmsModel } from '@zenith/shared/cms';
+import { useEffect, useState } from 'react';
+import { Banner, Button, Checkbox, Empty, Input, Select, Space, TabPane, Tabs, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import type { CmsContent, CmsModel, CmsDocumentAnchor } from '@zenith/shared/cms';
 import { usePermission } from '@/hooks/usePermission';
-import UserSelect from '@/components/UserSelect';
+import CmsEditorialNotesPanel from './CmsEditorialNotesPanel';
 import { confirmDanger } from '@/utils/confirm';
 import { cmsEditorFieldLabel, getCmsEditorFieldLocation } from './cms-editor-fields';
 import {
-  useCmsEditorialNotes, useAddCmsEditorialNote, useResolveCmsEditorialNote, useCmsQuality,
+  useCmsEditorialNotes, useCmsQuality,
   useCmsTranslations, useCreateCmsTranslation, useCmsDistributionConflict, useResolveCmsDistribution,
   usePreviewCmsTypeConversion, useConvertCmsType,
 } from '@/hooks/queries/cms-editorial';
 
-export default function CmsEditorialPanel({ content, models, onChanged, onOpen, onLocateField, disabled = false }: Readonly<{
-  content?: CmsContent; models: CmsModel[]; onChanged: () => void; onOpen: (id: number) => void; onLocateField?: (fieldPath: string) => void; disabled?: boolean;
+export default function CmsEditorialPanel({ content, models, onChanged, onOpen, onLocateField, initialAnchor, onAnchorUsed, disabled = false }: Readonly<{
+  content?: CmsContent; models: CmsModel[]; onChanged: () => void; onOpen: (id: number) => void; onLocateField?: (fieldPath: string, nodeId?: string) => void; initialAnchor?: CmsDocumentAnchor | null; onAnchorUsed?: () => void; disabled?: boolean;
 }>) {
   const { hasPermission } = usePermission();
   const notes = useCmsEditorialNotes(content?.id);
   const quality = useCmsQuality(content?.id);
   const translations = useCmsTranslations(content?.id);
   const conflict = useCmsDistributionConflict(content?.id, !!content?.distributionSourceId || !!content?.mappingSourceId);
-  const addNote = useAddCmsEditorialNote();
-  const resolveNote = useResolveCmsEditorialNote();
   const createTranslation = useCreateCmsTranslation();
   const resolveDistribution = useResolveCmsDistribution();
   const previewConversion = usePreviewCmsTypeConversion();
   const convertType = useConvertCmsType();
-  const [message, setMessage] = useState('');
-  const [fieldPath, setFieldPath] = useState<string>();
-  const [mentions, setMentions] = useState<number[]>([]);
+  const [tab, setTab] = useState('quality');
+  useEffect(() => { if (initialAnchor) setTab('notes'); }, [initialAnchor]);
   const [locale, setLocale] = useState('en-US');
   const [translationTitle, setTranslationTitle] = useState('');
   const [choices, setChoices] = useState<Record<string, 'source' | 'target'>>({});
@@ -35,12 +32,11 @@ export default function CmsEditorialPanel({ content, models, onChanged, onOpen, 
   const [fieldMapping, setFieldMapping] = useState<Record<string, string>>({});
   const [acknowledgeLoss, setAcknowledgeLoss] = useState(false);
   const canEdit = hasPermission('cms:content:update') && !disabled && !content?.lockedAt;
-  const canNote = (canEdit || hasPermission('cms:content:audit')) && !disabled;
   const targetFields = models.find((model) => model.id === targetModel)?.fields ?? [];
   if (!content) return <Empty title="保存工作稿后开始协作" description="批注、检查和语言变体都关联具体稿件。" />;
   return <div style={{ padding: 16 }}>
     {disabled ? <Banner type="warning" description="请先保存当前修改，再执行协作中的内容变更。" /> : null}
-    <Tabs collapsible="auto" type="line">
+    <Tabs collapsible="auto" type="line" activeKey={tab} onChange={setTab}>
       <TabPane tab={`质量检查（${quality.data?.issues.length ?? 0}）`} itemKey="quality">
         <Space vertical align="start" style={{ width: '100%' }}>
           <Space><Typography.Text>检查已保存工作稿 v{quality.data?.version ?? content.version}</Typography.Text><Button loading={quality.isFetching} onClick={() => void quality.refetch()}>重新检查</Button></Space>
@@ -57,20 +53,7 @@ export default function CmsEditorialPanel({ content, models, onChanged, onOpen, 
         </Space>
       </TabPane>
       <TabPane tab={`审稿批注（${notes.data?.filter((note) => !note.resolved).length ?? 0}）`} itemKey="notes">
-        <Space vertical align="start" spacing={16} style={{ width: '100%' }}>
-          {notes.isError ? <Banner type="danger" description="批注加载失败" /> : null}
-          {(notes.data ?? []).map((note) => <div key={note.id} style={{ width: '100%', paddingBottom: 12, borderBottom: '1px solid var(--semi-color-border)' }}>
-            <Space wrap><Tag color={note.resolved ? 'green' : 'orange'}>{note.resolved ? '已处理' : '待处理'}</Tag><Typography.Text strong>{note.createdByName ?? '审稿人'}</Typography.Text><Typography.Text type="tertiary">{note.createdAt} · {cmsEditorFieldLabel(note.fieldPath, content.modelFields, content.extend)}{note.revisionId ? ` · 修订 #${note.revisionId}` : ' · 工作稿'}</Typography.Text></Space>
-            <Typography.Paragraph style={{ whiteSpace: 'pre-wrap', marginTop: 8 }}>{note.message}</Typography.Paragraph>
-            {canNote ? <Button size="small" loading={resolveNote.isPending} onClick={() => void resolveNote.mutateAsync({ params: { id: content.id, noteId: note.id }, body: { resolved: !note.resolved } })}>{note.resolved ? '重新打开' : '标为已处理'}</Button> : null}
-          </div>)}
-          {canNote ? <Space vertical align="start" style={{ width: '100%' }}>
-            <Select showClear value={fieldPath} onChange={(value) => setFieldPath(value == null ? undefined : String(value))} placeholder="整篇批注或选择字段" style={{ width: '100%' }} optionList={[{ value: 'title', label: '标题' }, { value: 'body', label: '正文' }, { value: 'attachments', label: '附件' }, ...(content.modelFields ?? []).map((field) => ({ value: `extend.${field.name}`, label: field.label }))]} />
-            <TextArea value={message} onChange={setMessage} placeholder="输入审稿意见" maxCount={5000} style={{ width: '100%' }} />
-            <UserSelect multiple value={mentions} onChange={(value) => setMentions(Array.isArray(value) ? value : [])} placeholder="提醒相关人员（可选）" />
-            <Button type="primary" disabled={!message.trim()} loading={addNote.isPending} onClick={async () => { await addNote.mutateAsync({ params: { id: content.id }, body: { message: message.trim(), fieldPath, mentionedUserIds: mentions, revisionId: content.submittedRevisionId ?? undefined } }); setMessage(''); Toast.success('批注已添加'); }}>添加批注</Button>
-          </Space> : null}
-        </Space>
+        <CmsEditorialNotesPanel key={content.id} content={content} disabled={disabled} initialAnchor={initialAnchor} onLocate={onLocateField} onAnchorUsed={onAnchorUsed} />
       </TabPane>
       <TabPane tab="语言变体" itemKey="languages">
         <Space vertical align="start" spacing={16} style={{ width: '100%' }}>
