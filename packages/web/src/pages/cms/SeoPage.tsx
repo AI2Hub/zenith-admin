@@ -156,7 +156,6 @@ function LinkWordsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
 
   return (
     <>
-      <Banner type="info" closeIcon={null} style={{ marginBottom: 12 }} description="内容详情页渲染时自动将正文中的关键词替换为站内链接（跳过已有链接区域），提升 SEO 内链密度。修改后新访问/重新生成的页面生效。" />
       <ListSearchToolbar
         keyword={<KeywordInput placeholder="搜索关键词..." {...bindKeyword('keyword')} />}
         onSearch={handleSearch}
@@ -217,14 +216,14 @@ function PushTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
 
   return (
     <>
-      <Banner
-        type={configured ? 'info' : 'warning'}
-        closeIcon={null}
-        style={{ marginBottom: 12 }}
-        description={configured
-          ? '内容发布后将自动推送到已配置的搜索引擎；此处也可手动批量推送历史 URL。'
-          : '尚未配置推送凭证：请在「站点管理 → 编辑站点 → 搜索推送」中填写百度推送 Token 或 IndexNow Key，并绑定站点域名。'}
-      />
+      {!configured ? (
+        <Banner
+          type="warning"
+          closeIcon={null}
+          style={{ marginBottom: 12 }}
+          description="尚未配置推送凭证：请在「站点管理 → 编辑站点 → 搜索推送」中填写百度推送 Token 或 IndexNow Key，并绑定站点域名。"
+        />
+      ) : null}
       {hasPermission('cms:seo:push') ? (
         <div style={{ marginBottom: 16 }}>
           <TextArea
@@ -268,7 +267,6 @@ function DeadlinkTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
 
   return (
     <>
-      <Banner type="info" closeIcon={null} style={{ marginBottom: 12 }} description="扫描已发布内容正文与友情链接中的链接：站内链接校验目标是否存在，外链探测可达性（限 200 条）。坏链明细在任务中心的任务详情中查看。" />
       <SearchToolbar>
         {hasPermission('cms:seo:manage') ? (
           <Button

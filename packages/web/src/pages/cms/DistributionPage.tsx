@@ -347,12 +347,6 @@ export default function DistributionPage() {
     <div className="page-container page-tabs-page">
       <Tabs collapsible="auto" type="line" activeKey={activeTab} onChange={(k) => setActiveTab(k as typeof activeTab)}>
         <TabPane tab="分发规则" itemKey="rules">
-          <Banner
-            type="info"
-            closeIcon={null}
-            style={{ marginBottom: 12 }}
-            description="仅同步已发布内容；所有写入都先校验来源与目标 ACL。copy 生成独立草稿，mapping 生成正文跟随的映射草稿，scheduled 按 Cron 提交任务。"
-          />
           <ListSearchToolbar
             keyword={<KeywordInput placeholder="搜索规则名称" {...ruleSearch.bindKeyword('keyword')} />}
             filters={(

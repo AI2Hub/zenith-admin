@@ -1,4 +1,4 @@
-import { Banner, Form, Tag } from '@douyinfe/semi-ui';
+import { Form, Tag } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -63,7 +63,6 @@ export default function SensitiveWordsPage() {
 
   return (
     <div className="page-container">
-      <Banner type="info" closeIcon={null} style={{ marginBottom: 12 }} description="敏感词库全局生效，作用于前台评论与自定义表单提交：拦截模式命中直接拒绝提交，替换模式命中替换为指定文本。" />
       <ListSearchToolbar
         page={page}
         filters={['keyword']}

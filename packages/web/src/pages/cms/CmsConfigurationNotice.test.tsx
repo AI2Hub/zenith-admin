@@ -12,7 +12,9 @@ describe('configuration notice state boundaries', () => {
   it('does not borrow the site state for a multi-object channel/workspace notice', () => {
     render(<CmsConfigurationNotice siteId={1} />);
     expect(screen.queryByText('已上线')).not.toBeInTheDocument();
-    expect(screen.getByText('保存工作配置后，请前往发布中心审阅并激活。')).toBeInTheDocument();
+    expect(screen.queryByText('保存工作配置后，请前往发布中心审阅并激活。')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '打开发布中心' }));
+    expect(mocks.navigate).toHaveBeenCalledWith('/cms/publishing?tab=releases&site=1');
   });
   it('shows the object state and follows the authorized matching release link', () => {
     mocks.query.data = { ...mocks.query.data!, state: 'pending', release: { id: 22, name: '共享发布', status: 'ready', href: '/cms/publishing?tab=releases&site=1&release=22', matchesSaved: true } };

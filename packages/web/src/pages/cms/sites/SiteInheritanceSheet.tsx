@@ -3,7 +3,7 @@
  * 展示有效值来源（继承自哪个父级 / 本站）与继承链。
  */
 import { useEffect, useState } from 'react';
-import { Banner, SideSheet, Space, Switch, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { SideSheet, Space, Switch, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import { useCmsSiteEffectiveConfig, useCmsSiteInheritanceChain, useUpdateCmsSiteInheritance } from '@/hooks/queries/cms';
 import { CMS_SITE_INHERITABLE_FIELD_LABELS, CMS_SITE_INHERITABLE_FIELDS } from '@zenith/shared/cms';
 import type { CmsSite, CmsSiteInheritanceFlags } from '@zenith/shared/cms';
@@ -71,12 +71,6 @@ export default function SiteInheritanceSheet({ site, onClose }: Readonly<SiteInh
         />
       )}
     >
-      <Banner
-        type="info"
-        closeIcon={null}
-        description="开关开启表示该项沿父级链解析；关闭表示使用本站覆盖值。Webhook/CDN 密钥仅显示掩码，继承不会回显父级明文。"
-        style={{ marginBottom: 16 }}
-      />
       <div style={{ marginBottom: 16 }}>
         <b>继承链：</b>
         {(inheritanceChainQuery.data ?? []).map((chainSite, index) => (

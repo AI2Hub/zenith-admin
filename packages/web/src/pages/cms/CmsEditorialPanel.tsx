@@ -73,7 +73,6 @@ export default function CmsEditorialPanel({ content, models, onChanged, onOpen, 
       </TabPane> : null}
       <TabPane tab="切换内容模型" itemKey="conversion">
         <Space vertical align="start" spacing={16} style={{ width: '100%' }}>
-          <Banner type="info" description="切换内容模型会重新映射扩展字段；图文、图集、音视频、外链属于创建时确定的内容形态。请先预览字段映射、校验问题与移除影响，再保存模型切换工作稿。" />
           <Select placeholder="目标模型" value={targetModel} style={{ width: 280 }} onChange={(value) => { setTargetModel(Number(value)); setFieldMapping({}); setAcknowledgeLoss(false); previewConversion.reset(); }} optionList={models.map((model) => ({ value: model.id, label: model.name }))} />
           {targetFields.map((field) => <Space key={field.name} wrap><Typography.Text>{field.label}</Typography.Text><Select showClear placeholder="来源字段（空则按同名映射）" style={{ width: 260 }} value={fieldMapping[field.name]} onChange={(value) => { setFieldMapping((previous) => { const next = { ...previous }; if (value) next[field.name] = String(value); else delete next[field.name]; return next; }); previewConversion.reset(); }} optionList={(content.modelFields ?? []).map((source) => ({ value: source.name, label: source.label }))} /></Space>)}
           <Button disabled={!canEdit || !targetModel} loading={previewConversion.isPending} onClick={() => targetModel && void previewConversion.mutateAsync({ params: { id: content.id }, body: { modelId: targetModel, fieldMapping } })}>预览模型切换</Button>

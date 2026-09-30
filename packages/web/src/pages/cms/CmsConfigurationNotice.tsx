@@ -9,10 +9,12 @@ export default function CmsConfigurationNotice({ siteId, kind, objectId }: Reado
   const draft = useCmsConfigurationDraft(siteId, !kind);
   const navigate = useNavigate();
   const { hasPermission } = usePermission(); const state = query.isError ? undefined : query.data;
-  // The channel/workspace notice represents several objects and must not borrow the site's green state.
-  if (!kind) return <Banner type="info" style={{ marginBottom: 12 }} description={<Space wrap><span>保存工作配置后，请前往发布中心审阅并激活。</span>
-    {draft.data ? <Button size="small" onClick={() => navigate(draft.data!.href)}>查看我的配置草稿 #{draft.data.id}</Button> : siteId && hasPermission('cms:publish:view') ? <Button size="small" onClick={() => navigate(`/cms/publishing?tab=releases&site=${siteId}`)}>打开发布中心</Button> : null}
-  </Space>} />;
+  // Multi-object entrances offer navigation without borrowing the site's configuration state.
+  if (!kind) {
+    if (draft.data) return <Button size="small" style={{ marginBottom: 12 }} onClick={() => navigate(draft.data!.href)}>查看我的配置草稿 #{draft.data.id}</Button>;
+    if (!siteId || !hasPermission('cms:publish:view')) return null;
+    return <Button size="small" style={{ marginBottom: 12 }} onClick={() => navigate(`/cms/publishing?tab=releases&site=${siteId}`)}>打开发布中心</Button>;
+  }
   const saved = !!siteId && (kind === 'site' || !!objectId);
   const messages = { online: '已保存配置与当前生效的线上版本一致。', pending: '已保存配置已进入待发布单，构建并激活后生效。', saved: '已保存配置尚未上线，请准备发布单并激活。' };
   return <Banner type={query.isError ? 'warning' : state?.state === 'online' ? 'success' : 'info'} style={{ marginBottom: 12 }} description={<Space wrap>

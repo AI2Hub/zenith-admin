@@ -95,7 +95,6 @@ export default function CmsWorkbenchPreview({ visible, onClose, siteId, initialP
         <Button disabled={!workingAvailable} loading={request.isPending} onClick={() => { appliedSelection.current = composition; setMode('working'); void load('working', path); setSelectionOpen(false); }}>应用并预览组合</Button>
       </Space>
     </Collapsible>
-    <Banner type="info" description="浏览模式用于站内导航；开启“定位编辑”后，点击区块、图片或列表可打开对应配置。只显示有权限编辑的对象，互动提交和统计采集保持关闭。" style={{ marginBottom: 12 }} />
     {result ? <Space wrap style={{ marginBottom: 12 }}><Tag color={result.mode === 'online' ? 'green' : 'orange'}>{result.sourceLabel}</Tag>
       {result.generationId ? <Typography.Text type="tertiary">公开代次 #{result.generationId}</Typography.Text> : null}
       {result.contentVersions.map((content) => <Tag key={content.id}>稿件 #{content.id} · v{content.version}</Tag>)}

@@ -914,7 +914,6 @@ export default function ContentEditPage() {
             detail={<div className="cms-content-edit__main" ref={mainPaneRef}>
               {contentType === 'link' ? (
                 <>
-                  <Banner type="info" closeIcon={null} style={{ marginBottom: 12 }} description="链接型内容：前台列表点击标题直接跳转，不生成详情页。可手输外链，也可用右侧「内部链接」选择站内内容/栏目（目标改 slug 或换栏目时链接自动跟随）。" />
                   <Form.Input
                     field="externalLink"
                     label="链接地址"

@@ -46,7 +46,6 @@ export function useCmsHandlingPolicyEditor() {
   const assignees = useCmsOperationsAssignees(modal.visible);
   const workflows = useCmsHandlingWorkflows(modal.visible);
   return { open: (formId: number) => modal.openEdit({ id: formId, formId, version: 0, defaultOwnerId: null, workflowDefinitionId: null, workflowName: null }), editor: <EditFormSheet modal={modal} width={680}>
-    <Banner type="info" description="设置仅应用于之后收到的新来信。既有来信保留收件时的审批策略。" style={{ marginBottom: 16 }} />
     <Form.Select field="defaultOwnerId" label="默认负责人" filter showClear loading={assignees.isFetching} optionList={(assignees.data ?? []).map((user) => ({ value: user.id, label: user.name }))} style={{ width: '100%' }} />
     <Form.Select field="workflowDefinitionId" label="办理审批" filter showClear loading={workflows.isFetching} optionList={(workflows.data ?? []).map((flow) => ({ value: flow.id, label: flow.name }))} placeholder="不启用审批，由办理人直接完成" style={{ width: '100%' }} extraText="仅可选已发布的 CMS 来信办理流程；审批通过后自动完成办理。" />
     {assignees.isError || workflows.isError ? <Banner type="warning" description="配置选项加载失败，请关闭后重试。" /> : null}

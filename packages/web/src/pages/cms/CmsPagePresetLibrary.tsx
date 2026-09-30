@@ -199,7 +199,6 @@ export default function CmsPagePresetLibrary({ siteId, blocks, selectedBlockIds,
         disabled={disabled || !snapshot || historical.isFetching || latest.isFetching}
         extraActions={<Button disabled={!snapshot || !canReplace || instantiate.isPending} onClick={() => apply('replace-selected')}>替换选中区块</Button>} />}>
       <Space vertical align="start" spacing={16} style={fullWidth}>
-        <Banner type="info" description="预设保存区块快照及可替换参数。插入、替换和升级先进入页面草稿，保存页面后生效；预设新版本不会自动修改已有页面。" />
         <Space wrap>
           <Button disabled={!canSave || !selected.length || selected.some(block => block.canManage === false)} onClick={() => openSave(selected)}>将选中区块存为预设</Button>
           <Button disabled={!canSave || !blocks.length || blocks.some(block => block.canManage === false)} onClick={() => openSave(blocks)}>将当前页面存为预设</Button>
@@ -247,8 +246,7 @@ export default function CmsPagePresetLibrary({ siteId, blocks, selectedBlockIds,
         </> : null}
       </Space>
     </SideSheet>
-    <EditFormModal modal={saveModal} formProps={{ id: `${formId}-save` }} width={isMobile ? '100%' : 760} title={saveModal.isEdit ? '保存预设新版本' : '保存页面组合预设'} okText="保存预设"
-      header={<Banner type="info" description={`将保存 ${saveBlocks.length} 个区块。${saveModal.isEdit ? `基于 v${expectedVersion} 创建新版本，已有页面保留原快照。` : '可声明插入时需要替换的字段。'}`} />}>
+    <EditFormModal modal={saveModal} formProps={{ id: `${formId}-save` }} width={isMobile ? '100%' : 760} title={saveModal.isEdit ? '保存预设新版本' : '保存页面组合预设'} okText="保存预设">
       <Form.Input id={`${formId}-name`} field="name" label="预设名称" maxLength={100} rules={[{ required: true, message: '请填写预设名称' }]} />
       <Form.TextArea id={`${formId}-description`} field="description" label="使用说明" maxLength={500} />
       {saveModal.isEdit ? <Form.Input id={`${formId}-note`} field="note" label="版本说明" maxLength={500} /> : null}

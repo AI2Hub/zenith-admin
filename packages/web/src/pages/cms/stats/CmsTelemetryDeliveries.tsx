@@ -44,7 +44,6 @@ export default function CmsTelemetryDeliveries({ siteId }: Readonly<{ siteId: nu
       </StatGrid>
     </Card>
     <SideSheet title="成功转化投递与归因" visible={visible} onCancel={()=>setVisible(false)} width={1200}>
-      <Banner type="info" description="重新投递使用原事件 ID 幂等入库；已入库记录仅重新计算归因。自动重试采用指数退避，连续失败 12 次后等待人工处理。" />
       <ListSearchToolbar onSearch={search.handleSearch} onReset={search.handleReset} filters={<Select aria-label="投递状态" placeholder="全部投递状态" showClear {...search.bind('status',(value:unknown)=>value as CmsTelemetryDelivery['status']|undefined)} optionList={CMS_TELEMETRY_DELIVERY_STATUSES.map(value=>({value,label:CMS_TELEMETRY_DELIVERY_STATUS_LABELS[value]}))} />} />
       {deliveries.isError?<Banner type="danger" description="明细查询失败，请刷新重试" />:null}
       <ConfigurableTable columnSettingsKey="cms-telemetry-deliveries" columns={columns} {...listTableProps(deliveries,{rowKey:'id',pagination:search.buildPagination,empty:'暂无成功转化记录'})} />

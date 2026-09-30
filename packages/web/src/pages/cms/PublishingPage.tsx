@@ -341,7 +341,6 @@ export default function PublishingPage() {
           {submitForm.targetType === 'channel' ? <TreeSelect placeholder="选择栏目" treeData={channelsToSelectTree(targetChannels.data ?? [])} value={submitForm.channelId} onChange={(value) => setSubmitForm((prev) => ({ ...prev, channelId: Number(value) }))} style={{ width: '100%' }} /> : null}
           {submitForm.targetType === 'page' ? <Space vertical align="start" style={{ width: '100%' }}><Select placeholder="搜索并选择页面" remote filter loading={targetPages.isFetching} value={submitForm.pageId} onSearch={(value) => { setPageKeyword(value); setPagePickerPage(1); }} optionList={(targetPages.data?.list ?? []).map((page) => ({ value: page.id, label: page.name }))} onChange={(value) => setSubmitForm((prev) => ({ ...prev, pageId: Number(value) }))} style={{ width: '100%' }} /><Pagination currentPage={pagePickerPage} pageSize={PAGE_PICKER_PAGE_SIZE} total={targetPages.data?.total ?? 0} onPageChange={setPagePickerPage} {...COMPACT_PAGINATION_PROPS} /></Space> : null}
           <Input prefix="原因" placeholder="可选，便于任务审计" value={submitForm.reason} onChange={(reason) => setSubmitForm((prev) => ({ ...prev, reason }))} />
-          <Banner type="info" description="提交后在队列中跟踪构建进度；配置型任务构建成功后，需到发布单激活。失败时可以恢复或重建。" />
           </Space>
         </Form>
       </AppModal>

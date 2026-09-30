@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { compactParams } from '@/lib/query';
-import { Banner, Button, Form, Input, Tag, Toast, Typography, Tabs, TabPane, Modal, Select } from '@douyinfe/semi-ui';
+import { Button, Form, Input, Tag, Toast, Typography, Tabs, TabPane, Modal, Select } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { RefreshCw, SplitSquareHorizontal, Plus, Trash2 } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -238,7 +238,6 @@ function DictTab({ siteId, onSiteChange }: Readonly<{ siteId: number | undefined
 
   return (
     <>
-      <Banner type="info" closeIcon={null} style={{ marginBottom: 12 }} description="自定义词典用于纠正分词（如品牌名、行业术语）。新增/修改即时对新内容生效；历史内容需在「检索测试」中重建索引。" />
       <ListSearchToolbar
         keyword={(
           <>
@@ -348,7 +347,6 @@ function HotKeywordsTab({ siteId, onSiteChange }: Readonly<{ siteId: number | un
 
   return (
     <>
-      <Banner type="info" closeIcon={null} style={{ marginBottom: 12 }} description="统计前台搜索框的关键词频次（Redis 累计），可用于运营选题与内链词建设。" />
       <SearchToolbar>
         <CmsSiteSelect value={siteId} onChange={onSiteChange} width={180} />
         <FilterSelect

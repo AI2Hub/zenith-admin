@@ -1,4 +1,4 @@
-import { Form, Tag, Tabs, Toast, Tooltip, Banner } from '@douyinfe/semi-ui';
+import { Form, Tag, Tabs, Toast, Tooltip } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { useState, type CSSProperties } from 'react';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -80,7 +80,7 @@ export default function ModelsPage() {
         <CmsComponentsPanel key={siteId ?? 'none'} siteId={siteId} />
       </Tabs.TabPane>
     </Tabs>
-    <EditFormSheet modal={modal} width={980} header={<Banner type="info" description="先保存工作稿，再通过发布影响预览生成不可变模型版本。新内容使用发布版本，历史审核修订保留原定义。" />}>
+    <EditFormSheet modal={modal} width={980}>
       <div className="auto-grid" style={{ '--auto-grid-cols': 2 } as CSSProperties}>
         <Form.Input field="name" label="模型名称" maxLength={100} rules={[{ required: true, message: '请输入模型名称' }]} />
         <Form.Input field="code" label="模型标识" disabled={modal.isEdit} placeholder="如 article" maxLength={50} rules={[{ required: true, message: '请输入模型标识' }]} />

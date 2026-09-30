@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Banner, Card, Select, Typography } from '@douyinfe/semi-ui';
+import { Card, Select, Typography } from '@douyinfe/semi-ui';
 import type { CmsStatOverview } from '@zenith/shared/cms';
 import { StatCard, StatGrid } from '@/components/charts/StatCard';
 import type { CmsStatsQuery } from '@/hooks/queries/cms-stats';
@@ -10,7 +10,6 @@ export default function CmsAttributionPanel({ query, overview }: Readonly<{ quer
   const [dimension, setDimension] = useState<CmsStatsDimension>('content');
   const metrics = overview.metrics;
   return <>
-    <Banner type="info" description="成功转化以服务端已完成的表单、投票、评论和关注为准。内容归因采用同会话最近内容触点；没有有效触点的成功保留在站点总量中。下载交付与点击分别统计。" />
     <StatGrid>
       <StatCard title="成功转化" value={metrics.conversions} sub="按业务成功事件计数" />
       <StatCard title="转化访客 / 浏览访客" value={`${metrics.conversionVisitors} / ${metrics.uv}`} sub="分子属于当前区间浏览访客" />

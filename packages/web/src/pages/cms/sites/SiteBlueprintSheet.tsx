@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { Banner, Form, SideSheet, Toast } from '@douyinfe/semi-ui';
+import { Form, SideSheet, Toast } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { CMS_SITE_BLUEPRINTS, type CmsSiteBlueprintInput } from '@zenith/shared/cms';
 import { useCreateCmsSiteFromBlueprint } from '@/hooks/queries/cms-sites';
@@ -17,7 +17,6 @@ export default function SiteBlueprintSheet({ visible, onClose, onCreated }: Read
     onCreated(result.siteId); onClose();
   };
   return <SideSheet title="从蓝图建站" visible={visible} onCancel={onClose} width={640} footer={<ModalFooter onCancel={onClose} onOk={() => void submit()} loading={create.isPending} okText="创建站点配置" />}>
-    <Banner type="info" description="蓝图准备默认主题、栏目、模型、页面、常用部件和反馈表单。完成内容编辑后，通过发布单审阅并上线。" />
     <Form key={String(visible)} initValues={{ blueprint: 'culture-portal' }} getFormApi={(api) => { form.current = api; }} labelPosition="top">
       <Form.Select field="blueprint" label="建站蓝图" style={{ width: '100%' }} optionList={CMS_SITE_BLUEPRINTS.map((item) => ({ value: item.code, label: item.name }))} rules={[{ required: true }]} />
       <Form.Input field="name" label="站点名称" maxLength={100} rules={[{ required: true, message: '请填写站点名称' }]} />

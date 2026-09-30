@@ -77,7 +77,6 @@ export default function CmsDeliveryPanel() {
       {canManage ? <><Button disabled={!config.data} onClick={() => setEditing(config.data)}>配置交付入口</Button><Button theme="solid" disabled={!siteId} loading={start.isPending} onClick={async () => { const run = await start.mutateAsync({ body: { siteId: siteId! } }); setDetailId(run.id); }}>检测当前公开版本</Button></> : null}
       <Button disabled={!siteId} onClick={() => { void list.refetch(); void config.refetch(); }}>刷新记录</Button>
     </Space>
-    <Banner type="info" closeIcon={null} description="发布激活、缓存刷新和实际页面生效分别记录。源站、公开入口及可见性版本均满足预期后才通过，未配置的公开入口保留为未验证。" />
     {config.data ? <Typography.Paragraph type="tertiary">源站：{config.data.effectiveSourceBaseUrl ?? '未配置'} · 公开入口：{config.data.publicBaseUrl ?? '未配置'}</Typography.Paragraph> : null}
     {list.isError || config.isError ? <Banner type="danger" description={list.error?.message ?? config.error?.message} /> : null}
     <ConfigurableTable<CmsDeliveryRunSummary> columnSettingsKey="cms-delivery-runs" columns={[

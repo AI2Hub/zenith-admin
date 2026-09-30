@@ -1,6 +1,6 @@
 /** 移动站点弹窗：整棵子树随迁；排除自身后代防环，服务端另有环与层深校验 */
 import { useEffect, useMemo, useState } from 'react';
-import { Banner, Select, Toast } from '@douyinfe/semi-ui';
+import { Select, Toast } from '@douyinfe/semi-ui';
 import AppModal from '@/components/AppModal';
 import { useAllCmsSites, useMoveCmsSite } from '@/hooks/queries/cms';
 import type { CmsSite } from '@zenith/shared/cms';
@@ -44,12 +44,6 @@ export default function SiteMoveModal({ site, onClose }: Readonly<SiteMoveModalP
       width={520}
       closeOnEsc
     >
-      <Banner
-        type="warning"
-        closeIcon={null}
-        style={{ marginBottom: 16 }}
-        description="移动会保留整棵子树；系统会阻止环与超过 8 层的移动，并为受影响站点提交 fenced 重建任务。"
-      />
       <div style={{ marginBottom: 8 }}>新父级站点</div>
       <Select
         showClear
