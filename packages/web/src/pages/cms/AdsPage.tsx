@@ -55,7 +55,7 @@ function AdSlotSheet({ siteId, visible, onClose }: Readonly<{
   const canManage = hasPermission('cms:ad:manage');
 
   const columns: ColumnProps<CmsAdSlot>[] = [
-    { title: '广告位名称', dataIndex: 'name', width: 180 },
+    { title: '广告位名称', dataIndex: 'name', width: 220, render: renderEllipsis },
     { title: '模板引用标识', dataIndex: 'code', width: 160, render: (v: string) => <Tag size="small">{v}</Tag> },
     { title: '投放广告数', dataIndex: 'adCount', width: 110, align: 'right' },
     { title: '备注', dataIndex: 'remark', minWidth: 220, render: renderEllipsis },
@@ -411,7 +411,7 @@ function EventsTab({ siteId, setSiteId }: Readonly<{
       render: (value: CmsAdEvent['eventType']) => <Tag size="small">{CMS_AD_EVENT_TYPE_LABELS[value]}</Tag>,
     },
     { title: '广告', dataIndex: 'adName', width: 220, render: renderEllipsis },
-    { title: '广告位', dataIndex: 'slotName', width: 150 },
+    { title: '广告位', dataIndex: 'slotName', width: 220, render: renderEllipsis },
     {
       title: '设备', dataIndex: 'device', width: 100,
       render: (value: CmsAdEvent['device']) => CMS_DEVICE_TYPE_LABELS[value],
@@ -471,8 +471,8 @@ function EventsTab({ siteId, setSiteId }: Readonly<{
             <dt>广告</dt><dd>{detail.adName}</dd>
             <dt>页面路径</dt><dd>{detail.path ?? EMPTY_PLACEHOLDER}</dd>
             <dt>来源</dt><dd style={{ wordBreak: 'break-all' }}>{detail.referrer ?? EMPTY_PLACEHOLDER}</dd>
-            <dt>访客哈希</dt><dd><Typography.Text code copyable>{detail.visitorHash}</Typography.Text></dd>
-            <dt>IP 哈希</dt><dd><Typography.Text code copyable>{detail.ipHash}</Typography.Text></dd>
+            <dt>访客哈希</dt><dd style={{ margin: 0, minWidth: 0, overflow: 'hidden' }}><Typography.Text code ellipsis={{ showTooltip: true }} copyable style={{ maxWidth: '100%' }}>{detail.visitorHash}</Typography.Text></dd>
+            <dt>IP 哈希</dt><dd style={{ margin: 0, minWidth: 0, overflow: 'hidden' }}><Typography.Text code ellipsis={{ showTooltip: true }} copyable style={{ maxWidth: '100%' }}>{detail.ipHash}</Typography.Text></dd>
             <dt>User-Agent</dt><dd style={{ wordBreak: 'break-word' }}>{detail.userAgent ?? EMPTY_PLACEHOLDER}</dd>
           </dl>
         ) : null}
