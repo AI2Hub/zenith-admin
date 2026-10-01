@@ -1,12 +1,12 @@
 import { lazy, Suspense, useMemo, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Banner, Button, Card, Empty, Select, Skeleton, TabPane, Tabs, Tag, Typography } from '@douyinfe/semi-ui';
+import { Banner, Button, Empty, Select, Skeleton, TabPane, Tabs, Tag, Typography } from '@douyinfe/semi-ui';
 import { cmsStatContract, CMS_CONTENT_TYPES, CMS_CONTENT_TYPE_LABELS, type CmsStatMetrics } from '@zenith/shared/cms';
 import { ChartCard } from '@/components/charts/ChartCard';
 import { StatCard, StatGrid } from '@/components/charts/StatCard';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { DateRangeFilter, FilterSelect } from '@/components/search-filters';
-import { ListSearchToolbar } from '@/components/list-page';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { useListDeepLink } from '@/hooks/useListDeepLink';
 import { useListSearch } from '@/hooks/useListSearch';
 import { useFilterQuery } from '@/hooks/useFilterQuery';
@@ -149,27 +149,39 @@ function StatsWorkspace({ siteId, timeZone, siteSelector }: Readonly<{ siteId: n
           <CmsStatsReport key={audienceDimension} query={snapshotQuery} dimension={audienceDimension} onDrill={drill} />
         </section>
       </> : null}
-      {tab === 'content' ? <Card title="内容效果" headerExtraContent={dimensionSelect(CONTENT_DIMENSIONS, contentDimension, setContentDimension, '内容分析维度')}><CmsStatsReport key={contentDimension} query={snapshotQuery} dimension={contentDimension} onDrill={drill} /></Card> : null}
-      {tab === 'sources' ? <Card title="会话来源与入口" headerExtraContent={dimensionSelect(SOURCE_DIMENSIONS, sourceDimension, setSourceDimension, '来源分析维度')}><Typography.Paragraph type="tertiary">来源固定为会话首次入口，后续内容跳转不会覆盖；转化率分母为对应来源的区间浏览访客。</Typography.Paragraph><CmsStatsReport key={sourceDimension} query={snapshotQuery} dimension={sourceDimension} onDrill={drill} /></Card> : null}
-      {tab === 'search' ? <><section className="cms-stats-section"><div className="cms-stats-section__header"><Typography.Text strong className="cms-stats-section__title">搜索规模</Typography.Text></div><StatGrid minItemWidth={200}><StatCard title="搜索次数" value={metrics.searches} /><StatCard title="独立搜索词" value={metrics.uniqueKeywords} /><StatCard title="无结果独立词" value={metrics.noResultKeywords} sub="全量去重，不受分页或排行截断影响" /></StatGrid></section><section className="cms-stats-section"><div className="cms-stats-section__header"><Typography.Text strong className="cms-stats-section__title">搜索质量与后续行为</Typography.Text></div><StatGrid minItemWidth={200}><StatCard title="无结果次数 / 搜索次数" value={`${metrics.noResultSearches} / ${metrics.searches}`} sub={metrics.searches ? `无结果率 ${(metrics.noResultSearches / metrics.searches * 100).toFixed(1)}%` : '暂无搜索分母'} /><StatCard title="搜索结果点击" value={metrics.searchClicks} /><StatCard title="搜索点击率" value={displayCmsMetric(metrics, 'searchClickRate')} sub="发生点击的搜索次数 ÷ 搜索次数" /></StatGrid></section><Card title="搜索需求与后续阅读"><Typography.Paragraph type="tertiary">后续阅读与成功转化关联同一访客、同一会话、点击后 30 分钟内的目标内容，按最近一次搜索点击归因。</Typography.Paragraph><CmsStatsReport query={snapshotQuery} dimension="search" /></Card></> : null}
+      {tab === 'content' ? <section className="cms-stats-section"><div className="cms-stats-section__header"><Typography.Text strong className="cms-stats-section__title">内容效果</Typography.Text>{dimensionSelect(CONTENT_DIMENSIONS, contentDimension, setContentDimension, '内容分析维度')}</div><CmsStatsReport key={contentDimension} query={snapshotQuery} dimension={contentDimension} onDrill={drill} /></section> : null}
+      {tab === 'sources' ? <section className="cms-stats-section"><div className="cms-stats-section__header"><div><Typography.Text strong className="cms-stats-section__title">会话来源与入口</Typography.Text><Typography.Text type="tertiary" className="cms-stats-section__description">来源固定为会话首次入口，后续内容跳转不会覆盖。</Typography.Text></div>{dimensionSelect(SOURCE_DIMENSIONS, sourceDimension, setSourceDimension, '来源分析维度')}</div><Typography.Text type="tertiary" className="cms-stats-inline-note">转化率分母为对应来源的区间浏览访客。</Typography.Text><CmsStatsReport key={sourceDimension} query={snapshotQuery} dimension={sourceDimension} onDrill={drill} /></section> : null}
+      {tab === 'search' ? <><section className="cms-stats-section"><div className="cms-stats-section__header"><Typography.Text strong className="cms-stats-section__title">搜索规模</Typography.Text></div><StatGrid minItemWidth={200}><StatCard title="搜索次数" value={metrics.searches} /><StatCard title="独立搜索词" value={metrics.uniqueKeywords} /><StatCard title="无结果独立词" value={metrics.noResultKeywords} sub="全量去重，不受分页或排行截断影响" /></StatGrid></section><section className="cms-stats-section"><div className="cms-stats-section__header"><Typography.Text strong className="cms-stats-section__title">搜索质量与后续行为</Typography.Text></div><StatGrid minItemWidth={200}><StatCard title="无结果次数 / 搜索次数" value={`${metrics.noResultSearches} / ${metrics.searches}`} sub={metrics.searches ? `无结果率 ${(metrics.noResultSearches / metrics.searches * 100).toFixed(1)}%` : '暂无搜索分母'} /><StatCard title="搜索结果点击" value={metrics.searchClicks} /><StatCard title="搜索点击率" value={displayCmsMetric(metrics, 'searchClickRate')} sub="发生点击的搜索次数 ÷ 搜索次数" /></StatGrid></section><section className="cms-stats-section"><div className="cms-stats-section__header"><div><Typography.Text strong className="cms-stats-section__title">搜索需求与后续阅读</Typography.Text><Typography.Text type="tertiary" className="cms-stats-section__description">按最近一次搜索点击归因到同一访客、同一会话内的目标内容。</Typography.Text></div></div><CmsStatsReport query={snapshotQuery} dimension="search" /></section></> : null}
       {tab === 'conversions' ? <CmsAttributionPanel query={snapshotQuery} overview={overview.data} /> : null}
     </>;
   }
   return <>
-    <ListSearchToolbar keyword={siteSelector} onSearch={filters.handleSearch} onReset={filters.handleReset} filters={<>
-      <DateRangeFilter type="dateRange" {...filters.bind('range')} />
-      <Select aria-label="统计时区" {...filters.bind('timeZone', (value: unknown) => value as Filters['timeZone'])} optionList={IANA_TIMEZONE_OPTIONS} filter style={{ width: 180 }} />
-      <Select aria-label="时间粒度" {...filters.bind('granularity', (value: unknown) => value as Filters['granularity'])} optionList={[{ value: 'day', label: '按天统计' }, { value: 'hour', label: '按小时统计' }]} />
-      <Select aria-label="对比周期" {...filters.bind('compare', (value: unknown) => value as Filters['compare'])} optionList={[{ value: 'previous_period', label: '对比上一周期' }, { value: 'previous_year', label: '对比去年同期' }, { value: 'none', label: '不对比' }]} />
-      <CmsStatsNameFilter query={query} dimension="content" placeholder="全部内容" width={220} initialOptions={numberOptions.content} {...filters.bind('contentId')} />
-      <CmsStatsNameFilter query={query} dimension="channel" placeholder="全部栏目" initialOptions={numberOptions.channel} {...filters.bind('channelId')} />
-      <CmsStatsNameFilter query={query} dimension="release" placeholder="全部发布版本" initialOptions={numberOptions.release} {...filters.bind('releaseId')} />
-      <CmsStatsNameFilter query={query} dimension="author" placeholder="全部作者" initialOptions={options.data?.author ?? []} {...filters.bind('author')} />
-      <FilterSelect placeholder="全部内容形态" width={140} items={CMS_CONTENT_TYPES.map((value) => ({ value, label: CMS_CONTENT_TYPE_LABELS[value] }))} {...filters.bind('contentType')} />
-    </>} actions={<>
-      {hasPermission('cms:site:update') ? <Button disabled={!site.data} onClick={() => site.data && settings.open(site.data)}>采集设置</Button> : null}
-      <Button onClick={() => navigate(`/cms/publishing?siteId=${siteId}`)}>发布配置</Button>
-    </>} />
+    <SearchToolbar
+      className="cms-stats-toolbar"
+      primary={<>
+        {siteSelector}
+        <DateRangeFilter type="dateRange" {...filters.bind('range')} />
+        <SearchButton onClick={filters.handleSearch} />
+        <ResetButton onClick={filters.handleReset} />
+      </>}
+      mobilePrimary={<>{siteSelector}<DateRangeFilter type="dateRange" {...filters.bind('range')} /></>}
+      filters={<div className="cms-stats-advanced-filters">
+        <Select aria-label="统计时区" {...filters.bind('timeZone', (value: unknown) => value as Filters['timeZone'])} optionList={IANA_TIMEZONE_OPTIONS} filter style={{ width: 180 }} />
+        <Select aria-label="时间粒度" {...filters.bind('granularity', (value: unknown) => value as Filters['granularity'])} optionList={[{ value: 'day', label: '按天统计' }, { value: 'hour', label: '按小时统计' }]} />
+        <Select aria-label="对比周期" {...filters.bind('compare', (value: unknown) => value as Filters['compare'])} optionList={[{ value: 'previous_period', label: '对比上一周期' }, { value: 'previous_year', label: '对比去年同期' }, { value: 'none', label: '不对比' }]} />
+        <CmsStatsNameFilter query={query} dimension="content" placeholder="全部内容" width={220} initialOptions={numberOptions.content} {...filters.bind('contentId')} />
+        <CmsStatsNameFilter query={query} dimension="channel" placeholder="全部栏目" width={180} initialOptions={numberOptions.channel} {...filters.bind('channelId')} />
+        <CmsStatsNameFilter query={query} dimension="release" placeholder="全部发布版本" width={190} initialOptions={numberOptions.release} {...filters.bind('releaseId')} />
+        <CmsStatsNameFilter query={query} dimension="author" placeholder="全部作者" width={160} initialOptions={options.data?.author ?? []} {...filters.bind('author')} />
+        <FilterSelect placeholder="全部内容形态" width={140} items={CMS_CONTENT_TYPES.map((value) => ({ value, label: CMS_CONTENT_TYPE_LABELS[value] }))} {...filters.bind('contentType')} />
+      </div>}
+      onFilterApply={filters.handleSearch}
+      onFilterReset={filters.handleReset}
+      actions={<>
+        {hasPermission('cms:site:update') ? <Button disabled={!site.data} onClick={() => site.data && settings.open(site.data)}>采集设置</Button> : null}
+        <Button onClick={() => navigate(`/cms/publishing?siteId=${siteId}`)}>发布配置</Button>
+      </>}
+    />
     <div className="cms-stats-scope-bar">
       <Typography.Text type="tertiary" className="cms-stats-scope-label">当前范围</Typography.Text>
       <Typography.Text type="tertiary">正式用户流量</Typography.Text>

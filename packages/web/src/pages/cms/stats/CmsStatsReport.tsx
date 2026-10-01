@@ -53,16 +53,16 @@ export default function CmsStatsReport({ query: scopeQuery, dimension, onDrill }
     } }] : [];
     return onDrill && row.key !== 'unknown' && row.key !== '' ? [{ key: 'drill', label: '按此项筛选', onClick: () => onDrill(dimension, row.key) }] : [];
   } }));
-  return <>
-    <ListSearchToolbar onSearch={search.handleSearch} onReset={search.handleReset}
+  return <div className="cms-stats-report">
+    <ListSearchToolbar className="cms-stats-report-toolbar" onSearch={search.handleSearch} onReset={search.handleReset}
       keyword={<KeywordInput {...search.bindKeyword('keyword')} placeholder={`搜索${DIMENSION_LABELS[dimension]}名称`} />}
       filters={<><Select aria-label="排序指标" {...search.bind('sortBy', (value: unknown) => value as ReportFilters['sortBy'])} optionList={sortFields.map((value) => ({ value, label: `按${METRIC_LABELS[value]}` }))} /><Select aria-label="排序方向" {...search.bind('sortOrder', (value: unknown) => value as ReportFilters['sortOrder'])} optionList={[{ value: 'desc', label: '从高到低' }, { value: 'asc', label: '从低到高' }]} /></>}
       actions={<ExportButton entity="cms.statistics" permission="cms:stat:view" query={reportQuery} executionMode="async" label="后台导出全部结果" />} />
-    <Typography.Paragraph type="tertiary">导出任务在后台生成完整统计快照，关闭页面后继续执行；可在<Typography.Text link onClick={() => navigate('/system/export-jobs')}>导出中心</Typography.Text>查看进度、取消、重试和重复下载。</Typography.Paragraph>
+    <Typography.Text type="tertiary" className="cms-stats-report-note">导出任务在后台生成完整统计快照，关闭页面后继续执行；可在<Typography.Text link onClick={() => navigate('/system/export-jobs')}>导出中心</Typography.Text>查看进度、取消、重试和重复下载。</Typography.Text>
     {report.isError ? <Banner type="danger" description={`排行查询失败：${report.error.message}${report.data ? '。下方保留上次成功结果。' : ''}`} /> : null}
-    {['search', 'media', 'placement', 'form', 'interaction'].includes(dimension) ? <Typography.Paragraph type="tertiary">此维度的 UV 是发生对应行为的访客数；详情浏览和搜索、媒体、版位行为分别计量，不将点击等同于服务端成功。</Typography.Paragraph> : null}
+    {['search', 'media', 'placement', 'form', 'interaction'].includes(dimension) ? <Typography.Text type="tertiary" className="cms-stats-report-note">此维度的 UV 是发生对应行为的访客数；详情浏览和搜索、媒体、版位行为分别计量，不将点击等同于服务端成功。</Typography.Text> : null}
     <ConfigurableTable columnSettingsKey={`cms-statistics-${dimension}`} columns={columns} {...listTableProps(report, { rowKey: 'key', pagination: search.buildPagination, empty: report.isError ? '查询失败，请刷新重试' : '当前筛选下暂无对应事件' })} />
-    {dimension === 'search' ? <Typography.Paragraph type="tertiary">转为事项时保存当前时间区间的全站关键词证据，后续按同一关键词跟踪发布前后效果。</Typography.Paragraph> : null}
+    {dimension === 'search' ? <Typography.Text type="tertiary" className="cms-stats-report-note">转为事项时保存当前时间区间的全站关键词证据，后续按同一关键词跟踪发布前后效果。</Typography.Text> : null}
     {editor.editor}
-  </>;
+  </div>;
 }

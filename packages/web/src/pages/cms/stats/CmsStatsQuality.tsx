@@ -16,30 +16,44 @@ export const CMS_COLLECTION_STATUS = {
 
 export default function CmsStatsQuality({ siteId, data, refreshing, onRefresh }: Readonly<{ siteId: number; data: CmsStatQuality; refreshing: boolean; onRefresh: () => void }>) {
   const status = CMS_COLLECTION_STATUS[data.status];
-  return <>
+  return <div className="cms-stats-quality">
     {status.description ? <Banner type={data.status === 'attention' ? 'warning' : 'info'} description={status.description} /> : null}
-    <Typography.Paragraph type="tertiary">质量指标按所选站点与日期统计，不受内容、栏目和来源筛选影响；拒收事件不计入正式运营指标。</Typography.Paragraph>
-    <Descriptions data={[
-      { key: '采集状态', value: <Tag color={status.color}>{status.label}</Tag> },
-      { key: '当前配置', value: data.configuredEnabled ? '已启用' : '已停用' },
-      { key: '线上配置', value: data.publishedEnabled ? '已启用' : '未启用' },
-      { key: '最后收到事件', value: <DateTimeText value={data.lastReceivedAt} mode="absolute" empty="尚无事件" /> },
-      { key: '最后事件发生', value: <DateTimeText value={data.lastEventAt} mode="absolute" empty="尚无事件" /> },
-      { key: '收数延迟 P95', value: data.latencyP95Ms === null ? '尚无样本' : `${(data.latencyP95Ms / 1000).toFixed(1)} 秒` },
-    ]} />
-    <StatGrid minItemWidth={160}>
-      <StatCard title="有效接收" value={data.acceptedEvents} />
-      <StatCard title="幂等去重" value={data.duplicateEvents} sub={`占收数 ${data.duplicateRate.toFixed(1)}%`} />
-      <StatCard title="拒收" value={data.rejectedEvents} sub={`占收数 ${data.rejectionRate.toFixed(1)}%`} />
-      <StatCard title="成功转化待入库" value={data.pendingConversions} sub="业务已成功，正在可靠投递" />
-      <StatCard title="成功转化投递失败" value={data.failedConversions} sub="需要检查重试状态" />
-      <StatCard title="缺少页面上下文" value={data.eventsWithoutPage} />
-      <StatCard title="缺少访客身份" value={data.eventsWithoutVisitor} />
-    </StatGrid>
-    <CmsTelemetryDeliveries key={siteId} siteId={siteId} />
-    <div className="chart-grid">
-      <Card title="事件覆盖" bodyStyle={{ padding: 0 }}><ConfigurableTable columnSettingsKey="cms-stats-event-types" columns={[{ title: '事件', dataIndex: 'event', minWidth: 240 }, { title: '有效次数', dataIndex: 'count', width: 110, align: 'right' }]} dataSource={data.eventTypes} rowKey="event" pagination={false} onRefresh={onRefresh} refreshLoading={refreshing} empty="尚无有效事件" /></Card>
-      <Card title="拒收与去重原因" bodyStyle={{ padding: 0 }}><ConfigurableTable columnSettingsKey="cms-stats-reasons" columns={[{ title: '原因', dataIndex: 'reason', minWidth: 240 }, { title: '次数', dataIndex: 'count', width: 110, align: 'right' }]} dataSource={data.reasons} rowKey="reason" pagination={false} onRefresh={onRefresh} refreshLoading={refreshing} empty="暂无异常记录" /></Card>
-    </div>
-  </>;
+    <Typography.Text type="tertiary" className="cms-stats-quality-note">质量指标按所选站点与日期统计，不受内容、栏目和来源筛选影响；拒收事件不计入正式运营指标。</Typography.Text>
+    <section className="cms-stats-section">
+      <div className="cms-stats-section__header"><div><Typography.Text strong className="cms-stats-section__title">配置状态</Typography.Text><Typography.Text type="tertiary" className="cms-stats-section__description">确认当前采集配置与线上版本是否一致。</Typography.Text></div></div>
+      <Descriptions data={[
+        { key: '采集状态', value: <Tag color={status.color}>{status.label}</Tag> },
+        { key: '当前配置', value: data.configuredEnabled ? '已启用' : '已停用' },
+        { key: '线上配置', value: data.publishedEnabled ? '已启用' : '未启用' },
+        { key: '最后收到事件', value: <DateTimeText value={data.lastReceivedAt} mode="absolute" empty="尚无事件" /> },
+        { key: '最后事件发生', value: <DateTimeText value={data.lastEventAt} mode="absolute" empty="尚无事件" /> },
+        { key: '收数延迟 P95', value: data.latencyP95Ms === null ? '尚无样本' : `${(data.latencyP95Ms / 1000).toFixed(1)} 秒` },
+      ]} />
+    </section>
+    <section className="cms-stats-section">
+      <div className="cms-stats-section__header"><div><Typography.Text strong className="cms-stats-section__title">接收质量</Typography.Text><Typography.Text type="tertiary" className="cms-stats-section__description">有效事件、拒收、重复和上下文完整性。</Typography.Text></div></div>
+      <StatGrid minItemWidth={160}>
+        <StatCard title="有效接收" value={data.acceptedEvents} />
+        <StatCard title="幂等去重" value={data.duplicateEvents} sub={`占收数 ${data.duplicateRate.toFixed(1)}%`} />
+        <StatCard title="拒收" value={data.rejectedEvents} sub={`占收数 ${data.rejectionRate.toFixed(1)}%`} />
+        <StatCard title="缺少页面上下文" value={data.eventsWithoutPage} />
+        <StatCard title="缺少访客身份" value={data.eventsWithoutVisitor} />
+      </StatGrid>
+    </section>
+    <section className="cms-stats-section">
+      <div className="cms-stats-section__header"><div><Typography.Text strong className="cms-stats-section__title">投递积压</Typography.Text><Typography.Text type="tertiary" className="cms-stats-section__description">业务成功事实与投递状态分开查看。</Typography.Text></div></div>
+      <StatGrid minItemWidth={180}>
+        <StatCard title="成功转化待入库" value={data.pendingConversions} sub="业务已成功，正在可靠投递" />
+        <StatCard title="成功转化投递失败" value={data.failedConversions} sub="需要检查重试状态" />
+      </StatGrid>
+      <CmsTelemetryDeliveries key={siteId} siteId={siteId} />
+    </section>
+    <section className="cms-stats-section">
+      <div className="cms-stats-section__header"><div><Typography.Text strong className="cms-stats-section__title">事件覆盖与异常原因</Typography.Text><Typography.Text type="tertiary" className="cms-stats-section__description">表格在宽屏并排，窄屏自动单列。</Typography.Text></div></div>
+      <div className="chart-grid">
+        <Card title="事件覆盖" bodyStyle={{ padding: 0 }}><ConfigurableTable columnSettingsKey="cms-stats-event-types" columns={[{ title: '事件', dataIndex: 'event', minWidth: 240 }, { title: '有效次数', dataIndex: 'count', width: 110, align: 'right' }]} dataSource={data.eventTypes} rowKey="event" pagination={false} onRefresh={onRefresh} refreshLoading={refreshing} empty="尚无有效事件" /></Card>
+        <Card title="拒收与去重原因" bodyStyle={{ padding: 0 }}><ConfigurableTable columnSettingsKey="cms-stats-reasons" columns={[{ title: '原因', dataIndex: 'reason', minWidth: 240 }, { title: '次数', dataIndex: 'count', width: 110, align: 'right' }]} dataSource={data.reasons} rowKey="reason" pagination={false} onRefresh={onRefresh} refreshLoading={refreshing} empty="暂无异常记录" /></Card>
+      </div>
+    </section>
+  </div>;
 }
