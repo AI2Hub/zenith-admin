@@ -107,7 +107,7 @@ export default function WorkflowTasksMonitorView({ onOpenInstance }: Props) {
     taskNodeColumn<WorkflowTaskMonitorItem>({ title: '当前任务', width: 200, withTypeTag: true }),
     dateTimeColumn('任务开始时间', 'createdAt'),
     dateTimeColumn('任务结束时间', 'actionAt'),
-    taskAssigneeColumn<WorkflowTaskMonitorItem>('审批人'),
+    taskAssigneeColumn<WorkflowTaskMonitorItem>('审批人', 170),
     taskStatusColumn<WorkflowTaskMonitorItem>('审批状态'),
     taskCommentColumn<WorkflowTaskMonitorItem>(),
     taskStayDurationColumn<WorkflowTaskMonitorItem>(),

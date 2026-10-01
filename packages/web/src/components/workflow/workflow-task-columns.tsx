@@ -147,14 +147,19 @@ export function taskStatusColumn<T extends TaskRowLike>(title = '状态', width 
   };
 }
 
-/** 处理人列（头像 + 昵称，空值占位） */
-export function taskAssigneeColumn<T extends TaskRowLike>(title = '处理人', width = 130): ColumnProps<T> {
+/** 处理人列（头像 + 昵称，单行省略 + tooltip，空值占位） */
+export function taskAssigneeColumn<T extends TaskRowLike>(title = '处理人', width = 170): ColumnProps<T> {
   return {
     title,
     dataIndex: 'assigneeName',
     width,
     render: (v: string | null, row: T) => (v
-      ? <Space spacing={6}><UserAvatar name={v} avatar={row.assigneeAvatar} semiSize="extra-extra-small" size={20} /><span>{v}</span></Space>
+      ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, maxWidth: '100%', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+          <UserAvatar name={v} avatar={row.assigneeAvatar} semiSize="extra-extra-small" size={20} />
+          <Typography.Text ellipsis={{ showTooltip: true }} style={{ minWidth: 0, flex: 1 }}>{v}</Typography.Text>
+        </div>
+      )
       : <span style={{ color: 'var(--semi-color-text-2)' }}>{EMPTY_PLACEHOLDER}</span>),
   };
 }
