@@ -1,6 +1,6 @@
 import { lazy, Suspense, useMemo, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Banner, Button, Card, Empty, Select, Skeleton, Space, TabPane, Tabs, Tag, Typography } from '@douyinfe/semi-ui';
+import { Banner, Button, Card, Empty, Select, Skeleton, TabPane, Tabs, Tag, Typography } from '@douyinfe/semi-ui';
 import { cmsStatContract, CMS_CONTENT_TYPES, CMS_CONTENT_TYPE_LABELS, type CmsStatMetrics } from '@zenith/shared/cms';
 import { ChartCard } from '@/components/charts/ChartCard';
 import { StatCard, StatGrid } from '@/components/charts/StatCard';
@@ -57,7 +57,9 @@ type Filters = Omit<CmsStatsQuery, 'siteId' | 'startTime' | 'endTime'> & { range
 const CONTENT_DIMENSIONS = ['content', 'channel', 'author', 'contentType', 'release'] as const;
 const SOURCE_DIMENSIONS = ['source', 'entry', 'referrer', 'utmSource', 'utmMedium', 'utmCampaign', 'utmTerm', 'utmContent'] as const;
 const AUDIENCE_DIMENSIONS = ['device', 'browser', 'os', 'country'] as const;
-const OVERVIEW_METRICS: (keyof CmsStatMetrics)[] = ['pv', 'uv', 'sessions', 'reads', 'readRate', 'avgActiveMs', 'avgScrollDepth', 'engagementRate', 'bounceRate', 'newVisitors', 'returningVisitors'];
+const CORE_METRICS: (keyof CmsStatMetrics)[] = ['pv', 'uv', 'sessions', 'reads'];
+const QUALITY_METRICS: (keyof CmsStatMetrics)[] = ['readRate', 'avgActiveMs', 'avgScrollDepth', 'engagementRate', 'bounceRate', 'newVisitors', 'returningVisitors'];
+const DELTA_METRICS: (keyof CmsStatMetrics)[] = ['pv', 'uv', 'sessions', 'reads', 'newVisitors', 'returningVisitors'];
 const EXPLANATIONS: Partial<Record<keyof CmsStatMetrics, string>> = {
   pv: '可见页面浏览，排除预览与爬虫', uv: '整个区间独立去重，不累加每日 UV', sessions: '同站点 30 分钟无活动开启新会话', reads: '活跃 ≥10 秒且正文深度 ≥50%，短正文需读完', readRate: '有效阅读页次 ÷ 浏览页次',
   avgActiveMs: '可见活跃总时长 ÷ 页面浏览量', engagementRate: '参与会话 ÷ 浏览会话', newVisitors: '区间首次访问的访客', returningVisitors: '区间前已有访问的访客',
@@ -86,6 +88,7 @@ function StatsWorkspace({ siteId, timeZone, siteSelector }: Readonly<{ siteId: n
   const [contentDimension, setContentDimension] = useState<CmsStatsDimension>('content');
   const [sourceDimension, setSourceDimension] = useState<CmsStatsDimension>('source');
   const [audienceDimension, setAudienceDimension] = useState<CmsStatsDimension>('device');
+  const [trendMode, setTrendMode] = useState<'traffic' | 'engagement'>('traffic');
   const numberOptions = useMemo(() => ({ content: options.data?.content.map((item) => ({ ...item, value: Number(item.value) })) ?? [], channel: options.data?.channel.map((item) => ({ ...item, value: Number(item.value) })) ?? [], release: options.data?.release.map((item) => ({ ...item, value: Number(item.value) })) ?? [] }), [options.data]);
   const status = quality.data ? CMS_COLLECTION_STATUS[quality.data.status] : undefined;
   const needsCollectionAction = !!quality.data && ['disabled', 'pending_publication', 'attention'].includes(quality.data.status);
@@ -110,18 +113,45 @@ function StatsWorkspace({ siteId, timeZone, siteSelector }: Readonly<{ siteId: n
     return <>
       {metrics.pv === 0 && !overview.isError && !needsCollectionAction ? <Banner type="info" description={filtered ? '当前筛选下暂无页面浏览；可以重置内容、栏目或版本条件查看全站数据。行为事件仍单独展示。' : (status?.description ?? '当前区间暂无正式访问事件。')} /> : null}
       {tab === 'overview' ? <>
-        <StatGrid minItemWidth={180}>{OVERVIEW_METRICS.map((field) => <StatCard key={field} title={METRIC_LABELS[field]} value={displayCmsMetric(metrics, field)} sub={EXPLANATIONS[field]} delta={overview.data?.previousMetrics && ['pv', 'uv', 'sessions', 'reads', 'newVisitors', 'returningVisitors'].includes(field) ? metrics[field] - overview.data.previousMetrics[field] : null} deltaLabel={query.compare === 'previous_year' ? '较去年同期' : '较上一周期'} />)}</StatGrid>
-        <ChartCard title="流量与有效参与趋势" height={280}>
+        <section className="cms-stats-section">
+          <div className="cms-stats-section__header">
+            <div>
+              <Typography.Text strong className="cms-stats-section__title">核心流量</Typography.Text>
+              <Typography.Text type="tertiary" className="cms-stats-section__description">先看访问规模，再判断内容是否产生有效阅读。</Typography.Text>
+            </div>
+          </div>
+          <StatGrid minItemWidth={200}>{CORE_METRICS.map((field) => <StatCard key={field} title={METRIC_LABELS[field]} value={displayCmsMetric(metrics, field)} sub={EXPLANATIONS[field]} delta={overview.data?.previousMetrics && DELTA_METRICS.includes(field) ? metrics[field] - overview.data.previousMetrics[field] : null} deltaLabel={query.compare === 'previous_year' ? '较去年同期' : '较上一周期'} />)}</StatGrid>
+        </section>
+        <ChartCard
+          title="流量与有效参与趋势"
+          height={280}
+          extra={<Select className="cms-stats-trend-mode" size="small" aria-label="趋势指标" value={trendMode} onChange={(value) => setTrendMode(value as 'traffic' | 'engagement')} optionList={[{ value: 'traffic', label: '访问规模' }, { value: 'engagement', label: '阅读与转化' }]} />}
+        >
           <Suspense fallback={<Skeleton active loading placeholder={<Skeleton.Image style={{ width: '100%', height: 280 }} />} />}>
-            <CmsStatsTrend data={overview.data.trend} />
+            <CmsStatsTrend data={overview.data.trend} mode={trendMode} />
           </Suspense>
           <Typography.Text type="tertiary">每日 UV 独立去重，不能相加替代区间 UV。参与会话满足活跃 10 秒、有效阅读、成功转化或至少浏览两页之一。</Typography.Text>
         </ChartCard>
-        <Card title="受众分布" headerExtraContent={dimensionSelect(AUDIENCE_DIMENSIONS, audienceDimension, setAudienceDimension, '受众维度')}><CmsStatsReport key={audienceDimension} query={snapshotQuery} dimension={audienceDimension} onDrill={drill} /></Card>
+        <section className="cms-stats-section">
+          <div className="cms-stats-section__header">
+            <div>
+              <Typography.Text strong className="cms-stats-section__title">参与质量</Typography.Text>
+              <Typography.Text type="tertiary" className="cms-stats-section__description">阅读深度、参与率和访客构成用于解释流量质量。</Typography.Text>
+            </div>
+          </div>
+          <StatGrid minItemWidth={180}>{QUALITY_METRICS.map((field) => <StatCard key={field} title={METRIC_LABELS[field]} value={displayCmsMetric(metrics, field)} sub={EXPLANATIONS[field]} />)}</StatGrid>
+        </section>
+        <section className="cms-stats-section">
+          <div className="cms-stats-section__header">
+            <Typography.Text strong className="cms-stats-section__title">受众分布</Typography.Text>
+            {dimensionSelect(AUDIENCE_DIMENSIONS, audienceDimension, setAudienceDimension, '受众维度')}
+          </div>
+          <CmsStatsReport key={audienceDimension} query={snapshotQuery} dimension={audienceDimension} onDrill={drill} />
+        </section>
       </> : null}
       {tab === 'content' ? <Card title="内容效果" headerExtraContent={dimensionSelect(CONTENT_DIMENSIONS, contentDimension, setContentDimension, '内容分析维度')}><CmsStatsReport key={contentDimension} query={snapshotQuery} dimension={contentDimension} onDrill={drill} /></Card> : null}
       {tab === 'sources' ? <Card title="会话来源与入口" headerExtraContent={dimensionSelect(SOURCE_DIMENSIONS, sourceDimension, setSourceDimension, '来源分析维度')}><Typography.Paragraph type="tertiary">来源固定为会话首次入口，后续内容跳转不会覆盖；转化率分母为对应来源的区间浏览访客。</Typography.Paragraph><CmsStatsReport key={sourceDimension} query={snapshotQuery} dimension={sourceDimension} onDrill={drill} /></Card> : null}
-      {tab === 'search' ? <><StatGrid><StatCard title="搜索次数" value={metrics.searches} /><StatCard title="独立搜索词" value={metrics.uniqueKeywords} /><StatCard title="无结果独立词" value={metrics.noResultKeywords} sub="全量去重，不受分页或排行截断影响" /><StatCard title="无结果次数 / 搜索次数" value={`${metrics.noResultSearches} / ${metrics.searches}`} sub={metrics.searches ? `无结果率 ${(metrics.noResultSearches / metrics.searches * 100).toFixed(1)}%` : '暂无搜索分母'} /><StatCard title="搜索结果点击" value={metrics.searchClicks} /><StatCard title="搜索点击率" value={displayCmsMetric(metrics, 'searchClickRate')} sub="发生点击的搜索次数 ÷ 搜索次数" /></StatGrid><Card title="搜索需求与后续阅读"><Typography.Paragraph type="tertiary">后续阅读与成功转化关联同一访客、同一会话、点击后 30 分钟内的目标内容，按最近一次搜索点击归因。</Typography.Paragraph><CmsStatsReport query={snapshotQuery} dimension="search" /></Card></> : null}
+      {tab === 'search' ? <><section className="cms-stats-section"><div className="cms-stats-section__header"><Typography.Text strong className="cms-stats-section__title">搜索规模</Typography.Text></div><StatGrid minItemWidth={200}><StatCard title="搜索次数" value={metrics.searches} /><StatCard title="独立搜索词" value={metrics.uniqueKeywords} /><StatCard title="无结果独立词" value={metrics.noResultKeywords} sub="全量去重，不受分页或排行截断影响" /></StatGrid></section><section className="cms-stats-section"><div className="cms-stats-section__header"><Typography.Text strong className="cms-stats-section__title">搜索质量与后续行为</Typography.Text></div><StatGrid minItemWidth={200}><StatCard title="无结果次数 / 搜索次数" value={`${metrics.noResultSearches} / ${metrics.searches}`} sub={metrics.searches ? `无结果率 ${(metrics.noResultSearches / metrics.searches * 100).toFixed(1)}%` : '暂无搜索分母'} /><StatCard title="搜索结果点击" value={metrics.searchClicks} /><StatCard title="搜索点击率" value={displayCmsMetric(metrics, 'searchClickRate')} sub="发生点击的搜索次数 ÷ 搜索次数" /></StatGrid></section><Card title="搜索需求与后续阅读"><Typography.Paragraph type="tertiary">后续阅读与成功转化关联同一访客、同一会话、点击后 30 分钟内的目标内容，按最近一次搜索点击归因。</Typography.Paragraph><CmsStatsReport query={snapshotQuery} dimension="search" /></Card></> : null}
       {tab === 'conversions' ? <CmsAttributionPanel query={snapshotQuery} overview={overview.data} /> : null}
     </>;
   }
@@ -140,11 +170,13 @@ function StatsWorkspace({ siteId, timeZone, siteSelector }: Readonly<{ siteId: n
       {hasPermission('cms:site:update') ? <Button disabled={!site.data} onClick={() => site.data && settings.open(site.data)}>采集设置</Button> : null}
       <Button onClick={() => navigate(`/cms/publishing?siteId=${siteId}`)}>发布配置</Button>
     </>} />
-    <Space wrap style={{ marginBottom: 12 }}>
-      <Tag color="blue">正式用户流量</Tag>{status ? <Tag color={status.color}>{status.label}</Tag> : null}
+    <div className="cms-stats-scope-bar">
+      <Typography.Text type="tertiary" className="cms-stats-scope-label">当前范围</Typography.Text>
+      <Typography.Text type="tertiary">正式用户流量</Typography.Text>
+      {status ? <Tag color={status.color}>{status.label}</Tag> : null}
       {query.source ? <Tag closable onClose={() => filters.applySearch({ ...filters.submittedParams, source: undefined })}>来源：{query.source}</Tag> : null}
       {query.device ? <Tag closable onClose={() => filters.applySearch({ ...filters.submittedParams, device: undefined })}>设备：{query.device}</Tag> : null}
-    </Space>
+    </div>
     <div className="cms-stats-notices">
       {overview.isError ? <Banner type="danger" description={`统计查询失败：${overview.error.message}${overview.data ? '。下方保留上次成功数据，请刷新重试。' : '。指标尚未取得，不能视作零访问。'}`} /> : null}
       {quality.isError ? <Banner type="warning" description={`采集状态查询失败：${quality.error.message}`} /> : null}
