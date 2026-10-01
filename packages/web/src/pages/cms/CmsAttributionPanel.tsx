@@ -44,7 +44,7 @@ export default function CmsAttributionPanel({ query, overview }: Readonly<{ quer
           <Typography.Text strong className="cms-stats-section__title">内容归因与互动表现</Typography.Text>
           <Typography.Text type="tertiary" className="cms-stats-section__description">按维度查看成功转化、互动和媒体行为的明细。</Typography.Text>
         </div>
-        <Select aria-label="互动分析维度" value={dimension} onChange={(value) => setDimension(value as CmsStatsDimension)} optionList={(['content', 'form', 'interaction', 'media', 'placement'] as const).map((value) => ({ value, label: DIMENSION_LABELS[value] }))} />
+        <Select className="cms-stats-dimension-select" aria-label="互动分析维度" value={dimension} onChange={(value) => setDimension(value as CmsStatsDimension)} optionList={(['content', 'form', 'interaction', 'media', 'placement'] as const).map((value) => ({ value, label: DIMENSION_LABELS[value] }))} />
       </div>
       <CmsStatsReport key={dimension} query={query} dimension={dimension} />
     </section>

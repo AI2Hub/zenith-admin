@@ -54,7 +54,7 @@
   flex-wrap: wrap;
 }
 
-.cms-stats-section__header > div {
+.cms-stats-section__header > div:not(.semi-select) {
   display: flex;
   min-width: 0;
   flex-direction: column;
