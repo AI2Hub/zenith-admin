@@ -100,7 +100,7 @@ function StatsWorkspace({ siteId, timeZone, siteSelector }: Readonly<{ siteId: n
     else if (['author', 'contentType', 'source', 'device'].includes(dimension)) filters.applySearch({ ...filters.submittedParams, [dimension]: key });
     setActiveTab('overview');
   }
-  const dimensionSelect = (dimensions: readonly CmsStatsDimension[], value: CmsStatsDimension, onChange: (value: CmsStatsDimension) => void, label: string) => <Select aria-label={label} value={value} onChange={(next) => onChange(next as CmsStatsDimension)} optionList={dimensions.map((dimension) => ({ value: dimension, label: DIMENSION_LABELS[dimension] }))} />;
+  const dimensionSelect = (dimensions: readonly CmsStatsDimension[], value: CmsStatsDimension, onChange: (value: CmsStatsDimension) => void, label: string) => <Select className="cms-stats-dimension-select" aria-label={label} value={value} onChange={(next) => onChange(next as CmsStatsDimension)} optionList={dimensions.map((dimension) => ({ value: dimension, label: DIMENSION_LABELS[dimension] }))} />;
   function renderTabContent(tab: typeof TABS[number]) {
     if (tab === 'quality') {
       return quality.data

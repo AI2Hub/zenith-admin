@@ -74,6 +74,12 @@
   min-width: 112px;
 }
 
+.cms-stats-dimension-select {
+  width: 160px;
+  min-width: 160px;
+  flex: 0 1 160px;
+}
+
 .cms-stats-toolbar .cms-stats-advanced-filters {
   display: flex;
   flex: 1 1 100%;
@@ -158,5 +164,10 @@
   .cms-stats-toolbar .cms-stats-advanced-filters {
     padding-top: 0;
     border-top: 0;
+  }
+
+  .cms-stats-dimension-select {
+    width: min(160px, 100%);
+    min-width: 0;
   }
 }
