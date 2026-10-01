@@ -271,14 +271,14 @@ export default function DistributionPage() {
     { title: '规则', dataIndex: 'ruleName', width: 180, render: renderEllipsis },
     {
       title: '站点范围',
-      width: 230,
-      render: (_: unknown, run) => `${run.sourceSiteName ?? `#${run.sourceSiteId}`} → ${run.targetSiteName ?? `#${run.targetSiteId}`}`,
+      width: 300,
+      render: (_: unknown, run) => renderEllipsis(`${run.sourceSiteName ?? `#${run.sourceSiteId}`} → ${run.targetSiteName ?? `#${run.targetSiteId}`}`),
     },
     { title: '进度', width: 240, render: (_: unknown, run) => <AsyncTaskProgress task={run} /> },
     {
       title: '结果',
-      width: 210,
-      render: (_: unknown, run) => `成功 ${run.succeeded} / 跳过 ${run.skipped} / 冲突 ${run.conflicts} / 失败 ${run.failedCount}`,
+      width: 260,
+      render: (_: unknown, run) => renderEllipsis(`成功 ${run.succeeded} / 跳过 ${run.skipped} / 冲突 ${run.conflicts} / 失败 ${run.failedCount}`),
     },
     createdAtColumn,
     {
