@@ -274,7 +274,20 @@ export default function DistributionPage() {
       width: 300,
       render: (_: unknown, run) => renderEllipsis(`${run.sourceSiteName ?? `#${run.sourceSiteId}`} → ${run.targetSiteName ?? `#${run.targetSiteId}`}`),
     },
-    { title: '进度', width: 240, render: (_: unknown, run) => <AsyncTaskProgress task={run} /> },
+    {
+      title: '进度',
+      width: 320,
+      render: (_: unknown, run) => {
+        const percent = run.totalCount
+          ? Math.min(100, Math.round((run.processedCount / Math.max(run.totalCount, 1)) * 100))
+          : null;
+        const text = [
+          run.status === 'pending' ? '排队中' : percent != null ? `${percent}%` : null,
+          run.progressNote ?? null,
+        ].filter(Boolean).join(' · ');
+        return renderEllipsis(text || '执行中…');
+      },
+    },
     {
       title: '结果',
       width: 260,
