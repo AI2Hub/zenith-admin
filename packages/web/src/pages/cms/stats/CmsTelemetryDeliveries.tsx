@@ -3,10 +3,10 @@ import { Banner, Button, Card, Select, SideSheet, Space, Tag, Toast, Typography 
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { CMS_TELEMETRY_DELIVERY_STATUSES, CMS_TELEMETRY_DELIVERY_STATUS_LABELS, type CmsTelemetryDelivery } from '@zenith/shared/cms';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import DateTimeText from '@/components/DateTimeText';
 import { StatCard, StatGrid } from '@/components/charts/StatCard';
 import { ListSearchToolbar, listTableProps } from '@/components/list-page';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
+import { dateTimeColumn } from '@/utils/table-columns';
 import { useListSearch } from '@/hooks/useListSearch';
 import { usePermission } from '@/hooks/usePermission';
 import { cmsTelemetryDeliveryKeys, useCmsTelemetryDeliveries, useCmsTelemetryDeliverySummary, useReplayCmsTelemetryDelivery } from '@/hooks/queries/cms-stats';
@@ -19,10 +19,10 @@ export default function CmsTelemetryDeliveries({ siteId }: Readonly<{ siteId: nu
   const replay=useReplayCmsTelemetryDelivery();const {hasPermission}=usePermission();
   const columns:ColumnProps<CmsTelemetryDelivery>[]=[
     {title:'业务成功事件',dataIndex:'name',minWidth:210,render:(name:string,row)=><Space vertical align="start" spacing={2}><Typography.Text>{row.targetName??name}</Typography.Text><Typography.Text type="tertiary" size="small">{name}</Typography.Text></Space>},
-    {title:'发生时间',dataIndex:'occurredAt',width:165,render:(value:string)=><DateTimeText value={value} mode="absolute" />},
+    dateTimeColumn<CmsTelemetryDelivery>('发生时间','occurredAt'),
     {title:'投递状态',dataIndex:'status',width:150,render:(status:CmsTelemetryDelivery['status'])=><Tag color={status==='failed'?'red':status==='delivered'?'green':'orange'}>{CMS_TELEMETRY_DELIVERY_STATUS_LABELS[status]}</Tag>},
-    {title:'尝试 / 人工重放',width:120,render:(_v:unknown,row)=>`${row.attempts} / ${row.replayCount}`},
-    {title:'下次投递',dataIndex:'nextAttemptAt',width:165,render:(value:string|null)=><DateTimeText value={value} mode="absolute" />},
+    {title:'尝试 / 人工重放',width:180,render:(_v:unknown,row)=>`${row.attempts} / ${row.replayCount}`},
+    dateTimeColumn<CmsTelemetryDelivery>('下次投递','nextAttemptAt'),
     {title:'页面上下文',dataIndex:'contextAvailable',width:110,render:(value:boolean)=>value?'完整':'缺失或无效'},
     {title:'归因结果',minWidth:210,render:(_v:unknown,row)=>!row.attributionStatus?'等待投递':row.attributionStatus==='missing_context'?'缺少上下文，无法归因':`${row.attributionStatus==='matched'?row.originContentTitle??'已归因':'未找到来源'} · ${row.attributionSettledAt?'已结算':'迟到窗口内持续重算'}`},
     {title:'最后失败原因',dataIndex:'lastError',minWidth:260,render:(value:string|null)=>value??'—'},

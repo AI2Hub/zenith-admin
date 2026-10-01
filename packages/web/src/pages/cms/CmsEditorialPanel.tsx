@@ -41,7 +41,7 @@ export default function CmsEditorialPanel({ content, models, onChanged, onOpen, 
         <Space vertical align="start" style={{ width: '100%' }}>
           <Space><Typography.Text>检查已保存工作稿 v{quality.data?.version ?? content.version}</Typography.Text><Button loading={quality.isFetching} onClick={() => void quality.refetch()}>重新检查</Button></Space>
           {quality.isError ? <Banner type="danger" description="质量检查失败，请重试。" /> : null}
-          {quality.data?.issues.length === 0 ? <Banner type="success" description="当前稿件通过质量检查。发布前仍会重新校验修订与依赖。" /> : null}
+          {quality.data?.issues.length === 0 ? <Banner type="success" description="当前稿件通过质量检查。" /> : null}
           {quality.data?.issues.map((issue, index) => {
             const field = getCmsEditorFieldLocation(issue.fieldPath, content.modelFields, content.contentType, content.extend);
             return <Banner key={`${issue.rule}-${issue.fieldPath}-${index}`} type={issue.severity === 'error' ? 'danger' : 'warning'} closeIcon={null} description={<Space wrap>
@@ -66,7 +66,7 @@ export default function CmsEditorialPanel({ content, models, onChanged, onOpen, 
         <Space vertical align="start" style={{ width: '100%' }}>
           <Typography.Paragraph>逐字段比较上次同步基线、当前目标稿与来源新稿。合并只写入工作稿。</Typography.Paragraph>
           {conflict.isError ? <Banner type="danger" description="同步差异加载失败" /> : null}
-          {!conflict.data?.conflicts.length ? <Banner type="success" description="当前没有待处理的分发冲突" /> : null}
+          {conflict.isSuccess && !conflict.isFetching && conflict.data?.conflicts.length === 0 ? <Banner type="success" description="当前没有待处理的分发冲突" /> : null}
           {(conflict.data?.conflicts ?? []).map((item) => <div key={item.field} style={{ width: '100%' }}><Typography.Title heading={6}>{item.field}</Typography.Title><div className="auto-grid" style={{ '--auto-grid-cols': 3 } as React.CSSProperties}>{[['上次同步', item.base], ['目标工作稿', item.target], ['来源新稿', item.incoming]].map(([label, value]) => <div key={String(label)}><Typography.Text type="secondary">{String(label)}</Typography.Text><pre style={{ maxHeight: 180, overflow: 'auto', whiteSpace: 'pre-wrap' }}>{JSON.stringify(value, null, 2)}</pre></div>)}</div><Select placeholder="选择保留来源或目标" value={choices[item.field]} onChange={(value) => setChoices((previous) => ({ ...previous, [item.field]: value as 'source' | 'target' }))} optionList={[{ value: 'source', label: '采用来源新稿' }, { value: 'target', label: '保留目标修改' }]} /></div>)}
           {conflict.data?.conflicts.length ? <Button type="primary" disabled={!canEdit || conflict.data.conflicts.some((item) => !choices[item.field])} loading={resolveDistribution.isPending} onClick={async () => { await resolveDistribution.mutateAsync({ params: { id: content.id }, body: { expectedVersion: conflict.data!.version, choices } }); setChoices({}); onChanged(); Toast.success('已生成合并工作稿'); }}>确认合并到工作稿</Button> : null}
         </Space>

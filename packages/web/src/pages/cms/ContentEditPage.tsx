@@ -865,12 +865,12 @@ export default function ContentEditPage() {
       ) : null}
 
       {isMapped ? (
-        <Banner
-          type="info"
-          description={`本内容为映射内容（来源：${detail?.mappingSourceTitle ?? `#${detail?.mappingSourceId}`}）。来源更新将形成待合并差异。当前工作稿可独立编辑，请在「协作与质量」中逐字段处理来源与目标冲突。`}
+        <Typography.Paragraph
+          type="tertiary"
           style={{ marginBottom: 12 }}
-          closeIcon={null}
-        />
+        >
+          映射来源：{detail?.mappingSourceTitle ?? `#${detail?.mappingSourceId}`}
+        </Typography.Paragraph>
       ) : null}
 
       {detail?.editorialStatus === 'rejected' && detail.rejectReason ? (

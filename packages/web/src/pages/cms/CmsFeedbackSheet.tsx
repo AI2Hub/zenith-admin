@@ -71,7 +71,7 @@ export default function CmsFeedbackSheet({ id, onClose }: Readonly<{ id?: number
   const createTask = useCreateCmsEditorialTask();
   const editor = useCmsTaskEditor(detail.data?.siteId);
   const feedback = detail.data;
-  const content = feedback ? <FeedbackHandling key={feedback.id} feedback={feedback} onNoteChange={scheduleNotePreview} /> : <Spin spinning={detail.isLoading}><Banner type="warning" description={detail.error?.message ?? '正在加载来信'} /></Spin>;
+  const content = feedback ? <FeedbackHandling key={feedback.id} feedback={feedback} onNoteChange={scheduleNotePreview} /> : <Spin spinning={detail.isLoading}>{detail.isError ? <Banner type="warning" description={detail.error?.message ?? '来信加载失败，请重试。'} /> : null}</Spin>;
   return <>
     <WorkflowSideSheet title="读者反馈办理" visible={!!id} onCancel={onClose} variant={feedback?.workflowDefinitionId ? 'split' : 'default'} footerRight={<Space><Button onClick={onClose}>关闭</Button>{feedback && hasPermission('cms:editorial-task:manage') ? <Button loading={createTask.isPending} onClick={async () => { const task = await createTask.mutateAsync({ body: { siteId: feedback.siteId, title: feedback.title, description: `来自「${feedback.formName}」的读者反馈。`, source: 'submission', feedbackId: feedback.id, ownerId: feedback.ownerId } }); editor.openEdit(task); }}>转为编辑事项</Button> : null}</Space>}>
       {feedback?.workflowDefinitionId ? <BusinessWorkflowPanel formContent={content} context={context.data} preview={preview.data} selectedInstanceId={instanceId} onSelectInstance={setInstanceId} loading={context.isLoading || preview.isLoading} error={context.error ?? preview.error} onRetry={() => { void context.refetch(); void preview.refetch(); }} /> : content}

@@ -217,8 +217,10 @@ export default function CmsPagePresetLibrary({ siteId, blocks, selectedBlockIds,
             <Button disabled={!canSave || !latest.data} onClick={() => copyModal.openEdit(preset)}>复制最新版本为新预设</Button>
             <Button disabled={!canSave || !selected.length || !latest.data || selected.some(block => block.canManage === false)} onClick={() => openSave(selected, true)}>用选中区块保存新版本</Button>
           </Space>
-          {source && source.presetId === activeId ? <Banner type="info" description={<Space wrap><span>当前选中实例来自 v{source.version}，包含 {instanceBlocks.length} 个区块；最新版本为 v{preset.currentVersion}。</span>
-            <Button size="small" disabled={!canUpgrade || instantiate.isPending} onClick={() => apply('replace-selected', true)}>升级当前组合</Button></Space>} /> : null}
+          {source && source.presetId === activeId ? <Space wrap>
+            <Typography.Text type="tertiary">当前选中实例来自 v{source.version}，包含 {instanceBlocks.length} 个区块；最新版本为 v{preset.currentVersion}。</Typography.Text>
+            <Button size="small" disabled={!canUpgrade || instantiate.isPending} onClick={() => apply('replace-selected', true)}>升级当前组合</Button>
+          </Space> : null}
           {(latest.isError || historical.isError || versions.isError) ? <Banner type="danger" description="预设版本加载失败，请重新选择或刷新。" /> : null}
           <Spin spinning={latest.isFetching || historical.isFetching} style={fullWidth}>
             {snapshot ? <Space vertical align="start" spacing={12} style={fullWidth}>

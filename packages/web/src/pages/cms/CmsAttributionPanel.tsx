@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Card, Select, Typography } from '@douyinfe/semi-ui';
+import { Card, Select } from '@douyinfe/semi-ui';
 import type { CmsStatOverview } from '@zenith/shared/cms';
 import { StatCard, StatGrid } from '@/components/charts/StatCard';
 import type { CmsStatsQuery } from '@/hooks/queries/cms-stats';
@@ -21,7 +21,6 @@ export default function CmsAttributionPanel({ query, overview }: Readonly<{ quer
       <StatCard title="曝光点击率" value={displayCmsMetric(metrics, 'ctr')} sub={`${metrics.clicks} 次点击 / ${metrics.impressions} 次曝光；按曝光实例去重`} />
     </StatGrid>
     <Card title="内容归因与互动表现" headerExtraContent={<Select aria-label="互动分析维度" value={dimension} onChange={(value) => setDimension(value as CmsStatsDimension)} optionList={(['content', 'form', 'interaction', 'media', 'placement'] as const).map((value) => ({ value, label: DIMENSION_LABELS[value] }))} />}>
-      <Typography.Paragraph type="tertiary">不同目标的开始、失败与成功均单独展示；不把未经验证的点击相加成为转化。比率同时保留分子与分母供核验。</Typography.Paragraph>
       <CmsStatsReport key={dimension} query={query} dimension={dimension} />
     </Card>
   </>;

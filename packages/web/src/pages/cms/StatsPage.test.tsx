@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { cmsStatMetricsSchema, type CmsStatOverview, type CmsStatQuality } from '@zenith/shared/cms';
 import type { CmsStatsQuery } from '@/hooks/queries/cms-stats';
 import StatsPage from './StatsPage';
+import { desktopToolbar } from '@/test-utils/toolbar';
 
 const state = vi.hoisted(() => ({ overview: undefined as CmsStatOverview | undefined, quality: undefined as CmsStatQuality | undefined, failure: false, queries: [] as CmsStatsQuery[] }));
 vi.mock('@/hooks/queries/cms-stats', () => ({
@@ -17,8 +18,10 @@ vi.mock('@/hooks/queries/cms-stats', () => ({
 vi.mock('@/hooks/queries/cms-sites', () => ({ useCmsSiteDetail: () => ({ data: { id: 1, name: '测试站', settings: { telemetry: { enabled: true, timeZone: 'Asia/Shanghai' } } }, isLoading: false }) }));
 vi.mock('@/hooks/usePermission', () => ({ usePermission: () => ({ hasPermission: () => false }) }));
 vi.mock('@/hooks/usePreferences', () => ({ useOptionalPreferences: () => undefined, usePreferences: () => ({ preferences: { tablePageSize: 10 } }) }));
+vi.mock('@/components/ConfigurableTable', () => ({ default: () => null }));
 vi.mock('./CmsSiteSelect', () => ({ CmsSiteSelect: ({ onChange }: { onChange: (id: number) => void }) => <button onClick={() => onChange(1)}>选择测试站点</button> }));
 vi.mock('./stats/CmsTelemetrySettings', () => ({ useCmsTelemetrySettings: () => ({ editor: null, open: vi.fn() }) }));
+vi.mock('./stats/CmsTelemetryDeliveries', () => ({ default: () => null }));
 vi.mock('./stats/CmsStatsNameFilter', () => ({ default: () => null }));
 vi.mock('./CmsDashboardCharts', () => ({ CmsStatsTrend: () => <div>趋势图</div> }));
 vi.mock('./stats/CmsStatsReport', () => ({ default: ({ onDrill, query }: { onDrill?: (dimension: 'content', key: string) => void; query: CmsStatsQuery }) => <div><span data-testid="report-scope">{query.contentId ?? 'all'}</span>{onDrill ? <button onClick={() => onDrill('content', '42')}>筛选文化观察</button> : null}</div> }));
@@ -35,14 +38,14 @@ describe('CMS statistics workspace', () => {
   it('shows query failure without replacing unavailable metrics with business zeros', () => {
     state.overview = undefined; state.failure = true;
     const view = render(<StatsPage />, { wrapper });
-    fireEvent.click(screen.getByRole('button', { name: '选择测试站点' }));
+    fireEvent.click(desktopToolbar(view.container).getByRole('button', { name: '选择测试站点' }));
     expect(screen.getByText(/指标尚未取得，不能视作零访问/)).toBeInTheDocument();
     expect(view.container.querySelector('.zx-stat')).toBeNull();
     expect(screen.getAllByRole('tab')).toHaveLength(6);
   });
   it('uses full keyword total and propagates report drill-down to the shared scope', () => {
     const view = render(<StatsPage />, { wrapper });
-    fireEvent.click(screen.getByRole('button', { name: '选择测试站点' }));
+    fireEvent.click(desktopToolbar(view.container).getByRole('button', { name: '选择测试站点' }));
     fireEvent.click(screen.getByRole('button', { name: '筛选文化观察' }));
     expect(state.queries.at(-1)?.contentId).toBe(42);
     expect(screen.getByTestId('report-scope')).toHaveTextContent('42');
@@ -52,15 +55,18 @@ describe('CMS statistics workspace', () => {
   });
   it('keeps publication status distinct from an empty traffic interval', () => {
     state.quality = { ...state.quality!, status: 'pending_publication', publishedEnabled: false };
-    render(<StatsPage />, { wrapper });
-    fireEvent.click(screen.getByRole('button', { name: '选择测试站点' }));
+    state.overview = { ...state.overview!, metrics: { ...state.overview!.metrics, pv: 0 } };
+    const view = render(<StatsPage />, { wrapper });
+    fireEvent.click(desktopToolbar(view.container).getByRole('button', { name: '选择测试站点' }));
     expect(screen.getByText('配置待发布')).toBeInTheDocument();
+    expect(screen.getByText(/采集配置与线上版本尚未一致/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: '采集质量' }));
     expect(screen.getByText(/采集配置与线上版本尚未一致/)).toBeInTheDocument();
   });
   it('keeps missing comparison metrics unavailable without showing a coverage banner', () => {
     state.overview = { ...state.overview!, comparisonUnavailableReason: '对比区间尚未开始采集，不将缺失历史视为零流量', earliestRetainedEventAt: '2026-09-28T00:00:00Z' };
     const view = render(<StatsPage />, { wrapper });
-    fireEvent.click(screen.getByRole('button', { name: '选择测试站点' }));
+    fireEvent.click(desktopToolbar(view.container).getByRole('button', { name: '选择测试站点' }));
     expect(screen.queryByText('对比区间尚未开始采集，不将缺失历史视为零流量')).not.toBeInTheDocument();
     expect(view.container.querySelector('.zx-stat__delta')).toBeNull();
   });

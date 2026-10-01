@@ -10,14 +10,14 @@ export const CMS_COLLECTION_STATUS = {
   disabled: { label: '未启用采集', description: '请在采集设置中启用并发布站点配置，启用前的浏览不会补采。', color: 'grey' },
   pending_publication: { label: '配置待发布', description: '采集配置与线上版本尚未一致，请在发布中心发布配置后访问线上站点。', color: 'orange' },
   empty: { label: '尚未收到事件', description: '线上已启用采集，所选日期尚无事件。请访问已发布的站点页面后刷新；编辑预览不计入正式指标。', color: 'blue' },
-  collecting: { label: '采集正常', description: '正式访问、搜索、阅读和业务成功使用同一套事件事实。', color: 'green' },
+  collecting: { label: '采集正常', description: null, color: 'green' },
   attention: { label: '采集需要关注', description: '检测到拒收或事件上下文异常，请检查下方质量信息与失败原因。', color: 'red' },
 } as const;
 
 export default function CmsStatsQuality({ siteId, data, refreshing, onRefresh }: Readonly<{ siteId: number; data: CmsStatQuality; refreshing: boolean; onRefresh: () => void }>) {
   const status = CMS_COLLECTION_STATUS[data.status];
   return <>
-    <Banner type={data.status === 'attention' ? 'warning' : 'info'} description={status.description} />
+    {status.description ? <Banner type={data.status === 'attention' ? 'warning' : 'info'} description={status.description} /> : null}
     <Typography.Paragraph type="tertiary">质量指标按所选站点与日期统计，不受内容、栏目和来源筛选影响；拒收事件不计入正式运营指标。</Typography.Paragraph>
     <Descriptions data={[
       { key: '采集状态', value: <Tag color={status.color}>{status.label}</Tag> },

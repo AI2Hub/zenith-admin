@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import dayjs from 'dayjs';
-import { Banner, Col, Form, Row, SideSheet, TabPane, Tabs, Tag, Toast } from '@douyinfe/semi-ui';
+import { Col, Form, Row, SideSheet, TabPane, Tabs, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { CMS_CONTENT_TYPES, CMS_CONTENT_TYPE_LABELS, CMS_DISTRIBUTION_CONFLICT_STRATEGIES, CMS_DISTRIBUTION_CONFLICT_STRATEGY_LABELS, CMS_DISTRIBUTION_MODES, CMS_DISTRIBUTION_MODE_LABELS, CMS_DISTRIBUTION_RUN_OUTCOME_LABELS, CMS_DISTRIBUTION_TASK_STATUSES, CMS_DISTRIBUTION_TASK_STATUS_LABELS } from '@zenith/shared/cms';
 import type { CmsDistributionRule, CmsDistributionRun } from '@zenith/shared/cms';
@@ -546,12 +546,9 @@ export default function DistributionPage() {
       >
         {runDetailQuery.data ? (
           <>
-            <Banner
-              type="info"
-              closeIcon={null}
-              style={{ marginBottom: 12 }}
-              description={`规则：${runDetailQuery.data.run.ruleName ?? EMPTY_PLACEHOLDER}；来源 ${runDetailQuery.data.run.sourceSiteName ?? EMPTY_PLACEHOLDER} → 目标 ${runDetailQuery.data.run.targetSiteName ?? EMPTY_PLACEHOLDER}`}
-            />
+            <Typography.Paragraph type="tertiary" style={{ marginBottom: 12 }}>
+              规则：{runDetailQuery.data.run.ruleName ?? EMPTY_PLACEHOLDER}；来源 {runDetailQuery.data.run.sourceSiteName ?? EMPTY_PLACEHOLDER} → 目标 {runDetailQuery.data.run.targetSiteName ?? EMPTY_PLACEHOLDER}
+            </Typography.Paragraph>
             <div style={{ marginBottom: 12 }}><AsyncTaskProgress task={runDetailQuery.data.run} /></div>
             <ConfigurableTable<NonNullable<typeof runDetailQuery.data>['items'][number]>
               columns={itemColumns}

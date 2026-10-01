@@ -1,9 +1,9 @@
-import { lazy, Suspense, useMemo, useState } from 'react';
+import { lazy, Suspense, useMemo, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Banner, Button, Card, Empty, Select, Skeleton, Space, TabPane, Tabs, Tag, Typography } from '@douyinfe/semi-ui';
 import { cmsStatContract, CMS_CONTENT_TYPES, CMS_CONTENT_TYPE_LABELS, type CmsStatMetrics } from '@zenith/shared/cms';
 import { StatCard, StatGrid } from '@/components/charts/StatCard';
-import DateTimeText from '@/components/DateTimeText';
+import { SearchToolbar } from '@/components/SearchToolbar';
 import { DateRangeFilter, FilterSelect } from '@/components/search-filters';
 import { ListSearchToolbar } from '@/components/list-page';
 import { useListDeepLink } from '@/hooks/useListDeepLink';
@@ -22,7 +22,8 @@ import CmsStatsReport from './stats/CmsStatsReport';
 import CmsStatsNameFilter from './stats/CmsStatsNameFilter';
 import CmsStatsQuality, { CMS_COLLECTION_STATUS } from './stats/CmsStatsQuality';
 import { useCmsTelemetrySettings } from './stats/CmsTelemetrySettings';
-import { DIMENSION_LABELS, METRIC_LABELS, cmsStatsDateRange, displayCmsMetric, formatCmsScopeTime, type CmsStatsDimension } from './stats/cms-stats-presentation';
+import { DIMENSION_LABELS, METRIC_LABELS, cmsStatsDateRange, displayCmsMetric, type CmsStatsDimension } from './stats/cms-stats-presentation';
+import './StatsPage.css';
 
 const CmsStatsTrend = lazy(() => import('./CmsDashboardCharts').then(charts => ({ default: charts.CmsStatsTrend })));
 
@@ -62,7 +63,7 @@ const EXPLANATIONS: Partial<Record<keyof CmsStatMetrics, string>> = {
   avgScrollDepth: '每次浏览的最高阅读深度平均值', bounceRate: '未参与会话 ÷ 浏览会话',
 };
 
-function StatsWorkspace({ siteId, timeZone }: Readonly<{ siteId: number; timeZone: string }>) {
+function StatsWorkspace({ siteId, timeZone, siteSelector }: Readonly<{ siteId: number; timeZone: string; siteSelector: ReactNode }>) {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useUrlTabState(TABS, 'overview');
   const site = useCmsSiteDetail(siteId);
@@ -86,6 +87,7 @@ function StatsWorkspace({ siteId, timeZone }: Readonly<{ siteId: number; timeZon
   const [audienceDimension, setAudienceDimension] = useState<CmsStatsDimension>('device');
   const numberOptions = useMemo(() => ({ content: options.data?.content.map((item) => ({ ...item, value: Number(item.value) })) ?? [], channel: options.data?.channel.map((item) => ({ ...item, value: Number(item.value) })) ?? [], release: options.data?.release.map((item) => ({ ...item, value: Number(item.value) })) ?? [] }), [options.data]);
   const status = quality.data ? CMS_COLLECTION_STATUS[quality.data.status] : undefined;
+  const needsCollectionAction = !!quality.data && ['disabled', 'pending_publication', 'attention'].includes(quality.data.status);
   const metrics = overview.data?.metrics;
   const filtered = Boolean(query.contentId || query.channelId || query.releaseId || query.author || query.contentType || query.source || query.device);
   function drill(dimension: CmsStatsDimension, key: string) {
@@ -96,7 +98,7 @@ function StatsWorkspace({ siteId, timeZone }: Readonly<{ siteId: number; timeZon
   }
   const dimensionSelect = (dimensions: readonly CmsStatsDimension[], value: CmsStatsDimension, onChange: (value: CmsStatsDimension) => void, label: string) => <Select aria-label={label} value={value} onChange={(next) => onChange(next as CmsStatsDimension)} optionList={dimensions.map((dimension) => ({ value: dimension, label: DIMENSION_LABELS[dimension] }))} />;
   return <>
-    <ListSearchToolbar onSearch={filters.handleSearch} onReset={filters.handleReset} filters={<>
+    <ListSearchToolbar keyword={siteSelector} onSearch={filters.handleSearch} onReset={filters.handleReset} filters={<>
       <DateRangeFilter type="dateRange" {...filters.bind('range')} />
       <Select aria-label="统计时区" {...filters.bind('timeZone', (value: unknown) => value as Filters['timeZone'])} optionList={IANA_TIMEZONE_OPTIONS} filter style={{ width: 180 }} />
       <Select aria-label="时间粒度" {...filters.bind('granularity', (value: unknown) => value as Filters['granularity'])} optionList={[{ value: 'day', label: '按天统计' }, { value: 'hour', label: '按小时统计' }]} />
@@ -112,24 +114,18 @@ function StatsWorkspace({ siteId, timeZone }: Readonly<{ siteId: number; timeZon
     </>} />
     <Space wrap style={{ marginBottom: 12 }}>
       <Tag color="blue">正式用户流量</Tag>{status ? <Tag color={status.color}>{status.label}</Tag> : null}
-      <Typography.Text type="tertiary">预览、内部测试、爬虫和技术请求不混入用户 PV</Typography.Text>
       {query.source ? <Tag closable onClose={() => filters.applySearch({ ...filters.submittedParams, source: undefined })}>来源：{query.source}</Tag> : null}
       {query.device ? <Tag closable onClose={() => filters.applySearch({ ...filters.submittedParams, device: undefined })}>设备：{query.device}</Tag> : null}
     </Space>
     {overview.isError ? <Banner type="danger" description={`统计查询失败：${overview.error.message}${overview.data ? '。下方保留上次成功数据，请刷新重试。' : '。指标尚未取得，不能视作零访问。'}`} /> : null}
     {quality.isError ? <Banner type="warning" description={`采集状态查询失败：${quality.error.message}`} /> : null}
     {options.isError ? <Banner type="warning" description="筛选名称加载失败，请刷新后重试。" /> : null}
-    {quality.data && ['disabled', 'pending_publication', 'attention'].includes(quality.data.status) ? <Banner type={quality.data.status === 'attention' ? 'warning' : 'info'} description={status?.description} /> : null}
-    {overview.data ? <Typography.Paragraph type="tertiary">
-      {formatCmsScopeTime(overview.data.scope.startTime, overview.data.scope.timeZone)} 至 {formatCmsScopeTime(overview.data.scope.endTime, overview.data.scope.timeZone)}（{overview.data.scope.timeZone}，结束边界不含） · 统计截至 <DateTimeText value={overview.data.scope.watermark} mode="absolute" />
-      {overview.data.scope.comparisonStart && overview.data.scope.comparisonEnd ? ` · 对比 ${formatCmsScopeTime(overview.data.scope.comparisonStart, overview.data.scope.timeZone)} 至 ${formatCmsScopeTime(overview.data.scope.comparisonEnd, overview.data.scope.timeZone)}` : ''}
-    </Typography.Paragraph> : null}
-    {overview.data?.earliestRetainedEventAt ? <Typography.Paragraph type="tertiary">当前保留事件起点：<DateTimeText value={overview.data.earliestRetainedEventAt} mode="absolute" />。对比可用性根据连续采集记录、暂停时段和保留策略判断。</Typography.Paragraph> : null}
+    {needsCollectionAction && activeTab !== 'quality' ? <Banner type={quality.data?.status === 'attention' ? 'warning' : 'info'} description={status?.description} /> : null}
     <Tabs collapsible="auto" type="line" activeKey={activeTab} onChange={(value) => setActiveTab(value as typeof activeTab)}>
       {TABS.map((tab, index) => <TabPane key={tab} itemKey={tab} tab={['总览', '内容', '来源与入口', '搜索', '互动与转化', '采集质量'][index]} />)}
     </Tabs>
     {activeTab === 'quality' ? quality.data ? <CmsStatsQuality siteId={query.siteId} data={quality.data} refreshing={quality.isFetching} onRefresh={() => void quality.refetch()} /> : <Skeleton active loading placeholder={<Skeleton.Paragraph rows={6} />} /> : !metrics || !overview.data ? overview.isLoading ? <CmsStatsSkeleton /> : <Empty description="尚未取得统计数据，请刷新重试" /> : <>
-      {metrics.pv === 0 && !overview.isError ? <Banner type="info" description={filtered ? '当前筛选下暂无页面浏览；可以重置内容、栏目或版本条件查看全站数据。行为事件仍单独展示。' : (status?.description ?? '当前区间暂无正式访问事件。')} /> : null}
+      {metrics.pv === 0 && !overview.isError && !needsCollectionAction ? <Banner type="info" description={filtered ? '当前筛选下暂无页面浏览；可以重置内容、栏目或版本条件查看全站数据。行为事件仍单独展示。' : (status?.description ?? '当前区间暂无正式访问事件。')} /> : null}
       {activeTab === 'overview' ? <>
         <StatGrid minItemWidth={180}>{OVERVIEW_METRICS.map((field) => <StatCard key={field} title={METRIC_LABELS[field]} value={displayCmsMetric(metrics, field)} sub={EXPLANATIONS[field]} delta={overview.data?.previousMetrics && ['pv', 'uv', 'sessions', 'reads', 'newVisitors', 'returningVisitors'].includes(field) ? metrics[field] - overview.data.previousMetrics[field] : null} deltaLabel={query.compare === 'previous_year' ? '较去年同期' : '较上一周期'} />)}</StatGrid>
         <Card title="流量与有效参与趋势"><Suspense fallback={<Skeleton active loading placeholder={<Skeleton.Image style={{ width: '100%', height: 230 }} />} />}><CmsStatsTrend data={overview.data.trend} /></Suspense><Typography.Text type="tertiary">每日 UV 独立去重，不能相加替代区间 UV。参与会话满足活跃 10 秒、有效阅读、成功转化或至少浏览两页之一。</Typography.Text></Card>
@@ -147,8 +143,11 @@ function StatsWorkspace({ siteId, timeZone }: Readonly<{ siteId: number; timeZon
 export default function StatsPage() {
   const [siteId, setSiteId] = useState<number>();
   const site = useCmsSiteDetail(siteId);
-  return <div className="page-container page-tabs-page zx-flat-panels">
-    <Space wrap style={{ marginBottom: 12 }}><CmsSiteSelect value={siteId} onChange={setSiteId} /><Typography.Text type="tertiary">访问统计</Typography.Text></Space>
-    {siteId && site.data ? <StatsWorkspace key={siteId} siteId={siteId} timeZone={(site.data.settings.telemetry as { timeZone?: string } | undefined)?.timeZone ?? 'Asia/Shanghai'} /> : siteId && site.isLoading ? <CmsStatsSkeleton /> : <Empty description={site.isError ? '站点信息加载失败，请刷新重试' : '请选择站点查看统计'} />}
+  const siteSelector = <CmsSiteSelect value={siteId} onChange={setSiteId} />;
+  return <div className="page-container page-tabs-page zx-flat-panels cms-stats-page">
+    {siteId && site.data ? <StatsWorkspace key={siteId} siteId={siteId} siteSelector={siteSelector} timeZone={(site.data.settings.telemetry as { timeZone?: string } | undefined)?.timeZone ?? 'Asia/Shanghai'} /> : <>
+      <SearchToolbar primary={siteSelector} />
+      {siteId && site.isLoading ? <CmsStatsSkeleton /> : <Empty description={site.isError ? '站点信息加载失败，请刷新重试' : '请选择站点查看统计'} />}
+    </>}
   </div>;
 }
