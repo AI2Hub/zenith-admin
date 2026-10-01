@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Banner, Button, Descriptions, Divider, Form, Space, Spin, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
+import { Banner, Button, Descriptions, Divider, Form, Space, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
 import type { BodyOf } from '@zenith/shared/core';
 import { CMS_CONTENT_REVIEW_ISSUE_LABELS, cmsContentReviewContract, type CmsContent } from '@zenith/shared/cms';
 import { useCmsContentReviewPolicy, useCmsContentReviewRecords, useSaveCmsContentReviewPolicy, useCompleteCmsContentReview, useScanCmsContentReviews } from '@/hooks/queries/cms-content-reviews';
@@ -9,6 +9,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { useMyAsyncTasks } from '@/hooks/useAsyncTasks';
 import { useAsyncTaskAction } from '@/hooks/queries/async-tasks';
 import AsyncTaskProgress from '@/components/AsyncTaskProgress';
+import PageLoading from '@/components/PageLoading';
 import DateTimeText from '@/components/DateTimeText';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
 
@@ -26,7 +27,7 @@ export default function CmsContentReviewPanel({ content }: Readonly<{ content?: 
   const running = task?.status === 'pending' || task?.status === 'running';
   if (!content) return <Typography.Paragraph style={{ padding: 16 }}>保存稿件后可以配置上线复核周期。</Typography.Paragraph>;
   if (policyQuery.isError) return <Banner type="danger" description={policyQuery.error.message}><Button onClick={() => void policyQuery.refetch()}>重试</Button></Banner>;
-  if (!policy) return <Spin />;
+  if (!policy) return <PageLoading inline />;
   const reviewChanged = reviewSubject !== null && (reviewSubject.revisionId !== policy.activeRevisionId || reviewSubject.version !== policy.version);
   return <div style={{ padding: 16 }}>
     <Typography.Paragraph type="tertiary">复核面向当前生效的发布修订。巡检发现的问题进入编辑事项，后续按审核发布流程处理。</Typography.Paragraph>

@@ -23,6 +23,7 @@ import { CMS_WIDGET_RENDERER_LABELS, CMS_WIDGET_SOURCE_TYPE_LABELS, CMS_WIDGET_S
 import type { CmsWidgetItem, CmsWidgetRendererKey, CmsWidgetSourceType } from '@zenith/shared/cms';
 import { flattenChannels } from './channel-tree';
 import AppModal from '@/components/AppModal';
+import PageLoading from '@/components/PageLoading';
 import { CmsResourcePicker } from './components/CmsResourcePicker';
 import { usePermission } from '@/hooks/usePermission';
 import { useCmsChannelTree, useCmsContentList } from '@/hooks/queries/cms';
@@ -490,45 +491,56 @@ export default function WidgetEditPage() {
         width={1200}
         closeOnEsc
       >
-        <Spin spinning={previewQuery.isFetching}>
-          <Space style={{ marginBottom: 12 }}>
-            <Button
-              type={previewViewport === 'desktop' ? 'primary' : 'tertiary'}
-              icon={<Monitor size={14} />}
-              onClick={() => setPreviewViewport('desktop')}
-            >
-              桌面
-            </Button>
-            <Button
-              type={previewViewport === 'tablet' ? 'primary' : 'tertiary'}
-              icon={<Tablet size={14} />}
-              onClick={() => setPreviewViewport('tablet')}
-            >
-              平板
-            </Button>
-            <Button
-              type={previewViewport === 'mobile' ? 'primary' : 'tertiary'}
-              icon={<Smartphone size={14} />}
-              onClick={() => setPreviewViewport('mobile')}
-            >
-              手机
-            </Button>
-          </Space>
-          <div style={{ display: 'flex', justifyContent: 'center', overflow: 'auto', padding: 12, background: 'var(--semi-color-fill-0)' }}>
-            <iframe
-              title="页面部件真实主题预览"
-              srcDoc={previewQuery.data?.documentHtml ?? ''}
-              sandbox=""
-              style={{
-                width: previewViewport === 'desktop' ? '100%' : previewViewport === 'tablet' ? 768 : 390,
-                height: 620,
-                border: '1px solid var(--semi-color-border)',
-                borderRadius: 'var(--semi-border-radius-medium)',
-                background: '#fff',
-              }}
-            />
+        <Space style={{ marginBottom: 12 }}>
+          <Button
+            type={previewViewport === 'desktop' ? 'primary' : 'tertiary'}
+            icon={<Monitor size={14} />}
+            onClick={() => setPreviewViewport('desktop')}
+          >
+            桌面
+          </Button>
+          <Button
+            type={previewViewport === 'tablet' ? 'primary' : 'tertiary'}
+            icon={<Tablet size={14} />}
+            onClick={() => setPreviewViewport('tablet')}
+          >
+            平板
+          </Button>
+          <Button
+            type={previewViewport === 'mobile' ? 'primary' : 'tertiary'}
+            icon={<Smartphone size={14} />}
+            onClick={() => setPreviewViewport('mobile')}
+          >
+            手机
+          </Button>
+        </Space>
+        {previewQuery.data?.documentHtml ? (
+          <div style={{ position: 'relative' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', overflow: 'auto', padding: 12, background: 'var(--semi-color-fill-0)' }}>
+              <iframe
+                title="页面部件真实主题预览"
+                srcDoc={previewQuery.data?.documentHtml ?? ''}
+                sandbox=""
+                style={{
+                  width: previewViewport === 'desktop' ? '100%' : previewViewport === 'tablet' ? 768 : 390,
+                  height: 620,
+                  border: '1px solid var(--semi-color-border)',
+                  borderRadius: 'var(--semi-border-radius-medium)',
+                  background: '#fff',
+                }}
+              />
+            </div>
+            {previewQuery.isFetching ? (
+              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--semi-color-bg-0)' }}>
+                <PageLoading inline />
+              </div>
+            ) : null}
           </div>
-        </Spin>
+        ) : previewQuery.isFetching ? (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 620, background: 'var(--semi-color-fill-0)' }}>
+            <PageLoading inline />
+          </div>
+        ) : null}
       </AppModal>
       <CmsConfigurationNotice siteId={siteId} kind="widget" objectId={activeId} />
       <Button disabled={!canEditWidget} loading={saveMutation.isPending} onClick={async () => { const saved = await saveWidget(); setSitePreviewId(saved.id); }}>保存后查看整站工作稿</Button>

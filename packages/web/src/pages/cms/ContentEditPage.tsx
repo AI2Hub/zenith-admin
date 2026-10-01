@@ -1,4 +1,5 @@
 import CmsTaxonomyInput from './CmsTaxonomyInput';
+import PageLoading from '@/components/PageLoading';
 import CmsWorkbenchPreview from './CmsWorkbenchPreview';
 import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import CmsValueDiff from './CmsValueDiff';
@@ -1353,7 +1354,7 @@ export default function ContentEditPage() {
       </SideSheet>
 
       <SideSheet title="历史修订" visible={viewVersionId !== undefined} onCancel={() => setViewVersionId(undefined)} width={900}>
-        {viewedVersionQuery.isFetching ? <Spin /> : null}
+        {viewedVersionQuery.isFetching ? <PageLoading inline /> : null}
         {viewedVersion && detail ? <ContentRevisionViewer content={{ ...detail, ...viewedVersion.snapshot, tags: undefined, channelName: undefined, modelFields: Array.isArray(viewedVersion.snapshot.modelFields) ? viewedVersion.snapshot.modelFields : [], revisionId: viewedVersion.id, contentHash: viewedVersion.hash } as CmsContent} heading={`历史修订 v${viewedVersion.version}`} /> : null}
       </SideSheet>
       {/* 版本差异对比 */}
