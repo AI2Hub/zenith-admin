@@ -57,11 +57,11 @@ describe('CMS statistics workspace', () => {
     expect(screen.getByText('配置待发布')).toBeInTheDocument();
     expect(screen.getByText(/采集配置与线上版本尚未一致/)).toBeInTheDocument();
   });
-  it('explains missing comparison coverage instead of showing a fabricated improvement over zero', () => {
-    state.overview = { ...state.overview!, comparisonUnavailableReason: '对比期间尚未开启采集，无法计算同比。', earliestRetainedEventAt: '2026-09-28T00:00:00Z' };
+  it('keeps missing comparison metrics unavailable without showing a coverage banner', () => {
+    state.overview = { ...state.overview!, comparisonUnavailableReason: '对比区间尚未开始采集，不将缺失历史视为零流量', earliestRetainedEventAt: '2026-09-28T00:00:00Z' };
     const view = render(<StatsPage />, { wrapper });
     fireEvent.click(screen.getByRole('button', { name: '选择测试站点' }));
-    expect(screen.getByText('对比期间尚未开启采集，无法计算同比。')).toBeInTheDocument();
+    expect(screen.queryByText('对比区间尚未开始采集，不将缺失历史视为零流量')).not.toBeInTheDocument();
     expect(view.container.querySelector('.zx-stat__delta')).toBeNull();
   });
 });

@@ -124,7 +124,6 @@ function StatsWorkspace({ siteId, timeZone }: Readonly<{ siteId: number; timeZon
       {formatCmsScopeTime(overview.data.scope.startTime, overview.data.scope.timeZone)} 至 {formatCmsScopeTime(overview.data.scope.endTime, overview.data.scope.timeZone)}（{overview.data.scope.timeZone}，结束边界不含） · 统计截至 <DateTimeText value={overview.data.scope.watermark} mode="absolute" />
       {overview.data.scope.comparisonStart && overview.data.scope.comparisonEnd ? ` · 对比 ${formatCmsScopeTime(overview.data.scope.comparisonStart, overview.data.scope.timeZone)} 至 ${formatCmsScopeTime(overview.data.scope.comparisonEnd, overview.data.scope.timeZone)}` : ''}
     </Typography.Paragraph> : null}
-    {overview.data?.comparisonUnavailableReason ? <Banner type="info" description={overview.data.comparisonUnavailableReason} /> : null}
     {overview.data?.earliestRetainedEventAt ? <Typography.Paragraph type="tertiary">当前保留事件起点：<DateTimeText value={overview.data.earliestRetainedEventAt} mode="absolute" />。对比可用性根据连续采集记录、暂停时段和保留策略判断。</Typography.Paragraph> : null}
     <Tabs collapsible="auto" type="line" activeKey={activeTab} onChange={(value) => setActiveTab(value as typeof activeTab)}>
       {TABS.map((tab, index) => <TabPane key={tab} itemKey={tab} tab={['总览', '内容', '来源与入口', '搜索', '互动与转化', '采集质量'][index]} />)}
