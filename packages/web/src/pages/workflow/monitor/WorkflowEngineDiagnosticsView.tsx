@@ -1075,7 +1075,7 @@ export default function WorkflowEngineDiagnosticsView({ onOpenInstanceDiagnostic
           />
         </TabPane>
         <TabPane tab="定义校验" itemKey="definitions">
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 1fr) minmax(260px, 1fr)', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 12 }}>
             <ConfigurableTable<WorkflowEngineDefinitionValidationItem>
               bordered
               columnSettings={false}
