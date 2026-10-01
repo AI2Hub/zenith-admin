@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Banner, Button, Checkbox, Collapsible, Input, Select, SideSheet, Space, Spin, Tag, Typography } from '@douyinfe/semi-ui';
+import { Banner, Button, Checkbox, Collapsible, Input, Select, SideSheet, Space, Tag, Typography } from '@douyinfe/semi-ui';
 import { CMS_PREVIEW_MODE_LABELS, CMS_PREVIEW_MODES, type CmsPreviewEditTarget, type CmsWorkbenchPreview as PreviewResult } from '@zenith/shared/cms';
 import { useEventCallback } from '@/hooks/useEventCallback';
 import { useCmsWorkbenchPreview } from '@/hooks/queries/cms-workbench';
 import { usePermission } from '@/hooks/usePermission';
 import CmsContentReferenceInput from './CmsContentReferenceInput';
+import PageLoading from '@/components/PageLoading';
 import CmsConfigurationPicker from './CmsConfigurationPicker';
 import { cmsPreviewDocument, readCmsPreviewPosition, cmsPreviewPositions } from './cms-preview-bridge';
 
@@ -101,6 +102,19 @@ export default function CmsWorkbenchPreview({ visible, onClose, siteId, initialP
       {result.status !== 200 ? <Tag color="red">页面状态 {result.status}</Tag> : null}
     </Space> : null}
     {error ? <Banner type="danger" description={error} style={{ marginBottom: 12 }} /> : null}
-    <Spin spinning={request.isPending}>{result ? <iframe ref={frame} onLoad={initializeFrame} title="CMS 工作区预览" sandbox="allow-scripts" srcDoc={document} style={{ display: 'block', width: mobile ? 390 : '100%', maxWidth: '100%', height: '72vh', border: '1px solid var(--semi-color-border)', margin: '0 auto' }} /> : null}</Spin>
+    {result ? (
+      <div style={{ position: 'relative' }}>
+        <iframe ref={frame} onLoad={initializeFrame} title="CMS 工作区预览" sandbox="allow-scripts" srcDoc={document} style={{ display: 'block', width: mobile ? 390 : '100%', maxWidth: '100%', height: '72vh', border: '1px solid var(--semi-color-border)', margin: '0 auto' }} />
+        {request.isPending ? (
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--semi-color-bg-0)' }}>
+            <PageLoading inline />
+          </div>
+        ) : null}
+      </div>
+    ) : request.isPending ? (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '72vh', border: '1px solid var(--semi-color-border)' }}>
+        <PageLoading inline />
+      </div>
+    ) : null}
   </SideSheet>;
 }
