@@ -1,6 +1,6 @@
 import { lazy, Suspense, useMemo, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Banner, Button, Empty, Select, Skeleton, TabPane, Tabs, Tag, Typography } from '@douyinfe/semi-ui';
+import { Banner, Button, Card, Empty, Select, Skeleton, TabPane, Tabs, Tag, Typography } from '@douyinfe/semi-ui';
 import { cmsStatContract, CMS_CONTENT_TYPES, CMS_CONTENT_TYPE_LABELS, type CmsStatMetrics } from '@zenith/shared/cms';
 import { ChartCard } from '@/components/charts/ChartCard';
 import { StatCard, StatGrid } from '@/components/charts/StatCard';
