@@ -2,6 +2,7 @@ import { lazy, Suspense, useMemo, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Banner, Button, Card, Empty, Select, Skeleton, Space, TabPane, Tabs, Tag, Typography } from '@douyinfe/semi-ui';
 import { cmsStatContract, CMS_CONTENT_TYPES, CMS_CONTENT_TYPE_LABELS, type CmsStatMetrics } from '@zenith/shared/cms';
+import { ChartCard } from '@/components/charts/ChartCard';
 import { StatCard, StatGrid } from '@/components/charts/StatCard';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { DateRangeFilter, FilterSelect } from '@/components/search-filters';
@@ -97,6 +98,33 @@ function StatsWorkspace({ siteId, timeZone, siteSelector }: Readonly<{ siteId: n
     setActiveTab('overview');
   }
   const dimensionSelect = (dimensions: readonly CmsStatsDimension[], value: CmsStatsDimension, onChange: (value: CmsStatsDimension) => void, label: string) => <Select aria-label={label} value={value} onChange={(next) => onChange(next as CmsStatsDimension)} optionList={dimensions.map((dimension) => ({ value: dimension, label: DIMENSION_LABELS[dimension] }))} />;
+  function renderTabContent(tab: typeof TABS[number]) {
+    if (tab === 'quality') {
+      return quality.data
+        ? <CmsStatsQuality siteId={query.siteId} data={quality.data} refreshing={quality.isFetching} onRefresh={() => void quality.refetch()} />
+        : <Skeleton active loading placeholder={<Skeleton.Paragraph rows={6} />} />;
+    }
+    if (!metrics || !overview.data) {
+      return overview.isLoading ? <CmsStatsSkeleton /> : <Empty description="尚未取得统计数据，请刷新重试" />;
+    }
+    return <>
+      {metrics.pv === 0 && !overview.isError && !needsCollectionAction ? <Banner type="info" description={filtered ? '当前筛选下暂无页面浏览；可以重置内容、栏目或版本条件查看全站数据。行为事件仍单独展示。' : (status?.description ?? '当前区间暂无正式访问事件。')} /> : null}
+      {tab === 'overview' ? <>
+        <StatGrid minItemWidth={180}>{OVERVIEW_METRICS.map((field) => <StatCard key={field} title={METRIC_LABELS[field]} value={displayCmsMetric(metrics, field)} sub={EXPLANATIONS[field]} delta={overview.data?.previousMetrics && ['pv', 'uv', 'sessions', 'reads', 'newVisitors', 'returningVisitors'].includes(field) ? metrics[field] - overview.data.previousMetrics[field] : null} deltaLabel={query.compare === 'previous_year' ? '较去年同期' : '较上一周期'} />)}</StatGrid>
+        <ChartCard title="流量与有效参与趋势" height={280}>
+          <Suspense fallback={<Skeleton active loading placeholder={<Skeleton.Image style={{ width: '100%', height: 280 }} />} />}>
+            <CmsStatsTrend data={overview.data.trend} />
+          </Suspense>
+          <Typography.Text type="tertiary">每日 UV 独立去重，不能相加替代区间 UV。参与会话满足活跃 10 秒、有效阅读、成功转化或至少浏览两页之一。</Typography.Text>
+        </ChartCard>
+        <Card title="受众分布" headerExtraContent={dimensionSelect(AUDIENCE_DIMENSIONS, audienceDimension, setAudienceDimension, '受众维度')}><CmsStatsReport key={audienceDimension} query={snapshotQuery} dimension={audienceDimension} onDrill={drill} /></Card>
+      </> : null}
+      {tab === 'content' ? <Card title="内容效果" headerExtraContent={dimensionSelect(CONTENT_DIMENSIONS, contentDimension, setContentDimension, '内容分析维度')}><CmsStatsReport key={contentDimension} query={snapshotQuery} dimension={contentDimension} onDrill={drill} /></Card> : null}
+      {tab === 'sources' ? <Card title="会话来源与入口" headerExtraContent={dimensionSelect(SOURCE_DIMENSIONS, sourceDimension, setSourceDimension, '来源分析维度')}><Typography.Paragraph type="tertiary">来源固定为会话首次入口，后续内容跳转不会覆盖；转化率分母为对应来源的区间浏览访客。</Typography.Paragraph><CmsStatsReport key={sourceDimension} query={snapshotQuery} dimension={sourceDimension} onDrill={drill} /></Card> : null}
+      {tab === 'search' ? <><StatGrid><StatCard title="搜索次数" value={metrics.searches} /><StatCard title="独立搜索词" value={metrics.uniqueKeywords} /><StatCard title="无结果独立词" value={metrics.noResultKeywords} sub="全量去重，不受分页或排行截断影响" /><StatCard title="无结果次数 / 搜索次数" value={`${metrics.noResultSearches} / ${metrics.searches}`} sub={metrics.searches ? `无结果率 ${(metrics.noResultSearches / metrics.searches * 100).toFixed(1)}%` : '暂无搜索分母'} /><StatCard title="搜索结果点击" value={metrics.searchClicks} /><StatCard title="搜索点击率" value={displayCmsMetric(metrics, 'searchClickRate')} sub="发生点击的搜索次数 ÷ 搜索次数" /></StatGrid><Card title="搜索需求与后续阅读"><Typography.Paragraph type="tertiary">后续阅读与成功转化关联同一访客、同一会话、点击后 30 分钟内的目标内容，按最近一次搜索点击归因。</Typography.Paragraph><CmsStatsReport query={snapshotQuery} dimension="search" /></Card></> : null}
+      {tab === 'conversions' ? <CmsAttributionPanel query={snapshotQuery} overview={overview.data} /> : null}
+    </>;
+  }
   return <>
     <ListSearchToolbar keyword={siteSelector} onSearch={filters.handleSearch} onReset={filters.handleReset} filters={<>
       <DateRangeFilter type="dateRange" {...filters.bind('range')} />
@@ -117,25 +145,17 @@ function StatsWorkspace({ siteId, timeZone, siteSelector }: Readonly<{ siteId: n
       {query.source ? <Tag closable onClose={() => filters.applySearch({ ...filters.submittedParams, source: undefined })}>来源：{query.source}</Tag> : null}
       {query.device ? <Tag closable onClose={() => filters.applySearch({ ...filters.submittedParams, device: undefined })}>设备：{query.device}</Tag> : null}
     </Space>
-    {overview.isError ? <Banner type="danger" description={`统计查询失败：${overview.error.message}${overview.data ? '。下方保留上次成功数据，请刷新重试。' : '。指标尚未取得，不能视作零访问。'}`} /> : null}
-    {quality.isError ? <Banner type="warning" description={`采集状态查询失败：${quality.error.message}`} /> : null}
-    {options.isError ? <Banner type="warning" description="筛选名称加载失败，请刷新后重试。" /> : null}
-    {needsCollectionAction && activeTab !== 'quality' ? <Banner type={quality.data?.status === 'attention' ? 'warning' : 'info'} description={status?.description} /> : null}
-    <Tabs collapsible="auto" type="line" activeKey={activeTab} onChange={(value) => setActiveTab(value as typeof activeTab)}>
-      {TABS.map((tab, index) => <TabPane key={tab} itemKey={tab} tab={['总览', '内容', '来源与入口', '搜索', '互动与转化', '采集质量'][index]} />)}
+    <div className="cms-stats-notices">
+      {overview.isError ? <Banner type="danger" description={`统计查询失败：${overview.error.message}${overview.data ? '。下方保留上次成功数据，请刷新重试。' : '。指标尚未取得，不能视作零访问。'}`} /> : null}
+      {quality.isError ? <Banner type="warning" description={`采集状态查询失败：${quality.error.message}`} /> : null}
+      {options.isError ? <Banner type="warning" description="筛选名称加载失败，请刷新后重试。" /> : null}
+      {needsCollectionAction && activeTab !== 'quality' ? <Banner type={quality.data?.status === 'attention' ? 'warning' : 'info'} description={status?.description} /> : null}
+    </div>
+    <Tabs className="cms-stats-tabs" collapsible="auto" lazyRender keepDOM={false} type="line" activeKey={activeTab} onChange={(value) => setActiveTab(value as typeof activeTab)}>
+      {TABS.map((tab, index) => <TabPane key={tab} itemKey={tab} tab={['总览', '内容', '来源与入口', '搜索', '互动与转化', '采集质量'][index]}>
+        <div className="cms-stats-tab-content">{activeTab === tab ? renderTabContent(tab) : null}</div>
+      </TabPane>)}
     </Tabs>
-    {activeTab === 'quality' ? quality.data ? <CmsStatsQuality siteId={query.siteId} data={quality.data} refreshing={quality.isFetching} onRefresh={() => void quality.refetch()} /> : <Skeleton active loading placeholder={<Skeleton.Paragraph rows={6} />} /> : !metrics || !overview.data ? overview.isLoading ? <CmsStatsSkeleton /> : <Empty description="尚未取得统计数据，请刷新重试" /> : <>
-      {metrics.pv === 0 && !overview.isError && !needsCollectionAction ? <Banner type="info" description={filtered ? '当前筛选下暂无页面浏览；可以重置内容、栏目或版本条件查看全站数据。行为事件仍单独展示。' : (status?.description ?? '当前区间暂无正式访问事件。')} /> : null}
-      {activeTab === 'overview' ? <>
-        <StatGrid minItemWidth={180}>{OVERVIEW_METRICS.map((field) => <StatCard key={field} title={METRIC_LABELS[field]} value={displayCmsMetric(metrics, field)} sub={EXPLANATIONS[field]} delta={overview.data?.previousMetrics && ['pv', 'uv', 'sessions', 'reads', 'newVisitors', 'returningVisitors'].includes(field) ? metrics[field] - overview.data.previousMetrics[field] : null} deltaLabel={query.compare === 'previous_year' ? '较去年同期' : '较上一周期'} />)}</StatGrid>
-        <Card title="流量与有效参与趋势"><Suspense fallback={<Skeleton active loading placeholder={<Skeleton.Image style={{ width: '100%', height: 230 }} />} />}><CmsStatsTrend data={overview.data.trend} /></Suspense><Typography.Text type="tertiary">每日 UV 独立去重，不能相加替代区间 UV。参与会话满足活跃 10 秒、有效阅读、成功转化或至少浏览两页之一。</Typography.Text></Card>
-        <Card title="受众分布" style={{ marginTop: 12 }} headerExtraContent={dimensionSelect(AUDIENCE_DIMENSIONS, audienceDimension, setAudienceDimension, '受众维度')}><CmsStatsReport key={audienceDimension} query={snapshotQuery} dimension={audienceDimension} onDrill={drill} /></Card>
-      </> : null}
-      {activeTab === 'content' ? <Card title="内容效果" headerExtraContent={dimensionSelect(CONTENT_DIMENSIONS, contentDimension, setContentDimension, '内容分析维度')}><CmsStatsReport key={contentDimension} query={snapshotQuery} dimension={contentDimension} onDrill={drill} /></Card> : null}
-      {activeTab === 'sources' ? <Card title="会话来源与入口" headerExtraContent={dimensionSelect(SOURCE_DIMENSIONS, sourceDimension, setSourceDimension, '来源分析维度')}><Typography.Paragraph type="tertiary">来源固定为会话首次入口，后续内容跳转不会覆盖；转化率分母为对应来源的区间浏览访客。</Typography.Paragraph><CmsStatsReport key={sourceDimension} query={snapshotQuery} dimension={sourceDimension} onDrill={drill} /></Card> : null}
-      {activeTab === 'search' ? <><StatGrid><StatCard title="搜索次数" value={metrics.searches} /><StatCard title="独立搜索词" value={metrics.uniqueKeywords} /><StatCard title="无结果独立词" value={metrics.noResultKeywords} sub="全量去重，不受分页或排行截断影响" /><StatCard title="无结果次数 / 搜索次数" value={`${metrics.noResultSearches} / ${metrics.searches}`} sub={metrics.searches ? `无结果率 ${(metrics.noResultSearches / metrics.searches * 100).toFixed(1)}%` : '暂无搜索分母'} /><StatCard title="搜索结果点击" value={metrics.searchClicks} /><StatCard title="搜索点击率" value={displayCmsMetric(metrics, 'searchClickRate')} sub="发生点击的搜索次数 ÷ 搜索次数" /></StatGrid><Card title="搜索需求与后续阅读"><Typography.Paragraph type="tertiary">后续阅读与成功转化关联同一访客、同一会话、点击后 30 分钟内的目标内容，按最近一次搜索点击归因。</Typography.Paragraph><CmsStatsReport query={snapshotQuery} dimension="search" /></Card></> : null}
-      {activeTab === 'conversions' ? <CmsAttributionPanel query={snapshotQuery} overview={overview.data} /> : null}
-    </>}
     {settings.editor}
   </>;
 }

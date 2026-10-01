@@ -1,3 +1,36 @@
-.cms-stats-page.zx-flat-panels .semi-card {
-  border-top: 0;
+.cms-stats-page {
+  --cms-stats-section-gap: 20px;
+}
+
+.cms-stats-notices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.cms-stats-tabs {
+  margin-top: 4px;
+}
+
+.cms-stats-tab-content {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--cms-stats-section-gap);
+}
+
+.cms-stats-tab-content > .semi-banner {
+  margin: 0;
+}
+
+.cms-stats-tab-content > .semi-card,
+.cms-stats-tab-content > .zx-chart-card {
+  margin-top: 0;
+}
+
+@media (--sm-down) {
+  .cms-stats-page {
+    --cms-stats-section-gap: 16px;
+  }
 }
