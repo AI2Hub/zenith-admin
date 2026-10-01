@@ -276,7 +276,7 @@ export default function DistributionPage() {
     },
     {
       title: '进度',
-      width: 320,
+      width: 400,
       render: (_: unknown, run) => {
         const percent = run.totalCount
           ? Math.min(100, Math.round((run.processedCount / Math.max(run.totalCount, 1)) * 100))
