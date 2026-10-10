@@ -16,6 +16,7 @@ export * from './mp';
 export * from './open-platform';
 export * from './payment';
 export * from './platform';
+export * from './numbering';
 export * from './report';
 export * from './rules';
 export * from './short-link';

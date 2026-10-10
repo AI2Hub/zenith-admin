@@ -22,6 +22,9 @@ import {
   entityRelationsContract,
   entityTimelineContract,
   entityWatchContract,
+  numberingRuleContract,
+  numberingBindingContract,
+  numberingAllocationContract,
 } from '@zenith/shared/platform';
 import {
   decisionFlowContract,
@@ -58,6 +61,7 @@ import globalSearchRoutes from './global-search';
 import entityRelationsRoutes from './entity-relations';
 import entityTimelineRoutes from './entity-timeline';
 import entityWatchesRoutes from './entity-watches';
+import { numberingRulesRouter, numberingBindingsRouter, numberingAllocationsRouter } from './numbering';
 import { createWsRoute } from './ws';
 
 export default defineRouteDomain({
@@ -65,6 +69,9 @@ export default defineRouteDomain({
   licensing: { core: '平台配置、监控、审计与授权管理是基础能力；授权子功能在挂载上单独声明' },
   mounts: () => [
     [dictContract.basePath, dictsRoutes],
+    [numberingRuleContract.basePath, numberingRulesRouter],
+    [numberingBindingContract.basePath, numberingBindingsRouter],
+    [numberingAllocationContract.basePath, numberingAllocationsRouter],
     [monitorContract.basePath, monitorRoutes],
     [sqlMonitorContract.basePath, sqlMonitorRoutes],
     [monitorAlertContract.basePath, monitorAlertsRoutes],

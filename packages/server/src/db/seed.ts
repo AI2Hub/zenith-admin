@@ -32,6 +32,7 @@ import {
 import { contentSearchVector, extendSearchTexts } from '../services/cms/cms-search.service';
 import { ensureIotTelemetryPartitionsFor } from '../services/iot/iot-partitions.service';
 import { extractCmsResourceRefFields } from '../lib/cms-resource-uri';
+import { seedNumbering } from './seed-numbering';
 
 const require = createRequire(import.meta.url);
 
@@ -116,6 +117,7 @@ async function seed() {
 }
 
 async function seedRest() {
+  await seedNumbering();
   // ─── 2. 菜单数据（数据来源：@zenith/shared SEED_MENUS）─────────────────────
   // 只新增不更新：SEED_MENUS 决定新菜单的初始定义，已存在的行（含页面上的改名 / 换图标 /
   // 排序 / 禁用 / 隐藏 / 换父级）不被回写；手工创建的菜单及 role_menus / user_menus 授权、收藏原样保留。

@@ -6,6 +6,13 @@ import { definePermissions } from '../core/permissions';
  * `uiOnly` = 服务端没有任何接口检查该码（纯前端门控或待清理）。
  */
 export const PLATFORM_PERMISSIONS = definePermissions({
+  'system:numbering:list': { label: '查询', menu: 'SystemNumberingRules' },
+  'system:numbering:create': { label: '新增规则', menu: 'SystemNumberingRules' },
+  'system:numbering:update': { label: '编辑规则', menu: 'SystemNumberingRules' },
+  'system:numbering:delete': { label: '删除规则', menu: 'SystemNumberingRules' },
+  'system:numbering:publish': { label: '发布规则', menu: 'SystemNumberingRules' },
+  'system:numbering:bind': { label: '管理业务接入', menu: 'SystemNumberingRules' },
+  'system:numbering:allocation': { label: '生成记录', menu: 'SystemNumberingRules' },
   'system:job-monitor:view': { label: '查询', menu: 'SystemJobMonitor' },
   'system:relation:manage': { label: '维护对象关联', menu: 'GlobalSearch' },
   'system:dict:list': { label: '查询', menu: 'SystemDicts' },

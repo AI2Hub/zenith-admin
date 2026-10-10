@@ -168,6 +168,7 @@ import { reportFillHandlers } from './report-fill';
 import { fallbackHandlers } from './fallback';
 import { entityRelationsHandlers, entityTimelineHandlers } from './entity-relations';
 import { notificationPoliciesHandlers } from './notification-policies';
+import { numberingHandlers } from './numbering';
 
 export const handlers = [
   ...authHandlers,
@@ -343,6 +344,7 @@ export const handlers = [
   ...entityWatchesHandlers,
   ...entityTimelineHandlers,
   ...notificationPoliciesHandlers,
+  ...numberingHandlers,
   // 兜底 handler 必须放在最后：拦截所有未实现的 /api/* 请求，避免 dev:demo 下被代理到后端返回 401 跳转登录页
   ...fallbackHandlers,
 ];

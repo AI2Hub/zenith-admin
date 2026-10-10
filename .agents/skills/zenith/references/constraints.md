@@ -63,7 +63,9 @@
 - **域子路径导入**：**禁止**从 `@zenith/shared` 根入口导入（ESLint 报错）。一律用
   `@zenith/shared/{业务域}`（可用域以 `shared/package.json` 的 `exports` 为准），种子数据用 `@zenith/shared/seed`
 - **Zod Schema 位置**：创建 / 更新 schema 定义在 `shared/src/{业务域}/validation.ts`，前后端共用，
-  **禁止**在 server / web 中重复定义
+  **禁止**在 server / web 中重复定义。若通用 `validation.ts` 已位于前端首屏静态依赖链，独立能力的校验会引入仅该能力使用的运行时，
+  应拆到同域 `*-validation.ts` 叶子模块，由能力契约直接引用、域入口导出；不要再从通用 `validation.ts` 转导出。
+  编号校验采用此边界，避免将模板渲染和业务注册表带入登录首屏；参见 [打包与首屏性能](../../../../docs/frontend/bundle-performance.md)。
 - **纯业务逻辑放 shared**：任何同时被服务端与前端 / Mock 需要的纯函数或常量（过滤谓词、树构建与层级约束、统计口径、
   科目 / 分桶等元数据、消息分支树等算法）放在 `shared/src/{业务域}/` 的独立文件并从域入口导出，两端只导入；
   **禁止**在 server 与 web 各写一份「对齐」的实现

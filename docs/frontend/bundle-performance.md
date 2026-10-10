@@ -197,6 +197,22 @@ nginx 侧的 `gzip_static`、HTML `no-cache`、静态资源一年 immutable 与 
 入口注册与分包规则保持不变，其余总量和关键路径预算均未上调。验收仍要求生产构建的
 `check:bundle`、Demo 三入口 smoke 与真实开发环境检查。
 
+### 2026-10-11 编号校验的模块边界
+
+通用业务编号最初从 `platform/validation.ts` 静态导入模板校验，连带将编号渲染器和业务场景注册表放进后台入口的
+`initial-app`。编号配置只在对应业务页面使用，因此改为同域 `numbering-validation.ts` 叶子模块，由编号契约直接引用；
+`@zenith/shared/platform` 继续提供原有公开导出，通用 `validation.ts` 不再转导出编号校验。
+
+| 正式构建指标 | 拆分前 | 拆分后 | 既有预算 |
+| --- | --- | --- | --- |
+| 后台 critical JS gzip | 332.3 KB | 329.2 KB | 330 KB |
+| 后台认证首屏 gzip | 977.0 KB | 973.8 KB | 1,000 KB |
+| 会员 critical JS gzip | 270.0 KB | 269.8 KB | 270 KB |
+| 审批 critical JS gzip | 100.9 KB | 100.9 KB | 220 KB |
+
+三入口正式构建与 `check:bundle` 通过，分包配置与预算均未改变。Demo 构建及 `smoke` 的后台、会员、审批入口和后台登录链路均通过。
+校验规则和类型仍只维护一份。
+
 ### 运行时（冷缓存中位数）
 
 | 链路 | 指标 | 基线 | 当前 |

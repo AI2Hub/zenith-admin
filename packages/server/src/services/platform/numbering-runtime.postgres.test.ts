@@ -1,0 +1,177 @@
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { drizzle } from 'drizzle-orm/postgres-js';
+import { eq } from 'drizzle-orm';
+import type { NumberingConfig } from '@zenith/shared/platform';
+import { createPgClient } from '../../db/client';
+import { closeDb } from '../../db';
+import * as schema from '../../db/schema';
+import { runWithCurrentUser } from '../../lib/context';
+import { allocateBusinessNumber, attachBusinessNumber } from './numbering-runtime';
+import { listNumberingBindings } from './numbering.service';
+
+// Opt-in only: this suite requires a disposable database created by the QA runner.
+const databaseUrl = process.env.NUMBERING_TEST_DATABASE_URL;
+const isolated = databaseUrl && /^\/zenith_numbering_qa_\d+$/.test(new URL(databaseUrl).pathname);
+const integration = isolated ? describe : describe.skip;
+
+integration('business numbering on PostgreSQL', () => {
+  const client = createPgClient(databaseUrl ?? 'postgres://localhost/unused', { max: 12 });
+  const database = drizzle(client, { schema, casing: 'snake_case' });
+  let tenantA: number;
+  let tenantB: number;
+  let ordinal = 0;
+  const at = new Date('2026-10-11T04:00:00Z');
+  const config: NumberingConfig = {
+    template: 'QA{YYYYMMDD}{SEQ:6}', start: '1', step: '1', width: 6,
+    resetPeriod: 'daily', timezone: 'Asia/Shanghai', scope: 'owner',
+  };
+
+  beforeAll(async () => {
+    const [{ name }] = await client<{ name: string }[]>`select current_database() as name`;
+    expect(name).toMatch(/^zenith_numbering_qa_\d+$/);
+    const tenants = await database.insert(schema.tenants).values([
+      { code: `numbering_qa_a_${Date.now()}`, name: '编号隔离测试 A' },
+      { code: `numbering_qa_b_${Date.now()}`, name: '编号隔离测试 B' },
+    ]).returning({ id: schema.tenants.id });
+    [tenantA, tenantB] = tenants.map(row => row.id);
+  });
+  afterAll(async () => { await client.end(); await closeDb(); });
+
+  async function fixture(options: { scene?: string; tenantId?: number | null; config?: Partial<NumberingConfig> } = {}) {
+    const scene = options.scene ?? 'workflow.instance';
+    const [rule] = await database.insert(schema.numberingRules).values({
+      code: `qa.${++ordinal}`, name: 'QA rule', scene, tenantId: options.tenantId ?? null,
+      draft: { ...config, ...options.config }, currentVersion: 1,
+    }).returning();
+    const [version] = await database.insert(schema.numberingVersions).values({ ruleId: rule.id, version: 1, config: rule.draft }).returning();
+    return { rule, version };
+  }
+
+  it('serializes concurrent first allocations without duplicates or lost increments', async () => {
+    const { rule, version } = await fixture();
+    const values = await Promise.all(Array.from({ length: 24 }, (_, index) => database.transaction(tx => allocateBusinessNumber(tx, {
+      scene: 'workflow.instance', tenantId: tenantA, ownerKey: 'concurrent', ruleVersionId: version.id, allocationKey: String(index), at,
+    }))));
+    expect(new Set(values).size).toBe(24);
+    expect(values.sort()[0]).toBe('QA20261011000001');
+    expect(values.sort().at(-1)).toBe('QA20261011000024');
+    const [counter] = await database.select().from(schema.numberingCounters).where(eq(schema.numberingCounters.ruleId, rule.id));
+    expect(counter.value).toBe(24n);
+  });
+
+  it('deduplicates simultaneous retries and rejects a changed request context', async () => {
+    const { rule, version } = await fixture();
+    const request = { scene: 'workflow.instance', tenantId: tenantA, ownerKey: 'retry', ruleVersionId: version.id, allocationKey: 'operation', at };
+    const values = await Promise.all(Array.from({ length: 12 }, () => database.transaction(tx => allocateBusinessNumber(tx, request))));
+    expect(new Set(values).size).toBe(1);
+    expect(await database.$count(schema.numberingAllocations, eq(schema.numberingAllocations.ruleId, rule.id))).toBe(1);
+    await expect(database.transaction(tx => allocateBusinessNumber(tx, { ...request, context: { categoryCode: 'changed' } }))).rejects.toThrow('业务参数发生变化');
+  });
+
+  it('rolls back counters and receipts with the business transaction', async () => {
+    const { rule, version } = await fixture();
+    const request = { scene: 'workflow.instance', tenantId: tenantA, ownerKey: 'rollback', ruleVersionId: version.id, allocationKey: 'first', at };
+    await expect(database.transaction(async tx => { await allocateBusinessNumber(tx, request); throw new Error('business rejected'); })).rejects.toThrow('business rejected');
+    expect(await database.$count(schema.numberingCounters, eq(schema.numberingCounters.ruleId, rule.id))).toBe(0);
+    expect(await database.$count(schema.numberingAllocations, eq(schema.numberingAllocations.ruleId, rule.id))).toBe(0);
+    expect(await database.transaction(tx => allocateBusinessNumber(tx, request))).toBe('QA20261011000001');
+  });
+
+  it('isolates tenant and owner sequences and attaches the correct business row', async () => {
+    const { version } = await fixture();
+    const base = { scene: 'workflow.instance', ruleVersionId: version.id, allocationKey: 'same', at };
+    for (const [tenantId, ownerKey, businessKey] of [[tenantA, 'owner-a', '11'], [tenantA, 'owner-b', '12'], [tenantB, 'owner-a', '13']] as const) {
+      await database.transaction(async tx => {
+        const number = await allocateBusinessNumber(tx, { ...base, tenantId, ownerKey });
+        expect(number).toBe('QA20261011000001');
+        await attachBusinessNumber(tx, { scene: base.scene, tenantId, ownerKey, number, businessKey });
+      });
+    }
+    const rows = await database.select().from(schema.numberingAllocations).where(eq(schema.numberingAllocations.versionId, version.id));
+    expect(rows.map(row => row.businessKey).sort()).toEqual(['11', '12', '13']);
+  });
+
+  it('keeps the sequence across immutable versions and replay ignores newer bindings', async () => {
+    const { rule, version } = await fixture();
+    const [next] = await database.insert(schema.numberingVersions).values({ ruleId: rule.id, version: 2, config: { ...rule.draft, template: 'NEW{YYYYMMDD}{SEQ:6}' } }).returning();
+    const base = { scene: 'workflow.instance', tenantId: tenantA, ownerKey: 'versions', at };
+    const first = await database.transaction(tx => allocateBusinessNumber(tx, { ...base, allocationKey: 'one', ruleVersionId: version.id }));
+    const second = await database.transaction(tx => allocateBusinessNumber(tx, { ...base, allocationKey: 'two', ruleVersionId: next.id }));
+    expect(first).toBe('QA20261011000001'); expect(second).toBe('NEW20261011000002');
+    expect(await database.transaction(tx => allocateBusinessNumber(tx, { ...base, allocationKey: 'one', ruleVersionId: next.id }))).toBe(first);
+  });
+
+  it('rejects foreign tenant versions and mismatched rule/version pairs', async () => {
+    const a = await fixture({ tenantId: tenantA }); const b = await fixture({ tenantId: tenantB });
+    const request = { scene: 'workflow.instance', tenantId: tenantA, ownerKey: 'isolation', allocationKey: 'a', at };
+    await expect(database.transaction(tx => allocateBusinessNumber(tx, { ...request, ruleVersionId: b.version.id }))).rejects.toThrow('作用域');
+    await expect(database.transaction(tx => allocateBusinessNumber(tx, { ...request, ruleVersionId: a.version.id, ruleId: b.rule.id }))).rejects.toThrow('不匹配');
+  });
+
+  it('resolves exact tenant and owner bindings ahead of inherited defaults', async () => {
+    const global = await fixture();
+    const own = await fixture({ tenantId: tenantA, config: { template: 'OWN{YYYYMMDD}{SEQ:6}' } });
+    const ownerKey = 'binding-precedence';
+    await database.insert(schema.numberingBindings).values([
+      { scene: 'workflow.instance', tenantId: null, ownerKey, ruleId: global.rule.id, versionId: global.version.id },
+      { scene: 'workflow.instance', tenantId: tenantA, ownerKey, ruleId: own.rule.id, versionId: own.version.id },
+    ]);
+    const request = { scene: 'workflow.instance', ownerKey, allocationKey: 'bound', at };
+    expect(await database.transaction(tx => allocateBusinessNumber(tx, { ...request, tenantId: tenantA }))).toBe('OWN20261011000001');
+    expect(await database.transaction(tx => allocateBusinessNumber(tx, { ...request, tenantId: tenantB }))).toBe('QA20261011000001');
+  });
+
+  it('does not silently reassign a previously attached business number', async () => {
+    const { version } = await fixture();
+    const request = { scene: 'workflow.instance', tenantId: tenantA, ownerKey: 'immutable-reference', ruleVersionId: version.id, allocationKey: 'one', at };
+    const number = await database.transaction(async tx => {
+      const allocated = await allocateBusinessNumber(tx, request);
+      await attachBusinessNumber(tx, { ...request, number: allocated, businessKey: '100' });
+      return allocated;
+    });
+    await expect(database.transaction(tx => attachBusinessNumber(tx, { ...request, number, businessKey: '101' }))).rejects.toThrow('找不到');
+    const [receipt] = await database.select().from(schema.numberingAllocations).where(eq(schema.numberingAllocations.versionId, version.id));
+    expect(receipt.businessKey).toBe('100');
+  });
+
+  it('loads management bindings with the published version number and rule name', async () => {
+    const { rule, version } = await fixture();
+    await database.insert(schema.numberingBindings).values({ scene: 'workflow.instance', tenantId: tenantA, ownerKey: 'management-view', ruleId: rule.id, versionId: version.id });
+    const result = await runWithCurrentUser({ userId: 1, username: 'qa', tenantId: tenantA, roles: ['operator'] }, () =>
+      listNumberingBindings({ page: 1, pageSize: 10, ruleId: rule.id }));
+    expect(result.total).toBe(1);
+    expect(result.list[0]).toMatchObject({ ruleName: 'QA rule', version: 1, versionId: version.id, tenantId: tenantA });
+    expect(typeof result.list[0].createdAt).toBe('string');
+  });
+
+  it('uses the configured timezone for midnight and period rollover', async () => {
+    const { version } = await fixture();
+    const base = { scene: 'workflow.instance', tenantId: tenantA, ownerKey: 'clock', ruleVersionId: version.id };
+    const first = await database.transaction(tx => allocateBusinessNumber(tx, { ...base, allocationKey: 'before', at: new Date('2026-10-11T15:59:59Z') }));
+    const next = await database.transaction(tx => allocateBusinessNumber(tx, { ...base, allocationKey: 'after', at: new Date('2026-10-11T16:00:00Z') }));
+    expect(first).toBe('QA20261011000001'); expect(next).toBe('QA20261012000001');
+  });
+
+  it('prevents collisions between rules in the same uniqueness domain', async () => {
+    const a = await fixture(); const b = await fixture();
+    const request = { scene: 'workflow.instance', tenantId: tenantA, ownerKey: 'collision', allocationKey: 'a', at };
+    await database.transaction(tx => allocateBusinessNumber(tx, { ...request, ruleVersionId: a.version.id }));
+    await expect(database.transaction(tx => allocateBusinessNumber(tx, { ...request, allocationKey: 'b', ruleVersionId: b.version.id }))).rejects.toThrow('重复号码');
+    expect(await database.$count(schema.numberingCounters, eq(schema.numberingCounters.ruleId, b.rule.id))).toBe(0);
+  });
+
+  it('enforces the shared global payment-order namespace across tenants and scenes', async () => {
+    const a = await fixture({ scene: 'payment.order', config: { scope: 'global' } });
+    const b = await fixture({ scene: 'payment.deduction', config: { scope: 'global' } });
+    await database.transaction(tx => allocateBusinessNumber(tx, { scene: 'payment.order', tenantId: tenantA, ruleVersionId: a.version.id, allocationKey: 'a', at }));
+    await expect(database.transaction(tx => allocateBusinessNumber(tx, { scene: 'payment.deduction', tenantId: tenantB, ruleVersionId: b.version.id, allocationKey: 'b', at }))).rejects.toThrow('重复号码');
+  });
+
+  it('keeps values above JavaScript safe integer exact and fails on bigint exhaustion', async () => {
+    const { version } = await fixture({ config: { start: '9223372036854775806', width: 19, template: 'QA{YYYYMMDD}{SEQ:19}' } });
+    const request = { scene: 'workflow.instance', tenantId: tenantA, ownerKey: 'bigint', ruleVersionId: version.id, at };
+    expect(await database.transaction(tx => allocateBusinessNumber(tx, { ...request, allocationKey: '1' }))).toBe('QA202610119223372036854775806');
+    expect(await database.transaction(tx => allocateBusinessNumber(tx, { ...request, allocationKey: '2' }))).toBe('QA202610119223372036854775807');
+    await expect(database.transaction(tx => allocateBusinessNumber(tx, { ...request, allocationKey: '3' }))).rejects.toThrow('上限');
+  });
+});

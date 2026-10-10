@@ -5,6 +5,7 @@ import { cmsContentRevisions, cmsContentWorkingCopies, cmsContentRevisionApprova
 import { cmsReleases, cmsDeployments, cmsSiteGenerations, cmsContentSuppressions } from './cms-releases';
 import { cmsDeliveryExpiryReceipts, cmsDeliveryRuns, cmsDeliveryStates } from './cms-delivery';
 import { paymentBankMatches, paymentReconAdjustments, paymentReconCaseEvents, paymentReconCases, paymentReconRuns, paymentStatementEntries, paymentStatementFiles, paymentStatementPeriods, paymentStatements } from './payment-reconciliation';
+import { numberingRules, numberingVersions, numberingBindings, numberingCounters, numberingAllocations } from './numbering';
 import { departments, menus, positions, roleDeptScopes, roleMenus, roles, tenantPackageFeatures, tenantPackages, tenants, userDeptScopes, userGroupMembers, userGroupRoles, userGroups, userMenus, userPositions, userRoles, users } from './core';
 import { domainEventSubjects, domainEvents, entityRelationEdges } from './entity-relations';
 import { businessFiles, fileStorageConfigs, managedFiles, uploadChunks, uploadSessions } from './files';
@@ -2239,4 +2240,26 @@ export const workflowSignGroupsRelations = relations(workflowSignGroups, ({ one,
  activation: one(workflowNodeActivations, { fields: [workflowSignGroups.activationId], references: [workflowNodeActivations.id] }),
  anchorSlot: one(workflowApprovalSlots, { fields: [workflowSignGroups.anchorSlotId], references: [workflowApprovalSlots.id], relationName: 'groupAnchor' }),
  slots: many(workflowApprovalSlots, { relationName: 'groupMembers' }),
+}));
+
+export const numberingRulesRelations = relations(numberingRules, ({ one, many }) => ({
+  tenant: one(tenants, { fields: [numberingRules.tenantId], references: [tenants.id] }),
+  createdByUser: one(users, { fields: [numberingRules.createdBy], references: [users.id], relationName: 'numberingRuleCreator' }),
+  updatedByUser: one(users, { fields: [numberingRules.updatedBy], references: [users.id], relationName: 'numberingRuleUpdater' }),
+  versions: many(numberingVersions), bindings: many(numberingBindings), counters: many(numberingCounters), allocations: many(numberingAllocations),
+}));
+export const numberingVersionsRelations = relations(numberingVersions, ({ one }) => ({
+  rule: one(numberingRules, { fields: [numberingVersions.ruleId], references: [numberingRules.id] }),
+}));
+export const numberingBindingsRelations = relations(numberingBindings, ({ one }) => ({
+  rule: one(numberingRules, { fields: [numberingBindings.ruleId], references: [numberingRules.id] }),
+  version: one(numberingVersions, { fields: [numberingBindings.versionId], references: [numberingVersions.id] }),
+  tenant: one(tenants, { fields: [numberingBindings.tenantId], references: [tenants.id] }),
+}));
+export const numberingCountersRelations = relations(numberingCounters, ({ one }) => ({
+  rule: one(numberingRules, { fields: [numberingCounters.ruleId], references: [numberingRules.id] }),
+}));
+export const numberingAllocationsRelations = relations(numberingAllocations, ({ one }) => ({
+  rule: one(numberingRules, { fields: [numberingAllocations.ruleId], references: [numberingRules.id] }),
+  version: one(numberingVersions, { fields: [numberingAllocations.versionId], references: [numberingVersions.id] }),
 }));

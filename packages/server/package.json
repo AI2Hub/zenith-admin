@@ -12,6 +12,7 @@
     "start": "node dist/index.js",
     "start:migrate": "node dist/db/migrate.js",
     "verify:split": "node scripts/verify-split.mjs",
+    "verify:numbering": "tsx scripts/verify-numbering.mts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts",
     "db:seed": "tsx src/db/seed.ts",

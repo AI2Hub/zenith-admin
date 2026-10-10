@@ -28,6 +28,7 @@ Zenith Admin 是基于 **Hono + React + Drizzle ORM** 的全栈后台管理系�
 | 业务模块接入审批 | 业务系统主导流程、业务表单内查看流程、审批预览 / 轮次 | [业务模块接入工作流](../../../docs/workflow/business-integration.md)：业务契约、公共流程容器、seed 与 Demo 的接入规范 |
 | 发送通知 / 新增通知事件 | 发通知、通知用户、订阅提醒、接入通知中心、加通知事件 | [notifications.md](./references/notifications.md)：事件注册、`notify()` 调用、渠道策略 |
 | 异步任务 / 大批量作业 | 批量导入、大数据量处理、后台任务、任务进度、长耗时操作 | [async-tasks.md](./references/async-tasks.md)：任务中心接入与选型对照 |
+| 业务编号 / 流水号 | 单据编号、编号规则、业务编号接入、自动编号、统一取号 | [numbering.md](./references/numbering.md)：场景注册、规则绑定、事务取号、幂等、发布快照与验收 |
 | 运行时设置 / 系统开关 | 加一个开关、可配置阈值、系统设置项、新增设置模块、读取系统设置 | [settings.md](./references/settings.md)：加字段 / 新模块 / 服务端读取 / 前端读取 / Mock |
 | 发布新版本 | 发布 vX.Y.Z、准备发布、release X.Y.Z | [release.md](./references/release.md) |
 | 报错排查 | 构建失败、迁移失败、类型不匹配、缓存不刷新、启动缓慢 | [troubleshooting.md](./references/troubleshooting.md) |

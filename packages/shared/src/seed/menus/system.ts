@@ -20,4 +20,5 @@ export const SEED_MENUS_SYSTEM: Menu[] = [
   { id: 1100, parentId: 1000, title: '地区管理', name: 'SystemRegions', path: '/system/regions', component: 'system/regions/RegionsPage', icon: 'MapPin', type: 'menu', sort: 8, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
 
   // ─── 系统设置（2000 段）
+  { id: 1120, parentId: 1000, title: '编号规则', name: 'SystemNumberingRules', path: '/system/numbering-rules', component: 'system/numbering-rules/NumberingRulesPage', icon: 'Hash', type: 'menu', sort: 9, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
 ];

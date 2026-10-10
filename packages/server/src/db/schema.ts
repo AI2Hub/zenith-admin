@@ -62,3 +62,4 @@ export * from './schema/cms-content-reviews';
 export * from './schema/cms-deployment-retention';
 export * from './schema/cms-delivery';
 export * from './schema/cms-content-collections';
+export * from './schema/numbering';

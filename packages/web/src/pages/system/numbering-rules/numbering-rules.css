@@ -1,0 +1,47 @@
+.numbering-editor-grid {
+  --auto-grid-cols: 2;
+  --auto-grid-min: 330px;
+  --auto-grid-gap: 24px;
+
+  align-items: start;
+}
+
+.numbering-preview {
+  min-width: 0;
+  padding: 16px;
+  background: var(--semi-color-fill-0);
+  border: 1px solid var(--semi-color-border);
+  border-radius: var(--semi-border-radius-medium);
+}
+
+.numbering-preview-number {
+  display: block;
+  margin: 8px 0;
+  overflow-wrap: anywhere;
+  font-family: var(--semi-font-family-code);
+  color: var(--semi-color-primary);
+}
+
+.numbering-segment {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.numbering-segment-value {
+  flex: 1 1 140px;
+  min-width: 0;
+}
+
+.numbering-tab-description {
+  margin: 0 0 16px;
+  color: var(--semi-color-text-2);
+  line-height: 1.6;
+}
+
+.numbering-version-config {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

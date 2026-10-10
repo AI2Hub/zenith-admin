@@ -768,3 +768,18 @@ export const JOB_MONITOR_TREND_RANGES = ['1h', '6h', '24h', '7d'] as const;
 export type JobMonitorTrendRange = typeof JOB_MONITOR_TREND_RANGES[number];
 export const JOB_MONITOR_TREND_RANGE_LABELS = { '1h': '近 1 小时', '6h': '近 6 小时', '24h': '近 24 小时', '7d': '近 7 天' } as const;
 export const JOB_MONITOR_TREND_RANGE_OPTIONS = JOB_MONITOR_TREND_RANGES.map(value => ({ value, label: JOB_MONITOR_TREND_RANGE_LABELS[value] }));
+// ─── 通用业务编号 ─────────────────────────────────────────────────────────
+export const NUMBERING_RESET_PERIODS = ['never', 'daily', 'monthly', 'yearly'] as const;
+export type NumberingResetPeriod = typeof NUMBERING_RESET_PERIODS[number];
+export const NUMBERING_RESET_PERIOD_LABELS: Record<NumberingResetPeriod, string> = { never: '不重置', daily: '按日', monthly: '按月', yearly: '按年' };
+export const NUMBERING_RESET_PERIOD_OPTIONS = NUMBERING_RESET_PERIODS.map(value => ({ value, label: NUMBERING_RESET_PERIOD_LABELS[value] }));
+export const NUMBERING_SCOPES = ['global', 'tenant', 'owner', 'department'] as const;
+export type NumberingScope = typeof NUMBERING_SCOPES[number];
+export const NUMBERING_SCOPE_LABELS: Record<NumberingScope, string> = { global: '全局', tenant: '租户', owner: '业务对象', department: '部门' };
+export const NUMBERING_SCOPE_OPTIONS = NUMBERING_SCOPES.map(value => ({ value, label: NUMBERING_SCOPE_LABELS[value] }));
+export const NUMBERING_SCENE_CODES = ['workflow.instance', 'biz.leave', 'payment.order', 'payment.refund', 'payment.transfer', 'payment.preauth', 'payment.sharing', 'payment.settlement', 'payment.risk', 'payment.link', 'payment.contract', 'payment.dispute', 'payment.deduction', 'payment.capture'] as const;
+export type NumberingSceneCode = typeof NUMBERING_SCENE_CODES[number];
+export const NUMBERING_DATE_TOKENS = ['YYYYMMDD', 'YYYYMM', 'YYYY', 'MM', 'DD', 'HH', 'mm', 'ss'] as const;
+export const NUMBERING_UNIQUE_SCOPES = ['global', 'tenant', 'owner'] as const;
+export const NUMBERING_MAX_SEQUENCE = '9223372036854775807';
+export const NUMBERING_SYSTEM_PARAMETERS = ['tenantId', 'ownerKey', 'departmentId', 'departmentCode', 'departmentName', 'username', 'nickname', 'tenantCode'] as const;
