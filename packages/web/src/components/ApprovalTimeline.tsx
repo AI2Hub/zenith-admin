@@ -312,7 +312,7 @@ export default function ApprovalTimeline({ tasks, consults = [], approvalActivat
                   {c.consulteeName ?? `用户#${c.consulteeId}`}
                   {c.opinion ? `：${c.opinion}` : c.question ? `：${c.question}` : ''}
                   {c.repliedAt && (
-                    <Typography.Text size="small" type="quaternary" style={{ marginLeft: 6 }}>
+                    <Typography.Text size="small" type="quaternary" style={{ marginLeft: 6, whiteSpace: 'nowrap' }}>
                       <DateTimeText value={c.repliedAt} />
                     </Typography.Text>
                   )}
