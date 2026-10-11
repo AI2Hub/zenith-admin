@@ -1,3 +1,4 @@
+import type { WorkflowTaskConsult } from '@zenith/shared/workflow';
 import type { WorkflowDesignerBranch, WorkflowDesignerNode, WorkflowDesignerProcess } from '@zenith/shared/workflow/designer-graph';
 /**
  * 钉钉/飞书风格流程设计器 — 数据模型
@@ -315,10 +316,21 @@ export interface NodeRuntimeApprover {
   comment?: string | null;
 }
 
+/** 节点上的协办运行态：协办记录只带 taskId / nodeName，落到节点上由「邀请任务所属节点」折算 */
+export interface NodeRuntimeConsult {
+  consulteeName: string;
+  status: WorkflowTaskConsult['status'];
+  question?: string | null;
+  opinion?: string | null;
+  repliedAt?: string | null;
+}
+
 /** 节点级运行态（由实例 tasks 聚合而来），用于流程图按 nodeKey 叠加状态 */
 export interface NodeRuntimeInfo {
   status: 'approved' | 'rejected' | 'pending' | 'waiting' | 'skipped';
   approvers: NodeRuntimeApprover[];
+  /** 该节点上发起过的协办（按邀请顺序），无协办时不设置 */
+  consults?: NodeRuntimeConsult[];
   active?: boolean;
   step?: number;
   totalSteps?: number;

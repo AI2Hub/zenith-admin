@@ -47,6 +47,11 @@ const WorkflowNode = memo(function WorkflowNode({ data }: NodeProps<CanvasNode>)
           {names.join('、')}
         </Typography.Text>
       )}
+      {runtime?.consults && runtime.consults.length > 0 && (
+        <Typography.Text size="small" type="tertiary" style={{ display: 'block', marginTop: 4, overflowWrap: 'anywhere' }}>
+          {`协办：${runtime.consults.map((c) => `${c.consulteeName}（${c.status === 'replied' ? '已回复' : '待回复'}）`).join('、')}`}
+        </Typography.Text>
+      )}
       {data.nodeType !== 'end' && <Handle type="source" position={Position.Bottom} isConnectable={false} />}
     </div>
   );

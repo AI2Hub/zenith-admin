@@ -8,7 +8,7 @@
 import { lazy, Suspense, useId, useMemo } from 'react';
 import { Banner, Space, Spin, Typography } from '@douyinfe/semi-ui';
 import { CornerUpLeft } from 'lucide-react';
-import { projectWorkflowGraph, type WorkflowFlowData, type WorkflowTask } from '@zenith/shared/workflow';
+import { projectWorkflowGraph, type WorkflowFlowData, type WorkflowTask, type WorkflowTaskConsult } from '@zenith/shared/workflow';
 import FlowRenderer from '@/pages/workflow/designer/components/FlowRenderer';
 import type { FlowProcess, FlowNode } from '@/pages/workflow/designer/types';
 import { buildNodeRuntimeMap } from './workflow-runtime';
@@ -19,6 +19,8 @@ const GraphCanvas = lazy(() => import('./WorkflowGraphCanvas'));
 interface Props {
   flowData: WorkflowFlowData | null | undefined;
   tasks?: WorkflowTask[];
+  /** 实例协办记录：按邀请任务折算到所属节点，在节点卡片上叠加协办运行态 */
+  consults?: readonly WorkflowTaskConsult[];
   height?: number | string;
   /** 实例状态（用于 start/end 节点运行态标识） */
   instanceStatus?: string;
@@ -99,7 +101,7 @@ function computeDimmedBranches(process: FlowProcess, taskNodeKeys: Set<string>):
   return dimmed;
 }
 
-export default function WorkflowGraphView({ flowData, tasks, height = 480, instanceStatus, formFields }: Readonly<Props>) {
+export default function WorkflowGraphView({ flowData, tasks, consults, height = 480, instanceStatus, formFields }: Readonly<Props>) {
   const scopeId = useId().replaceAll(':', '');
   const scopeClass = `fd-graph-scope-${scopeId}`;
   const projection = useMemo(() => (flowData?.nodes.length ? projectWorkflowGraph(flowData) : null), [flowData]);
@@ -122,7 +124,7 @@ export default function WorkflowGraphView({ flowData, tasks, height = 480, insta
     return { tracks: computed, css: rules.join('\n') };
   }, [process, tasks, scopeClass]);
 
-  const runtimeMap = useMemo(() => (tasks?.length ? buildNodeRuntimeMap(tasks) : undefined), [tasks]);
+  const runtimeMap = useMemo(() => (tasks?.length ? buildNodeRuntimeMap(tasks, consults ?? []) : undefined), [tasks, consults]);
   const dimmedBranches = useMemo(() => {
     if (!process?.initiator || !tasks?.length) return undefined;
     return computeDimmedBranches(process, new Set(tasks.map(t => t.nodeKey)));

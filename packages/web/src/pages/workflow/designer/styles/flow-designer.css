@@ -556,6 +556,41 @@ body[theme-mode='dark'] .fd-node-card:hover {
   line-height: 16px;
 }
 
+.fd-node-card__rt-consults {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.fd-node-card__rt-consult {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.fd-node-card__rt-consult-label {
+  flex-shrink: 0;
+  font-size: 11px;
+  line-height: 18px;
+  padding: 0 6px;
+  border-radius: var(--semi-border-radius-small);
+  color: var(--semi-color-purple);
+  background: var(--semi-color-purple-light-default);
+}
+
+.fd-node-card__rt-consult-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--semi-color-text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .fd-node-card__rt-note {
   margin-top: 5px;
 }

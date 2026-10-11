@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { WorkflowPredictedPathNode, WorkflowTask } from '@zenith/shared/workflow';
+import type { WorkflowPredictedPathNode, WorkflowTask, WorkflowTaskConsult } from '@zenith/shared/workflow';
 import ApprovalTimeline from './ApprovalTimeline';
 
 vi.mock('@/components/FileAttachment', () => ({ default: () => null }));
@@ -11,6 +11,34 @@ const completedTask: WorkflowTask = {
   activatedAt: null, signPosition: null, assigneeId: 2, assigneeName: '王财务',
   status: 'approved', comment: null, actionAt: null, createdAt: '2026-10-02 08:00:00',
 };
+
+describe('consult entries', () => {
+  const consult: WorkflowTaskConsult = {
+    id: 7, taskId: 1, instanceId: 1, nodeName: '财务审批', inviterId: 2, inviterName: '王财务',
+    consulteeId: 5, consulteeName: '李预算', question: '请核对预算科目', opinion: '预算余额充足',
+    status: 'replied', repliedAt: '2026-10-02 09:30:00', createdAt: '2026-10-02 09:00:00',
+  };
+
+  it('把协办挂到受邀节点行下并展示邀请人与回复', () => {
+    render(<ApprovalTimeline tasks={[completedTask]} consults={[consult]} instanceStatus="running" />);
+
+    expect(screen.getByText('协办已回复')).toBeInTheDocument();
+    expect(screen.getByText(/李预算：预算余额充足/)).toBeInTheDocument();
+  });
+
+  it('未回复的协办显示待回复且回退到问题文本', () => {
+    render(<ApprovalTimeline tasks={[completedTask]} consults={[{ ...consult, status: 'pending', opinion: null, repliedAt: null }]} instanceStatus="running" />);
+
+    expect(screen.getByText('协办待回复')).toBeInTheDocument();
+    expect(screen.getByText(/李预算：请核对预算科目/)).toBeInTheDocument();
+  });
+
+  it('没有对应任务的协办不展示', () => {
+    render(<ApprovalTimeline tasks={[completedTask]} consults={[{ ...consult, taskId: 99 }]} instanceStatus="running" />);
+
+    expect(screen.queryByText('协办已回复')).not.toBeInTheDocument();
+  });
+});
 
 describe('remaining approval timeline', () => {
   it('keeps a predicted new pass through an already completed node and shows real estimated names', () => {

@@ -5,8 +5,8 @@ import { uploadedFileToAttachment } from '@/components/FileAttachment/utils';
 import { timelineDot } from '@/components/workflow/timeline-dot';
 import { TASK_STATUS_MAP } from '@/components/workflow/workflow-runtime';
 import { WORKFLOW_INSTANCE_STATUS_LABELS, WORKFLOW_ACTIVE_INSTANCE_STATUSES, WORKFLOW_APPROVE_METHOD_LABELS, WORKFLOW_SIGN_POSITION_LABELS, WORKFLOW_TASK_WAIT_REASON_LABELS, WORKFLOW_PATH_STATUS_LABELS, workflowExternalCallbackContract } from '@zenith/shared/workflow';
-import { Bot, CheckCircle2, Clock, CornerUpLeft, Flag, Mail, RotateCcw, XCircle, ExternalLink, Copy, Forward, UserCog, Send, type LucideIcon } from 'lucide-react';
-import type { WorkflowTask, WorkflowInstanceStatus, WorkflowNodeActivation, WorkflowChildInstanceSummary, WorkflowPredictedPathNode } from '@zenith/shared/workflow';
+import { Bot, CheckCircle2, Clock, CornerUpLeft, Flag, Mail, MessageSquareText, RotateCcw, XCircle, ExternalLink, Copy, Forward, UserCog, Send, type LucideIcon } from 'lucide-react';
+import type { WorkflowTask, WorkflowTaskConsult, WorkflowInstanceStatus, WorkflowNodeActivation, WorkflowChildInstanceSummary, WorkflowPredictedPathNode } from '@zenith/shared/workflow';
 import type { FlowNodeBrief } from '@/components/workflow/workflow-runtime';
 import { formatDurationBetween } from '@/utils/date';
 import DateTimeText from '@/components/DateTimeText';
@@ -33,6 +33,8 @@ const FINISH_MAP: Partial<Record<WorkflowInstanceStatus, { text: string; color: 
 
 interface ApprovalTimelineProps {
   tasks: WorkflowTask[];
+  /** 实例协办记录：按邀请任务归入对应节点，在审批行下单行展示邀请与回复 */
+  consults?: readonly WorkflowTaskConsult[];
   approvalActivations?: WorkflowNodeActivation[];
   childInstances?: WorkflowChildInstanceSummary[];
   /** 服务端按当前活动节点预测的剩余路径；无预测时可传全量线性化节点。 */
@@ -60,9 +62,16 @@ function buildNodeProgress(tasks: WorkflowTask[], activations: WorkflowNodeActiv
 }
 
 /** 审批流时间线，使用 Semi Design Timeline 组件统一渲染 */
-export default function ApprovalTimeline({ tasks, approvalActivations = [], childInstances = [], flowNodes, initiator, instanceStatus, finishedAt, currentUserId }: Readonly<ApprovalTimelineProps>) {
+export default function ApprovalTimeline({ tasks, consults = [], approvalActivations = [], childInstances = [], flowNodes, initiator, instanceStatus, finishedAt, currentUserId }: Readonly<ApprovalTimelineProps>) {
   const sorted = [...tasks].sort((a, b) => a.id - b.id);
   const nodeProgress = buildNodeProgress(sorted, approvalActivations);
+  // 协办按邀请任务归位（同一任务可能多次邀请），保持邀请顺序
+  const consultsByTask = new Map<number, WorkflowTaskConsult[]>();
+  for (const c of [...consults].sort((a, b) => a.id - b.id)) {
+    const list = consultsByTask.get(c.taskId) ?? [];
+    list.push(c);
+    consultsByTask.set(c.taskId, list);
+  }
 
   // 退回目标来自当次决策事实，比例会签的部分拒绝不代表发生退回。
   const returnTargetMap = new Map<number, string>();
@@ -281,6 +290,35 @@ export default function ApprovalTimeline({ tasks, approvalActivations = [], chil
                 )}
               </div>
             )}
+
+            {/* 协办邀请与回复：协同过程不是审批动作，按任务挂在该节点行下，不改变节点状态 */}
+            {(consultsByTask.get(task.id) ?? []).map((c) => (
+              <div
+                key={c.id}
+                style={{
+                  marginTop: 6,
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 6,
+                  color: 'var(--semi-color-text-2)',
+                  fontSize: 12,
+                }}
+              >
+                <MessageSquareText size={12} style={{ marginTop: 3, flexShrink: 0 }} />
+                <span style={{ minWidth: 0 }}>
+                  <Tag size="small" color={c.status === 'replied' ? 'green' : 'amber'} style={{ marginRight: 6 }}>
+                    {c.status === 'replied' ? '协办已回复' : '协办待回复'}
+                  </Tag>
+                  {c.consulteeName ?? `用户#${c.consulteeId}`}
+                  {c.opinion ? `：${c.opinion}` : c.question ? `：${c.question}` : ''}
+                  {c.repliedAt && (
+                    <Typography.Text size="small" type="quaternary" style={{ marginLeft: 6 }}>
+                      <DateTimeText value={c.repliedAt} />
+                    </Typography.Text>
+                  )}
+                </span>
+              </div>
+            ))}
 
             {/* 驳回回退提示 */}
             {isRejected && returnTargetName && (

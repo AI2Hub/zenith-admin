@@ -24,7 +24,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { usePermission } from '@/hooks/usePermission';
 import { formatDateTime, formatDurationBetween } from '@/utils/date';
 import DateTimeText from '@/components/DateTimeText';
-import { dateTimeColumn, renderEllipsis, EMPTY_PLACEHOLDER } from '@/utils/table-columns';
+import { renderEllipsis, EMPTY_PLACEHOLDER } from '@/utils/table-columns';
 import ApprovalTimeline from '@/components/ApprovalTimeline';
 import { WorkflowApprovalGroupsPanel } from './WorkflowApprovalGroupsPanel';
 import FileAttachment from '@/components/FileAttachment';
@@ -45,36 +45,61 @@ import {
   resolveWorkflowFormType,
 } from '@/utils/workflow-snapshot';
 
-/** 流转记录列：与审批链时间线同源（instance.tasks），表格形态便于审计对账 */
-const FLOW_RECORD_COLUMNS: ColumnProps<WorkflowTask>[] = [
-  { title: '审批节点', dataIndex: 'nodeName', width: 130, render: renderEllipsis },
+type FlowRecordKind = 'approve' | 'handler' | 'cc' | 'consult';
+
+/** 流转记录行类型 → 展示标签（审批/办理/抄送任务与协办邀请同表对账） */
+const FLOW_RECORD_KIND_TAG: Record<FlowRecordKind, { text: string; color: 'blue' | 'cyan' | 'grey' | 'purple' }> = {
+  approve: { text: '审批', color: 'blue' },
+  handler: { text: '办理', color: 'cyan' },
+  cc: { text: '抄送', color: 'grey' },
+  consult: { text: '协办', color: 'purple' },
+};
+
+/** 流转记录行：任务行与协办行动态合成，字段口径已在构造时统一 */
+interface FlowRecordRow {
+  key: string;
+  kind: FlowRecordKind;
+  nodeName: string;
+  actor: string;
+  activatedAt: string | null;
+  actionAt: string | null;
+  status: { text: string; color: string };
+  suggestion: string | null;
+  duration: string;
+}
+
+/** 流转记录列：与审批链时间线同源（instance.tasks + instance.consults），表格形态便于审计对账 */
+const FLOW_RECORD_COLUMNS: ColumnProps<FlowRecordRow>[] = [
   {
-    title: '审批人',
-    dataIndex: 'assigneeName',
-    // 审批人是昵称优先的展示名，比用户 ID 长：单行省略 + tooltip；没有姓名时回退到 #ID
-    width: 160,
-    render: (v: string | null, r: WorkflowTask) => renderEllipsis(v ?? (r.assigneeId != null ? `#${r.assigneeId}` : null)),
+    title: '类型',
+    dataIndex: 'kind',
+    width: 82,
+    render: (v: FlowRecordKind) => <Tag size="small" color={FLOW_RECORD_KIND_TAG[v].color}>{FLOW_RECORD_KIND_TAG[v].text}</Tag>,
   },
-  dateTimeColumn('激活时间', 'activatedAt', { className: 'table-cell-muted' }),
-  dateTimeColumn('结束时间', 'actionAt', { className: 'table-cell-muted' }),
+  { title: '审批节点', dataIndex: 'nodeName', width: 130, render: renderEllipsis },
+  { title: '处理人', dataIndex: 'actor', width: 160, render: renderEllipsis },
   {
-    title: '审批状态',
+    title: '激活时间',
+    dataIndex: 'activatedAt',
+    width: 165,
+    className: 'table-cell-muted',
+    render: (v: string | null) => (v ? <DateTimeText value={v} /> : EMPTY_PLACEHOLDER),
+  },
+  {
+    title: '结束时间',
+    dataIndex: 'actionAt',
+    width: 165,
+    className: 'table-cell-muted',
+    render: (v: string | null) => (v ? <DateTimeText value={v} /> : EMPTY_PLACEHOLDER),
+  },
+  {
+    title: '状态',
     dataIndex: 'status',
     width: 92,
-    // 文案/配色统一走 taskStatusDisplay：抄送任务送达即完成，显示「已抄送」而非「已跳过」
-    render: (v: WorkflowTask['status'], r: WorkflowTask) => {
-      const m = taskStatusDisplay({ status: v, nodeType: r.nodeType });
-      return <Tag size="small" color={m.color}>{m.text}</Tag>;
-    },
+    render: (v: FlowRecordRow['status']) => <Tag size="small" color={v.color as 'green'}>{v.text}</Tag>,
   },
-  { title: '审批建议', dataIndex: 'comment', width: 150, render: renderEllipsis },
-  {
-    title: '耗时',
-    dataIndex: 'actionAt',
-    key: 'duration',
-    width: 100,
-    render: (_: unknown, r: WorkflowTask) => (r.actionAt && r.activatedAt ? formatDurationBetween(r.activatedAt, r.actionAt) || '0秒' : EMPTY_PLACEHOLDER),
-  },
+  { title: '意见', dataIndex: 'suggestion', width: 180, render: renderEllipsis },
+  { title: '耗时', dataIndex: 'duration', width: 100 },
 ];
 
 interface Props {
@@ -101,39 +126,84 @@ interface Props {
   onFormApiReady?: (api: FormApi | WorkflowBusinessFormApi) => void;
 }
 
-/** 流转记录显示范围：默认仅真实审批环节（与审批链口径一致），可放开到抄送 / 全部留痕 */
+/** 流转记录显示范围：默认审批与协办（真实环节），可放开到抄送 / 全部留痕 */
 type FlowRecordScope = 'approval' | 'with-cc' | 'all';
 
 const FLOW_RECORD_SCOPE_OPTIONS: Array<{ value: FlowRecordScope; label: string }> = [
-  { value: 'approval', label: '仅审批环节' },
+  { value: 'approval', label: '审批与协办' },
   { value: 'with-cc', label: '含抄送' },
   { value: 'all', label: '全部记录' },
 ];
 
-/** 流转记录：分段切换显示范围，表格形态便于审计对账 */
-function FlowRecords({ tasks }: Readonly<{ tasks: WorkflowTask[] }>) {
+/**
+ * 合成流转记录行：按任务流转顺序输出，协办行紧跟其邀请任务。
+ * 协办不影响节点状态，但属于协同留痕，默认范围就应看得到，不再需要单独开关。
+ */
+function buildFlowRecordRows(
+  tasks: WorkflowTask[],
+  consults: readonly WorkflowTaskConsult[],
+  scope: FlowRecordScope,
+): FlowRecordRow[] {
+  const consultsByTask = new Map<number, WorkflowTaskConsult[]>();
+  for (const c of [...consults].sort((a, b) => a.id - b.id)) {
+    const list = consultsByTask.get(c.taskId) ?? [];
+    list.push(c);
+    consultsByTask.set(c.taskId, list);
+  }
+  const rows: FlowRecordRow[] = [];
+  for (const t of [...tasks].sort((a, b) => a.id - b.id)) {
+    const isCc = t.nodeType === 'ccNode';
+    if (scope !== 'all' && (t.taskKind === 'excluded' || (isCc && scope === 'approval'))) continue;
+    const kind: FlowRecordKind = isCc ? 'cc' : t.nodeType === 'handler' ? 'handler' : 'approve';
+    rows.push({
+      key: `task-${t.id}`,
+      kind,
+      nodeName: t.nodeName,
+      actor: t.assigneeName ?? (t.assigneeId != null ? `#${t.assigneeId}` : EMPTY_PLACEHOLDER),
+      activatedAt: t.activatedAt ?? null,
+      actionAt: t.actionAt ?? null,
+      // 文案/配色统一走 taskStatusDisplay：抄送任务送达即完成，显示「已抄送」而非「已跳过」
+      status: taskStatusDisplay({ status: t.status, nodeType: t.nodeType }),
+      suggestion: t.comment ?? null,
+      duration: t.actionAt && t.activatedAt ? formatDurationBetween(t.activatedAt, t.actionAt) || '0秒' : EMPTY_PLACEHOLDER,
+    });
+    for (const c of consultsByTask.get(t.id) ?? []) {
+      rows.push({
+        key: `consult-${c.id}`,
+        kind: 'consult',
+        nodeName: t.nodeName,
+        actor: `${c.inviterName ?? `用户#${c.inviterId}`} → ${c.consulteeName ?? `用户#${c.consulteeId}`}`,
+        activatedAt: c.createdAt,
+        actionAt: c.repliedAt ?? null,
+        status: c.status === 'replied' ? { text: '已回复', color: 'green' } : { text: '待回复', color: 'amber' },
+        suggestion: c.opinion ?? (c.question ? `问题：${c.question}` : null),
+        duration: c.repliedAt ? formatDurationBetween(c.createdAt, c.repliedAt) || '0秒' : EMPTY_PLACEHOLDER,
+      });
+    }
+  }
+  return rows;
+}
+
+/** 流转记录：分段切换显示范围，审批任务与协办邀请同表对账 */
+function FlowRecords({ tasks, consults }: Readonly<{ tasks: WorkflowTask[]; consults: readonly WorkflowTaskConsult[] }>) {
   const [scope, setScope] = useState<FlowRecordScope>('approval');
-  const filtered = tasks.filter((t) => {
-    if (scope === 'all') return true;
-    if (t.taskKind === 'excluded') return false;
-    return scope === 'with-cc' || t.nodeType !== 'ccNode';
-  });
+  const rows = buildFlowRecordRows(tasks, consults, scope);
   return (
     <>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 10 }}>
         <RadioGroup type="button" value={scope} onChange={(e) => setScope(e.target.value as FlowRecordScope)}>
           {FLOW_RECORD_SCOPE_OPTIONS.map((o) => <Radio key={o.value} value={o.value}>{o.label}</Radio>)}
         </RadioGroup>
-        <Typography.Text type="tertiary" size="small">共 {filtered.length} 条</Typography.Text>
+        <Typography.Text type="tertiary" size="small">共 {rows.length} 条</Typography.Text>
       </div>
       <Table
         size="small"
         bordered
-        dataSource={filtered}
-        rowKey="id"
+        dataSource={rows}
+        rowKey="key"
         pagination={false}
         columns={FLOW_RECORD_COLUMNS}
-        scroll={{ x: 940 }}
+        scroll={{ x: 1080 }}
         empty={<Empty title="暂无流转记录" />}
       />
     </>
@@ -333,8 +403,9 @@ export default function WorkflowInstanceDetailPanel({
     }
   };
   const consults = instance.consults ?? [];
-  // 流转记录：真实审批任务（排除运行时留痕行与抄送节点），口径与审批链徽标一致
+  // 流转记录：真实审批任务（排除运行时留痕行与抄送节点）+ 协办邀请，口径与审批链徽标一致
   const flowTasks = (instance.tasks ?? []).filter((t) => t.taskKind !== 'excluded' && t.taskKind !== 'cc');
+  const flowRecordCount = flowTasks.length + consults.length;
   const effectiveDefinition = resolveWorkflowDetailDefinition(instance, definition);
   // 历史实例渲染冻结快照（发起时绑定），不受表单后续修改影响；无快照时回退到当前表单
   const formFields = resolveWorkflowFormFields(instance, effectiveDefinition);
@@ -488,11 +559,11 @@ export default function WorkflowInstanceDetailPanel({
     </>
   );
 
-  const chainContent = (
-    <ApprovalTimeline
+  const chainContent = (      <ApprovalTimeline
       approvalActivations={instance.approvalActivations}
       childInstances={instance.childInstances ?? []}
       tasks={instance.tasks ?? []}
+      consults={consults}
       flowNodes={instance.predictedPath ?? linearizeApprovalNodes(flowData)}
       initiator={{ name: instance.initiatorName, avatar: instance.initiatorAvatar, submittedAt: instance.createdAt }}
       instanceStatus={instance.status}
@@ -502,7 +573,7 @@ export default function WorkflowInstanceDetailPanel({
   );
 
   const graphContent = (
-    <WorkflowGraphView flowData={flowData} tasks={instance.tasks ?? []} instanceStatus={instance.status} formFields={formFields} height="calc(100vh - 160px)" />
+    <WorkflowGraphView flowData={flowData} tasks={instance.tasks ?? []} consults={consults} instanceStatus={instance.status} formFields={formFields} height="calc(100vh - 160px)" />
   );
 
   return (
@@ -578,8 +649,8 @@ export default function WorkflowInstanceDetailPanel({
             </div>
           </TabPane>
         )}
-        <TabPane tab={`流转记录${flowTasks.length > 0 ? ` (${flowTasks.length})` : ''}`} itemKey="flow-records">
-          <FlowRecords key={instance.id} tasks={instance.tasks ?? []} />
+        <TabPane tab={`流转记录${flowRecordCount > 0 ? ` (${flowRecordCount})` : ''}`} itemKey="flow-records">
+          <FlowRecords key={instance.id} tasks={instance.tasks ?? []} consults={consults} />
         </TabPane>
         {!!instance.approvalActivations?.length && <TabPane tab="审批明细" itemKey="approval-groups">
           <WorkflowApprovalGroupsPanel activations={instance.approvalActivations} allowActions={!readOnly} />

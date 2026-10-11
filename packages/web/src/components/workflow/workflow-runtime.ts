@@ -2,7 +2,7 @@
  * 流程实例运行态聚合工具 —— 由 tasks 计算每个节点的状态与处理人。
  * 供「流程图」「节点列表」共用。
  */
-import type { WorkflowFlowData, WorkflowTask } from '@zenith/shared/workflow';
+import type { WorkflowFlowData, WorkflowTask, WorkflowTaskConsult } from '@zenith/shared/workflow';
 import { WORKFLOW_INSTANCE_STATUS_LABELS, WORKFLOW_TASK_STATUS_LABELS } from '@zenith/shared/workflow';
 import type { NodeRuntimeInfo } from '@/pages/workflow/designer/types';
 
@@ -78,8 +78,15 @@ export function linearizeApprovalNodes(
   return out;
 }
 
-/** 按 nodeKey 聚合 tasks → 节点运行态（状态 + 处理人列表） */
-export function buildNodeRuntimeMap(tasks: WorkflowTask[]): Map<string, NodeRuntimeInfo> {
+/**
+ * 按 nodeKey 聚合 tasks（可叠加协办记录）→ 节点运行态（状态 + 处理人 + 协办）。
+ * 协办只落库 taskId / nodeName，不含 nodeKey，因此节点归属必须经「邀请任务」换算；
+ * 找不到对应任务的协办（如任务未随详情下发）直接跳过，避免凭空造出无处理人的节点。
+ */
+export function buildNodeRuntimeMap(
+  tasks: WorkflowTask[],
+  consults: readonly WorkflowTaskConsult[] = [],
+): Map<string, NodeRuntimeInfo> {
   const byNode = new Map<string, WorkflowTask[]>();
   for (const t of tasks) {
     const arr = byNode.get(t.nodeKey) ?? [];
@@ -102,6 +109,23 @@ export function buildNodeRuntimeMap(tasks: WorkflowTask[]): Map<string, NodeRunt
     else if (sorted.some(t => t.status === 'waiting')) status = 'waiting';
     else if (sorted.some(t => t.status === 'approved')) status = 'approved';
     map.set(nodeKey, { status, approvers });
+  }
+
+  if (consults.length > 0) {
+    const nodeKeyByTaskId = new Map(tasks.map(t => [t.id, t.nodeKey]));
+    for (const consult of [...consults].sort((a, b) => a.id - b.id)) {
+      const nodeKey = nodeKeyByTaskId.get(consult.taskId);
+      const info = nodeKey ? map.get(nodeKey) : undefined;
+      if (!info) continue;
+      const list = info.consults ?? (info.consults = []);
+      list.push({
+        consulteeName: consult.consulteeName ?? `用户#${consult.consulteeId}`,
+        status: consult.status,
+        question: consult.question ?? null,
+        opinion: consult.opinion ?? null,
+        repliedAt: consult.repliedAt ?? null,
+      });
+    }
   }
   return map;
 }

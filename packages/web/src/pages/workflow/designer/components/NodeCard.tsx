@@ -331,6 +331,23 @@ export default function NodeCard({
               ))}
             </div>
           )}
+          {runtime.consults && runtime.consults.length > 0 && (
+            <div className="fd-node-card__rt-consults">
+              {runtime.consults.map((c, i) => (
+                <div
+                  className="fd-node-card__rt-consult"
+                  key={`${c.consulteeName}-${i}`}
+                  title={[c.question ? `问题：${c.question}` : '', c.opinion ? `意见：${c.opinion}` : ''].filter(Boolean).join('\n') || undefined}
+                >
+                  <span className="fd-node-card__rt-consult-label">协办</span>
+                  <span className="fd-node-card__rt-consult-name">{c.consulteeName}</span>
+                  <span className={`fd-node-card__rt-status fd-node-card__rt-status--${c.status === 'replied' ? 'approved' : 'pending'}`}>
+                    {c.status === 'replied' ? '已回复' : '待回复'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
           {(runtime.detail || runtime.reason) && (
             <div className="fd-node-card__rt-note" title={runtime.detail ?? runtime.reason ?? undefined}>
               {runtime.detail ?? runtime.reason}

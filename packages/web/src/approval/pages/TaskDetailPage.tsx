@@ -409,6 +409,7 @@ function TaskDetailContent() {
           <div className="ap-section__title">流转记录</div>
           <ApprovalTimeline
             tasks={detail.tasks ?? []}
+            consults={detail.consults ?? []}
             flowNodes={detail.predictedPath ?? linearizeApprovalNodes(flowData)}
             initiator={{ name: detail.initiatorName, avatar: detail.initiatorAvatar, submittedAt: detail.createdAt }}
             instanceStatus={detail.status}
