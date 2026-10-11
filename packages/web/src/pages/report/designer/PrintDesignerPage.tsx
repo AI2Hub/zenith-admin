@@ -2,14 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  Button, Divider, Empty, Input, InputNumber, Modal, Select, Space, Switch, Tabs, Tag, TextArea, Toast, Tooltip, Typography,
+  Button, Divider, Dropdown, Empty, Input, InputNumber, Modal, Select, Space, Switch, Tabs, Tag, TextArea, Toast, Tooltip, Typography,
 } from '@douyinfe/semi-ui';
 import PageLoading from '@/components/PageLoading';
 import { createUniver, LocaleType, mergeLocales } from '@univerjs/presets';
 import type { IWorkbookData } from '@univerjs/presets';
 import { UniverSheetsCorePreset } from '@univerjs/preset-sheets-core';
 import sheetsCoreZhCN from '@univerjs/preset-sheets-core/locales/zh-CN';
-import { ArrowLeft, Eye, PanelRightOpen, Plus, RefreshCcw, Save, Settings2, Trash2, Wand2 } from 'lucide-react';
+import { ArrowLeft, Eye, MoreHorizontal, PanelRightOpen, Plus, RefreshCcw, Save, Settings2, Trash2, Wand2 } from 'lucide-react';
 import '@univerjs/preset-sheets-core/lib/index.css';
 import '../report-grid.css';
 import { usePermission } from '@/hooks/usePermission';
@@ -771,58 +771,69 @@ export default function PrintDesignerPage() {
   return (
     <div className="report-designer">
       <div className="report-designer__topbar">
-        <Button icon={<ArrowLeft size={14} />} onClick={() => navigate('/report/print')}>返回</Button>
-        <Input value={name} onChange={setName} placeholder="模板名称" style={{ width: 220 }} showClear />
-        <Select
-          value={sourceType}
-          onChange={(value) => handleSourceTypeChange(value as ReportPrintSourceType)}
-          optionList={[{ value: 'dataset', label: '数据集' }, { value: 'entity', label: REPORT_PRINT_ENTITY_KIND_LABELS.workflow_instance }]}
-          style={{ width: 170 }}
-        />
-        {isEntity ? (
-          <Tooltip content="参照流程决定「表单字段」目录；留空为通用模板（只能引用审批单 / 审批记录等固定数据集）">
+        {/* 身份控件组禁止压缩：顶栏空间不足时优先收纳右侧按钮，不挤压名称 / 数据源选择 */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+          <Button icon={<ArrowLeft size={14} />} onClick={() => navigate('/report/print')}>返回</Button>
+          <Input value={name} onChange={setName} placeholder="模板名称" style={{ width: 220 }} showClear />
+          <Select
+            value={sourceType}
+            onChange={(value) => handleSourceTypeChange(value as ReportPrintSourceType)}
+            optionList={[{ value: 'dataset', label: '数据集' }, { value: 'entity', label: REPORT_PRINT_ENTITY_KIND_LABELS.workflow_instance }]}
+            style={{ width: 170 }}
+          />
+          {isEntity ? (
+            <Tooltip content="参照流程决定「表单字段」目录；留空为通用模板（只能引用审批单 / 审批记录等固定数据集）">
+              <Select
+                value={entityRefId ?? undefined}
+                onChange={(value) => setEntityRefId(value ? Number(value) : null)}
+                placeholder="参照流程（可选）"
+                optionList={definitionOptions}
+                loading={definitionsQuery.isPending}
+                filter
+                showClear
+                style={{ width: 220 }}
+              />
+            </Tooltip>
+          ) : (
             <Select
-              value={entityRefId ?? undefined}
-              onChange={(value) => setEntityRefId(value ? Number(value) : null)}
-              placeholder="参照流程（可选）"
-              optionList={definitionOptions}
-              loading={definitionsQuery.isPending}
-              filter
+              value={datasetId ?? undefined}
+              onChange={handleDatasetChange}
+              placeholder="选择数据集"
+              optionList={datasets.map((dataset) => ({ value: dataset.id, label: dataset.name }))}
               showClear
               style={{ width: 220 }}
             />
-          </Tooltip>
-        ) : (
+          )}
           <Select
-            value={datasetId ?? undefined}
-            onChange={handleDatasetChange}
-            placeholder="选择数据集"
-            optionList={datasets.map((dataset) => ({ value: dataset.id, label: dataset.name }))}
-            showClear
-            style={{ width: 220 }}
+            value={status}
+            onChange={(value) => setStatus((value as ReportPrintTemplate['status']) ?? 'enabled')}
+            optionList={statusOptions}
+            style={{ width: 110 }}
           />
-        )}
-        <Select
-          value={status}
-          onChange={(value) => setStatus((value as ReportPrintTemplate['status']) ?? 'enabled')}
-          optionList={statusOptions}
-          style={{ width: 110 }}
-        />
+        </div>
         <div style={{ flex: 1 }} />
         {isEntity && (
           <Tooltip content="按参照流程的表单快照生成审批单版式（基本信息 / 表单 / 明细 / 签名 / 审批记录），作为定制起点">
             <Button icon={<Wand2 size={14} />} disabled={!entityRefId} onClick={handleGenerateFromForm}>从流程表单生成</Button>
           </Tooltip>
         )}
-        <Tooltip content="同步当前页签配置">
-          <Button icon={<RefreshCcw size={14} />} onClick={syncSheetsFromWorkbook}>同步页签</Button>
-        </Tooltip>
-        <Tooltip content="字段面板">
-          <Button icon={<PanelRightOpen size={14} />} onClick={() => setPanelVisible((value) => !value)}>{panelVisible ? '隐藏字段' : '显示字段'}</Button>
-        </Tooltip>
-        <Button icon={<Settings2 size={14} />} onClick={() => { setPanelVisible(true); setActivePanel('params'); }}>参数</Button>
-        <Button icon={<Settings2 size={14} />} onClick={() => { setPanelVisible(true); setActivePanel('bindings'); }}>数据绑定</Button>
-        <Button icon={<Settings2 size={14} />} onClick={() => { setPanelVisible(true); setActivePanel('page'); }}>页面设置</Button>
+        <Dropdown
+          trigger="click"
+          clickToHide
+          position="bottomRight"
+          getPopupContainer={() => document.body}
+          render={(
+            <Dropdown.Menu>
+              <Dropdown.Item icon={<RefreshCcw size={14} />} onClick={syncSheetsFromWorkbook}>同步页签</Dropdown.Item>
+              <Dropdown.Item icon={<PanelRightOpen size={14} />} onClick={() => setPanelVisible((value) => !value)}>{panelVisible ? '隐藏字段' : '显示字段'}</Dropdown.Item>
+              <Dropdown.Item icon={<Settings2 size={14} />} onClick={() => { setPanelVisible(true); setActivePanel('params'); }}>参数</Dropdown.Item>
+              <Dropdown.Item icon={<Settings2 size={14} />} onClick={() => { setPanelVisible(true); setActivePanel('bindings'); }}>数据绑定</Dropdown.Item>
+              <Dropdown.Item icon={<Settings2 size={14} />} onClick={() => { setPanelVisible(true); setActivePanel('page'); }}>页面设置</Dropdown.Item>
+            </Dropdown.Menu>
+          )}
+        >
+          <Button icon={<MoreHorizontal size={14} />}>更多</Button>
+        </Dropdown>
         <Button icon={<Eye size={14} />} onClick={() => void handlePreview()}>预览</Button>
         <Button type="primary" icon={<Save size={14} />} loading={saveMutation.isPending} disabled={!canSave} onClick={() => void saveTemplate()}>保存</Button>
       </div>
