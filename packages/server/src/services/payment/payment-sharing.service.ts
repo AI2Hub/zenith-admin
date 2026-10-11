@@ -5,12 +5,13 @@ import type { QueryOutputOf } from '@zenith/shared/core';
  * 维护分账接收方，针对成功订单发起单笔分账（走渠道 adapter.profitShare 模拟实现），
  * 状态机：pending → processing → success/failed，留存渠道分账单号。
  * 自动分账：订阅 payment.succeeded，对启用 autoShare 的接收方按 ratioBps 自动发起，
- * 确定性分账单号（SHR{orderNo}R{receiverId}）+ 唯一索引保证事件重复投递幂等；
+ * 编号中心按订单 ID + 接收方 ID 稳定取号，保证事件重复投递幂等；
  * 渠道调用失败的分账单由 cron retryFailedSharingOrders 兜底重试（上限 3 次）。
  */
 import { and, desc, eq, inArray, isNull, lt, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import { genPaymentNo } from './payment-no';
+import { randomUUID } from 'node:crypto';
+import { allocateBusinessNumber, attachBusinessNumber } from '../platform/numbering-runtime';
 import { db } from '../../db';
 import { buildListResult, listRows } from '../../lib/list-query';
 import { paymentOrders, paymentRefunds, paymentSharingOrders, paymentSharingReceivers, type PaymentOrderRow, type PaymentSharingOrderRow, type PaymentSharingReceiverRow } from '../../db/schema';
@@ -178,9 +179,9 @@ async function createReservedSharing(input: {
   orderNo: string;
   receiver: PaymentSharingReceiverRow;
   amount?: number;
-  sharingNo: string;
+  allocationKey: string;
   remark?: string | null;
-}): Promise<{ order: PaymentOrderRow; sharing: PaymentSharingOrderRow }> {
+}): Promise<{ order: PaymentOrderRow; sharing: PaymentSharingOrderRow; created: boolean }> {
   return db.transaction(async (tx) => {
     await tx.execute(sql`SELECT id FROM payment_orders WHERE order_no = ${input.orderNo} FOR UPDATE`);
     const [order] = await tx.select().from(paymentOrders).where(eq(paymentOrders.orderNo, input.orderNo)).limit(1);
@@ -191,6 +192,13 @@ async function createReservedSharing(input: {
     if ((order.tenantId ?? null) !== (input.receiver.tenantId ?? null)) {
       throw new HTTPException(400, { message: '分账接收方与支付订单不属于同一租户' });
     }
+
+    const sharingNo = await allocateBusinessNumber(tx, {
+      scene: 'payment.sharing', tenantId: order.tenantId, allocationKey: input.allocationKey,
+      context: { orderId: order.id, receiverId: input.receiver.id },
+    });
+    const [existing] = await tx.select().from(paymentSharingOrders).where(and(eq(paymentSharingOrders.sharingNo, sharingNo), exactTenantCondition(paymentSharingOrders.tenantId, order.tenantId))).limit(1);
+    if (existing) return { order, sharing: existing, created: false };
 
     const paid = order.paidAmount ?? order.amount;
     const amount = input.amount ?? (input.receiver.ratioBps != null
@@ -213,7 +221,7 @@ async function createReservedSharing(input: {
     const [sharing] = await tx
       .insert(paymentSharingOrders)
       .values({
-        sharingNo: input.sharingNo,
+        sharingNo,
         orderNo: order.orderNo,
         receiverId: input.receiver.id,
         amount,
@@ -222,7 +230,8 @@ async function createReservedSharing(input: {
         tenantId: order.tenantId,
       })
       .returning();
-    return { order, sharing };
+    await attachBusinessNumber(tx, { scene: 'payment.sharing', tenantId: order.tenantId, number: sharingNo, businessKey: String(sharing.id) });
+    return { order, sharing, created: true };
   });
 }
 
@@ -235,7 +244,7 @@ export async function dispatchSharing(input: DispatchSharingInput): Promise<Paym
     orderNo: input.orderNo,
     receiver,
     amount: input.amount,
-    sharingNo: genPaymentNo('SHR'),
+    allocationKey: `request:${randomUUID()}`,
     remark: input.remark,
   });
   const updated = await executeSharingAtChannel(sharing, order, receiver);
@@ -326,13 +335,8 @@ async function executeSharingAtChannel(
 
 // ─── 自动分账（payment.succeeded 订阅者）──────────────────────────────────────
 
-/** 确定性分账单号：同订单同接收方全局唯一，配合 sharing_no 唯一约束实现事件重复投递幂等。 */
-function autoSharingNo(orderNo: string, receiverId: number): string {
-  return `SHR${orderNo}R${receiverId}`;
-}
-
 /** 支付成功后自动分账：对启用 autoShare 且配置了 ratioBps 的接收方逐个发起。
- * 幂等：确定性 sharingNo + onConflictDoNothing，重复事件不会重复建单；
+ * 幂等：业务操作标识按订单 ID 和接收方 ID 固定，重复事件复用已创建的分账单；
  * 合计校验：所有自动分账金额之和不超过订单实付。 */
 export async function autoShareOrder(orderNo: string): Promise<void> {
   const [order] = await db.select().from(paymentOrders).where(eq(paymentOrders.orderNo, orderNo)).limit(1);
@@ -352,12 +356,12 @@ export async function autoShareOrder(orderNo: string): Promise<void> {
       const reserved = await createReservedSharing({
         orderNo: order.orderNo,
         receiver,
-        sharingNo: autoSharingNo(order.orderNo, receiver.id),
+        allocationKey: `order:${order.id}:receiver:${receiver.id}`,
         remark: '自动分账',
       });
-      await executeSharingAtChannel(reserved.sharing, reserved.order, receiver);
+      if (reserved.created) await executeSharingAtChannel(reserved.sharing, reserved.order, receiver);
     } catch (err) {
-      // 确定性 sharingNo 的唯一冲突代表事件重放；余额不足等业务错误记录后跳过。
+      // 余额不足等业务错误记录后跳过，重投不会再次调用渠道。
       logger.warn('[payment-sharing] auto share skipped', { orderNo, receiverId: receiver.id, err });
     }
   }

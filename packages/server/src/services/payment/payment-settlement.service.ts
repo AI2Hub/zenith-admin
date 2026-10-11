@@ -7,7 +7,8 @@ import type { QueryOutputOf } from '@zenith/shared/core';
  */
 import { and, between, desc, eq, inArray, isNull, lte, sql, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import { genPaymentNo } from './payment-no';
+import { randomUUID } from 'node:crypto';
+import { allocateBusinessNumber, attachBusinessNumber } from '../platform/numbering-runtime';
 import { db } from '../../db';
 import { listRows } from '../../lib/list-query';
 import { paymentApps, paymentChannelConfigs, paymentJournalLines, paymentJournals, paymentLedgerAccounts, paymentSettlementBatches, paymentSettlementItems, type PaymentSettlementBatchRow } from '../../db/schema';
@@ -213,10 +214,12 @@ export async function generateSettlement(input: GenerateSettlementInput, tenantI
   const refundAmount = sumBy((line) => line.sourceType === 'payment.refund' ? line.debitAmount - line.creditAmount : 0n);
   const sharingAmount = sumBy((line) => line.sourceType === 'payment.sharing' ? line.debitAmount - line.creditAmount : line.sourceType === 'payment.sharing_reversal' ? line.creditAmount - line.debitAmount : 0n);
   const orderCount = new Set(lines.filter((line) => line.sourceType === 'payment.capture' || line.sourceType === 'payment.preauth.capture').map((line) => line.sourceId)).size;
+  const allocationKey = `request:${randomUUID()}`;
   try {
     const row = await db.transaction(async (tx) => {
+      const batchNo = await allocateBusinessNumber(tx, { scene: 'payment.settlement', tenantId, allocationKey });
       const [batch] = await tx.insert(paymentSettlementBatches).values({
-        batchNo: genPaymentNo('SETTLE'),
+        batchNo,
         credentialVersion: scope.credentialVersion,
         channel: scope.channel,
         appId: input.applicationId,
@@ -235,6 +238,7 @@ export async function generateSettlement(input: GenerateSettlementInput, tenantI
         remark: input.remark ?? null,
         tenantId,
       }).returning();
+      await attachBusinessNumber(tx, { scene: 'payment.settlement', tenantId, number: batchNo, businessKey: String(batch.id) });
       await tx.insert(paymentSettlementItems).values(lines.map((line, index) => ({
         batchId: batch.id,
         journalLineId: line.lineId,

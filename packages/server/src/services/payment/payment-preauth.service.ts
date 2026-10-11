@@ -2,6 +2,7 @@ import type { QueryOutputOf } from '@zenith/shared/core';
 /** 支付预授权：应用/商户精确作用域、CAS 状态机与 unknown 查单恢复。 */
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
+import { randomUUID } from 'node:crypto';
 import { db } from '../../db';
 import { buildListResult } from '../../lib/list-query';
 import { paymentChannelConfigs, paymentOrders, paymentPreauths, type PaymentChannelConfigRow, type PaymentOrderRow, type PaymentPreauthRow } from '../../db/schema';
@@ -26,7 +27,7 @@ import { assertEffectivePaymentOperation } from './payment-capability-evaluator'
 import { postSystemJournalWithin } from './payment-journal.service';
 import { recordEvent, processEvent } from './payment-outbox.service';
 import { buildAdapterContext, markOrderPaid } from './payment.service';
-import { genPaymentNo } from './payment-no';
+import { allocateBusinessNumber, attachBusinessNumber } from '../platform/numbering-runtime';
 import { pickEntity } from '../../lib/entity-map';
 
 export function mapPreauth(row: PaymentPreauthRow & { operatorName?: string | null }): PaymentPreauth {
@@ -181,17 +182,22 @@ export async function createPreauth(input: CreatePaymentPreauthInput): Promise<P
   const adapter = getAdapter(channel);
   if (!adapter.preauthFreeze) throw new HTTPException(400, { message: `CAPABILITY_UNSUPPORTED: ${channel}/preauth.freeze` });
 
-  const preauthNo = genPaymentNo('PRE');
-  const [row] = await db.insert(paymentPreauths).values({
+  const allocationKey = `request:${randomUUID()}`;
+  const row = await db.transaction(async (tx) => {
+    const preauthNo = await allocateBusinessNumber(tx, { scene: 'payment.preauth', tenantId, allocationKey });
+    const [created] = await tx.insert(paymentPreauths).values({
     channelAccountId: config.channelAccountId, credentialVersion: config.credentialVersion,
     preauthNo, channel, channelConfigId: config.id, appId: application.appId, currency: input.currency,
     bizType: input.bizType?.trim() || 'admin_preauth', bizId: input.bizId, subject: input.subject,
     payerAccount: input.payerAccount, frozenAmount: input.frozenAmount, status: 'pending', unknownOperation: 'freeze',
     remark: input.remark ?? null, operatorId: user.userId, tenantId,
   }).returning();
+    await attachBusinessNumber(tx, { scene: 'payment.preauth', tenantId, number: preauthNo, businessKey: String(created.id) });
+    return created;
+  });
   try {
     const result = await adapter.preauthFreeze(buildAdapterContext(config), {
-      outPreauthNo: preauthNo, payerAccount: input.payerAccount, amount: input.frozenAmount, subject: input.subject,
+      outPreauthNo: row.preauthNo, payerAccount: input.payerAccount, amount: input.frozenAmount, subject: input.subject,
     });
     if (result.status === 'frozen') {
       const updated = await db.transaction(async (tx) => {
@@ -231,6 +237,10 @@ async function restoreAfterFailure(row: PaymentPreauthRow, reason: string): Prom
 export async function capturePreauth(id: number, applicationId: number, input: CapturePaymentPreauthInput): Promise<PaymentPreauth> {
   requireTenantScopeId(currentUser());
   const row = await ensurePreauth(id, applicationId);
+  if (row.status === 'unknown' && row.unknownOperation === 'capture') {
+    if (input.captureAmount !== undefined && input.captureAmount !== row.capturedAmount) throw new HTTPException(409, { message: '同一预授权捕获请求的金额不可变更' });
+    return recoverPreauth(id, applicationId);
+  }
   if (row.status !== 'frozen') throw new HTTPException(400, { message: '仅已冻结的预授权可转支付' });
   if (!row.channelPreauthNo) throw new HTTPException(400, { message: '预授权缺少渠道授权单号' });
   const captureAmount = input.captureAmount ?? row.frozenAmount;
@@ -241,30 +251,46 @@ export async function capturePreauth(id: number, applicationId: number, input: C
   const adapter = getAdapter(row.channel);
   if (!adapter.preauthCapture) throw new HTTPException(400, { message: `CAPABILITY_UNSUPPORTED: ${row.channel}/preauth.capture` });
 
-  const orderNo = `PAC${row.preauthNo.slice(3)}V${row.version + 1}`.slice(0, 64);
-  const [maybeClaimed] = await db.update(paymentPreauths).set({
-    status: 'unknown', unknownOperation: 'capture', capturedAmount: captureAmount, captureOrderNo: orderNo,
-    errorMessage: null, version: sql`${paymentPreauths.version} + 1`,
-  }).where(and(eq(paymentPreauths.id, row.id), eq(paymentPreauths.version, row.version), eq(paymentPreauths.status, 'frozen'))).returning();
-  const claimed = requireRow(maybeClaimed, '预授权状态已变化，请刷新后重试', 409);
-
-  let order: PaymentOrderRow;
-  try {
-    [order] = await db.insert(paymentOrders).values({
-      channelAccountId: row.channelAccountId, credentialVersion: config.credentialVersion,
-      orderNo, outTradeNo: orderNo, bizType: row.bizType, bizId: row.bizId,
-      subject: `${row.subject}（预授权转支付）`, body: `预授权单 ${row.preauthNo}`,
-      amount: captureAmount, currency: row.currency, channel: row.channel, channelConfigId: row.channelConfigId,
-      appId: row.appId, payMethod, status: 'pending', openId: row.payerAccount, tenantId: row.tenantId,
-    }).returning();
-  } catch (err) {
-    await db.update(paymentPreauths).set({
-      status: 'frozen', unknownOperation: null, capturedAmount: null,
-      errorMessage: (err instanceof Error ? err.message : '创建捕获订单失败').slice(0, 500),
-      version: sql`${paymentPreauths.version} + 1`,
-    }).where(and(eq(paymentPreauths.id, claimed.id), eq(paymentPreauths.version, claimed.version), eq(paymentPreauths.status, 'unknown')));
-    throw err;
-  }
+  const { order, claimed, shouldCallProvider } = await db.transaction(async (tx) => {
+    const [locked] = await tx.select().from(paymentPreauths).where(and(
+      eq(paymentPreauths.id, row.id), eq(paymentPreauths.appId, row.appId), exactTenantCondition(paymentPreauths.tenantId, row.tenantId),
+    )).for('update').limit(1);
+    if (!locked || locked.version !== row.version || locked.status !== 'frozen') throw new HTTPException(409, { message: '预授权状态已变化，请刷新后重试' });
+    const orderNo = await allocateBusinessNumber(tx, {
+      scene: 'payment.capture', tenantId: row.tenantId, allocationKey: `preauth:${row.id}`, context: { amount: captureAmount },
+    });
+    let [order] = await tx.select().from(paymentOrders).where(and(
+      eq(paymentOrders.orderNo, orderNo), eq(paymentOrders.appId, row.appId), exactTenantCondition(paymentOrders.tenantId, row.tenantId),
+    )).for('update').limit(1);
+    const shouldCallProvider = !order || order.status === 'failed';
+    if (order) {
+      if (order.amount !== captureAmount || order.currency !== row.currency || order.channelConfigId !== row.channelConfigId || order.payMethod !== payMethod || order.bizType !== row.bizType || order.bizId !== row.bizId) {
+        throw new HTTPException(409, { message: '预授权捕获订单的业务参数不一致' });
+      }
+      if (order.status === 'failed') {
+        const [retried] = await tx.update(paymentOrders).set({
+          status: 'pending', channelTradeNo: null, errorMessage: null, version: sql`${paymentOrders.version} + 1`,
+        }).where(and(eq(paymentOrders.id, order.id), eq(paymentOrders.version, order.version), eq(paymentOrders.status, 'failed'))).returning();
+        order = requireRow(retried, '预授权捕获订单已变化', 409);
+      }
+    } else {
+      [order] = await tx.insert(paymentOrders).values({
+        channelAccountId: row.channelAccountId, credentialVersion: config.credentialVersion,
+        orderNo, outTradeNo: orderNo, bizType: row.bizType, bizId: row.bizId,
+        subject: `${row.subject}（预授权转支付）`, body: `预授权单 ${row.preauthNo}`,
+        amount: captureAmount, currency: row.currency, channel: row.channel, channelConfigId: row.channelConfigId,
+        appId: row.appId, payMethod, status: 'pending', openId: row.payerAccount, tenantId: row.tenantId,
+      }).returning();
+      await attachBusinessNumber(tx, { scene: 'payment.capture', tenantId: row.tenantId, number: orderNo, businessKey: String(order.id) });
+    }
+    const [claimed] = await tx.update(paymentPreauths).set({
+      status: 'unknown', unknownOperation: 'capture', capturedAmount: captureAmount, captureOrderNo: orderNo,
+      errorMessage: null, version: sql`${paymentPreauths.version} + 1`,
+    }).where(and(eq(paymentPreauths.id, locked.id), eq(paymentPreauths.version, locked.version), eq(paymentPreauths.status, 'frozen'))).returning();
+    return { order, claimed: requireRow(claimed, '预授权状态已变化，请刷新后重试', 409), shouldCallProvider };
+  });
+  if (!shouldCallProvider) return recoverPreauth(id, applicationId);
+  const orderNo = order.orderNo;
 
   try {
     const result = await adapter.preauthCapture(buildAdapterContext(config), {
@@ -367,7 +393,18 @@ export async function recoverPreauth(id: number, applicationId: number): Promise
     return mapPreauth(unchanged ?? row);
   }
   if (result.status === 'pending') return mapPreauth(row);
-  if (result.status === 'failed') return mapPreauth(await restoreAfterFailure(row, result.failReason ?? '渠道确认操作失败'));
+  if (result.status === 'failed') {
+    const reason = result.failReason ?? '渠道确认操作失败';
+    if (operation === 'capture' && row.captureOrderNo) {
+      const [captureOrder] = await db.select().from(paymentOrders).where(and(
+        eq(paymentOrders.orderNo, row.captureOrderNo), eq(paymentOrders.appId, row.appId), exactTenantCondition(paymentOrders.tenantId, row.tenantId),
+      )).limit(1);
+      if (!captureOrder) throw new HTTPException(409, { message: '预授权捕获订单缺失，无法确认本地支付状态' });
+      if (['success', 'refunding', 'refunded'].includes(captureOrder.status)) throw new HTTPException(409, { message: '渠道捕获结果与已支付订单状态不一致，请核实后处理' });
+      await markOrderFailed(captureOrder, reason);
+    }
+    return mapPreauth(await restoreAfterFailure(row, reason));
+  }
   if (operation === 'freeze' && result.status === 'frozen') {
     const frozen = await db.transaction(async (tx) => {
       const [finalized] = await tx.update(paymentPreauths).set({

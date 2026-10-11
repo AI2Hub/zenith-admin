@@ -11,6 +11,10 @@ import type { MemberVipRenewal } from '@zenith/shared/member';
 import type { PaymentContract, PaymentContractDeductOutcome, PaymentDeductMethod, PaymentDeductPeriod, PaymentDeductPlan } from '@zenith/shared/payment';
 import dayjs from 'dayjs';
 import { filterByKeyword, includesKeyword, matchesFilter } from '@/mocks/utils/filter';
+import { allocateMockBusinessNumber, attachMockBusinessNumber, withMockNumberingTransaction } from '@/mocks/utils/numbering';
+import { createNumberedMockPaymentOrder, mockChannelReference } from '@/mocks/utils/payment-numbering';
+import { mockPaymentOrders } from '@/mocks/data/payment';
+import { recordMockPaymentSucceeded } from './payment-ext';
 
 const DEMO_MEMBER_BIZ = { bizType: 'member_renewal', bizId: '1' };
 
@@ -33,28 +37,39 @@ function contractScope(applicationId: number, payMethod: PaymentDeductMethod) {
 /** 模拟执行一期扣款（沙箱永远成功）：推进排期 + 追加会员续费记录 */
 function simulateDeduct(contract: PaymentContract): PaymentContractDeductOutcome & { orderNo: string; deductStatus: 'success' } {
   const plan = planOf(contract);
-  const orderNo = `DED${Date.now()}${Math.floor(Math.random() * 9000 + 1000)}`;
+  if (!plan || plan.status !== 'enabled') throw new Error('扣款计划不存在或已停用');
   const now = mockDateTime();
-  contract.lastOrderNo = orderNo;
-  contract.lastDeductAt = now;
-  contract.failCount = 0;
-  contract.totalDeductCount += 1;
-  contract.version += 1;
-  contract.nextDeductAt = advance(plan?.period ?? 'monthly', plan?.customDays);
-  contract.updatedAt = now;
-  if (contract.bizType === DEMO_MEMBER_BIZ.bizType) {
-    const vipExpireAfter = contract.nextDeductAt;
-    mockVipRenewals.unshift({
-      memberId: Number(contract.bizId),
-      id: mockVipRenewals.reduce((m, r) => Math.max(m, r.id), 0) + 1,
-      orderNo,
-      contractNo: contract.contractNo,
-      amount: plan?.amount ?? 0,
-      vipExpireAfter,
-      createdAt: now,
-    } satisfies MemberVipRenewal & { memberId: number });
-  }
-  return { orderNo, deductStatus: 'success' };
+  const result = withMockNumberingTransaction(() => {
+    const order = createNumberedMockPaymentOrder({ scene: 'payment.deduction', allocationKey: `contract:${contract.id}:period:${contract.totalDeductCount + 1}`, values: {
+      appId: contract.appId, channel: contract.channel, channelConfigId: contract.channelConfigId, channelAccountId: contract.channelConfigId, credentialVersion: 1,
+      currency: contract.currency, amount: plan.amount, paidAmount: plan.amount, feeAmount: null, netAmount: null, paidAt: now, expiredAt: null,
+      status: 'success', payMethod: contract.channel === 'wechat' ? 'wechat_papay' : 'alipay_cycle', channelTradeNo: mockChannelReference('CHANNELDED'),
+      bizType: contract.bizType, bizId: contract.bizId, subject: plan.name, body: null, userId: null, openId: null, clientIp: null, departmentId: null, errorMessage: null, version: 0,
+    } });
+    const orderNo = order.orderNo;
+    contract.lastOrderNo = orderNo;
+    contract.lastDeductAt = now;
+    contract.failCount = 0;
+    contract.totalDeductCount += 1;
+    contract.version += 1;
+    contract.nextDeductAt = advance(plan?.period ?? 'monthly', plan?.customDays);
+    contract.updatedAt = now;
+    if (contract.bizType === DEMO_MEMBER_BIZ.bizType) {
+      const vipExpireAfter = contract.nextDeductAt;
+      mockVipRenewals.unshift({
+        memberId: Number(contract.bizId),
+        id: mockVipRenewals.reduce((m, r) => Math.max(m, r.id), 0) + 1,
+        orderNo,
+        contractNo: contract.contractNo,
+        amount: plan?.amount ?? 0,
+        vipExpireAfter,
+        createdAt: now,
+      } satisfies MemberVipRenewal & { memberId: number });
+    }
+    return { orderNo, deductStatus: 'success' as const, order };
+  }, [mockPaymentContracts, mockPaymentOrders, mockVipRenewals]);
+  recordMockPaymentSucceeded(result.order);
+  return { orderNo: result.orderNo, deductStatus: result.deductStatus };
 }
 
 /** 协议按支付应用隔离：applicationId 已由契约 query 校验为正整数 */
@@ -128,40 +143,45 @@ const contractHandlers = [
     const scope = contractScope(body.applicationId, body.payMethod);
     if (!scope) return badRequest('支付应用未绑定所选代扣方式对应的商户配置');
     const now = mockDateTime();
-    const contract: PaymentContract = {
-      id: getNextContractId(),
-      contractNo: `CT${Date.now()}${Math.floor(Math.random() * 9000 + 1000)}`,
-      channel: PAYMENT_METHOD_CHANNEL[body.payMethod],
-      channelConfigId: scope.channelConfigId,
-      appId: scope.appId,
-      currency: body.currency,
-      planId: plan.id,
-      planName: plan.name,
-      planPeriod: plan.period,
-      planAmount: plan.amount,
-      signerAccount: body.signerAccount,
-      signerName: body.signerName ?? null,
-      status: 'signed',
-      unknownOperation: null,
-      version: 0,
-      errorMessage: null,
-      channelContractNo: `${body.payMethod === 'wechat_papay' ? 'WXCT' : 'ALICT'}${Date.now()}`,
-      bizType: 'admin_contract',
-      bizId: `ADM${Date.now()}`,
-      nextDeductAt: advance(plan.period, plan.customDays),
-      lastDeductAt: null,
-      failCount: 0,
-      totalDeductCount: 0,
-      lastOrderNo: null,
-      signedAt: now,
-      terminatedAt: null,
-      remark: body.remark ?? null,
-      createdAt: now,
-      updatedAt: now,
-    };
-    mockPaymentContracts.push(contract);
-    const firstDeduct = body.firstDeductNow ? simulateDeduct(contract) : null;
-    return ok({ contract, firstDeduct }, '签约完成');
+    const result = withMockNumberingTransaction(() => {
+      const contractNo = allocateMockBusinessNumber({ scene: 'payment.contract', tenantId: null, allocationKey: crypto.randomUUID() });
+      const contract: PaymentContract = {
+        id: getNextContractId(),
+        contractNo,
+        channel: PAYMENT_METHOD_CHANNEL[body.payMethod],
+        channelConfigId: scope.channelConfigId,
+        appId: scope.appId,
+        currency: body.currency,
+        planId: plan.id,
+        planName: plan.name,
+        planPeriod: plan.period,
+        planAmount: plan.amount,
+        signerAccount: body.signerAccount,
+        signerName: body.signerName ?? null,
+        status: 'signed',
+        unknownOperation: null,
+        version: 0,
+        errorMessage: null,
+        channelContractNo: mockChannelReference('CHANNELCT'),
+        bizType: 'admin_contract',
+        bizId: crypto.randomUUID(),
+        nextDeductAt: advance(plan.period, plan.customDays),
+        lastDeductAt: null,
+        failCount: 0,
+        totalDeductCount: 0,
+        lastOrderNo: null,
+        signedAt: now,
+        terminatedAt: null,
+        remark: body.remark ?? null,
+        createdAt: now,
+        updatedAt: now,
+      };
+      mockPaymentContracts.push(contract);
+      attachMockBusinessNumber({ scene: 'payment.contract', tenantId: null, number: contractNo, businessKey: String(contract.id) });
+      const firstDeduct = body.firstDeductNow ? simulateDeduct(contract) : null;
+      return { contract, firstDeduct };
+    }, [mockPaymentContracts, mockPaymentOrders, mockVipRenewals]);
+    return ok(result, '签约完成');
   }),
   mock(paymentSigningContract.terminateContract, ({ params, query, ok }) => {
     const c = findScopedContract(params.id, query.applicationId);
@@ -243,42 +263,48 @@ const memberRenewalHandlers = [
   mock(memberRenewalContract.sign, ({ body, ok }) => {
     if (findMemberContract()) return badRequest('该业务已存在生效中的签约协议');
     const plan = requireItem(mockDeductPlans, body.planId, '扣款计划不存在');
+    if (plan.status !== 'enabled') return badRequest('扣款计划已停用');
     const payMethod = body.payMethod;
     const now = mockDateTime();
-    const contract: PaymentContract = {
-      id: getNextContractId(),
-      contractNo: `CT${Date.now()}${Math.floor(Math.random() * 9000 + 1000)}`,
-      channel: PAYMENT_METHOD_CHANNEL[payMethod],
-      channelConfigId: payMethod === 'wechat_papay' ? 1 : 2,
-      appId: payMethod === 'wechat_papay' ? 1 : 3,
-      currency: 'CNY',
-      planId: plan.id,
-      planName: plan.name,
-      planPeriod: plan.period,
-      planAmount: plan.amount,
-      signerAccount: '13800138000',
-      signerName: '演示会员',
-      status: 'signed',
-      unknownOperation: null,
-      version: 0,
-      errorMessage: null,
-      channelContractNo: `${payMethod === 'wechat_papay' ? 'WXCT' : 'ALICT'}${Date.now()}`,
-      bizType: DEMO_MEMBER_BIZ.bizType,
-      bizId: DEMO_MEMBER_BIZ.bizId,
-      nextDeductAt: advance(plan.period, plan.customDays),
-      lastDeductAt: null,
-      failCount: 0,
-      totalDeductCount: 0,
-      lastOrderNo: null,
-      signedAt: now,
-      terminatedAt: null,
-      remark: '会员自动续费',
-      createdAt: now,
-      updatedAt: now,
-    };
-    mockPaymentContracts.push(contract);
-    const firstDeduct = simulateDeduct(contract);
-    return ok({ contract, firstDeduct }, '签约完成');
+    const result = withMockNumberingTransaction(() => {
+      const contractNo = allocateMockBusinessNumber({ scene: 'payment.contract', tenantId: null, allocationKey: crypto.randomUUID() });
+      const contract: PaymentContract = {
+        id: getNextContractId(),
+        contractNo,
+        channel: PAYMENT_METHOD_CHANNEL[payMethod],
+        channelConfigId: payMethod === 'wechat_papay' ? 1 : 2,
+        appId: payMethod === 'wechat_papay' ? 1 : 3,
+        currency: 'CNY',
+        planId: plan.id,
+        planName: plan.name,
+        planPeriod: plan.period,
+        planAmount: plan.amount,
+        signerAccount: '13800138000',
+        signerName: '演示会员',
+        status: 'signed',
+        unknownOperation: null,
+        version: 0,
+        errorMessage: null,
+        channelContractNo: mockChannelReference('CHANNELCT'),
+        bizType: DEMO_MEMBER_BIZ.bizType,
+        bizId: DEMO_MEMBER_BIZ.bizId,
+        nextDeductAt: advance(plan.period, plan.customDays),
+        lastDeductAt: null,
+        failCount: 0,
+        totalDeductCount: 0,
+        lastOrderNo: null,
+        signedAt: now,
+        terminatedAt: null,
+        remark: '会员自动续费',
+        createdAt: now,
+        updatedAt: now,
+      };
+      mockPaymentContracts.push(contract);
+      attachMockBusinessNumber({ scene: 'payment.contract', tenantId: null, number: contractNo, businessKey: String(contract.id) });
+      const firstDeduct = simulateDeduct(contract);
+      return { contract, firstDeduct };
+    }, [mockPaymentContracts, mockPaymentOrders, mockVipRenewals]);
+    return ok(result, '签约完成');
   }),
   mock(memberRenewalContract.terminate, ({ ok }) => {
     const c = findMemberContract();

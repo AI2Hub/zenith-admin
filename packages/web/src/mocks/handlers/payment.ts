@@ -8,7 +8,6 @@ import {
   paymentRefundContract,
   paymentStatsContract,
   type PaymentChannelConfig,
-  type PaymentOrder,
   type PaymentRefund,
   type PaymentTrendPoint,
 } from '@zenith/shared/payment';
@@ -16,9 +15,7 @@ import {
   mockPaymentChannels,
   getNextPaymentChannelId,
   mockPaymentOrders,
-  getNextPaymentOrderId,
   mockPaymentRefunds,
-  getNextPaymentRefundId,
   mockPaymentLogs,
 } from '@/mocks/data/payment';
 import { mock } from '@/mocks/utils/contract';
@@ -29,6 +26,9 @@ import { recordMockPaymentSucceeded, recordMockRefundSucceeded } from './payment
 import { publishMockWatchEvent } from '@/mocks/data/entity-watch-events';
 import dayjs from 'dayjs';
 import { filterByKeyword, includesKeyword, matchesFilter, withinDateRange } from '@/mocks/utils/filter';
+import { createNumberedMockPaymentOrder, createNumberedMockRefund } from '@/mocks/utils/payment-numbering';
+
+const orderIdempotencyRecords = new Map<string, { requestHash: string; result: { orderNo: string; payParams: unknown } }>();
 
 interface MockRefundIdempotencyRecord {
   requestHash: string;
@@ -218,21 +218,27 @@ export const paymentHandlers = [
     );
     return ok(paginate(filtered));
   }),
-  mock(paymentOrderContract.createOrder, ({ body, ok }) => {
+  mock(paymentOrderContract.createOrder, ({ body, request, ok }) => {
+    const idempotencyKey = request.headers.get('x-idempotency-key')?.trim();
+    const allocationKey = `app:${body.applicationId}:request:${idempotencyKey ?? crypto.randomUUID()}`;
+    const requestHash = JSON.stringify(body);
+    const existing = idempotencyKey ? orderIdempotencyRecords.get(allocationKey) : undefined;
+    if (existing) {
+      if (existing.requestHash !== requestHash) return conflict('同一幂等键不能用于不同支付请求', { status: 409 });
+      return ok(existing.result, '下单成功');
+    }
     const channel = PAYMENT_METHOD_CHANNEL[body.payMethod];
     const expectedConfigId = demoChannelConfigId(body.applicationId);
     if (!expectedConfigId || mockPaymentChannels.find((config) => config.id === expectedConfigId)?.channel !== channel) {
       return badRequest('支付应用未绑定所选支付方式对应的商户配置');
     }
-    const orderNo = `PAY${Date.now()}`;
-    const now = mockDateTime();
-    const order: PaymentOrder = {
-      id: getNextPaymentOrderId(), orderNo, outTradeNo: orderNo, channelTradeNo: null, bizType: body.bizType, bizId: body.bizId,
+    const order = createNumberedMockPaymentOrder({ scene: 'payment.order', allocationKey, context: { requestHash }, values: {
+      channelTradeNo: null, bizType: body.bizType, bizId: body.bizId,
       subject: body.subject, body: body.body ?? null, amount: body.amount, currency: body.currency, channel, channelConfigId: expectedConfigId, channelAccountId: expectedConfigId, credentialVersion: 1, appId: body.applicationId,
       payMethod: body.payMethod, status: 'paying', userId: body.userId ?? 1, openId: body.openId ?? null, clientIp: '127.0.0.1', departmentId: null,
-      paidAmount: null, feeAmount: null, netAmount: null, paidAt: null, expiredAt: mockDateTimeOffset(body.expireMinutes * 60 * 1000), errorMessage: null, version: 0, createdAt: now, updatedAt: now,
-    };
-    mockPaymentOrders.unshift(order);
+      paidAmount: null, feeAmount: null, netAmount: null, paidAt: null, expiredAt: mockDateTimeOffset(body.expireMinutes * 60 * 1000), errorMessage: null, version: 0,
+    } });
+    const orderNo = order.orderNo;
     const payParams = {
       orderNo,
       channel,
@@ -240,7 +246,9 @@ export const paymentHandlers = [
       codeUrl: channel === 'wechat' ? `weixin://wxpay/bizpayurl?pr=${orderNo}` : undefined,
       payUrl: channel === 'alipay' ? `https://openapi.alipaydev.com/gateway.do?out_trade_no=${orderNo}` : undefined,
     };
-    return ok({ orderNo, payParams }, '下单成功');
+    const result = { orderNo, payParams };
+    if (idempotencyKey) orderIdempotencyRecords.set(allocationKey, { requestHash, result });
+    return ok(result, '下单成功');
   }),
   mock(paymentOrderContract.orderByNo, ({ params, ok }) => {
     const o = mockPaymentOrders.find((x) => x.orderNo === params.orderNo);
@@ -292,17 +300,9 @@ export const paymentHandlers = [
       }
       return ok(existing.result, '退款已发起');
     }
-    const refundNo = `REF${Date.now()}`;
-    const now = mockDateTime();
-    const refund: PaymentRefund = {
-      id: getNextPaymentRefundId(), refundNo, outRefundNo: refundNo, orderNo: order.orderNo, orderId: order.id, channelAccountId: order.channelAccountId, credentialVersion: order.credentialVersion, channelRefundNo: `5000${Date.now()}`,
-      channel: order.channel, refundAmount: body.refundAmount, totalAmount: order.amount, reason: body.reason ?? null, status: 'success', approvalStatus: 'none',
-      operatorId: 1, refundedAt: now, errorMessage: null, version: 0, createdAt: now, updatedAt: now,
-    };
-    mockPaymentRefunds.unshift(refund);
-    order.status = body.refundAmount >= order.amount ? 'refunded' : 'success';
-    order.version += 1;
-    order.updatedAt = now;
+    const refund = createNumberedMockRefund({ order, amount: body.refundAmount, reason: body.reason,
+      allocationKey: `order:${order.id}:request:${idempotencyKey}` });
+    const refundNo = refund.refundNo;
     recordMockRefundSucceeded(refund);
     const result = { refundNo, status: refund.status };
     refundIdempotencyRecords.set(cacheKey, { requestHash, result });

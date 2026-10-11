@@ -2,11 +2,15 @@
 // @ts-nocheck -- Demo fixtures intentionally omit production-only credential metadata in some legacy scenarios.
 import { mock } from '@/mocks/utils/contract';
 import { mockDateTime } from '@/mocks/utils/date';
-import { notFound, badRequest } from '@/mocks/utils/handlers';
+import { notFound, badRequest, conflict } from '@/mocks/utils/handlers';
 import { PAYMENT_METHOD_CHANNEL, paymentPreauthContract } from '@zenith/shared/payment';
 import type { PaymentChannel, PaymentPreauth } from '@zenith/shared/payment';
 import dayjs from 'dayjs';
 import { includesKeyword, matchesFilter, withinDateRange } from '@/mocks/utils/filter';
+import { allocateMockBusinessNumber, attachMockBusinessNumber, withMockNumberingTransaction } from '@/mocks/utils/numbering';
+import { createNumberedMockPaymentOrder, mockChannelReference } from '@/mocks/utils/payment-numbering';
+import { mockPaymentOrders } from '@/mocks/data/payment';
+import { recordMockPaymentSucceeded } from './payment-ext';
 
 let nextId = 4;
 
@@ -37,6 +41,7 @@ const preauths: PaymentPreauth[] = [
     createdAt: dayjs().subtract(1, 'hour').format('YYYY-MM-DD HH:mm:ss'), updatedAt: dayjs().subtract(1, 'hour').format('YYYY-MM-DD HH:mm:ss'),
   },
 ];
+export { preauths as mockPaymentPreauths };
 
 /** 预授权单按支付应用隔离：applicationId 已由契约 query 校验为正整数 */
 function findScopedPreauth(id: number, applicationId: number): PaymentPreauth | undefined {
@@ -57,30 +62,48 @@ export const paymentPreauthHandlers = [
     const channel: PaymentChannel = PAYMENT_METHOD_CHANNEL[body.payMethod];
     const channelConfigId = body.applicationId === 3 && channel === 'alipay' ? 2 : (body.applicationId === 1 || body.applicationId === 2) && channel === 'wechat' ? 1 : null;
     if (!channelConfigId) return badRequest('支付应用未绑定所选预授权方式对应的商户配置');
-    const preauthNo = `PRE${Date.now()}`;
-    const item: PaymentPreauth = {
-      id: nextId++, preauthNo, channel, channelConfigId, appId: body.applicationId, currency: body.currency,
-      channelPreauthNo: `${channel === 'wechat' ? 'WXPA' : 'ALIPA'}${Date.now()}`,
-      bizType: body.bizType?.trim() || 'admin_preauth', bizId: body.bizId, subject: body.subject, payerAccount: body.payerAccount,
-      frozenAmount: body.frozenAmount, capturedAmount: null, captureOrderNo: null, status: 'frozen', errorMessage: null,
-      unknownOperation: null, version: 0,
-      frozenAt: now, finishedAt: null, remark: body.remark ?? null, operatorName: '管理员', createdAt: now, updatedAt: now,
-    };
-    preauths.push(item);
+    const item = withMockNumberingTransaction(() => {
+      const preauthNo = allocateMockBusinessNumber({ scene: 'payment.preauth', tenantId: null, allocationKey: crypto.randomUUID() });
+      const item: PaymentPreauth = {
+        id: nextId++, preauthNo, channel, channelConfigId, appId: body.applicationId, currency: body.currency,
+        channelAccountId: channelConfigId, credentialVersion: 1,
+        channelPreauthNo: mockChannelReference('CHANNELPRE'),
+        bizType: body.bizType?.trim() || 'admin_preauth', bizId: body.bizId, subject: body.subject, payerAccount: body.payerAccount,
+        frozenAmount: body.frozenAmount, capturedAmount: null, captureOrderNo: null, status: 'frozen', errorMessage: null,
+        unknownOperation: null, version: 0,
+        frozenAt: now, finishedAt: null, remark: body.remark ?? null, operatorName: '管理员', createdAt: now, updatedAt: now,
+      };
+      preauths.push(item);
+      attachMockBusinessNumber({ scene: 'payment.preauth', tenantId: null, number: preauthNo, businessKey: String(item.id) });
+      return item;
+    }, [preauths]);
     return ok(item, '冻结完成');
   }),
   mock(paymentPreauthContract.capture, ({ params, query, body, ok }) => {
     const p = findScopedPreauth(params.id, query.applicationId);
     if (!p) return notFound('预授权单不存在');
-    if (p.status !== 'frozen') return badRequest('仅已冻结的预授权可转支付');
     const captureAmount = body.captureAmount ?? p.frozenAmount;
+    if (p.status === 'captured') return p.capturedAmount === captureAmount ? ok(p, '转支付完成') : conflict('同一预授权转支付请求的金额发生变化', { status: 409 });
+    if (p.status !== 'frozen') return badRequest('仅已冻结的预授权可转支付');
     if (captureAmount > p.frozenAmount) return badRequest('转支付金额不能超过冻结金额');
-    p.status = 'captured';
-    p.version += 1;
-    p.capturedAmount = captureAmount;
-    p.captureOrderNo = `PAC${Date.now()}`;
-    p.finishedAt = mockDateTime();
-    p.updatedAt = mockDateTime();
+    const order = withMockNumberingTransaction(() => {
+      const now = mockDateTime();
+      const order = createNumberedMockPaymentOrder({ scene: 'payment.capture', allocationKey: `preauth:${p.id}`, values: {
+        channel: p.channel, channelConfigId: p.channelConfigId, channelAccountId: p.channelAccountId, credentialVersion: p.credentialVersion,
+        appId: p.appId, currency: p.currency, bizType: p.bizType, bizId: p.bizId, subject: p.subject, body: null,
+        channelTradeNo: mockChannelReference('CHANNELPAC'), payMethod: p.channel === 'wechat' ? 'wechat_native' : 'alipay_page',
+        status: 'success', amount: captureAmount, paidAmount: captureAmount, feeAmount: null, netAmount: null, paidAt: now,
+        expiredAt: null, errorMessage: null, version: 0, userId: null, openId: null, clientIp: null, departmentId: null,
+      } });
+      p.status = 'captured';
+      p.version += 1;
+      p.capturedAmount = captureAmount;
+      p.captureOrderNo = order.orderNo;
+      p.finishedAt = now;
+      p.updatedAt = now;
+      return order;
+    }, [preauths, mockPaymentOrders]);
+    recordMockPaymentSucceeded(order);
     return ok(p, '转支付完成');
   }),
   mock(paymentPreauthContract.release, ({ params, query, ok }) => {
@@ -98,6 +121,7 @@ export const paymentPreauthHandlers = [
     if (!p) return notFound('预授权单不存在');
     if (p.status !== 'pending' && p.status !== 'unknown') return ok(p, '查询完成');
     const operation = p.unknownOperation ?? 'freeze';
+    if (operation === 'capture' && !p.captureOrderNo) return conflict('预授权缺少已提交的转支付订单，请核查业务记录', { status: 409 });
     p.status = operation === 'release' ? 'released' : operation === 'capture' ? 'captured' : 'frozen';
     p.unknownOperation = null;
     p.errorMessage = null;
@@ -106,7 +130,6 @@ export const paymentPreauthHandlers = [
     if (p.status === 'frozen') p.frozenAt ??= p.updatedAt;
     if (p.status === 'captured') {
       p.capturedAmount ??= p.frozenAmount;
-      p.captureOrderNo ??= `PAC${Date.now()}`;
       p.finishedAt = p.updatedAt;
     }
     if (p.status === 'released') p.finishedAt = p.updatedAt;

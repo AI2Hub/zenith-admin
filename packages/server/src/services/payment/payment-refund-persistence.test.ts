@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DbTransaction } from '../../db/types';
 
-const mocks = vi.hoisted(() => ({ select: vi.fn(), update: vi.fn(), transaction: vi.fn(), provider: vi.fn() }));
+const mocks = vi.hoisted(() => ({ select: vi.fn(), update: vi.fn(), transaction: vi.fn(), provider: vi.fn(), allocate: vi.fn(), attach: vi.fn() }));
 vi.mock('../../db', () => ({ db: { select: mocks.select, update: mocks.update, transaction: mocks.transaction, $count: async () => 0 } }));
 vi.mock('../../lib/context', () => ({ currentUser: () => ({ userId: 9, tenantId: 7 }), currentUserOrNull: () => ({ userId: 9, tenantId: 7 }), setAuditSubjects: vi.fn() }));
 vi.mock('../../lib/settings', () => ({ getSettings: async () => ({ refundApprovalThreshold: 0 }) }));
@@ -10,6 +10,7 @@ vi.mock('../../lib/payment', () => ({ getAdapter: () => ({ refund: mocks.provide
 vi.mock('./payment-channel-config-resolver', () => ({ assertPaymentEngineConfig: vi.fn(), resolvePaymentChannelConfig: vi.fn() }));
 vi.mock('./payment-capability-evaluator', () => ({ assertEffectivePaymentOperation: vi.fn() }));
 vi.mock('./payment-risk.service', () => ({ assertNoPendingRiskReview: vi.fn(), evaluateRisk: vi.fn(), recordRiskHit: vi.fn(), suspendOrderForReview: vi.fn() }));
+vi.mock('../platform/numbering-runtime', () => ({ allocateBusinessNumber: mocks.allocate, attachBusinessNumber: mocks.attach }));
 
 import { paymentChannelConfigs, paymentOrders, paymentRefunds } from '../../db/schema';
 import { refund } from './payment.service';
@@ -26,7 +27,8 @@ function fixture() {
   let committed = false;
   const order = { id: 41, orderNo: 'PO41', status: 'success', amount: 1000, channel: 'wechat', channelConfigId: 2, channelAccountId: 3, tenantId: 7, payMethod: 'wechat_native', currency: 'CNY' };
   mocks.select.mockImplementation(() => ({ from: (table: unknown) => selectChain(() => table === paymentOrders ? [order]
-    : table === paymentChannelConfigs ? [{ id: 2, channel: 'wechat', sandbox: true, tenantId: 7, credentialVersion: 1, notifyUrl: 'https://payment.test', callbackToken: 'test' }] : []) }));
+    : table === paymentChannelConfigs ? [{ id: 2, channel: 'wechat', sandbox: true, tenantId: 7, credentialVersion: 1, notifyUrl: 'https://payment.test', callbackToken: 'test' }]
+    : table === paymentRefunds && inserted ? [inserted] : []) }));
   mocks.update.mockImplementation(() => ({ set: () => ({ where: async () => undefined }) }));
   const tx = {
     execute: async () => undefined,
@@ -36,6 +38,8 @@ function fixture() {
     } }) }),
     update: mocks.update,
   } as unknown as DbTransaction;
+  mocks.allocate.mockImplementation(async (executor: DbTransaction) => { expect(executor).toBe(tx); stages.push('allocate'); return 'REF202610110001'; });
+  mocks.attach.mockImplementation(async (executor: DbTransaction) => { expect(executor).toBe(tx); stages.push('attach'); });
   mocks.transaction.mockImplementation(async (work: (executor: DbTransaction) => Promise<unknown>) => {
     const result = await work(tx); committed = true; stages.push('commit'); return result;
   });
@@ -51,7 +55,9 @@ describe('refund domain linkage', () => {
     await refund({ orderNo: 'PO41', refundAmount: 100, idempotencyKey: 'dispute-4', onPersisted: async (tx, row) => {
       expect(tx).toBe(f.tx); expect(row.id).toBe(8); expect(row.tenantId).toBe(7); f.stages.push('link');
     } });
-    expect(f.stages).toEqual(['refund', 'link', 'commit', 'provider']);
+    expect(f.stages).toEqual(['allocate', 'refund', 'attach', 'link', 'commit', 'provider']);
+    expect(mocks.allocate).toHaveBeenCalledWith(f.tx, expect.objectContaining({ scene: 'payment.refund', tenantId: 7, allocationKey: 'order:41:request:dispute-4' }));
+    expect(mocks.attach).toHaveBeenCalledWith(f.tx, { scene: 'payment.refund', tenantId: 7, number: 'REF202610110001', businessKey: '8' });
     expect(f.committed()).toBe(true);
   });
 
@@ -62,5 +68,23 @@ describe('refund domain linkage', () => {
     } })).rejects.toThrow('dispute already closed');
     expect(f.committed()).toBe(false);
     expect(mocks.provider).not.toHaveBeenCalled();
+  });
+
+  it('replays the same request without consuming a number or calling the provider twice', async () => {
+    fixture();
+    const input = { orderNo: 'PO41', refundAmount: 100, idempotencyKey: 'dispute-4' };
+    const first = await refund(input);
+    const second = await refund(input);
+    expect(second).toEqual(first);
+    expect(mocks.allocate).toHaveBeenCalledTimes(1);
+    expect(mocks.provider).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects changed refund amounts under the same key before allocating another number', async () => {
+    fixture();
+    await refund({ orderNo: 'PO41', refundAmount: 100, idempotencyKey: 'dispute-4' });
+    await expect(refund({ orderNo: 'PO41', refundAmount: 200, idempotencyKey: 'dispute-4' })).rejects.toThrow('同一 Idempotency-Key 不可用于不同退款请求');
+    expect(mocks.allocate).toHaveBeenCalledTimes(1);
+    expect(mocks.provider).toHaveBeenCalledTimes(1);
   });
 });

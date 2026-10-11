@@ -25,7 +25,9 @@ try {
     process.stderr.write(`${migration.stdout ?? ''}${migration.stderr ?? ''}`);
     throw new Error('临时 QA 数据库迁移失败');
   }
-  const tests = spawnSync(process.execPath, [resolve(root, 'node_modules/vitest/vitest.mjs'), 'run', 'src/services/platform/numbering-runtime.postgres.test.ts'], { cwd: serverRoot, env, stdio: 'inherit' });
+  const tests = spawnSync(process.execPath, [resolve(root, 'node_modules/vitest/vitest.mjs'), 'run',
+    'src/services/platform/numbering-runtime.postgres.test.ts', 'src/services/biz-demo/biz-leave-numbering.postgres.test.ts', '--maxWorkers=1',
+  ], { cwd: serverRoot, env, stdio: 'inherit' });
   exitCode = tests.status ?? 1;
 } finally {
   // Only the exact database successfully created by this invocation can be removed.

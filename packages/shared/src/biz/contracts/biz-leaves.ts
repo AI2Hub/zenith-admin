@@ -11,6 +11,7 @@ import { workflowBusinessApprovalQuery, workflowBusinessContextQuery, workflowBu
 /** 业务接入示例：请假单（业务模块自有实体，通过 businessKey 关联工作流） */
 export const bizLeaveSchema = z.object({
   id: z.int(),
+  leaveNo: z.string().nullable().meta({ description: '请假业务单号，创建后保持不变，与审批轮次编号独立' }),
   leaveType: z.string().meta({ description: '请假类型：annual=年假, sick=病假, personal=事假, marriage=婚假, other=其他', example: 'annual' }),
   startDate: z.string().meta({ description: '开始日期 YYYY-MM-DD' }),
   endDate: z.string().meta({ description: '结束日期 YYYY-MM-DD' }),
@@ -31,7 +32,7 @@ export type BizLeave = z.infer<typeof bizLeaveSchema>;
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const bizLeaveListQuery = paginationQuery.extend({
-  keyword: keywordQuery('事由'),
+  keyword: keywordQuery('请假单号 / 事由'),
   status: queryEnum(BIZ_LEAVE_STATUSES, '按业务状态过滤'),
 });
 

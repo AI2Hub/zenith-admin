@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 // @ts-nocheck -- Demo fixtures intentionally omit production-only credential metadata in some legacy scenarios.
-import { PAYMENT_MOCK_SEED_TIME, getNextPaymentOrderId, mockPaymentChannels, mockPaymentOrders, mockPaymentRefunds } from '@/mocks/data/payment';
+import { PAYMENT_MOCK_SEED_TIME, mockPaymentChannels, mockPaymentOrders, mockPaymentRefunds } from '@/mocks/data/payment';
 import { mock } from '@/mocks/utils/contract';
 import { mockDateTime, mockDateTimeOffset } from '@/mocks/utils/date';
 import { notFound, badRequest, conflict, forbidden } from '@/mocks/utils/handlers';
@@ -47,6 +47,8 @@ import { mockOAuth2Clients } from './oauth2-apps';
 import { filterByKeyword, includesKeyword, matchesFilter, withinDateRange } from '@/mocks/utils/filter';
 import { removeByIds, requireItem, updateItem } from '@/mocks/utils/crud';
 import { mockResource } from '@/mocks/utils/resource';
+import { allocateMockBusinessNumber, attachMockBusinessNumber, withMockNumberingTransaction } from '@/mocks/utils/numbering';
+import { createNumberedMockPaymentOrder, mockChannelReference } from '@/mocks/utils/payment-numbering';
 
 const SEED = PAYMENT_MOCK_SEED_TIME;
 const methodConfigs: PaymentMethodConfig[] = SEED_PAYMENT_METHOD_CONFIGS.map((m) => ({
@@ -160,19 +162,24 @@ const settlementHandlers = [
     const netBigInt = availableLines.reduce((sum, line) => sum + BigInt(line.amount), 0n);
     if (netBigInt <= 0n || netBigInt > BigInt(Number.MAX_SAFE_INTEGER)) return badRequest('该账期可结算净额无效');
     const netAmount = Number(netBigInt);
-    const batchId = nextSettlementId++;
-    const now = mockDateTime();
-    const item: PaymentSettlementBatch = {
-      id: batchId, batchNo: `SETTLE${Date.now()}`, channel: config.channel, appId: body.applicationId, channelConfigId: body.channelConfigId, currency: body.currency,
-      periodStart: body.periodStart, periodEnd: body.periodEnd,
-      status: 'pending', orderCount: availableLines.length, grossAmount: netAmount, feeAmount: 0, refundAmount: 0, sharingAmount: 0, netAmount,
-      settledAt: null, failureReason: null, payoutReference: null, version: 0, remark: body.remark ?? null, createdAt: now, updatedAt: now,
-    };
-    availableLines.forEach((line) => {
-      line.batchId = batchId;
-      line.createdAt = now;
-    });
-    settlements.push(item);
+    const item = withMockNumberingTransaction(() => {
+      const batchNo = allocateMockBusinessNumber({ scene: 'payment.settlement', tenantId: null, allocationKey: crypto.randomUUID() });
+      const batchId = nextSettlementId++;
+      const now = mockDateTime();
+      const item: PaymentSettlementBatch = {
+        id: batchId, batchNo, channel: config.channel, appId: body.applicationId, channelConfigId: body.channelConfigId, currency: body.currency,
+        periodStart: body.periodStart, periodEnd: body.periodEnd,
+        status: 'pending', orderCount: availableLines.length, grossAmount: netAmount, feeAmount: 0, refundAmount: 0, sharingAmount: 0, netAmount,
+        settledAt: null, failureReason: null, payoutReference: null, version: 0, remark: body.remark ?? null, createdAt: now, updatedAt: now,
+      };
+      availableLines.forEach((line) => {
+        line.batchId = batchId;
+        line.createdAt = now;
+      });
+      settlements.push(item);
+      attachMockBusinessNumber({ scene: 'payment.settlement', tenantId: null, number: batchNo, businessKey: String(item.id) });
+      return item;
+    }, [settlements, mockSettlementLines]);
     return ok(item, '生成成功');
   }),
   mock(paymentSettlementContract.transition, ({ params, body, ok }) => {
@@ -269,12 +276,17 @@ const sharingHandlers = [
     const amount = body.amount ?? (receiver.ratioBps != null ? Math.round((paid * receiver.ratioBps) / 10000) : 0);
     if (amount <= 0) return badRequest('分账金额必须大于 0');
     if (amount > paid) return badRequest('分账金额不能超过订单实付金额');
-    const now = mockDateTime();
-    const item: PaymentSharingOrder = {
-      id: nextSharingOrderId++, sharingNo: `SHR${Date.now()}`, orderNo: body.orderNo, receiverId: receiver.id, receiverName: receiver.name,
-      amount, status: 'success', channelSharingNo: `WXSHARE${Date.now()}`, version: 0, finishedAt: now, remark: body.remark ?? null, createdAt: now, updatedAt: now,
-    };
-    sharingOrders.push(item);
+    const item = withMockNumberingTransaction(() => {
+      const sharingNo = allocateMockBusinessNumber({ scene: 'payment.sharing', tenantId: null, allocationKey: crypto.randomUUID(), context: { orderId: order.id, receiverId: receiver.id } });
+      const now = mockDateTime();
+      const item: PaymentSharingOrder = {
+        id: nextSharingOrderId++, sharingNo, orderNo: body.orderNo, receiverId: receiver.id, receiverName: receiver.name,
+        amount, status: 'success', channelSharingNo: mockChannelReference('CHANNELSHR'), version: 0, finishedAt: now, remark: body.remark ?? null, createdAt: now, updatedAt: now,
+      };
+      sharingOrders.push(item);
+      attachMockBusinessNumber({ scene: 'payment.sharing', tenantId: null, number: sharingNo, businessKey: String(item.id) });
+      return item;
+    }, [sharingOrders]);
     return ok(item, '分账已发起');
   }),
   mock(paymentSharingContract.reversals, ({ query, ok, paginate }) => {
@@ -341,6 +353,7 @@ const links: PaymentLink[] = [
 let nextLinkId = 3;
 let nextLinkToken = 3;
 const cashierSessions = new Map<string, PaymentCashierSession>();
+let nextCashierSessionId = 1;
 
 function computeLinkStatus(l: PaymentLink): PaymentLinkStatus {
   if (l.status === 'disabled') return 'disabled';
@@ -363,7 +376,7 @@ const linkHandlers = [
     if (!app) return badRequest('支付应用不存在或已停用');
     const now = mockDateTime();
     const item: PaymentLink = {
-      id: nextLinkId++, linkNo: `LINK${Date.now()}`, token: `demotoken${String(nextLinkToken++).padStart(23, '0')}`,
+      id: nextLinkId++, linkNo: '', token: `demotoken${String(nextLinkToken++).padStart(23, '0')}`,
       appId: app.id, subject: body.subject, amount: body.amount ?? null, payMethod: body.payMethod ?? null, bizType: body.bizType,
       maxUses: body.maxUses ?? null, usedCount: 0, reservedCount: 0, expiredAt: body.expiredAt ?? null, status: body.status === 'disabled' ? 'disabled' : 'active',
       remark: body.remark ?? null, createdAt: now, updatedAt: now,
@@ -371,7 +384,11 @@ const linkHandlers = [
     if (getMockLinkAvailableMethods(item).length === 0) {
       return badRequest(item.payMethod ? '所选固定支付方式当前不可用' : '支付应用当前没有可用的公开收银台支付方式');
     }
-    links.push(item);
+    withMockNumberingTransaction(() => {
+      item.linkNo = allocateMockBusinessNumber({ scene: 'payment.link', tenantId: null, allocationKey: crypto.randomUUID() });
+      links.push(item);
+      attachMockBusinessNumber({ scene: 'payment.link', tenantId: null, number: item.linkNo, businessKey: String(item.id) });
+    }, [links]);
     return ok(item, '创建成功');
   }),
   mock(paymentLinkContract.update, ({ params, body, ok }) => {
@@ -428,18 +445,22 @@ const linkHandlers = [
     if (l.maxUses != null && l.usedCount + l.reservedCount >= l.maxUses) return badRequest('该支付链接已过期或已达使用上限');
     const channel = PAYMENT_METHOD_CHANNEL[payMethod];
     const sessionToken = `${crypto.randomUUID().replaceAll('-', '')}${crypto.randomUUID().replaceAll('-', '')}`;
-    const orderNo = `PAY${Date.now()}`;
+    const sessionId = nextCashierSessionId++;
     const now = mockDateTime();
     const expiresAt = mockDateTimeOffset(30 * 60 * 1000);
     const consumesUseSlot = l.maxUses != null;
-    if (consumesUseSlot) l.reservedCount += 1;
-    l.updatedAt = mockDateTime();
-    mockPaymentOrders.unshift({
-      id: getNextPaymentOrderId(), orderNo, outTradeNo: orderNo, channelTradeNo: null, bizType: l.bizType, bizId: `${l.linkNo}:${sessionToken}`,
-      subject: l.subject, body: null, amount, currency: 'CNY', channel, channelConfigId: channel === 'wechat' ? 1 : 2, appId: l.appId,
-      payMethod, status: 'paying', userId: null, openId: body.openId ?? null, clientIp: '127.0.0.1', departmentId: null,
-      paidAmount: null, feeAmount: null, netAmount: null, paidAt: null, expiredAt: expiresAt, errorMessage: null, version: 0, createdAt: now, updatedAt: now,
-    });
+    const order = withMockNumberingTransaction(() => {
+      const order = createNumberedMockPaymentOrder({ scene: 'payment.order', allocationKey: `app:${l.appId}:request:${sessionToken}`, values: {
+        channelTradeNo: null, bizType: l.bizType, bizId: `link:${l.id}:session:${sessionId}`,
+        subject: l.subject, body: null, amount, currency: 'CNY', channel, channelConfigId: channel === 'wechat' ? 1 : 2, channelAccountId: channel === 'wechat' ? 1 : 2, credentialVersion: 1, appId: l.appId,
+        payMethod, status: 'paying', userId: null, openId: body.openId ?? null, clientIp: '127.0.0.1', departmentId: null,
+        paidAmount: null, feeAmount: null, netAmount: null, paidAt: null, expiredAt: expiresAt, errorMessage: null, version: 0,
+      } });
+      if (consumesUseSlot) l.reservedCount += 1;
+      l.updatedAt = now;
+      return order;
+    }, [mockPaymentOrders, links]);
+    const orderNo = order.orderNo;
     const payParams: CreatePaymentResult = {
       orderNo,
       channel,
@@ -721,6 +742,7 @@ const transfers: PaymentTransfer[] = [
   { id: 4, transferNo: 'TRF1700000000004', outTransferNo: 'TRF1700000000004', channel: 'wechat', appId: 1, channelConfigId: 1, currency: 'CNY', receiverAccount: 'oDEMO_openid_004', receiverName: '李四', amount: 180000, remark: '市场活动大额奖励', status: 'pending', approvalStatus: 'pending', appliedById: 2, approverId: null, approvedAt: null, approvalRemark: null, channelTransferNo: null, failReason: null, attempts: 0, fundReservationId: 20004, version: 0, bizType: 'activity_reward', bizId: 'ACT-4', finishedAt: null, operatorName: '财务经办', createdAt: SEED, updatedAt: SEED },
 ];
 let nextTransferId = 5;
+export { transfers as mockPaymentTransfers, links as mockPaymentLinks };
 const transferIdempotency = new Map<string, { requestHash: string; transferId: number }>();
 
 const transferHandlers = [
@@ -774,17 +796,22 @@ const transferHandlers = [
     const channelConfigId = body.channel === 'wechat' ? app?.wechatConfigId : body.channel === 'alipay' ? app?.alipayConfigId : app?.unionpayConfigId;
     if (!app || !channelConfigId) return badRequest('支付应用未绑定所选转账渠道');
     const now = mockDateTime();
-    const no = `TRF${Date.now()}`;
-    const transferId = nextTransferId++;
     const needsApproval = body.amount >= 100_000;
-    const item: PaymentTransfer = {
-      id: transferId, transferNo: no, outTransferNo: no, channel: body.channel, appId: app.id, channelConfigId, currency: body.currency, receiverAccount: body.receiverAccount,
-      receiverName: body.receiverName ?? null, amount: body.amount, remark, status: needsApproval ? 'pending' : 'success',
-      approvalStatus: needsApproval ? 'pending' : 'none', appliedById: 1, approverId: null, approvedAt: null, approvalRemark: null,
-      channelTransferNo: needsApproval ? null : `${body.channel === 'wechat' ? 'WXTRF' : 'ALITRF'}${Date.now()}`, failReason: null, attempts: needsApproval ? 0 : 1,
-      fundReservationId: 20000 + transferId, version: 0, bizType: body.bizType ?? null, bizId: body.bizId ?? null, finishedAt: needsApproval ? null : now, operatorName: '管理员', createdAt: now, updatedAt: now,
-    };
-    transfers.push(item);
+    const item = withMockNumberingTransaction(() => {
+      const no = allocateMockBusinessNumber({ scene: 'payment.transfer', tenantId: null,
+        allocationKey: `app:${app.id}:request:${idempotencyKey}`, context: { requestHash } });
+      const transferId = nextTransferId++;
+      const item: PaymentTransfer = {
+        id: transferId, transferNo: no, outTransferNo: no, channel: body.channel, appId: app.id, channelConfigId, currency: body.currency, receiverAccount: body.receiverAccount,
+        receiverName: body.receiverName ?? null, amount: body.amount, remark, status: needsApproval ? 'pending' : 'success',
+        approvalStatus: needsApproval ? 'pending' : 'none', appliedById: 1, approverId: null, approvedAt: null, approvalRemark: null,
+        channelTransferNo: needsApproval ? null : `${body.channel === 'wechat' ? 'WXTRF' : 'ALITRF'}${Date.now()}`, failReason: null, attempts: needsApproval ? 0 : 1,
+        fundReservationId: 20000 + transferId, version: 0, bizType: body.bizType ?? null, bizId: body.bizId ?? null, finishedAt: needsApproval ? null : now, operatorName: '管理员', createdAt: now, updatedAt: now,
+      };
+      transfers.push(item);
+      attachMockBusinessNumber({ scene: 'payment.transfer', tenantId: null, number: no, businessKey: String(item.id) });
+      return item;
+    }, [transfers]);
     transferIdempotency.set(mapKey, { requestHash, transferId: item.id });
     if (!needsApproval) {
       recordMockSystemJournal({ sourceType: 'payment.transfer', sourceId: item.transferNo, description: `转账出款 ${item.transferNo}`, appId: item.appId, channelConfigId: item.channelConfigId, currency: item.currency, lines: [{ accountCode: 'merchant_available', debitAmount: String(item.amount), memo: '扣减商户可用余额' }, { accountCode: 'provider_clearing', creditAmount: String(item.amount), memo: '渠道出款清算' }] });

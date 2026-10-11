@@ -21,7 +21,10 @@ import {
   mockMemberNotifications,
   mockInviteSummary,
 } from '../data/members';
-import { mockDateTime } from '../utils/date';
+import { mockDateTime, mockDateTimeOffset } from '../utils/date';
+import { PAYMENT_METHOD_CHANNEL } from '@zenith/shared/payment';
+import { mockPaymentChannels, mockPaymentOrders } from '@/mocks/data/payment';
+import { createNumberedMockPaymentOrder } from '@/mocks/utils/payment-numbering';
 
 const MEMBER_TOKEN = 'mock-member-token-demo';
 const MEMBER_REFRESH = 'mock-member-refresh-demo';
@@ -87,13 +90,32 @@ export const memberFrontHandlers = [
       deductMethods: [{ method: 'alipay_cycle', label: '支付宝周期扣款' }],
     },
   ])),
-  mock(memberSelfContract.recharge, ({ body, ok }) => ok({
-    orderNo: `MOCK${Date.now()}`,
-    payMethod: body.payMethod,
-    channel: body.payMethod.startsWith('wechat') ? 'wechat' : 'alipay',
-    codeUrl: 'https://example.com/mock-pay-qr',
-    expiredAt: '2027-01-01 00:00:00',
-  }, '已创建充值订单（演示）')),
+  mock(memberSelfContract.recharge, ({ body, ok }) => {
+    const channel = PAYMENT_METHOD_CHANNEL[body.payMethod];
+    const configId = body.applicationId === 3 && channel === 'alipay' ? 2
+      : (body.applicationId === 1 || body.applicationId === 2) && channel === 'wechat' ? 1 : null;
+    const config = mockPaymentChannels.find(item => item.id === configId && item.status === 'enabled');
+    if (!config) return badRequest('支付应用未绑定所选充值支付方式对应的商户配置');
+    const existing = mockPaymentOrders.find(item => item.bizType === 'member_recharge' && item.bizId === String(demo.id) && item.appId === body.applicationId
+      && ['pending', 'paying'].includes(item.status));
+    if (existing && (existing.payMethod !== body.payMethod || existing.amount !== body.amount
+      || existing.memberCouponId !== (body.memberCouponId ?? null))) {
+      return conflict('该会员已有不同支付参数的处理中充值订单');
+    }
+    const order = existing ?? createNumberedMockPaymentOrder({ scene: 'payment.order',
+      allocationKey: `app:${body.applicationId}:request:${crypto.randomUUID()}`, values: {
+        appId: body.applicationId, channel, channelConfigId: config.id, channelAccountId: config.id, credentialVersion: 1,
+        payMethod: body.payMethod, bizType: 'member_recharge', bizId: String(demo.id), subject: '会员钱包充值', body: null,
+        amount: body.amount, currency: 'CNY', status: 'paying', userId: demo.id, memberCouponId: body.memberCouponId ?? null,
+        channelTradeNo: null, clientIp: '127.0.0.1', departmentId: null, paidAmount: null, feeAmount: null, netAmount: null,
+        paidAt: null, expiredAt: mockDateTimeOffset(30 * 60 * 1000), errorMessage: null, version: 0,
+      } });
+    return ok({ orderNo: order.orderNo, payMethod: body.payMethod, channel,
+      ...(channel === 'wechat' ? { codeUrl: `weixin://wxpay/bizpayurl?pr=${order.orderNo}` }
+        : { payUrl: `https://example.com/mock-alipay/pay?orderNo=${order.orderNo}` }),
+      expiredAt: order.expiredAt ?? undefined,
+    }, '已创建充值订单（演示）');
+  }),
 
   // ── 自助：等级 ────────────────────────────────────────────────────────────
   mock(memberSelfContract.levels, ({ ok }) => ok(mockMemberLevels)),

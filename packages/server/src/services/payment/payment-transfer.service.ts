@@ -12,7 +12,7 @@ import { and, desc, eq, inArray, or, sql, type SQL } from 'drizzle-orm';
 import type { PgUpdateSetSource } from 'drizzle-orm/pg-core';
 import { HTTPException } from 'hono/http-exception';
 import { createHash, randomUUID } from 'node:crypto';
-import { genPaymentNo } from './payment-no';
+import { allocateBusinessNumber, attachBusinessNumber } from '../platform/numbering-runtime';
 import { db } from '../../db';
 import type { DbExecutor } from '../../db/types';
 import { buildListResult } from '../../lib/list-query';
@@ -81,10 +81,11 @@ async function reserveTransferFunds(input: {
   appId: number;
   channelConfigId: number;
   currency: string;
-  transferNo: string;
+  allocationKey: string;
+  requestHash: string;
   amount: number;
   reason: string;
-  transferValues: Omit<typeof paymentTransfers.$inferInsert, 'fundReservationId'>;
+  transferValues: Omit<typeof paymentTransfers.$inferInsert, 'fundReservationId' | 'transferNo' | 'outTransferNo'>;
 }): Promise<PaymentTransferRow> {
   const account = await ensureSystemLedgerAccount({
     tenantId: input.tenantId,
@@ -93,6 +94,13 @@ async function reserveTransferFunds(input: {
     currency: input.currency,
   }, 'merchant_available');
   return db.transaction(async (tx) => {
+    const transferNo = await allocateBusinessNumber(tx, {
+      scene: 'payment.transfer', tenantId: input.tenantId, allocationKey: input.allocationKey, context: { requestHash: input.requestHash },
+    });
+    const [existing] = await tx.select().from(paymentTransfers).where(and(
+      eq(paymentTransfers.transferNo, transferNo), exactTenantCondition(paymentTransfers.tenantId, input.tenantId),
+    )).limit(1);
+    if (existing) return existing;
     await tx.execute(sql`SELECT id FROM payment_ledger_accounts WHERE id = ${account.id} FOR UPDATE`);
     const available = await computeAccountAvailable(tx, account.id);
     if (available < BigInt(input.amount)) {
@@ -103,7 +111,7 @@ async function reserveTransferFunds(input: {
       accountId: account.id,
       channelAccountId: account.channelAccountId,
       sourceType: 'payment.transfer',
-      sourceId: input.transferNo,
+      sourceId: transferNo,
       amount: BigInt(input.amount),
       status: 'active',
       reason: input.reason,
@@ -114,8 +122,11 @@ async function reserveTransferFunds(input: {
     }).returning();
     const [transfer] = await tx.insert(paymentTransfers).values({
       ...input.transferValues,
+      transferNo,
+      outTransferNo: transferNo,
       fundReservationId: reservation.id,
     }).returning();
+    await attachBusinessNumber(tx, { scene: 'payment.transfer', tenantId: input.tenantId, number: transferNo, businessKey: String(transfer.id) });
     return transfer;
   });
 }
@@ -276,7 +287,6 @@ export async function createTransfer(input: CreatePaymentTransferInput & { idemp
     if (existing.requestHash !== requestHash) throw new HTTPException(409, { message: '同一 Idempotency-Key 不可用于不同转账请求' });
     return mapTransfer(existing);
   }
-  const transferNo = genPaymentNo('TRF');
   const approvalThreshold = await transferApprovalThreshold(tenantId);
   const needApproval = approvalThreshold > 0 && input.amount >= approvalThreshold;
   let created: PaymentTransferRow;
@@ -286,12 +296,11 @@ export async function createTransfer(input: CreatePaymentTransferInput & { idemp
       appId: applicationRoute.appId,
       channelConfigId: config.id,
       currency: input.currency,
-      transferNo,
+      allocationKey: `app:${applicationRoute.appId}:request:${idempotencyKey}`,
+      requestHash,
       amount: input.amount,
-      reason: input.remark?.trim() || `转账 ${transferNo}`,
+      reason: input.remark?.trim() || '转账资金预占',
       transferValues: {
-        transferNo,
-        outTransferNo: transferNo,
         channel: input.channel,
         appId: applicationRoute.appId,
         channelConfigId: config.id,

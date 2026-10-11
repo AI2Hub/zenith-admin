@@ -5,6 +5,10 @@ import { notFound, badRequest } from '@/mocks/utils/handlers';
 import { paymentDisputeContract, type PaymentDispute, type PaymentDisputeDetail, type PaymentDisputeReply, type PaymentDisputeStats } from '@zenith/shared/payment';
 import dayjs from 'dayjs';
 import { includesKeyword, matchesFilter, withinDateRange } from '@/mocks/utils/filter';
+import { allocateMockBusinessNumber, attachMockBusinessNumber, withMockNumberingTransaction } from '@/mocks/utils/numbering';
+import { createNumberedMockRefund, mockChannelReference } from '@/mocks/utils/payment-numbering';
+import { mockPaymentOrders, mockPaymentRefunds } from '@/mocks/data/payment';
+import { recordMockRefundSucceeded } from './payment-ext';
 
 let nextDisputeId = 4;
 let nextReplyId = 10;
@@ -99,6 +103,7 @@ function refreshOverdue(d: MockDispute): MockDispute {
   d.overdue = (d.status === 'pending' || d.status === 'processing') && !!d.deadline && dayjs(d.deadline).isBefore(dayjs());
   return d;
 }
+export { disputes as mockPaymentDisputes };
 
 function toDetail(d: MockDispute): PaymentDisputeDetail {
   const { replies, ...rest } = refreshOverdue(d);
@@ -152,43 +157,60 @@ export const paymentDisputeHandlers = [
     const d = requireItem(disputes, params.id, '投诉工单不存在');
     if (d.status !== 'pending' && d.status !== 'processing') return badRequest('工单已完结');
     const amount = body.refundAmount ?? d.amount;
-    d.refundNo = `REF${Date.now()}`;
-    d.replies.push({ id: nextReplyId++, author: 'system', content: `已发起退款 ${d.refundNo}（${(amount / 100).toFixed(2)} 元，状态：success）`, operatorName: '管理员', createdAt: mockDateTime() });
-    d.status = 'refunded';
-    d.resolvedAt = mockDateTime();
-    d.updatedAt = mockDateTime();
+    const order = mockPaymentOrders.find(item => item.orderNo === d.orderNo);
+    if (!order) return notFound('关联支付订单不存在');
+    const refund = withMockNumberingTransaction(() => {
+      const refund = createNumberedMockRefund({ order, amount, reason: body.reason ?? '投诉退款', allocationKey: `order:${order.id}:request:dispute:${d.id}` });
+      d.refundNo = refund.refundNo;
+      d.replies.push({ id: nextReplyId++, author: 'system', content: `已发起退款 ${d.refundNo}（${(amount / 100).toFixed(2)} 元，状态：success）`, operatorName: '管理员', createdAt: mockDateTime() });
+      d.status = 'refunded';
+      d.resolvedAt = mockDateTime();
+      d.updatedAt = mockDateTime();
+      return refund;
+    }, [disputes, mockPaymentOrders, mockPaymentRefunds]);
+    recordMockRefundSucceeded(refund);
     return ok(toDetail(d), '退款已发起');
   }),
   mock(paymentDisputeContract.simulate, ({ body, ok }) => {
-    const id = nextDisputeId++;
-    const now = mockDateTime();
-    const item: MockDispute = {
-      id,
-      disputeNo: `DSP${Date.now()}`,
-      channelDisputeNo: `WXC${Date.now()}`,
-      channel: 'wechat',
-      orderNo: body.orderNo ?? `PAY${Date.now()}`,
-      complainant: `oDemo_user_${String(id).padStart(3, '0')}`,
-      complainantPhone: '138****8888',
-      type: 'service_issue',
-      content: '联系客服无人响应，问题一直未解决。',
-      amount: 2900,
-      status: 'pending',
-      route: 'manual',
-      priority: 10,
-      slaHours: 48,
-      deadline: dayjs().add(24, 'hour').format('YYYY-MM-DD HH:mm:ss'),
-      overdue: false,
-      refundNo: null,
-      resolvedAt: null,
-      createdAt: now,
-      updatedAt: now,
-      replies: [
-        { id: nextReplyId++, author: 'user', content: '联系客服无人响应，问题一直未解决。', operatorName: null, createdAt: now },
-        { id: nextReplyId++, author: 'system', content: '智能分流（规则中心 dispute_triage v1）：路由：人工处理 · 优先级 10 · SLA 48 小时', operatorName: null, createdAt: now },
-      ],
-    };
-    disputes.push(item);
+    const order = body.orderNo ? mockPaymentOrders.find(item => item.orderNo === body.orderNo)
+      : mockPaymentOrders.find(item => item.status === 'success');
+    if (!order) return notFound('关联支付订单不存在');
+    const channelDisputeNo = mockChannelReference('CHANNELDSP');
+    const item = withMockNumberingTransaction(() => {
+      const disputeNo = allocateMockBusinessNumber({ scene: 'payment.dispute', tenantId: null,
+        allocationKey: `channel:${order.channel}:dispute:${channelDisputeNo}` });
+      const id = nextDisputeId++;
+      const now = mockDateTime();
+      const item: MockDispute = {
+        id,
+        disputeNo,
+        channelDisputeNo,
+        channel: order.channel,
+        orderNo: order.orderNo,
+        complainant: `oDemo_user_${String(id).padStart(3, '0')}`,
+        complainantPhone: '138****8888',
+        type: 'service_issue',
+        content: '联系客服无人响应，问题一直未解决。',
+        amount: order.paidAmount ?? order.amount,
+        status: 'pending',
+        route: 'manual',
+        priority: 10,
+        slaHours: 48,
+        deadline: dayjs().add(24, 'hour').format('YYYY-MM-DD HH:mm:ss'),
+        overdue: false,
+        refundNo: null,
+        resolvedAt: null,
+        createdAt: now,
+        updatedAt: now,
+        replies: [
+          { id: nextReplyId++, author: 'user', content: '联系客服无人响应，问题一直未解决。', operatorName: null, createdAt: now },
+          { id: nextReplyId++, author: 'system', content: '智能分流（规则中心 dispute_triage v1）：路由：人工处理 · 优先级 10 · SLA 48 小时', operatorName: null, createdAt: now },
+        ],
+      };
+      disputes.push(item);
+      attachMockBusinessNumber({ scene: 'payment.dispute', tenantId: null, number: disputeNo, businessKey: String(item.id) });
+      return item;
+    }, [disputes]);
     const { replies: _r, ...rest } = item;
     return ok(rest, '模拟投诉已生成');
   }),

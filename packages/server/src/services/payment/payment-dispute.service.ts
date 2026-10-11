@@ -13,7 +13,7 @@ import type { DomainEventType } from '@zenith/shared/platform';
 import { and, desc, eq, gte, inArray, lt, notInArray, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { randomInt } from 'node:crypto';
-import { genPaymentNo } from './payment-no';
+import { allocateBusinessNumber, attachBusinessNumber } from '../platform/numbering-runtime';
 import dayjs from 'dayjs';
 import { config } from '../../config';
 import { db } from '../../db';
@@ -327,11 +327,18 @@ const MOCK_COMPLAINTS: Array<{ type: PaymentDisputeType; content: string }> = [
 /** 为一笔成功订单生成模拟投诉（演示：对标渠道投诉 API 拉单） */
 async function createMockDispute(order: { orderNo: string; channel: PaymentChannel; amount: number; openId: string | null; tenantId: number | null }): Promise<PaymentDisputeRow> {
   const tpl = MOCK_COMPLAINTS[randomInt(0, MOCK_COMPLAINTS.length)];
-  const [row] = await db
+  const channelDisputeNo = `${order.channel === 'wechat' ? 'WXC' : order.channel === 'alipay' ? 'ALIC' : 'UPC'}${Date.now()}${randomInt(100, 999)}`;
+  const row = await db.transaction(async (tx) => {
+    const disputeNo = await allocateBusinessNumber(tx, {
+      scene: 'payment.dispute', tenantId: order.tenantId, allocationKey: `channel:${order.channel}:dispute:${channelDisputeNo}`,
+    });
+    const [existing] = await tx.select().from(paymentDisputes).where(and(eq(paymentDisputes.disputeNo, disputeNo), exactTenantCondition(paymentDisputes.tenantId, order.tenantId))).limit(1);
+    if (existing) return existing;
+    const [created] = await tx
     .insert(paymentDisputes)
     .values({
-      disputeNo: genPaymentNo('DSP'),
-      channelDisputeNo: `${order.channel === 'wechat' ? 'WXC' : order.channel === 'alipay' ? 'ALIC' : 'UPC'}${Date.now()}${randomInt(100, 999)}`,
+      disputeNo,
+      channelDisputeNo,
       channel: order.channel,
       orderNo: order.orderNo,
       complainant: order.openId ?? `user_${randomInt(1000, 9999)}`,
@@ -344,7 +351,10 @@ async function createMockDispute(order: { orderNo: string; channel: PaymentChann
       tenantId: order.tenantId,
     })
     .returning();
-  await appendReply(row.id, 'user', tpl.content);
+    await attachBusinessNumber(tx, { scene: 'payment.dispute', tenantId: order.tenantId, number: disputeNo, businessKey: String(created.id) });
+    await appendReply(created.id, 'user', tpl.content, null, tx);
+    return created;
+  });
   // 智能分流（best-effort：决策表未发布/求值异常不阻断工单创建）
   try {
     await triageDispute(row);

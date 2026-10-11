@@ -11,6 +11,7 @@ export default function LeaveDetails({ data }: Readonly<{ data: BizLeave | null 
     <>
       <Typography.Title heading={6}>请假申请</Typography.Title>
       <Descriptions row data={[
+        { key: '请假单号', value: data.leaveNo ? <Typography.Text copyable>{data.leaveNo}</Typography.Text> : EMPTY_PLACEHOLDER },
         { key: '申请人', value: data.applicantName ?? EMPTY_PLACEHOLDER },
         { key: '请假类型', value: getLabel(data.leaveType) },
         { key: '开始日期', value: data.startDate },

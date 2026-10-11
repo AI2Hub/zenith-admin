@@ -11,7 +11,7 @@ import type { QueryOutputOf, SubjectRef } from '@zenith/shared/core';
  */
 import { and, desc, eq, gte, inArray, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import { genPaymentNo } from './payment-no';
+import { allocateBusinessNumber, attachBusinessNumber } from '../platform/numbering-runtime';
 import { db } from '../../db';
 import { buildListResult, listRows } from '../../lib/list-query';
 import { paymentOrders, paymentRiskHits, paymentRiskReviews, paymentRiskRules, type PaymentOrderRow, type PaymentRiskHitRow, type PaymentRiskReviewRow, type PaymentRiskRuleRow } from '../../db/schema';
@@ -437,11 +437,14 @@ export async function assertNoPendingRiskReview(input: {
 /** review 动作：为已落库的挂起订单创建审核单（订单不调渠道，支付窗口延长至 24h 等待审核） */
 export async function suspendOrderForReview(order: PaymentOrderRow, decision: Exclude<RiskDecision, { action: 'pass' }>, input: RiskCheckInput): Promise<PaymentRiskReviewRow> {
   return db.transaction(async (tx) => {
+    const reviewNo = await allocateBusinessNumber(tx, { scene: 'payment.risk', tenantId: order.tenantId, allocationKey: `order:${order.id}` });
+    const [existing] = await tx.select().from(paymentRiskReviews).where(and(eq(paymentRiskReviews.reviewNo, reviewNo), exactTenantCondition(paymentRiskReviews.tenantId, order.tenantId))).limit(1);
+    if (existing) return existing;
     const hitId = await recordRiskHitWithin(tx, decision, { ...input, tenantId: order.tenantId }, order.orderNo, order.id);
     const [review] = await tx
       .insert(paymentRiskReviews)
       .values({
-        reviewNo: genPaymentNo('RSK'),
+        reviewNo,
         hitId,
         orderNo: order.orderNo,
         channel: order.channel,
@@ -455,6 +458,7 @@ export async function suspendOrderForReview(order: PaymentOrderRow, decision: Ex
         tenantId: order.tenantId,
       })
       .returning();
+    await attachBusinessNumber(tx, { scene: 'payment.risk', tenantId: order.tenantId, number: reviewNo, businessKey: String(review.id) });
     await tx.update(paymentOrders).set({ expiredAt: new Date(Date.now() + 24 * 60 * 60 * 1000) }).where(and(eq(paymentOrders.id, order.id), exactTenantCondition(paymentOrders.tenantId, order.tenantId)));
     await recordRiskReviewEvent(tx, 'payment.risk.review.created', review, order.id);
     return review;

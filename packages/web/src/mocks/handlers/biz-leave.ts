@@ -7,6 +7,10 @@ import { mockBizLeaves, getNextLeaveId } from '@/mocks/data/biz-leave';
 import { getMockBusinessContext, previewMockBusinessWorkflow, requireMockBusinessInstance, resolveMockBusinessDefinition, startMockBusinessWorkflow, syncMockWorkflowBusinessResult } from '@/mocks/utils/workflow-business';
 import { mockDateTime } from '@/mocks/utils/date';
 import { filterByKeyword } from '@/mocks/utils/filter';
+import { allocateMockBusinessNumber, attachMockBusinessNumber, withMockNumberingTransaction } from '@/mocks/utils/numbering';
+import { mockUsers } from '@/mocks/data/users';
+import { mockDepartments } from '@/mocks/data/departments';
+import { mockTenants } from '@/mocks/data/tenants';
 
 export const bizLeaveHandlers = [
   // 列表（我的请假）
@@ -14,7 +18,7 @@ export const bizLeaveHandlers = [
     const keyword = (query.keyword ?? '').trim().toLowerCase();
     let list = [...mockBizLeaves].sort((a, b) => b.id - a.id);
     if (query.status) list = list.filter((l) => l.status === query.status);
-    if (keyword) list = filterByKeyword(list, keyword, [(l) => l.reason], { caseInsensitive: true });
+    if (keyword) list = filterByKeyword(list, keyword, [(l) => l.leaveNo, (l) => l.reason], { caseInsensitive: true });
     return ok(paginate(list));
   }),
 
@@ -73,24 +77,26 @@ export const bizLeaveHandlers = [
   // 新建（草稿）：body 即 CreateBizLeaveInput（已校验、已补默认值）
   mock(bizLeaveContract.create, ({ body, ok }) => {
     const now = mockDateTime();
-    const leave: BizLeave = {
-      id: getNextLeaveId(),
-      leaveType: body.leaveType,
-      startDate: body.startDate,
-      endDate: body.endDate,
-      days: body.days,
-      reason: body.reason ?? null,
-      status: 'draft',
-      workflowInstanceId: null,
-      workflowStatus: null,
-      applicantId: 1,
-      applicantName: '管理员',
-      tenantId: 1,
-      createdAt: now,
-      updatedAt: now,
-    };
-    mockBizLeaves.unshift(leave);
-    return ok(leave, '创建成功');
+    return withMockNumberingTransaction(() => {
+      const id = getNextLeaveId();
+      const actor = mockUsers.find(user => user.id === 1);
+      const tenantId = actor?.tenantId ?? null;
+      const department = mockDepartments.find(item => item.id === actor?.departmentId);
+      const tenant = mockTenants.find(item => item.id === tenantId);
+      const leaveNo = allocateMockBusinessNumber({ scene: 'biz.leave', tenantId, allocationKey: String(id),
+        context: { categoryCode: body.leaveType, username: actor?.username ?? 'admin', nickname: actor?.nickname ?? '管理员',
+          tenantCode: tenant?.code ?? 'platform',
+          ...(department ? { departmentId: department.id, departmentCode: department.code, departmentName: department.name } : {}) },
+      });
+      const leave: BizLeave = {
+        id, leaveNo, leaveType: body.leaveType, startDate: body.startDate, endDate: body.endDate,
+        days: body.days, reason: body.reason ?? null, status: 'draft', workflowInstanceId: null,
+        workflowStatus: null, applicantId: 1, applicantName: '管理员', tenantId, createdAt: now, updatedAt: now,
+      };
+      mockBizLeaves.unshift(leave);
+      attachMockBusinessNumber({ scene: 'biz.leave', tenantId, number: leaveNo, businessKey: String(id) });
+      return ok(leave, '创建成功');
+    }, [mockBizLeaves]);
   }),
 
   // 编辑（仅草稿）

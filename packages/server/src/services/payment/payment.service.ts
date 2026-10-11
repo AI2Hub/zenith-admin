@@ -8,8 +8,8 @@ import type { QueryOutputOf } from '@zenith/shared/core';
  */
 import { and, desc, eq, gte, inArray, lte, ne, notInArray, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import { createHash } from 'node:crypto';
-import { genPaymentNo } from './payment-no';
+import { createHash, randomUUID } from 'node:crypto';
+import { allocateBusinessNumber, attachBusinessNumber } from '../platform/numbering-runtime';
 import { db } from '../../db';
 import { listRows } from '../../lib/list-query';
 import { paymentChannelConfigs, paymentApps, paymentNotifyLogs, paymentOrders, paymentRefunds, paymentSharingOrders, users, type PaymentChannelConfigRow, type PaymentNotifyLogRow, type PaymentOrderRow, type PaymentRefundRow } from '../../db/schema';
@@ -504,7 +504,7 @@ export async function createPayment(input: InternalCreatePaymentInput): Promise<
     throw new HTTPException(400, { message: riskDecision.message });
   }
 
-  const orderNo = genPaymentNo('PAY');
+  const allocationKey = idempotencyKey ? `app:${appId}:request:${idempotencyKey}` : `request:${randomUUID()}`;
   const expireMinutes = input.expireMinutes ?? 30;
   const expiredAt = new Date(Date.now() + expireMinutes * 60_000);
 
@@ -518,7 +518,11 @@ export async function createPayment(input: InternalCreatePaymentInput): Promise<
 
   let orderRow: PaymentOrderRow;
   try {
-    [orderRow] = await db
+    orderRow = await db.transaction(async (tx) => {
+      const orderNo = await allocateBusinessNumber(tx, {
+        scene: 'payment.order', tenantId, allocationKey, context: { requestHash },
+      });
+      const [row] = await tx
       .insert(paymentOrders)
       .values({
         orderNo,
@@ -550,6 +554,9 @@ export async function createPayment(input: InternalCreatePaymentInput): Promise<
         requestHash,
       })
       .returning();
+      await attachBusinessNumber(tx, { scene: 'payment.order', tenantId, number: orderNo, businessKey: String(row.id) });
+      return row;
+    });
   } catch (err) {
     // 落库失败：立即释放刚锁定的券（订单不存在，事件订阅者不会兜底）
     if (coupon) await releaseCouponForPayment(coupon.memberCouponId);
@@ -569,6 +576,7 @@ export async function createPayment(input: InternalCreatePaymentInput): Promise<
   }
 
   setAuditSubjects([{ type: 'payment.order', key: String(orderRow.id), role: 'primary' }], orderRow.tenantId);
+  const orderNo = orderRow.orderNo;
 
   // ── review 动作：订单落库后挂起（不调渠道），生成人工审核单等待处理 ─────────────
   if (riskDecision.action === 'review') {
@@ -959,7 +967,6 @@ export async function refund(input: CreateRefundInput & {
   await assertPaymentOperation(config, 'refund.create', order.payMethod, order.currency);
   assertNotifyUrl(buildAdapterContext(config).notifyUrl, config.sandbox);
 
-  const refundNo = genPaymentNo('REF');
   const operatorId = input.operatorId ?? currentUserOrNull()?.userId ?? null;
   const threshold = await refundApprovalThreshold(order.tenantId ?? null);
   const needApproval = threshold > 0 && input.refundAmount >= threshold;
@@ -992,6 +999,10 @@ export async function refund(input: CreateRefundInput & {
     if (lockedTotal + input.refundAmount > order.amount) {
       throw new HTTPException(400, { message: `退款金额超过可退余额（剩余 ${order.amount - lockedTotal} 分）` });
     }
+    const refundNo = await allocateBusinessNumber(tx, {
+      scene: 'payment.refund', tenantId: order.tenantId,
+      allocationKey: `order:${order.id}:request:${idempotencyKey}`, context: { requestHash },
+    });
     const [row] = await tx
       .insert(paymentRefunds)
       .values({
@@ -1014,6 +1025,7 @@ export async function refund(input: CreateRefundInput & {
         tenantId: order.tenantId,
       })
       .returning();
+    await attachBusinessNumber(tx, { scene: 'payment.refund', tenantId: order.tenantId, number: refundNo, businessKey: String(row.id) });
     // 退款申请一经落库即占用可退额度，订单状态统一由全部退款操作重算。
     await recomputeOrderRefundState(tx, order.id);
     await input.onPersisted?.(tx, row);
@@ -1024,7 +1036,7 @@ export async function refund(input: CreateRefundInput & {
   auditRefundSubjects(refundRow);
   if (refundResult.reused) return { refundNo: refundRow.refundNo, status: refundRow.status };
 
-  if (needApproval) return { refundNo, status: 'pending' };
+  if (needApproval) return { refundNo: refundRow.refundNo, status: 'pending' };
   return executeChannelRefund(order, refundRow, config);
 }
 

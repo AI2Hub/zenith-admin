@@ -14,8 +14,8 @@ import type { QueryOutputOf } from '@zenith/shared/core';
  */
 import { and, desc, eq, inArray, isNull, lt, lte, or, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import { randomInt } from 'node:crypto';
-import { genPaymentNo } from './payment-no';
+import { randomInt, randomUUID } from 'node:crypto';
+import { allocateBusinessNumber, attachBusinessNumber } from '../platform/numbering-runtime';
 import dayjs from 'dayjs';
 import { db } from '../../db';
 import { buildListResult } from '../../lib/list-query';
@@ -39,15 +39,6 @@ import { PAYMENT_METHOD_CHANNEL, paymentDeductPlanContract, paymentSigningContra
 import { pickEntity } from '../../lib/entity-map';
 
 const ACTIVE_CONTRACT_STATUSES: PaymentContractStatus[] = ['pending', 'unknown', 'signed', 'paused'];
-
-/**
- * A deduction order is the durable idempotency key for one contract period.
- * It must remain stable across process crashes and retries; a random order
- * number would allow the same period to be charged twice after a timeout.
- */
-function genDeductOrderNo(contractId: number, sequence: number): string {
-  return `DED${contractId}-${sequence}`;
-}
 
 /** 按计划周期从基准时间推进一期（monthly 用自然月，避免固定 30 天漂移） */
 export function advancePeriod(base: Date, plan: Pick<PaymentDeductPlanRow, 'period' | 'customDays'>): Date {
@@ -360,10 +351,12 @@ export async function signContract(input: SignContractInput): Promise<SignContra
   });
   if (existing) throw new HTTPException(400, { message: `该业务已存在生效中的签约协议（${existing.contractNo}）` });
 
-  const contractNo = genPaymentNo('CT');
+  const allocationKey = `request:${randomUUID()}`;
   let row: PaymentContractRow;
   try {
-    [row] = await db
+    row = await db.transaction(async (tx) => {
+      const contractNo = await allocateBusinessNumber(tx, { scene: 'payment.contract', tenantId, allocationKey });
+      const [created] = await tx
       .insert(paymentContracts)
       .values({
         contractNo,
@@ -384,6 +377,9 @@ export async function signContract(input: SignContractInput): Promise<SignContra
         tenantId,
       })
       .returning();
+      await attachBusinessNumber(tx, { scene: 'payment.contract', tenantId, number: contractNo, businessKey: String(created.id) });
+      return created;
+    });
   } catch (err) {
     if (isPgUniqueViolation(err)) throw new HTTPException(400, { message: '该业务已存在生效中的签约协议' });
     throw err;
@@ -391,7 +387,7 @@ export async function signContract(input: SignContractInput): Promise<SignContra
 
   try {
     const res = await adapter.signContract(buildAdapterContext(contractConfig), {
-      outContractNo: contractNo,
+      outContractNo: row.contractNo,
       signerAccount: input.signerAccount,
       planName: plan.name,
       amount: plan.amount,
@@ -677,7 +673,11 @@ export async function executeDeduction(input: PaymentContractRow): Promise<Deduc
         throw new HTTPException(409, { message: '协议状态已变化，请刷新后重试' });
       }
       const sequence = lockedContract.totalDeductCount + 1;
-      const stableOrderNo = genDeductOrderNo(lockedContract.id, sequence);
+      const stableOrderNo = await allocateBusinessNumber(tx, {
+        scene: 'payment.deduction', tenantId: lockedContract.tenantId,
+        allocationKey: `contract:${lockedContract.id}:period:${sequence}`,
+        context: { amount: plan.amount, currency: lockedContract.currency, appId: lockedContract.appId },
+      });
       const orderTenant = exactTenantCondition(paymentOrders.tenantId, lockedContract.tenantId);
       let [existingOrder] = await tx
         .select()
@@ -741,6 +741,7 @@ export async function executeDeduction(input: PaymentContractRow): Promise<Deduc
         expiredAt: dayjs().add(30, 'minute').toDate(),
         tenantId: lockedContract.tenantId,
       }).returning();
+      await attachBusinessNumber(tx, { scene: 'payment.deduction', tenantId: lockedContract.tenantId, number: stableOrderNo, businessKey: String(createdOrder.id) });
       const [maybeContract] = await tx.update(paymentContracts).set({ lastOrderNo: stableOrderNo, version: sql`${paymentContracts.version} + 1` })
         .where(and(eq(paymentContracts.id, lockedContract.id), eq(paymentContracts.version, lockedContract.version), eq(paymentContracts.status, 'signed'))).returning();
       const contract = requireRow(maybeContract, '协议状态已变化，请刷新后重试', 409);

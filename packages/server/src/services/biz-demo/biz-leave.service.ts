@@ -9,13 +9,13 @@ import type { QueryOutputOf, BodyOf } from '@zenith/shared/core';
  */
 import { and, desc, eq, isNull, inArray } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import type { BizLeave } from '@zenith/shared/biz';
+import type { BizLeave, CreateBizLeaveInput } from '@zenith/shared/biz';
 import { BIZ_LEAVE_STATUSES } from '@zenith/shared/biz';
 import type { WorkflowInstanceStatus } from '@zenith/shared/workflow';
 import { WORKFLOW_ACTIVE_INSTANCE_STATUSES } from '@zenith/shared/workflow';
 import { db } from '../../db';
-import { bizLeaves, workflowInstances, type BizLeaveRow } from '../../db/schema';
-import { currentUser } from '../../lib/context';
+import { bizLeaves, tenants, workflowInstances, type BizLeaveRow } from '../../db/schema';
+import { currentUser, currentUserDetail } from '../../lib/context';
 import { formatDate, parseDateRangeStart } from '../../lib/datetime';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import { keywordCondition, buildWhere, withPagination } from '../../lib/where-helpers';
@@ -25,6 +25,7 @@ import { requireRow } from '../../lib/db-assert';
 import { resolveUserNames } from '../../lib/user-nicknames';
 import { pickEntity } from '../../lib/entity-map';
 import { getBusinessWorkflowContext, previewBusinessWorkflow, requireBusinessApprovalInstance } from '../workflow/workflow-business-context.service';
+import { allocateBusinessNumber, attachBusinessNumber } from '../platform/numbering-runtime';
 
 /** 业务类型标识（与订阅器、businessKey 保持一致） */
 export const BIZ_LEAVE_TYPE = 'biz_leave';
@@ -102,7 +103,7 @@ export async function listBizLeaves(query: BizLeaveListQuery) {
     query.status && BIZ_LEAVE_STATUSES.includes(query.status as (typeof BIZ_LEAVE_STATUSES)[number])
       ? eq(bizLeaves.status, query.status as (typeof BIZ_LEAVE_STATUSES)[number])
       : undefined,
-    keywordCondition(query.keyword, [bizLeaves.reason]),
+    keywordCondition(query.keyword, [bizLeaves.leaveNo, bizLeaves.reason]),
   );
   return buildListResult({
     page,
@@ -145,22 +146,34 @@ export async function getBizLeaveWorkflowContext(id: number, instanceId?: number
   return getBusinessWorkflowContext(BIZ_LEAVE_TYPE, String(id), leave.status === 'draft' ? null : leave.workflowInstanceId, instanceId);
 }
 
-export async function createBizLeave(data: { leaveType: string; startDate: string; endDate: string; days: number; reason?: string | null }) {
+export async function createBizLeave(data: CreateBizLeaveInput) {
   const user = currentUser();
   const start = parseDateRangeStart(data.startDate);
   const end = parseDateRangeStart(data.endDate);
   if (!start || !end) throw new HTTPException(400, { message: '日期格式不正确' });
   if (end < start) throw new HTTPException(400, { message: '结束日期不能早于开始日期' });
-  const [row] = await db.insert(bizLeaves).values({
-    leaveType: data.leaveType,
-    startDate: start,
-    endDate: end,
-    days: data.days,
-    reason: data.reason ?? null,
-    status: 'draft',
-    tenantId: getCreateTenantId(user),
-  }).returning();
-  return getBizLeave(row.id);
+  const tenantId = getCreateTenantId(user);
+  const actor = requireRow(await currentUserDetail(), '当前用户不存在');
+  const tenant = tenantId === null ? null : requireRow(await db.query.tenants.findFirst({
+    where: eq(tenants.id, tenantId), columns: { code: true },
+  }), '当前租户不存在');
+  const context = {
+    username: actor.username, nickname: actor.nickname, tenantCode: tenant?.code ?? 'platform',
+    categoryCode: data.leaveType,
+    ...(actor.department ? { departmentId: actor.department.id, departmentCode: actor.department.code, departmentName: actor.department.name } : {}),
+  };
+  const id = await db.transaction(async tx => {
+    const [row] = await tx.insert(bizLeaves).values({
+      leaveType: data.leaveType, startDate: start, endDate: end, days: data.days,
+      reason: data.reason ?? null, status: 'draft', tenantId,
+    }).returning();
+    const created = requireRow(row, '创建请假单失败');
+    const leaveNo = await allocateBusinessNumber(tx, { scene: 'biz.leave', tenantId, allocationKey: String(created.id), context });
+    await tx.update(bizLeaves).set({ leaveNo }).where(eq(bizLeaves.id, created.id));
+    await attachBusinessNumber(tx, { scene: 'biz.leave', tenantId, number: leaveNo, businessKey: String(created.id) });
+    return created.id;
+  });
+  return getBizLeave(id);
 }
 
 export async function updateBizLeave(id: number, data: Partial<{ leaveType: string; startDate: string; endDate: string; days: number; reason: string | null }>) {

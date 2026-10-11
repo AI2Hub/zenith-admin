@@ -1,5 +1,6 @@
 import { timestampColumns, idColumn, timestamptz } from './common';
-import { pgTable, varchar, pgEnum, integer, text, real, index } from 'drizzle-orm/pg-core';
+import { pgTable, varchar, pgEnum, integer, text, real, index, uniqueIndex } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 import { auditColumns, tenantIdColumn } from './core';
 
 // ─── 业务接入示例：请假（业务模块自有实体，通过 businessKey 关联工作流）──────────
@@ -7,6 +8,8 @@ export const bizLeaveStatusEnum = pgEnum('biz_leave_status', ['draft', 'pending'
 
 export const bizLeaves = pgTable('biz_leaves', {
   id: idColumn(),
+  /** Allocated and attached in the creation transaction; the row is never committed without a number by this service. */
+  leaveNo: varchar({ length: 64 }),
   leaveType: varchar({ length: 32 }).notNull(),
   startDate: timestamptz().notNull(),
   endDate: timestamptz().notNull(),
@@ -20,7 +23,10 @@ export const bizLeaves = pgTable('biz_leaves', {
   tenantId: tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
-}, (t) => [index('biz_leaves_tenant_idx').on(t.tenantId)]);
+}, (t) => [
+  index('biz_leaves_tenant_idx').on(t.tenantId),
+  uniqueIndex('biz_leaves_tenant_leave_no_unique').on(sql`coalesce(${t.tenantId}, 0)`, t.leaveNo),
+]);
 
 export type BizLeaveRow = typeof bizLeaves.$inferSelect;
 

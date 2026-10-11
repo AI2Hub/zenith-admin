@@ -7,8 +7,8 @@ import type { QueryOutputOf } from '@zenith/shared/core';
  */
 import { and, desc, eq, gt, inArray, isNull, like, or, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import { randomBytes } from 'node:crypto';
-import { genPaymentNo } from './payment-no';
+import { randomBytes, randomUUID } from 'node:crypto';
+import { allocateBusinessNumber, attachBusinessNumber } from '../platform/numbering-runtime';
 import { db } from '../../db';
 import { listRows } from '../../lib/list-query';
 import { paymentCashierSessions, paymentLinkRedemptions, paymentLinks, paymentOrders, type PaymentLinkRow } from '../../db/schema';
@@ -163,10 +163,13 @@ async function assertLinkConfigurationAvailable(input: {
 export async function createLink(input: CreatePaymentLinkInput): Promise<PaymentLink> {
   const tenantId = requireTenantScopeId(currentUser());
   await assertLinkConfigurationAvailable({ applicationId: input.applicationId, tenantId, payMethod: input.payMethod });
-  const [row] = await db
+  const allocationKey = `request:${randomUUID()}`;
+  const row = await db.transaction(async (tx) => {
+    const linkNo = await allocateBusinessNumber(tx, { scene: 'payment.link', tenantId, allocationKey });
+    const [created] = await tx
     .insert(paymentLinks)
     .values({
-      linkNo: genPaymentNo('LINK'),
+      linkNo,
       token: genToken(),
       appId: input.applicationId,
       subject: input.subject,
@@ -180,6 +183,9 @@ export async function createLink(input: CreatePaymentLinkInput): Promise<Payment
       tenantId,
     })
     .returning();
+    await attachBusinessNumber(tx, { scene: 'payment.link', tenantId, number: linkNo, businessKey: String(created.id) });
+    return created;
+  });
   return mapLink(row);
 }
 
@@ -210,7 +216,7 @@ export async function updateLink(id: number, input: UpdatePaymentLinkInput): Pro
       const orderCount = await tx.$count(paymentOrders, and(
         eq(paymentOrders.appId, locked.appId),
         eq(paymentOrders.bizType, locked.bizType),
-        like(paymentOrders.bizId, `${locked.linkNo}:%`),
+        like(paymentOrders.bizId, `link:${locked.id}:session:%`),
         orderTenant,
       ));
       if (sessionCount > 0 || orderCount > 0) {
@@ -237,7 +243,7 @@ export async function deleteLink(id: number): Promise<void> {
     paymentOrders,
     and(
       eq(paymentOrders.bizType, link.bizType),
-      like(paymentOrders.bizId, `${link.linkNo}:%`),
+      like(paymentOrders.bizId, `link:${link.id}:session:%`),
       exactTenantCondition(paymentOrders.tenantId, link.tenantId),
     ),
   );
@@ -327,7 +333,7 @@ export async function payByLink(token: string, input: PayByLinkInput): Promise<P
   const expiresAt = buildCashierSessionExpiry(row);
   if (expiresAt <= new Date()) throw new HTTPException(400, { message: '该支付链接已过期' });
   const session = await createCashierSession({ link: row, linkToken: token, payMethod, amount, expiresAt });
-  const bizId = `${row.linkNo}:${session.sessionToken}`;
+  const bizId = `link:${row.id}:session:${session.id}`;
   const expireMinutes = Math.max(1, Math.ceil((expiresAt.getTime() - Date.now()) / 60_000));
   try {
     const result = await createPayment({
@@ -399,18 +405,19 @@ export async function recordPaymentLinkRedemption(event: {
 }): Promise<boolean> {
   if (event.appId == null) return false;
   const appId = event.appId;
-  const separator = event.bizId.indexOf(':');
-  if (separator <= 0) return false;
-  const linkNo = event.bizId.slice(0, separator);
-  const sessionToken = event.bizId.slice(separator + 1);
-  if (!sessionToken || sessionToken.includes(':')) return false;
   const tenantId = event.tenantId ?? null;
   const exactTenant = exactTenantCondition(paymentLinks.tenantId, tenantId);
   return db.transaction(async (tx) => {
+    const [linkedSession] = await tx.select({ id: paymentCashierSessions.id, linkId: paymentCashierSessions.linkId })
+      .from(paymentCashierSessions).where(and(
+        eq(paymentCashierSessions.orderNo, event.orderNo), eq(paymentCashierSessions.appId, appId),
+        exactTenantCondition(paymentCashierSessions.tenantId, tenantId),
+      )).limit(1);
+    if (!linkedSession || event.bizId !== `link:${linkedSession.linkId}:session:${linkedSession.id}`) return false;
     const [link] = await tx
       .select({ id: paymentLinks.id, maxUses: paymentLinks.maxUses, usedCount: paymentLinks.usedCount })
       .from(paymentLinks)
-      .where(and(eq(paymentLinks.linkNo, linkNo), eq(paymentLinks.bizType, event.bizType), eq(paymentLinks.appId, appId), exactTenant))
+      .where(and(eq(paymentLinks.id, linkedSession.linkId), eq(paymentLinks.bizType, event.bizType), eq(paymentLinks.appId, appId), exactTenant))
       .for('update')
       .limit(1);
     if (!link) return false;
@@ -418,7 +425,7 @@ export async function recordPaymentLinkRedemption(event: {
       .select()
       .from(paymentCashierSessions)
       .where(and(
-        eq(paymentCashierSessions.sessionToken, sessionToken),
+        eq(paymentCashierSessions.id, linkedSession.id),
         eq(paymentCashierSessions.linkId, link.id),
         eq(paymentCashierSessions.appId, appId),
         eq(paymentCashierSessions.orderNo, event.orderNo),

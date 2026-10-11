@@ -14,7 +14,7 @@ import WorkflowSideSheet from '@/components/workflow/WorkflowSideSheet';
 import { useDictItems } from '@/hooks/useDictItems';
 import { usePermission } from '@/hooks/usePermission';
 import { formatDateRangeValuesForApi } from '@/utils/date';
-import { createdAtColumn, DATE_RANGE_COLUMN_WIDTH, renderEllipsis } from '@/utils/table-columns';
+import { copyableNoColumn, createdAtColumn, DATE_RANGE_COLUMN_WIDTH, renderEllipsis } from '@/utils/table-columns';
 import {
   useBizLeaveList, useBizLeaveRecord, useDeleteBizLeave, useReopenBizLeave,
   useSaveBizLeave, useSubmitBizLeave, useBizLeaveWorkflowPreview, useBizLeaveWorkflowContext,
@@ -152,6 +152,7 @@ export default function LeavePage() {
   });
   const columns: ColumnProps<BizLeave>[] = [
     entityRelationColumn<BizLeave>('biz.leave'),
+    copyableNoColumn<BizLeave>('请假单号', 'leaveNo', { width: 230 }),
     { title: '请假类型', dataIndex: 'leaveType', width: 110, render: (v: string) => getLeaveTypeLabel(v) },
     { title: '日期', key: 'dateRange', width: DATE_RANGE_COLUMN_WIDTH,
       render: (_: unknown, record: BizLeave) => <span style={{ whiteSpace: 'nowrap' }}>{record.startDate} ~ {record.endDate}</span> },
