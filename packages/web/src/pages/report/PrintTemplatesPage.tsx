@@ -185,7 +185,7 @@ export default function PrintTemplatesPage() {
       title: '名称', dataIndex: 'name', minWidth: 200,
       render: (v: string, record: ReportPrintTemplate) => hasPermission('report:print:list') && record.sourceType !== 'entity' ? (
         <Typography.Text link ellipsis={{ showTooltip: true }} onClick={() => void openPreview(record)}>{v}</Typography.Text>
-      ) : v,
+      ) : renderEllipsis(v),
     },
     {
       title: '数据来源', dataIndex: 'datasetName', width: 160,
