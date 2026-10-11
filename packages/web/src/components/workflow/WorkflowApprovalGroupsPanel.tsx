@@ -91,7 +91,7 @@ export function WorkflowApprovalGroupsPanel({ activations, tasks = [], consults 
             ))}
             {(consultsByNodeKey.get(activation.nodeKey) ?? []).map((c) => (
               <div key={c.id} style={{ marginTop: 8, fontSize: 12 }}>
-                <Space wrap size={6}>
+                <Space wrap spacing={6}>
                   <Tag size="small" color="purple">协办</Tag>
                   <Typography.Text>
                     {c.inviterName ?? `用户#${c.inviterId}`} 邀请 {c.consulteeName ?? `用户#${c.consulteeId}`}
