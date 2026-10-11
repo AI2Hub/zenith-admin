@@ -159,7 +159,7 @@ export async function createInstance(data: { definitionId: number; title: string
         bizType: normalizedBizType,
         bizId: normalizedBizId,
       }).returning();
-      const serialNo = await allocateWorkflowInstanceNumber(tx, { instanceId: createdInstance.id, definitionId: def.id, tenantId: createdInstance.tenantId, initiatorId: user.userId, flowData, formData });
+      const serialNo = await allocateWorkflowInstanceNumber(tx, { instanceId: createdInstance.id, definitionId: def.id, tenantId: createdInstance.tenantId, initiatorId: user.userId, flowData, formData, formSnapshot });
       formData = await bindWorkflowFormAttachments(tx, createdInstance, formSnapshot, formData, user.userId, copyAttachmentSourceIds);
       await tx.update(workflowInstances).set({ formData, serialNo }).where(eq(workflowInstances.id, createdInstance.id));
       const materialized = await advanceAndMaterialize({ kind: 'seed' }, {
@@ -435,7 +435,7 @@ export async function submitDraftInstance(id: number, input: { selectedInitiator
     await lockUnchangedWorkflowDraft(tx, inst);
     formData = await bindWorkflowFormAttachments(tx, inst, formSnapshot, formData, user.userId);
     // returned 重提保留首次提交生成的业务编号，避免同一申请出现两个流水号
-    const serialNo = inst.serialNo ?? await allocateWorkflowInstanceNumber(tx, { instanceId: inst.id, definitionId: def.id, tenantId: inst.tenantId, initiatorId: inst.initiatorId, flowData, formData });
+    const serialNo = inst.serialNo ?? await allocateWorkflowInstanceNumber(tx, { instanceId: inst.id, definitionId: def.id, tenantId: inst.tenantId, initiatorId: inst.initiatorId, flowData, formData, formSnapshot });
     await tx.update(workflowInstances).set({
       definitionSnapshot,
       formSnapshot,

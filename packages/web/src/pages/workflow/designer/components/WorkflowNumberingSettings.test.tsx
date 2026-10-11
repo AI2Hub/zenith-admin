@@ -48,4 +48,25 @@ describe('工作流编号规则引用', () => {
     expect(screen.getByRole('button', { name: '打开设计器' })).toBeInTheDocument();
     expect(screen.queryByText('启用业务编号')).not.toBeInTheDocument();
   });
+  it('自动匹配多个FORM字段编码或唯一名称，并保存真实字段映射', async () => {
+    state.data = [{ ...rule, template: '{FORM.地区}-{SEQ:2}-{FORM.category}', requiredParameters: ['FORM.地区', 'FORM.category'] }];
+    const fields = [{ key: 'regionCode', label: '地区', type: 'text' as const }, { key: 'category', label: '业务分类', type: 'select' as const }];
+    const onChange = vi.fn();
+    render(<Form><WorkflowNumberingSettings formFields={fields} readOnly={false} onChange={onChange} /></Form>);
+    fireEvent.click(screen.getByRole('combobox', { name: '流程编号规则' }));
+    fireEvent.click(await screen.findByText('审批编号 · v2'));
+    await waitFor(() => expect(onChange).toHaveBeenLastCalledWith({ ruleId: 7, versionId: 31,
+      parameterMapping: { 'FORM.地区': 'formData.regionCode', 'FORM.category': 'formData.category' } }));
+  });
+  it('同名FORM字段要求显式选择，修正一个字段不会清空其他映射', async () => {
+    state.data = [{ ...rule, template: '{FORM.地区}-{SEQ}', requiredParameters: ['FORM.地区'] }];
+    const onChange = vi.fn();
+    render(<Form><WorkflowNumberingSettings value={{ ruleId: 7, versionId: 31, parameterMapping: {} }} formFields={[
+      { key: 'region1', label: '地区', type: 'text' }, { key: 'region2', label: '地区', type: 'text' },
+    ]} readOnly={false} onChange={onChange} /></Form>);
+    expect(screen.getByText(/名称不唯一/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('combobox', { name: '编号表单字段 {FORM.地区}' }));
+    fireEvent.click(await screen.findByText('地区（region2）'));
+    await waitFor(() => expect(onChange).toHaveBeenLastCalledWith({ ruleId: 7, versionId: 31, parameterMapping: { 'FORM.地区': 'formData.region2' } }));
+  });
 });

@@ -1,10 +1,12 @@
 import {
-  NUMBERING_SCENES, getNumberingScene, numberingAllocationContract, numberingBindingContract,
-  NUMBERING_SYSTEM_PARAMETERS, numberingRuleContract, parseNumberingTemplate, previewBusinessNumbers, validateNumberingConfig, validateNumberingParameterMapping,
+  NUMBERING_SCENES, getNumberingScene, getNumberingTemplateBusinessParameters, parseNumberingFormParameter, numberingAllocationContract, numberingBindingContract,
+  numberingRuleContract, previewBusinessNumbers, validateNumberingConfig, validateNumberingParameterMapping,
   type NumberingBinding, type NumberingConfig, type NumberingRule,
 } from '@zenith/shared/platform';
 import { mockNumberingAllocations, mockNumberingBindings, mockNumberingCounters, mockNumberingRules, mockNumberingVersions } from '@/mocks/data/numbering';
 import { mockWorkflowDefinitions, mockWorkflowInstances } from '@/mocks/data/workflow';
+import { mockWorkflowForms } from '@/mocks/data/workflow-forms';
+import { getWorkflowNumberingFields, resolveWorkflowNumberingMapping } from '@zenith/shared/workflow';
 import { mock, MockHttpError } from '@/mocks/utils/contract';
 import { requireItem } from '@/mocks/utils/crud';
 import { mockDateTime } from '@/mocks/utils/date';
@@ -38,8 +40,7 @@ export const numberingHandlers = [
       const version = mockNumberingVersions.find(version => version.ruleId === rule.id && version.version === rule.currentVersion)!;
       return { id: rule.id, code: rule.code, name: rule.name, scene: rule.scene, currentVersion: rule.currentVersion, versionId: version.id,
         template: version.config.template,
-        requiredParameters: [...new Set(parseNumberingTemplate(version.config.template).flatMap(segment =>
-          segment.kind === 'parameter' && !(NUMBERING_SYSTEM_PARAMETERS as readonly string[]).includes(segment.value) ? [segment.value] : []))],
+        requiredParameters: getNumberingTemplateBusinessParameters(version.config.template),
       };
     }))),
   mock(numberingRuleContract.preview, ({ body, ok }) => {
@@ -113,12 +114,23 @@ export const numberingHandlers = [
     if (rule.scene !== body.scene || version.ruleId !== rule.id || rule.status !== 'enabled') return badRequest('请选择该业务启用规则的已发布版本');
     const errors = validateNumberingParameterMapping(body.scene, body.parameterMapping);
     if (errors.length) return badRequest(errors.join('；'));
-    const missing = body.scene === 'workflow.instance' ? parseNumberingTemplate(version.config.template).find(segment => segment.kind === 'parameter' && !(NUMBERING_SYSTEM_PARAMETERS as readonly string[]).includes(segment.value) && !body.parameterMapping[segment.value]) : undefined;
-    if (missing?.kind === 'parameter') return badRequest(`请配置参数 ${missing.value} 的表单字段映射`);
+    const requiredParameters = getNumberingTemplateBusinessParameters(version.config.template);
+    let parameterMapping = body.parameterMapping;
+    if (body.ownerKey !== '*') {
+      const definition = body.scene === 'workflow.instance' ? mockWorkflowDefinitions.find(item => String(item.id) === body.ownerKey && (item.tenantId ?? null) === tenantId) : undefined;
+      if (!definition) return badRequest('流程定义不存在或不属于当前租户', { status: 404 });
+      const form = mockWorkflowForms.find(item => item.id === definition.formId && (item.tenantId == null || item.tenantId === tenantId));
+      const fields = getWorkflowNumberingFields(definition.formType, form?.schema?.fields ?? [], definition.customForm);
+      try { parameterMapping = resolveWorkflowNumberingMapping(requiredParameters, parameterMapping, fields); }
+      catch (error) { return badRequest(error instanceof Error ? error.message : '编号参数映射无效', { status: 400 }); }
+    } else {
+      const missing = requiredParameters.find(parameter => parseNumberingFormParameter(parameter) === undefined && !parameterMapping[parameter]);
+      if (missing) return badRequest(`请配置参数 ${missing} 的表单字段映射`, { status: 400 });
+    }
     let binding = mockNumberingBindings.find(item => item.scene === body.scene && item.ownerKey === body.ownerKey && item.tenantId === tenantId);
-    if (binding) Object.assign(binding, body, { ruleName: rule.name, version: version.version, updatedAt: mockDateTime() });
+    if (binding) Object.assign(binding, body, { parameterMapping, ruleName: rule.name, version: version.version, updatedAt: mockDateTime() });
     else {
-      binding = { id: nextIdFrom(mockNumberingBindings), ...body, tenantId, ruleName: rule.name, version: version.version, createdAt: mockDateTime(), updatedAt: mockDateTime() };
+      binding = { id: nextIdFrom(mockNumberingBindings), ...body, parameterMapping, tenantId, ruleName: rule.name, version: version.version, createdAt: mockDateTime(), updatedAt: mockDateTime() };
       mockNumberingBindings.push(binding);
     }
     return ok(mapBinding(binding), '绑定成功');

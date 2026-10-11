@@ -105,7 +105,7 @@ DATEDIF({start}, {end}, "d")
 | 触发器 / 补偿模板 | <code v-pre>{{form.amount}}</code> 及各节点提供的额外变量 | 按节点文本模板渲染，URL 占位值按百分号编码 |
 | 流程自动化 | <code v-pre>{{system.title}}</code>、<code v-pre>{{formData.amount}}</code> | 完整变量引用保留原始 JSON 类型，嵌入文字时转为文本 |
 | 定时发起标题 | <code v-pre>{{date}}</code>、<code v-pre>{{datetime}}</code> | 根据计划时刻生成标题 |
-| 业务编号 | `{SEQ:4}`、`{categoryCode}` 等 | 在编号规则中心配置；流程只绑定已发布版本及参数来源 |
+| 业务编号 | `{SEQ:4}`、`{FORM.采购类型}`、`{categoryCode}` 等 | 在编号规则中心配置；可组合多个表单字段，流程发布时固定规则版本与字段来源 |
 
 模板变量的完整说明见[触发器与外部审批](./trigger-nodes.md)、[流程自动化](./automations.md)、[定时发起](./schedules.md)及[流程定义设置](./designer.md#更多设置)。
 

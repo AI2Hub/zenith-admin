@@ -80,6 +80,8 @@ describe('workflow numbering through Demo APIs', () => {
   });
   it('publishing creates or updates the concrete owner binding, while enabling preserves its preset and frozen mapping', async () => {
     const definition = mockWorkflowDefinitions.find(item => item.id === 2)!;
+    const version = mockNumberingVersions.find(item => item.id === definition.flowData!.settings!.numbering!.versionId)!;
+    version.config.template = 'WF{YYYYMMDD}-{categoryCode}-{SEQ}';
     definition.flowData!.settings!.numbering!.parameterMapping = { categoryCode: 'formData.expenseType' };
     const published = await call(workflowDefinitionContract.publish, {}, { id: definition.id });
     expect(published.status).toBe(200); expect(published.body.code).toBe(0);
@@ -108,5 +110,27 @@ describe('workflow numbering through Demo APIs', () => {
     const response = await call(workflowInstanceContract.create, { definitionId: 1, title: '无固定引用草稿', asDraft: true });
     expect(response.status).toBe(409); expect(response.body.code).toBe(409);
     expect(mockWorkflowInstances).toHaveLength(count); expect(mockNumberingAllocations).toHaveLength(allocations);
+  });
+  it('publishes multiple FORM labels, then allocates with fixed keys, legacy aliases, inline widths and a zero start', async () => {
+    const definition = mockWorkflowDefinitions.find(item => item.id === 2)!;
+    const reference = definition.flowData!.settings!.numbering!;
+    const version = mockNumberingVersions.find(item => item.id === reference.versionId)!;
+    version.config = { ...version.config, template: '{USER}-{FORM.费用类型}-{SEQ:2}-{FORM.报销金额}-{YYMMDD}', start: '0' };
+    const form = mockWorkflowForms.find(item => item.id === definition.formId)!;
+    const expenseType = form.schema!.fields.find(field => field.key === 'expenseType')!;
+    const amount = form.schema!.fields.find(field => field.key === 'amount')!;
+    expenseType.label = '费用类型'; amount.label = '报销金额';
+    const published = await call(workflowDefinitionContract.publish, {}, { id: 2 });
+    expect(published.status).toBe(200); expect(published.body.code).toBe(0);
+    expect(published.body.data.flowData.settings.numbering.parameterMapping).toEqual({
+      'FORM.费用类型': 'formData.expenseType', 'FORM.报销金额': 'formData.amount',
+    });
+    expenseType.label = '后来修改的名称'; amount.label = '新金额名称';
+    const created = await call(workflowInstanceContract.create, { definitionId: 2, title: '高级模板', formData: {
+      expenseType: 'TRAVEL', amount: 120, username: 'FORGED', 费用类型: 'FORGED',
+    } });
+    expect(created.status).toBe(200); expect(created.body.code).toBe(0);
+    expect(created.body.data.serialNo).toMatch(/^admin-TRAVEL-00-120-\d{6}$/);
+    expect(mockNumberingAllocations.at(-1)?.businessKey).toBe(String(created.body.data.id));
   });
 });

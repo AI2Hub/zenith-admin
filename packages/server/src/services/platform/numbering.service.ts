@@ -3,25 +3,26 @@ import type * as z from 'zod';
 import { HTTPException } from 'hono/http-exception';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import {
-  NUMBERING_SCENES, NUMBERING_SYSTEM_PARAMETERS, getNumberingScene, numberingAllocationContract,
+  NUMBERING_SCENES, getNumberingScene, getNumberingTemplateBusinessParameters, parseNumberingFormParameter, numberingAllocationContract,
   numberingAllocationSchema, numberingBindingContract, numberingBindingSchema, numberingRuleContract,
-  numberingRuleSchema, numberingVersionSchema, parseNumberingTemplate, previewBusinessNumbers,
+  numberingRuleSchema, numberingVersionSchema, previewBusinessNumbers,
   validateNumberingConfig, validateNumberingParameterMapping,
 } from '@zenith/shared/platform';
+import { getWorkflowNumberingFields, resolveWorkflowNumberingMapping, type WorkflowCustomFormConfig, type WorkflowFormField } from '@zenith/shared/workflow';
 import type {
   createNumberingRuleSchema, updateNumberingRuleSchema, publishNumberingRuleSchema,
   upsertNumberingBindingSchema, numberingPreviewSchema, NumberingConfig,
 } from '@zenith/shared/platform';
 import { db } from '../../db';
 import type { DbExecutor, DbTransaction } from '../../db/types';
-import { numberingAllocations, numberingBindings, numberingCounters, numberingRules, numberingVersions, workflowDefinitions, workflowInstances } from '../../db/schema';
+import { numberingAllocations, numberingBindings, numberingCounters, numberingRules, numberingVersions, workflowDefinitions, workflowForms, workflowInstances } from '../../db/schema';
 import type { NumberingAllocationRow, NumberingBindingRow, NumberingRuleRow } from '../../db/schema/numbering';
 import { currentUser } from '../../lib/context';
 import { requireRow } from '../../lib/db-assert';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { entityMapper } from '../../lib/entity-map';
 import { buildListResult, listRows } from '../../lib/list-query';
-import { getCreateTenantId, getTenantScopeId, isPlatformAdmin, tenantScope, exactTenantCondition } from '../../lib/tenant';
+import { getCreateTenantId, getTenantScopeId, isPlatformAdmin, tenantScope, exactTenantCondition, inheritedTenantCondition } from '../../lib/tenant';
 import { buildWhere, dateRangeConditions, keywordCondition } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
 import { numberingSequencePolicy } from './numbering-runtime';
@@ -92,8 +93,7 @@ export async function listAvailableNumberingRules(q: QueryOutputOf<typeof number
   )).where(buildWhere(readableRuleScope(), eq(numberingRules.status, 'enabled'), q.scene ? eq(numberingRules.scene, q.scene) : undefined)).orderBy(asc(numberingRules.name));
   return rows.map(({ config, ...row }) => ({
     ...row, scene: getNumberingScene(row.scene).code, template: config.template,
-    requiredParameters: [...new Set(parseNumberingTemplate(config.template).flatMap(segment =>
-      segment.kind === 'parameter' && !(NUMBERING_SYSTEM_PARAMETERS as readonly string[]).includes(segment.value) ? [segment.value] : []))],
+    requiredParameters: getNumberingTemplateBusinessParameters(config.template),
   }));
 }
 
@@ -209,14 +209,14 @@ export function listNumberingBindings(q: QueryOutputOf<typeof numberingBindingCo
 }
 
 async function ensureBindingOwner(tx: DbTransaction, scene: string, ownerKey: string, tenantId: number | null) {
-  if (ownerKey === '*') return;
+  if (ownerKey === '*') return null;
   if (scene !== 'workflow.instance' || !/^[1-9]\d*$/.test(ownerKey) || !Number.isSafeInteger(Number(ownerKey))) {
     throw new HTTPException(400, { message: '业务对象标识仅允许 * 或流程定义 ID' });
   }
-  const [definition] = await tx.select({ id: workflowDefinitions.id }).from(workflowDefinitions).where(buildWhere(
+  const [definition] = await tx.select({ id: workflowDefinitions.id, formId: workflowDefinitions.formId, formType: workflowDefinitions.formType, customForm: workflowDefinitions.customForm }).from(workflowDefinitions).where(buildWhere(
     eq(workflowDefinitions.id, Number(ownerKey)), exactTenantCondition(workflowDefinitions.tenantId, tenantId), tenantScope(workflowDefinitions),
   )).limit(1);
-  requireRow(definition, '流程定义不存在或不属于当前租户');
+  return requireRow(definition, '流程定义不存在或不属于当前租户');
 }
 
 export async function upsertNumberingBinding(input: z.output<typeof upsertNumberingBindingSchema>) {
@@ -240,14 +240,23 @@ export async function upsertNumberingBinding(input: z.output<typeof upsertNumber
     if (rule.scene !== input.scene || rule.status !== 'enabled' || (rule.tenantId !== null && rule.tenantId !== tenantId)) throw new HTTPException(400, { message: '编号规则与业务、租户或启用状态不匹配' });
     const [version] = await tx.select().from(numberingVersions).where(buildWhere(eq(numberingVersions.id, input.versionId), eq(numberingVersions.ruleId, rule.id))).limit(1);
     requireRow(version, '编号版本不存在或不属于所选规则', 400);
-    await ensureBindingOwner(tx, input.scene, input.ownerKey, tenantId);
-    const mappedParameters = parseNumberingTemplate(version!.config.template).filter(segment => segment.kind === 'parameter' && !(NUMBERING_SYSTEM_PARAMETERS as readonly string[]).includes(segment.value));
-    for (const segment of input.scene === 'workflow.instance' ? mappedParameters : []) {
-      if (segment.kind === 'parameter' && !input.parameterMapping[segment.value]) throw new HTTPException(400, { message: `请配置业务参数 ${segment.value} 的字段映射` });
+    const definition = await ensureBindingOwner(tx, input.scene, input.ownerKey, tenantId);
+    const requiredParameters = getNumberingTemplateBusinessParameters(version!.config.template);
+    let parameterMapping = input.parameterMapping;
+    if (definition) {
+      const [form] = definition.formId == null || definition.formType !== 'designer' ? [] : await tx.select({ schema: workflowForms.schema })
+        .from(workflowForms).where(buildWhere(eq(workflowForms.id, definition.formId), inheritedTenantCondition(workflowForms.tenantId, tenantId))).limit(1);
+      const fields = getWorkflowNumberingFields(definition.formType ?? 'designer', (form?.schema as { fields?: WorkflowFormField[] } | undefined)?.fields ?? [], definition.customForm as WorkflowCustomFormConfig | null);
+      try { parameterMapping = resolveWorkflowNumberingMapping(requiredParameters, parameterMapping, fields); }
+      catch (error) { throw new HTTPException(400, { message: error instanceof Error ? error.message : '编号参数映射无效' }); }
+    } else {
+      for (const parameter of requiredParameters) {
+        if (parseNumberingFormParameter(parameter) === undefined && !parameterMapping[parameter]) throw new HTTPException(400, { message: `请配置业务参数 ${parameter} 的字段映射` });
+      }
     }
-    const [row] = await tx.insert(numberingBindings).values({ ...input, tenantId }).onConflictDoUpdate({
+    const [row] = await tx.insert(numberingBindings).values({ ...input, parameterMapping, tenantId }).onConflictDoUpdate({
       target: [numberingBindings.scene, numberingBindings.ownerKey, numberingBindings.tenantId],
-      set: { ruleId: rule.id, versionId: input.versionId, parameterMapping: input.parameterMapping, updatedAt: new Date() },
+      set: { ruleId: rule.id, versionId: input.versionId, parameterMapping, updatedAt: new Date() },
     }).returning();
     return mapBinding({ ...requireRow(row, '保存业务绑定失败'), ruleName: rule.name, version: version!.version });
   });

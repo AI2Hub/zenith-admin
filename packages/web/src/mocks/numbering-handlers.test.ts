@@ -64,10 +64,28 @@ describe('编号中心 Demo 契约行为', () => {
     const rule = mockNumberingRules.find(row => row.scene === 'workflow.instance')!;
     const version = mockNumberingVersions.find(row => row.ruleId === rule.id)!;
     const body = { scene: rule.scene, ownerKey: '99', ruleId: rule.id, versionId: version.id, parameterMapping: { departmentId: 'formData.department' } };
+    mockWorkflowDefinitions.push({ ...structuredClone(mockWorkflowDefinitions[0]!), id: 99, tenantId: null, formId: null, formType: 'external',
+      customForm: { createComponent: '', viewComponent: 'biz/TestForm', variables: [{ key: 'category', label: '分类', type: 'string' }] } });
     expect((await call('POST', urlOf(numberingBindingContract.upsert), body)).code).toBe(400);
     version.config.template = 'WF-{YYYYMMDD}-{categoryCode}-{SEQ:6}';
     expect((await call('POST', urlOf(numberingBindingContract.upsert), { ...body, parameterMapping: {} })).code).toBe(400);
     expect((await call('POST', urlOf(numberingBindingContract.upsert), { ...body, parameterMapping: { categoryCode: 'formData.category' } })).code).toBe(0);
+  });
+  it('FORM参数由统一helper提取，默认绑定允许发布时自动映射，具体流程绑定固定实际字段', async () => {
+    const rule = mockNumberingRules.find(item => item.scene === 'workflow.instance')!;
+    const version = mockNumberingVersions.find(item => item.ruleId === rule.id)!;
+    version.config.template = '{DEPT_CODE}-{FORM.地区}-{SEQ:2}-{FORM.category}-{YYMMDD}';
+    const options = await call('GET', urlOf(numberingRuleContract.all, { query: { scene: rule.scene } }));
+    expect(options.data.find((item: { id: number }) => item.id === rule.id).requiredParameters).toEqual(['FORM.地区', 'FORM.category']);
+    const body = { scene: rule.scene, ownerKey: '*', ruleId: rule.id, versionId: version.id, parameterMapping: {} };
+    expect((await call('POST', urlOf(numberingBindingContract.upsert), body)).code).toBe(0);
+    mockWorkflowDefinitions.push({ ...structuredClone(mockWorkflowDefinitions[0]!), id: 99, tenantId: null, formId: null, formType: 'external',
+      customForm: { createComponent: '', viewComponent: 'biz/TestForm', variables: [
+        { key: 'regionCode', label: '地区', type: 'string' }, { key: 'category', label: '分类', type: 'string' },
+      ] } });
+    const saved = await call('POST', urlOf(numberingBindingContract.upsert), { ...body, ownerKey: '99' });
+    expect(saved.code).toBe(0);
+    expect(saved.data.parameterMapping).toEqual({ 'FORM.地区': 'formData.regionCode', 'FORM.category': 'formData.category' });
   });
 
   it('预览不分配号码，计数接口保留大整数字符串精度', async () => {

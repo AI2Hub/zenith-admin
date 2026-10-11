@@ -15,6 +15,8 @@ interface EditFormBodyProps {
   readonly header?: ReactNode;
   /** 覆盖 / 追加 Form 属性（`onValueChange`、`labelWidth`…）；`key` 与 `useEditModal` 的 `formProps` 由壳接好 */
   readonly formProps?: Omit<BaseFormProps, 'children'>;
+  /** 为需要独立滚动区的编辑器设置主体布局；不传时保留默认块布局。 */
+  readonly bodyClassName?: string;
   /** 字段；支持 Semi Form 的 render-function 形态 */
   readonly children: BaseFormProps['children'];
 }
@@ -23,9 +25,9 @@ interface EditFormBodyProps {
  * 编辑表单主体：详情加载遮罩 + 按 `formKey` 重挂载的 Form。
  * Semi 的 Spin 带 children 时即为块级元素（`.semi-spin-block`），不需要额外 wrapper class。
  */
-function EditFormBody({ modal, header, formProps, children }: Readonly<EditFormBodyProps>) {
+function EditFormBody({ modal, header, formProps, bodyClassName, children }: Readonly<EditFormBodyProps>) {
   return (
-    <Spin spinning={modal.detailLoading}>
+    <Spin spinning={modal.detailLoading} wrapperClassName={bodyClassName}>
       {header}
       {/* key 必须显式写在 JSX 上：详情到达时变化，驱动表单重挂载读取新的 initValues */}
       <Form key={modal.formKey} {...modal.formProps} {...formProps}>{children}</Form>
@@ -44,10 +46,10 @@ export interface EditFormModalProps extends EditFormBodyProps, Omit<AppModalProp
  *   <Form.Input field="name" label="名称" rules={[{ required: true, message: '名称不能为空' }]} />
  * </EditFormModal>
  */
-export function EditFormModal({ modal, header, formProps, children, ...modalProps }: Readonly<EditFormModalProps>) {
+export function EditFormModal({ modal, header, formProps, bodyClassName, children, ...modalProps }: Readonly<EditFormModalProps>) {
   return (
     <AppModal {...modal.modalProps} {...modalProps}>
-      <EditFormBody modal={modal} header={header} formProps={formProps}>{children}</EditFormBody>
+      <EditFormBody modal={modal} header={header} formProps={formProps} bodyClassName={bodyClassName}>{children}</EditFormBody>
     </AppModal>
   );
 }
@@ -70,7 +72,7 @@ export interface EditFormSheetProps extends EditFormBodyProps, Omit<SideSheetRea
  * @example
  * <EditFormSheet modal={modal} width={720}>…字段…</EditFormSheet>
  */
-export function EditFormSheet({ modal, header, formProps, children, title, okText = '保存', footerExtra, footer, ...sheetProps }: Readonly<EditFormSheetProps>) {
+export function EditFormSheet({ modal, header, formProps, bodyClassName, children, title, okText = '保存', footerExtra, footer, ...sheetProps }: Readonly<EditFormSheetProps>) {
   return (
     <SideSheet
       title={title ?? modal.modalProps.title}
@@ -80,7 +82,7 @@ export function EditFormSheet({ modal, header, formProps, children, title, okTex
       footer={footer ?? <ModalFooter {...modal.footerProps} okText={okText} extra={footerExtra} />}
       {...sheetProps}
     >
-      <EditFormBody modal={modal} header={header} formProps={formProps}>{children}</EditFormBody>
+      <EditFormBody modal={modal} header={header} formProps={formProps} bodyClassName={bodyClassName}>{children}</EditFormBody>
     </SideSheet>
   );
 }

@@ -11,7 +11,7 @@ import { validateNumberingConfig } from './numbering';
  */
 const numberingConfigBaseSchema = z.object({
   template: z.string().min(1, '请填写编号模板').max(256),
-  start: z.string().regex(/^[1-9]\d{0,18}$/, '起始值须为正整数字符串'),
+  start: z.string().regex(/^(?:0|[1-9]\d{0,18})$/, '起始值须为非负整数字符串'),
   step: z.string().regex(/^[1-9]\d{0,18}$/, '步长须为正整数字符串'),
   width: z.int().min(1).max(32),
   resetPeriod: z.enum(NUMBERING_RESET_PERIODS),
@@ -38,11 +38,11 @@ export const publishNumberingRuleSchema = z.object({ expectedRevision: z.int().p
 export const upsertNumberingBindingSchema = z.object({
   scene: z.enum(NUMBERING_SCENE_CODES), ownerKey: z.string().min(1).max(128),
   ruleId: z.int().positive(), versionId: z.int().positive(),
-  parameterMapping: z.record(z.string().max(64), z.string().max(256)),
+  parameterMapping: z.record(z.string().max(256), z.string().max(256)),
 });
 export const numberingPreviewSchema = z.object({
   scene: z.enum(NUMBERING_SCENE_CODES), config: numberingConfigSchema,
   at: z.iso.datetime({ offset: true }).optional(),
-  context: z.record(z.string().max(64), z.string().max(64)).optional(),
+  context: z.record(z.string().max(256), z.string().max(256)).optional(),
   count: z.int().min(1).max(10).default(3),
 });

@@ -779,7 +779,21 @@ export const NUMBERING_SCOPE_LABELS: Record<NumberingScope, string> = { global: 
 export const NUMBERING_SCOPE_OPTIONS = NUMBERING_SCOPES.map(value => ({ value, label: NUMBERING_SCOPE_LABELS[value] }));
 export const NUMBERING_SCENE_CODES = ['workflow.instance', 'biz.leave', 'payment.order', 'payment.refund', 'payment.transfer', 'payment.preauth', 'payment.sharing', 'payment.settlement', 'payment.risk', 'payment.link', 'payment.contract', 'payment.dispute', 'payment.deduction', 'payment.capture'] as const;
 export type NumberingSceneCode = typeof NUMBERING_SCENE_CODES[number];
-export const NUMBERING_DATE_TOKENS = ['YYYYMMDD', 'YYYYMM', 'YYYY', 'MM', 'DD', 'HH', 'mm', 'ss'] as const;
+export const NUMBERING_DATE_TOKENS = ['YYYYMMDDHHmmss', 'YYYYMMDD', 'YYYYMM', 'YYMMDD', 'HHmmss', 'YYYY', 'YY', 'MM', 'DD', 'HH', 'mm', 'ss'] as const;
+export const NUMBERING_DATE_TOKEN_METADATA: Record<typeof NUMBERING_DATE_TOKENS[number], { label: string; example: string }> = {
+  YYYYMMDDHHmmss: { label: '年月日时分秒', example: '20261011143005' },
+  YYYYMMDD: { label: '年月日', example: '20261011' },
+  YYYYMM: { label: '年月', example: '202610' },
+  YYMMDD: { label: '两位年月日', example: '261011' },
+  HHmmss: { label: '时分秒', example: '143005' },
+  YYYY: { label: '四位年份', example: '2026' },
+  YY: { label: '两位年份', example: '26' },
+  MM: { label: '月份', example: '10' },
+  DD: { label: '日期', example: '11' },
+  HH: { label: '小时', example: '14' },
+  mm: { label: '分钟', example: '30' },
+  ss: { label: '秒钟', example: '05' },
+};
 export const NUMBERING_UNIQUE_SCOPES = ['global', 'tenant', 'owner'] as const;
 export const NUMBERING_MAX_SEQUENCE = '9223372036854775807';
 export const NUMBERING_SYSTEM_PARAMETERS = ['tenantId', 'ownerKey', 'departmentId', 'departmentCode', 'departmentName', 'username', 'nickname', 'tenantCode'] as const;

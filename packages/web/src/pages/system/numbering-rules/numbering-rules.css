@@ -1,17 +1,70 @@
-.numbering-editor-grid {
-  --auto-grid-cols: 2;
-  --auto-grid-min: 330px;
-  --auto-grid-gap: 24px;
+.numbering-editor-sheet .semi-sidesheet-inner {
+  overflow: hidden;
+}
 
-  align-items: start;
+.numbering-editor-sheet .semi-sidesheet-body {
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.numbering-editor-body,
+.numbering-editor-body > .semi-spin-children,
+.numbering-editor-form {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.numbering-editor-grid {
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 24px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.numbering-editor-fields,
+.numbering-preview {
+  min-width: 0;
+  min-height: 0;
+  padding-bottom: 8px;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.numbering-editor-fields {
+  padding-right: 8px;
 }
 
 .numbering-preview {
+  padding-top: 4px;
+}
+
+.numbering-preview-parameters {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.numbering-template-tools {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.numbering-template-form-field {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.numbering-template-form-field .semi-input-wrapper {
+  flex: 1;
   min-width: 0;
-  padding: 16px;
-  background: var(--semi-color-fill-0);
-  border: 1px solid var(--semi-color-border);
-  border-radius: var(--semi-border-radius-medium);
 }
 
 .numbering-preview-number {
@@ -44,4 +97,23 @@
 .numbering-version-config {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+@media (--md-down) {
+  .numbering-editor-grid {
+    display: block;
+    overflow: auto;
+    overscroll-behavior: contain;
+  }
+
+  .numbering-editor-fields,
+  .numbering-preview {
+    min-height: auto;
+    padding-right: 0;
+    overflow: visible;
+  }
+
+  .numbering-preview {
+    margin-top: 24px;
+  }
 }

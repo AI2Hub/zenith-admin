@@ -156,7 +156,7 @@ async function createChildInstanceAndMaterialize(
       parentTaskItemKey: opts?.itemKey ?? null,
       parentTaskItemIndex: opts?.itemIndex ?? null,
     }).returning();
-    const serialNo = await allocateWorkflowInstanceNumber(tx, { instanceId: created.id, definitionId: def.id, tenantId: created.tenantId, initiatorId: childInitiatorId, flowData, formData: childFormData });
+    const serialNo = await allocateWorkflowInstanceNumber(tx, { instanceId: created.id, definitionId: def.id, tenantId: created.tenantId, initiatorId: childInitiatorId, flowData, formData: childFormData, formSnapshot: childFormSnapshot });
     childFormData = await bindWorkflowFormAttachments(tx, created, childFormSnapshot, childFormData, 0, [parentInst.id]);
     await tx.update(workflowInstances).set({ formData: childFormData, serialNo }).where(eq(workflowInstances.id, created.id));
     const materialized = await advanceAndMaterialize({ kind: 'seed' }, {

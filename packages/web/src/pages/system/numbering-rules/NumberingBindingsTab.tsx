@@ -1,7 +1,7 @@
-import { Banner, Descriptions, Divider, Empty, Form, Typography, useFormApi, useFormState } from '@douyinfe/semi-ui';
+import { Banner, Descriptions, Divider, Empty, Form, Input, Typography, useFormApi, useFormState } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { BodyOf } from '@zenith/shared/core';
-import { getNumberingScene, NUMBERING_SCENE_OPTIONS, NUMBERING_SYSTEM_PARAMETERS, numberingBindingContract, parseNumberingTemplate, type NumberingBinding } from '@zenith/shared/platform';
+import { getNumberingScene, getNumberingTemplateBusinessParameters, NUMBERING_SCENE_OPTIONS, numberingBindingContract, parseNumberingFormParameter, validateNumberingParameterMapping, type NumberingBinding } from '@zenith/shared/platform';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { EditFormSheet } from '@/components/EditFormModal';
 import { ListSearchToolbar, useCrudOperationColumn } from '@/components/list-page';
@@ -13,15 +13,15 @@ import { renderEllipsis, updatedAtColumn } from '@/utils/table-columns';
 
 type BindingValues = BodyOf<typeof numberingBindingContract.upsert>;
 
-function BindingFields({ editing }: Readonly<{ editing: boolean }>) {
+export function BindingFields({ editing }: Readonly<{ editing: boolean }>) {
   const api = useFormApi();
   const { values = {} } = useFormState<Partial<BindingValues>>();
   const scene = getNumberingScene(values.scene ?? 'workflow.instance');
   const rules = useNumberingRuleOptions(values.scene);
   const versions = useNumberingVersions(values.ruleId);
   const selectedVersion = versions.data?.find(version => version.id === values.versionId);
-  const parameterKeys = selectedVersion ? parseNumberingTemplate(selectedVersion.config.template).flatMap(segment => segment.kind === 'parameter' ? [segment.value] : []) : [];
-  const customParameters = scene.code === 'workflow.instance' ? [...new Set(parameterKeys)].filter(key => !(NUMBERING_SYSTEM_PARAMETERS as readonly string[]).includes(key)) : [];
+  const customParameters = scene.code === 'workflow.instance' && selectedVersion ? getNumberingTemplateBusinessParameters(selectedVersion.config.template) : [];
+  const mappingErrors = validateNumberingParameterMapping(scene.code, values.parameterMapping ?? {});
   return (
     <>
       <Form.Select field="scene" label="接入业务" optionList={NUMBERING_SCENE_OPTIONS} disabled={editing} style={{ width: '100%' }} onChange={() => {
@@ -38,8 +38,17 @@ function BindingFields({ editing }: Readonly<{ editing: boolean }>) {
       <Divider align="left">参数映射</Divider>
       {customParameters.length === 0 ? <Typography.Paragraph type="tertiary">此版本无需配置表单参数映射，由业务上下文提供所需参数。</Typography.Paragraph> : (
         <>
-          <Typography.Paragraph type="tertiary">流程自定义参数映射到表单字段，填写 formData.字段名。业务分类编码可映射到分类字段。</Typography.Paragraph>
-          {customParameters.map(key => <Form.Input key={key} field={`parameterMapping.${key}`} label={scene.parameters.find(parameter => parameter.key === key)?.label ?? key} placeholder="formData.categoryCode" rules={[{ required: true, message: '请选择对应的表单字段路径' }, { pattern: /^formData\.[A-Za-z_][A-Za-z0-9_]*$/, message: '请使用 formData.字段名 格式' }]} />)}
+          <Typography.Paragraph type="tertiary">表单占位符按字段编码或唯一名称自动匹配；需要指定其他字段时，填写 formData.字段编码。默认绑定会在流程发布时固定实际字段。</Typography.Paragraph>
+          {customParameters.map(key => <Form.Slot key={key} label={scene.parameters.find(parameter => parameter.key === key)?.label ?? `{${key}}`}>
+            <Input value={values.parameterMapping?.[key] ?? ''} aria-label={`编号参数 ${key}`} style={{ width: '100%' }}
+              placeholder={parseNumberingFormParameter(key) === undefined ? 'formData.categoryCode（必填）' : '留空自动匹配，或填写 formData.字段编码'}
+              onChange={source => {
+                const next = { ...values.parameterMapping };
+                if (source) next[key] = source; else delete next[key];
+                api.setValue('parameterMapping', next);
+              }} />
+          </Form.Slot>)}
+          {mappingErrors.length > 0 && <Banner type="warning" closeIcon={null} description={mappingErrors.join('；')} />}
         </>
       )}
       <Typography.Paragraph type="tertiary">租户、部门和发起人身份参数由系统提供，不能映射或覆盖。</Typography.Paragraph>

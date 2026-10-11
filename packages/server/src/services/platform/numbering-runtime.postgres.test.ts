@@ -167,6 +167,42 @@ integration('business numbering on PostgreSQL', () => {
     await expect(database.transaction(tx => allocateBusinessNumber(tx, { scene: 'payment.deduction', tenantId: tenantB, ruleVersionId: b.version.id, allocationKey: 'b', at }))).rejects.toThrow('重复号码');
   });
 
+  it('allocates zero-based advanced templates with independent sequence widths and multiple form values', async () => {
+    const { rule, version } = await fixture({ config: {
+      template: '{FORM.类型}-{SEQ:2}-{YY}-{FORM.区域}-{SEQ:4}-{DEPT_CODE}',
+      start: '0', width: 4, resetPeriod: 'never',
+    } });
+    const request = { scene: 'workflow.instance', tenantId: tenantA, ownerKey: 'advanced-zero', ruleVersionId: version.id, at,
+      context: { 'FORM.类型': 'QJ', 'FORM.区域': 'EAST', departmentCode: 'RD' } };
+    const first = await database.transaction(tx => allocateBusinessNumber(tx, { ...request, allocationKey: 'first' }));
+    expect(first).toBe('QJ-00-26-EAST-0000-RD');
+    expect(await database.transaction(tx => allocateBusinessNumber(tx, { ...request, allocationKey: 'first' }))).toBe(first);
+    await expect(database.transaction(tx => allocateBusinessNumber(tx, { ...request, allocationKey: 'first',
+      context: { ...request.context, 'FORM.区域': 'WEST' },
+    }))).rejects.toThrow('业务参数发生变化');
+    expect(await database.transaction(tx => allocateBusinessNumber(tx, { ...request, allocationKey: 'second' })))
+      .toBe('QJ-01-26-EAST-0001-RD');
+    const [counter] = await database.select().from(schema.numberingCounters).where(eq(schema.numberingCounters.ruleId, rule.id));
+    expect(counter.value).toBe(1n);
+    expect(await database.$count(schema.numberingAllocations, eq(schema.numberingAllocations.ruleId, rule.id))).toBe(2);
+  });
+
+  it('rolls back a collision from freely composed department identifiers without silently skipping a number', async () => {
+    const { rule, version } = await fixture({ config: {
+      template: 'C{departmentId}{SEQ:1}', start: '0', width: 1, resetPeriod: 'never', scope: 'department',
+    } });
+    const request = { scene: 'workflow.instance', tenantId: tenantA, ownerKey: 'free-template', ruleVersionId: version.id, at };
+    for (let index = 0; index <= 10; index++) {
+      await database.transaction(tx => allocateBusinessNumber(tx, { ...request, allocationKey: `dept1:${index}`, context: { departmentId: 1 } }));
+    }
+    await expect(database.transaction(tx => allocateBusinessNumber(tx, { ...request, allocationKey: 'dept11:0', context: { departmentId: 11 } })))
+      .rejects.toThrow('重复号码');
+    const counters = await database.select().from(schema.numberingCounters).where(eq(schema.numberingCounters.ruleId, rule.id));
+    expect(counters).toHaveLength(1);
+    expect(counters[0].value).toBe(10n);
+    expect(await database.$count(schema.numberingAllocations, eq(schema.numberingAllocations.ruleId, rule.id))).toBe(11);
+  });
+
   it('keeps values above JavaScript safe integer exact and fails on bigint exhaustion', async () => {
     const { version } = await fixture({ config: { start: '9223372036854775806', width: 19, template: 'QA{YYYYMMDD}{SEQ:19}' } });
     const request = { scene: 'workflow.instance', tenantId: tenantA, ownerKey: 'bigint', ruleVersionId: version.id, at };

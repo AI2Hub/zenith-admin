@@ -3,7 +3,7 @@ import { Banner, Descriptions, Divider, Empty, Modal, SideSheet, Spin, Tag, Toas
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { BodyOf } from '@zenith/shared/core';
 import {
-  getNumberingScene, NUMBERING_RESET_PERIOD_LABELS, NUMBERING_SCOPE_LABELS,
+  getNumberingScene, getNumberingTemplateParameters, parseNumberingFormParameter, NUMBERING_RESET_PERIOD_LABELS, NUMBERING_SCOPE_LABELS,
   numberingRuleContract, previewBusinessNumbers, validateNumberingConfig,
   type NumberingConfig, type NumberingCounter, type NumberingRule, type NumberingVersion,
 } from '@zenith/shared/platform';
@@ -29,6 +29,9 @@ const defaultConfig: NumberingConfig = { template: 'WF-{YYYYMMDD}-{SEQ}', start:
 function sample(rule: NumberingRule) {
   try {
     const context = Object.fromEntries(getNumberingScene(rule.scene).parameters.map(parameter => [parameter.key, parameter.example]));
+    for (const parameter of getNumberingTemplateParameters(rule.draft.template)) {
+      if (parseNumberingFormParameter(parameter) !== undefined) context[parameter] = '示例值';
+    }
     return previewBusinessNumbers(rule.draft, { scene: rule.scene, at: new Date(), context, count: 1 }).numbers[0];
   } catch { return '草稿待完善'; }
 }
@@ -130,7 +133,8 @@ export function NumberingRulesTab() {
       <ListSearchToolbar page={page} filters={['keyword', 'scene', 'status']} create={<CreateButton permission="system:numbering:create" onClick={() => { copySource.current = null; modal.openCreate(); }} />} />
       {page.listQuery.isError && <Banner type="danger" description="编号规则加载失败，请点击查询重试。" closeIcon={null} />}
       <ConfigurableTable<NumberingRule> columns={columns} {...page.tableProps} />
-      <EditFormSheet modal={modal} width={1120} okText="保存草稿" header={<Typography.Paragraph type="tertiary">先保存草稿，再发布版本供业务使用。首次发布后，流水范围、重置周期、时区、起始值与步长固定，可复制规则建立新序列。</Typography.Paragraph>}>
+      <EditFormSheet modal={modal} width={1120} okText="保存草稿" className="numbering-editor-sheet"
+        bodyClassName="numbering-editor-body" formProps={{ className: 'numbering-editor-form' }}>
         <NumberingRuleEditor editing={modal.isEdit} sequenceLocked={!!modal.editing?.currentVersion} />
       </EditFormSheet>
       <RuleDetails rule={details} onClose={() => setDetails(null)} />

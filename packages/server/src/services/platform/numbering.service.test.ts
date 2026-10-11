@@ -14,7 +14,7 @@ vi.mock('../../db', async () => ({ db: (await import('drizzle-orm/postgres-js'))
 vi.mock('../../lib/context', () => ({ currentUser: () => state.user, currentUserId: () => state.user.userId }));
 
 import { db } from '../../db';
-import { createNumberingRule, getNumberingRule, publishNumberingRule, updateNumberingRule, upsertNumberingBinding, removeNumberingBinding } from './numbering.service';
+import { createNumberingRule, getNumberingRule, listAvailableNumberingRules, publishNumberingRule, updateNumberingRule, upsertNumberingBinding, removeNumberingBinding } from './numbering.service';
 import type { NumberingRuleRow } from '../../db/schema/numbering';
 import { workflowDefinitions, workflowInstances } from '../../db/schema';
 
@@ -216,5 +216,22 @@ describe('编号规则管理权限与并发', () => {
     vi.spyOn(db, '$count').mockResolvedValue(0);
     expect((await updateNumberingRule(4, { status: 'disabled', expectedRevision: 3 })).status).toBe('disabled');
     expect(db.update).toHaveBeenCalledOnce();
+  });
+  it('规则选项统一提取多FORM参数并排除旧系统变量别名', async () => {
+    interceptQueries([[{ id: rule.id, code: rule.code, name: rule.name, scene: rule.scene, currentVersion: 1, versionId: 9,
+      config: { ...draft, template: '{USER}-{FORM.地区}-{SEQ:2}-{FORM.category}-{DEPT_CODE}' } }]]);
+    const [option] = await listAvailableNumberingRules({ scene: 'workflow.instance' });
+    expect(option?.requiredParameters).toEqual(['FORM.地区', 'FORM.category']);
+  });
+  it('默认业务绑定允许FORM自动匹配，仍要求显式业务分类映射', async () => {
+    interceptQueries([[rule], [{ id: 9, ruleId: 4, version: 1, config: { ...draft, template: '{FORM.地区}-{SEQ}' } }]]);
+    const insertChain = { values: vi.fn(), onConflictDoUpdate: vi.fn(), returning: vi.fn().mockResolvedValue([
+      { id: 8, scene: 'workflow.instance', ownerKey: '*', ruleId: rule.id, versionId: 9, tenantId: 7, parameterMapping: {}, createdAt: rule.createdAt, updatedAt: rule.updatedAt },
+    ]) };
+    insertChain.values.mockReturnValue(insertChain); insertChain.onConflictDoUpdate.mockReturnValue(insertChain);
+    vi.mocked(db.insert).mockReturnValue(insertChain as never);
+    const saved = await upsertNumberingBinding({ scene: 'workflow.instance', ownerKey: '*', ruleId: 4, versionId: 9, parameterMapping: {} });
+    expect(saved.parameterMapping).toEqual({});
+    expect(insertChain.values).toHaveBeenCalledWith(expect.objectContaining({ parameterMapping: {} }));
   });
 });

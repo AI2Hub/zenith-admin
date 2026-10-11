@@ -1,6 +1,6 @@
 import type { WorkflowDefinition, WorkflowDefinitionVersion, WorkflowFlowData, WorkflowInstance } from '@zenith/shared/workflow';
-import { getWorkflowNumberingFields, resolveWorkflowNumberingParameters, validateWorkflowNumberingMapping } from '@zenith/shared/workflow';
-import { numberingBindingRefSchema, parseNumberingTemplate } from '@zenith/shared/platform';
+import { getWorkflowNumberingFields, resolveWorkflowNumberingMapping, resolveWorkflowNumberingParameters, validateWorkflowNumberingMapping } from '@zenith/shared/workflow';
+import { getNumberingTemplateBusinessParameters, numberingBindingRefSchema, validateNumberingParameterMapping } from '@zenith/shared/platform';
 import { mockWorkflowForms } from '@/mocks/data/workflow-forms';
 import { mockNumberingBindings, mockNumberingRules, mockNumberingVersions } from '@/mocks/data/numbering';
 import { mockUsers } from '@/mocks/data/users';
@@ -37,14 +37,16 @@ export function pinMockWorkflowNumbering(definition: Pick<WorkflowDefinition, 'i
     return flowData;
   }
   const resolved = resolveMockNumberingReference({ scene: 'workflow.instance', tenantId: definition.tenantId ?? null, ownerKey: String(definition.id), ruleId: ref?.ruleId, ruleVersionId: ref?.versionId });
-  const parameterMapping = ref?.parameterMapping ?? resolved.parameterMapping;
+  const requestedMapping = ref?.parameterMapping ?? resolved.parameterMapping;
   const formSchema = mockWorkflowForms.find(form => form.id === definition.formId
     && (form.tenantId == null || form.tenantId === definition.tenantId))?.schema;
   const fields = getWorkflowNumberingFields(definition.formType, formSchema && 'fields' in formSchema ? formSchema.fields : [], definition.customForm);
-  const errors = validateWorkflowNumberingMapping(parameterMapping, fields);
+  const errors = validateNumberingParameterMapping('workflow.instance', requestedMapping);
   const config = mockNumberingVersions.find(version => version.id === resolved.versionId)!.config;
-  if (parseNumberingTemplate(config.template).some(segment => segment.kind === 'parameter' && segment.value === 'categoryCode') && !parameterMapping.categoryCode) errors.push('编号规则使用业务分类编码，请先映射表单字段');
   if (errors.length) throw new MockHttpError(badRequest(errors[0]!, { status: 400 }));
+  let parameterMapping: Record<string, string>;
+  try { parameterMapping = resolveWorkflowNumberingMapping(getNumberingTemplateBusinessParameters(config.template), requestedMapping, fields); }
+  catch (error) { throw new MockHttpError(badRequest(error instanceof Error ? error.message : '编号参数映射无效', { status: 400 })); }
   const rule = mockNumberingRules.find(item => item.id === resolved.ruleId)!;
   const version = mockNumberingVersions.find(item => item.id === resolved.versionId)!;
   const now = mockDateTime();
@@ -68,6 +70,9 @@ export function numberMockWorkflowInstance(instance: WorkflowInstance): void {
   const department = mockDepartments.find(item => item.id === initiator.departmentId);
   const tenant = mockTenants.find(item => item.id === instance.tenantId);
   let parameters: Record<string, string | number>;
+  const fields = getWorkflowNumberingFields(instance.formSnapshot?.formType ?? 'designer', instance.formSnapshot?.fields ?? [], instance.formSnapshot?.customForm);
+  const errors = validateWorkflowNumberingMapping(ref.parameterMapping, fields);
+  if (errors.length) throw new MockHttpError(badRequest(errors[0]!, { status: 400 }));
   try { parameters = resolveWorkflowNumberingParameters(ref.parameterMapping, instance.formData ?? {}); }
   catch (error) { throw new MockHttpError(badRequest(error instanceof Error ? error.message : '编号参数无效', { status: 400 })); }
   const request = { scene: 'workflow.instance', tenantId: instance.tenantId ?? null, ownerKey: String(instance.definitionId) };
