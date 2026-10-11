@@ -2,13 +2,12 @@ import type { WorkflowDefinition, WorkflowDefinitionVersion, WorkflowFlowData, W
 import { getWorkflowNumberingFields, resolveWorkflowNumberingMapping, resolveWorkflowNumberingParameters, validateWorkflowNumberingMapping } from '@zenith/shared/workflow';
 import { getNumberingTemplateBusinessParameters, numberingBindingRefSchema, validateNumberingParameterMapping } from '@zenith/shared/platform';
 import { mockWorkflowForms } from '@/mocks/data/workflow-forms';
-import { mockNumberingBindings, mockNumberingRules, mockNumberingVersions } from '@/mocks/data/numbering';
+import { mockNumberingVersions } from '@/mocks/data/numbering';
 import { mockUsers } from '@/mocks/data/users';
 import { mockDepartments } from '@/mocks/data/departments';
 import { mockTenants } from '@/mocks/data/tenants';
 import { MockHttpError } from './contract';
-import { badRequest, conflict, nextIdFrom } from './handlers';
-import { mockDateTime } from './date';
+import { badRequest, conflict } from './handlers';
 import { allocateMockBusinessNumber, attachMockBusinessNumber, resolveMockNumberingReference } from './numbering';
 
 export function requirePinnedMockWorkflowNumbering(definition: Pick<WorkflowDefinition, 'id' | 'tenantId' | 'flowData'>) {
@@ -36,7 +35,7 @@ export function pinMockWorkflowNumbering(definition: Pick<WorkflowDefinition, 'i
     }
     return flowData;
   }
-  const resolved = resolveMockNumberingReference({ scene: 'workflow.instance', tenantId: definition.tenantId ?? null, ownerKey: String(definition.id), ruleId: ref?.ruleId, ruleVersionId: ref?.versionId });
+  const resolved = resolveMockNumberingReference({ scene: 'workflow.instance', tenantId: definition.tenantId ?? null, ownerKey: ref ? String(definition.id) : '*', ruleId: ref?.ruleId, ruleVersionId: ref?.versionId });
   const requestedMapping = ref?.parameterMapping ?? resolved.parameterMapping;
   const formSchema = mockWorkflowForms.find(form => form.id === definition.formId
     && (form.tenantId == null || form.tenantId === definition.tenantId))?.schema;
@@ -47,15 +46,6 @@ export function pinMockWorkflowNumbering(definition: Pick<WorkflowDefinition, 'i
   let parameterMapping: Record<string, string>;
   try { parameterMapping = resolveWorkflowNumberingMapping(getNumberingTemplateBusinessParameters(config.template), requestedMapping, fields); }
   catch (error) { throw new MockHttpError(badRequest(error instanceof Error ? error.message : '编号参数映射无效', { status: 400 })); }
-  const rule = mockNumberingRules.find(item => item.id === resolved.ruleId)!;
-  const version = mockNumberingVersions.find(item => item.id === resolved.versionId)!;
-  const now = mockDateTime();
-  const tenantId = definition.tenantId ?? null;
-  const ownerKey = String(definition.id);
-  const binding = mockNumberingBindings.find(item => item.scene === 'workflow.instance' && item.tenantId === tenantId && item.ownerKey === ownerKey);
-  const values = { ruleId: rule.id, versionId: version.id, ruleName: rule.name, version: version.version, parameterMapping: structuredClone(parameterMapping), updatedAt: now };
-  if (binding) Object.assign(binding, values);
-  else mockNumberingBindings.push({ id: nextIdFrom(mockNumberingBindings), scene: 'workflow.instance', tenantId, ownerKey, ...values, createdAt: now });
   return { ...flowData, settings: { allowWithdraw: true, allowResubmit: true, notifyInitiator: true, ...flowData.settings, numbering: { ...resolved, parameterMapping } } };
 }
 

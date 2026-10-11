@@ -1,7 +1,7 @@
 // eslint-disable-next-line no-restricted-imports -- H5 保留：手写 useQuery / useMutation 的理由见本文件对应 hook 的注释；queryKey 仍由 contractKey 生成
 import { useQuery } from '@tanstack/react-query';
 import type { BodyOf, InputOf } from '@zenith/shared/core';
-import { dictContract } from '@zenith/shared/platform';
+import { dictContract, numberingRuleContract } from '@zenith/shared/platform';
 import { decisionFlowContract, decisionTableContract, ruleScorecardContract } from '@zenith/shared/rules';
 import type { WorkflowFlowData, WorkflowSimulationDecision } from '@zenith/shared/workflow';
 import {
@@ -210,6 +210,7 @@ export function useSaveWorkflowDesignerDefinition() {
         void qc.invalidateQueries({ queryKey: workflowDefinitionKeys.lists });
         invalidateWorkflowDefinitionOptions(qc);
         void qc.invalidateQueries({ queryKey: workflowDefinitionKeys.versions(saved.id) });
+        void qc.invalidateQueries({ queryKey: contractKey(numberingRuleContract.usages) });
       },
     },
   );

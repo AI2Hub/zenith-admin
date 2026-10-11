@@ -78,24 +78,23 @@ describe('workflow numbering through Demo APIs', () => {
     expect(instance.definitionSnapshot!.flowData!.settings!.numbering).toEqual(originalReference);
     expect(mockNumberingAllocations).toHaveLength(allocationCount);
   });
-  it('publishing creates or updates the concrete owner binding, while enabling preserves its preset and frozen mapping', async () => {
+  it('publishing freezes the concrete workflow reference, while enabling preserves its mapping', async () => {
     const definition = mockWorkflowDefinitions.find(item => item.id === 2)!;
     const version = mockNumberingVersions.find(item => item.id === definition.flowData!.settings!.numbering!.versionId)!;
     version.config.template = 'WF{YYYYMMDD}-{categoryCode}-{SEQ}';
     definition.flowData!.settings!.numbering!.parameterMapping = { categoryCode: 'formData.expenseType' };
     const published = await call(workflowDefinitionContract.publish, {}, { id: definition.id });
     expect(published.status).toBe(200); expect(published.body.code).toBe(0);
-    const ownerBindings = mockNumberingBindings.filter(item => item.scene === 'workflow.instance' && item.ownerKey === '2' && item.tenantId === definition.tenantId);
-    expect(ownerBindings).toHaveLength(1);
     const reference = published.body.data.flowData.settings.numbering;
-    expect(ownerBindings[0]).toMatchObject({ ruleId: reference.ruleId, versionId: reference.versionId, parameterMapping: reference.parameterMapping });
+    expect(reference).toMatchObject({ ruleId: definition.flowData!.settings!.numbering!.ruleId, versionId: definition.flowData!.settings!.numbering!.versionId });
+    expect(mockNumberingBindings.filter(item => item.scene === 'workflow.instance' && item.ownerKey === '2')).toHaveLength(0);
     await call(workflowDefinitionContract.disable, {}, { id: 2 });
     const form = mockWorkflowForms.find(item => item.id === definition.formId)!;
     form.schema!.fields = [];
-    ownerBindings[0]!.parameterMapping = {};
+    definition.flowData!.settings!.numbering!.parameterMapping = {};
     const enabled = await call(workflowDefinitionContract.enable, {}, { id: 2 });
     expect(enabled.status).toBe(200); expect(enabled.body.code).toBe(0);
-    expect(ownerBindings[0]!.parameterMapping).toEqual({});
+    expect(definition.flowData!.settings!.numbering!.parameterMapping).toEqual({});
     await call(workflowDefinitionContract.disable, {}, { id: 2 });
     const disabled = mockWorkflowDefinitions.find(item => item.id === 2)!;
     disabled.flowData!.settings!.numbering!.parameterMapping.categoryCode = 'formData.changed';

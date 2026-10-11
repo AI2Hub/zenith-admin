@@ -3,7 +3,7 @@ import { auditFieldsSchema, dateRangeQuery, entityStatusQuery, entityStatusSchem
 import { defineContract, op } from '../../core/contract';
 import { NUMBERING_SCENE_CODES, NUMBERING_SCOPES, NUMBERING_UNIQUE_SCOPES } from '../constants';
 import { NUMBERING_SCENE_OPTIONS } from '../numbering-scenes';
-import { createNumberingRuleSchema, numberingConfigSchema, numberingPreviewSchema, publishNumberingRuleSchema, updateNumberingRuleSchema, upsertNumberingBindingSchema } from '../numbering-validation';
+import { createNumberingRuleSchema, numberingConfigSchema, numberingPreviewSchema, publishNumberingRuleSchema, resetNumberingDefaultSchema, updateNumberingDefaultSchema, updateNumberingRuleSchema } from '../numbering-validation';
 
 export const numberingRuleSchema = z.object({
   id: z.int(), code: z.string(), name: z.string(), scene: z.enum(NUMBERING_SCENE_CODES),
@@ -49,6 +49,22 @@ export const numberingBindingSchema = z.object({
 }).meta({ id: 'NumberingBinding' });
 export type NumberingBinding = z.infer<typeof numberingBindingSchema>;
 
+export const numberingDefaultSchema = z.object({
+  scene: z.enum(NUMBERING_SCENE_CODES), businessName: z.string(), description: z.string(), tenantCustomizable: z.boolean(),
+  tenantId: z.int().nullable(), sourceTenantId: z.int().nullable(), sourceTenantName: z.string().nullable(), inherited: z.boolean(),
+  ruleId: z.int().nullable(), ruleName: z.string().nullable(), versionId: z.int().nullable(), version: z.int().nullable(),
+  template: z.string().nullable(), scope: z.enum(NUMBERING_SCOPES).nullable(), expectedVersionId: z.int().nullable(),
+  canUpdate: z.boolean(), canReset: z.boolean(),
+}).meta({ id: 'NumberingDefault' });
+export type NumberingDefault = z.infer<typeof numberingDefaultSchema>;
+
+export const numberingRuleUsageSchema = z.object({
+  kind: z.enum(['default', 'workflow']), scene: z.enum(NUMBERING_SCENE_CODES), businessName: z.string(), name: z.string(),
+  tenantId: z.int().nullable(), tenantName: z.string().nullable(), versionId: z.int(), version: z.int(),
+  objectKey: z.string().nullable(), destination: z.string().nullable(),
+}).meta({ id: 'NumberingRuleUsage' });
+export type NumberingRuleUsage = z.infer<typeof numberingRuleUsageSchema>;
+
 export const numberingAllocationSchema = z.object({
   id: z.int(), scene: z.enum(NUMBERING_SCENE_CODES), tenantId: z.int().nullable(),
   ownerKey: z.string(), allocationKey: z.string(), businessKey: z.string().nullable(),
@@ -77,13 +93,15 @@ export const numberingRuleContract = defineContract('/api/numbering-rules', {
   publish: op.post('/{id}/publish', { access: { permission: 'system:numbering:publish' }, audit: '发布编号规则', params: idParam, body: publishNumberingRuleSchema, response: numberingRuleSchema, summary: '发布不可变编号规则版本' }),
   versions: op.get('/{id}/versions', { access: { permission: 'system:numbering:list' }, params: idParam, response: z.array(numberingVersionSchema), summary: '编号规则历史版本' }),
   counters: op.get('/{id}/counters', { access: { permission: 'system:numbering:list' }, params: idParam, response: z.array(numberingCounterSchema), summary: '编号规则各范围及周期的当前流水' }),
+  usages: op.get('/{id}/usages', { access: { permission: 'system:numbering:list' }, params: idParam, response: z.array(numberingRuleUsageSchema), summary: '编号规则的实际使用位置' }),
 }, { auditModule: '编号规则', tags: ['NumberingRules'] });
 
-export const numberingBindingContract = defineContract('/api/numbering-bindings', {
-  list: op.get('/', { access: { permission: 'system:numbering:list' }, query: paginationQuery.extend({ scene: sceneQuery, ruleId: idQuery('编号规则 ID'), ownerKey: keywordQuery('业务对象标识') }), response: paginated(numberingBindingSchema), summary: '编号业务绑定列表' }),
-  upsert: op.post('/', { access: { permission: 'system:numbering:bind' }, audit: '绑定编号业务', body: upsertNumberingBindingSchema, response: numberingBindingSchema, summary: '设置业务使用的编号规则版本' }),
-  remove: op.delete('/{id}', { access: { permission: 'system:numbering:bind' }, audit: '移除编号业务绑定', params: idParam, summary: '移除编号业务绑定' }),
-}, { auditModule: '编号规则', tags: ['NumberingBindings'] });
+const numberingSceneParam = z.object({ scene: z.enum(NUMBERING_SCENE_CODES) });
+export const numberingDefaultContract = defineContract('/api/numbering-defaults', {
+  list: op.get('/', { access: { permission: 'system:numbering:list' }, response: z.array(numberingDefaultSchema), summary: '当前视角各业务类型的默认编号规则' }),
+  update: op.put('/{scene}', { access: { permission: 'system:numbering:bind' }, audit: '配置业务默认编号规则', params: numberingSceneParam, body: updateNumberingDefaultSchema, response: numberingDefaultSchema, summary: '配置业务类型的默认编号规则' }),
+  reset: op.delete('/{scene}', { access: { permission: 'system:numbering:bind' }, audit: '恢复业务默认编号规则', params: numberingSceneParam, body: resetNumberingDefaultSchema, response: numberingDefaultSchema, summary: '删除租户覆盖并恢复平台默认' }),
+}, { auditModule: '编号规则', tags: ['NumberingDefaults'] });
 
 export const numberingAllocationContract = defineContract('/api/numbering-allocations', {
   list: op.get('/', {

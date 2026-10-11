@@ -4,7 +4,7 @@ import type { WorkflowCustomFormConfig, WorkflowFlowData, WorkflowFormField, Wor
 import { getWorkflowNumberingFields, resolveWorkflowNumberingMapping, resolveWorkflowNumberingParameters, validateWorkflowNumberingMapping } from '@zenith/shared/workflow';
 import { getNumberingTemplateBusinessParameters, numberingBindingRefSchema, validateNumberingParameterMapping } from '@zenith/shared/platform';
 import type { DbTransaction } from '../../db/types';
-import { departments, numberingBindings, tenants, users, workflowDefinitionVersions, workflowForms } from '../../db/schema';
+import { departments, tenants, users, workflowDefinitionVersions, workflowForms } from '../../db/schema';
 import { allocateBusinessNumber, attachBusinessNumber, resolveNumberingVersion } from '../platform/numbering-runtime';
 import { lockNumberingBinding } from '../platform/numbering-binding-lock';
 import { buildWhere } from '../../lib/where-helpers';
@@ -49,8 +49,9 @@ export async function pinWorkflowNumbering(tx: DbTransaction, input: {
   const owner = { scene: 'workflow.instance', tenantId: input.tenantId, ownerKey: String(input.id) };
   // Every binding writer acquires the stable owner lock before the rule lock.
   await lockNumberingBinding(tx, owner);
+  if (!reference) await lockNumberingBinding(tx, { ...owner, ownerKey: '*' });
   const resolved = await resolveNumberingVersion(tx, {
-    ...owner,
+    ...owner, ownerKey: reference ? owner.ownerKey : '*',
     ruleId: reference?.ruleId, ruleVersionId: reference?.versionId,
   });
   const requestedMapping = reference?.parameterMapping ?? resolved.binding?.parameterMapping ?? {};
@@ -65,10 +66,6 @@ export async function pinWorkflowNumbering(tx: DbTransaction, input: {
   let parameterMapping: Record<string, string>;
   try { parameterMapping = resolveWorkflowNumberingMapping(getNumberingTemplateBusinessParameters(resolved.version.config.template), requestedMapping, fields); }
   catch (error) { throw new HTTPException(400, { message: error instanceof Error ? error.message : '编号参数映射无效' }); }
-  await tx.insert(numberingBindings).values({ ...owner, ruleId: resolved.rule.id, versionId: resolved.version.id, parameterMapping }).onConflictDoUpdate({
-    target: [numberingBindings.scene, numberingBindings.ownerKey, numberingBindings.tenantId],
-    set: { ruleId: resolved.rule.id, versionId: resolved.version.id, parameterMapping, updatedAt: new Date() },
-  });
   return { ...input.flowData, settings: {
     allowWithdraw: true, allowResubmit: true, notifyInitiator: true, ...input.flowData.settings,
     numbering: { ruleId: resolved.rule.id, versionId: resolved.version.id, parameterMapping },

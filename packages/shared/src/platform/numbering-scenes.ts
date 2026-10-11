@@ -34,18 +34,18 @@ const paymentLabels = {
 /** 编号约束由业务代码声明，管理页面不能放宽支付渠道或唯一性约束。 */
 export const NUMBERING_SCENES: readonly NumberingSceneDefinition[] = NUMBERING_SCENE_CODES.map(code => {
   if (code === 'workflow.instance') return {
-    code, label: '流程实例', description: '首次正式发起时取号；草稿不取号，同一实例重提保留编号。',
+    code, label: '流程实例', description: '流程实例使用的编号类型；具体流程可在设计器选择规则，发布后固定版本。',
     uniqueNamespace: code, uniqueScope: 'owner', allowedScopes: ['global', 'tenant', 'owner', 'department'],
     parameters: organizationalParameters, maxLength: 128, characterPattern: '^[^\\s{}\\u0000-\\u001F\\u007F]+$', tenantCustomizable: true,
   };
   if (code === 'biz.leave') return {
-    code, label: '请假单', description: '创建业务单时取号；重新发起审批保留业务单号。',
+    code, label: '请假单', description: '请假业务单据使用的编号类型；重新发起审批保留同一业务单号。',
     uniqueNamespace: code, uniqueScope: 'tenant', allowedScopes: ['global', 'tenant', 'department'],
     parameters: organizationalParameters.filter(item => item.key !== 'ownerKey'),
     maxLength: 64, characterPattern: '^[A-Za-z0-9_-]+$', tenantCustomizable: true,
   };
   return {
-    code, label: paymentLabels[code], description: '受支付渠道协议约束，全局唯一；业务重试使用原编号。',
+    code, label: paymentLabels[code], description: '支付业务使用的编号类型；由平台统一配置，符合渠道约束并全局唯一。',
     uniqueNamespace: code === 'payment.deduction' || code === 'payment.capture' ? 'payment.order' : code,
     uniqueScope: 'global', allowedScopes: ['global'], parameters: [],
     maxLength: 32, characterPattern: '^[A-Za-z0-9]+$', tenantCustomizable: false,

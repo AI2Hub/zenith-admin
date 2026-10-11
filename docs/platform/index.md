@@ -18,7 +18,7 @@
 | --- | --- | --- |
 | 运行时设置 | `/api/settings` | 按模块读写类型化设置文档（`version` 乐观锁）、模块清单、匿名 / 登录用户投影；模块注册表、缓存与跨实例失效见[运行时设置](../backend/settings.md) |
 | 数据字典 | `/api/dicts` | 字典与字典项维护，按字典编码读取选项，支撑业务表单与展示 |
-| 业务编号 | `/api/numbering-rules`、`/api/numbering-bindings`、`/api/numbering-allocations` | 规则草稿与不可变发布版本、业务绑定、无副作用预览、计数查询及幂等分配记录；入口「系统管理 → 编号规则」 |
+| [业务编号](./numbering.md) | `/api/numbering-rules`、`/api/numbering-defaults`、`/api/numbering-allocations` | 规则草稿与不可变发布版本、按业务类型配置默认规则、实际使用位置、无副作用预览、计数查询及幂等分配记录；具体业务在自身设置中选择规则 |
 | 地区 | `/api/regions` | 地区树、平铺列表、详情与增删改 |
 | 标签 | `/api/tags` | 标签维护、分组查询与批量删除 |
 | 意见反馈 | `/api/feedbacks` | 登录用户提交反馈，管理端查询、处理与删除 |

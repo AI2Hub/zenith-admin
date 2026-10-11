@@ -35,11 +35,11 @@ export const updateNumberingRuleSchema = partialForUpdate(createNumberingRuleSch
   expectedRevision: z.int().positive(),
 });
 export const publishNumberingRuleSchema = z.object({ expectedRevision: z.int().positive() });
-export const upsertNumberingBindingSchema = z.object({
-  scene: z.enum(NUMBERING_SCENE_CODES), ownerKey: z.string().min(1).max(128),
+export const updateNumberingDefaultSchema = z.strictObject({
   ruleId: z.int().positive(), versionId: z.int().positive(),
-  parameterMapping: z.record(z.string().max(256), z.string().max(256)),
+  expectedVersionId: z.int().positive().nullable(),
 });
+export const resetNumberingDefaultSchema = z.strictObject({ expectedVersionId: z.int().positive().nullable() });
 export const numberingPreviewSchema = z.object({
   scene: z.enum(NUMBERING_SCENE_CODES), config: numberingConfigSchema,
   at: z.iso.datetime({ offset: true }).optional(),

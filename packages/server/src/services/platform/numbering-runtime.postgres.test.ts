@@ -7,7 +7,7 @@ import { closeDb } from '../../db';
 import * as schema from '../../db/schema';
 import { runWithCurrentUser } from '../../lib/context';
 import { allocateBusinessNumber, attachBusinessNumber } from './numbering-runtime';
-import { listNumberingBindings } from './numbering.service';
+import { listNumberingDefaults, listNumberingRuleUsages, resetNumberingDefault, updateNumberingDefault } from './numbering.service';
 
 // Opt-in only: this suite requires a disposable database created by the QA runner.
 const databaseUrl = process.env.NUMBERING_TEST_DATABASE_URL;
@@ -19,6 +19,7 @@ integration('business numbering on PostgreSQL', () => {
   const database = drizzle(client, { schema, casing: 'snake_case' });
   let tenantA: number;
   let tenantB: number;
+  let actorId: number;
   let ordinal = 0;
   const at = new Date('2026-10-11T04:00:00Z');
   const config: NumberingConfig = {
@@ -34,6 +35,8 @@ integration('business numbering on PostgreSQL', () => {
       { code: `numbering_qa_b_${Date.now()}`, name: '编号隔离测试 B' },
     ]).returning({ id: schema.tenants.id });
     [tenantA, tenantB] = tenants.map(row => row.id);
+    const [actor] = await database.insert(schema.users).values({ username: `qa_numbering_${Date.now()}`, nickname: '编号测试用户', password: 'unused-test-fixture', tenantId: tenantA }).returning();
+    actorId = actor.id;
   });
   afterAll(async () => { await client.end(); await closeDb(); });
 
@@ -134,14 +137,42 @@ integration('business numbering on PostgreSQL', () => {
     expect(receipt.businessKey).toBe('100');
   });
 
-  it('loads management bindings with the published version number and rule name', async () => {
+  it('lists actual default and frozen workflow usage without exposing internal owner bindings or foreign tenants', async () => {
     const { rule, version } = await fixture();
-    await database.insert(schema.numberingBindings).values({ scene: 'workflow.instance', tenantId: tenantA, ownerKey: 'management-view', ruleId: rule.id, versionId: version.id });
-    const result = await runWithCurrentUser({ userId: 1, username: 'qa', tenantId: tenantA, roles: ['operator'] }, () =>
-      listNumberingBindings({ page: 1, pageSize: 10, ruleId: rule.id }));
-    expect(result.total).toBe(1);
-    expect(result.list[0]).toMatchObject({ ruleName: 'QA rule', version: 1, versionId: version.id, tenantId: tenantA });
-    expect(typeof result.list[0].createdAt).toBe('string');
+    const [newVersion] = await database.insert(schema.numberingVersions).values({ ruleId: rule.id, version: 2, config: { ...rule.draft, template: 'NEW{YYYYMMDD}{SEQ:6}' } }).returning();
+    await database.insert(schema.numberingBindings).values([
+      { scene: 'workflow.instance', tenantId: null, ownerKey: '*', ruleId: rule.id, versionId: newVersion.id },
+      { scene: 'workflow.instance', tenantId: tenantA, ownerKey: 'management-view', ruleId: rule.id, versionId: newVersion.id },
+    ]);
+    const [workflow] = await database.insert(schema.workflowDefinitions).values([
+      { name: 'Frozen QA workflow', tenantId: tenantA, status: 'published', flowData: { settings: { numbering: { ruleId: rule.id, versionId: version.id, parameterMapping: {} } } } },
+      { name: 'Foreign QA workflow', tenantId: tenantB, status: 'published', flowData: { settings: { numbering: { ruleId: rule.id, versionId: newVersion.id, parameterMapping: {} } } } },
+    ]).returning();
+    const result = await runWithCurrentUser({ userId: actorId, username: 'qa', tenantId: tenantA, roles: ['operator'] }, () => listNumberingRuleUsages(rule.id));
+    expect(result).toHaveLength(2);
+    expect(result.find(item => item.kind === 'default')).toMatchObject({ version: 2, versionId: newVersion.id, tenantId: null });
+    expect(result.find(item => item.kind === 'workflow')).toMatchObject({ name: 'Frozen QA workflow', version: 1, versionId: version.id, tenantId: tenantA, objectKey: String(workflow.id) });
+    expect(result.some(item => item.name === 'Foreign QA workflow' || item.objectKey === 'management-view')).toBe(false);
+  });
+
+  it('serializes concurrent default edits, preserves fixed workflow references and restores tenant inheritance', async () => {
+    const platform = await database.select().from(schema.numberingBindings).where(eq(schema.numberingBindings.ownerKey, '*'));
+    const base = platform.find(item => item.scene === 'workflow.instance' && item.tenantId === null)!;
+    const { rule, version } = await fixture({ tenantId: tenantA, config: { template: 'TENANT{YYYYMMDD}{SEQ:6}' } });
+    const asActor = <T>(run: () => Promise<T>) => runWithCurrentUser({ userId: actorId, username: 'qa', tenantId: tenantA, roles: ['operator'] }, run);
+    const initial = (await asActor(listNumberingDefaults)).find(item => item.scene === 'workflow.instance')!;
+    expect(initial).toMatchObject({ ruleId: base.ruleId, versionId: base.versionId, inherited: true, expectedVersionId: null, canUpdate: true, canReset: false });
+    const edits = await Promise.allSettled(Array.from({ length: 2 }, () => asActor(() => updateNumberingDefault('workflow.instance', {
+      ruleId: rule.id, versionId: version.id, expectedVersionId: null,
+    }))));
+    expect(edits.filter(item => item.status === 'fulfilled')).toHaveLength(1);
+    expect(edits.filter(item => item.status === 'rejected')).toHaveLength(1);
+    const own = (await asActor(listNumberingDefaults)).find(item => item.scene === 'workflow.instance')!;
+    expect(own).toMatchObject({ ruleId: rule.id, versionId: version.id, inherited: false, expectedVersionId: version.id, canReset: true });
+    const usages = await asActor(() => listNumberingRuleUsages(base.ruleId));
+    expect(usages.find(item => item.name === 'Frozen QA workflow')).toMatchObject({ version: 1 });
+    const restored = await asActor(() => resetNumberingDefault('workflow.instance', { expectedVersionId: version.id }));
+    expect(restored).toMatchObject({ ruleId: base.ruleId, versionId: base.versionId, inherited: true, expectedVersionId: null, canReset: false });
   });
 
   it('uses the configured timezone for midnight and period rollover', async () => {

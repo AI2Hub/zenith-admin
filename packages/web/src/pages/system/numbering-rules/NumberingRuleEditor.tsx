@@ -205,7 +205,7 @@ export function NumberingRuleEditor({ editing, sequenceLocked }: Readonly<{ edit
         <Typography.Paragraph type="tertiary" size="small">先保存草稿，再发布版本供业务使用。首次发布后，流水范围、重置周期、时区、起始值与步长固定，可复制规则建立新序列。</Typography.Paragraph>
         <Form.Input field="name" label="规则名称" rules={[{ required: true, message: '请填写规则名称' }]} maxLength={100} />
         <Form.Input field="code" label="规则编码" disabled={editing} rules={[{ required: true, message: '请填写规则编码' }]} placeholder="如 leave.default" extraText="使用小写字母、数字、点、横线或下划线" />
-        <Form.Select field="scene" label="接入业务" disabled={editing} optionList={NUMBERING_SCENE_OPTIONS} style={{ width: '100%' }}
+        <Form.Select field="scene" label="适用业务类型" disabled={editing} optionList={NUMBERING_SCENE_OPTIONS} style={{ width: '100%' }}
           onChange={value => {
             const next = getNumberingScene(String(value));
             if (values.draft && !next.allowedScopes.includes(values.draft.scope)) formApi.setValue('draft.scope', next.allowedScopes[0]);

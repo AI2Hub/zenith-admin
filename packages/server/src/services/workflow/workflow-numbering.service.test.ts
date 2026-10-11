@@ -4,7 +4,6 @@ import type { WorkflowFlowData } from '@zenith/shared/workflow';
 const mocks = vi.hoisted(() => ({ resolve: vi.fn(), allocate: vi.fn(), attach: vi.fn(), lockBinding: vi.fn() }));
 vi.mock('../platform/numbering-runtime', () => ({ resolveNumberingVersion: mocks.resolve, allocateBusinessNumber: mocks.allocate, attachBusinessNumber: mocks.attach }));
 vi.mock('../platform/numbering-binding-lock', () => ({ lockNumberingBinding: mocks.lockBinding }));
-import { numberingBindings } from '../../db/schema';
 import { allocateWorkflowInstanceNumber, pinWorkflowNumbering, requirePinnedWorkflowNumbering } from './workflow-numbering.service';
 
 function transaction(...results: unknown[][]): DbTransaction {
@@ -26,9 +25,7 @@ describe('workflow numbering integration', () => {
     expect(pinned.settings?.numbering).toEqual(ref);
     await pinWorkflowNumbering(tx, { id: 3, tenantId: null, formId: null, flowData: pinned });
     expect(mocks.resolve).toHaveBeenLastCalledWith(tx, expect.objectContaining({ ruleId: 7, ruleVersionId: 9, ownerKey: '3' }));
-    expect(tx.insert).toHaveBeenCalledWith(numberingBindings);
-    const insert = vi.mocked(tx.insert).mock.results[0]!.value;
-    expect(insert.values).toHaveBeenCalledWith({ scene: 'workflow.instance', tenantId: null, ownerKey: '3', ruleId: 7, versionId: 9, parameterMapping: {} });
+    expect(tx.insert).not.toHaveBeenCalled();
   });
   it('blocks enabling unpinned definitions and publishing missing parameter sources', async () => {
     await expect(pinWorkflowNumbering(transaction(), { id: 3, tenantId: null, formId: null, flowData: { nodes: [], edges: [] } }, true)).rejects.toThrow('重新发布');
@@ -69,7 +66,7 @@ describe('workflow numbering integration', () => {
       initiatorId: 99, flowData: flow(), formData: {}, formSnapshot: null })).rejects.toThrow('发起人不存在');
     expect(mocks.allocate).not.toHaveBeenCalled();
   });
-  it('locks the owner binding before reading/locking the rule and does not publish a binding until that lock is acquired', async () => {
+  it('locks the stable workflow owner before reading the fixed rule without writing a second owner reference', async () => {
     let unlock!: () => void;
     mocks.lockBinding.mockImplementationOnce(() => new Promise<void>(resolve => { unlock = resolve; }));
     const tx = transaction();
@@ -77,7 +74,7 @@ describe('workflow numbering integration', () => {
     expect(mocks.lockBinding).toHaveBeenCalledWith(tx, { scene: 'workflow.instance', tenantId: 2, ownerKey: '3' });
     expect(mocks.resolve).not.toHaveBeenCalled(); expect(tx.insert).not.toHaveBeenCalled();
     unlock(); await pending;
-    expect(mocks.resolve).toHaveBeenCalledOnce(); expect(tx.insert).toHaveBeenCalledOnce();
+    expect(mocks.resolve).toHaveBeenCalledOnce(); expect(tx.insert).not.toHaveBeenCalled();
   });
   it('checks enabling and fixed draft references without rewriting the owner preset', async () => {
     const tx = transaction([{ flowData: flow() }]);
@@ -109,14 +106,14 @@ describe('workflow numbering integration', () => {
     await expect(pinWorkflowNumbering(tx, { id: 3, tenantId: null, formId: null, flowData: flow() })).rejects.toThrow('必须映射');
     expect(tx.insert).not.toHaveBeenCalled();
   });
-  it('automatically resolves multiple FORM labels into actual keys and freezes them in the owner binding', async () => {
+  it('automatically resolves multiple FORM labels into actual keys and freezes them in the published reference', async () => {
     mocks.resolve.mockResolvedValue({ rule: { id: 7 }, version: { id: 9, config: { template: '{FORM.地区}-{SEQ:3}-{FORM.类别}-{YYMMDD}-{DEPT_CODE}' } } });
     const fields = [{ key: 'regionCode', label: '地区', type: 'text' }, { key: 'category', label: '类别', type: 'select' }];
     const tx = transaction([{ schema: { fields } }]);
     const pinned = await pinWorkflowNumbering(tx, { id: 3, tenantId: 2, formId: 5, flowData: flow() });
     const parameterMapping = { 'FORM.地区': 'formData.regionCode', 'FORM.类别': 'formData.category' };
     expect(pinned.settings?.numbering).toEqual({ ...ref, parameterMapping });
-    expect(vi.mocked(tx.insert).mock.results[0]!.value.values).toHaveBeenCalledWith(expect.objectContaining({ parameterMapping, ownerKey: '3' }));
+    expect(tx.insert).not.toHaveBeenCalled();
   });
   it('reads fixed multi-FORM mappings against the actual snapshot, keeping trusted identities and ignoring changed labels', async () => {
     const flowData = flow();
@@ -134,5 +131,23 @@ describe('workflow numbering integration', () => {
     mocks.allocate.mockClear();
     await expect(allocateWorkflowInstanceNumber(transaction([initiator]), { ...input, formSnapshot: { ...input.formSnapshot, fields: [] } })).rejects.toThrow('不存在');
     expect(mocks.allocate).not.toHaveBeenCalled();
+  });
+  it('clearing a specific rule chooses the business default on republish while issued instances retain their fixed reference', async () => {
+    const original = flow();
+    const cleared = structuredClone(original);
+    delete cleared.settings!.numbering;
+    mocks.resolve.mockResolvedValue({ rule: { id: 17 }, version: { id: 19, config: { template: 'NEW-{SEQ}' } }, binding: { parameterMapping: {} } });
+    const tx = transaction();
+    const published = await pinWorkflowNumbering(tx, { id: 3, tenantId: 2, formId: null, flowData: cleared });
+    expect(mocks.lockBinding).toHaveBeenNthCalledWith(1, tx, { scene: 'workflow.instance', tenantId: 2, ownerKey: '3' });
+    expect(mocks.lockBinding).toHaveBeenNthCalledWith(2, tx, { scene: 'workflow.instance', tenantId: 2, ownerKey: '*' });
+    expect(mocks.resolve).toHaveBeenLastCalledWith(tx, expect.objectContaining({ ownerKey: '*', ruleId: undefined, ruleVersionId: undefined }));
+    expect(published.settings!.numbering).toEqual({ ruleId: 17, versionId: 19, parameterMapping: {} });
+    expect(tx.insert).not.toHaveBeenCalled();
+    expect(original.settings!.numbering).toEqual(ref);
+    const initiator = { username: 'actual', nickname: '原发起人', departmentId: null, departmentCode: null, departmentName: null };
+    await allocateWorkflowInstanceNumber(transaction([initiator]), { instanceId: 22, definitionId: 3, tenantId: null,
+      initiatorId: 1, flowData: original, formData: {}, formSnapshot: null });
+    expect(mocks.allocate).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ ruleId: 7, ruleVersionId: 9 }));
   });
 });

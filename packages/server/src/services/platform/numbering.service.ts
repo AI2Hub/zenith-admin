@@ -3,34 +3,31 @@ import type * as z from 'zod';
 import { HTTPException } from 'hono/http-exception';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import {
-  NUMBERING_SCENES, getNumberingScene, getNumberingTemplateBusinessParameters, parseNumberingFormParameter, numberingAllocationContract,
-  numberingAllocationSchema, numberingBindingContract, numberingBindingSchema, numberingRuleContract,
+  NUMBERING_SCENES, getNumberingScene, getNumberingTemplateBusinessParameters, numberingAllocationContract,
+  numberingAllocationSchema, numberingRuleContract,
   numberingRuleSchema, numberingVersionSchema, previewBusinessNumbers,
-  validateNumberingConfig, validateNumberingParameterMapping,
+  validateNumberingConfig,
 } from '@zenith/shared/platform';
-import { getWorkflowNumberingFields, resolveWorkflowNumberingMapping, type WorkflowCustomFormConfig, type WorkflowFormField } from '@zenith/shared/workflow';
 import type {
   createNumberingRuleSchema, updateNumberingRuleSchema, publishNumberingRuleSchema,
-  upsertNumberingBindingSchema, numberingPreviewSchema, NumberingConfig,
+  resetNumberingDefaultSchema, updateNumberingDefaultSchema, numberingPreviewSchema, NumberingConfig, NumberingDefault, NumberingRuleUsage,
 } from '@zenith/shared/platform';
 import { db } from '../../db';
 import type { DbExecutor, DbTransaction } from '../../db/types';
-import { numberingAllocations, numberingBindings, numberingCounters, numberingRules, numberingVersions, workflowDefinitions, workflowForms, workflowInstances } from '../../db/schema';
-import type { NumberingAllocationRow, NumberingBindingRow, NumberingRuleRow } from '../../db/schema/numbering';
+import { numberingAllocations, numberingBindings, numberingCounters, numberingRules, numberingVersions, workflowDefinitions, workflowInstances, tenants } from '../../db/schema';
+import type { NumberingAllocationRow, NumberingRuleRow } from '../../db/schema/numbering';
 import { currentUser } from '../../lib/context';
 import { requireRow } from '../../lib/db-assert';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { entityMapper } from '../../lib/entity-map';
-import { buildListResult, listRows } from '../../lib/list-query';
+import { listRows } from '../../lib/list-query';
 import { getCreateTenantId, getTenantScopeId, isPlatformAdmin, tenantScope, exactTenantCondition, inheritedTenantCondition } from '../../lib/tenant';
 import { buildWhere, dateRangeConditions, keywordCondition } from '../../lib/where-helpers';
-import { pageOffset } from '../../lib/pagination';
 import { numberingSequencePolicy } from './numbering-runtime';
 import { lockNumberingBinding } from './numbering-binding-lock';
 
 const mapRule = entityMapper(numberingRuleSchema, (row: NumberingRuleRow) => ({ scene: getNumberingScene(row.scene).code }));
 const mapVersion = entityMapper(numberingVersionSchema);
-const mapBinding = entityMapper(numberingBindingSchema, (row: NumberingBindingRow & { ruleName: string; version: number }) => ({ scene: getNumberingScene(row.scene).code }));
 const mapAllocation = entityMapper(numberingAllocationSchema, (row: NumberingAllocationRow) => ({ scene: getNumberingScene(row.scene).code }));
 
 function readableRuleScope() {
@@ -117,7 +114,7 @@ export async function updateNumberingRule(id: number, input: z.output<typeof upd
     requireRevision(rule, input.expectedRevision);
     if (input.draft) { requireValidConfig(input.draft, rule.scene); await requireStableSequence(tx, rule, input.draft); }
     if (input.status === 'disabled' && rule.status !== 'disabled') {
-      const bindings = await tx.$count(numberingBindings, eq(numberingBindings.ruleId, rule.id));
+      const bindings = await tx.$count(numberingBindings, buildWhere(eq(numberingBindings.ruleId, rule.id), eq(numberingBindings.ownerKey, '*')));
       const allocations = await tx.$count(numberingAllocations, eq(numberingAllocations.ruleId, rule.id));
       if (bindings || allocations) throw new HTTPException(409, { message: rule.scene === 'workflow.instance'
         ? '规则已被流程使用，不能停用；修改编号中心绑定不会改变固定版本，请在流程设计器选择新规则版本后重新发布'
@@ -159,7 +156,7 @@ export async function removeNumberingRule(id: number) {
     const rule = await ensureNumberingRule(id, tx, true);
     requireRuleWrite(rule);
     const versions = await tx.$count(numberingVersions, eq(numberingVersions.ruleId, rule.id));
-    const bindings = await tx.$count(numberingBindings, eq(numberingBindings.ruleId, rule.id));
+    const bindings = await tx.$count(numberingBindings, buildWhere(eq(numberingBindings.ruleId, rule.id), eq(numberingBindings.ownerKey, '*')));
     const allocations = await tx.$count(numberingAllocations, eq(numberingAllocations.ruleId, rule.id));
     if (rule.isBuiltin || versions || bindings || allocations) throw new HTTPException(409, { message: '内置、已发布或已使用的编号规则不能删除' });
     await tx.delete(numberingRules).where(eq(numberingRules.id, rule.id));
@@ -189,103 +186,136 @@ export function previewNumberingRule(input: z.output<typeof numberingPreviewSche
   catch (error) { throw new HTTPException(400, { message: error instanceof Error ? error.message : '编号预览失败' }); }
 }
 
-export function listNumberingBindings(q: QueryOutputOf<typeof numberingBindingContract.list>) {
-  const own = tenantScope(numberingBindings);
-  const where = buildWhere(
-    own ? or(own, isNull(numberingBindings.tenantId)) : undefined,
-    q.scene ? eq(numberingBindings.scene, q.scene) : undefined, q.ruleId ? eq(numberingBindings.ruleId, q.ruleId) : undefined,
-    keywordCondition(q.ownerKey, [numberingBindings.ownerKey]),
-  );
-  return buildListResult({
-    ...q,
-    count: () => db.$count(numberingBindings, where),
-    rows: () => db.query.numberingBindings.findMany({
-      where, orderBy: [asc(numberingBindings.scene), asc(numberingBindings.ownerKey)],
-      limit: q.pageSize, offset: pageOffset(q.page, q.pageSize),
-      with: { rule: { columns: { name: true } }, version: { columns: { version: true } } },
-    }),
-    map: row => mapBinding({ ...row, ruleName: row.rule.name, version: row.version.version }),
-  });
-}
+type DefaultRow = {
+  scene: string; tenantId: number | null; ruleId: number; ruleName: string; versionId: number; version: number;
+  config: NumberingConfig; sourceTenantName: string | null;
+};
 
-async function ensureBindingOwner(tx: DbTransaction, scene: string, ownerKey: string, tenantId: number | null) {
-  if (ownerKey === '*') return null;
-  if (scene !== 'workflow.instance' || !/^[1-9]\d*$/.test(ownerKey) || !Number.isSafeInteger(Number(ownerKey))) {
-    throw new HTTPException(400, { message: '业务对象标识仅允许 * 或流程定义 ID' });
-  }
-  const [definition] = await tx.select({ id: workflowDefinitions.id, formId: workflowDefinitions.formId, formType: workflowDefinitions.formType, customForm: workflowDefinitions.customForm }).from(workflowDefinitions).where(buildWhere(
-    eq(workflowDefinitions.id, Number(ownerKey)), exactTenantCondition(workflowDefinitions.tenantId, tenantId), tenantScope(workflowDefinitions),
-  )).limit(1);
-  return requireRow(definition, '流程定义不存在或不属于当前租户');
-}
-
-export async function upsertNumberingBinding(input: z.output<typeof upsertNumberingBindingSchema>) {
+function canWriteDefault(scene: ReturnType<typeof getNumberingScene>, tenantId: number | null): boolean {
   const user = currentUser();
-  const tenantId = getCreateTenantId(user);
-  const scene = getNumberingScene(input.scene);
-  if (tenantId === null && input.ownerKey === '*' && !isPlatformAdmin(user)) throw new HTTPException(403, { message: '平台默认编号绑定只能由平台管理员维护' });
-  if (!scene.tenantCustomizable && (!isPlatformAdmin(user) || tenantId !== null)) throw new HTTPException(403, { message: '支付编号绑定只能由平台管理员在平台视角维护' });
-  const mappingErrors = validateNumberingParameterMapping(input.scene, input.parameterMapping);
-  if (mappingErrors.length) throw new HTTPException(400, { message: mappingErrors.join('；') });
+  return tenantId === null ? isPlatformAdmin(user) : scene.tenantCustomizable;
+}
+
+function mapDefault(scene: ReturnType<typeof getNumberingScene>, tenantId: number | null, rows: readonly DefaultRow[]): NumberingDefault {
+  const candidates = rows.filter(row => row.scene === scene.code && (scene.tenantCustomizable || row.tenantId === null));
+  const own = candidates.find(row => row.tenantId === tenantId);
+  const platform = candidates.find(row => row.tenantId === null);
+  const selected = own ?? platform;
+  return {
+    scene: scene.code, businessName: scene.label, description: scene.description, tenantCustomizable: scene.tenantCustomizable,
+    tenantId, sourceTenantId: selected?.tenantId ?? null, sourceTenantName: selected ? selected.tenantId === null ? '平台' : selected.sourceTenantName : null,
+    inherited: tenantId !== null && !own && !!platform,
+    ruleId: selected?.ruleId ?? null, ruleName: selected?.ruleName ?? null, versionId: selected?.versionId ?? null,
+    version: selected?.version ?? null, template: selected?.config.template ?? null, scope: selected?.config.scope ?? null,
+    expectedVersionId: own?.versionId ?? null, canUpdate: canWriteDefault(scene, tenantId),
+    canReset: tenantId !== null && scene.tenantCustomizable && !!own && !!platform,
+  };
+}
+
+async function readDefaultRows(executor: DbExecutor, tenantId: number | null, sceneCode?: string): Promise<DefaultRow[]> {
+  return executor.select({ scene: numberingBindings.scene, tenantId: numberingBindings.tenantId,
+    ruleId: numberingRules.id, ruleName: numberingRules.name, versionId: numberingVersions.id, version: numberingVersions.version,
+    config: numberingVersions.config, sourceTenantName: tenants.name,
+  }).from(numberingBindings).innerJoin(numberingRules, eq(numberingRules.id, numberingBindings.ruleId))
+    .innerJoin(numberingVersions, buildWhere(eq(numberingVersions.id, numberingBindings.versionId), eq(numberingVersions.ruleId, numberingRules.id)))
+    .leftJoin(tenants, eq(tenants.id, numberingBindings.tenantId)).where(buildWhere(
+      eq(numberingBindings.ownerKey, '*'), inheritedTenantCondition(numberingBindings.tenantId, tenantId),
+      sceneCode ? eq(numberingBindings.scene, sceneCode) : undefined,
+    ));
+}
+
+export async function listNumberingDefaults(): Promise<NumberingDefault[]> {
+  const tenantId = getCreateTenantId(currentUser());
+  const rows = await readDefaultRows(db, tenantId);
+  return NUMBERING_SCENES.map(scene => mapDefault(scene, tenantId, rows));
+}
+
+export async function getNumberingDefault(sceneCode: string, executor: DbExecutor = db): Promise<NumberingDefault> {
+  const tenantId = getCreateTenantId(currentUser());
+  return mapDefault(getNumberingScene(sceneCode), tenantId, await readDefaultRows(executor, tenantId, sceneCode));
+}
+
+function requireDefaultWrite(sceneCode: string): number | null {
+  const tenantId = getCreateTenantId(currentUser());
+  if (!canWriteDefault(getNumberingScene(sceneCode), tenantId)) {
+    throw new HTTPException(403, { message: '平台默认和支付编号只能由平台管理员在平台视角配置' });
+  }
+  return tenantId;
+}
+
+async function lockDefaultForWrite(tx: DbTransaction, scene: string, tenantId: number | null, expectedVersionId: number | null) {
+  await lockNumberingBinding(tx, { scene, tenantId, ownerKey: '*' });
+  const [own] = await tx.select({ id: numberingBindings.id, versionId: numberingBindings.versionId, ruleId: numberingBindings.ruleId })
+    .from(numberingBindings).where(buildWhere(eq(numberingBindings.scene, scene), eq(numberingBindings.ownerKey, '*'),
+      exactTenantCondition(numberingBindings.tenantId, tenantId))).limit(1);
+  if ((own?.versionId ?? null) !== expectedVersionId) throw new HTTPException(409, { message: '默认编号规则已被其他人修改，请刷新后重试' });
+  return own;
+}
+
+export async function updateNumberingDefault(sceneCode: string, input: z.output<typeof updateNumberingDefaultSchema>): Promise<NumberingDefault> {
+  const tenantId = requireDefaultWrite(sceneCode);
   return db.transaction(async tx => {
-    await lockNumberingBinding(tx, { tenantId, scene: input.scene, ownerKey: input.ownerKey });
-    if (tenantId === null && !isPlatformAdmin(user)) {
-      const [existing] = await tx.select().from(numberingBindings).where(buildWhere(
-        eq(numberingBindings.scene, input.scene), eq(numberingBindings.ownerKey, input.ownerKey), exactTenantCondition(numberingBindings.tenantId, tenantId),
-      )).limit(1);
-      if (existing) requireRuleWrite(await ensureNumberingRule(existing.ruleId, tx));
-    }
+    await lockDefaultForWrite(tx, sceneCode, tenantId, input.expectedVersionId);
     const rule = await ensureNumberingRule(input.ruleId, tx, true);
-    if (tenantId === null && rule.isBuiltin && !isPlatformAdmin(user)) throw new HTTPException(403, { message: '平台内置业务绑定只能由平台管理员维护' });
-    if (rule.scene !== input.scene || rule.status !== 'enabled' || (rule.tenantId !== null && rule.tenantId !== tenantId)) throw new HTTPException(400, { message: '编号规则与业务、租户或启用状态不匹配' });
-    const [version] = await tx.select().from(numberingVersions).where(buildWhere(eq(numberingVersions.id, input.versionId), eq(numberingVersions.ruleId, rule.id))).limit(1);
-    requireRow(version, '编号版本不存在或不属于所选规则', 400);
-    const definition = await ensureBindingOwner(tx, input.scene, input.ownerKey, tenantId);
-    const requiredParameters = getNumberingTemplateBusinessParameters(version!.config.template);
-    let parameterMapping = input.parameterMapping;
-    if (definition) {
-      const [form] = definition.formId == null || definition.formType !== 'designer' ? [] : await tx.select({ schema: workflowForms.schema })
-        .from(workflowForms).where(buildWhere(eq(workflowForms.id, definition.formId), inheritedTenantCondition(workflowForms.tenantId, tenantId))).limit(1);
-      const fields = getWorkflowNumberingFields(definition.formType ?? 'designer', (form?.schema as { fields?: WorkflowFormField[] } | undefined)?.fields ?? [], definition.customForm as WorkflowCustomFormConfig | null);
-      try { parameterMapping = resolveWorkflowNumberingMapping(requiredParameters, parameterMapping, fields); }
-      catch (error) { throw new HTTPException(400, { message: error instanceof Error ? error.message : '编号参数映射无效' }); }
-    } else {
-      for (const parameter of requiredParameters) {
-        if (parseNumberingFormParameter(parameter) === undefined && !parameterMapping[parameter]) throw new HTTPException(400, { message: `请配置业务参数 ${parameter} 的字段映射` });
-      }
+    if (rule.scene !== sceneCode || rule.status !== 'enabled' || (rule.tenantId !== null && rule.tenantId !== tenantId)) {
+      throw new HTTPException(400, { message: '编号规则与业务类型、租户或启用状态不匹配' });
     }
-    const [row] = await tx.insert(numberingBindings).values({ ...input, parameterMapping, tenantId }).onConflictDoUpdate({
-      target: [numberingBindings.scene, numberingBindings.ownerKey, numberingBindings.tenantId],
-      set: { ruleId: rule.id, versionId: input.versionId, parameterMapping, updatedAt: new Date() },
-    }).returning();
-    return mapBinding({ ...requireRow(row, '保存业务绑定失败'), ruleName: rule.name, version: version!.version });
+    const [version] = await tx.select({ id: numberingVersions.id }).from(numberingVersions)
+      .where(buildWhere(eq(numberingVersions.id, input.versionId), eq(numberingVersions.ruleId, rule.id))).limit(1);
+    const fixedVersion = requireRow(version, '编号版本不存在或不属于所选规则', 400);
+    await tx.insert(numberingBindings).values({ scene: sceneCode, ownerKey: '*', tenantId, ruleId: rule.id, versionId: fixedVersion.id, parameterMapping: {} })
+      .onConflictDoUpdate({ target: [numberingBindings.scene, numberingBindings.ownerKey, numberingBindings.tenantId],
+        set: { ruleId: rule.id, versionId: fixedVersion.id, parameterMapping: {}, updatedAt: new Date() },
+      });
+    return getNumberingDefault(sceneCode, tx);
   });
 }
 
-export async function getNumberingBinding(id: number) {
-  const own = tenantScope(numberingBindings);
-  const row = requireRow(await db.query.numberingBindings.findFirst({
-    where: buildWhere(eq(numberingBindings.id, id), own ? or(own, isNull(numberingBindings.tenantId)) : undefined),
-    with: { rule: { columns: { name: true } }, version: { columns: { version: true } } },
-  }), '编号业务绑定不存在');
-  return mapBinding({ ...row, ruleName: row.rule.name, version: row.version.version });
+export async function resetNumberingDefault(sceneCode: string, input: z.output<typeof resetNumberingDefaultSchema>): Promise<NumberingDefault> {
+  const tenantId = requireDefaultWrite(sceneCode);
+  if (tenantId === null) throw new HTTPException(409, { message: '平台默认编号规则不能删除，请直接选择其他规则版本' });
+  return db.transaction(async tx => {
+    const own = await lockDefaultForWrite(tx, sceneCode, tenantId, input.expectedVersionId);
+    if (!own) throw new HTTPException(409, { message: '当前业务已使用平台默认，无需恢复' });
+    const [platform] = await tx.select({ id: numberingBindings.id }).from(numberingBindings).where(buildWhere(
+      eq(numberingBindings.scene, sceneCode), eq(numberingBindings.ownerKey, '*'), isNull(numberingBindings.tenantId),
+    )).limit(1);
+    if (!platform) throw new HTTPException(409, { message: '该业务尚未配置平台默认规则，不能移除租户覆盖' });
+    await ensureNumberingRule(own.ruleId, tx, true);
+    await tx.delete(numberingBindings).where(buildWhere(eq(numberingBindings.id, own.id), exactTenantCondition(numberingBindings.tenantId, tenantId)));
+    return getNumberingDefault(sceneCode, tx);
+  });
 }
 
-export async function removeNumberingBinding(id: number) {
-  await db.transaction(async tx => {
-    const [binding] = await tx.select().from(numberingBindings).where(buildWhere(eq(numberingBindings.id, id), tenantScope(numberingBindings))).limit(1);
-    const initial = requireRow(binding, '编号业务绑定不存在');
-    await lockNumberingBinding(tx, initial);
-    // 等待锁期间可能发生改绑，权限只能依据锁内重新读取的目标。
-    const [locked] = await tx.select().from(numberingBindings).where(buildWhere(eq(numberingBindings.id, id), tenantScope(numberingBindings))).limit(1);
-    const row = requireRow(locked, '编号业务绑定已变化，请刷新后重试', 409);
-    if (row.tenantId === null && row.ownerKey === '*') throw new HTTPException(409, { message: '平台默认编号绑定不能删除，请直接切换规则' });
-    const user = currentUser();
-    if ((!isPlatformAdmin(user) && row.tenantId !== getCreateTenantId(user)) || (!getNumberingScene(row.scene).tenantCustomizable && !isPlatformAdmin(user))) throw new HTTPException(403, { message: '无权移除此业务绑定' });
-    const rule = await ensureNumberingRule(row.ruleId, tx, true);
-    if (row.tenantId === null && rule.isBuiltin && !isPlatformAdmin(user)) throw new HTTPException(403, { message: '平台内置业务绑定只能由平台管理员维护' });
-    await tx.delete(numberingBindings).where(buildWhere(eq(numberingBindings.id, row.id), tenantScope(numberingBindings)));
-  });
+/** References come from actual defaults and frozen workflow JSON, never a mutable owner preset. */
+export async function listNumberingRuleUsages(id: number): Promise<NumberingRuleUsage[]> {
+  const rule = await ensureNumberingRule(id);
+  const ownBindings = tenantScope(numberingBindings);
+  const defaults = await db.select({ scene: numberingBindings.scene, tenantId: numberingBindings.tenantId, tenantName: tenants.name,
+    versionId: numberingVersions.id, version: numberingVersions.version,
+  }).from(numberingBindings).innerJoin(numberingVersions, buildWhere(eq(numberingVersions.id, numberingBindings.versionId), eq(numberingVersions.ruleId, id)))
+    .leftJoin(tenants, eq(tenants.id, numberingBindings.tenantId)).where(buildWhere(
+      eq(numberingBindings.ruleId, id), eq(numberingBindings.ownerKey, '*'),
+      ownBindings ? or(ownBindings, isNull(numberingBindings.tenantId)) : undefined,
+    ));
+  const versionReference = sql<string>`${workflowDefinitions.flowData} #>> '{settings,numbering,versionId}'`;
+  const workflows = rule.scene !== 'workflow.instance' ? [] : await db.select({ id: workflowDefinitions.id, name: workflowDefinitions.name,
+    tenantId: workflowDefinitions.tenantId, tenantName: tenants.name, versionId: numberingVersions.id, version: numberingVersions.version,
+  }).from(workflowDefinitions).innerJoin(numberingVersions, buildWhere(eq(numberingVersions.ruleId, id), sql`${numberingVersions.id}::text = ${versionReference}`))
+    .leftJoin(tenants, eq(tenants.id, workflowDefinitions.tenantId)).where(buildWhere(
+      tenantScope(workflowDefinitions), inArray(workflowDefinitions.status, ['published', 'disabled']),
+      sql`${workflowDefinitions.flowData} #>> '{settings,numbering,ruleId}' = ${String(id)}`,
+    )).orderBy(asc(workflowDefinitions.id));
+  return [
+    ...defaults.map(row => ({ kind: 'default' as const, scene: getNumberingScene(row.scene).code, businessName: getNumberingScene(row.scene).label,
+      name: row.tenantId === null ? '平台默认规则' : '租户默认规则', tenantId: row.tenantId, tenantName: row.tenantId === null ? '平台' : row.tenantName,
+      versionId: row.versionId, version: row.version, objectKey: null, destination: null,
+    })),
+    ...workflows.map(row => ({ kind: 'workflow' as const, scene: 'workflow.instance' as const, businessName: getNumberingScene('workflow.instance').label,
+      name: row.name, tenantId: row.tenantId, tenantName: row.tenantId === null ? '平台' : row.tenantName,
+      versionId: row.versionId, version: row.version, objectKey: String(row.id), destination: `/workflow/designer/${row.id}`,
+    })),
+  ];
 }
 
 export function listNumberingAllocations(q: QueryOutputOf<typeof numberingAllocationContract.list>) {

@@ -1,6 +1,7 @@
 import { keepPreviousData, type QueryClient } from '@tanstack/react-query';
 import type { QueryOf } from '@zenith/shared/core';
 import { workflowDefinitionContract, workflowInstanceContract, workflowTemplateContract } from '@zenith/shared/workflow';
+import { numberingRuleContract } from '@zenith/shared/platform';
 import { contractKey, createResourceQueries, useApiMutation, useApiQuery } from '@/lib/contract-query';
 
 export type WorkflowDefinitionListParams = QueryOf<typeof workflowDefinitionContract.list>;
@@ -92,6 +93,7 @@ export function invalidateWorkflowDefinitionState(qc: QueryClient, id?: number):
   invalidateWorkflowDefinitionOptions(qc);
   void qc.invalidateQueries({ queryKey: workflowDefinitionKeys.published });
   void qc.invalidateQueries({ queryKey: id === undefined ? workflowDefinitionKeys.details : workflowDefinitionKeys.detail(id) });
+  void qc.invalidateQueries({ queryKey: contractKey(numberingRuleContract.usages) });
 }
 
 /** 发布 / 恢复版本会写入新的版本记录，在状态失效之外补上版本历史 */
@@ -162,6 +164,7 @@ export function useBatchDeleteWorkflowDefinitions() {
       void qc.invalidateQueries({ queryKey: workflowDefinitionKeys.lists });
       invalidateWorkflowDefinitionOptions(qc);
       void qc.invalidateQueries({ queryKey: workflowDefinitionKeys.published });
+      void qc.invalidateQueries({ queryKey: contractKey(numberingRuleContract.usages) });
     },
   });
 }

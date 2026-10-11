@@ -42,7 +42,7 @@ export function WorkflowNumberingSettings({ value, formFields, readOnly, onChang
     <>
       <Form.Slot label={<span id={`${labelId}-rule`}>流程编号规则</span>}>
         <Select aria-labelledby={`${labelId}-rule`} value={value?.versionId} disabled={readOnly} loading={rules.isFetching} showClear filter
-          style={{ width: '100%' }} optionList={options} placeholder="使用编号中心的默认业务绑定"
+          style={{ width: '100%' }} optionList={options} placeholder="使用该业务类型的默认编号规则"
           onChange={versionId => {
             if (typeof versionId !== 'number') { onChange(undefined); return; }
             const option = rules.data?.find(rule => rule.versionId === versionId);
@@ -53,7 +53,7 @@ export function WorkflowNumberingSettings({ value, formFields, readOnly, onChang
       <Form.Slot>
         <Typography.Paragraph type="tertiary" size="small">流程发布时固定编号版本。保存草稿不取号，首次正式提交生成，同一实例重提保留原编号。</Typography.Paragraph>
         {selected && <Typography.Paragraph type="tertiary" size="small">编号模板：{selected.template}</Typography.Paragraph>}
-        {!value && <Typography.Paragraph type="tertiary" size="small">发布时采用该流程在编号中心配置的默认绑定；发布后不会自动切换到新版本。</Typography.Paragraph>}
+        {!value && <Typography.Paragraph type="tertiary" size="small">发布时采用「流程实例」业务类型的默认编号规则，发布后不会自动切换到新版本。</Typography.Paragraph>}
         {fixedOlderVersion && !rules.isFetching && <Banner type="info" closeIcon={null} description="已保留原先固定的编号版本。需要升级时，请显式选择当前已发布版本后重新发布流程。" />}
         {rules.isError && <Banner type="warning" closeIcon={null} description="编号规则加载失败，可重新进入此设置页重试。已保存的版本引用不会被清空。" />}
       </Form.Slot>

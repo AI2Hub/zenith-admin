@@ -23,7 +23,7 @@ import {
   entityTimelineContract,
   entityWatchContract,
   numberingRuleContract,
-  numberingBindingContract,
+  numberingDefaultContract,
   numberingAllocationContract,
 } from '@zenith/shared/platform';
 import {
@@ -61,7 +61,7 @@ import globalSearchRoutes from './global-search';
 import entityRelationsRoutes from './entity-relations';
 import entityTimelineRoutes from './entity-timeline';
 import entityWatchesRoutes from './entity-watches';
-import { numberingRulesRouter, numberingBindingsRouter, numberingAllocationsRouter } from './numbering';
+import { numberingRulesRouter, numberingDefaultsRouter, numberingAllocationsRouter } from './numbering';
 import { createWsRoute } from './ws';
 
 export default defineRouteDomain({
@@ -70,7 +70,7 @@ export default defineRouteDomain({
   mounts: () => [
     [dictContract.basePath, dictsRoutes],
     [numberingRuleContract.basePath, numberingRulesRouter],
-    [numberingBindingContract.basePath, numberingBindingsRouter],
+    [numberingDefaultContract.basePath, numberingDefaultsRouter],
     [numberingAllocationContract.basePath, numberingAllocationsRouter],
     [monitorContract.basePath, monitorRoutes],
     [sqlMonitorContract.basePath, sqlMonitorRoutes],

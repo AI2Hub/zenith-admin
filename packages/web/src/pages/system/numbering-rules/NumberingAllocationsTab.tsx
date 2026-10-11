@@ -16,7 +16,7 @@ export function NumberingAllocationsTab() {
   const page = useListPage({ contract: numberingAllocationContract, useList: useNumberingAllocations, enabled: allowed, table: { empty: <Empty description="尚无编号记录。业务正式提交后，已分配的编号会显示在这里。" /> } });
   const columns: ColumnProps<NumberingAllocation>[] = [
     copyableNoColumn('业务编号', 'number', { width: 280 }),
-    { title: '接入业务', dataIndex: 'scene', width: 150, render: scene => getNumberingScene(scene).label },
+    { title: '业务类型', dataIndex: 'scene', width: 150, render: scene => getNumberingScene(scene).label },
     { title: '业务对象', dataIndex: 'ownerKey', width: 160, render: renderEllipsis },
     { title: '关联业务', dataIndex: 'businessKey', width: 200, render: (key, row) => {
       const ref = numberingBusinessRef(row, hasPermission);

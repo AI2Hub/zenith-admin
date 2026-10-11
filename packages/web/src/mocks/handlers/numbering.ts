@@ -1,18 +1,17 @@
 import {
-  NUMBERING_SCENES, getNumberingScene, getNumberingTemplateBusinessParameters, parseNumberingFormParameter, numberingAllocationContract, numberingBindingContract,
-  numberingRuleContract, previewBusinessNumbers, validateNumberingConfig, validateNumberingParameterMapping,
-  type NumberingBinding, type NumberingConfig, type NumberingRule,
+  NUMBERING_SCENES, getNumberingScene, getNumberingTemplateBusinessParameters, numberingAllocationContract, numberingDefaultContract,
+  numberingRuleContract, previewBusinessNumbers, validateNumberingConfig,
+  type NumberingConfig, type NumberingDefault, type NumberingRule, type NumberingRuleUsage,
 } from '@zenith/shared/platform';
 import { mockNumberingAllocations, mockNumberingBindings, mockNumberingCounters, mockNumberingRules, mockNumberingVersions } from '@/mocks/data/numbering';
 import { mockWorkflowDefinitions, mockWorkflowInstances } from '@/mocks/data/workflow';
-import { mockWorkflowForms } from '@/mocks/data/workflow-forms';
-import { getWorkflowNumberingFields, resolveWorkflowNumberingMapping } from '@zenith/shared/workflow';
+import { mockTenants } from '@/mocks/data/tenants';
 import { mock, MockHttpError } from '@/mocks/utils/contract';
 import { requireItem } from '@/mocks/utils/crud';
 import { mockDateTime } from '@/mocks/utils/date';
-import { filterByKeyword, matchesFilter } from '@/mocks/utils/filter';
-import { badRequest, conflict, forbidden, nextIdFrom } from '@/mocks/utils/handlers';
-import { currentMockSession, isMockPlatformAdmin } from '@/mocks/utils/auth';
+import { matchesFilter } from '@/mocks/utils/filter';
+import { badRequest, conflict, forbidden, nextIdFrom, unauthorized } from '@/mocks/utils/handlers';
+import { currentMockSession, isMockPlatformAdmin, type MockSession } from '@/mocks/utils/auth';
 import { mockResource } from '@/mocks/utils/resource';
 
 function validate(config: NumberingConfig, scene: string) {
@@ -26,10 +25,63 @@ function sequencePolicyChanged(ruleId: number, config: NumberingConfig) {
   return prior !== undefined && fields.some(field => config[field] !== prior.config[field]);
 }
 
-function mapBinding(binding: NumberingBinding): NumberingBinding {
-  const rule = requireItem(mockNumberingRules, binding.ruleId, '编号规则不存在');
-  const version = requireItem(mockNumberingVersions, binding.versionId, '编号版本不存在');
-  return { ...binding, ruleName: rule.name, version: version.version };
+function requireSession(request: Request): MockSession {
+  const session = currentMockSession(request);
+  if (!session) throw new MockHttpError(unauthorized('请先登录', { status: 401 }));
+  return session;
+}
+
+function tenantFor(session: MockSession): number | null {
+  return session.viewingTenantId ?? session.user.tenantId ?? null;
+}
+
+function mapDefault(sceneCode: string, session: MockSession): NumberingDefault {
+  const scene = getNumberingScene(sceneCode);
+  const tenantId = tenantFor(session);
+  const own = scene.tenantCustomizable || tenantId === null
+    ? mockNumberingBindings.find(binding => binding.scene === scene.code && binding.ownerKey === '*' && binding.tenantId === tenantId) : undefined;
+  const platform = mockNumberingBindings.find(binding => binding.scene === scene.code && binding.ownerKey === '*' && binding.tenantId === null);
+  const effective = own ?? platform;
+  const rule = effective && mockNumberingRules.find(item => item.id === effective.ruleId);
+  const version = effective && mockNumberingVersions.find(item => item.id === effective.versionId && item.ruleId === effective.ruleId);
+  const canUpdate = tenantId === null ? isMockPlatformAdmin(session.user) : scene.tenantCustomizable;
+  const sourceTenantId = effective?.tenantId ?? null;
+  return {
+    scene: scene.code, businessName: scene.label, description: scene.description, tenantCustomizable: scene.tenantCustomizable,
+    tenantId, sourceTenantId, sourceTenantName: !effective ? null : sourceTenantId === null ? '平台' : mockTenants.find(item => item.id === sourceTenantId)?.name ?? null,
+    inherited: tenantId !== null && own === undefined && platform !== undefined,
+    ruleId: rule?.id ?? null, ruleName: rule?.name ?? null, versionId: version?.id ?? null, version: version?.version ?? null,
+    template: version?.config.template ?? null, scope: version?.config.scope ?? null,
+    expectedVersionId: own?.versionId ?? null, canUpdate, canReset: canUpdate && tenantId !== null && own !== undefined && platform !== undefined,
+  };
+}
+
+function visibleTenant(tenantId: number | null, session: MockSession): boolean {
+  return (isMockPlatformAdmin(session.user) && tenantFor(session) === null) || tenantId === tenantFor(session);
+}
+
+function usagesFor(ruleId: number, session: MockSession): NumberingRuleUsage[] {
+  const rule = requireItem(mockNumberingRules, ruleId, '编号规则不存在');
+  if (rule.tenantId !== null && !visibleTenant(rule.tenantId, session)) throw new MockHttpError(forbidden('编号规则不属于当前租户', { status: 403 }));
+  const businessName = getNumberingScene(rule.scene).label;
+  const tenantName = (tenantId: number | null) => tenantId === null ? '平台' : mockTenants.find(item => item.id === tenantId)?.name ?? null;
+  const defaults: NumberingRuleUsage[] = mockNumberingBindings.flatMap(binding => {
+    if (binding.ruleId !== ruleId || binding.ownerKey !== '*' || (binding.tenantId !== null && !visibleTenant(binding.tenantId, session))) return [];
+    const version = mockNumberingVersions.find(item => item.id === binding.versionId && item.ruleId === ruleId);
+    if (!version) return [];
+    return [{ kind: 'default', scene: binding.scene, businessName, name: binding.tenantId === null ? '平台默认规则' : '租户默认规则', tenantId: binding.tenantId,
+      tenantName: tenantName(binding.tenantId), versionId: version.id, version: version.version, objectKey: null, destination: null }];
+  });
+  const workflows: NumberingRuleUsage[] = mockWorkflowDefinitions.flatMap(definition => {
+    const ref = definition.flowData?.settings?.numbering;
+    const tenantId = definition.tenantId ?? null;
+    if (!['published', 'disabled'].includes(definition.status) || ref?.ruleId !== ruleId || !visibleTenant(tenantId, session)) return [];
+    const version = mockNumberingVersions.find(item => item.id === ref.versionId && item.ruleId === ruleId);
+    if (!version) return [];
+    return [{ kind: 'workflow', scene: 'workflow.instance', businessName, name: definition.name, tenantId, tenantName: tenantName(tenantId),
+      versionId: version.id, version: version.version, objectKey: String(definition.id), destination: `/workflow/designer/${definition.id}` }];
+  });
+  return [...defaults, ...workflows];
 }
 
 export const numberingHandlers = [
@@ -55,6 +107,7 @@ export const numberingHandlers = [
     requireItem(mockNumberingRules, params.id, '编号规则不存在');
     return ok(mockNumberingCounters.filter(counter => counter.ruleId === params.id).map(({ scopeKey, periodKey, value }) => ({ scopeKey, periodKey, value })));
   }),
+  mock(numberingRuleContract.usages, ({ params, request, ok }) => ok(usagesFor(params.id, requireSession(request)))),
   mock(numberingRuleContract.publish, ({ params, body, ok }) => {
     const rule = requireItem(mockNumberingRules, params.id, '编号规则不存在');
     if (rule.revision !== body.expectedRevision) return conflict('编号规则已被修改，请刷新后重试');
@@ -79,7 +132,7 @@ export const numberingHandlers = [
       if (body.draft) validate(body.draft, rule.scene);
       if (body.draft && sequencePolicyChanged(rule.id, body.draft)) throw new MockHttpError(conflict('首次发布后序列设置不可修改，请复制规则建立新序列'));
       if (body.status === 'disabled' && rule.status !== 'disabled') {
-        if (mockNumberingBindings.some(binding => binding.ruleId === rule.id) || mockNumberingAllocations.some(allocation => allocation.ruleId === rule.id)) {
+        if (mockNumberingBindings.some(binding => binding.ruleId === rule.id && binding.ownerKey === '*') || mockNumberingAllocations.some(allocation => allocation.ruleId === rule.id)) {
           throw new MockHttpError(conflict(rule.scene === 'workflow.instance'
             ? '规则已被流程使用，不能停用；修改编号中心绑定不会改变固定版本，请在流程设计器选择新规则版本后重新发布'
             : '规则已被业务使用，不能停用；请先为业务切换规则', { status: 409 }));
@@ -93,47 +146,40 @@ export const numberingHandlers = [
       Object.assign(rule, patch, { revision: rule.revision + 1, updatedAt: now });
     },
     beforeRemove: rule => rule.isBuiltin ? '内置编号规则不能删除' : mockNumberingVersions.some(version => version.ruleId === rule.id) ? '已发布规则不能删除，请停用规则' :
-      mockNumberingBindings.some(binding => binding.ruleId === rule.id) || mockNumberingAllocations.some(allocation => allocation.ruleId === rule.id) ? '规则已被业务引用，不能删除' : undefined,
+      mockNumberingBindings.some(binding => binding.ruleId === rule.id && binding.ownerKey === '*') || mockNumberingAllocations.some(allocation => allocation.ruleId === rule.id) ? '规则已被业务引用，不能删除' : undefined,
   }),
-  mock(numberingBindingContract.list, ({ query, paginate, ok }) => {
-    const filtered = filterByKeyword(mockNumberingBindings, query.ownerKey, [binding => binding.ownerKey])
-      .filter(binding => matchesFilter(binding.scene, query.scene) && matchesFilter(binding.ruleId, query.ruleId));
-    const page = paginate(filtered);
-    return ok({ ...page, list: page.list.map(mapBinding) });
+  mock(numberingDefaultContract.list, ({ request, ok }) => {
+    const session = requireSession(request);
+    return ok(NUMBERING_SCENES.map(scene => mapDefault(scene.code, session)));
   }),
-  ...mockResource(numberingBindingContract, { store: mockNumberingBindings, notFound: '业务绑定不存在', exclude: ['list'],
-    beforeRemove: binding => binding.tenantId === null && binding.ownerKey === '*' ? '平台默认业务绑定不可删除' : undefined,
-  }),
-  mock(numberingBindingContract.upsert, ({ body, ok, request }) => {
-    const session = currentMockSession(request);
-    const tenantId = session?.viewingTenantId ?? session?.user.tenantId ?? null;
-    if (tenantId === null && body.ownerKey === '*' && (!session || !isMockPlatformAdmin(session.user))) return forbidden('只有平台管理员可以修改平台默认业务绑定');
-    getNumberingScene(body.scene);
+  mock(numberingDefaultContract.update, ({ params, body, ok, request }) => {
+    const session = requireSession(request);
+    const tenantId = tenantFor(session);
+    const current = mapDefault(params.scene, session);
+    if (!current.canUpdate) return forbidden('当前视角不允许修改该业务默认规则', { status: 403 });
+    if (current.expectedVersionId !== body.expectedVersionId) return conflict('默认编号规则已被修改，请刷新后重试', { status: 409 });
     const rule = requireItem(mockNumberingRules, body.ruleId, '编号规则不存在');
-    const version = requireItem(mockNumberingVersions, body.versionId, '编号版本不存在');
-    if (rule.scene !== body.scene || version.ruleId !== rule.id || rule.status !== 'enabled') return badRequest('请选择该业务启用规则的已发布版本');
-    const errors = validateNumberingParameterMapping(body.scene, body.parameterMapping);
-    if (errors.length) return badRequest(errors.join('；'));
-    const requiredParameters = getNumberingTemplateBusinessParameters(version.config.template);
-    let parameterMapping = body.parameterMapping;
-    if (body.ownerKey !== '*') {
-      const definition = body.scene === 'workflow.instance' ? mockWorkflowDefinitions.find(item => String(item.id) === body.ownerKey && (item.tenantId ?? null) === tenantId) : undefined;
-      if (!definition) return badRequest('流程定义不存在或不属于当前租户', { status: 404 });
-      const form = mockWorkflowForms.find(item => item.id === definition.formId && (item.tenantId == null || item.tenantId === tenantId));
-      const fields = getWorkflowNumberingFields(definition.formType, form?.schema?.fields ?? [], definition.customForm);
-      try { parameterMapping = resolveWorkflowNumberingMapping(requiredParameters, parameterMapping, fields); }
-      catch (error) { return badRequest(error instanceof Error ? error.message : '编号参数映射无效', { status: 400 }); }
-    } else {
-      const missing = requiredParameters.find(parameter => parseNumberingFormParameter(parameter) === undefined && !parameterMapping[parameter]);
-      if (missing) return badRequest(`请配置参数 ${missing} 的表单字段映射`, { status: 400 });
-    }
-    let binding = mockNumberingBindings.find(item => item.scene === body.scene && item.ownerKey === body.ownerKey && item.tenantId === tenantId);
-    if (binding) Object.assign(binding, body, { parameterMapping, ruleName: rule.name, version: version.version, updatedAt: mockDateTime() });
+    const version = mockNumberingVersions.find(item => item.id === body.versionId && item.ruleId === rule.id);
+    if (rule.scene !== params.scene || !version || rule.status !== 'enabled' || (rule.tenantId !== null && rule.tenantId !== tenantId)) return badRequest('请选择该业务和当前租户启用规则的已发布版本', { status: 400 });
+    const values = { ruleId: rule.id, versionId: version.id, parameterMapping: {}, ruleName: rule.name, version: version.version, updatedAt: mockDateTime() };
+    const binding = mockNumberingBindings.find(item => item.scene === params.scene && item.ownerKey === '*' && item.tenantId === tenantId);
+    if (binding) Object.assign(binding, values);
     else {
-      binding = { id: nextIdFrom(mockNumberingBindings), ...body, parameterMapping, tenantId, ruleName: rule.name, version: version.version, createdAt: mockDateTime(), updatedAt: mockDateTime() };
-      mockNumberingBindings.push(binding);
+      mockNumberingBindings.push({ id: nextIdFrom(mockNumberingBindings), scene: params.scene, ownerKey: '*', tenantId, ...values, createdAt: mockDateTime() });
     }
-    return ok(mapBinding(binding), '绑定成功');
+    return ok(mapDefault(params.scene, session), '默认规则已更新');
+  }),
+  mock(numberingDefaultContract.reset, ({ params, body, request, ok }) => {
+    const session = requireSession(request);
+    const tenantId = tenantFor(session);
+    if (!mapDefault(params.scene, session).canUpdate) return forbidden('只能恢复当前租户的可定制业务默认规则', { status: 403 });
+    if (tenantId === null) return conflict('平台默认编号规则不能删除，请直接选择其他规则版本', { status: 409 });
+    const current = mapDefault(params.scene, session);
+    if (current.expectedVersionId !== body.expectedVersionId) return conflict('默认编号规则已被修改，请刷新后重试', { status: 409 });
+    if (!current.canReset) return conflict('当前业务没有可恢复的平台默认规则或租户覆盖', { status: 409 });
+    const binding = mockNumberingBindings.find(item => item.scene === params.scene && item.ownerKey === '*' && item.tenantId === tenantId)!;
+    mockNumberingBindings.splice(mockNumberingBindings.indexOf(binding), 1);
+    return ok(mapDefault(params.scene, session), '已恢复平台默认规则');
   }),
   ...mockResource(numberingAllocationContract, { store: mockNumberingAllocations, notFound: '编号记录不存在', keyword: allocation => [allocation.number, allocation.businessKey, allocation.allocationKey], sort: (a, b) => b.id - a.id }),
 ];

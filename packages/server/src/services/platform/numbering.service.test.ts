@@ -14,9 +14,9 @@ vi.mock('../../db', async () => ({ db: (await import('drizzle-orm/postgres-js'))
 vi.mock('../../lib/context', () => ({ currentUser: () => state.user, currentUserId: () => state.user.userId }));
 
 import { db } from '../../db';
-import { createNumberingRule, getNumberingRule, listAvailableNumberingRules, publishNumberingRule, updateNumberingRule, upsertNumberingBinding, removeNumberingBinding } from './numbering.service';
+import { createNumberingRule, getNumberingRule, listAvailableNumberingRules, publishNumberingRule, updateNumberingRule, listNumberingDefaults, listNumberingRuleUsages, updateNumberingDefault, resetNumberingDefault } from './numbering.service';
 import type { NumberingRuleRow } from '../../db/schema/numbering';
-import { workflowDefinitions, workflowInstances } from '../../db/schema';
+import { numberingBindings, workflowDefinitions, workflowInstances } from '../../db/schema';
 
 const draft = {
   template: 'WF{YYYYMMDD}{SEQ:4}', start: '1', step: '1', width: 4,
@@ -81,10 +81,10 @@ describe('编号规则管理权限与并发', () => {
     expect(db.insert).not.toHaveBeenCalled();
   });
 
-  it('租户不能创建支付规则或重绑全局支付场景', async () => {
+  it('租户不能创建支付规则或配置平台支付默认', async () => {
     interceptQueries([]);
     await expect(createNumberingRule({ code: 'pay.evil', name: '支付', scene: 'payment.order', status: 'enabled', draft: { ...draft, scope: 'global' } })).rejects.toMatchObject({ status: 403 });
-    await expect(upsertNumberingBinding({ scene: 'payment.order', ownerKey: '*', ruleId: 4, versionId: 9, parameterMapping: {} })).rejects.toMatchObject({ status: 403 });
+    await expect(updateNumberingDefault('payment.order', { ruleId: 4, versionId: 9, expectedVersionId: null })).rejects.toMatchObject({ status: 403 });
     expect(db.insert).not.toHaveBeenCalled();
   });
 
@@ -112,84 +112,6 @@ describe('编号规则管理权限与并发', () => {
     expect(db.update).not.toHaveBeenCalled();
   });
 
-  it('绑定拒绝错误业务、其他租户的规则和不属于规则的版本', async () => {
-    const input = { scene: 'workflow.instance' as const, ownerKey: '*', ruleId: 4, versionId: 9, parameterMapping: {} };
-    interceptQueries([[{ ...rule, scene: 'biz.leave' }], [{ ...rule, tenantId: 8 }], [rule], []]);
-    await expect(upsertNumberingBinding(input)).rejects.toMatchObject({ status: 400 });
-    await expect(upsertNumberingBinding(input)).rejects.toMatchObject({ status: 400 });
-    await expect(upsertNumberingBinding(input)).rejects.toMatchObject({ status: 400 });
-    expect(db.insert).not.toHaveBeenCalled();
-  });
-
-  it('绑定禁止通过表单覆写租户与组织身份', async () => {
-    interceptQueries([]);
-    await expect(upsertNumberingBinding({ scene: 'workflow.instance', ownerKey: '*', ruleId: 4, versionId: 9, parameterMapping: { tenantId: 'formData.tenant' } })).rejects.toMatchObject({ status: 400 });
-    expect(db.select).not.toHaveBeenCalled();
-  });
-
-  it('平台普通账号不能重绑平台内置缺省规则', async () => {
-    state.user = { ...state.user, tenantId: null };
-    interceptQueries([[{ ...rule, tenantId: null, isBuiltin: true }]]);
-    await expect(upsertNumberingBinding({ scene: 'workflow.instance', ownerKey: '*', ruleId: 4, versionId: 9, parameterMapping: {} })).rejects.toMatchObject({ status: 403 });
-    expect(db.insert).not.toHaveBeenCalled();
-  });
-
-  it('平台普通账号使用自建规则也不能覆盖平台默认绑定', async () => {
-    state.user = { ...state.user, tenantId: null };
-    interceptQueries([[{ ...rule, tenantId: null, isBuiltin: false }]]);
-    await expect(upsertNumberingBinding({ scene: 'workflow.instance', ownerKey: '*', ruleId: 4, versionId: 9, parameterMapping: {} })).rejects.toMatchObject({ status: 403 });
-    expect(db.select).not.toHaveBeenCalled();
-    expect(db.insert).not.toHaveBeenCalled();
-  });
-
-  it('改绑在稳定键锁成功之前不读取或锁定规则', async () => {
-    let unlock!: () => void;
-    vi.mocked(db.execute).mockImplementationOnce(() => new Promise(resolve => { unlock = () => resolve([]); }));
-    interceptQueries([[{ ...rule, scene: 'biz.leave' }]]);
-    const pending = upsertNumberingBinding({ scene: 'workflow.instance', ownerKey: '*', ruleId: 4, versionId: 9, parameterMapping: {} });
-    const rejected = expect(pending).rejects.toMatchObject({ status: 400 });
-    expect(db.execute).toHaveBeenCalledOnce();
-    expect(db.select).not.toHaveBeenCalled();
-    unlock();
-    await rejected;
-    expect(db.select).toHaveBeenCalledOnce();
-  });
-
-  it('删除在取得锁后重新读取，不能依据旧目标删除新的内置绑定', async () => {
-    state.user = { ...state.user, tenantId: null };
-    const before = { id: 8, tenantId: null, scene: 'workflow.instance', ownerKey: '89', ruleId: 4, versionId: 9 };
-    const after = { ...before, ruleId: 12, versionId: 13 };
-    const statements = interceptQueries([[before], [after], [{ ...rule, id: 12, tenantId: null, isBuiltin: true }]]);
-    vi.spyOn(db, 'delete');
-    await expect(removeNumberingBinding(8)).rejects.toMatchObject({ status: 403 });
-    expect(db.execute).toHaveBeenCalledOnce();
-    expect(statements[2]!.params).toContain(12);
-    expect(db.delete).not.toHaveBeenCalled();
-  });
-
-  it('平台管理员也不能删除平台默认绑定导致业务失去缺省规则', async () => {
-    state.user = { userId: 1, username: 'admin', roles: ['super_admin'], tenantId: null };
-    const binding = { id: 8, tenantId: null, scene: 'workflow.instance', ownerKey: '*', ruleId: 4, versionId: 9 };
-    interceptQueries([[binding], [binding]]);
-    vi.spyOn(db, 'delete');
-    await expect(removeNumberingBinding(8)).rejects.toMatchObject({ status: 409 });
-    expect(db.delete).not.toHaveBeenCalled();
-  });
-
-  it('具体流程绑定校验所属租户', async () => {
-    const input = { scene: 'workflow.instance' as const, ownerKey: '89', ruleId: 4, versionId: 9, parameterMapping: {} };
-    const statements = interceptQueries([[rule], [{ id: 9, ruleId: 4, config: draft }], []]);
-    await expect(upsertNumberingBinding(input)).rejects.toMatchObject({ status: 404 });
-    expect(statements[2]!.sql).toContain('"workflow_definitions"."tenant_id"');
-    expect(statements[2]!.params).toContain(7);
-    expect(db.insert).not.toHaveBeenCalled();
-  });
-
-  it('工作流模板所需自定义参数不得漏映射', async () => {
-    interceptQueries([[rule], [{ id: 9, ruleId: 4, config: { ...draft, template: '{categoryCode}{YYYYMMDD}{SEQ:4}' } }]]);
-    await expect(upsertNumberingBinding({ scene: 'workflow.instance', ownerKey: '*', ruleId: 4, versionId: 9, parameterMapping: {} })).rejects.toMatchObject({ status: 400 });
-    expect(db.insert).not.toHaveBeenCalled();
-  });
   it.each([
     { label: '已发布或禁用流程', counts: [0, 0, 1, 0] },
     { label: '未发号草稿快照', counts: [0, 0, 0, 1] },
@@ -203,6 +125,8 @@ describe('编号规则管理权限与并发', () => {
     const definitionCall = count.mock.calls.find(([table]) => table === workflowDefinitions)!;
     const instanceCall = count.mock.calls.find(([table]) => table === workflowInstances)!;
     const dialect = new PgDialect({ casing: 'snake_case' });
+    const bindingsCall = count.mock.calls.find(([table]) => table === numberingBindings)!;
+    expect(dialect.sqlToQuery(bindingsCall[1]!).params).toEqual([4, '*']);
     const definition = dialect.sqlToQuery(definitionCall[1]!);
     const instance = dialect.sqlToQuery(instanceCall[1]!);
     expect(definition.sql).toContain("#>> '{settings,numbering,ruleId}'");
@@ -223,15 +147,93 @@ describe('编号规则管理权限与并发', () => {
     const [option] = await listAvailableNumberingRules({ scene: 'workflow.instance' });
     expect(option?.requiredParameters).toEqual(['FORM.地区', 'FORM.category']);
   });
-  it('默认业务绑定允许FORM自动匹配，仍要求显式业务分类映射', async () => {
-    interceptQueries([[rule], [{ id: 9, ruleId: 4, version: 1, config: { ...draft, template: '{FORM.地区}-{SEQ}' } }]]);
-    const insertChain = { values: vi.fn(), onConflictDoUpdate: vi.fn(), returning: vi.fn().mockResolvedValue([
-      { id: 8, scene: 'workflow.instance', ownerKey: '*', ruleId: rule.id, versionId: 9, tenantId: 7, parameterMapping: {}, createdAt: rule.createdAt, updatedAt: rule.updatedAt },
-    ]) };
-    insertChain.values.mockReturnValue(insertChain); insertChain.onConflictDoUpdate.mockReturnValue(insertChain);
-    vi.mocked(db.insert).mockReturnValue(insertChain as never);
-    const saved = await upsertNumberingBinding({ scene: 'workflow.instance', ownerKey: '*', ruleId: 4, versionId: 9, parameterMapping: {} });
-    expect(saved.parameterMapping).toEqual({});
-    expect(insertChain.values).toHaveBeenCalledWith(expect.objectContaining({ parameterMapping: {} }));
+  it('返回14个业务有效默认并采用租户覆盖，支付始终只用平台默认', async () => {
+    const platform = { scene: 'workflow.instance', tenantId: null, ruleId: 1, ruleName: '平台默认', versionId: 11, version: 1, config: draft, sourceTenantName: null };
+    const local = { ...platform, tenantId: 7, ruleId: 4, ruleName: '租户默认', versionId: 9, version: 3, sourceTenantName: '租户七' };
+    const payment = { ...platform, scene: 'payment.order', ruleId: 5, versionId: 15, config: { ...draft, scope: 'global' } };
+    const statements = interceptQueries([[platform, local, payment, { ...payment, tenantId: 7, ruleId: 99, versionId: 99 }]]);
+    const defaults = await listNumberingDefaults();
+    expect(defaults).toHaveLength(14);
+    expect(defaults.find(row => row.scene === 'workflow.instance')).toMatchObject({ ruleId: 4, versionId: 9, version: 3, tenantId: 7,
+      inherited: false, sourceTenantName: '租户七', expectedVersionId: 9, canUpdate: true, canReset: true, scope: 'owner' });
+    expect(defaults.find(row => row.scene === 'payment.order')).toMatchObject({ ruleId: 5, versionId: 15, expectedVersionId: null,
+      inherited: true, canUpdate: false, canReset: false, scope: 'global' });
+    expect(statements[0]!.sql).toContain('"owner_key" =');
+    expect(statements[0]!.params).toContain('*'); expect(statements[0]!.params).toContain(7);
+  });
+  it('没有租户覆盖时展示继承平台，新增覆盖的expectedVersionId为null', async () => {
+    interceptQueries([[{ scene: 'workflow.instance', tenantId: null, ruleId: 1, ruleName: '平台', versionId: 11, version: 2, config: draft, sourceTenantName: null }]]);
+    const defaults = await listNumberingDefaults();
+    expect(defaults[0]).toMatchObject({ ruleId: 1, inherited: true, expectedVersionId: null, sourceTenantName: '平台', canReset: false });
+  });
+  it('默认配置先锁稳定键，再检查自己的版本；过期操作不锁规则也不写入', async () => {
+    let unlock!: () => void;
+    vi.mocked(db.execute).mockImplementationOnce(() => new Promise(resolve => { unlock = () => resolve([]); }));
+    const statements = interceptQueries([[{ id: 8, ruleId: 4, versionId: 10 }]]);
+    const pending = updateNumberingDefault('workflow.instance', { ruleId: 4, versionId: 9, expectedVersionId: null });
+    const rejected = expect(pending).rejects.toMatchObject({ status: 409 });
+    expect(db.select).not.toHaveBeenCalled(); unlock(); await rejected;
+    expect(statements).toHaveLength(1); expect(db.insert).not.toHaveBeenCalled();
+    expect(statements[0]!.params.slice(0, 3)).toEqual(['workflow.instance', '*', 7]);
+  });
+  it('租户覆盖只写owner=*，不接受编号字段映射，返回所选实际版本', async () => {
+    const row = { scene: 'workflow.instance', tenantId: 7, ruleId: 4, ruleName: rule.name, versionId: 9, version: 2, config: draft, sourceTenantName: '租户七' };
+    const statements = interceptQueries([[], [rule], [{ id: 9 }], [row]]);
+    const chain = { values: vi.fn(), onConflictDoUpdate: vi.fn().mockResolvedValue(undefined) }; chain.values.mockReturnValue(chain);
+    vi.mocked(db.insert).mockReturnValue(chain as never);
+    const result = await updateNumberingDefault('workflow.instance', { ruleId: 4, versionId: 9, expectedVersionId: null });
+    expect(result).toMatchObject({ ruleId: 4, versionId: 9, version: 2, expectedVersionId: 9 });
+    expect(chain.values).toHaveBeenCalledWith({ scene: 'workflow.instance', ownerKey: '*', tenantId: 7, ruleId: 4, versionId: 9, parameterMapping: {} });
+    expect(statements[1]!.sql).toContain('for update');
+  });
+  it.each([
+    { rule: { ...rule, scene: 'biz.leave' }, version: undefined },
+    { rule: { ...rule, tenantId: 8 }, version: undefined },
+    { rule, version: [] },
+  ])('默认选择拒绝其他业务、其他租户和不匹配的版本', async input => {
+    interceptQueries([[], [input.rule], ...(input.version ? [input.version] : [])]);
+    await expect(updateNumberingDefault('workflow.instance', { ruleId: 4, versionId: 9, expectedVersionId: null })).rejects.toMatchObject({ status: 400 });
+    expect(db.insert).not.toHaveBeenCalled();
+  });
+  it('平台普通用户不能覆盖平台默认，平台管理员在租户视角不能改支付默认', async () => {
+    interceptQueries([]);
+    state.user = { ...state.user, tenantId: null };
+    await expect(updateNumberingDefault('workflow.instance', { ruleId: 4, versionId: 9, expectedVersionId: null })).rejects.toMatchObject({ status: 403 });
+    state.user = { userId: 1, username: 'admin', roles: ['super_admin'], tenantId: null, viewingTenantId: 7 };
+    await expect(updateNumberingDefault('payment.order', { ruleId: 4, versionId: 9, expectedVersionId: null })).rejects.toMatchObject({ status: 403 });
+    expect(db.select).not.toHaveBeenCalled();
+  });
+  it('恢复默认只删除当前租户覆盖并展示平台继承，保留具体流程owner和冻结版本', async () => {
+    const platform = { scene: 'workflow.instance', tenantId: null, ruleId: 1, ruleName: '平台默认', versionId: 11, version: 1, config: draft, sourceTenantName: null };
+    const statements = interceptQueries([[{ id: 8, ruleId: 4, versionId: 9 }], [{ id: 1 }], [rule], [platform]]);
+    const deleteChain = { where: vi.fn().mockResolvedValue(undefined) }; vi.spyOn(db, 'delete').mockReturnValue(deleteChain as never);
+    const reset = await resetNumberingDefault('workflow.instance', { expectedVersionId: 9 });
+    expect(reset).toMatchObject({ ruleId: 1, versionId: 11, inherited: true, expectedVersionId: null });
+    expect(db.delete).toHaveBeenCalledOnce(); expect(db.update).not.toHaveBeenCalled();
+    const deletion = new PgDialect({ casing: 'snake_case' }).sqlToQuery(deleteChain.where.mock.calls[0]![0]);
+    expect(deletion.params).toEqual([8, 7]); expect(statements[2]!.sql).toContain('for update');
+  });
+  it('不能删除平台默认或没有平台默认时删除租户覆盖', async () => {
+    interceptQueries([[{ id: 8, ruleId: 4, versionId: 9 }], []]);
+    vi.spyOn(db, 'delete');
+    await expect(resetNumberingDefault('workflow.instance', { expectedVersionId: 9 })).rejects.toMatchObject({ status: 409 });
+    state.user = { userId: 1, username: 'admin', roles: ['super_admin'], tenantId: null };
+    await expect(resetNumberingDefault('workflow.instance', { expectedVersionId: 11 })).rejects.toMatchObject({ status: 409 });
+    expect(db.delete).not.toHaveBeenCalled();
+  });
+  it('实际引用使用冻结JSON versionId关联真实版本，租户只能看到自己流程和可继承的平台默认', async () => {
+    const statements = interceptQueries([[rule], [{ scene: 'workflow.instance', tenantId: null, tenantName: null, versionId: 11, version: 1 }],
+      [{ id: 22, name: '费用报销', tenantId: 7, tenantName: '租户七', versionId: 9, version: 2 }]]);
+    const usages = await listNumberingRuleUsages(4);
+    expect(usages).toEqual([
+      { kind: 'default', scene: 'workflow.instance', businessName: '流程实例', name: '平台默认规则', tenantId: null, tenantName: '平台', versionId: 11, version: 1, objectKey: null, destination: null },
+      { kind: 'workflow', scene: 'workflow.instance', businessName: '流程实例', name: '费用报销', tenantId: 7, tenantName: '租户七', versionId: 9, version: 2, objectKey: '22', destination: '/workflow/designer/22' },
+    ]);
+    expect(statements[1]!.params).toContain('*');
+    const workflow = statements[2]!;
+    expect(workflow.sql).toContain("#>> '{settings,numbering,versionId}'");
+    expect(workflow.sql).toContain('"numbering_versions"."id"::text');
+    expect(workflow.params).toContain(7); expect(workflow.params).toContain('published'); expect(workflow.params).toContain('disabled');
+    expect(workflow.sql.split(' from ')[0]).not.toContain('"workflow_definitions"."flow_data"');
   });
 });

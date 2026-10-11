@@ -2,6 +2,8 @@
 
 用于新增单据编号、替换业务内手写编号、配置编号规则、接入流程或支付取号。编号中心属于 `platform`，入口为「系统管理 → 编号规则」。
 
+管理页面只提供「编号规则」与「生成记录」两个页签。规则列表的「默认规则」按已注册业务类型集中选择默认规则及发布版本；具体业务对象的专用规则在业务自身设置中选择，流程在设计器中选择并随发布固定。规则详情的「使用位置」只读展示默认配置及已发布 / 禁用流程的实际固定引用，不提供任意业务对象绑定 CRUD。页面使用方法见 [编号规则中心](../../../../docs/platform/numbering.md)。
+
 ## 权威位置
 
 | 内容 | 位置 |
@@ -23,6 +25,8 @@
 **流水范围与唯一范围分开设计**：计数器可按租户/业务对象/组织分开，但最终号码是否允许重复由业务表和场景的唯一范围决定。共享同一编号列的不同操作使用同一 `uniqueNamespace`，例如支付订单、周期扣款、预授权转支付。业务表必须保留与该语义一致的唯一约束。
 
 默认规则在 shared seed 登记；服务端 seed 按规则编码查找实际 ID，再绑定实际发布版本。不要在业务代码内隐式创建默认规则、固定引用 seed 数字 ID、随机兜底或回退旧格式。
+
+公开管理 API 使用 `numberingDefaultContract`：按业务类型读取默认配置、修改当前视角默认版本或恢复租户的平台继承。调用方不能提交 `ownerKey` 或参数映射；租户自定义只覆盖允许自定义的业务，支付默认只由平台管理员在平台视角维护。默认修改 / 恢复传 `expectedVersionId`，表示当前本地覆盖版本，继承平台时为 `null`；服务端在稳定业务默认锁内校验，冲突必须刷新后重试。
 
 ## 2. 明确取号时机和幂等身份
 
@@ -71,7 +75,9 @@ await db.transaction(async (tx) => {
 
 ## 4. 固定规则版本
 
-普通业务按已发布的业务绑定取号；需要冻结行为的流程/业务快照，在发布事务中通过 `getNumberingReference(tx, { scene, tenantId, ownerKey, ruleId?, ruleVersionId? })` 解析引用，将返回的 `ruleId`、`versionId` 和参数映射保存进发布快照。实际分配传 `ruleVersionId`，不能临时查询最新规则覆盖快照。
+普通业务按已发布的默认规则取号；需要冻结行为的流程/业务快照，在发布事务中解析明确规则版本，并将 `ruleId`、`versionId` 和参数映射保存进发布快照。`getNumberingReference()` / `resolveNumberingVersion()` 只在业务事务内调用，实际分配传 `ruleVersionId`，不能临时查询最新规则覆盖快照。
+
+流程清空专用规则选择表示采用当前业务类型默认，发布时只解析 `ownerKey: '*'` 的默认配置，不复用该流程上一次发布留下的内部 owner 记录。默认配置修改、规则发布新版和流程重新发布是不同动作：修改默认只影响随后按默认解析的业务；已发布流程与既有申请仍使用各自固定版本。参数映射在流程设计器配置并由发布服务冻结，默认配置不承担表单字段选择。
 
 编号参数映射由业务适配器解释。工作流可将模板中的 `{FORM.字段编码}` / `{FORM.字段名称}` 以及 `{categoryCode}` 映射到 `formData.实际字段键`；系统身份参数不能被表单覆盖。模板所需业务参数统一从 `getNumberingTemplateBusinessParameters()` 提取，发布时通过 `resolveWorkflowNumberingMapping()` 校验并冻结映射，正式取号读取实例的表单快照与已保存数据。
 
@@ -94,7 +100,7 @@ await db.transaction(async (tx) => {
 
 本节服务路径均相对于 `packages/server/src/`。后续业务复用公共接入流程，不复制这些业务的专用参数适配器。
 
-工作流发布由 `workflow-definitions.service.ts` 的 `publishDefinition` 调用 `pinWorkflowNumbering`。它在同一发布事务中锁定该定义的 owner 绑定，校验规则、表单参数映射，保存 `numberingBindings` 的定义级引用，同时把 `ruleId`、`versionId`、`parameterMapping` 冻结到 `flowData.settings.numbering` 与流程发布版本。即使使用默认绑定，发布后也必须有明确的定义 owner 绑定，管理页才能展示使用位置。
+工作流发布由 `workflow-definitions.service.ts` 的 `publishDefinition` 调用 `pinWorkflowNumbering`。它在同一发布事务中按定义锁与默认规则锁解析规则，校验规则、表单参数映射，把 `ruleId`、`versionId`、`parameterMapping` 冻结到 `flowData.settings.numbering` 与流程发布版本。流程专用引用只保存在流程定义及发布快照中，不再写入编号中心的业务对象绑定行。规则详情通过 `numberingRuleContract.usages` 读取实际默认配置和已发布 / 禁用定义的冻结引用，展示业务名称与真实版本号。
 
 人工、自动、定时发起与子流程均经公共编号适配器，使用真实发起人、定义、租户与实例 ID；参数不依赖当前 HTTP 会话。实例取号传入已发布快照的 `ruleVersionId`，规则中心发布新版本或修改绑定不会改写既有流程快照；采用新规则需重新发布流程。启用一个已发布定义只校验固定引用，不重新解析最新版本。工作流草稿无编号，同一实例退回重提保留原号与原编号引用，表单流水号控件只读显示该实例编号。
 
