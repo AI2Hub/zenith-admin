@@ -98,6 +98,10 @@ const INSTANCE: WorkflowInstance = {
     slots: [{ id: 1, activationId: 'n1-round', origin: 'base', groupId: null, originalAssigneeId: 2, currentAssigneeId: 2, assigneeName: '李四', status: 'approved', order: null, mandatory: false, currentTaskId: 1 }],
   }],
   comments: [{ id: 1, instanceId: 7, userId: 1, userName: '张三', content: '补充说明', mentions: [], attachments: [], createdAt: '2026-09-11 09:30:00' }],
+  consults: [
+    { id: 7, taskId: 1, instanceId: 7, nodeName: '直属领导', inviterId: 2, inviterName: '李四', consulteeId: 5, consulteeName: '王五', question: '请核对预算', opinion: '预算充足', status: 'replied', repliedAt: '2026-09-11 09:40:00', createdAt: '2026-09-11 09:35:00' },
+    { id: 8, taskId: 1, instanceId: 7, nodeName: '直属领导', inviterId: 2, inviterName: '李四', consulteeId: 6, consulteeName: '赵六', question: '请确认资质', opinion: null, status: 'pending', repliedAt: null, createdAt: '2026-09-11 09:36:00' },
+  ],
   createdAt: '2026-09-11 09:00:00',
   updatedAt: '2026-09-11 10:00:00',
 };
@@ -206,6 +210,13 @@ describe('buildWorkflowPrintDatasets', () => {
     expect(datasets.tasks[0]).toMatchObject({ statusText: '已通过', approveMethodText: '或签', signature: 'data:image/png;base64,AAAA' });
     expect(datasets.cc).toEqual([{ nodeName: '抄送 HR', assigneeName: '王五', createdAt: '2026-09-11 10:00:01' }]);
     expect(datasets.comments).toHaveLength(1);
+  });
+
+  it('consults 落库邀请人与协办意见：内容优先取意见，状态转中文', () => {
+    expect(datasets.consults).toEqual([
+      { nodeName: '直属领导', inviterName: '李四', consulteeName: '王五', statusText: '已回复', question: '请核对预算', opinion: '预算充足', content: '预算充足', repliedAt: '2026-09-11 09:40:00' },
+      { nodeName: '直属领导', inviterName: '李四', consulteeName: '赵六', statusText: '待回复', question: '请确认资质', opinion: '', content: '请确认资质', repliedAt: '' },
+    ]);
   });
 });
 
@@ -323,6 +334,40 @@ describe('generateWorkflowPrintContent', () => {
     expect(texts).toContain('（该流程使用自定义业务表单，无表单快照）');
     expect(texts).toContain('审批记录');
     expect(reportPrintContentSchema.safeParse(empty).success).toBe(true);
+  });
+
+  it('includeConsults 为 true 时输出协办意见段并绑定 consults 数据集；缺省不输出', () => {
+    const withConsults = generateWorkflowPrintContent(FIELDS, { includeConsults: true });
+    const grid = withConsults.sheets![0].grid;
+    expectNoOverlap(grid);
+    expect(reportPrintContentSchema.safeParse(withConsults).success).toBe(true);
+    const texts = grid.cells.map((c) => String(c.v ?? ''));
+    expect(texts).toContain('协办意见');
+    expect(withConsults.sheets![0].repeatBlocks!.map((b) => b.id)).toContain('consults');
+    const consultCells = grid.cells.filter((c) => c.datasetKey === 'consults');
+    expect(consultCells.map((c) => c.v)).toEqual(expect.arrayContaining(['${nodeName}', '${inviterName}', '${consulteeName}', '${statusText}', '${content}', '${repliedAt}']));
+    // 列宽之和占满 24 栏
+    const headRow = grid.cells.find((c) => c.v === '节点' && c.row !== undefined)!.row;
+    const headUnits = grid.cells.filter((c) => c.row === headRow && ['节点', '邀请人', '协办人', '状态', '问题 / 意见', '回复时间'].includes(String(c.v ?? '')));
+    expect(headUnits.reduce((sum, c) => sum + (grid.merges!.find((m) => m.row === c.row && m.col === c.col)?.colSpan ?? 1), 0)).toBe(24);
+
+    const withoutConsults = generateWorkflowPrintContent(FIELDS, { includeComments: true, includeCc: true });
+    const plainTexts = withoutConsults.sheets![0].grid.cells.map((c) => String(c.v ?? ''));
+    expect(plainTexts).not.toContain('协办意见');
+    expect(withoutConsults.sheets![0].repeatBlocks!.map((b) => b.id)).not.toContain('consults');
+  });
+
+  it('端到端渲染：协办意见随重复块展开', () => {
+    const lookups = emptyWorkflowPrintLookups();
+    const datasets = buildWorkflowPrintDatasets({ instance: INSTANCE, fields: FIELDS, lookups, printerName: '管理员', printedAt: '2026-09-11 11:00:00' });
+    const layout = generateWorkflowPrintContent(FIELDS, { includeConsults: true });
+    const result = renderPrintContent('审批单', layout, datasets.instance, workflowPrintRenderParams({ printerName: '管理员', printedAt: '2026-09-11 11:00:00' }), workflowPrintPageConfig(), { datasets, renderedAt: '2026-09-11 11:00:00' });
+    const values = result.grid.cells.map((c) => c.v);
+    expect(values).toContain('协办意见');
+    expect(values).toContain('预算充足');
+    expect(values).toContain('请确认资质');
+    expect(values).toContain('已回复');
+    expect(values).toContain('待回复');
   });
 });
 

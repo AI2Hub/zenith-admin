@@ -98,10 +98,19 @@ const WORKFLOW_PRINT_CONSULT_COLUMNS: WorkflowPrintDatasetColumn[] = [
   { key: 'nodeName', label: '节点' },
   { key: 'inviterName', label: '邀请人' },
   { key: 'consulteeName', label: '协办人' },
+  { key: 'statusText', label: '状态' },
   { key: 'question', label: '问题' },
   { key: 'opinion', label: '意见' },
+  { key: 'content', label: '问题 / 意见（有意见时取意见）' },
   { key: 'repliedAt', label: '回复时间' },
 ];
+
+/** 协办状态文案（与前端时间线 / 审批明细的展示口径一致） */
+const WORKFLOW_PRINT_CONSULT_STATUS_TEXT: Record<string, string> = {
+  pending: '待回复',
+  replied: '已回复',
+  revoked: '已撤销',
+};
 
 const WORKFLOW_PRINT_ATTACHMENT_COLUMNS: WorkflowPrintDatasetColumn[] = [
   { key: 'source', label: '来源' },
@@ -539,8 +548,10 @@ export function buildWorkflowPrintDatasets(input: WorkflowPrintDatasetInput): Re
     nodeName: consult.nodeName ?? '',
     inviterName: consult.inviterName ?? '',
     consulteeName: consult.consulteeName ?? '',
+    statusText: WORKFLOW_PRINT_CONSULT_STATUS_TEXT[consult.status] ?? consult.status,
     question: consult.question ?? '',
     opinion: consult.opinion ?? '',
+    content: consult.opinion ?? consult.question ?? '',
     repliedAt: consult.repliedAt ?? '',
   }));
   datasets.attachments = attachments;
@@ -579,6 +590,8 @@ export interface WorkflowPrintLayoutOptions {
   includeComments?: boolean;
   /** 是否输出抄送行 */
   includeCc?: boolean;
+  /** 是否输出协办意见段（服务端按实例有无协办决定；设计器生成模板时默认包含） */
+  includeConsults?: boolean;
   /** 页脚是否带验真二维码（`${QRCODE(verifyUrl)}`） */
   includeVerifyQr?: boolean;
   /** 页脚文本（支持 {page} / {pages} / {date}） */
@@ -880,6 +893,27 @@ export function generateWorkflowPrintContent(fields: WorkflowFormField[], option
     grid.text(commentRow, 4, 14, '${content}', STYLE.tableCell, 'comments');
     grid.text(commentRow, 18, 6, '${createdAt}', STYLE.tableCellCenter, 'comments');
     grid.block('comments', 'comments', commentRow, commentRow);
+  }
+
+  if (options.includeConsults) {
+    grid.text(grid.addRow(ROW_HEIGHT.section), 0, W, '协办意见', STYLE.section);
+    const consultUnits = [4, 3, 3, 2, 7, 5];
+    const consultHeads = ['节点', '邀请人', '协办人', '状态', '问题 / 意见', '回复时间'];
+    const consultHeadRow = grid.addRow(ROW_HEIGHT.tableHead);
+    let consultCursor = 0;
+    consultHeads.forEach((head, index) => { grid.text(consultHeadRow, consultCursor, consultUnits[index], head, STYLE.tableHead); consultCursor += consultUnits[index]; });
+    const consultRow = grid.addRow(ROW_HEIGHT.taskRow);
+    consultCursor = 0;
+    const consultCells: Array<[string, ReportPrintCellStyle]> = [
+      ['${nodeName}', STYLE.tableCell],
+      ['${inviterName}', STYLE.tableCell],
+      ['${consulteeName}', STYLE.tableCell],
+      ['${statusText}', STYLE.tableCellCenter],
+      ['${content}', STYLE.tableCell],
+      ['${repliedAt}', STYLE.tableCellCenter],
+    ];
+    consultCells.forEach(([v, s], index) => { grid.text(consultRow, consultCursor, consultUnits[index], v, s, 'consults'); consultCursor += consultUnits[index]; });
+    grid.block('consults', 'consults', consultRow, consultRow);
   }
 
   grid.addRow(ROW_HEIGHT.spacer);

@@ -628,7 +628,7 @@ export default function WorkflowDesignerPage({
           sourceType: 'entity',
           entityKind: 'workflow_instance',
           entityRefId: definitionId,
-          content: generateWorkflowPrintContent(fields, { includeCc: true, includeComments: true, includeVerifyQr: true }),
+          content: generateWorkflowPrintContent(fields, { includeCc: true, includeComments: true, includeConsults: true, includeVerifyQr: true }),
           pageConfig: workflowPrintPageConfig(),
           params: [],
           status: 'enabled',

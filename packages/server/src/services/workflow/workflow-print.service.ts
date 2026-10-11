@@ -125,7 +125,7 @@ async function resolveLayout(
   instance: WorkflowInstance,
   fields: WorkflowFormField[],
   templateId: number | null,
-  sections: { includeCc: boolean; includeComments: boolean; includeVerifyQr: boolean },
+  sections: { includeCc: boolean; includeComments: boolean; includeConsults: boolean; includeVerifyQr: boolean },
 ): Promise<ResolvedLayout> {
   if (templateId) {
     const template = await loadEntityPrintTemplate(templateId, { entityKind: 'workflow_instance', tenantId: instance.tenantId ?? null });
@@ -238,6 +238,7 @@ export async function renderWorkflowInstancePrintDocument(id: number, options: R
   const layout = await resolveLayout(instance, fields, templateId, {
     includeCc: datasets.cc.length > 0,
     includeComments: datasets.comments.length > 0,
+    includeConsults: datasets.consults.length > 0,
     includeVerifyQr: true,
   });
   const result = renderPrintContent(
