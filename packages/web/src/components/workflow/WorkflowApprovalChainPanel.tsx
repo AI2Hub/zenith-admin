@@ -49,6 +49,23 @@ function pickSelected(value: SelectedInitiatorApprovers, nodeKey: string): numbe
   return normalizeSelectedIds(value[nodeKey]);
 }
 
+/**
+ * 同因折叠：条件未定时，同一个原因（如「预估金额」尚未填写）会落在全部下游节点上。
+ * 返回「首个展示该原因的节点 key → 同因步数」，其余同因节点不再重复渲染原因文本。
+ */
+function collapseRepeatedReasons(nodes: WorkflowApproverPreviewNode[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const n of nodes) if (n.reason) counts.set(n.reason, (counts.get(n.reason) ?? 0) + 1);
+  const owners = new Map<string, number>();
+  const seen = new Set<string>();
+  for (const n of nodes) {
+    if (!n.reason || seen.has(n.reason)) continue;
+    seen.add(n.reason);
+    owners.set(n.nodeKey, counts.get(n.reason) ?? 1);
+  }
+  return owners;
+}
+
 /** 提交前，剔除非自选节点 / 空选择，得到提交用的精简结构 */
 export function compactSelectedInitiatorApprovers(
   value: SelectedInitiatorApprovers,
@@ -142,6 +159,8 @@ export function WorkflowApprovalChain({
   const visibleNodes = showAllBranches ? structureNodes : flowNodes;
   const hasExcludedBranches = structureNodes.length !== flowNodes.length;
   const initiatorName = startNode?.approvers[0]?.name ?? '发起人';
+  // 原因只在首个同因节点展开，避免 5 个下游节点整屏重复同一句提示
+  const reasonOwners = collapseRepeatedReasons(visibleNodes);
 
   // 链路摘要：审批步数 + 去重审批人数（自选节点单列标注）
   const approvalNodes = flowNodes.filter((n) => n.nodeType === 'approve' || n.nodeType === 'handler');
@@ -271,6 +290,7 @@ export function WorkflowApprovalChain({
             const isSelectableNode = !isExcluded && selectable && n.selectionRequired;
             const dotIcon = isSelectableNode ? UserPlus : meta.icon;
             const dotColor = isExcluded ? 'var(--semi-color-tertiary)' : isSelectableNode ? 'var(--semi-color-warning)' : meta.color;
+            const sameReasonSteps = reasonOwners.get(n.nodeKey);
             return (
               <Timeline.Item key={`${n.nodeKey}-${idx}`} dot={timelineDot(dotIcon, dotColor)}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
@@ -290,8 +310,10 @@ export function WorkflowApprovalChain({
                   )}
                   {n.branchLabel && <Tag color="violet" size="small">{n.branchLabel}</Tag>}
                 </div>
-                {n.reason && (
-                  <Typography.Text size="small" type="tertiary" style={{ display: 'block', marginBottom: 4 }}>{n.reason}</Typography.Text>
+                {sameReasonSteps != null && (
+                  <Typography.Text size="small" type="tertiary" style={{ display: 'block', marginBottom: 4 }}>
+                    {n.reason}{sameReasonSteps > 1 ? `（另有 ${sameReasonSteps - 1} 步同因）` : null}
+                  </Typography.Text>
                 )}
                 {renderApprovers(n)}
                 {!isExcluded && n.approverReason && (isSelectableNode || n.approvers.length > 0) && (

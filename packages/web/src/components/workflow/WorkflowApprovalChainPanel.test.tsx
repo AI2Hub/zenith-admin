@@ -53,6 +53,19 @@ describe('approval chain path prediction', () => {
     expect(compactSelectedInitiatorApprovers({ legal: [4], finance: [3] }, selectNodes)).toEqual({ legal: [4] });
   });
 
+  it('collapses one repeated unknown reason into the first node and counts the affected steps', () => {
+    const downstream = (key: string, name: string): WorkflowApproverPreviewNode => ({
+      nodeKey: key, nodeName: name, nodeType: 'approve', status: 'unknown',
+      reason: '「预估金额」尚未填写', approvers: [],
+    });
+    render(<WorkflowApprovalChain nodes={[downstream('finance', '财务复核'), downstream('gm', '总经理审批'), downstream('legal', '法务复核')]} />);
+
+    // 三个下游节点同因：只在首个节点展开一次，并标注同因步数
+    expect(screen.getAllByText(/「预估金额」尚未填写/)).toHaveLength(1);
+    expect(screen.getByText('「预估金额」尚未填写（另有 2 步同因）')).toBeInTheDocument();
+    expect(screen.getAllByText('待条件确认')).toHaveLength(3);
+  });
+
   it('shows resolved names and the basis for the estimate', () => {
     render(<WorkflowApprovalChain nodes={[manager]} />);
     expect(screen.getByText('张主管')).toBeInTheDocument();

@@ -324,6 +324,11 @@ function ApdexBar({ data, palette }: Readonly<{ data: WorkflowEngineIntrospectio
           </Space>
         ))}
       </Space>
+      {/* 低分不等于引擎差：延迟口径是事件作业入库到落终态，默认 T=100ms 对后台投递本身偏紧 */}
+      <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginTop: 6 }}>
+        满意 ≤ {formatDurationMs(a.thresholdMs)} · 容忍 ≤ {formatDurationMs(a.thresholdMs * 4)} · 沮丧 &gt; {formatDurationMs(a.thresholdMs * 4)}
+        ；口径为事件作业入库到落终态（含排队），阈值可在「系统设置 → 工作流引擎」调整
+      </Typography.Text>
     </div>
   );
 }
@@ -975,7 +980,7 @@ export default function WorkflowEngineDiagnosticsView({ onOpenInstanceDiagnostic
                 icon={<Timer size={15} color="var(--semi-color-primary)" />}
                 label="延迟 · Latency"
                 value={formatDurationMs(t.events.avgLatencyMs)}
-                sub={`P95 ${formatDurationMs(t.events.p95LatencyMs)} · P99 ${formatDurationMs(t.events.p99LatencyMs)} · Apdex ${t.apdex.score != null ? t.apdex.score.toFixed(2) : EMPTY_PLACEHOLDER}`}
+                sub={`P95 ${formatDurationMs(t.events.p95LatencyMs)} · P99 ${formatDurationMs(t.events.p99LatencyMs)} · Apdex ${t.apdex.score != null ? t.apdex.score.toFixed(2) : EMPTY_PLACEHOLDER}（T=${formatDurationMs(t.apdex.thresholdMs)}）`}
               />
               <GoldenTile
                 icon={<Layers size={15} color={saturationAccent ?? 'var(--semi-color-text-2)'} />}

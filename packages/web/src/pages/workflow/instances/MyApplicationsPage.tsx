@@ -10,6 +10,7 @@ import {
   Spin,
   TextArea,
   Toast,
+  Tooltip,
   Typography,
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -555,13 +556,16 @@ export default function MyApplicationsPage() {
     dateTimeColumn('提交时间', 'createdAt'),
     workflowInstanceStatusColumn<WorkflowInstance>(),
     createOperationColumn<WorkflowInstance>({
-      // 草稿：编辑 / 提交 + 更多（删除）；已退回：修改重提 / 详情；审批中：详情 / 撤回 + 更多（催办）；已驳回：详情 / 重新提交
+      // 草稿：编辑 / 提交 + 更多（删除）；已退回：修改重提 / 详情；审批中：详情 / 催办 / 撤回；已驳回：详情 / 重新提交
       width: 180,
-      desktopInlineKeys: ['edit-draft', 'submit-draft', 'detail', 'withdraw', 'resubmit'],
+      desktopInlineKeys: ['edit-draft', 'submit-draft', 'detail', 'urge', 'withdraw', 'resubmit'],
       actions: (record) => [
         {
           key: 'edit-draft',
-          label: record.status === 'returned' ? '修改重提' : '编辑',
+          // 与「重新提交」区分：退回是在原单上改（保留编号与历史），驳回/撤回是另起新草稿
+          label: record.status === 'returned'
+            ? <Tooltip content="已退回的申请：在原单上修改后重新提交，保留业务编号与审批历史"><span>修改重提</span></Tooltip>
+            : '编辑',
           hidden: record.status !== 'draft' && record.status !== 'returned',
           onClick: () => void openEditDraft(record),
         },
@@ -585,6 +589,13 @@ export default function MyApplicationsPage() {
           onClick: () => openDetail(record.id),
         },
         {
+          // 发起人最常用催办：审批中的行与详情、撤回一起内联，不再埋进「更多」
+          key: 'urge',
+          label: '催办',
+          hidden: record.status !== 'running',
+          onClick: () => openRowUrge(record.id),
+        },
+        {
           key: 'withdraw',
           label: '撤回',
           danger: true,
@@ -599,15 +610,9 @@ export default function MyApplicationsPage() {
           },
         },
         {
-          // 低频动作：桌面端收进「更多」，移动端与其余动作一样在菜单内
-          key: 'urge',
-          label: '催办',
-          hidden: record.status !== 'running',
-          onClick: () => openRowUrge(record.id),
-        },
-        {
           key: 'resubmit',
-          label: '重新提交',
+          // 与「修改重提」区分：驳回/撤回后按原数据另起一份新草稿，原单保留
+          label: <Tooltip content="已驳回或已撤回的申请：基于原数据生成新草稿重新审批，原单保留"><span>重新提交</span></Tooltip>,
           hidden: (record.status !== 'rejected' && record.status !== 'withdrawn') || record.allowResubmit === false,
           onClick: () => {
             Modal.confirm({
