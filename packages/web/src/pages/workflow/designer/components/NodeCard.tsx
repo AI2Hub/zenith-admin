@@ -335,20 +335,21 @@ export default function NodeCard({
             <div className="fd-node-card__rt-consults">
               {runtime.consults.map((c, i) => {
                 const text = c.opinion ?? c.question;
+                const replied = c.status === 'replied';
                 return (
-                  <div className="fd-node-card__rt-row fd-node-card__rt-row--secondary" key={`${c.consulteeName}-${i}`}>
+                  <div className="fd-node-card__rt-row fd-node-card__rt-row--consult" key={`${c.consulteeName}-${i}`}>
                     <UserAvatar
                       name={c.consulteeName || '?'}
                       avatar={c.avatar}
                       semiSize="extra-extra-small"
-                      size={14}
+                      size={16}
                     />
                     <div className="fd-node-card__rt-info">
                       <div className="fd-node-card__rt-line">
                         <span className="fd-node-card__rt-name" title={c.consulteeName}>{c.consulteeName}</span>
                         <span className="fd-node-card__rt-consult-label">协办</span>
-                        <span className={`fd-node-card__rt-status fd-node-card__rt-status--${c.status === 'replied' ? 'approved' : 'pending'}`}>
-                          {c.status === 'replied' ? '已回复' : '待回复'}
+                        <span className={`fd-node-card__rt-consult-status fd-node-card__rt-consult-status--${replied ? 'replied' : 'pending'}`}>
+                          {replied ? '已回复' : '待回复'}
                         </span>
                       </div>
                       {c.repliedAt && (

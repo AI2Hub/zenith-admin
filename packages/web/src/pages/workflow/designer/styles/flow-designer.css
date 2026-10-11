@@ -501,12 +501,6 @@ body[theme-mode='dark'] .fd-node-card:hover {
   gap: 6px;
 }
 
-/* 协办为次要信息：头像更小、姓名小号灰字，与审批人行拉开视觉层级 */
-.fd-node-card__rt-row--secondary .fd-node-card__rt-name {
-  font-size: 12px;
-  color: var(--semi-color-text-2);
-}
-
 .fd-node-card__rt-info {
   flex: 1;
   min-width: 0;
@@ -515,10 +509,13 @@ body[theme-mode='dark'] .fd-node-card:hover {
   gap: 2px;
 }
 
+/* 首行最小高度 = 该行头像尺寸（审批人 18 / 协办 16，与 NodeCard 中 UserAvatar 的 size 保持一致），
+   行内居中后与顶端对齐的头像共用同一条中线 */
 .fd-node-card__rt-line {
   display: flex;
   align-items: center;
   gap: 6px;
+  min-height: 18px;
 }
 
 .fd-node-card__rt-name {
@@ -562,22 +559,62 @@ body[theme-mode='dark'] .fd-node-card:hover {
   line-height: 16px;
 }
 
+/* 协办是审批的参考意见而非审批动作：收进浅底分组置于审批人之后，
+   以更小的头像与字号、去底色的状态降为次要层级 */
 .fd-node-card__rt-consults {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  margin-top: 6px;
+  margin-top: 8px;
+  padding: 6px 8px;
+  border-radius: var(--semi-border-radius-small);
+  background: var(--semi-color-fill-0);
 }
 
+.fd-node-card__rt-row--consult .fd-node-card__rt-line {
+  gap: 4px;
+  min-height: 16px;
+}
+
+.fd-node-card__rt-row--consult .fd-node-card__rt-name {
+  flex: 0 1 auto;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--semi-color-text-1);
+}
+
+/* 配色取 Semi Tag purple-light 同源色板变量，随深色模式翻转 */
 .fd-node-card__rt-consult-label {
   flex-shrink: 0;
-  font-size: 11px;
-  line-height: 18px;
-  padding: 0 6px;
+  padding: 0 4px;
   border-radius: var(--semi-border-radius-small);
-  color: var(--semi-color-purple);
-  background: var(--semi-color-purple-light-default);
+  font-size: 11px;
+  line-height: 16px;
+  color: rgba(var(--semi-purple-8), 1);
+  background: rgba(var(--semi-purple-5), 0.15);
 }
+
+.fd-node-card__rt-consult-status {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--semi-color-text-2);
+}
+
+.fd-node-card__rt-consult-status::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--fd-consult-status-color);
+}
+
+.fd-node-card__rt-consult-status--replied { --fd-consult-status-color: var(--semi-color-success); }
+.fd-node-card__rt-consult-status--pending { --fd-consult-status-color: var(--semi-color-warning); }
 
 .fd-node-card__rt-note {
   margin-top: 5px;

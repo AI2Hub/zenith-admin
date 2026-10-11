@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import type { WorkflowFlowData, WorkflowTask, WorkflowTaskConsult } from '@zenith/shared/workflow';
 import WorkflowGraphView from './WorkflowGraphView';
@@ -39,5 +39,20 @@ describe('WorkflowGraphView consult overlay', () => {
     render(<WorkflowGraphView flowData={flowData} tasks={[task]} consults={[]} instanceStatus="approved" />);
     expect(screen.queryByText('已回复')).not.toBeInTheDocument();
     expect(screen.getByText('李四')).toBeInTheDocument();
+  });
+
+  it('协办收进审批人之外的独立分组，并按回复状态区分', () => {
+    const pending: WorkflowTaskConsult = {
+      ...consult, id: 3, consulteeId: 6, consulteeName: '赵六', question: '请确认供应商资质', opinion: null, status: 'pending', repliedAt: null,
+    };
+    const { container } = render(<WorkflowGraphView flowData={flowData} tasks={[task]} consults={[consult, pending]} instanceStatus="approved" />);
+    const group = container.querySelector<HTMLElement>('.fd-node-card__rt-consults');
+    expect(group).not.toBeNull();
+    const consults = within(group!);
+    expect(consults.queryByText('李四')).not.toBeInTheDocument();
+    expect(consults.getAllByText('协办')).toHaveLength(2);
+    expect(consults.getByText('已回复')).toHaveClass('fd-node-card__rt-consult-status--replied');
+    expect(consults.getByText('待回复')).toHaveClass('fd-node-card__rt-consult-status--pending');
+    expect(consults.getByText('请确认供应商资质')).toBeInTheDocument();
   });
 });
