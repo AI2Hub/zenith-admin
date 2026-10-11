@@ -197,6 +197,9 @@ export const explicitCrudRoutes: Readonly<Record<string, readonly ExplicitCrudEn
   'platform/cache.ts': [
     { contract: 'cacheContract', ops: ['list'], reason: '服务函数签名与契约入参不一致（取子字段 / 转换）' },
   ],
+  'platform/numbering.ts': [
+    { contract: 'numberingDefaultContract', ops: ['list', 'update'], reason: '默认规则按业务类型全量返回（非分页），更新主键为 scene 非 id；服务函数签名与契约派生签名不一致' },
+  ],
   'platform/regions.ts': [
     { contract: 'regionContract', ops: ['create', 'update', 'remove'], reason: 'handler 含自定义逻辑（非「取参 → 服务 → 包络」）；handler 含前置校验 / 业务分支' },
   ],
