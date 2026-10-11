@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { Banner, Button, Descriptions, Divider, Empty, Modal, SideSheet, Spin, Tag, Toast, Typography } from '@douyinfe/semi-ui';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { BodyOf } from '@zenith/shared/core';
 import {
@@ -39,6 +39,7 @@ function sample(rule: NumberingRule) {
 }
 
 export function RuleDetails({ rule, onClose }: Readonly<{ rule: NumberingRule | null; onClose: () => void }>) {
+  const navigate = useNavigate();
   const detail = useNumberingRuleDetail(rule?.id, !!rule);
   const versions = useNumberingVersions(rule?.id, !!rule);
   const counters = useNumberingCounters(rule?.id, !!rule);
@@ -46,7 +47,7 @@ export function RuleDetails({ rule, onClose }: Readonly<{ rule: NumberingRule | 
   const value = detail.data ?? rule;
   const columns: ColumnProps<NumberingVersion>[] = [
     { title: '版本', dataIndex: 'version', width: 80, render: version => `v${version}` },
-    { key: 'template', title: '编号模板', dataIndex: 'config', width: 250, render: (config: NumberingConfig) => <code className="numbering-version-config">{config.template}</code> },
+    { key: 'template', title: '编号模板', dataIndex: 'config', width: 420, render: (config: NumberingConfig) => <code className="numbering-version-config" title={config.template}>{config.template}</code> },
     { key: 'scope', title: '流水范围', dataIndex: 'config', width: 100, render: (config: NumberingConfig) => NUMBERING_SCOPE_LABELS[config.scope] },
     { key: 'resetPeriod', title: '重置周期', dataIndex: 'config', width: 100, render: (config: NumberingConfig) => NUMBERING_RESET_PERIOD_LABELS[config.resetPeriod] },
     { key: 'sequence', title: '起始 / 步长 / 位数', dataIndex: 'config', width: 150, render: (config: NumberingConfig) => `${config.start} / ${config.step} / ${config.width}` },
@@ -77,7 +78,9 @@ export function RuleDetails({ rule, onClose }: Readonly<{ rule: NumberingRule | 
         <Typography.Paragraph type="tertiary">默认规则按业务类型设置；具体流程在流程设计器中修改编号设置，随流程发布固定。下表显示实际使用的版本。</Typography.Paragraph>
         {usages.isError ? <Banner type="danger" description="使用位置加载失败。" closeIcon={null} /> :
           <ConfigurableTable<NumberingRuleUsage> columns={[
-            { title: '使用位置', dataIndex: 'name', width: 220, render: (name, row) => row.kind === 'workflow' && row.destination ? <Link to={row.destination}>{name}</Link> : renderEllipsis(name) },
+            { title: '使用位置', dataIndex: 'name', width: 220, render: (name, row) => row.kind === 'workflow' && row.destination
+              ? <Button theme="borderless" type="tertiary" size="small" onClick={() => navigate(row.destination!)}>{name}</Button>
+              : renderEllipsis(name) },
             { title: '业务类型', dataIndex: 'businessName', width: 150 },
             { title: '使用版本', dataIndex: 'version', width: 100, render: version => `v${version}` },
             { title: '所属租户', dataIndex: 'tenantName', width: 180, render: (name, row) => row.tenantId === null ? '平台' : name ?? `租户 #${row.tenantId}` },

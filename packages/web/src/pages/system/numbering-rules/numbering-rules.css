@@ -95,8 +95,11 @@
 }
 
 .numbering-version-config {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 @media (--md-down) {
