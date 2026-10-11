@@ -77,3 +77,42 @@ describe('analyzeWorkflowHealth 3D 增强', () => {
     expect(approver?.issues.some((i) => i.message.includes('已停用'))).toBe(false);
   });
 });
+
+/** 开始 → 审批 → 结束：审批节点是否配置超时由入参决定 */
+function buildTimeoutFlow(timeout?: { enabled: boolean; duration: number; unit: 'hours'; action: 'remind' }): WorkflowFlowData {
+  return {
+    nodes: [
+      { id: 'start', type: 'start', data: { key: 'start', type: 'start', label: '开始' } },
+      {
+        id: 'ap',
+        type: 'approve',
+        data: { key: 'ap', type: 'approve', label: '审批', assigneeType: 'user', assigneeIds: [42], ...(timeout ? { timeout } : {}) },
+      },
+      { id: 'end', type: 'end', data: { key: 'end', type: 'end', label: '结束' } },
+    ],
+    edges: [
+      { source: 'start', target: 'ap' },
+      { source: 'ap', target: 'end' },
+    ],
+  } as unknown as WorkflowFlowData;
+}
+
+describe('超时/SLA 维度状态', () => {
+  it('审批节点未配置超时时维度为 warn，而不是与扣分自相矛盾的 pass', () => {
+    const report = analyzeWorkflowHealth(buildTimeoutFlow());
+    const timeout = report.checks.find((c) => c.key === 'timeout')!;
+    expect(timeout.issues).toHaveLength(1);
+    expect(timeout.issues.every((i) => i.severity === 'warning')).toBe(true);
+    expect(timeout.status).toBe('warn');
+    expect(timeout.score).toBeLessThan(100);
+    expect(timeout.summary).toContain('未配置超时');
+  });
+
+  it('审批节点已配置超时时该维度为 pass 且无问题', () => {
+    const report = analyzeWorkflowHealth(buildTimeoutFlow({ enabled: true, duration: 8, unit: 'hours', action: 'remind' }));
+    const timeout = report.checks.find((c) => c.key === 'timeout')!;
+    expect(timeout.issues).toHaveLength(0);
+    expect(timeout.status).toBe('pass');
+    expect(timeout.score).toBe(100);
+  });
+});

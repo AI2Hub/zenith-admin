@@ -8,7 +8,7 @@
 import { Space, Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps, Data } from '@douyinfe/semi-ui/lib/es/table';
 import { UserAvatar } from '@/components/UserAvatar';
-import { TASK_STATUS_MAP } from '@/components/workflow/workflow-runtime';
+import { taskStatusDisplay } from '@/components/workflow/workflow-runtime';
 import { EMPTY_PLACEHOLDER } from '@/utils/table-columns';
 
 /** 节点类型 → 中文标签（含网关 / 结构节点，任务表格与节点配置摘要共用） */
@@ -134,14 +134,14 @@ export function taskNodeTypeColumn<T extends TaskRowLike>(title = '类型', widt
   };
 }
 
-/** 任务状态 Tag 列（文案/配色统一走 TASK_STATUS_MAP） */
+/** 任务状态 Tag 列（文案/配色统一走 taskStatusDisplay：抄送任务显示「已抄送」而非「已跳过」） */
 export function taskStatusColumn<T extends TaskRowLike>(title = '状态', width = 100): ColumnProps<T> {
   return {
     title,
     dataIndex: 'status',
     width,
-    render: (v: string) => {
-      const m = TASK_STATUS_MAP[v] ?? { text: v, color: 'grey' as const };
+    render: (v: string, r: T) => {
+      const m = taskStatusDisplay({ status: v, nodeType: r.nodeType });
       return <Tag color={m.color}>{m.text}</Tag>;
     },
   };

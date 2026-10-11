@@ -524,7 +524,34 @@ export async function exportDefinition(id: number) {
   };
 }
 
-/** G5 从导出 JSON 导入为新草稿（按分类名匹配既有分类，找不到则忽略） */
+/**
+ * 导入时按分类名解析归类：同名分类直接复用，目标环境不存在同名分类则创建一个。
+ * 导出 JSON 里的 categoryName 是唯一可携带的分类信息，静默置空会让导入结果丢失
+ * 分类归属（表现为「导入后流程落到未分类」），因此缺失时补建。
+ */
+async function resolveImportedCategoryId(
+  tx: DbExecutor,
+  categoryName: string,
+  user: ReturnType<typeof currentUser>,
+): Promise<number | null> {
+  const name = categoryName.trim();
+  if (!name) return null;
+  const [existing] = await tx.select({ id: workflowCategories.id }).from(workflowCategories)
+    .where(buildWhere(eq(workflowCategories.name, name), tenantCondition(workflowCategories, user))).limit(1);
+  if (existing) return existing.id;
+  const [created] = await tx.insert(workflowCategories).values({
+    name,
+    code: null,
+    icon: null,
+    color: null,
+    sort: 0,
+    description: '由流程定义导入自动创建',
+    tenantId: getCreateTenantId(user),
+  }).returning({ id: workflowCategories.id });
+  return created.id;
+}
+
+/** G5 从导出 JSON 导入为新草稿（分类名同名复用，缺失时自动创建） */
 export async function importDefinition(data: {
   name: string;
   description?: string | null;
@@ -542,13 +569,8 @@ export async function importDefinition(data: {
   const importedFlow = data.flowData
     ? await normalizeFlowDataForWrite(data.flowData)
     : null;
-  let categoryId: number | null = null;
-  if (data.categoryName) {
-    const [cat] = await db.select({ id: workflowCategories.id }).from(workflowCategories)
-      .where(buildWhere(eq(workflowCategories.name, data.categoryName), tenantCondition(workflowCategories, user))).limit(1);
-    categoryId = cat?.id ?? null;
-  }
   const newId = await db.transaction(async (tx) => {
+    const categoryId = data.categoryName ? await resolveImportedCategoryId(tx, data.categoryName, user) : null;
     let newFormId: number | null = null;
     if (formType === 'designer' && data.form) {
       const [newForm] = await tx.insert(workflowForms).values({

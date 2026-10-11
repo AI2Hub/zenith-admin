@@ -5,8 +5,8 @@ import {
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { BellRing, ChevronLeft, RotateCcw, Send, Share2 } from 'lucide-react';
-import type { WorkflowActionButtonConfig, WorkflowFieldPermission, WorkflowTask } from '@zenith/shared/workflow';
-import { applyFieldPermissionsToFields, hasEditableFieldPermission } from '@zenith/shared/workflow';
+import type { WorkflowActionButtonConfig, WorkflowActionButtonKey, WorkflowFieldPermission, WorkflowTask } from '@zenith/shared/workflow';
+import { applyFieldPermissionsToFields, hasEditableFieldPermission, resolveWorkflowActionButton } from '@zenith/shared/workflow';
 import { formatDateTime } from '@/utils/date';
 import { downloadBlob } from '@/utils/download';
 import ApprovalTimeline from '@/components/ApprovalTimeline';
@@ -40,17 +40,12 @@ import { INSTANCE_STATUS_MAP as STATUS_MAP } from '@/components/workflow/workflo
 type ActionKind = 'approve' | 'reject' | 'transfer' | null;
 const SignatureField = lazy(() => import('@/components/signature/SignatureField'));
 
+/** 移动审批端按钮默认值同样取 shared 唯一事实源（与审批面板 / 设计器 / 服务端一致） */
 function resolveBtn(
   cfg: Partial<Record<string, WorkflowActionButtonConfig>> | null | undefined,
   key: 'approve' | 'reject' | 'transfer',
 ): WorkflowActionButtonConfig {
-  const defaults: WorkflowActionButtonConfig = {
-    enabled: key !== 'transfer',
-    displayName: key === 'approve' ? '同意' : key === 'reject' ? '拒绝' : '转办',
-    opinionName: key === 'approve' ? '审批意见' : key === 'reject' ? '拒绝原因' : '转办说明',
-  };
-  const override = cfg?.[key];
-  return override ? { ...defaults, ...override } : defaults;
+  return resolveWorkflowActionButton(cfg as Partial<Record<WorkflowActionButtonKey, WorkflowActionButtonConfig>>, key);
 }
 
 /** 详情页头部骨架（返回键常驻，避免加载时无法退出） */

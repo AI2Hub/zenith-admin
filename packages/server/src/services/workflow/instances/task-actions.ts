@@ -13,7 +13,7 @@ import { db } from '../../../db';
 import { workflowInstances, workflowTasks, users } from '../../../db/schema';
 import { findReturnPrevTarget } from '../../../lib/workflow-engine';
 import type { WorkflowEventActor, WorkflowActionButtonKey, WorkflowActionButtonConfig, WorkflowNodeConfig, WorkflowTaskDecision } from '@zenith/shared/workflow';
-import { findNextApproverSelectNodes, resolveNodeFieldPermissions, sanitizeFormUpdatesByNodePerms } from '@zenith/shared/workflow';
+import { findNextApproverSelectNodes, resolveNodeFieldPermissions, sanitizeFormUpdatesByNodePerms, WORKFLOW_ACTION_BUTTON_DEFAULTS } from '@zenith/shared/workflow';
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../../lib/context';
 import { buildStarterContext, searchSelectableApprovers } from '../workflow-assignee-resolver.service';
@@ -56,17 +56,6 @@ function resolveNodeActionButton(
   return buttons?.[key];
 }
 
-/** 各动作按钮的默认启用态（与前端 WorkflowApprovalDetailSheet 的 DEFAULT_BUTTONS 保持一致） */
-const DEFAULT_BUTTON_ENABLED: Record<WorkflowActionButtonKey, boolean> = {
-  approve: true,
-  reject: true,
-  transfer: false,
-  delegate: false,
-  addSign: false,
-  reduceSign: false,
-  return: false,
-};
-
 /**
  * 服务端强制「操作按钮设置」的启用态：未启用的动作即使绕过前端直接调 API 也一律拒绝。
  * 仅约束用户入口（approveTask/rejectTask/transferTask 等）；系统路径（超时自动通过、
@@ -78,7 +67,8 @@ export function assertActionButtonEnabled(
   key: WorkflowActionButtonKey,
 ): void {
   const btn = resolveNodeActionButton(inst, nodeKey, key);
-  const enabled = btn?.enabled ?? DEFAULT_BUTTON_ENABLED[key];
+  // 默认启用态来自 shared 的唯一事实源（与设计器、运行时审批面板同一份），不再各自维护
+  const enabled = btn?.enabled ?? WORKFLOW_ACTION_BUTTON_DEFAULTS[key].enabled;
   if (!enabled) throw new HTTPException(403, { message: '当前节点未启用该操作' });
 }
 

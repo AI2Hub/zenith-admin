@@ -77,6 +77,7 @@ function issue(severity: WorkflowDefinitionHealthIssue['severity'], message: str
   return { severity, message, suggestion, nodeKey: node?.data.key ?? null, nodeName: node ? (node.data.label || node.data.key) : null };
 }
 
+/** 维度状态：critical→fail、warning→warn；info 仅为提示，不改变维度状态 */
 function statusFromIssues(issues: WorkflowDefinitionHealthIssue[]): WorkflowDefinitionHealthCheckItem['status'] {
   if (issues.some((i) => i.severity === 'critical')) return 'fail';
   if (issues.some((i) => i.severity === 'warning')) return 'warn';
@@ -289,10 +290,13 @@ export function analyzeWorkflowHealth(
   };
 
   // ── timeout / SLA ──
+  // 未配置超时提醒计入扣分（每个节点 -5），因此问题级别必须是 warning：
+  // 用 info 会让本维度永远返回 pass——状态与「N 个审批节点未配置超时」的摘要、
+  // 以及被拉低的分数自相矛盾，体检页面看起来一切正常。
   const timeoutIssues: WorkflowDefinitionHealthIssue[] = [];
   for (const n of nodes.filter((x) => x.data.type === 'approve' || x.data.type === 'handler')) {
     if (!n.data.timeout?.enabled) {
-      timeoutIssues.push(issue('info', `节点「${n.data.label || n.data.key}」未配置超时/SLA 提醒`, '配置超时时长，便于超时预警与自动催办', n));
+      timeoutIssues.push(issue('warning', `节点「${n.data.label || n.data.key}」未配置超时/SLA 提醒`, '配置超时时长，便于超时预警与自动催办', n));
     }
   }
   const timeoutScore = toScore(100 - timeoutIssues.length * 5);

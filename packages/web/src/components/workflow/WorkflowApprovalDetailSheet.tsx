@@ -18,8 +18,8 @@ import {
 } from '@douyinfe/semi-ui';
 import { ChevronDown } from 'lucide-react';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import type { WorkflowActionButtonConfig, WorkflowActionButtonKey, WorkflowDefinition, WorkflowFieldPermission, WorkflowInstance, WorkflowTask } from '@zenith/shared/workflow';
-import { hasEditableFieldPermission, WORKFLOW_RETURN_TO_INITIATOR_KEY } from '@zenith/shared/workflow';
+import type { WorkflowActionButtonConfig, WorkflowDefinition, WorkflowFieldPermission, WorkflowInstance, WorkflowTask } from '@zenith/shared/workflow';
+import { hasEditableFieldPermission, resolveWorkflowActionButton as resolveButton, WORKFLOW_RETURN_TO_INITIATOR_KEY } from '@zenith/shared/workflow';
 import { resolveRejectTargetHint } from '@/utils/workflow-reject';
 import { resolveWorkflowDetailDefinition } from '@/utils/workflow-snapshot';
 import { useQuickPhrases } from '@/hooks/useQuickPhrases';
@@ -60,25 +60,8 @@ interface Props {
   onActionDone?: () => void;
 }
 
-const DEFAULT_BUTTONS: Record<WorkflowActionButtonKey, WorkflowActionButtonConfig> = {
-  approve: { enabled: true, displayName: '同意', opinionName: '审批意见' },
-  reject: { enabled: true, displayName: '拒绝', opinionName: '拒绝原因' },
-  transfer: { enabled: false, displayName: '转办', opinionName: '转办说明' },
-  delegate: { enabled: false, displayName: '委派', opinionName: '委派说明' },
-  addSign: { enabled: false, displayName: '加签', opinionName: '加签说明' },
-  reduceSign: { enabled: false, displayName: '减签', opinionName: '减签说明' },
-  return: { enabled: false, displayName: '退回', opinionName: '退回原因' },
-};
-
-function resolveButton(
-  cfg: Partial<Record<WorkflowActionButtonKey, WorkflowActionButtonConfig>> | null | undefined,
-  key: WorkflowActionButtonKey,
-): WorkflowActionButtonConfig {
-  const defaults = DEFAULT_BUTTONS[key];
-  const override = cfg?.[key];
-  return override ? { ...defaults, ...override } : defaults;
-}
-
+// 按钮默认值（启用态 / 文案 / 意见标签）统一取 shared 的 WORKFLOW_ACTION_BUTTON_DEFAULTS，
+// 与设计器「操作按钮」页、服务端动作校验同一份事实源，避免三处漂移
 function appendPhrase(formApi: FormApi | null, text: string) {
   if (!formApi) return;
   const cur = (formApi.getValue('comment') as string | undefined) ?? '';

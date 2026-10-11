@@ -1,23 +1,16 @@
-import type { ActionButtonConfig, ActionButtonKey, ActionButtonsConfig, ActionUploadMode } from './types';
+import { WORKFLOW_ACTION_BUTTONS, type WorkflowActionButtonMeta } from '@zenith/shared/workflow';
+import type { ActionButtonConfig, ActionButtonsConfig, ActionUploadMode } from './types';
 
-export interface ActionButtonMeta {
-  key: ActionButtonKey;
-  label: string;
-  defaultDisplayName: string;
-  defaultOpinionName: string;
-  supportsJump: boolean;
-  defaultEnabled: boolean;
-}
+/** 设计器按钮元数据（与服务端校验、审批面板同一类型定义） */
+export type ActionButtonMeta = WorkflowActionButtonMeta;
 
-export const ACTION_BUTTON_META: ActionButtonMeta[] = [
-  { key: 'approve',  label: '通过', defaultDisplayName: '通过', defaultOpinionName: '通过', supportsJump: false, defaultEnabled: true },
-  { key: 'reject',   label: '拒绝', defaultDisplayName: '拒绝', defaultOpinionName: '拒绝', supportsJump: true,  defaultEnabled: true },
-  { key: 'transfer', label: '转办', defaultDisplayName: '转办', defaultOpinionName: '转办', supportsJump: false, defaultEnabled: true },
-  { key: 'delegate', label: '委派', defaultDisplayName: '委派', defaultOpinionName: '委派', supportsJump: false, defaultEnabled: true },
-  { key: 'addSign',  label: '加签', defaultDisplayName: '加签', defaultOpinionName: '加签', supportsJump: false, defaultEnabled: true },
-  { key: 'reduceSign', label: '减签', defaultDisplayName: '减签', defaultOpinionName: '减签说明', supportsJump: false, defaultEnabled: false },
-  { key: 'return',   label: '退回', defaultDisplayName: '退回', defaultOpinionName: '退回', supportsJump: true,  defaultEnabled: true },
-];
+/**
+ * 按钮顺序、默认启用态与默认文案全部来自 shared 的 `WORKFLOW_ACTION_BUTTONS`。
+ * 本文件不再自持一份默认值：此前设计器默认「转办/委派/加签/退回开启」与运行时、
+ * 服务端的默认关闭相互矛盾（未配置按钮的节点在画布里显示已开启，保存后还会把
+ * 错误的启用态写进流程快照，运行时却隐藏按钮、接口返回 403）。
+ */
+export const ACTION_BUTTON_META: readonly ActionButtonMeta[] = WORKFLOW_ACTION_BUTTONS;
 
 const UPLOAD_MODES = new Set<ActionUploadMode>(['hidden', 'optional', 'required']);
 

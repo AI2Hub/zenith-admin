@@ -40,6 +40,21 @@ export const TASK_STATUS_MAP: Record<string, { text: string; color: InstanceStat
 };
 
 /**
+ * 任务状态展示文案与配色。
+ * 抄送任务送达即完成，引擎统一以 skipped 落库（「无需处理」）；直接显示「已跳过」会被
+ * 读作任务作废，因此按节点语义显示「已抄送」——与 ApprovalTimeline 的既有口径一致。
+ */
+export function taskStatusDisplay(
+  task: { status?: string | null; nodeType?: string | null },
+): { text: string; color: InstanceStatusTagColor } {
+  const status = task.status ?? '';
+  if (task.nodeType === 'ccNode' && (status === 'skipped' || status === 'approved')) {
+    return { text: '已抄送', color: 'green' };
+  }
+  return TASK_STATUS_MAP[status] ?? { text: status, color: 'grey' };
+}
+
+/**
  * 线性化流程中的审批相关节点（approve / handler / cc），按流转顺序返回（含尚未到达的后续节点）。
  * 用于审批时间线展示完整链路，而非只展示已创建任务对应的节点。
  */

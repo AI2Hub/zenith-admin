@@ -14,7 +14,7 @@ import {
 import { CornerUpLeft, Reply, Send, ShieldCheck, Undo2, X } from 'lucide-react';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { WorkflowDefinition, WorkflowFieldPermission, WorkflowInstance, WorkflowComment, WorkflowTask, WorkflowTaskConsult } from '@zenith/shared/workflow';
-import { applyFieldPermissionsToFields, WORKFLOW_TASK_STATUS_LABELS, workflowInstanceContract, workflowTaskContract } from '@zenith/shared/workflow';
+import { applyFieldPermissionsToFields, workflowInstanceContract, workflowTaskContract } from '@zenith/shared/workflow';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { contractKey, useApiMutation } from '@/lib/contract-query';
 import { invalidateEntityRelations } from '@/lib/entity-relation-cache';
@@ -35,7 +35,7 @@ import WorkflowGraphView from './WorkflowGraphView';
 import WorkflowPrintButton from './WorkflowPrintButton';
 import WorkflowProcessLayout from './WorkflowProcessLayout';
 import WorkflowPriorityTag from '@/components/workflow/WorkflowPriorityTag';
-import { linearizeApprovalNodes, INSTANCE_STATUS_MAP } from './workflow-runtime';
+import { linearizeApprovalNodes, INSTANCE_STATUS_MAP, taskStatusDisplay } from './workflow-runtime';
 import {
   resolveWorkflowCustomForm,
   resolveWorkflowDetailDefinition,
@@ -44,15 +44,6 @@ import {
   resolveWorkflowFormSettings,
   resolveWorkflowFormType,
 } from '@/utils/workflow-snapshot';
-
-/** 任务状态 → 标签色（文案统一取 WORKFLOW_TASK_STATUS_LABELS） */
-const TASK_STATUS_TAG_COLOR: Record<string, 'amber' | 'blue' | 'green' | 'grey' | 'red'> = {
-  pending: 'amber',
-  waiting: 'blue',
-  approved: 'green',
-  rejected: 'red',
-  skipped: 'grey',
-};
 
 /** 流转记录列：与审批链时间线同源（instance.tasks），表格形态便于审计对账 */
 const FLOW_RECORD_COLUMNS: ColumnProps<WorkflowTask>[] = [
@@ -70,11 +61,11 @@ const FLOW_RECORD_COLUMNS: ColumnProps<WorkflowTask>[] = [
     title: '审批状态',
     dataIndex: 'status',
     width: 92,
-    render: (v: WorkflowTask['status']) => (
-      <Tag size="small" color={TASK_STATUS_TAG_COLOR[v] ?? 'grey'}>
-        {WORKFLOW_TASK_STATUS_LABELS[v as keyof typeof WORKFLOW_TASK_STATUS_LABELS] ?? v}
-      </Tag>
-    ),
+    // 文案/配色统一走 taskStatusDisplay：抄送任务送达即完成，显示「已抄送」而非「已跳过」
+    render: (v: WorkflowTask['status'], r: WorkflowTask) => {
+      const m = taskStatusDisplay({ status: v, nodeType: r.nodeType });
+      return <Tag size="small" color={m.color}>{m.text}</Tag>;
+    },
   },
   { title: '审批建议', dataIndex: 'comment', width: 150, render: renderEllipsis },
   {
