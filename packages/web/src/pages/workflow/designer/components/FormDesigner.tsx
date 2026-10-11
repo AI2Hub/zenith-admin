@@ -165,9 +165,6 @@ function createField(type: WorkflowFormFieldType): WorkflowFormField {
         type: 'description',
         description: '请在此处填写说明文字...',
       };
-    case 'serialNumber':
-      field.serialPrefix = '';
-      break;
     case 'phone':
       field.placeholder = '请输入手机号';
       break;

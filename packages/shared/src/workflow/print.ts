@@ -486,7 +486,7 @@ export function buildWorkflowPrintDatasets(input: WorkflowPrintDatasetInput): Re
   const datasets: ReportPrintDatasetRows = {};
   for (const field of leaves) {
     const key = workflowPrintFieldKey(field.key);
-    const value = formData[field.key];
+    const value = field.type === 'serialNumber' ? instance.serialNo : formData[field.key];
     const text = formatWorkflowPrintValue(field, value, lookups);
     formRow[key] = text;
     if (field.type !== 'signature') formFieldRows.push({ key, label: field.label || field.key, value: text, type: field.type });
@@ -499,7 +499,7 @@ export function buildWorkflowPrintDatasets(input: WorkflowPrintDatasetInput): Re
         const out: Row = { _index: index + 1 };
         for (const child of children) {
           const childKey = workflowPrintFieldKey(child.key);
-          const childValue = source[child.key];
+          const childValue = child.type === 'serialNumber' ? instance.serialNo : source[child.key];
           // 数值子列保留数值（重复块合计 ${SUM(key)} 需要），同时给出格式化文本列 `<key>_text`（千分位 / 精度 / 单位）
           if (isNumericFieldType(child.type)) {
             const num = typeof childValue === 'number' ? childValue : Number(childValue);

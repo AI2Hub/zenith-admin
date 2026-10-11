@@ -27,6 +27,7 @@ export type NumberingCounter = z.infer<typeof numberingCounterSchema>;
 export const numberingRuleOptionSchema = z.object({
   id: z.int(), code: z.string(), name: z.string(), scene: z.enum(NUMBERING_SCENE_CODES),
   currentVersion: z.int(), versionId: z.int(),
+  template: z.string(), requiredParameters: z.array(z.string()),
 }).meta({ id: 'NumberingRuleOption' });
 export type NumberingRuleOption = z.infer<typeof numberingRuleOptionSchema>;
 

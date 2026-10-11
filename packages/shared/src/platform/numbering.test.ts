@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { numberingConfigSchema, updateNumberingRuleSchema, type NumberingConfig } from './numbering-validation';
-import { parseNumberingTemplate, previewBusinessNumbers, renderBusinessNumber, resolveNumberingPeriodKey, serializeNumberingTemplate, validateNumberingConfig } from './numbering';
+import { parseNumberingTemplate, previewBusinessNumbers, renderBusinessNumber, resolveNumberingPeriodKey, serializeNumberingTemplate, validateNumberingConfig, validateNumberingParameterMapping } from './numbering';
+import { parseNumberingFormFieldSource } from './numbering-reference';
 import { getNumberingScene } from './numbering-scenes';
 
 const config: NumberingConfig = {
@@ -10,6 +11,18 @@ const config: NumberingConfig = {
 const at = '2026-10-11T02:00:00Z';
 
 describe('编号规则核心', () => {
+  it('表单映射保留中文和连字符字段编码，拒绝空编码、控制字符、超长与原型保留字', () => {
+    for (const key of ['分类编码', 'category-code', '分类.编码']) {
+      expect(parseNumberingFormFieldSource(`formData.${key}`)).toBe(key);
+      expect(validateNumberingParameterMapping('workflow.instance', { categoryCode: `formData.${key}` })).toEqual([]);
+    }
+    const longestKey = 'x'.repeat(247);
+    expect(parseNumberingFormFieldSource(`formData.${longestKey}`)).toBe(longestKey);
+    for (const source of ['formData.', 'formData. ', 'formData.a\nb', 'formData.__proto__', 'formData.constructor', 'formData.prototype', `formData.${longestKey}x`, 'other.category']) {
+      expect(parseNumberingFormFieldSource(source)).toBeUndefined();
+      expect(validateNumberingParameterMapping('workflow.instance', { categoryCode: source })).not.toEqual([]);
+    }
+  });
   it('分段配置与高级模板往返使用同一模型', () => {
     const template = 'QJ-{departmentId}-{YYYY}{MM}{DD}-{SEQ:4}';
     expect(serializeNumberingTemplate(parseNumberingTemplate(template))).toBe(template);

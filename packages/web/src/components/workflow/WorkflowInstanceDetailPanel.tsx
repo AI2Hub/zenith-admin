@@ -386,6 +386,7 @@ export default function WorkflowInstanceDetailPanel({
       return (
         <WorkflowFormRenderer
           attachmentInstanceId={instance.id}
+          instanceSerialNo={instance.serialNo}
           key={formEditable ? `edit-${instance.id}` : `view-${instance.id}`}
           fields={visibleFormFields}
           initValues={(instance.formData as Record<string, unknown>) ?? {}}

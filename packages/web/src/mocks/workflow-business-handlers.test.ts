@@ -81,7 +81,8 @@ describe('business workflow integration in Demo', () => {
   it('derives both external definitions from shared seed and previews without saving', async () => {
     for (const seed of SEED_WORKFLOW_DEFINITIONS) {
       const definition = mockWorkflowDefinitions.find((item) => item.name === seed.name && item.formType === 'external');
-      expect(definition?.flowData).toEqual(seed.flowData);
+      expect(definition?.flowData).toMatchObject(seed.flowData);
+      expect(definition?.flowData?.settings?.numbering?.versionId).toBeGreaterThan(0);
       expect(definition?.customForm).toEqual(seed.customForm);
     }
     const counts = [mockBizLeaves.length, mockWorkflowInstances.length, mockWorkflowTasks.length];

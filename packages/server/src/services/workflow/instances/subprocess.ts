@@ -1,3 +1,5 @@
+import { allocateWorkflowInstanceNumber } from '../workflow-numbering.service';
+import { normalizeInstanceFormData } from './form-derived';
 import { bindWorkflowFormAttachments } from '../workflow-attachments.service';
 import { workflowTransaction } from '../../../lib/workflow-jobs/lease';
 import { enqueueSubprocessJoin } from './async-jobs';
@@ -136,6 +138,7 @@ async function createChildInstanceAndMaterialize(
   const childResolvedFormSnapshot = await resolveFormSnapshot(def.formId);
   const childFormSnapshot = buildInstanceFormSnapshot(def, childResolvedFormSnapshot);
   const childStarter = await buildStarterContext(childInitiatorId);
+  childFormData = normalizeInstanceFormData(childFormSnapshot, childFormData);
 
   const childInst = await workflowTransaction(async (tx) => {
     const [created] = await tx.insert(workflowInstances).values({
@@ -153,8 +156,9 @@ async function createChildInstanceAndMaterialize(
       parentTaskItemKey: opts?.itemKey ?? null,
       parentTaskItemIndex: opts?.itemIndex ?? null,
     }).returning();
+    const serialNo = await allocateWorkflowInstanceNumber(tx, { instanceId: created.id, definitionId: def.id, tenantId: created.tenantId, initiatorId: childInitiatorId, flowData, formData: childFormData });
     childFormData = await bindWorkflowFormAttachments(tx, created, childFormSnapshot, childFormData, 0, [parentInst.id]);
-    await tx.update(workflowInstances).set({ formData: childFormData }).where(eq(workflowInstances.id, created.id));
+    await tx.update(workflowInstances).set({ formData: childFormData, serialNo }).where(eq(workflowInstances.id, created.id));
     const materialized = await advanceAndMaterialize({ kind: 'seed' }, {
       instanceId: created.id,
       initiatorId: childInitiatorId,

@@ -223,7 +223,7 @@ export function sanitizeFormUpdatesByNodePerms(
  * 必然解析失败（分支全走默认、审批人为空），应阻断发布而非上线后才暴露。
  */
 export function collectReferencedFormFieldKeys(
-  flowData: Pick<WorkflowFlowData, 'nodes' | 'edges'> | null | undefined,
+  flowData: Pick<WorkflowFlowData, 'nodes' | 'edges' | 'settings'> | null | undefined,
 ): Set<string> {
   const keys = new Set<string>();
   const addKey = (v: unknown) => {
@@ -251,6 +251,9 @@ export function collectReferencedFormFieldKeys(
       addKey(data.subProcessMultiSource);
       if (data.subProcessInitiator === 'formField') addKey(data.subProcessInitiatorField);
     }
+  }
+  for (const source of Object.values(flowData?.settings?.numbering?.parameterMapping ?? {})) {
+    if (source.startsWith('formData.')) addKey(source.slice('formData.'.length));
   }
   return keys;
 }
@@ -351,15 +354,6 @@ function renameFormTemplateRefs(template: string, renames: Record<string, string
   return out;
 }
 
-/** 替换业务编号模板中的 {FORM.oldKey} 占位（renderWorkflowSerialNo 的 token 前缀大小写不敏感） */
-function renameSerialTemplateRefs(template: string, renames: Record<string, string>): string {
-  let out = template;
-  for (const [oldKey, newKey] of Object.entries(renames)) {
-    out = out.replace(new RegExp(`\\{(FORM)\\.${escapeRegExp(oldKey)}\\}`, 'gi'), (_m, prefix: string) => `{${prefix}.${newKey}}`);
-  }
-  return out;
-}
-
 const renameKey = (key: unknown, renames: Record<string, string>): unknown =>
   typeof key === 'string' && key in renames ? renames[key] : key;
 
@@ -448,7 +442,7 @@ function renameNodeProps(props: Record<string, unknown>, renames: Record<string,
  * - 扁平 nodes[].data：fieldPermissions 键、formUserField/formDeptField、延迟节点 targetDate、
  *   子流程 multiSource/initiatorField/出参映射键/入参映射 {{form.x}}、触发器 bodyTemplate/fieldKeys/fieldValues、routeFieldKey
  * - edges[].condition / conditions[]：source≠'starter' 的 rules[].field 与 aggregateField
- * - settings.summaryFields 摘要字段、settings.serialNo.template 中 {FORM.key} 占位
+ * - settings.summaryFields 摘要字段、settings.numbering.parameterMapping 表单参数映射
  *
  * 返回新对象，不修改入参；renames 为空时原样返回。
  */
@@ -478,8 +472,13 @@ export function renameWorkflowFormFieldKeys(
     if (Array.isArray(settings.summaryFields)) {
       settings.summaryFields = settings.summaryFields.map((k) => (k in map ? map[k] : k));
     }
-    if (settings.serialNo?.template) {
-      settings.serialNo = { ...settings.serialNo, template: renameSerialTemplateRefs(settings.serialNo.template, map) };
+    if (settings.numbering) {
+      settings.numbering = { ...settings.numbering, parameterMapping: Object.fromEntries(
+        Object.entries(settings.numbering.parameterMapping).map(([key, source]) => {
+          const field = source.slice('formData.'.length);
+          return [key, source.startsWith('formData.') && field in map ? `formData.${map[field]}` : source];
+        }),
+      ) };
     }
     out.settings = settings;
   }

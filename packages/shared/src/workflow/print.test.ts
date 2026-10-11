@@ -151,6 +151,17 @@ describe('collectWorkflowPrintLookupIds', () => {
 });
 
 describe('buildWorkflowPrintDatasets', () => {
+  it('uses instance metadata for serial controls in form datasets and detail rows, ignoring client values', () => {
+    const fields: WorkflowFormField[] = [field({ key: 'sn', type: 'serialNumber' }),
+      field({ key: 'lines', type: 'detail', children: [field({ key: 'sn', type: 'serialNumber' })] })];
+    const values = { sn: 'FORGED', lines: [{ sn: 'FORGED-ROW' }] };
+    const instance = { ...INSTANCE, formData: values };
+    const datasets = buildWorkflowPrintDatasets({ instance, fields, printerName: '管理员', printedAt: '2026-10-11 11:00:00' });
+    expect(datasets.form[0].sn).toBe(INSTANCE.serialNo);
+    expect(datasets.form_fields.find(row => row.key === 'sn')?.value).toBe(INSTANCE.serialNo);
+    expect(datasets[workflowPrintDetailDatasetKey('lines')][0].sn).toBe(INSTANCE.serialNo);
+    expect(values.sn).toBe('FORGED');
+  });
   const lookups = emptyWorkflowPrintLookups();
   lookups.userNames.set(11, '甲').set(12, '乙');
   const datasets = buildWorkflowPrintDatasets({ instance: INSTANCE, fields: FIELDS, lookups, initiatorDeptName: '研发部', printerName: '管理员', printedAt: '2026-09-11 11:00:00' });

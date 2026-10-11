@@ -134,7 +134,7 @@ function CanvasFieldPreview({ field }: Readonly<{ field: WorkflowFormField }>) {
     case 'formula':
       return <Input style={w} disabled placeholder="按公式自动计算" suffix={field.unit || undefined} />;
     case 'serialNumber':
-      return <Input style={w} disabled placeholder={`${field.serialPrefix ?? ''}自动生成`} />;
+      return <Input style={w} disabled placeholder="流程实例编号（正式提交后生成）" />;
     case 'attachment':
       return <BlockPlaceholder icon={<Paperclip size={14} />} text={`上传附件（最多 ${field.maxCount ?? 5} 个）`} />;
     case 'image':

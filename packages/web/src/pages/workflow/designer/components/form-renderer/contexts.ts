@@ -2,6 +2,8 @@ import { createContext } from 'react';
 
 /** 表单当前值快照（由 WorkflowFormRenderer 提供，深层字段经 context 读取做显隐 / 联动 / 只读展示） */
 export const ValuesContext = createContext<Record<string, unknown>>({});
+/** 真实流程实例的编号，不从可编辑表单值或默认值推导。 */
+export const InstanceSerialNoContext = createContext<string | null | undefined>(undefined);
 /** 查看态文本化开关（由 WorkflowFormRenderer 的 readOnlyAsText 提供，深层字段经 context 读取） */
 export const ReadOnlyTextContext = createContext(false);
 /** 工作流使用带证据的签名协议；报表填报使用其领域约定的 PNG 图片字符串。 */

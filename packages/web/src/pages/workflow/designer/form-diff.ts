@@ -30,7 +30,7 @@ const PROP_LABELS: Record<string, string> = {
   unit: '单位', currency: '币种', amountInWords: '金额大写', columnSpan: '字段宽度',
   readOnly: '只读', hidden: '默认隐藏', children: '子字段', columns: '分栏列', panes: '面板',
   title: '标题', collapsible: '可折叠', defaultCollapsed: '默认折叠', description: '说明内容',
-  serialPrefix: '编号前缀', rateMax: '评分上限', detailSummary: '合计', detailColumnWidth: '列宽',
+  rateMax: '评分上限', detailSummary: '合计', detailColumnWidth: '列宽',
   dictCode: '字典', multiple: '多选', dataSourceId: '数据源', regionLevel: '地区层级',
   relationDefinitionId: '关联流程', relationDisplayField: '关联展示字段',
   cascaderOptions: '级联选项', cascaderChangeOnSelect: '任意层级可选',

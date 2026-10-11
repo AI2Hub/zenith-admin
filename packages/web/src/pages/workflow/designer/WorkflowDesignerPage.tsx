@@ -1,4 +1,4 @@
-import { projectWorkflowGraph, workflowFlowDataSchema } from '@zenith/shared/workflow';
+import { getWorkflowNumberingFields, projectWorkflowGraph, workflowFlowDataSchema } from '@zenith/shared/workflow';
 import WorkflowGraphView from '@/components/workflow/WorkflowGraphView';
 /**
  * 工作流设计器页面 — 钉钉/飞书风格垂直流程设计器
@@ -1073,6 +1073,7 @@ export default function WorkflowDesignerPage({
           onChange={setAdvancedSettings}
           readOnly={readOnly}
           formFields={formFields}
+          numberingFields={getWorkflowNumberingFields(formType, localFormFields, customForm)}
           print={{
             definitionId,
             templateId: printTemplateId,

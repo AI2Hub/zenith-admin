@@ -21,7 +21,7 @@ import { currentUser } from '../../../lib/context';
 import { buildStarterContext } from '../workflow-assignee-resolver.service';
 import { resolveFormSnapshot } from '../workflow-forms.service';
 import type { DbExecutor } from '../../../db/types';
-import { generateSerialNo } from '../workflow-serial.service';
+import { allocateWorkflowInstanceNumber, requirePinnedWorkflowNumbering } from '../workflow-numbering.service';
 import { isPgUniqueViolation } from '../../../lib/db-errors';
 import logger from '../../../lib/logger';
 import { applyInitiatorSelectedApprovers, hasExecutableEntry, sanitizeFormByStartPerms } from './initiator-select';
@@ -29,7 +29,7 @@ import type { SelectedApproverMap } from './initiator-select';
 import { assertLaunchMatchesFormType, buildInstanceFormSnapshot, mapInstance, mapTask } from './mapping';
 import { advanceAndMaterialize, killInstanceTokens } from './materialize';
 import { normalizeInstanceFormData } from './form-derived';
-import { buildSerialNoContext, emitInstanceEvent, emitTaskEvent, emitTasksEnteredEvents, toDefinitionSnapshot, lockInstanceExpecting, requireVisibleInstance } from './shared';
+import { emitInstanceEvent, emitTaskEvent, emitTasksEnteredEvents, toDefinitionSnapshot, lockInstanceExpecting, requireVisibleInstance } from './shared';
 import { bridgeReportFillWorkflowOutcome } from '../../report/report-fill-workflow-bridge.service';
 import { requireRow } from '../../../lib/db-assert';
 import { assertWorkflowInitiatorScope } from '../workflow-launch-access';
@@ -108,6 +108,7 @@ export async function createInstance(data: { definitionId: number; title: string
   // 草稿：仅保存表单，不进入流转、不生成业务编号、不触发事件
   if (data.asDraft) {
     const draft = await db.transaction(async (tx) => {
+      await requirePinnedWorkflowNumbering(tx, { id: def.id, tenantId: getCreateTenantId(user), flowData: baseFlowData });
       const [created] = await tx.insert(workflowInstances).values({
         definitionId: def.id,
         definitionSnapshot,
@@ -134,8 +135,6 @@ export async function createInstance(data: { definitionId: number; title: string
   }
   // 定时发起/自动化（callerOverride）沿用既有宽松语义：预置 formData 可能刻意留空
   if (!skipScopeCheck) assertRequiredFormFields(formSnapshot, formData, flowData);
-  const serialConfig = flowData.settings?.serialNo;
-  const serialCtx = await buildSerialNoContext(serialConfig, formData);
   let instanceId: number;
   try {
     const create = async (tx: import('../../../db/types').DbTransaction) => {
@@ -146,12 +145,10 @@ export async function createInstance(data: { definitionId: number; title: string
           .limit(1).for('share');
         if (initiator?.status !== 'enabled') throw new HTTPException(400, { message: '发起人不存在或已停用，不能创建新的流程申请' });
       }
-      const serialNo = await generateSerialNo(tx, def.id, serialConfig, serialCtx);
       const [createdInstance] = await tx.insert(workflowInstances).values({
         definitionId: def.id,
         definitionSnapshot,
         title: data.title,
-        serialNo,
         formData,
         formSnapshot,
         status: 'running',
@@ -162,8 +159,9 @@ export async function createInstance(data: { definitionId: number; title: string
         bizType: normalizedBizType,
         bizId: normalizedBizId,
       }).returning();
+      const serialNo = await allocateWorkflowInstanceNumber(tx, { instanceId: createdInstance.id, definitionId: def.id, tenantId: createdInstance.tenantId, initiatorId: user.userId, flowData, formData });
       formData = await bindWorkflowFormAttachments(tx, createdInstance, formSnapshot, formData, user.userId, copyAttachmentSourceIds);
-      await tx.update(workflowInstances).set({ formData }).where(eq(workflowInstances.id, createdInstance.id));
+      await tx.update(workflowInstances).set({ formData, serialNo }).where(eq(workflowInstances.id, createdInstance.id));
       const materialized = await advanceAndMaterialize({ kind: 'seed' }, {
         instanceId: createdInstance.id,
         initiatorId: user.userId,
@@ -425,18 +423,19 @@ export async function submitDraftInstance(id: number, input: { selectedInitiator
   const flowData = await applyInitiatorSelectedApprovers(
     baseFlowData, input.selectedInitiatorApprovers, { formData, formFields: formSnapshot?.fields, starter },
   );
+  // A returned instance retains the rule version and mapping used for its original number.
+  const originalNumbering = inst.definitionSnapshot?.flowData?.settings?.numbering;
+  if (inst.serialNo && originalNumbering && flowData.settings) flowData.settings.numbering = originalNumbering;
   const definitionSnapshot = toDefinitionSnapshot(def, flowData);
   if (!hasExecutableEntry(flowData, formData, starter)) {
     throw new HTTPException(400, { message: '流程定义中无可执行节点' });
   }
   assertRequiredFormFields(formSnapshot, formData, flowData);
-  const serialConfig = flowData.settings?.serialNo;
-  const serialCtx = await buildSerialNoContext(serialConfig, formData);
   const instance = await workflowTransaction(async (tx) => {
     await lockUnchangedWorkflowDraft(tx, inst);
     formData = await bindWorkflowFormAttachments(tx, inst, formSnapshot, formData, user.userId);
     // returned 重提保留首次提交生成的业务编号，避免同一申请出现两个流水号
-    const serialNo = inst.serialNo ?? await generateSerialNo(tx, def.id, serialConfig, serialCtx);
+    const serialNo = inst.serialNo ?? await allocateWorkflowInstanceNumber(tx, { instanceId: inst.id, definitionId: def.id, tenantId: inst.tenantId, initiatorId: inst.initiatorId, flowData, formData });
     await tx.update(workflowInstances).set({
       definitionSnapshot,
       formSnapshot,

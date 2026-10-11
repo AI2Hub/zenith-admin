@@ -1,3 +1,5 @@
+import { numberMockWorkflowInstance } from './workflow-numbering';
+import { withMockNumberingTransaction } from './numbering';
 import { getMockCmsReviewContent, getMockCmsWorkingContent } from './cms-revisions';
 import { syncMockCmsFeedbackWorkflow } from '../data/cms-operations';
 import { submitMockCmsContentRelease } from '../handlers/cms-releases';
@@ -79,8 +81,9 @@ export function startMockBusinessWorkflow(input: { definition: WorkflowDefinitio
     initiatorId: input.initiatorId ?? 1, initiatorName: input.initiatorName ?? '管理员', initiatorAvatar: null,
     tenantId: input.tenantId, bizType: input.bizType, bizId: String(input.bizId), tasks: [], createdAt: now, updatedAt: now,
   };
-  mockWorkflowInstances.push(instance);
-  advanceMockWorkflowGraph(instance, now);
+  withMockNumberingTransaction(() => {
+    mockWorkflowInstances.push(instance); numberMockWorkflowInstance(instance); advanceMockWorkflowGraph(instance, now);
+  }, [mockWorkflowInstances, mockWorkflowTasks]);
   return instance;
 }
 

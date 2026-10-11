@@ -6,7 +6,7 @@ import type { RefObject } from 'react';
 import { Toast } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import type { WorkflowFormField } from '@zenith/shared/workflow';
-import { computeWorkflowDerivedValues, initializeWorkflowFormValues } from '@zenith/shared/workflow';
+import { computeWorkflowDerivedValues, initializeWorkflowFormValues, stripWorkflowSerialNumberValues } from '@zenith/shared/workflow';
 import { fetchWorkflowDataSourceRecord } from '@/hooks/queries/workflow-designer';
 import { getCascadeAllowedOptions } from './field-utils';
 
@@ -43,7 +43,7 @@ interface UseFormLinkageOptions {
 }
 
 export function useFormLinkage({ fields, all, initValues, readOnly, formApiRef, onValueChange }: UseFormLinkageOptions) {
-  const [enrichedInitValues] = useState<Values | undefined>(() => readOnly ? initValues : initializeWorkflowFormValues(fields, initValues));
+  const [enrichedInitValues] = useState<Values>(() => stripWorkflowSerialNumberValues(fields, readOnly ? initValues ?? {} : initializeWorkflowFormValues(fields, initValues)));
 
   const valuesRef = useRef<Values>(enrichedInitValues ?? {});
   const [valuesState, setValuesState] = useState<Values>(enrichedInitValues ?? {});
@@ -112,7 +112,7 @@ export function useFormLinkage({ fields, all, initValues, readOnly, formApiRef, 
     // 否则第一次 setState 之后 state 与 next 恒等（Object.is），
     // React 跳过重渲染，第二次值变更起显隐/条件必填联动全部失效。
     const prev = valuesRef.current;
-    const next = readOnly ? { ...raw } : computeWorkflowDerivedValues(fields, { ...raw });
+    const next = stripWorkflowSerialNumberValues(fields, readOnly ? raw : computeWorkflowDerivedValues(fields, { ...raw }));
     valuesRef.current = next;
     setValuesState(next);
     const api = formApiRef.current;

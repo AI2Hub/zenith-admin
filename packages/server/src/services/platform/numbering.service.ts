@@ -1,4 +1,4 @@
-import { asc, desc, eq, isNull, or } from 'drizzle-orm';
+import { asc, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 import type * as z from 'zod';
 import { HTTPException } from 'hono/http-exception';
 import type { QueryOutputOf } from '@zenith/shared/core';
@@ -14,7 +14,7 @@ import type {
 } from '@zenith/shared/platform';
 import { db } from '../../db';
 import type { DbExecutor, DbTransaction } from '../../db/types';
-import { numberingAllocations, numberingBindings, numberingCounters, numberingRules, numberingVersions, workflowDefinitions } from '../../db/schema';
+import { numberingAllocations, numberingBindings, numberingCounters, numberingRules, numberingVersions, workflowDefinitions, workflowInstances } from '../../db/schema';
 import type { NumberingAllocationRow, NumberingBindingRow, NumberingRuleRow } from '../../db/schema/numbering';
 import { currentUser } from '../../lib/context';
 import { requireRow } from '../../lib/db-assert';
@@ -86,11 +86,15 @@ export async function getNumberingRule(id: number) { return mapRule(await ensure
 export async function listAvailableNumberingRules(q: QueryOutputOf<typeof numberingRuleContract.all>) {
   const rows = await db.select({
     id: numberingRules.id, code: numberingRules.code, name: numberingRules.name, scene: numberingRules.scene,
-    currentVersion: numberingRules.currentVersion, versionId: numberingVersions.id,
+    currentVersion: numberingRules.currentVersion, versionId: numberingVersions.id, config: numberingVersions.config,
   }).from(numberingRules).innerJoin(numberingVersions, buildWhere(
     eq(numberingVersions.ruleId, numberingRules.id), eq(numberingVersions.version, numberingRules.currentVersion),
   )).where(buildWhere(readableRuleScope(), eq(numberingRules.status, 'enabled'), q.scene ? eq(numberingRules.scene, q.scene) : undefined)).orderBy(asc(numberingRules.name));
-  return rows.map(row => ({ ...row, scene: getNumberingScene(row.scene).code }));
+  return rows.map(({ config, ...row }) => ({
+    ...row, scene: getNumberingScene(row.scene).code, template: config.template,
+    requiredParameters: [...new Set(parseNumberingTemplate(config.template).flatMap(segment =>
+      segment.kind === 'parameter' && !(NUMBERING_SYSTEM_PARAMETERS as readonly string[]).includes(segment.value) ? [segment.value] : []))],
+  }));
 }
 
 export async function createNumberingRule(input: z.output<typeof createNumberingRuleSchema>) {
@@ -115,7 +119,19 @@ export async function updateNumberingRule(id: number, input: z.output<typeof upd
     if (input.status === 'disabled' && rule.status !== 'disabled') {
       const bindings = await tx.$count(numberingBindings, eq(numberingBindings.ruleId, rule.id));
       const allocations = await tx.$count(numberingAllocations, eq(numberingAllocations.ruleId, rule.id));
-      if (bindings || allocations) throw new HTTPException(409, { message: '规则已被业务使用，不能停用；请先为业务切换规则' });
+      if (bindings || allocations) throw new HTTPException(409, { message: rule.scene === 'workflow.instance'
+        ? '规则已被流程使用，不能停用；修改编号中心绑定不会改变固定版本，请在流程设计器选择新规则版本后重新发布'
+        : '规则已被业务使用，不能停用；请先为业务切换规则' });
+      // A preset may be rebound or removed; published snapshots still require their fixed version.
+      const definitions = await tx.$count(workflowDefinitions, buildWhere(
+        inArray(workflowDefinitions.status, ['published', 'disabled']),
+        sql`${workflowDefinitions.flowData} #>> '{settings,numbering,ruleId}' = ${String(rule.id)}`,
+      ));
+      const drafts = await tx.$count(workflowInstances, buildWhere(
+        inArray(workflowInstances.status, ['draft', 'returned']), isNull(workflowInstances.serialNo),
+        sql`${workflowInstances.definitionSnapshot} #>> '{flowData,settings,numbering,ruleId}' = ${String(rule.id)}`,
+      ));
+      if (definitions || drafts) throw new HTTPException(409, { message: '规则仍被流程或待提交申请的固定版本引用，不能停用；请在流程设计器选择新规则版本后重新发布，并先处理待提交申请' });
     }
     const { expectedRevision: _revision, ...values } = input;
     const [row] = await tx.update(numberingRules).set({ ...values, revision: rule.revision + 1 }).where(eq(numberingRules.id, rule.id)).returning();

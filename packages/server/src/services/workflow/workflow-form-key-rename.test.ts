@@ -80,7 +80,7 @@ function makeFlowData(): WorkflowFlowData {
       allowResubmit: true,
       notifyInitiator: true,
       summaryFields: ['amount', 'days', 'other'],
-      serialNo: { enabled: true, mode: 'template', template: 'BX-{FORM.amount}-{SEQ:4}' },
+      numbering: { ruleId: 1, versionId: 1, parameterMapping: { categoryCode: 'formData.amount' } },
     },
   };
 }
@@ -139,7 +139,7 @@ describe('renameWorkflowFormFieldKeys', () => {
   it('重写摘要字段与业务编号模板 {FORM.key} 占位', () => {
     const out = renameWorkflowFormFieldKeys(makeFlowData(), { amount: 'totalAmount' });
     expect(out.settings?.summaryFields).toEqual(['totalAmount', 'days', 'other']);
-    expect(out.settings?.serialNo?.template).toBe('BX-{FORM.totalAmount}-{SEQ:4}');
+    expect(out.settings?.numbering?.parameterMapping.categoryCode).toBe('formData.totalAmount');
   });
 
   it('不修改入参对象（返回新对象）', () => {

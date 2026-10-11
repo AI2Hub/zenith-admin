@@ -1,4 +1,4 @@
-import { computeWorkflowDerivedValues } from '@zenith/shared/workflow';
+import { computeWorkflowDerivedValues, stripWorkflowSerialNumberValues } from '@zenith/shared/workflow';
 import type { WorkflowInstanceFormSnapshot } from '@zenith/shared/workflow';
 
 /**
@@ -17,5 +17,5 @@ export function normalizeInstanceFormData(
   formData: Record<string, unknown>,
 ): Record<string, unknown> {
   if (formSnapshot?.formType !== 'designer' || !formSnapshot.fields?.length) return formData;
-  return computeWorkflowDerivedValues(formSnapshot.fields, formData);
+  return stripWorkflowSerialNumberValues(formSnapshot.fields, computeWorkflowDerivedValues(formSnapshot.fields, formData));
 }

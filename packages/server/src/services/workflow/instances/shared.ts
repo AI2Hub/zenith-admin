@@ -1,8 +1,8 @@
 // ─── 工作流事件发射与流水号上下文（拆分自 workflow-instances.service.ts）───
 import { eq } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import type { WorkflowTask as WorkflowTaskDto, WorkflowCustomFormConfig, WorkflowDefinitionSnapshot, WorkflowFlowData, WorkflowFormType, WorkflowSerialNoConfig } from '@zenith/shared/workflow';
-import { currentUser, currentUserOrNull, currentUserDetail } from '../../../lib/context';
+import type { WorkflowTask as WorkflowTaskDto, WorkflowCustomFormConfig, WorkflowDefinitionSnapshot, WorkflowFlowData, WorkflowFormType } from '@zenith/shared/workflow';
+import { currentUser } from '../../../lib/context';
 import { db } from '../../../db';
 import type { DbExecutor } from '../../../db/types';
 import { workflowInstances, workflowTasks, type WorkflowDefinitionRow } from '../../../db/schema';
@@ -10,7 +10,6 @@ import { requireRow } from '../../../lib/db-assert';
 import { tenantCondition } from '../../../lib/tenant';
 import { buildWhere } from '../../../lib/where-helpers';
 import { workflowEventBus } from '../../../lib/workflow-event-bus';
-import { type SerialNoGenContext } from '../workflow-serial.service';
 import { mapInstance, mapTask } from './mapping';
 
 type WorkflowInstanceRow = typeof workflowInstances.$inferSelect;
@@ -80,33 +79,6 @@ export function toDefinitionSnapshot(
     status: def.status,
     version: def.version,
     tenantId: def.tenantId,
-  };
-}
-
-/**
- * 构建业务编号生成上下文。
- * - 未启用 → undefined；
- * - 结构化模式 → 仅带 formData（不含动态变量，省去用户详情查询）；
- * - 模板模式 → 解析发起人部门 / 账号 / 昵称 / 租户等动态变量。
- */
-export async function buildSerialNoContext(
-  config: WorkflowSerialNoConfig | undefined | null,
-  formData: Record<string, unknown>,
-): Promise<SerialNoGenContext | undefined> {
-  if (!config?.enabled) return undefined;
-  if (config.mode !== 'template') return { formData };
-  const user = currentUserOrNull();
-  if (!user) return { formData };
-  const detail = await currentUserDetail();
-  return {
-    formData,
-    vars: {
-      dept: detail?.department?.name ?? '',
-      deptCode: detail?.department?.code ?? '',
-      user: detail?.username ?? user.username ?? '',
-      nickname: detail?.nickname ?? '',
-      tenant: user.tenantId != null ? String(user.tenantId) : '',
-    },
   };
 }
 

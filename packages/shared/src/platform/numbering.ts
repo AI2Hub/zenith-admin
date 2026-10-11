@@ -1,6 +1,7 @@
 import { NUMBERING_DATE_TOKENS, NUMBERING_MAX_SEQUENCE, NUMBERING_SYSTEM_PARAMETERS } from './constants';
 import { getNumberingScene } from './numbering-scenes';
 import type { NumberingConfig } from './numbering-validation';
+import { parseNumberingFormFieldSource } from './numbering-reference';
 
 export type NumberingSegment =
   | { kind: 'literal'; value: string }
@@ -52,7 +53,7 @@ export function validateNumberingParameterMapping(sceneCode: string, mapping: Re
     if (sceneCode !== 'workflow.instance') errors.push('仅流程业务支持表单参数映射');
     else if ((NUMBERING_SYSTEM_PARAMETERS as readonly string[]).includes(key)) errors.push(`系统身份参数 ${key} 不允许映射覆盖`);
     else if (!scene.parameters.some(parameter => parameter.key === key)) errors.push(`当前业务未声明参数：${key}`);
-    else if (!/^formData\.[A-Za-z][A-Za-z0-9_]{0,63}$/.test(source)) errors.push(`参数 ${key} 必须映射到 formData.字段编码`);
+    else if (parseNumberingFormFieldSource(source) === undefined) errors.push(`参数 ${key} 必须映射到有效的 formData.字段编码（__proto__、constructor、prototype 为保留字）`);
   }
   return errors;
 }

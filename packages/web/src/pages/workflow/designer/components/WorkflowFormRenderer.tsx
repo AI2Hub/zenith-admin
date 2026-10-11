@@ -11,7 +11,7 @@ import { Form, Row, Col } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import type { WorkflowFormField } from '@zenith/shared/workflow';
 import { isWorkflowFieldVisible as isFieldVisible } from '@zenith/shared/workflow';
-import { AttachmentInstanceContext, AttachmentModeContext, ReadOnlyTextContext, SignatureModeContext, ValuesContext } from './form-renderer/contexts';
+import { AttachmentInstanceContext, AttachmentModeContext, InstanceSerialNoContext, ReadOnlyTextContext, SignatureModeContext, ValuesContext } from './form-renderer/contexts';
 import { colSpanOf, flattenFields } from './form-renderer/field-utils';
 import { FieldRenderer } from './form-renderer/FieldRenderer';
 import { useFormLinkage } from './form-renderer/use-form-linkage';
@@ -19,6 +19,8 @@ import { useFormLinkage } from './form-renderer/use-form-linkage';
 interface RendererProps {
   fields: WorkflowFormField[];
   attachmentInstanceId?: number;
+  /** 实例接口返回的编号；独立于 formData，仅用于只读展示。 */
+  instanceSerialNo?: string | null;
   attachmentMode?: 'workflow' | 'public';
   initValues?: Record<string, unknown>;
   getFormApi?: (api: FormApi) => void;
@@ -37,7 +39,7 @@ interface RendererProps {
 }
 
 export default function WorkflowFormRenderer({
-  fields, attachmentInstanceId, attachmentMode = 'workflow', initValues, getFormApi, onValueChange, readOnly, readOnlyAsText, signatureMode = 'workflow', style, labelPosition = 'top', labelAlign, labelWidth,
+  fields, attachmentInstanceId, instanceSerialNo, attachmentMode = 'workflow', initValues, getFormApi, onValueChange, readOnly, readOnlyAsText, signatureMode = 'workflow', style, labelPosition = 'top', labelAlign, labelWidth,
 }: Readonly<RendererProps>) {
   // useEditModal 例外：工作流运行时表单渲染器（字段由定义动态生成，提交由承载页负责）
   const formApiRef = useRef<FormApi | null>(null);
@@ -49,6 +51,7 @@ export default function WorkflowFormRenderer({
 
   return (
     <AttachmentModeContext.Provider value={attachmentMode}>
+    <InstanceSerialNoContext.Provider value={instanceSerialNo}>
     <AttachmentInstanceContext.Provider value={attachmentInstanceId}>
     <SignatureModeContext.Provider value={signatureMode}>
     <ValuesContext.Provider value={valuesState}>
@@ -77,6 +80,7 @@ export default function WorkflowFormRenderer({
     </ValuesContext.Provider>
     </SignatureModeContext.Provider>
     </AttachmentInstanceContext.Provider>
+    </InstanceSerialNoContext.Provider>
     </AttachmentModeContext.Provider>
   );
 }

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { JwtPayload } from '../../middleware/auth';
 import type { DbTransaction } from '../../db/types';
+import { PgDialect } from 'drizzle-orm/pg-core';
 
 const state = vi.hoisted(() => ({
   user: { userId: 9, username: 'operator', roles: ['operator'], tenantId: 7 } as JwtPayload,
@@ -15,6 +16,7 @@ vi.mock('../../lib/context', () => ({ currentUser: () => state.user, currentUser
 import { db } from '../../db';
 import { createNumberingRule, getNumberingRule, publishNumberingRule, updateNumberingRule, upsertNumberingBinding, removeNumberingBinding } from './numbering.service';
 import type { NumberingRuleRow } from '../../db/schema/numbering';
+import { workflowDefinitions, workflowInstances } from '../../db/schema';
 
 const draft = {
   template: 'WF{YYYYMMDD}{SEQ:4}', start: '1', step: '1', width: 4,
@@ -187,5 +189,32 @@ describe('编号规则管理权限与并发', () => {
     interceptQueries([[rule], [{ id: 9, ruleId: 4, config: { ...draft, template: '{categoryCode}{YYYYMMDD}{SEQ:4}' } }]]);
     await expect(upsertNumberingBinding({ scene: 'workflow.instance', ownerKey: '*', ruleId: 4, versionId: 9, parameterMapping: {} })).rejects.toMatchObject({ status: 400 });
     expect(db.insert).not.toHaveBeenCalled();
+  });
+  it.each([
+    { label: '已发布或禁用流程', counts: [0, 0, 1, 0] },
+    { label: '未发号草稿快照', counts: [0, 0, 0, 1] },
+  ])('删除或改绑后仍不能停用被 $label 引用的规则', async ({ counts }) => {
+    const statements = interceptQueries([[rule]]);
+    const count = vi.spyOn(db, '$count');
+    for (const value of counts) count.mockResolvedValueOnce(value);
+    await expect(updateNumberingRule(4, { status: 'disabled', expectedRevision: 3 })).rejects.toMatchObject({ status: 409 });
+    expect(statements[0]!.sql).toContain('for update');
+    expect(db.update).not.toHaveBeenCalled();
+    const definitionCall = count.mock.calls.find(([table]) => table === workflowDefinitions)!;
+    const instanceCall = count.mock.calls.find(([table]) => table === workflowInstances)!;
+    const dialect = new PgDialect({ casing: 'snake_case' });
+    const definition = dialect.sqlToQuery(definitionCall[1]!);
+    const instance = dialect.sqlToQuery(instanceCall[1]!);
+    expect(definition.sql).toContain("#>> '{settings,numbering,ruleId}'");
+    expect(definition.params).toEqual(['published', 'disabled', '4']);
+    expect(instance.sql).toContain('"workflow_instances"."serial_no" is null');
+    expect(instance.sql).toContain("#>> '{flowData,settings,numbering,ruleId}'");
+    expect(instance.params).toEqual(['draft', 'returned', '4']);
+  });
+  it('允许停用未绑定、未发号且无流程/草稿固定引用的规则', async () => {
+    interceptQueries([[rule], [{ ...rule, status: 'disabled', revision: 4 }]]);
+    vi.spyOn(db, '$count').mockResolvedValue(0);
+    expect((await updateNumberingRule(4, { status: 'disabled', expectedRevision: 3 })).status).toBe('disabled');
+    expect(db.update).toHaveBeenCalledOnce();
   });
 });

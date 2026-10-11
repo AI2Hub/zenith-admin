@@ -34,10 +34,10 @@ function resolveVersion(input: MockNumberingRequest) {
   const explicitVersion = versionId === undefined ? undefined : mockNumberingVersions.find(version => version.id === versionId);
   const rule = mockNumberingRules.find(row => row.id === (ruleId ?? explicitVersion?.ruleId));
   if (!rule || rule.scene !== input.scene || rule.status !== 'enabled' || (rule.tenantId !== null && rule.tenantId !== input.tenantId) || (!scene.tenantCustomizable && rule.tenantId !== null)) {
-    throw new MockHttpError(conflict('编号规则不存在、已停用或不属于当前业务作用域'));
+    throw new MockHttpError(conflict('编号规则不存在、已停用或不属于当前业务作用域', { status: 409 }));
   }
   const version = explicitVersion ?? (versionId === undefined ? mockNumberingVersions.find(row => row.ruleId === rule.id && row.version === rule.currentVersion) : undefined);
-  if (!version || version.ruleId !== rule.id) throw new MockHttpError(conflict('编号规则版本不存在或不匹配'));
+  if (!version || version.ruleId !== rule.id) throw new MockHttpError(conflict('编号规则版本不存在或不匹配', { status: 409 }));
   return { rule, version, binding };
 }
 
@@ -51,10 +51,10 @@ function scopeFor(config: NumberingConfig, input: MockNumberingRequest, context:
   if (config.scope === 'global') return 'global';
   if (config.scope === 'tenant') return tenant;
   if (config.scope === 'owner') {
-    if (!input.ownerKey || input.ownerKey === '*') throw new MockHttpError(badRequest('按业务对象计数需要明确的归属标识'));
+    if (!input.ownerKey || input.ownerKey === '*') throw new MockHttpError(badRequest('按业务对象计数需要明确的归属标识', { status: 400 }));
     return `${tenant}/owner:${input.ownerKey}`;
   }
-  if (!context.departmentId || !/^\d+$/.test(String(context.departmentId))) throw new MockHttpError(badRequest('按组织计数需要有效的部门标识'));
+  if (!context.departmentId || !/^\d+$/.test(String(context.departmentId))) throw new MockHttpError(badRequest('按组织计数需要有效的部门标识', { status: 400 }));
   return `${tenant}/department:${context.departmentId}`;
 }
 
@@ -62,12 +62,13 @@ function scopeFor(config: NumberingConfig, input: MockNumberingRequest, context:
 export function allocateMockBusinessNumber(input: MockBusinessNumberInput): string {
   const scene = getNumberingScene(input.scene);
   const ownerKey = input.ownerKey ?? '*';
-  if (!input.allocationKey || input.allocationKey.length > 200 || ownerKey.length > 128) throw new MockHttpError(badRequest('编号分配需要有效且稳定的业务操作标识'));
+  if (scene.uniqueScope === 'owner' && ownerKey === '*') throw new MockHttpError(badRequest('当前业务需要明确的编号归属对象', { status: 400 }));
+  if (!input.allocationKey || input.allocationKey.length > 200 || ownerKey.length > 128) throw new MockHttpError(badRequest('编号分配需要有效且稳定的业务操作标识', { status: 400 }));
   const context = { ...input.context, tenantId: String(input.tenantId ?? 0), ownerKey };
   const fingerprint = JSON.stringify(Object.entries(context).sort(([a], [b]) => a.localeCompare(b)));
   const existing = mockNumberingAllocations.find(row => row.scene === input.scene && row.tenantId === input.tenantId && row.ownerKey === ownerKey && row.allocationKey === input.allocationKey);
   if (existing) {
-    if (contextFingerprints.get(existing.id) !== fingerprint) throw new MockHttpError(conflict('同一编号分配请求的业务参数发生变化'));
+    if (contextFingerprints.get(existing.id) !== fingerprint) throw new MockHttpError(conflict('同一编号分配请求的业务参数发生变化', { status: 409 }));
     return existing.number;
   }
   const { rule, version } = resolveVersion(input);
@@ -76,13 +77,13 @@ export function allocateMockBusinessNumber(input: MockBusinessNumberInput): stri
   const periodKey = resolveNumberingPeriodKey(version.config, at);
   const counter = mockNumberingCounters.find(row => row.ruleId === rule.id && row.scopeKey === scopeKey && row.periodKey === periodKey);
   const sequence = counter ? BigInt(counter.value) + BigInt(version.config.step) : BigInt(version.config.start);
-  if (sequence > BigInt(NUMBERING_MAX_SEQUENCE)) throw new MockHttpError(conflict('编号流水已达到上限，请配置新的编号序列'));
+  if (sequence > BigInt(NUMBERING_MAX_SEQUENCE)) throw new MockHttpError(conflict('编号流水已达到上限，请配置新的编号序列', { status: 409 }));
   let number: string;
   try { number = renderBusinessNumber(version.config, { sequence, at, context }, scene.code); }
-  catch (error) { throw new MockHttpError(badRequest(error instanceof Error ? error.message : '无法生成业务编号')); }
+  catch (error) { throw new MockHttpError(badRequest(error instanceof Error ? error.message : '无法生成业务编号', { status: 400 })); }
   const uniqueScope = scene.uniqueScope === 'global' ? 'global' : scene.uniqueScope === 'tenant' ? `tenant:${input.tenantId ?? 0}` : `tenant:${input.tenantId ?? 0}/owner:${ownerKey}`;
   if (mockNumberingAllocations.some(row => row.uniqueNamespace === scene.uniqueNamespace && row.uniqueScope === uniqueScope && row.number === number)) {
-    throw new MockHttpError(conflict('编号规则产生了重复号码，请调整规则；本次业务未提交'));
+    throw new MockHttpError(conflict('编号规则产生了重复号码，请调整规则；本次业务未提交', { status: 409 }));
   }
   const id = nextIdFrom(mockNumberingAllocations);
   // Mutate only after all constraints pass, so failed rendering/collisions never consume a counter.
@@ -96,7 +97,8 @@ export function allocateMockBusinessNumber(input: MockBusinessNumberInput): stri
 
 export function attachMockBusinessNumber(input: Pick<MockNumberingRequest, 'scene' | 'tenantId' | 'ownerKey'> & { number: string; businessKey: string }) {
   const allocation = mockNumberingAllocations.find(row => row.scene === input.scene && row.tenantId === input.tenantId && row.ownerKey === (input.ownerKey ?? '*') && row.number === input.number);
-  if (!allocation) throw new MockHttpError(conflict('找不到本次业务的编号分配记录'));
+  if (!allocation) throw new MockHttpError(conflict('找不到本次业务的编号分配记录', { status: 409 }));
+  if (allocation.businessKey !== null && allocation.businessKey !== input.businessKey) throw new MockHttpError(conflict('编号已关联其他业务，不能重新分配', { status: 409 }));
   allocation.businessKey = input.businessKey;
 }
 

@@ -1,3 +1,4 @@
+import { pinWorkflowNumbering } from './workflow-numbering.service';
 import { workflowDefinitionContract } from '@zenith/shared/workflow';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { workflowDefinitions, workflowDefinitionVersions, workflowForms, workflowCategories, workflowInstances, users, userRoles } from '../../db/schema';
@@ -372,6 +373,7 @@ export async function publishDefinition(id: number) {
     const [locked] = await tx.select().from(workflowDefinitions).where(where).for('update').limit(1);
     requireRow(locked, '流程定义不存在');
     await assertPublishable(locked);
+    const flowData = await pinWorkflowNumbering(tx, { ...locked, customForm: locked.customForm as WorkflowCustomFormConfig | null, flowData: locked.flowData as WorkflowFlowData });
     const newVersion = locked.version + 1;
     await tx.insert(workflowDefinitionVersions).values({
       definitionId: locked.id,
@@ -379,7 +381,7 @@ export async function publishDefinition(id: number) {
       name: locked.name,
       description: locked.description,
       // 发布即冻结当前 canonical graph 快照
-      flowData: await normalizeFlowDataForWrite(locked.flowData ? locked.flowData : null),
+      flowData: await normalizeFlowDataForWrite(flowData),
       formId: locked.formId,
       formType: locked.formType,
       customForm: locked.customForm,
@@ -390,7 +392,7 @@ export async function publishDefinition(id: number) {
     });
     const [u] = await tx
       .update(workflowDefinitions)
-      .set({ status: 'published', version: newVersion })
+      .set({ status: 'published', version: newVersion, flowData })
       .where(where)
       .returning();
     return u;
@@ -620,12 +622,14 @@ export async function disableDefinition(id: number) {
 
 export async function enableDefinition(id: number) {
   const where = buildWhere(findDefinition(id), eq(workflowDefinitions.status, 'disabled'));
-  const [existing] = await db.select().from(workflowDefinitions).where(where).limit(1);
-  requireRow(existing, '流程定义不存在或不处于禁用状态', 400);
-  // 启用同样过发布门禁：防御表单库后续编辑等外部变化导致带病上线（禁用态改内容已在 update 中强制回 draft）
-  await assertPublishable(existing);
-  const [updated] = await db.update(workflowDefinitions).set({ status: 'published' }).where(where).returning();
-  return mapDefinition(requireRow(updated, '流程定义不存在或不处于禁用状态', 400));
+  return db.transaction(async tx => {
+    const [existing] = await tx.select().from(workflowDefinitions).where(where).for('update').limit(1);
+    requireRow(existing, '流程定义不存在或不处于禁用状态', 400);
+    await assertPublishable(existing);
+    await pinWorkflowNumbering(tx, { ...existing, customForm: existing.customForm as WorkflowCustomFormConfig | null, flowData: existing.flowData as WorkflowFlowData }, true);
+    const [updated] = await tx.update(workflowDefinitions).set({ status: 'published' }).where(where).returning();
+    return mapDefinition(requireRow(updated, '流程定义不存在或不处于禁用状态', 400));
+  });
 }
 
 export async function deleteDefinition(id: number) {
@@ -649,22 +653,12 @@ export async function batchDisableDefinitions(ids: number[]) {
 }
 
 export async function batchEnableDefinitions(ids: number[]) {
-  if (!ids.length) return { updated: 0, skipped: 0 };
-  // 与单个启用同口径：逐个过发布门禁，体检不过的跳过而非带病上线
-  const candidates = await db.select().from(workflowDefinitions)
-    .where(batchDefinitionsWhere(ids, eq(workflowDefinitions.status, 'disabled')));
-  const passedIds: number[] = [];
-  for (const def of candidates) {
-    try {
-      await assertPublishable(def);
-      passedIds.push(def.id);
-    } catch { /* 体检未通过 → 跳过 */ }
+  let updated = 0;
+  for (const id of [...new Set(ids)]) {
+    try { await enableDefinition(id); updated += 1; }
+    catch (error) { if (!(error instanceof HTTPException)) throw error; }
   }
-  if (passedIds.length === 0) return { updated: 0, skipped: ids.length };
-  const rows = await db.update(workflowDefinitions).set({ status: 'published' })
-    .where(and(inArray(workflowDefinitions.id, passedIds), eq(workflowDefinitions.status, 'disabled')))
-    .returning({ id: workflowDefinitions.id });
-  return { updated: rows.length, skipped: ids.length - rows.length };
+  return { updated, skipped: ids.length - updated };
 }
 
 export async function batchDeleteDefinitions(ids: number[]) {

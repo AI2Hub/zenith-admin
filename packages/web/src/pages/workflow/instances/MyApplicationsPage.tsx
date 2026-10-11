@@ -765,6 +765,7 @@ export default function MyApplicationsPage() {
           {selectedDef ? (
             <WorkflowLaunchForm
               instanceId={editingDraft?.id}
+              instanceSerialNo={editingDraft?.serialNo}
               key={`launch-${selectedDef.id}-${formKey}`}
               ref={launchFormRef}
               def={selectedDef}

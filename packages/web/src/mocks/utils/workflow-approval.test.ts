@@ -143,9 +143,10 @@ import { afterEach } from 'vitest';
 import type { AnyOperation } from '@zenith/shared/core';
 import { workflowInstanceContract, workflowTaskContract } from '@zenith/shared/workflow';
 import { mockWorkflowDefinitions, mockWorkflowInstances, mockWorkflowTasks } from '@/mocks/data/workflow';
+import { mockNumberingAllocations, mockNumberingCounters } from '@/mocks/data/numbering';
 import { workflowHandlers } from '@/mocks/handlers/workflow';
 import { mockAccessToken } from '@/mocks/utils/auth';
-const stores = [mockWorkflowDefinitions, mockWorkflowInstances, mockWorkflowTasks];
+const stores = [mockWorkflowDefinitions, mockWorkflowInstances, mockWorkflowTasks, mockNumberingAllocations, mockNumberingCounters];
 const originals = stores.map(store => structuredClone(store));
 afterEach(() => { stores.forEach((store, index) => { (store as unknown[]).splice(0, store.length, ...structuredClone(originals[index])); }); });
 async function endpoint(operation: AnyOperation, body?: unknown, params: Record<string, number> = {}) {
@@ -164,7 +165,8 @@ async function instance(method: WorkflowNodeConfig['approveMethod'] = 'or', user
       { id: 'start', position: { x: 0, y: 0 }, data: { key: 'start', label: '发起', type: 'start' as const } },
       { id: 'review', position: { x: 0, y: 100 }, data: { ...node(method), userIds: users } },
       { id: 'end', position: { x: 0, y: 200 }, data: { key: 'end', label: '结束', type: 'end' as const } },
-    ], edges: [{ id: 'start-review', source: 'start', target: 'review' }, { id: 'review-end', source: 'review', target: 'end' }] } };
+    ], edges: [{ id: 'start-review', source: 'start', target: 'review' }, { id: 'review-end', source: 'review', target: 'end' }],
+    settings: structuredClone(mockWorkflowDefinitions[0]!.flowData!.settings) } };
   mockWorkflowDefinitions.push(definition);
   const response = await endpoint(workflowInstanceContract.create, { definitionId: definition.id, title: 'Mock席位契约演练', formData: {} });
   expect(response.status).toBe(200);

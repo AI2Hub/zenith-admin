@@ -1,3 +1,5 @@
+import { numberMockWorkflowInstance } from '@/mocks/utils/workflow-numbering';
+import { withMockNumberingTransaction } from '@/mocks/utils/numbering';
 import { cancelMockApprovalActivations, createMockActivation, getMockApprovalActivations, resetMockApprovalInstance, settleMockApprovalSeat, synchronizeMockApprovalTaskRefs, transferMockApprovalSeat } from '@/mocks/utils/workflow-approval';
 import { bindMockWorkflowAttachments, bindMockWorkflowFormAttachments } from '@/mocks/utils/workflow-attachments';
 import { mock, MockHttpError } from '@/mocks/utils/contract';
@@ -18,6 +20,7 @@ import {
   workflowTemplateContract,
   clearWorkflowFormSignaturesData,
   computeWorkflowDerivedValues,
+  stripWorkflowSerialNumberValues,
   planWorkflowPath,
   workflowTaskActivationKey,
   workflowTaskActivationRounds,
@@ -251,8 +254,9 @@ function observeScheduleRun(run: WorkflowScheduleRunDetail): void {
         definitionSnapshot: { id: definition.id, name: definition.name, description: definition.description,
           categoryId: definition.categoryId ?? null, formId: definition.formId ?? null, flowData: definition.flowData,
           formType: definition.formType, customForm: definition.customForm, status: definition.status, version: definition.version, tenantId: definition.tenantId } };
-      mockWorkflowInstances.push(instance);
-      advanceMockWorkflowGraph(instance, now);
+      withMockNumberingTransaction(() => {
+        mockWorkflowInstances.push(instance); numberMockWorkflowInstance(instance); advanceMockWorkflowGraph(instance, now);
+      }, [mockWorkflowInstances, mockWorkflowTasks]);
       run.instanceId = instance.id; run.instanceTitle = instance.title;
     }
     run.status = 'succeeded';
@@ -813,7 +817,7 @@ export const workflowExtraHandlers = [
     if (inst.status !== 'draft' && inst.status !== 'returned') return badRequest('仅草稿或已退回的申请可编辑');
     const formData = body.formData === undefined ? undefined : await resolveMockWorkflowFormSignatures(request, inst.formSnapshot?.fields ?? [], body.formData ?? {}, inst.formData ?? {});
     if (body.title !== undefined) inst.title = body.title;
-    if (formData !== undefined) inst.formData = await bindMockWorkflowFormAttachments(request, inst.id, inst.formSnapshot?.fields ?? [], formData);
+    if (formData !== undefined) inst.formData = await bindMockWorkflowFormAttachments(request, inst.id, inst.formSnapshot?.fields ?? [], stripWorkflowSerialNumberValues(inst.formSnapshot?.fields ?? [], formData));
     inst.updatedAt = mockDateTime();
     return ok(inst, '草稿已保存');
   }),
@@ -822,13 +826,19 @@ export const workflowExtraHandlers = [
     if (inst.status !== 'draft' && inst.status !== 'returned') return badRequest('仅草稿或已退回的申请可提交');
     inst.formData = computeWorkflowDerivedValues(inst.formSnapshot?.fields ?? [], await resolveMockWorkflowFormSignatures(request, inst.formSnapshot?.fields ?? [], inst.formData ?? {}, inst.formData ?? {}));
     const definition = mockWorkflowDefinitions.find((item) => item.id === inst.definitionId);
-    if (!definition) return notFound('流程定义不存在');
+    if (!definition || definition.status !== 'published') return notFound('流程定义不存在或已停用');
+    inst.formData = stripWorkflowSerialNumberValues(inst.formSnapshot?.fields ?? [], inst.formData ?? {});
     let flowData: WorkflowFlowData | null;
     try { flowData = applyMockInitiatorSelections(definition, inst.formData ?? {}, inst.initiatorId ?? 1, body.selectedInitiatorApprovers); }
     catch (error) { return badRequest(error instanceof Error ? error.message : '审批人选择不完整'); }
-    const now = mockDateTime(); cleanupExtraApprovalWork(inst, now, '[重新提交] 原轮次未办审批取消');
-    inst.definitionSnapshot = structuredClone({ ...definition, flowData, formFields: definition.formFields ?? null });
-    inst.status = 'running'; resetMockWorkflowGraph(inst); advanceMockWorkflowGraph(inst, now); syncMockWorkflowBusinessResult(inst);
+    const originalNumbering = inst.definitionSnapshot?.flowData?.settings?.numbering;
+    if (inst.serialNo && originalNumbering && flowData?.settings) flowData.settings.numbering = originalNumbering;
+    const now = mockDateTime();
+    withMockNumberingTransaction(() => {
+      inst.definitionSnapshot = structuredClone({ ...definition, flowData, formFields: definition.formFields ?? null });
+      numberMockWorkflowInstance(inst);
+      cleanupExtraApprovalWork(inst, now, '[重新提交] 原轮次未办审批取消'); inst.status = 'running'; resetMockWorkflowGraph(inst); advanceMockWorkflowGraph(inst, now); syncMockWorkflowBusinessResult(inst);
+    }, [mockWorkflowInstances, mockWorkflowTasks]);
     return ok(extraApprovalView(inst), '申请已提交');
   }),
   mock(workflowInstanceContract.resubmit, ({ params, ok }) => {

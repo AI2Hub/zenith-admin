@@ -2,16 +2,15 @@
  * 更多设置面板 — 步骤 ④ 更多设置
  */
 import { useRef } from 'react';
-import dayjs from 'dayjs';
-import { Button, Divider, Form, Radio, Select, Space, Tag, Tooltip, Typography } from '@douyinfe/semi-ui';
+import { Button, Divider, Form, Radio, Select, Space, Tooltip, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { ExternalLink, Plus } from 'lucide-react';
-import type { WorkflowSerialNoConfig, WorkflowNotifyChannels } from '@zenith/shared/workflow';
-import { WORKFLOW_APPROVER_DEDUP_OPTIONS, WORKFLOW_SUMMARY_MAX_FIELDS, isWorkflowSummaryCapableField, resolveApproverDedupMode, renderWorkflowSerialNo, WORKFLOW_SERIAL_DATE_FORMAT_OPTIONS, WORKFLOW_SERIAL_RESET_PERIOD_OPTIONS, WORKFLOW_SERIAL_TOKENS, WORKFLOW_SERIAL_SAMPLE_VARS } from '@zenith/shared/workflow';
+import type { WorkflowFormField, WorkflowNotifyChannels } from '@zenith/shared/workflow';
+import { WORKFLOW_APPROVER_DEDUP_OPTIONS, WORKFLOW_SUMMARY_MAX_FIELDS, isWorkflowSummaryCapableField, resolveApproverDedupMode } from '@zenith/shared/workflow';
 import { useWorkflowPrintTemplateOptions } from '@/hooks/queries/report-print';
 import { usePermission } from '@/hooks/usePermission';
 import type { AdvancedSettingsData } from './advanced-settings';
-import { DEFAULT_SERIAL_NO } from './advanced-settings';
+import { WorkflowNumberingSettings } from './WorkflowNumberingSettings';
 
 export type { AdvancedSettingsData } from './advanced-settings';
 
@@ -21,6 +20,7 @@ interface AdvancedSettingsProps {
   readOnly?: boolean;
   /** 当前流程可选表单字段（用于列表摘要字段选择） */
   formFields?: Array<{ key: string; label: string; type: string }>;
+  numberingFields?: WorkflowFormField[];
   /** 审批单打印模板绑定（流程定义列，不在 settings 内）；未保存的新流程为 undefined */
   print?: {
     definitionId: number | null;
@@ -32,8 +32,7 @@ interface AdvancedSettingsProps {
   };
 }
 
-export default function AdvancedSettingsPanel({ settings, onChange, readOnly = false, formFields = [], print }: Readonly<AdvancedSettingsProps>) {
-  const serialNo: Required<WorkflowSerialNoConfig> = { ...DEFAULT_SERIAL_NO, ...settings.serialNo };
+export default function AdvancedSettingsPanel({ settings, onChange, readOnly = false, formFields = [], numberingFields = [], print }: Readonly<AdvancedSettingsProps>) {
   const notify: WorkflowNotifyChannels = settings.notifyChannels ?? {};
   // useEditModal 例外：工作流设计器面板（高级设置随设计器整体保存，值经 onChange 回写）
   const formApiRef = useRef<FormApi | null>(null);
@@ -48,19 +47,6 @@ export default function AdvancedSettingsPanel({ settings, onChange, readOnly = f
   }));
   const canManagePrintTemplates = hasPermission('report:print:create') && hasPermission('report:print:update');
 
-  const preview = renderWorkflowSerialNo(serialNo, {
-    ordinal: 1,
-    formatDate: (pattern) => dayjs().format(pattern),
-    vars: WORKFLOW_SERIAL_SAMPLE_VARS,
-    formData: {},
-  });
-
-  const insertToken = (token: string) => {
-    if (readOnly) return;
-    const current = (formApiRef.current?.getValue('serialNo.template') as string | undefined) ?? '';
-    formApiRef.current?.setValue('serialNo.template', `${current}${token}`);
-  };
-
   return (
     <div className="fd-basic-info">
       <div className="fd-basic-info__inner">
@@ -68,7 +54,6 @@ export default function AdvancedSettingsPanel({ settings, onChange, readOnly = f
           getFormApi={(api) => { formApiRef.current = api; }}
           initValues={{
             ...settings,
-            serialNo: { ...DEFAULT_SERIAL_NO, ...settings.serialNo },
             notifyChannels: settings.notifyChannels ?? {},
             print: settings.print ?? {},
             approverDedupMode: resolveApproverDedupMode(settings),
@@ -111,82 +96,8 @@ export default function AdvancedSettingsPanel({ settings, onChange, readOnly = f
           <Form.Slot>
             <Divider margin="8px 0" />
           </Form.Slot>
-          <Form.Switch field="serialNo.enabled" label="启用业务编号" />
-
-          <div style={{ display: serialNo.enabled ? undefined : 'none' }}>
-            <Form.RadioGroup field="serialNo.mode" label="配置模式" type="button">
-              <Radio value="structured">结构化</Radio>
-              <Radio value="template">自定义模板</Radio>
-            </Form.RadioGroup>
-
-            {/* 结构化模式：前缀 + 日期 + 分隔符 + 序号 + 后缀 */}
-            <div style={{ display: serialNo.mode === 'template' ? 'none' : undefined }}>
-              <Form.Input field="serialNo.prefix" label="前缀" placeholder="BX-" style={{ width: '100%' }} />
-              <Form.Select
-                field="serialNo.dateFormat"
-                label="日期格式"
-                style={{ width: '100%' }}
-                optionList={WORKFLOW_SERIAL_DATE_FORMAT_OPTIONS}
-              />
-              <Form.Input
-                field="serialNo.separator"
-                label="分隔符"
-                placeholder="日期与序号之间，如 -"
-                style={{ width: '100%' }}
-              />
-              <Form.Input field="serialNo.suffix" label="后缀" placeholder="可选" style={{ width: '100%' }} />
-            </div>
-
-            {/* 自定义模板模式：占位符自由组合 */}
-            <div style={{ display: serialNo.mode === 'template' ? undefined : 'none' }}>
-              <Form.TextArea
-                field="serialNo.template"
-                label="编号模板"
-                placeholder="如 BX-{YYYYMMDD}-{SEQ:4}"
-                autosize={{ minRows: 2, maxRows: 4 }}
-                style={{ width: '100%', fontFamily: 'monospace' }}
-              />
-              <Form.Slot label="可用占位符">
-                <Space wrap spacing={4}>
-                  {WORKFLOW_SERIAL_TOKENS.map((t) => (
-                    <Tooltip key={t.token} content={`${t.label} · 示例 ${t.sample}`}>
-                      <Tag
-                        color="light-blue"
-                        style={{ cursor: readOnly ? 'default' : 'pointer', fontFamily: 'monospace' }}
-                        onClick={() => insertToken(t.token)}
-                      >
-                        {t.token}
-                      </Tag>
-                    </Tooltip>
-                  ))}
-                </Space>
-              </Form.Slot>
-              <Form.Slot>
-                <Typography.Text type="tertiary" size="small">
-                  点击占位符插入到模板末尾；还支持 {'{FORM.字段名}'} 引用表单字段值。动态变量在预览中以示例值显示。
-                </Typography.Text>
-              </Form.Slot>
-            </div>
-
-            {/* 序号通用配置（结构化与模板 {SEQ} 均生效） */}
-            <Form.InputNumber field="serialNo.seqLength" label="序号位数" min={1} max={12} style={{ width: '100%' }} />
-            <Form.InputNumber field="serialNo.seqStart" label="序号起始值" min={0} style={{ width: '100%' }} />
-            <Form.InputNumber field="serialNo.seqStep" label="序号步长" min={1} style={{ width: '100%' }} />
-            <Form.Select
-              field="serialNo.resetPeriod"
-              label="重置周期"
-              style={{ width: '100%' }}
-              optionList={WORKFLOW_SERIAL_RESET_PERIOD_OPTIONS}
-            />
-            <Form.Slot label="编号预览">
-              <Typography.Text
-                type="tertiary"
-                style={{ lineHeight: '32px', fontFamily: 'monospace' }}
-              >
-                {preview || (serialNo.mode === 'template' ? '（请先编写模板）' : '（请设置前缀或日期格式）')}
-              </Typography.Text>
-            </Form.Slot>
-          </div>
+          <WorkflowNumberingSettings value={settings.numbering} formFields={numberingFields} readOnly={readOnly}
+            onChange={value => formApiRef.current?.setValue('numbering', value)} />
 
           {/* 多渠道通知 */}
           <Form.Slot>

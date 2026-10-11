@@ -335,6 +335,7 @@ function TaskDetailContent() {
     return (
       <WorkflowFormRenderer
         attachmentInstanceId={instanceId}
+        instanceSerialNo={detail?.serialNo}
         key={`form-${instanceId}-${formEditable ? 'edit' : 'read'}`}
         fields={visibleFields}
         initValues={(detail?.formData ?? {}) as Record<string, unknown>}

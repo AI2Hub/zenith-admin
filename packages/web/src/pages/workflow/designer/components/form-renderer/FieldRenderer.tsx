@@ -13,7 +13,7 @@ import type { WorkflowFormField } from '@zenith/shared/workflow';
 import type { SignatureSnapshot } from '@zenith/shared/core';
 import { CURRENCY_OPTIONS, toDateFnsToken, dateFormatHasTime, dateFormatHasDay } from '../../form-types';
 import { rmbUpper } from '@/utils/rmb';
-import { ReadOnlyTextContext, SignatureModeContext, ValuesContext } from './contexts';
+import { InstanceSerialNoContext, ReadOnlyTextContext, SignatureModeContext, ValuesContext } from './contexts';
 import {
   EMAIL_REGEX, ID_CARD_REGEX, PHONE_REGEX, URL_REGEX,
   buildDisabledDate, fieldLabelNode, getDisplayOptions, optionLabelNode, toCascaderTreeData,
@@ -36,6 +36,7 @@ export function FieldRenderer({ field, readOnly }: Readonly<{ field: WorkflowFor
   const values = useContext(ValuesContext);
   const signatureMode = useContext(SignatureModeContext);
   const readOnlyAsText = useContext(ReadOnlyTextContext);
+  const instanceSerialNo = useContext(InstanceSerialNoContext);
   const { dynamicRequired, dynamicReadOnly, rules, numberRules } = buildFieldRules(field, values);
   const valueOnly = !!(readOnly || field.readOnly || dynamicReadOnly || field.type === 'formula' || field.daysFromKey);
   // 审批查看模式中只有真正可编辑字段保留输入控件；设计器结构预览仍展示控件形态。
@@ -613,10 +614,11 @@ export function FieldRenderer({ field, readOnly }: Readonly<{ field: WorkflowFor
 
     case 'serialNumber':
       return (
-        <Form.Input
-          field={field.key} label={field.label} disabled
-          placeholder="提交后自动生成"
-        />
+        <Form.Slot label={field.label}>
+          <Typography.Text copyable={!!instanceSerialNo} type={instanceSerialNo ? undefined : 'tertiary'}>
+            {instanceSerialNo || '正式提交后自动生成'}
+          </Typography.Text>
+        </Form.Slot>
       );
 
     case 'detail': {

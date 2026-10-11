@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type { AnyOperation } from '@zenith/shared/core';
 import { workflowDefinitionContract, workflowInstanceContract, workflowTaskContract, workflowTemplateContract, type WorkflowTask } from '@zenith/shared/workflow';
-import { mockWorkflowDefinitions, mockWorkflowInstances, mockWorkflowTasks } from './data/workflow';
+import { mockWorkflowDefinitions, mockWorkflowDefinitionVersions, mockWorkflowInstances, mockWorkflowTasks } from './data/workflow';
+import { mockNumberingAllocations, mockNumberingBindings, mockNumberingCounters } from './data/numbering';
 import { mockWorkflowForms } from './data/workflow-forms';
 import { workflowHandlers } from './handlers/workflow';
 import { workflowExtraHandlers } from './handlers/workflow-extra';
@@ -11,7 +12,7 @@ import { deleteMockMySignature, saveMockMySignature } from './utils/personal-sig
 const IMAGE = 'data:image/png;base64,c2lnbmF0dXJl';
 const headers = { 'content-type': 'application/json', authorization: `Bearer ${mockAccessToken('admin')}` };
 const actorRequest = () => new Request(window.location.origin, { headers });
-const stores = [mockWorkflowDefinitions, mockWorkflowInstances, mockWorkflowTasks, mockWorkflowForms];
+const stores = [mockWorkflowDefinitions, mockWorkflowDefinitionVersions, mockWorkflowInstances, mockWorkflowTasks, mockWorkflowForms, mockNumberingAllocations, mockNumberingBindings, mockNumberingCounters];
 const initial = stores.map((store) => structuredClone(store));
 afterEach(() => {
   stores.forEach((store, index) => { (store as unknown[]).splice(0, store.length, ...structuredClone(initial[index])); });
@@ -46,7 +47,8 @@ describe('workflow signature contracts in Demo', () => {
     const preview = await call(workflowDefinitionContract.preview, { formData: {} }, { id: cloned.body.data.id });
     expect(preview.body.data.filter((node: { nodeType: string }) => node.nodeType !== 'start')).toMatchObject([{ nodeKey: 'approve_signature', approvers: [{ id: 1 }] }]);
     expect(preview.body.data.some((node: { selectionRequired?: boolean }) => node.selectionRequired)).toBe(false);
-    mockWorkflowDefinitions.find((item) => item.id === cloned.body.data.id)!.status = 'published';
+    const published = await call(workflowDefinitionContract.publish, {}, { id: cloned.body.data.id });
+    expect(published.status).toBe(200); expect(published.body.code).toBe(0);
     const created = await call(workflowInstanceContract.create, { definitionId: cloned.body.data.id, title: '个人签名验证', formData: {
       subject: '签名测试', applicantSignature: { source: 'saved', signatureId: saved.id, version: saved.version },
     } });

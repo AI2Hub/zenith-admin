@@ -1,3 +1,4 @@
+import { pinMockWorkflowNumbering } from '@/mocks/utils/workflow-numbering';
 import { fillPath } from '@zenith/shared/core';
 import { planWorkflowPath, selectWorkflowPathBranches, workflowAttachmentContract } from '@zenith/shared/workflow';
 import type { WorkflowDefinition, WorkflowDefinitionVersion, WorkflowInstance, WorkflowTask, WorkflowFormField, WorkflowInstanceFormSnapshot, WorkflowFlowData } from '@zenith/shared/workflow';
@@ -591,6 +592,11 @@ export const mockWorkflowTasks: WorkflowTask[] = initialWorkflowTasks.map(task =
 
 // ─── 流程实例 ──────────────────────────────────────────────────────────────
 
+// Seed definitions receive actual numbering IDs before version snapshots are built.
+for (const definition of mockWorkflowDefinitions) {
+  if (definition.flowData && definition.status !== 'draft') definition.flowData = pinMockWorkflowNumbering(definition);
+}
+
 export const mockWorkflowInstances: WorkflowInstance[] = [
   {
     id: 1,
@@ -994,6 +1000,25 @@ export const mockWorkflowDefinitionVersions: WorkflowDefinitionVersion[] = [
     tenantId: 1,
   },
 ];
+
+for (const version of mockWorkflowDefinitionVersions) {
+  const reference = mockWorkflowDefinitions.find(definition => definition.id === version.definitionId)?.flowData?.settings?.numbering;
+  if (version.flowData && reference) version.flowData = { ...version.flowData, settings: {
+    allowWithdraw: true, allowResubmit: true, notifyInitiator: true, ...version.flowData.settings, numbering: structuredClone(reference),
+  } };
+}
+
+// Initial Demo definitions have the same immutable publication record as freshly seeded Server definitions.
+for (const definition of mockWorkflowDefinitions) {
+  if (definition.status === 'draft' || mockWorkflowDefinitionVersions.some(version => version.definitionId === definition.id && version.version === definition.version)) continue;
+  mockWorkflowDefinitionVersions.push({
+    id: nextIdFrom(mockWorkflowDefinitionVersions), definitionId: definition.id, version: definition.version,
+    name: definition.name, description: definition.description, flowData: structuredClone(definition.flowData),
+    formId: definition.formId, formName: mockWorkflowForms.find(form => form.id === definition.formId)?.name ?? null,
+    formFields: cloneWorkflowFormFields(definition.formId), formType: definition.formType, customForm: structuredClone(definition.customForm),
+    tenantId: definition.tenantId, publishedAt: definition.updatedAt, publishedBy: definition.createdBy ?? null, publishedByName: definition.createdByName ?? null,
+  });
+}
 
 let nextDefinitionVersionId = mockWorkflowDefinitionVersions.length + 1;
 export function getNextDefinitionVersionId() { return nextDefinitionVersionId++; }

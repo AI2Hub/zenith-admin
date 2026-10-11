@@ -19,7 +19,7 @@ const node = (key: string, type: WorkflowNodeConfig['type'] = 'approve', config:
 const edge = (source: string, target: string, config: Partial<WorkflowFlowData['edges'][number]> = {}) => ({ id: `${source}-${target}`, source, target, ...config });
 function definition(nodes: WorkflowFlowData['nodes'], edges: WorkflowFlowData['edges']) {
   const item = { ...structuredClone(mockWorkflowDefinitions[0]), id: 930001, name: '图推进验证', status: 'published' as const,
-    formFields: [{ key: 'amount', label: '金额', type: 'number' as const }], flowData: { nodes, edges } };
+    formFields: [{ key: 'amount', label: '金额', type: 'number' as const }], flowData: { nodes, edges, settings: structuredClone(mockWorkflowDefinitions[0].flowData?.settings) } };
   mockWorkflowDefinitions.push(item); return item;
 }
 async function call(operation: AnyOperation, body: unknown = {}, params: Record<string, number> = {}) {

@@ -1,3 +1,5 @@
+import { numberMockWorkflowInstance, pinMockWorkflowNumbering, requirePinnedMockWorkflowNumbering } from '@/mocks/utils/workflow-numbering';
+import { withMockNumberingTransaction } from '@/mocks/utils/numbering';
 import { addMockSignGroup, cancelMockApprovalActivations, createMockActivation, delegateMockApprovalSeat, getMockApprovalActivations, reduceMockSignGroup, resetMockApprovalInstance, settleMockApprovalSeat, synchronizeMockApprovalTaskRefs, transferMockApprovalSeat } from '@/mocks/utils/workflow-approval';
 import { bindMockWorkflowAttachments, bindMockWorkflowFormAttachments } from '@/mocks/utils/workflow-attachments';
 import { syncMockWorkflowBusinessResult } from '@/mocks/utils/workflow-business';
@@ -36,7 +38,6 @@ import type {
   WorkflowRuntimeDiagnostics,
   WorkflowRuntimeIssue,
   WorkflowRuntimeOutboxEvent,
-  WorkflowSerialNoConfig,
   WorkflowSimulationCase,
   WorkflowSimulationDecision,
   WorkflowSimulationResult,
@@ -49,17 +50,15 @@ import {
   buildWorkflowSummaryItems,
   collectReferencedFormFieldKeys,
   computeWorkflowDerivedValues,
+  stripWorkflowSerialNumberValues,
   countWorkflowJobStatuses,
   findNextApproverSelectNodes,
   planWorkflowPath,
-  renderWorkflowSerialNo,
   resolveNodeFieldPermissions,
-  resolveSerialPeriodKey,
   sanitizeFormUpdatesByNodePerms,
   WORKFLOW_RETURN_TO_INITIATOR_KEY,
   summarizeWorkflowJobChain,
   worstWorkflowEngineStatus,
-  WORKFLOW_SERIAL_SAMPLE_VARS,
   WORKFLOW_ADVANCING_JOB_TYPES,
   WORKFLOW_JOB_TYPES,
   WORKFLOW_SUSPENDABLE_JOB_TYPES,
@@ -97,9 +96,6 @@ import dayjs from 'dayjs';
 import { DATE_TIME_FORMAT } from '@/utils/date';
 import { mockWorkflowTriggerExecutions } from './workflow-trigger-executions';
 import { filterByKeyword, matchesFilter } from '@/mocks/utils/filter';
-
-/** 业务编号内存计数器（按 定义ID:周期键 自增），模拟后端的 workflow_serial_counters */
-const mockSerialCounters = new Map<string, number>();
 
 /** 审批 / 交接的幂等缓存：同一 X-Idempotency-Key 重复提交时原样回放首次结果 */
 const approveIdempotencyCache = new Map<string, { data: WorkflowInstance; message: string }>();
@@ -964,6 +960,8 @@ function withDefinitionSnapshot(instance: WorkflowInstance): WorkflowInstance {
   const def = mockWorkflowDefinitions.find((item) => item.id === instance.definitionId);
   if (!def) return instance;
   const formSnapshot = instance.formSnapshot ?? resolveDefinitionFormSnapshot(def);
+  // Reads must retain the published version and parameter mapping captured at launch.
+  if (instance.definitionSnapshot) return { ...instance, formSnapshot };
   return {
     ...instance,
     formSnapshot,
@@ -1605,6 +1603,7 @@ export const workflowHandlers = [
     for (const id of body.ids) {
       const idx = mockWorkflowDefinitions.findIndex(d => d.id === id);
       if (idx === -1 || mockWorkflowDefinitions[idx].status !== 'disabled') continue;
+      try { pinMockWorkflowNumbering(mockWorkflowDefinitions[idx], true, mockWorkflowDefinitionVersions); } catch { continue; }
       mockWorkflowDefinitions[idx] = { ...mockWorkflowDefinitions[idx], status: 'published', updatedAt: now };
       updated++;
     }
@@ -1654,6 +1653,7 @@ export const workflowHandlers = [
         if (boundForm.status === 'disabled') return badRequest(`绑定的表单「${boundForm.name}」已停用，请启用该表单或更换后再发布`);
       }
     }
+    const flowData = pinMockWorkflowNumbering(cur);
     const newVersion = cur.version + 1;
     const now = mockDateTime();
     // 生成快照
@@ -1663,7 +1663,7 @@ export const workflowHandlers = [
       version: newVersion,
       name: cur.name,
       description: cur.description,
-      flowData: cur.flowData,
+      flowData: structuredClone(flowData),
       formId: cur.formId,
       formName: resolveWorkflowDefinition(cur).formName,
       formFields: resolveDefinitionFormFields(cur),
@@ -1676,6 +1676,7 @@ export const workflowHandlers = [
     });
     mockWorkflowDefinitions[idx] = {
       ...cur,
+      flowData,
       status: 'published',
       version: newVersion,
       updatedAt: now,
@@ -1700,6 +1701,7 @@ export const workflowHandlers = [
     const idx = mockWorkflowDefinitions.findIndex(d => d.id === params.id);
     if (idx === -1) return notFound('流程定义不存在');
     if (mockWorkflowDefinitions[idx].status !== 'disabled') return badRequest('流程定义不存在或不处于禁用状态');
+    pinMockWorkflowNumbering(mockWorkflowDefinitions[idx], true, mockWorkflowDefinitionVersions);
     mockWorkflowDefinitions[idx] = {
       ...mockWorkflowDefinitions[idx],
       status: 'published',
@@ -2249,24 +2251,7 @@ export const workflowHandlers = [
     const isDraft = body.asDraft === true;
     const formSnapshot = resolveDefinitionFormSnapshot(def);
     const signed = body.formData == null ? null : await resolveMockWorkflowFormSignatures(request, formSnapshot?.fields ?? [], body.formData);
-    const formData = signed == null ? null : await bindMockWorkflowFormAttachments(request, instanceId, formSnapshot?.fields ?? [], computeWorkflowDerivedValues(formSnapshot?.fields ?? [], signed));
-
-    // 业务编号：仅正式发起时生成（用内存计数器模拟按定义+周期自增）
-    const serialCfg = (def.flowData?.settings as { serialNo?: WorkflowSerialNoConfig } | undefined)?.serialNo;
-    let serialNo: string | null = null;
-    if (!isDraft && serialCfg?.enabled) {
-      const formatDate = (pattern: string) => dayjs().format(pattern);
-      const periodKey = resolveSerialPeriodKey(serialCfg.resetPeriod ?? 'never', formatDate);
-      const counterKey = `${def.id}:${periodKey}`;
-      const ordinal = (mockSerialCounters.get(counterKey) ?? 0) + 1;
-      mockSerialCounters.set(counterKey, ordinal);
-      serialNo = renderWorkflowSerialNo(serialCfg, {
-        ordinal,
-        formatDate,
-        vars: WORKFLOW_SERIAL_SAMPLE_VARS,
-        formData: formData ?? {},
-      });
-    }
+    const formData = signed == null ? null : await bindMockWorkflowFormAttachments(request, instanceId, formSnapshot?.fields ?? [], stripWorkflowSerialNumberValues(formSnapshot?.fields ?? [], computeWorkflowDerivedValues(formSnapshot?.fields ?? [], signed)));
 
     let selectedFlow = def.flowData;
     if (!isDraft) {
@@ -2279,7 +2264,7 @@ export const workflowHandlers = [
       definitionId: body.definitionId,
       definitionName: def.name,
       title: body.title,
-      serialNo,
+      serialNo: null,
       priority: body.priority ?? 'normal',
       formData,
       formSnapshot,
@@ -2296,8 +2281,11 @@ export const workflowHandlers = [
 
     newInstance.definitionSnapshot = structuredClone(withDefinitionSnapshot(newInstance).definitionSnapshot ?? null);
     if (newInstance.definitionSnapshot) newInstance.definitionSnapshot.flowData = selectedFlow;
-    mockWorkflowInstances.push(newInstance);
-    if (!isDraft) advanceMockWorkflowGraph(newInstance, now);
+    withMockNumberingTransaction(() => {
+      if (isDraft) requirePinnedMockWorkflowNumbering({ id: def.id, tenantId: newInstance.tenantId, flowData: selectedFlow });
+      mockWorkflowInstances.push(newInstance);
+      if (!isDraft) { numberMockWorkflowInstance(newInstance); advanceMockWorkflowGraph(newInstance, now); }
+    }, [mockWorkflowInstances, mockWorkflowTasks]);
 
     return ok(withActiveNodes(newInstance));
   }),

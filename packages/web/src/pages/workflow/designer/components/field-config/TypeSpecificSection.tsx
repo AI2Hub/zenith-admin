@@ -504,15 +504,10 @@ export function TypeSpecificSection({ field, allFields, flatFields, flags, isRem
             </div>
           )}
 
-          {/* 流水号前缀 */}
+          {/* 流水号统一显示实例编号，控件不持有独立编号配置。 */}
           {isSerialNumber && (
             <div className="fd-form-config__field">
-              <Typography.Text strong size="small">编号前缀</Typography.Text>
-              <Input
-                value={field.serialPrefix ?? ''}
-                onChange={(v) => onChange({ serialPrefix: v })}
-                placeholder="如：REQ-"
-              />
+              <Typography.Text type="tertiary" size="small">显示当前流程实例编号，编号规则在「更多设置」中选择。</Typography.Text>
             </div>
           )}
 

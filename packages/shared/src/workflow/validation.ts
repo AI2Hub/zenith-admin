@@ -94,7 +94,6 @@ export const workflowFormFieldSchema: z.ZodType<WorkflowFormField> = lazyRecursi
     hidden: z.boolean().optional(),
     maxCount: z.number().int().min(1).optional(),
     description: z.string().optional(),
-    serialPrefix: z.string().optional(),
     rateMax: z.number().int().min(1).max(10).optional(),
     formula: z.string().optional(),
     defaultFormula: z.string().optional(),

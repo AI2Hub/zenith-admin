@@ -4,6 +4,7 @@ import {
   type NumberingBinding, type NumberingConfig, type NumberingRule,
 } from '@zenith/shared/platform';
 import { mockNumberingAllocations, mockNumberingBindings, mockNumberingCounters, mockNumberingRules, mockNumberingVersions } from '@/mocks/data/numbering';
+import { mockWorkflowDefinitions, mockWorkflowInstances } from '@/mocks/data/workflow';
 import { mock, MockHttpError } from '@/mocks/utils/contract';
 import { requireItem } from '@/mocks/utils/crud';
 import { mockDateTime } from '@/mocks/utils/date';
@@ -33,8 +34,14 @@ export const numberingHandlers = [
   mock(numberingRuleContract.scenes, ({ ok }) => ok(NUMBERING_SCENES.map(scene => ({ ...scene, allowedScopes: [...scene.allowedScopes], parameters: [...scene.parameters] })))),
   mock(numberingRuleContract.all, ({ query, ok }) => ok(mockNumberingRules
     .filter(rule => rule.status === 'enabled' && rule.currentVersion > 0 && matchesFilter(rule.scene, query.scene))
-    .map(rule => ({ id: rule.id, code: rule.code, name: rule.name, scene: rule.scene, currentVersion: rule.currentVersion,
-      versionId: mockNumberingVersions.find(version => version.ruleId === rule.id && version.version === rule.currentVersion)!.id })))),
+    .map(rule => {
+      const version = mockNumberingVersions.find(version => version.ruleId === rule.id && version.version === rule.currentVersion)!;
+      return { id: rule.id, code: rule.code, name: rule.name, scene: rule.scene, currentVersion: rule.currentVersion, versionId: version.id,
+        template: version.config.template,
+        requiredParameters: [...new Set(parseNumberingTemplate(version.config.template).flatMap(segment =>
+          segment.kind === 'parameter' && !(NUMBERING_SYSTEM_PARAMETERS as readonly string[]).includes(segment.value) ? [segment.value] : []))],
+      };
+    }))),
   mock(numberingRuleContract.preview, ({ body, ok }) => {
     try { return ok(previewBusinessNumbers(body.config, { scene: body.scene, at: body.at ?? new Date(), context: body.context, count: body.count })); }
     catch (error) { return badRequest(error instanceof Error ? error.message : '预览失败'); }
@@ -70,8 +77,16 @@ export const numberingHandlers = [
       if (rule.revision !== body.expectedRevision) throw new MockHttpError(conflict('编号规则已被修改，请刷新后重试'));
       if (body.draft) validate(body.draft, rule.scene);
       if (body.draft && sequencePolicyChanged(rule.id, body.draft)) throw new MockHttpError(conflict('首次发布后序列设置不可修改，请复制规则建立新序列'));
-      if (body.status === 'disabled' && (mockNumberingBindings.some(binding => binding.ruleId === rule.id) || mockNumberingAllocations.some(allocation => allocation.ruleId === rule.id))) {
-        throw new MockHttpError(conflict('规则已被业务使用，不能停用；请先为业务切换规则'));
+      if (body.status === 'disabled' && rule.status !== 'disabled') {
+        if (mockNumberingBindings.some(binding => binding.ruleId === rule.id) || mockNumberingAllocations.some(allocation => allocation.ruleId === rule.id)) {
+          throw new MockHttpError(conflict(rule.scene === 'workflow.instance'
+            ? '规则已被流程使用，不能停用；修改编号中心绑定不会改变固定版本，请在流程设计器选择新规则版本后重新发布'
+            : '规则已被业务使用，不能停用；请先为业务切换规则', { status: 409 }));
+        }
+        const definition = mockWorkflowDefinitions.some(item => ['published', 'disabled'].includes(item.status) && item.flowData?.settings?.numbering?.ruleId === rule.id);
+        const draft = mockWorkflowInstances.some(item => ['draft', 'returned'].includes(item.status) && item.serialNo == null
+          && item.definitionSnapshot?.flowData?.settings?.numbering?.ruleId === rule.id);
+        if (definition || draft) throw new MockHttpError(conflict('规则仍被流程或待提交申请的固定版本引用，不能停用；请在流程设计器选择新规则版本后重新发布，并先处理待提交申请', { status: 409 }));
       }
       const { expectedRevision: _revision, ...patch } = body;
       Object.assign(rule, patch, { revision: rule.revision + 1, updatedAt: now });

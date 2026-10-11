@@ -415,7 +415,7 @@ export const workflowInstances = pgTable('workflow_instances', {
   formSnapshot: jsonb().$type<WorkflowInstanceFormSnapshot>(), // 发起时冻结的表单配置与字段快照
   title: varchar({ length: 128 }).notNull(),
   /** 业务编号/流水号（按流程定义的编号规则在发起时生成，如 BX-20260620-0001） */
-  serialNo: varchar({ length: 64 }),
+  serialNo: varchar({ length: 128 }),
   formData: jsonb(), // 填写的表单数据
   status: workflowInstanceStatusEnum().default('draft').notNull(),
   /** 加急/优先级：low/normal/high/urgent（发起人设置，审批列表据此置顶） */
@@ -448,7 +448,8 @@ export const workflowInstances = pgTable('workflow_instances', {
   archivedAt: timestamptz(),
   ...auditColumns(),
   ...timestampColumns(),
-}, (t) => [index('workflow_instances_definition_idx').on(t.definitionId), 
+}, (t) => [index('workflow_instances_definition_idx').on(t.definitionId),
+  uniqueIndex('workflow_instances_tenant_definition_serial_no_unique').on(sql`coalesce(${t.tenantId}, 0)`, t.definitionId, t.serialNo),
   // 业务键租户内唯一（仅活跃实例）：终态（approved/rejected/withdrawn/cancelled）实例不占用业务键，
   // 允许业务记录被驳回/撤回后重新发起；returned（退回待修改重提）仍占用业务键——重提是同一行
   // 的 UPDATE（returned→running），不会与自身冲突。状态列表与 shared WORKFLOW_ACTIVE_INSTANCE_STATUSES 保持一致。
@@ -840,19 +841,6 @@ export const workflowDelegations = pgTable('workflow_delegations', {
 export type WorkflowDelegationRow = typeof workflowDelegations.$inferSelect;
 
 export type NewWorkflowDelegation = typeof workflowDelegations.$inferInsert;
-
-// ─── 业务编号计数器 ───────────────────────────────────────────────────────────
-// 每个流程定义 + 周期键（如 '20260620' / 'ALL'）维护一个自增序列，原子自增防并发
-export const workflowSerialCounters = pgTable('workflow_serial_counters', {
-  id: idColumn(),
-  definitionId: integer().notNull().references(() => workflowDefinitions.id, { onDelete: 'cascade' }),
-  periodKey: varchar({ length: 16 }).notNull(),
-  seq: integer().default(0).notNull(),
-}, (t) => [unique('workflow_serial_counters_def_period_uniq').on(t.definitionId, t.periodKey)]);
-
-export type WorkflowSerialCounterRow = typeof workflowSerialCounters.$inferSelect;
-
-export type NewWorkflowSerialCounter = typeof workflowSerialCounters.$inferInsert;
 
 // ─── 流程模板库 ───────────────────────────────────────────────────────────────
 export const workflowTemplates = pgTable('workflow_templates', {

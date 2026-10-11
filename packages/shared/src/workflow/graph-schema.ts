@@ -1,3 +1,4 @@
+import { numberingBindingRefSchema } from '../platform/numbering-reference';
 import * as z from 'zod';
 import { httpUrl } from '../core/validation';
 import { isHttpUrl } from '../core/url';
@@ -248,19 +249,7 @@ export const workflowAdvancedSettingsSchema: z.ZodType<WorkflowAdvancedSettings>
   approverDedupMode: z.enum(['none', 'all', 'consecutive']).optional(),
   allowComment: z.boolean().optional(),
   summaryFields: z.array(z.string()).optional(),
-  serialNo: z.strictObject({
-    enabled: z.boolean(),
-    mode: z.enum(['structured', 'template']).optional(),
-    prefix: z.string().optional(),
-    suffix: z.string().optional(),
-    separator: z.string().optional(),
-    dateFormat: z.enum(['none', 'YYYYMMDD', 'YYYY-MM-DD', 'YYYY/MM/DD', 'YYYYMM', 'YYYY-MM', 'YYYY', 'YY', 'YYYYMMDDHHmmss']).optional(),
-    seqLength: z.int().optional(),
-    seqStart: z.int().optional(),
-    seqStep: z.int().optional(),
-    template: z.string().optional(),
-    resetPeriod: z.enum(['never', 'daily', 'monthly', 'yearly']).optional(),
-  }).optional(),
+  numbering: numberingBindingRefSchema.optional(),
   notifyChannels: z.strictObject({
     email: z.boolean().optional(),
     sms: z.boolean().optional(),

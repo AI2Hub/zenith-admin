@@ -29,9 +29,10 @@ describe('form linkage initialization and submitted snapshots', () => {
     const { result } = renderHook(() => useFormLinkage({ fields, all: fields, initValues: snapshot,
       readOnly: true, formApiRef: { current: { setValue } as unknown as FormApi },
     }));
-    expect(result.current.enrichedInitValues).toBe(snapshot);
+    expect(result.current.enrichedInitValues).toEqual({ amount: 80, total: 123 });
     act(() => result.current.handleValueChange(snapshot));
     expect(result.current.valuesState).toEqual(snapshot);
+    expect(snapshot).toEqual({ amount: 80, total: 123 });
     expect(setValue).not.toHaveBeenCalled();
   });
 });

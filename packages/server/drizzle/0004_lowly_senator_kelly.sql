@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "workflow_instances_tenant_definition_serial_no_unique" ON "workflow_instances" USING btree (coalesce("tenant_id", 0),"definition_id","serial_no");

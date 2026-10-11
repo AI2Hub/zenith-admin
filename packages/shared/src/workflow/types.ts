@@ -1,3 +1,4 @@
+import type { NumberingBindingRef } from '../platform/numbering-reference';
 import type { SignaturePolicy } from '../core/signatures';
 import type { output } from 'zod';
 import type { WorkflowSignaturePolicy } from './constants';
@@ -512,49 +513,6 @@ export interface WorkflowEdge {
   isException?: boolean;
 }
 
-/** 业务编号 / 流水号生成规则 */
-/** 业务编号日期段格式（均为标准 dayjs 模板串，可直接用于格式化） */
-export type WorkflowSerialDateFormat =
-  | 'none'
-  | 'YYYYMMDD'
-  | 'YYYY-MM-DD'
-  | 'YYYY/MM/DD'
-  | 'YYYYMM'
-  | 'YYYY-MM'
-  | 'YYYY'
-  | 'YY'
-  | 'YYYYMMDDHHmmss';
-
-/** 业务编号序号重置周期 */
-export type WorkflowSerialResetPeriod = 'never' | 'daily' | 'monthly' | 'yearly';
-
-/** 业务编号配置模式：structured=分项配置（默认）；template=自定义模板 */
-export type WorkflowSerialNoMode = 'structured' | 'template';
-
-export interface WorkflowSerialNoConfig {
-  enabled: boolean;
-  /** 配置模式，缺省视为 structured */
-  mode?: WorkflowSerialNoMode;
-  /** 固定前缀，如 'BX-'（structured 模式） */
-  prefix?: string;
-  /** 固定后缀（structured 模式） */
-  suffix?: string;
-  /** 日期段与序号段之间的分隔符（structured 模式），默认空 */
-  separator?: string;
-  /** 日期段格式（structured 模式，拼接在前缀后） */
-  dateFormat?: WorkflowSerialDateFormat;
-  /** 序号位数（左补零），默认 4 */
-  seqLength?: number;
-  /** 序号起始值，默认 1 */
-  seqStart?: number;
-  /** 序号递增步长，默认 1 */
-  seqStep?: number;
-  /** 自定义模板串（template 模式），含占位符，如 'BX-{YYYYMMDD}-{SEQ:4}' */
-  template?: string;
-  /** 序号重置周期 */
-  resetPeriod?: WorkflowSerialResetPeriod;
-}
-
 export interface WorkflowAdvancedSettings {
   allowWithdraw: boolean;
   allowResubmit: boolean;
@@ -566,7 +524,7 @@ export interface WorkflowAdvancedSettings {
   /** 待办/列表摘要字段（≤3 个表单字段 key，钉钉式卡片摘要） */
   summaryFields?: string[];
   /** 业务编号生成规则 */
-  serialNo?: WorkflowSerialNoConfig;
+  numbering?: NumberingBindingRef;
   /** 待办/结果的多渠道通知（站内信始终开启；email/sms 可选） */
   notifyChannels?: WorkflowNotifyChannels;
   /** 审批单打印限制与水印 */
@@ -732,7 +690,6 @@ export interface WorkflowFormField {
   dateFormat?: string;             // 日期格式
   maxCount?: number;               // 附件/图片限制数
   description?: string;            // 说明文字内容
-  serialPrefix?: string;           // 流水号前缀
   rateMax?: number;                // 评分上限（默认 5）
   formula?: string;                // 公式表达式，如 "{amount} * {days}"
   defaultFormula?: string;         // 默认值公式：表单初始渲染时按各字段默认值求值一次（如 "{price}*{qty}"、CONCAT）

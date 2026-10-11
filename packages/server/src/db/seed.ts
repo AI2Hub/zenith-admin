@@ -1,3 +1,6 @@
+import { pinWorkflowNumbering } from '../services/workflow/workflow-numbering.service';
+import type { WorkflowFlowData } from '@zenith/shared/workflow';
+import { workflowDefinitionVersions } from './schema/workflow';
 import { captureCmsModelVersion } from '../services/cms/cms-design-versions.service';
 import { initializeCmsContentWorkingCopy, freezeCmsContentRevision, approveCmsRevision } from '../services/cms/cms-content-revisions.service';
 import { cmsContentWorkingCopies } from './schema/cms-revisions';
@@ -717,10 +720,20 @@ async function seedRest() {
   logger.info('  ✔ Workflow templates seeded (onConflictDoNothing)');
 
   // ── 业务系统主导流程（请假审批 / CMS 内容审核，共享最新初始化定义）───────────
-  await db.insert(workflowDefinitions).overridingSystemValue().values(
-    SEED_WORKFLOW_DEFINITIONS.map(({ id, name, description, initiatorScopeType, flowData, formType, customForm, status, version, tenantId }) =>
-      ({ id, name, description, initiatorScopeType, flowData, formType, customForm, status, version, tenantId })),
-  ).onConflictDoNothing();
+  await db.transaction(async tx => {
+    for (const seed of SEED_WORKFLOW_DEFINITIONS) {
+      const { id, name, description, initiatorScopeType, formType, customForm, status, version, tenantId } = seed;
+      const flowData = await pinWorkflowNumbering(tx, { id, tenantId, formId: null, formType, customForm, flowData: seed.flowData as unknown as WorkflowFlowData });
+      const [created] = await tx.insert(workflowDefinitions).overridingSystemValue().values({
+        id, name, description, initiatorScopeType, flowData, formType, customForm, status, version, tenantId,
+      }).onConflictDoNothing().returning({ id: workflowDefinitions.id });
+      if (created && status === 'published') {
+        await tx.insert(workflowDefinitionVersions).values({
+          definitionId: id, version, name, description, flowData, formId: null, formType, customForm, formSchema: null, tenantId,
+        });
+      }
+    }
+  });
   await db.execute(sql`SELECT setval('workflow_definitions_id_seq', GREATEST((SELECT MAX(id) FROM workflow_definitions), 1))`);
   logger.info('  ✔ Workflow definitions seeded (onConflictDoNothing)');
 

@@ -171,7 +171,7 @@ function buildLinearFlow(steps: SeedFlowStep[], settings?: Record<string, unknow
   return flow;
 }
 
-const TEMPLATE_SETTINGS: Record<string, unknown> = { allowWithdraw: true, allowResubmit: true, notifyInitiator: true, allowComment: true, serialNo: { enabled: false } };
+const TEMPLATE_SETTINGS: Record<string, unknown> = { allowWithdraw: true, allowResubmit: true, notifyInitiator: true, allowComment: true };
 
 // ─── 表单远程数据源 初始数据 ───────────────────────────────────────────────
 export const SEED_WORKFLOW_DATA_SOURCES: WorkflowDataSource[] = [

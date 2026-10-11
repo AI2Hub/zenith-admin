@@ -113,7 +113,7 @@ export const FORM_FIELD_TYPES: FormFieldTypeInfo[] = [
 
   // 布局控件
   { type: 'description',  label: '说明文字', icon: FileText,      group: '布局控件', description: '纯展示说明文字' },
-  { type: 'serialNumber', label: '流水号',   icon: ListOrdered,   group: '布局控件', description: '自动生成流水号' },
+  { type: 'serialNumber', label: '流水号',   icon: ListOrdered,   group: '布局控件', description: '只读显示流程实例编号' },
 
   // 布局
   { type: 'row',          label: '分栏',     icon: Columns,       group: '布局', description: '网络/分栏布局' },
