@@ -319,6 +319,7 @@ export interface NodeRuntimeApprover {
 /** 节点上的协办运行态：协办记录只带 taskId / nodeName，落到节点上由「邀请任务所属节点」折算 */
 export interface NodeRuntimeConsult {
   consulteeName: string;
+  avatar?: string | null;
   status: WorkflowTaskConsult['status'];
   question?: string | null;
   opinion?: string | null;

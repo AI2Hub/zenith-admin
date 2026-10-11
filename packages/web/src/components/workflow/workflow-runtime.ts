@@ -120,6 +120,7 @@ export function buildNodeRuntimeMap(
       const list = info.consults ?? (info.consults = []);
       list.push({
         consulteeName: consult.consulteeName ?? `用户#${consult.consulteeId}`,
+        avatar: consult.consulteeAvatar ?? null,
         status: consult.status,
         question: consult.question ?? null,
         opinion: consult.opinion ?? null,

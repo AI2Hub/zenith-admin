@@ -501,6 +501,12 @@ body[theme-mode='dark'] .fd-node-card:hover {
   gap: 6px;
 }
 
+/* 协办为次要信息：头像更小、姓名小号灰字，与审批人行拉开视觉层级 */
+.fd-node-card__rt-row--secondary .fd-node-card__rt-name {
+  font-size: 12px;
+  color: var(--semi-color-text-2);
+}
+
 .fd-node-card__rt-info {
   flex: 1;
   min-width: 0;
@@ -559,15 +565,8 @@ body[theme-mode='dark'] .fd-node-card:hover {
 .fd-node-card__rt-consults {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin-top: 6px;
-}
-
-.fd-node-card__rt-consult {
-  display: flex;
-  align-items: center;
   gap: 6px;
-  min-width: 0;
+  margin-top: 6px;
 }
 
 .fd-node-card__rt-consult-label {
@@ -578,17 +577,6 @@ body[theme-mode='dark'] .fd-node-card:hover {
   border-radius: var(--semi-border-radius-small);
   color: var(--semi-color-purple);
   background: var(--semi-color-purple-light-default);
-}
-
-.fd-node-card__rt-consult-name {
-  flex: 1;
-  min-width: 0;
-  font-size: 11px;
-  line-height: 16px;
-  color: var(--semi-color-text-2);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .fd-node-card__rt-note {

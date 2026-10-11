@@ -34,7 +34,7 @@ describe('buildNodeRuntimeMap', () => {
 
     expect(map.get('approve_manager')?.status).toBe('approved');
     expect(map.get('approve_manager')?.consults).toEqual([
-      { consulteeName: '王五', status: 'replied', question: null, opinion: '建议同意', repliedAt: '2026-10-11 20:25:00' },
+      { consulteeName: '王五', avatar: null, status: 'replied', question: null, opinion: '建议同意', repliedAt: '2026-10-11 20:25:00' },
     ]);
     expect(map.get('approve_finance')?.consults).toBeUndefined();
   });

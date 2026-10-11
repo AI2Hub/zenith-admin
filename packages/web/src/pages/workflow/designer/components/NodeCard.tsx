@@ -333,19 +333,34 @@ export default function NodeCard({
           )}
           {runtime.consults && runtime.consults.length > 0 && (
             <div className="fd-node-card__rt-consults">
-              {runtime.consults.map((c, i) => (
-                <div
-                  className="fd-node-card__rt-consult"
-                  key={`${c.consulteeName}-${i}`}
-                  title={[c.question ? `问题：${c.question}` : '', c.opinion ? `意见：${c.opinion}` : ''].filter(Boolean).join('\n') || undefined}
-                >
-                  <span className="fd-node-card__rt-consult-label">协办</span>
-                  <span className="fd-node-card__rt-consult-name">{c.consulteeName}</span>
-                  <span className={`fd-node-card__rt-status fd-node-card__rt-status--${c.status === 'replied' ? 'approved' : 'pending'}`}>
-                    {c.status === 'replied' ? '已回复' : '待回复'}
-                  </span>
-                </div>
-              ))}
+              {runtime.consults.map((c, i) => {
+                const text = c.opinion ?? c.question;
+                return (
+                  <div className="fd-node-card__rt-row fd-node-card__rt-row--secondary" key={`${c.consulteeName}-${i}`}>
+                    <UserAvatar
+                      name={c.consulteeName || '?'}
+                      avatar={c.avatar}
+                      semiSize="extra-extra-small"
+                      size={14}
+                    />
+                    <div className="fd-node-card__rt-info">
+                      <div className="fd-node-card__rt-line">
+                        <span className="fd-node-card__rt-name" title={c.consulteeName}>{c.consulteeName}</span>
+                        <span className="fd-node-card__rt-consult-label">协办</span>
+                        <span className={`fd-node-card__rt-status fd-node-card__rt-status--${c.status === 'replied' ? 'approved' : 'pending'}`}>
+                          {c.status === 'replied' ? '已回复' : '待回复'}
+                        </span>
+                      </div>
+                      {c.repliedAt && (
+                        <span className="fd-node-card__rt-time"><DateTimeText value={c.repliedAt} /></span>
+                      )}
+                      {text && (
+                        <span className="fd-node-card__rt-comment" title={text}>{text}</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
           {(runtime.detail || runtime.reason) && (
