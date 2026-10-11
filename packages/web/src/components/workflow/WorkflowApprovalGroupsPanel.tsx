@@ -1,24 +1,40 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Button, Form, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import {
   WORKFLOW_APPROVAL_SLOT_STATUS_LABELS, WORKFLOW_APPROVE_METHOD_LABELS,
   WORKFLOW_SIGN_GROUP_STATUS_LABELS, WORKFLOW_SIGN_POSITION_LABELS,
-  type WorkflowNodeActivation, type WorkflowSignGroup,
+  type WorkflowNodeActivation, type WorkflowSignGroup, type WorkflowTask, type WorkflowTaskConsult,
 } from '@zenith/shared/workflow';
 import { AppModal } from '@/components/AppModal';
 import { useReduceWorkflowSignGroup } from '@/hooks/queries/workflow-tasks';
 
 interface Props {
   activations: WorkflowNodeActivation[];
+  tasks?: WorkflowTask[];
+  /** 实例协办记录：按邀请任务折算到所属节点，挂在对应审批组下（找不到归属的不展示） */
+  consults?: readonly WorkflowTaskConsult[];
   allowActions?: boolean;
 }
 
 /** 直接展示服务端轮次/席位/组读模型，任务记录和委派建议不计作基础票。 */
-export function WorkflowApprovalGroupsPanel({ activations, allowActions = true }: Readonly<Props>) {
+export function WorkflowApprovalGroupsPanel({ activations, tasks = [], consults = [], allowActions = true }: Readonly<Props>) {
   const [groupId, setGroupId] = useState<number | null>(null);
   const formApi = useRef<FormApi | null>(null);
   const reduce = useReduceWorkflowSignGroup();
+  // 协办只落库 taskId / nodeName，不含 nodeKey：先经邀请任务换算节点，换算不到时按节点名回退，仍无归属的跳过
+  const consultsByNodeKey = useMemo(() => {
+    const nodeKeyByTaskId = new Map(tasks.map((t) => [t.id, t.nodeKey]));
+    const byNode = new Map<string, WorkflowTaskConsult[]>();
+    for (const c of [...consults].sort((a, b) => a.id - b.id)) {
+      const key = nodeKeyByTaskId.get(c.taskId) ?? activations.find((a) => a.nodeName === c.nodeName)?.nodeKey;
+      if (!key) continue;
+      const list = byNode.get(key) ?? [];
+      list.push(c);
+      byNode.set(key, list);
+    }
+    return byNode;
+  }, [tasks, consults, activations]);
   const group = activations.flatMap((activation) => activation.signGroups).find((item) => item.id === groupId);
   const candidates = group?.slots.filter((slot) => slot.status === 'pending') ?? [];
   const openReduce = (item: WorkflowSignGroup) => {
@@ -71,6 +87,21 @@ export function WorkflowApprovalGroupsPanel({ activations, allowActions = true }
                     {slot.assigneeName ?? `用户#${slot.currentAssigneeId ?? ''}`} · {WORKFLOW_APPROVAL_SLOT_STATUS_LABELS[slot.status]}
                   </Tag>)}</Space>
                 </div>
+              </div>
+            ))}
+            {(consultsByNodeKey.get(activation.nodeKey) ?? []).map((c) => (
+              <div key={c.id} style={{ marginTop: 8, fontSize: 12 }}>
+                <Space wrap size={6}>
+                  <Tag size="small" color="purple">协办</Tag>
+                  <Typography.Text>
+                    {c.inviterName ?? `用户#${c.inviterId}`} 邀请 {c.consulteeName ?? `用户#${c.consulteeId}`}
+                  </Typography.Text>
+                  {c.status === 'pending'
+                    ? <Tag size="small" color="amber">待回复</Tag>
+                    : <Tag size="small" color="green">已回复</Tag>}
+                </Space>
+                {c.question && <div style={{ marginTop: 2, color: 'var(--semi-color-text-2)' }}>问题：{c.question}</div>}
+                {c.opinion && <div style={{ marginTop: 2 }}>意见：{c.opinion}</div>}
               </div>
             ))}
           </div>

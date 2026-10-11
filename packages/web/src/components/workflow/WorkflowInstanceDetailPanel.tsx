@@ -653,7 +653,7 @@ export default function WorkflowInstanceDetailPanel({
           <FlowRecords key={instance.id} tasks={instance.tasks ?? []} consults={consults} />
         </TabPane>
         {!!instance.approvalActivations?.length && <TabPane tab="审批明细" itemKey="approval-groups">
-          <WorkflowApprovalGroupsPanel activations={instance.approvalActivations} allowActions={!readOnly} />
+          <WorkflowApprovalGroupsPanel activations={instance.approvalActivations} tasks={instance.tasks ?? []} consults={consults} allowActions={!readOnly} />
         </TabPane>}
         <TabPane tab="关联信息" itemKey="relations">
           <EntityContextView entityType="workflow.instance" entityKey={String(instance.id)} />

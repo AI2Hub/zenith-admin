@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { WorkflowNodeActivation } from '@zenith/shared/workflow';
+import type { WorkflowNodeActivation, WorkflowTask, WorkflowTaskConsult } from '@zenith/shared/workflow';
 import { WorkflowApprovalGroupsPanel } from './WorkflowApprovalGroupsPanel';
 
 const mutation = vi.hoisted(() => ({ reduce: vi.fn().mockResolvedValue({ instance: { id: 9 } }) }));
@@ -32,5 +32,31 @@ describe('supplemental approval group controls', () => {
     render(<WorkflowApprovalGroupsPanel activations={[activation]} allowActions={false} />);
     expect(screen.getByText('后加签')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '减签' })).not.toBeInTheDocument();
+  });
+});
+
+describe('consult entries', () => {
+  const task: WorkflowTask = {
+    id: 101, instanceId: 9, nodeKey: 'review', nodeName: '合同审核', nodeType: 'approve',
+    activationId: 'round-one', slotId: 11, taskKind: 'approval', waitReason: null,
+    activatedAt: '2026-10-02 08:00:00', signPosition: null, assigneeId: 1, assigneeName: '张主管',
+    status: 'approved', comment: null, actionAt: '2026-10-02 09:00:00', createdAt: '2026-10-02 08:00:00',
+  };
+  const consult: WorkflowTaskConsult = {
+    id: 7, taskId: 101, instanceId: 9, nodeName: '合同审核', inviterId: 1, inviterName: '张主管',
+    consulteeId: 5, consulteeName: '李预算', question: '请核对预算科目', opinion: '预算余额充足',
+    status: 'replied', repliedAt: '2026-10-02 09:30:00', createdAt: '2026-10-02 09:00:00',
+  };
+
+  it('把协办挂到邀请任务所属审批组下并展示意见', () => {
+    render(<WorkflowApprovalGroupsPanel activations={[activation]} tasks={[task]} consults={[consult]} />);
+    expect(screen.getByText('协办')).toBeInTheDocument();
+    expect(screen.getByText('已回复')).toBeInTheDocument();
+    expect(screen.getByText(/预算余额充足/)).toBeInTheDocument();
+  });
+
+  it('找不到归属节点的协办不展示', () => {
+    render(<WorkflowApprovalGroupsPanel activations={[activation]} tasks={[task]} consults={[{ ...consult, taskId: 999, nodeName: '不存在的节点' }]} />);
+    expect(screen.queryByText('协办')).not.toBeInTheDocument();
   });
 });
