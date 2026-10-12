@@ -25,7 +25,7 @@ import { CmsSiteSelect } from './CmsSiteSelect';
 import { CmsWidgetSourceRefsSheet, type CmsWidgetSourceTarget } from './CmsWidgetSourceRefsSheet';
 import { CreateButton } from '@/components/toolbar-controls';
 import { FilterSelect, KeywordInput, DateRangeFilter } from '@/components/search-filters';
-import { DATE_TIME_COLUMN_WIDTH, EMPTY_PLACEHOLDER, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
+import { DATE_TIME_COLUMN_WIDTH, EMPTY_PLACEHOLDER, dateTimeColumn, overflowTagColumn, renderEllipsis } from '@/utils/table-columns';
 import OverflowTagList, { type OverflowTagItem } from '@/components/OverflowTagList';
 import { abortSubmit } from '@/lib/abort-submit';
 import { useFilterQuery } from '@/hooks/useFilterQuery';
@@ -514,25 +514,30 @@ export default function ContentsPage() {
       },
     })),
     {
-      title: '线上 / 编辑状态',
-      dataIndex: 'status',
-      width: 210,
+      ...overflowTagColumn<CmsContentListItem>({
+        title: '线上 / 编辑状态',
+        dataIndex: 'status',
+        width: 210,
+        contentWidth: 178,
+        tagSize: 'small',
+        popoverWidth: 240,
+        getItems: (v, record) => {
+          const status = v as CmsContentStatus;
+          const items: OverflowTagItem[] = [
+            { key: `status-${status}`, label: CMS_CONTENT_STATUS_LABELS[status], color: STATUS_COLORS[status] },
+            { key: `editorial-${record.editorialStatus}`, label: CMS_EDITORIAL_STATUS_LABELS[record.editorialStatus], color: CMS_EDITORIAL_STATUS_COLORS[record.editorialStatus] },
+          ];
+          if (record.hasUnpublishedChanges) items.push({ key: 'dirty', label: '有修改', color: 'orange' });
+          if (status !== 'published' && record.scheduledAt) {
+            items.push({ key: 'scheduled', label: <Tooltip content={`定时发布：${record.scheduledAt}`}>定时</Tooltip>, color: 'blue' });
+          }
+          if (status === 'published' && record.expireAt) {
+            items.push({ key: 'limited', label: <Tooltip content={`到期下线：${record.expireAt}`}>限时</Tooltip>, color: 'orange' });
+          }
+          return items;
+        },
+      }),
       fixed: 'right',
-      render: (v: CmsContentStatus, record) => (
-        <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center' }}>
-          <Space wrap spacing={4}><Tag size="small" color={STATUS_COLORS[v]}>{CMS_CONTENT_STATUS_LABELS[v]}</Tag><Tag size="small" color={CMS_EDITORIAL_STATUS_COLORS[record.editorialStatus]}>{CMS_EDITORIAL_STATUS_LABELS[record.editorialStatus]}</Tag>{record.hasUnpublishedChanges ? <Tag size="small" color="orange">有修改</Tag> : null}</Space>
-          {v !== 'published' && record.scheduledAt ? (
-            <Tooltip content={`定时发布：${record.scheduledAt}`}>
-              <Tag size="small" color="blue">定时</Tag>
-            </Tooltip>
-          ) : null}
-          {v === 'published' && record.expireAt ? (
-            <Tooltip content={`到期下线：${record.expireAt}`}>
-              <Tag size="small" color="orange">限时</Tag>
-            </Tooltip>
-          ) : null}
-        </span>
-      ),
     },
     createOperationColumn<CmsContentListItem>({
       // 预览是列表里最高频的动作，置于行内第一位；编辑/发布并列行内，
