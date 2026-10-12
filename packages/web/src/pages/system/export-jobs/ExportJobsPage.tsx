@@ -9,10 +9,11 @@ import { enumValueOf, formatBytes } from '@zenith/shared/core';
 import { urlOf } from '@/lib/contract-query';
 import { request } from '@/utils/request';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import type { OverflowTagItem } from '@/components/OverflowTagList';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { confirmAndDelete, deleteAction, ListSearchToolbar, listTableProps, useRowSelection } from '@/components/list-page';
 import { formatDateTime } from '@/utils/date';
-import { EMPTY_PLACEHOLDER, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
+import { EMPTY_PLACEHOLDER, dateTimeColumn, overflowTagColumn, renderEllipsis } from '@/utils/table-columns';
 import {
   exportJobKeys,
   rerunExportJobBody,
@@ -188,19 +189,20 @@ export default function ExportJobsPage() {
     { title: '模式', dataIndex: 'executionMode', width: 90, render: (value: string) => (value === 'sync' ? '同步' : '异步') },
     { title: '进度', dataIndex: 'rowCount', width: 180, render: (_: number | null, record: ExportJob) => renderProgress(record) },
     { title: '大小', dataIndex: 'fileSize', width: 110, align: 'right', render: (size: number | null) => (size == null ? EMPTY_PLACEHOLDER : formatBytes(size)) },
-    {
+    overflowTagColumn<ExportJob>({
       title: '安全',
       dataIndex: 'raw',
       width: 160,
-      render: (_: unknown, record: ExportJob) => (
-        <Space spacing={4}>
-          {/* 脱敏/明文仅对含敏感列的导出有实际意义，无敏感数据的任务不展示 */}
-          {record.sensitive && (record.raw ? <Tag color="red">明文</Tag> : <Tag color="green">脱敏</Tag>)}
-          {record.watermark && <Tag color="blue">水印</Tag>}
-          {record.sensitive && <Tag color="orange">敏感</Tag>}
-        </Space>
-      ),
-    },
+      contentWidth: 128,
+      getItems: (_, record) => {
+        // 脱敏/明文仅对含敏感列的导出有实际意义，无敏感数据的任务不展示
+        const items: OverflowTagItem[] = [];
+        if (record.sensitive) items.push({ key: 'raw', label: record.raw ? '明文' : '脱敏', color: record.raw ? 'red' : 'green' });
+        if (record.watermark) items.push({ key: 'watermark', label: '水印', color: 'blue' });
+        if (record.sensitive) items.push({ key: 'sensitive', label: '敏感', color: 'orange' });
+        return items;
+      },
+    }),
     { title: '创建人', dataIndex: 'createdByName', width: 130, render: (value: string | null) => value || EMPTY_PLACEHOLDER },
     { title: '下载次数', dataIndex: 'downloadCount', width: 100, align: 'right' },
     dateTimeColumn('过期时间', 'expiresAt'),

@@ -6,6 +6,7 @@ import {
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { RefreshCw, Activity, Wrench, KeyRound, GitCompare } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import OverflowTagList, { type OverflowTagItem } from '@/components/OverflowTagList';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { confirmDanger } from '@/utils/confirm';
 import { copyTextWithToast } from '@/utils/clipboard';
@@ -98,14 +99,27 @@ function ActivityPanel({ canMaintain }: Readonly<{ canMaintain: boolean }>) {
 
   // 各定宽列按最宽的常见内容配宽（单元格左右 padding 32），可变长内容一律截断 + Tooltip，禁止换行或挤占相邻列
   const columns: ColumnProps<ActivityConnection>[] = [
-    // PID（最长 7 位）+ 一个标记同行放得下；「本会话」与「阻塞源」同时出现极罕见，此时允许换到第二行
-    { title: 'PID', dataIndex: 'pid', width: 150, render: (v: number, r) => (
-      <Space spacing={4} wrap>
-        <Text strong>{v}</Text>
-        {r.isCurrent && <Tag size="small" color="blue">本会话</Tag>}
-        {blockingPids.has(v) && <Tooltip content="正在阻塞其他查询"><Tag size="small" color="red">阻塞源</Tag></Tooltip>}
-      </Space>
-    )},
+    // PID（最长 7 位）+ 标记：标记区超宽时收进 +N，不再换行
+    { title: 'PID', dataIndex: 'pid', width: 150, render: (v: number, r) => {
+      const pidTags: OverflowTagItem[] = [
+        ...(r.isCurrent ? [{ key: 'current', label: '本会话', color: 'blue' as const }] : []),
+        ...(blockingPids.has(v) ? [{
+          key: 'blocking',
+          label: <Tooltip content="正在阻塞其他查询">阻塞源</Tooltip>,
+          color: 'red' as const,
+        }] : []),
+      ];
+      return (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+          <Text strong style={{ flexShrink: 0 }}>{v}</Text>
+          {pidTags.length > 0 && (
+            <div style={{ minWidth: 0, maxWidth: 80 }}>
+              <OverflowTagList items={pidTags} contentWidth="100%" tagSize="small" />
+            </div>
+          )}
+        </div>
+      );
+    } },
     // 容纳 "idle in transaction"；"idle in transaction (aborted)" 等更长状态截断显示
     { title: '状态', dataIndex: 'state', width: 180, render: (v: string | null) => v ? renderEllipsisTag(v, stateColor(v)) : renderEmpty() },
     { title: '用户 / 应用', width: 160, render: (_: unknown, r) => (
@@ -292,14 +306,27 @@ function IndexHealthPanel() {
   };
 
   const unusedColumns: ColumnProps<IndexInfoRow>[] = [
-    // 索引名是弹性主列：名字最长且最不可控，窄屏下截断 + Tooltip；UNIQUE / 分区标记不参与压缩
-    { title: '索引', dataIndex: 'index', minWidth: 320, render: (v: string, r) => (
-      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, maxWidth: '100%' }}>
-        <Text strong ellipsis={{ showTooltip: true }} style={{ minWidth: 0 }}>{v}</Text>
-        {r.isUnique && <Tag size="small" color="blue" style={{ flexShrink: 0 }}>UNIQUE</Tag>}
-        {r.partitions > 1 && <Tooltip content="分区表索引：扫描数与大小为各分区之和"><Tag size="small" color="grey" style={{ flexShrink: 0 }}>{r.partitions} 分区</Tag></Tooltip>}
-      </div>
-    )},
+    // 索引名是弹性主列：名字最长且最不可控，窄屏下截断 + Tooltip；UNIQUE / 分区标记超宽时收进 +N
+    { title: '索引', dataIndex: 'index', minWidth: 320, render: (v: string, r) => {
+      const indexTags: OverflowTagItem[] = [
+        ...(r.isUnique ? [{ key: 'unique', label: 'UNIQUE', color: 'blue' as const }] : []),
+        ...(r.partitions > 1 ? [{
+          key: 'partitions',
+          label: <Tooltip content="分区表索引：扫描数与大小为各分区之和">{r.partitions} 分区</Tooltip>,
+          color: 'grey' as const,
+        }] : []),
+      ];
+      return (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
+          <Text strong ellipsis={{ showTooltip: true }} style={{ flex: 1, minWidth: 0 }}>{v}</Text>
+          {indexTags.length > 0 && (
+            <div style={{ minWidth: 0, maxWidth: 160, flexShrink: 0 }}>
+              <OverflowTagList items={indexTags} contentWidth="100%" tagSize="small" />
+            </div>
+          )}
+        </div>
+      );
+    } },
     // 项目内表名最长 32 字符（约 240px）；带 schema 前缀的更长名字截断显示
     { title: '表', width: 260, render: (_: unknown, r) => renderEllipsis(qualifiedName(r.schema, r.table)) },
     // 表达式索引没有普通列，显示占位符

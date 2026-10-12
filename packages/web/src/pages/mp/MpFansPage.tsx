@@ -136,15 +136,22 @@ export default function MpFansPage() {
       title: '会员', dataIndex: 'memberId', width: 130, align: 'center' as const,
       render: (v: number | null) => (v ? <Tag color="green" type="light">已绑定 #{v}</Tag> : <Tag color="grey" type="light">未绑定</Tag>),
     },
-    {
-      title: '关注状态', dataIndex: 'subscribe', width: 140, align: 'center' as const, fixed: 'right' as const,
-      render: (v: MpFanSubscribe, r: MpFan) => (
-        <Space spacing={2}>
-          {v === 'subscribed' ? <Tag color="green" type="light">已关注</Tag> : <Tag color="grey" type="light">已取关</Tag>}
-          {r.blacklisted && <Tag color="red" type="light">黑名单</Tag>}
-        </Space>
-      ),
-    },
+    overflowTagColumn<MpFan>({
+      title: '关注状态',
+      dataIndex: 'subscribe',
+      width: 140,
+      fixed: 'right',
+      contentWidth: 108,
+      getItems: (v, r) => [
+        {
+          key: 'subscribe',
+          label: (v as MpFanSubscribe) === 'subscribed' ? '已关注' : '已取关',
+          color: (v as MpFanSubscribe) === 'subscribed' ? 'green' : 'grey',
+        },
+        ...(r.blacklisted ? [{ key: 'blacklisted', label: '黑名单', color: 'red' as const }] : []),
+      ],
+      tagSize: 'small',
+    }),
     createOperationColumn<MpFan>({
       width: 280,
       desktopInlineKeys: ['edit', 'member', 'blacklist'],

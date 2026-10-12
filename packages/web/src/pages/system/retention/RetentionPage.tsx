@@ -21,7 +21,7 @@ import {
   useRunRetentionPolicy,
   useUpdateRetentionPolicy,
 } from '@/hooks/queries/retention';
-import { EMPTY_PLACEHOLDER, dateTimeColumn } from '@/utils/table-columns';
+import { EMPTY_PLACEHOLDER, dateTimeColumn, overflowTagColumn } from '@/utils/table-columns';
 
 const { Title, Text } = Typography;
 
@@ -152,28 +152,21 @@ export default function RetentionPage() {
               ? <Tag color="green">启用</Tag>
               : <Tag color="grey">停用</Tag>),
           },
-          {
-            key: 'scope',
+          overflowTagColumn<RetentionPolicy>({
             title: '清理方式',
+            dataIndex: 'mode',
             width: 150,
-            render: (_: unknown, row: RetentionPolicy) => (
-              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                {row.perTenant && <Tag size="small" color="violet">按租户</Tag>}
-                {row.mode === 'ageAndCap' && (
-                  <Tag size="small" color="orange">另限 {row.capLimit} 条/组</Tag>
-                )}
-                {row.mode === 'expiresAt' && (
-                  <Tag size="small" color="cyan">按到期时间</Tag>
-                )}
-                {row.mode === 'custom' && (
-                  <Tag size="small" color="indigo">域内清理</Tag>
-                )}
-                {row.mode === 'age' && !row.perTenant && (
-                  <Tag size="small" color="white">按时间</Tag>
-                )}
-              </div>
-            ),
-          },
+            contentWidth: 118,
+            getItems: (_, row) => [
+              ...(row.perTenant ? [{ key: 'tenant', label: '按租户', color: 'violet' as const }] : []),
+              ...(row.mode === 'ageAndCap'
+                ? [{ key: 'cap', label: `另限 ${row.capLimit} 条/组`, color: 'orange' as const }] : []),
+              ...(row.mode === 'expiresAt' ? [{ key: 'expires', label: '按到期时间', color: 'cyan' as const }] : []),
+              ...(row.mode === 'custom' ? [{ key: 'custom', label: '域内清理', color: 'indigo' as const }] : []),
+              ...(row.mode === 'age' && !row.perTenant ? [{ key: 'age', label: '按时间', color: 'white' as const }] : []),
+            ],
+            tagSize: 'small',
+          }),
           dateTimeColumn<RetentionPolicy & { _rowId: string }>('上次执行', 'lastRunAt', {
             key: 'lastRunAt',
             empty: '从未执行',

@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { AppModal } from '@/components/AppModal';
 import { Button, Select, SideSheet, Spin, Tag, TextArea, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
+import OverflowTagList, { type OverflowTagItem } from '@/components/OverflowTagList';
 import type { SignatureInput } from '@zenith/shared/core';
 import type { WorkflowBatchActionResponse } from '@zenith/shared/workflow';
 import WorkflowBatchResults from '@/components/workflow/WorkflowBatchResults';
@@ -191,25 +192,37 @@ export default function PendingApprovalsPage() {
       title: '申请标题',
       dataIndex: 'title',
       minWidth: 220,
-      render: (v: string, record: PendingItem) => (
-        <div style={{ minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-            <Typography.Text ellipsis={{ showTooltip: true }} style={{ flex: 1, minWidth: 0 }}>{v}</Typography.Text>
-            {record.pendingDelegatedFromName && (
+      render: (v: string, record: PendingItem) => {
+        const titleTags: OverflowTagItem[] = [
+          ...(record.pendingDelegatedFromName ? [{
+            key: 'delegated',
+            label: (
               <Tooltip content={record.pendingDelegationMode === 'suggest'
                 ? `${record.pendingDelegatedFromName} 委托你提出审批建议，最终由其确认`
                 : `代 ${record.pendingDelegatedFromName} 审批，你的操作将直接推进流程`}>
-                <Tag size="small" color="cyan" style={{ flexShrink: 0 }}>代 {record.pendingDelegatedFromName}</Tag>
+                代 {record.pendingDelegatedFromName}
               </Tooltip>
-            )}
-            {record.requiresIndividual && (
-              <Tag size="small" color="amber" style={{ flexShrink: 0 }}>需单独审批</Tag>
-            )}
-            {!record.requiresIndividual && record.pendingSignaturePolicy === 'reusable' && <Tag size="small" color="blue">需签名</Tag>}
+            ),
+            color: 'cyan' as const,
+          }] : []),
+          ...(record.requiresIndividual ? [{ key: 'individual', label: '需单独审批', color: 'amber' as const }] : []),
+          ...(!record.requiresIndividual && record.pendingSignaturePolicy === 'reusable'
+            ? [{ key: 'signature', label: '需签名', color: 'blue' as const }] : []),
+        ];
+        return (
+          <div style={{ minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+              <Typography.Text ellipsis={{ showTooltip: true }} style={{ flex: 1, minWidth: 0 }}>{v}</Typography.Text>
+              {titleTags.length > 0 && (
+                <div style={{ minWidth: 0, maxWidth: 240 }}>
+                  <OverflowTagList items={titleTags} contentWidth="100%" tagSize="small" />
+                </div>
+              )}
+            </div>
+            <WorkflowSummaryLine items={record.summary} />
           </div>
-          <WorkflowSummaryLine items={record.summary} />
-        </div>
-      ),
+        );
+      },
     },
     {
       title: '优先级',

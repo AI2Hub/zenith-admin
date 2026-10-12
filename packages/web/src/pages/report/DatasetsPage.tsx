@@ -6,7 +6,7 @@ import { Play, Upload as UploadIcon, Sparkles, Blocks } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { useExportJobRunner } from '@/hooks/useExportJobRunner';
-import { createdAtColumn, EMPTY_PLACEHOLDER, enabledStatusColumn, renderEllipsis } from '@/utils/table-columns';
+import { createdAtColumn, EMPTY_PLACEHOLDER, enabledStatusColumn, overflowTagColumn, renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import {
@@ -496,14 +496,22 @@ export default function DatasetsPage() {
     },
     { title: '字段数', dataIndex: 'fields', width: 80, render: (f: ReportField[]) => (f?.length ?? 0) },
     createdAtColumn,
-    {
-      title: '治理提示', dataIndex: '__warnings', width: 170,
-      render: (_: unknown, record) => {
+    overflowTagColumn<ReportDataset>({
+      title: '治理提示',
+      dataIndex: '__warnings',
+      width: 170,
+      contentWidth: 138,
+      getItems: (_, record) => {
         const warning = warningMap.get(record.id);
-        if (!warning) return EMPTY_PLACEHOLDER;
-        return <Space spacing={4}>{warning.anomalies > 0 ? <Tag color="orange" size="small">质量异常 {warning.anomalies}</Tag> : null}{warning.deprecated ? <Tag color="red" size="small">已弃用</Tag> : null}</Space>;
+        if (!warning) return [];
+        return [
+          ...(warning.anomalies > 0
+            ? [{ key: 'anomalies', label: `质量异常 ${warning.anomalies}`, color: 'orange' as const }] : []),
+          ...(warning.deprecated ? [{ key: 'deprecated', label: '已弃用', color: 'red' as const }] : []),
+        ];
       },
-    },
+      tagSize: 'small',
+    }),
     enabledStatusColumn(),
     createOperationColumn<ReportDataset>({
       width: 120,

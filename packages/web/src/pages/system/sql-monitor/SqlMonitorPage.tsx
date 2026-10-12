@@ -51,7 +51,7 @@ import {
   useSqlMonitorSessionAction,
 } from '@/hooks/queries/sql-monitor';
 import { confirmDanger } from '@/utils/confirm';
-import { dateTimeColumn, EMPTY_PLACEHOLDER, renderCodeEllipsis } from '@/utils/table-columns';
+import { dateTimeColumn, EMPTY_PLACEHOLDER, overflowTagColumn, renderCodeEllipsis } from '@/utils/table-columns';
 import DateTimeText from '@/components/DateTimeText';
 import { SQL_MONITOR_QUERY_SORT_OPTIONS, type SqlMonitorQuery, type SqlMonitorSession, type SqlMonitorLock, type SqlMonitorHistoryPoint, type MonitorHistoryRange } from '@zenith/shared/platform';
 import './SqlMonitorPage.css';
@@ -320,15 +320,21 @@ export default function SqlMonitorPage() {
       ),
     },
     { key: 'database', title: '数据库', dataIndex: 'database', width: 130, render: (value: string | null) => value ?? EMPTY_PLACEHOLDER },
-    {
-      key: 'state', title: '状态', dataIndex: 'state', width: 120,
-      render: (value: string | null, row: SqlMonitorSession) => (
-        <Space spacing={4}>
-          <Tag size="small" color={row.isCurrent ? 'blue' : value === 'active' ? 'green' : 'grey'}>{row.isCurrent ? '当前会话' : value ?? '未知'}</Tag>
-          {row.blockedBy.length > 0 && <Tag size="small" color="red">被阻塞</Tag>}
-        </Space>
-      ),
-    },
+    overflowTagColumn<SqlMonitorSession>({
+      title: '状态',
+      dataIndex: 'state',
+      width: 120,
+      contentWidth: 88,
+      getItems: (value, row) => [
+        {
+          key: 'state',
+          label: row.isCurrent ? '当前会话' : (value as string | null) ?? '未知',
+          color: row.isCurrent ? 'blue' : (value as string | null) === 'active' ? 'green' : 'grey',
+        },
+        ...(row.blockedBy.length > 0 ? [{ key: 'blocked', label: '被阻塞', color: 'red' as const }] : []),
+      ],
+      tagSize: 'small',
+    }),
     {
       key: 'wait', title: '等待', width: 130,
       render: (_: unknown, row: SqlMonitorSession) => row.waitEventType || row.waitEvent

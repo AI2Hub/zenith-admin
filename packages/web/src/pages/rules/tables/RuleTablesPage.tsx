@@ -4,7 +4,7 @@ import { Button, Checkbox, DatePicker, Input, InputNumber, Select, Space, Tag, M
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Save, Upload } from 'lucide-react';
 import { type RuleDecisionTable, type RuleEvaluateResult, type RuleTestRunResult, type RuleHitPolicy, type RuleTestCase, type RuleUsageItem, type RuleDecisionTableSettings, type RuleShadowRunResult, type RuleSimulateResult, decisionTableContract } from '@zenith/shared/rules';
-import { EMPTY_PLACEHOLDER, copyableNoColumn, createdAtColumn, renderEllipsis } from '@/utils/table-columns';
+import { EMPTY_PLACEHOLDER, copyableNoColumn, createdAtColumn, overflowTagColumn, renderEllipsis } from '@/utils/table-columns';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import DecisionTableEditor from './DecisionTableEditor';
@@ -764,14 +764,26 @@ export default function RuleTablesPage() {
     { title: '版本', dataIndex: 'version', width: 70 },
     createdAtColumn,
     // 固定列必须连续贴在末尾：createdAtColumn 不带 fixed，夹在状态与操作列之间会撕开右侧固定层
-    { title: '状态', dataIndex: 'status', width: 132, fixed: 'right', render: (s: string, r: RuleDecisionTable) => (
-      <Space spacing={4} wrap>
-        <Tag color={STATUS[s]?.color as never}>{STATUS[s]?.text ?? s}</Tag>
-        {r.gray && s === 'published' && <Tag size="small" color="cyan">灰度 {r.gray.grayPercent}%</Tag>}
-        {r.reviewStatus === 'pending' && <Tag size="small" color="blue">待审批</Tag>}
-        {r.dirty && s === 'published' && r.reviewStatus !== 'pending' && <Tag size="small" color="orange">改动未发布</Tag>}
-      </Space>
-    ) },
+    overflowTagColumn<RuleDecisionTable>({
+      title: '状态',
+      dataIndex: 'status',
+      width: 132,
+      fixed: 'right',
+      contentWidth: 100,
+      getItems: (s, record) => {
+        const status = s as string;
+        return [
+          { key: 'status', label: STATUS[status]?.text ?? status, color: STATUS[status]?.color },
+          ...(record.gray && status === 'published'
+            ? [{ key: 'gray', label: `灰度 ${record.gray.grayPercent}%`, color: 'cyan' as const }] : []),
+          ...(record.reviewStatus === 'pending'
+            ? [{ key: 'review', label: '待审批', color: 'blue' as const }] : []),
+          ...(record.dirty && status === 'published' && record.reviewStatus !== 'pending'
+            ? [{ key: 'dirty', label: '改动未发布', color: 'orange' as const }] : []),
+        ];
+      },
+      tagSize: 'small',
+    }),
     createOperationColumn<RuleDecisionTable>({
       width: 210,
       desktopInlineKeys: ['edit', 'publish'],

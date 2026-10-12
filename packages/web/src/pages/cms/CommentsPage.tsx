@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Button, Tag, Toast, Tabs, TabPane } from '@douyinfe/semi-ui';
+import { Button, Tag, Toast, Tabs, TabPane, Typography } from '@douyinfe/semi-ui';
+import OverflowTagList, { type OverflowTagItem } from '@/components/OverflowTagList';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -57,13 +58,22 @@ export default function CommentsPage() {
   const columns: ColumnProps<CmsComment>[] = [
     {
       title: '昵称', dataIndex: 'nickname', width: 170,
-      render: (v: string, record: CmsComment) => (
-        <span>
-          {v}
-          {record.memberId != null ? <Tag size="small" color="green" style={{ marginLeft: 6 }}>会员</Tag> : null}
-          {record.riskFlag === 'watchlist' ? <Tag size="small" color="orange" style={{ marginLeft: 6 }}>观察主体</Tag> : null}
-        </span>
-      ),
+      render: (v: string, record: CmsComment) => {
+        const nicknameTags: OverflowTagItem[] = [
+          ...(record.memberId != null ? [{ key: 'member', label: '会员', color: 'green' as const }] : []),
+          ...(record.riskFlag === 'watchlist' ? [{ key: 'watchlist', label: '观察主体', color: 'orange' as const }] : []),
+        ];
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+            <Typography.Text ellipsis={{ showTooltip: true }} style={{ flex: 1, minWidth: 0 }}>{v}</Typography.Text>
+            {nicknameTags.length > 0 && (
+              <div style={{ minWidth: 0, maxWidth: 90 }}>
+                <OverflowTagList items={nicknameTags} contentWidth="100%" tagSize="small" />
+              </div>
+            )}
+          </div>
+        );
+      },
     },
     {
       title: '评论内容',

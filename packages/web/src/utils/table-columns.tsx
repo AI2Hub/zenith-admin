@@ -123,6 +123,8 @@ export interface OverflowTagColumnOptions<RecordType extends Data = Data> {
   /** 固定列宽；与 minWidth 二选一（弹性主列用 minWidth，此时 contentWidth 建议传 '100%'） */
   readonly width?: number;
   readonly minWidth?: number;
+  /** 右侧固定（状态列常用）；其余列属性按需透传仍走外层展开 */
+  readonly fixed?: ColumnProps<RecordType>['fixed'];
   readonly contentWidth: number | string;
   /** 固定标签数收起（透传 TagGroup）；缺省按列宽自适应 */
   readonly maxTagCount?: number;
@@ -149,6 +151,7 @@ export function overflowTagColumn<RecordType extends Data = Data>({
   dataIndex,
   width,
   minWidth,
+  fixed,
   contentWidth,
   maxTagCount,
   getItems,
@@ -163,6 +166,7 @@ export function overflowTagColumn<RecordType extends Data = Data>({
     title,
     dataIndex,
     ...(width != null ? { width } : { minWidth }),
+    ...(fixed == null ? {} : { fixed }),
     render: (value: unknown, record: RecordType) => {
       const items = getItems(value, record);
       if (items.length === 0) return typeof empty === 'function' ? empty(value, record) : empty;

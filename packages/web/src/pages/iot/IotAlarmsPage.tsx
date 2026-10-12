@@ -7,7 +7,7 @@ import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-fi
 import { CreateButton } from '@/components/toolbar-controls';
 import { EntityContextView } from '@/components/entity-relations/EntityRelationButton';
 import UserSelect from '@/components/UserSelect';
-import { EMPTY_PLACEHOLDER, createdAtColumn, dateTimeColumn, renderEllipsis, enabledStatusColumn } from '@/utils/table-columns';
+import { EMPTY_PLACEHOLDER, createdAtColumn, dateTimeColumn, overflowTagColumn, renderEllipsis, enabledStatusColumn } from '@/utils/table-columns';
 import { StatCard, StatGrid } from '@/components/charts/StatCard';
 import { formatDateForApi } from '@/utils/date';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -163,20 +163,26 @@ function AlarmRecordsTab({ detailId, onOpenDetail, onCloseDetail }: {
     },
     dateTimeColumn<IotAlarm>('触发时间', 'firedAt'),
     dateTimeColumn<IotAlarm>('恢复时间', 'resolvedAt'),
-    {
-      // 状态 + 「升」标记并排：52 + 4 + 28 = 84，列宽 = 84 + 32 → 120
-      title: '状态', dataIndex: 'status', width: 120, fixed: 'right',
-      render: (v: IotAlarm['status'], r: IotAlarm) => (
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}>
-          <Tag size="small" color={ALARM_STATUS_COLORS[v]}>{IOT_ALARM_STATUS_LABELS[v]}</Tag>
-          {r.escalatedAt && (
-            <Tooltip content={`已于 ${r.escalatedAt} 升级通知`}>
-              <Tag size="small" color="purple">升</Tag>
-            </Tooltip>
-          )}
-        </span>
-      ),
-    },
+    overflowTagColumn<IotAlarm>({
+      // 状态 + 「升」标记：超宽时收进 +N（原注释 52 + 4 + 28 = 84，列宽 120 保持不变）
+      title: '状态',
+      dataIndex: 'status',
+      width: 120,
+      fixed: 'right',
+      contentWidth: 88,
+      getItems: (v, r) => {
+        const status = v as IotAlarm['status'];
+        return [
+          { key: 'status', label: IOT_ALARM_STATUS_LABELS[status], color: ALARM_STATUS_COLORS[status] },
+          ...(r.escalatedAt ? [{
+            key: 'escalated',
+            label: <Tooltip content={`已于 ${r.escalatedAt} 升级通知`}>升</Tooltip>,
+            color: 'purple' as const,
+          }] : []),
+        ];
+      },
+      tagSize: 'small',
+    }),
     createOperationColumn<IotAlarm>({
       // 告警中：认领（52）+ 处理（52）+ 查看详情（80）+ 间距 8 = 192 内容宽 → 240；其余状态取子集
       width: 240,

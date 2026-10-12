@@ -15,7 +15,7 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { ListSearchToolbar, listTableProps } from '@/components/list-page';
 import { DateRangeFilter, FilterSelect } from '@/components/search-filters';
-import { dateTimeColumn, renderEllipsis, EMPTY_PLACEHOLDER } from '@/utils/table-columns';
+import { dateTimeColumn, overflowTagColumn, renderEllipsis, EMPTY_PLACEHOLDER } from '@/utils/table-columns';
 import { formatDateTimeRangeForApi } from '@/utils/date';
 import { useListSearch } from '@/hooks/useListSearch';
 import { usePermission } from '@/hooks/usePermission';
@@ -150,16 +150,18 @@ function PolicyEventsTab() {
         <Tag size="small" color={NOTIFICATION_SEVERITY_TAG_COLOR[v]}>{NOTIFICATION_SEVERITY_LABELS[v]}</Tag>
       ),
     },
-    {
-      title: '特性', dataIndex: 'bypassQuietHours', width: 170,
-      render: (bypass: boolean, record) => (
-        <span style={{ display: 'inline-flex', gap: 4 }}>
-          {record.mandatory && <Tag size="small" color="red" type="light">必达</Tag>}
-          {bypass && <Tag size="small" color="orange" type="light">穿透免打扰</Tag>}
-          {!record.mandatory && !bypass && <Text type="tertiary" size="small">{EMPTY_PLACEHOLDER}</Text>}
-        </span>
-      ),
-    },
+    overflowTagColumn<NotificationPolicyEvent>({
+      title: '特性',
+      dataIndex: 'bypassQuietHours',
+      width: 170,
+      contentWidth: 138,
+      getItems: (bypass, record) => [
+        ...(record.mandatory ? [{ key: 'mandatory', label: '必达', color: 'red' as const }] : []),
+        ...((bypass as boolean) ? [{ key: 'bypass', label: '穿透免打扰', color: 'orange' as const }] : []),
+      ],
+      tagSize: 'small',
+      empty: <Text type="tertiary" size="small">{EMPTY_PLACEHOLDER}</Text>,
+    }),
     {
       title: '渠道策略（开关 / 锁定 / 恢复默认）', dataIndex: 'channels', minWidth: 420,
       render: (_v, record) => (record ? <ChannelPolicyCell event={record} canSave={canSave} /> : null),

@@ -1,10 +1,10 @@
 import { lazy, Suspense, useState } from 'react';
 import { ListSearchToolbar, listTableProps } from '@/components/list-page';
-import { Button, Checkbox, Form, Input, InputNumber, Select, Skeleton, Space, Tag, Toast, Typography, withField } from '@douyinfe/semi-ui';
+import { Button, Checkbox, Form, Input, InputNumber, Select, Skeleton, Toast, Typography, withField } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { useNavigate } from 'react-router-dom';
 import { Building2, Files, HardDrive, Link2, RefreshCcw, Search, Upload } from 'lucide-react';
-import { COMMON_STATUS_OPTIONS, formatBytes } from '@zenith/shared/core';
+import { COMMON_STATUS_LABELS, COMMON_STATUS_OPTIONS, formatBytes } from '@zenith/shared/core';
 import {
   DRIVE_ROLE_OPTIONS, DRIVE_SPACE_TYPE_OPTIONS, DRIVE_HANDOFF_MODE_OPTIONS, handoffDriveSpaceSchema, isOrphanedDriveSpace,
   type HandoffDriveSpaceInput, type AdminUpdateDriveSpaceInput, type CreateDepartmentDriveSpaceInput, type DriveRole, type DriveSpace, type DriveSpaceType,
@@ -26,7 +26,7 @@ import {
 import { confirmDanger, confirmDangerAsync } from '@/utils/confirm';
 import { abortSubmit } from '@/lib/abort-submit';
 import { useHandoffDriveSpace } from '@/hooks/queries/drive-collaboration';
-import { EMPTY_PLACEHOLDER, renderEnabledStatusTag } from '@/utils/table-columns';
+import { EMPTY_PLACEHOLDER, overflowTagColumn } from '@/utils/table-columns';
 import { driveSpaceDefaultRoleColumn, driveSpaceNameColumn, driveSpaceOwnerColumn, driveSpaceTypeColumn, driveSpaceUsageColumn } from '../drive-space-columns';
 import { FormStatusRadioGroup } from '@/components/FormStatusRadioGroup';
 import { useFilterQuery } from '@/hooks/useFilterQuery';
@@ -170,12 +170,27 @@ export default function DriveAdminSpacesPage() {
         </span>
       );
     } },
-    { title: '状态', dataIndex: 'status', width: 130, fixed: 'right', render: (v: string, s: DriveSpace) => (
-      <Space spacing={4} className="drive-nowrap">
-        {s.archivedAt ? <Tag size="small" color="grey">已归档</Tag> : renderEnabledStatusTag(v)}
-        {!s.allowExternalShare && <Tag size="small" color="orange">禁外链</Tag>}
-      </Space>
-    ) },
+    overflowTagColumn<DriveSpace>({
+      title: '状态',
+      dataIndex: 'status',
+      width: 130,
+      fixed: 'right',
+      contentWidth: 98,
+      getItems: (v, s) => {
+        const enabled = (v as string) === 'enabled';
+        return [
+          s.archivedAt
+            ? { key: 'status', label: '已归档', color: 'grey' as const }
+            : {
+              key: 'status',
+              label: enabled ? COMMON_STATUS_LABELS.enabled : COMMON_STATUS_LABELS.disabled,
+              color: enabled ? 'green' : 'grey',
+            },
+          ...(!s.allowExternalShare ? [{ key: 'share', label: '禁外链', color: 'orange' as const }] : []),
+        ];
+      },
+      tagSize: 'small',
+    }),
     createOperationColumn<DriveSpace>({ width: 180, desktopInlineKeys: ['open', 'edit'], actions: (s) => [
       { key: 'open', label: '打开', onClick: () => navigate(`/drive?space=${s.id}`) },
       { key: 'edit', label: '编辑', hidden: !canEdit, onClick: () => modal.openEdit(s) },

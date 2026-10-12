@@ -1,10 +1,11 @@
 import { useMemo } from 'react';
-import { RadioGroup, Radio, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { RadioGroup, Radio, Space, Toast, Typography } from '@douyinfe/semi-ui';
 import { sessionContract, type OnlineSession } from '@zenith/shared/identity';
 import { TOKEN_KEY } from '@zenith/shared/core';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { usePermission } from '@/hooks/usePermission';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import OverflowTagList, { type OverflowTagItem } from '@/components/OverflowTagList';
 import { ListSearchToolbar } from '@/components/list-page';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SessionClientTag } from '@/components/SessionClientTag';
@@ -68,17 +69,23 @@ export default function OnlineSessionsPage() {
       title: '用户名',
       dataIndex: 'username',
       width: 180,
-      render: (v: string, record: OnlineSession) => (
-        <Space>
-          <span>{v}</span>
-          {record.tokenId === currentTokenId && (
-            <Tag color="blue" size="small">当前会话</Tag>
-          )}
-          {record.impersonatorName && (
-            <Tag color="orange" size="small">由 {record.impersonatorName} 模拟</Tag>
-          )}
-        </Space>
-      ),
+      render: (v: string, record: OnlineSession) => {
+        const sessionTags: OverflowTagItem[] = [
+          ...(record.tokenId === currentTokenId ? [{ key: 'current', label: '当前会话', color: 'blue' as const }] : []),
+          ...(record.impersonatorName
+            ? [{ key: 'impersonated', label: `由 ${record.impersonatorName} 模拟`, color: 'orange' as const }] : []),
+        ];
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+            <Typography.Text ellipsis={{ showTooltip: true }} style={{ flex: 1, minWidth: 0 }}>{v}</Typography.Text>
+            {sessionTags.length > 0 && (
+              <div style={{ minWidth: 0, maxWidth: 130 }}>
+                <OverflowTagList items={sessionTags} contentWidth="100%" tagSize="small" />
+              </div>
+            )}
+          </div>
+        );
+      },
     },
     { title: '昵称', dataIndex: 'nickname', minWidth: 180, render: renderEllipsis },
     { title: '终端', dataIndex: 'client', width: 110, render: (v: OnlineSession['client']) => <SessionClientTag client={v} /> },

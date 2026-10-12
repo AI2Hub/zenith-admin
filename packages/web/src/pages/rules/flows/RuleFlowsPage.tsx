@@ -4,7 +4,7 @@ import { Button, Form, Input, List, Modal, Select, SideSheet, Space, Tag, TextAr
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
 import { decisionFlowContract, type RuleDecisionFlow, type RuleFlowEvaluateResult, type RuleFlowStep } from '@zenith/shared/rules';
-import { EMPTY_PLACEHOLDER, createdAtColumn, renderEllipsis } from '@/utils/table-columns';
+import { EMPTY_PLACEHOLDER, createdAtColumn, overflowTagColumn, renderEllipsis } from '@/utils/table-columns';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { usePermission } from '@/hooks/usePermission';
@@ -137,12 +137,22 @@ export default function RuleFlowsPage() {
     { title: '版本', dataIndex: 'version', width: 70 },
     createdAtColumn,
     // 固定列必须连续贴在末尾：createdAtColumn 不带 fixed，夹在状态与操作列之间会撕开右侧固定层
-    { title: '状态', dataIndex: 'status', width: 132, fixed: 'right', render: (s: string, r: RuleDecisionFlow) => (
-      <Space spacing={4} wrap>
-        <Tag color={STATUS[s]?.color as never}>{STATUS[s]?.text ?? s}</Tag>
-        {r.dirty && s === 'published' && <Tag size="small" color="orange">改动未发布</Tag>}
-      </Space>
-    ) },
+    overflowTagColumn<RuleDecisionFlow>({
+      title: '状态',
+      dataIndex: 'status',
+      width: 132,
+      fixed: 'right',
+      contentWidth: 100,
+      getItems: (s, record) => {
+        const status = s as string;
+        return [
+          { key: 'status', label: STATUS[status]?.text ?? status, color: STATUS[status]?.color },
+          ...(record.dirty && status === 'published'
+            ? [{ key: 'dirty', label: '改动未发布', color: 'orange' as const }] : []),
+        ];
+      },
+      tagSize: 'small',
+    }),
     operationColumn,
   ];
 

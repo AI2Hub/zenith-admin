@@ -14,7 +14,7 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { ListSearchToolbar, listTableProps } from '@/components/list-page';
 import { useListSearch } from '@/hooks/useListSearch';
-import { EMPTY_PLACEHOLDER, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
+import { EMPTY_PLACEHOLDER, dateTimeColumn, overflowTagColumn, renderEllipsis } from '@/utils/table-columns';
 import { useTerminalPreferences } from './useTerminalPreferences';
 import { resolveTheme, toXtermTheme } from './themes';
 import {
@@ -172,16 +172,24 @@ export default function TerminalSessionsPage() {
       title: '空闲', dataIndex: 'idleSeconds', width: 90, align: 'right',
       render: (s: number) => (s < 60 ? `${s}s` : `${Math.floor(s / 60)}m`),
     },
-    {
-      title: '状态', dataIndex: 'connected', width: 120, fixed: 'right',
-      render: (connected: boolean, r) => (
-        <Space spacing={4} wrap>
-          {connected ? <Tag size="small" color="green">在线</Tag> : <Tag size="small" color="grey">已断开</Tag>}
-          {r.takenOver && <Tag size="small" color="orange">接管中</Tag>}
-          {r.observerCount > 0 && <Tag size="small" color="light-blue">监控{r.observerCount}</Tag>}
-        </Space>
-      ),
-    },
+    overflowTagColumn<TerminalSession>({
+      title: '状态',
+      dataIndex: 'connected',
+      width: 120,
+      fixed: 'right',
+      contentWidth: 88,
+      getItems: (connected, record) => [
+        {
+          key: 'connected',
+          label: (connected as boolean) ? '在线' : '已断开',
+          color: (connected as boolean) ? 'green' : 'grey',
+        },
+        ...(record.takenOver ? [{ key: 'takeover', label: '接管中', color: 'orange' as const }] : []),
+        ...(record.observerCount > 0
+          ? [{ key: 'observers', label: `监控${record.observerCount}`, color: 'light-blue' as const }] : []),
+      ],
+      tagSize: 'small',
+    }),
     createOperationColumn<TerminalSession>({
       width: 180,
       actions: (record) => [

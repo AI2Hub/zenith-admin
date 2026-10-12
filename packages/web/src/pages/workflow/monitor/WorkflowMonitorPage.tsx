@@ -643,12 +643,24 @@ export default function WorkflowMonitorPage() {
     const tokenColumns: ColumnProps<WorkflowExecutionToken>[] = [
       { title: 'ID', dataIndex: 'id', width: 70 },
       { title: '节点', dataIndex: 'nodeName', minWidth: 150, render: (v: string | null, r) => v ?? r.nodeKey },
-      { title: '状态', dataIndex: 'status', width: 150, render: (v: WorkflowExecutionToken['status'], r) => (
-        <Space spacing={4}>
-          <Tag size="small" color={v === 'active' ? 'green' : v === 'consumed' ? 'grey' : 'red'}>{{ active: '活动', consumed: '已消费', dead: '已终止' }[v]}</Tag>
-          {r.parkedAtJoin && <Tag size="small" color="amber" type="light">汇聚等待</Tag>}
-        </Space>
-      ) },
+      overflowTagColumn<WorkflowExecutionToken>({
+        title: '状态',
+        dataIndex: 'status',
+        width: 150,
+        contentWidth: 118,
+        getItems: (v, record) => {
+          const status = v as WorkflowExecutionToken['status'];
+          return [
+            {
+              key: 'status',
+              label: ({ active: '活动', consumed: '已消费', dead: '已终止' } as const)[status],
+              color: status === 'active' ? 'green' : status === 'consumed' ? 'grey' : 'red',
+            },
+            ...(record.parkedAtJoin ? [{ key: 'parked', label: '汇聚等待', color: 'amber' as const }] : []),
+          ];
+        },
+        tagSize: 'small',
+      }),
       { title: '分支', dataIndex: 'branchPath', width: 150, render: (bp: WorkflowExecutionToken['branchPath']) => bp.length === 0 ? '主路径' : bp.map((f) => `${f.index + 1}/${f.total}`).join(' · ') },
       { title: '深度', dataIndex: 'depth', width: 70 },
       { title: '父 Token', dataIndex: 'parentTokenId', width: 110, render: (v: number | null) => v ? `#${v}` : EMPTY_PLACEHOLDER },

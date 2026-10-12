@@ -4,7 +4,7 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { CreateButton } from '@/components/toolbar-controls';
-import { createdAtColumn, renderEllipsis, EMPTY_PLACEHOLDER, enabledStatusColumn } from '@/utils/table-columns';
+import { createdAtColumn, overflowTagColumn, renderEllipsis, EMPTY_PLACEHOLDER, enabledStatusColumn } from '@/utils/table-columns';
 import { useEditModal } from '@/hooks/useEditModal';
 import { usePermission } from '@/hooks/usePermission';
 import { deleteAction, ListSearchToolbar } from '@/components/list-page';
@@ -62,16 +62,18 @@ export default function IotProductsPage() {
       title: '产品名称', dataIndex: 'name', width: 180,
       render: (v: string) => renderEllipsis(v),
     },
-    {
-      title: '物模型', width: 210,
-      render: (_: unknown, r: IotProduct) => (
-        <div style={{ display: 'flex', gap: 4, whiteSpace: 'nowrap' }}>
-          <Tag size="small" color="cyan">属性 {r.propertyCount ?? 0}</Tag>
-          <Tag size="small" color="blue">服务 {r.serviceCount ?? 0}</Tag>
-          <Tag size="small" color="orange">事件 {r.eventCount ?? 0}</Tag>
-        </div>
-      ),
-    },
+    overflowTagColumn<IotProduct>({
+      title: '物模型',
+      dataIndex: 'propertyCount',
+      width: 210,
+      contentWidth: 178,
+      getItems: (_, r) => [
+        { key: 'property', label: `属性 ${r.propertyCount ?? 0}`, color: 'cyan' as const },
+        { key: 'service', label: `服务 ${r.serviceCount ?? 0}`, color: 'blue' as const },
+        { key: 'event', label: `事件 ${r.eventCount ?? 0}`, color: 'orange' as const },
+      ],
+      tagSize: 'small',
+    }),
     {
       title: '遥测校验', dataIndex: 'validationMode', width: 90,
       render: (v: IotProduct['validationMode']) => (

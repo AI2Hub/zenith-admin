@@ -17,7 +17,7 @@ import type { CmsCollectRule, CmsCollectItem } from '@zenith/shared/cms';
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { CreateButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
-import { EMPTY_PLACEHOLDER, dateTimeColumn, enabledStatusColumn, renderEllipsis } from '@/utils/table-columns';
+import { EMPTY_PLACEHOLDER, dateTimeColumn, enabledStatusColumn, overflowTagColumn, renderEllipsis } from '@/utils/table-columns';
 import { abortSubmit } from '@/lib/abort-submit';
 import { channelsToSelectTree } from './channel-tree';
 import { deleteAction, ListSearchToolbar, listTableProps } from '@/components/list-page';
@@ -88,16 +88,19 @@ export default function CollectPage() {
     { title: '列表页 URL', dataIndex: 'listUrl', minWidth: 260, render: renderEllipsis },
     { title: '翻页', width: 90, render: (_: unknown, r) => (r.listUrl.includes('{page}') ? `${r.pageStart}-${r.pageEnd}` : '单页') },
     { title: '单次上限', dataIndex: 'maxItems', width: 90, align: 'right' },
-    {
+    overflowTagColumn<CmsCollectRule>({
       title: '选项',
+      dataIndex: 'autoPublish',
       width: 150,
-      render: (_: unknown, r) => (
-        <span>
-          {r.autoPublish ? <Tag size="small" color="green" style={{ marginRight: 4 }}>自动发布</Tag> : <Tag size="small" style={{ marginRight: 4 }}>入草稿</Tag>}
-          {r.localizeImages ? <Tag size="small" color="blue">图片本地化</Tag> : null}
-        </span>
-      ),
-    },
+      contentWidth: 118,
+      getItems: (_, r) => [
+        r.autoPublish
+          ? { key: 'publish', label: '自动发布', color: 'green' as const }
+          : { key: 'draft', label: '入草稿' },
+        ...(r.localizeImages ? [{ key: 'images', label: '图片本地化', color: 'blue' as const }] : []),
+      ],
+      tagSize: 'small',
+    }),
     dateTimeColumn('最近执行', 'lastRunAt'),
     enabledStatusColumn(),
     createOperationColumn<CmsCollectRule>({

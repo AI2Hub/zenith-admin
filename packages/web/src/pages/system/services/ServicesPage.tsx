@@ -13,7 +13,7 @@ import { serviceLogsStreamUrl, useServiceAction, useServiceList, useServiceLogs 
 import { HostSelector } from '@/components/HostSelector';
 import { useOpsHostSelection } from '@/hooks/useOpsHostSelection';
 import { usePermission } from '@/hooks/usePermission';
-import { EMPTY_PLACEHOLDER } from '@/utils/table-columns';
+import { EMPTY_PLACEHOLDER, overflowTagColumn } from '@/utils/table-columns';
 const ACTION_MSG: Record<SystemdAction, string> = {
   start: '已启动', stop: '已停止', restart: '已重启', reload: '已重载', enable: '已设为开机自启', disable: '已取消开机自启', mask: '已屏蔽', unmask: '已取消屏蔽',
 };
@@ -115,17 +115,18 @@ export default function ServicesPage() {
         <Typography.Text size="small" type="secondary" ellipsis={{ showTooltip: true }}>{r.description || EMPTY_PLACEHOLDER}</Typography.Text>
       ),
     },
-    {
-      title: '状态', width: 130,
-      render: (_: unknown, r: SystemdService) => (
-        <div style={{ display: 'flex', gap: 4 }}>
-          <Tag size="small" color={STATE_COLOR[r.activeState] ?? 'grey'}>{r.activeState}</Tag>
-          {r.subState && r.subState !== r.activeState && (
-            <Tag size="small" color="grey">{r.subState}</Tag>
-          )}
-        </div>
-      ),
-    },
+    overflowTagColumn<SystemdService>({
+      title: '状态',
+      dataIndex: 'activeState',
+      width: 130,
+      contentWidth: 98,
+      getItems: (_, r) => [
+        { key: 'active', label: r.activeState, color: STATE_COLOR[r.activeState] ?? 'grey' },
+        ...(r.subState && r.subState !== r.activeState
+          ? [{ key: 'sub', label: r.subState, color: 'grey' as const }] : []),
+      ],
+      tagSize: 'small',
+    }),
     {
       title: '加载状态', dataIndex: 'loadState', width: 100,
       render: (v: string) => <Tag size="small" color={v === 'loaded' ? 'blue' : 'grey'}>{v}</Tag>,
