@@ -2,7 +2,7 @@ import { lazy, startTransition, Suspense, useCallback, useEffect, useMemo, useRe
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { RouteErrorBoundary } from '@/components/PageErrorBoundary';
 import { BackTop, Divider, SideSheet, Spin, Toast } from '@douyinfe/semi-ui';
-import { ChevronsLeft, ChevronsRight, Expand, Shrink } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Expand, Shrink } from 'lucide-react';
 import { ensurePinyin } from '@/utils/pinyin';
 import { copyText } from '@/utils/clipboard';
 import MenuSearchInput, { type FlatMenuItem } from '@/components/MenuSearchInput';
@@ -845,20 +845,18 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
   const tabsBarNode = preferences.enableTabs && tabs.length > 0 ? (
     <div ref={tabsBarRef} className={`admin-tabs-bar${preferences.compactTabs ? ' admin-tabs-bar--compact' : ''}${preferences.showBreadcrumb ? ' admin-tabs-bar--with-breadcrumb' : ''}${preferences.autoHideTabs ? ' admin-tabs-bar--autohide' : ''}${reduceMotion ? ' admin-tabs-bar--autohide-no-motion' : ''}${tabsAtBottom ? ' admin-tabs-bar--bottom' : ''}${tabsAtLeft ? ' admin-tabs-bar--left' : ''}${tabsAtRight ? ' admin-tabs-bar--right' : ''}${sideCollapsed ? ' admin-tabs-bar--collapsed' : ''}`} data-tab-animation={reduceMotion ? 'none' : preferences.tabAnimation} data-tab-style={preferences.tabStyle ?? 'line'}>
       {tabsOnSide && canCollapseTabs && (
-        <div className="admin-tabs-bar__collapse">
-          <button
-            type="button"
-            className="admin-tabs-bar__collapse-btn"
-            onClick={() => setPreferences({ sideTabsCollapsed: !sideCollapsed })}
-            title={sideCollapsed ? '展开页签栏' : '折叠页签栏'}
-            aria-label={sideCollapsed ? '展开页签栏' : '折叠页签栏'}
-            aria-expanded={!sideCollapsed}
-          >
-            {tabsAtLeft
-              ? (sideCollapsed ? <ChevronsRight size={16} /> : <ChevronsLeft size={16} />)
-              : (sideCollapsed ? <ChevronsLeft size={16} /> : <ChevronsRight size={16} />)}
-          </button>
-        </div>
+        <button
+          type="button"
+          className="admin-tabs-bar__edge-toggle"
+          onClick={() => setPreferences({ sideTabsCollapsed: !sideCollapsed })}
+          title={sideCollapsed ? '展开页签栏' : '折叠页签栏'}
+          aria-label={sideCollapsed ? '展开页签栏' : '折叠页签栏'}
+          aria-expanded={!sideCollapsed}
+        >
+          {tabsAtLeft
+            ? (sideCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />)
+            : (sideCollapsed ? <ChevronLeft size={14} /> : <ChevronRight size={14} />)}
+        </button>
       )}
       <div ref={tabsScrollRef} className="admin-tabs-bar__scroll">
       {tabs.map((tab, tabIndex) => {

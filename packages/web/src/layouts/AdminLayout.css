@@ -2000,48 +2000,51 @@
   }
 }
 
-/* 栏顶折叠按钮：展开态贴外侧边，折叠态撑满 */
-.admin-tabs-bar__collapse {
-  display: flex;
-  padding: 8px 8px 0;
-  flex-shrink: 0;
-}
-
-.admin-tabs-bar--left .admin-tabs-bar__collapse {
-  justify-content: flex-start;
-}
-
-.admin-tabs-bar--right .admin-tabs-bar__collapse {
-  justify-content: flex-end;
-}
-
-.admin-tabs-bar__collapse-btn {
+/* 边缘悬浮切换：居中贴在页签栏与内容区分界线上，方向随展开 / 折叠切换 */
+.admin-tabs-bar__edge-toggle {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  border: none;
-  border-radius: var(--semi-border-radius-medium);
-  background: transparent;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--semi-color-border);
+  border-radius: 50%;
+  background: var(--color-header-bg);
   color: var(--color-text-secondary);
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  box-shadow: var(--semi-shadow-elevated);
+  transition: color 0.15s, background 0.15s;
 }
 
-.admin-tabs-bar--collapsed .admin-tabs-bar__collapse-btn {
-  flex: 1;
-  width: auto;
+.admin-tabs-bar--left .admin-tabs-bar__edge-toggle {
+  right: -13px;
 }
 
-.admin-tabs-bar__collapse-btn:hover {
+.admin-tabs-bar--right .admin-tabs-bar__edge-toggle {
+  left: -13px;
+}
+
+.admin-tabs-bar__edge-toggle:hover {
   background: var(--color-layout-hover);
   color: var(--color-text);
 }
 
-.admin-tabs-bar__collapse-btn:focus-visible {
+.admin-tabs-bar__edge-toggle:focus-visible {
   outline: 2px solid var(--semi-color-focus-border);
   outline-offset: 1px;
+}
+
+/* 自动隐藏栏 overflow 裁剪悬浮钮：收进栏内，收成细带时自然隐藏、悬停展开后出现 */
+.admin-tabs-bar--left.admin-tabs-bar--autohide .admin-tabs-bar__edge-toggle {
+  right: 4px;
+}
+
+.admin-tabs-bar--right.admin-tabs-bar--autohide .admin-tabs-bar__edge-toggle {
+  left: 4px;
 }
 
 /* 折叠行：图标居中，标题 / 固定标记 / 关闭按钮隐藏（关闭走右键菜单与切换器） */
