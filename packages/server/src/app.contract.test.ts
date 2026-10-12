@@ -127,6 +127,25 @@ describe('路由装配', () => {
     expect(await res.json()).toMatchObject({ code: 404 });
   });
 
+  it.each([
+    '/api/wiki/docs/2147483647',
+    '/api/wiki/tags/2147483647',
+    '/api/wiki/comments/2147483647',
+  ])('无 Origin 的 Bearer DELETE 进入真实认证门禁：%s', async (path) => {
+    const res = await app.request(path, {
+      method: 'DELETE',
+      headers: { Authorization: 'Bearer csrf-regression-invalid-token' },
+    });
+    expect(res.status).toBe(401);
+    expect(await res.json()).toMatchObject({ code: 401, message: '登录已过期' });
+  });
+
+  it('CSRF 拒绝经全局错误处理返回明确文案', async () => {
+    const res = await app.request('/api/wiki/docs/2147483647', { method: 'DELETE' });
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ code: 403, message: '请求来源校验失败', data: null });
+  });
+
   /**
    * 路径遮蔽：契约里的操作不能被**另一个**路由抢先匹配。
    *

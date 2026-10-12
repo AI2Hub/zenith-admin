@@ -5,14 +5,16 @@
  * （是什么门禁、带什么权限码 / 审计 / 功能门控），装配好的 app 可以沿 `app.routes` 逐条读出
  * 每个端点实际生效的门禁——不必解析路由源码。用于：
  * - `contract-access-runtime.test.ts`：断言契约 `access` 声明与运行时门禁逐端点一致；
- * - 权限矩阵 / 接口目录的运行时核对。
+ * - 权限矩阵 / 接口目录的运行时核对；CSRF 按实际 Bearer 门禁识别机器调用。
  */
 import type { LicenseFeatureKey } from '@zenith/shared/licensing';
 
 export const ROUTE_FACT: unique symbol = Symbol.for('zenith.route-fact');
 
 export type RouteFact =
+  // 这两种门禁仅接受 Authorization Bearer，不允许 Cookie 认证回退。
   | { readonly kind: 'auth' }
+  | { readonly kind: 'member-auth' }
   | { readonly kind: 'guard'; readonly permission: readonly string[] | null; readonly audit: Record<string, unknown> | null; readonly feature: LicenseFeatureKey | null }
   | { readonly kind: 'platform'; readonly onlyInMultiTenant: boolean };
 

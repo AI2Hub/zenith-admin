@@ -151,8 +151,10 @@ IP 访问控制由 `packages/server/src/middleware/ip-access.ts` 实现，配置
 - 安全响应头由 `secureHeaders` 设置，`X-Frame-Options: SAMEORIGIN` 对全部响应生效（本进程直出 CMS 前台、短链 / 退订 / 表单提示页等 HTML）。
 - 直出 HTML 的内容安全策略由 `lib/html-security-headers.ts` 的中间件统一补齐：凡 `text/html` 且未自带 CSP 的响应，按正文实际包含的**可执行**内联 `<script>` 计算 sha256 哈希放行（不使用 `'unsafe-inline'`；JSON-LD 等数据块不参与哈希），并设置 `object-src 'none'`、`base-uri 'self'`、`form-action 'self'`、`frame-ancestors 'self'`，第三方仅放行 Cloudflare Turnstile；CMS 静态化产物出站时同样计算，`/api/docs`（Swagger UI，依赖 CDN 脚本）除外。该中间件位于 `compress` 内侧，读取的是压缩前正文。CMS 前台交互脚本以外链 `/_assets/islands.{hash}.js` 交付（`'self'` 放行），主题只保留内容恒定的暗色初始化与会员受众重载两段内联脚本，因此 CSP 头在同站各页面间恒定，可随页面进入缓存。
 - 管理端 SPA 的 CSP 在 Vite 构建期注入入口 HTML 的 `<meta>`（`packages/web/vite.config.ts`），帧保护由 nginx 下发（见 [Docker 部署 · Nginx 行为](../guide/docker#nginx-行为)）。
-- CORS 使用 `CORS_ORIGIN` 与 `ALLOWED_ORIGINS`。
-- CSRF 中间件保护需要浏览器 Cookie 语义的写入请求；第三方回调、OAuth2 授权端点和 Open API 等机器接口按排除规则处理。
+- CORS 使用 `CORS_ORIGIN`；CSRF 的允许来源单独由 `ALLOWED_ORIGINS` 配置。
+- `middleware/csrf.ts` 复用 Hono 来源检查：非 GET / HEAD / OPTIONS 且 Content-Type 为表单类型、`text/plain` 或缺失时，须通过 Origin 或 `Sec-Fetch-Site` 校验。JSON 请求不进入这项检查；`ALLOWED_ORIGINS` 为空时允许非空且非 `null` 的 Origin。
+- 无 Origin 且无 `Sec-Fetch-Site` 的机器调用，只有携带非空 Bearer、首个命中端点先执行管理员或会员 Bearer 门禁时才豁免来源检查；后续令牌、账号 / 租户状态与权限校验照常执行。公开端点不会因附带 Bearer 获得豁免，`Origin: null` 也不视为缺失。
+- SAML ACS、OAuth2 token / authorize 按精确路径豁免，开放网关按 `/api/open/` 前缀豁免，各自继续执行协议认证。CSRF 拒绝返回 `403 请求来源校验失败`；其他认证、权限及业务错误保留自身文案。
 
 ## 数据表速查
 

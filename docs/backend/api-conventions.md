@@ -309,7 +309,7 @@ Server-Timing: total;dur=45.2;desc="Total Response Time"
 | 安全响应头 | `hono/secure-headers` | API 场景下放开 CORP / COOP / X-Frame-Options 的不适用限制 |
 | 压缩 | `hono/compress` | WebSocket、文件、日志流、监控流、AI 流式、公开制品等长连接 / 二进制端点排除 |
 | CORS | `hono/cors` | `/api/mastra/*` 反射 Origin 并允许 credentials，其余路径使用 `CORS_ORIGIN` |
-| CSRF | `hono/csrf` | 按 `ALLOWED_ORIGINS` 校验 Origin；SAML ACS、OAuth2 authorize/token、开放网关 `/api/open/*` 豁免 |
+| CSRF | `createCsrfMiddleware` + `hono/csrf` | 来源检查、Bearer 机器调用及协议例外见 [安全 · CSRF](./security.md#安全头、cors、csrf)；拒绝返回明确的 403 文案 |
 | Body Limit | `hono/body-limit` | `REQUEST_BODY_LIMIT > 0` 时启用，超限返回 413 |
 | Timeout | `hono/timeout` | `REQUEST_TIMEOUT_MS > 0` 时对 `/api/*` 启用，WebSocket / 文件 / DB 管理 / 日志 / 监控流 / AI 流 / 应用发布制品 / `*/export` 排除 |
 | IP 访问控制 | `ipAccessMiddleware` | 对 `/api/*` 生效 |

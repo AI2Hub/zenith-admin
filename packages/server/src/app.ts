@@ -22,11 +22,10 @@ import { timeout } from 'hono/timeout';
 import { except } from 'hono/combine';
 import { HTTPException } from 'hono/http-exception';
 import { contextStorage } from 'hono/context-storage';
-import { csrf } from 'hono/csrf';
 import { swaggerUI } from '@hono/swagger-ui';
 import { Registry } from 'prom-client';
 import { pinoHttp, type HttpLogger } from 'pino-http';
-import type { IncomingMessage, ServerResponse } from 'node:http';
+import { STATUS_CODES, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { Logger } from 'pino';
 import { config } from './config';
 import logger from './lib/logger';
@@ -44,6 +43,7 @@ import { maintenanceMiddleware } from './middleware/maintenance';
 import { authRateLimit, captchaRateLimit, pathBoundRateLimit, sensitiveRateLimit } from './middleware/rate-limit';
 import { requestTraceMiddleware } from './middleware/request-trace';
 import { authMiddleware } from './middleware/auth';
+import { createCsrfMiddleware } from './middleware/csrf';
 import { guard } from './middleware/guard';
 import { ROUTE_DOMAINS } from './routes';
 import { licenseFeatureGate } from './lib/licensing';
@@ -113,32 +113,7 @@ export function createApp() {
     (c) => c.req.path.startsWith('/api/mastra'),
     cors({ origin: config.corsOrigin, exposeHeaders: ['X-Request-Id'] }),
   ));
-  // CSRF 防护：校验 Origin 头，防止跨站请求伪造
-  // ALLOWED_ORIGINS 为空时（开发模式）不限制
-  //
-  // 注意：hono 的 csrf() 只对「表单类 Content-Type 且非 GET/HEAD」生效，且在缺失 Origin 时
-  // 直接判定为不安全请求——自定义 origin 回调不会被调用。因此机器对机器端点（OAuth2 令牌端点、
-  // 开放 API 网关、SAML ACS 回调）必须显式排除，否则 curl / SDK / 第三方服务端调用一律 403。
-  // 这些端点本身不依赖 Cookie 会话（用 client_secret / HMAC 签名 / Bearer 鉴权），不存在 CSRF 风险面。
-  const CSRF_EXCLUDE_PREFIXES = [
-    '/api/auth/enterprise/saml/acs',
-    '/api/oauth2/token',
-    '/api/oauth2/authorize',
-    '/api/open/',
-  ];
-  app.use(
-    '*',
-    except(
-      (c) => CSRF_EXCLUDE_PREFIXES.some((p) => c.req.path === p || c.req.path.startsWith(p)),
-      csrf({
-        origin: (origin) => {
-          if (!origin) return true;
-          if (config.allowedOrigins.length === 0) return true; // 开发模式，不限制
-          return config.allowedOrigins.includes(origin);
-        },
-      }),
-    ),
-  );
+  app.use('*', createCsrfMiddleware({ allowedOrigins: config.allowedOrigins }));
   // ─── 访问日志（pino-http，官方 Hono 集成方式）────────────────────────────────
   // 桥接到 @hono/node-server 暴露的裸 req/res；测试中 app.request() 无 Node socket，
   // c.env.incoming 不存在时跳过（访问日志本就属于服务器运行时）。
@@ -318,7 +293,7 @@ export function createApp() {
       if (err.status >= 500) void captureRequestException(err, c, { status: err.status });
       // 会话已吊销：文案之外附带机读原因，登录页据此展示「已在其他设备登录」等精确提示
       if (err instanceof SessionRevokedException) return c.json(sessionRevokedBody(err.reason), 401);
-      return c.json(errBody(err.message, err.status), err.status);
+      return c.json(errBody(err.message || STATUS_CODES[err.status] || '请求失败', err.status), err.status);
     }
     void captureRequestException(err, c, { status: 500 });
     logger.error('[Unhandled Error]', err);

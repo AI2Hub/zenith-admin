@@ -17,6 +17,7 @@ import logger from '../lib/logger';
 import { isTenantActive } from '../lib/tenant';
 import { TtlCache } from '../lib/ttl-cache';
 import { onInvalidate, onInvalidationReset } from '../lib/invalidation-bus';
+import { tagMiddleware } from '../lib/route-facts';
 
 export interface MemberJwtPayload {
   memberId: number;
@@ -177,6 +178,8 @@ export const memberAuthMiddleware = createMiddleware<MemberAuthEnv>(async (c, ne
     return c.json(errBody('登录已过期', 401), 401);
   }
 });
+
+tagMiddleware(memberAuthMiddleware, { kind: 'member-auth' });
 
 /**
  * 全局 ContextVariableMap 扩展：让 c.get('member') 在所有会员路由处理器中类型安全访问。
