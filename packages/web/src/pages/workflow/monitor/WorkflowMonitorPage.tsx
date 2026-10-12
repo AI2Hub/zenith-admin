@@ -802,15 +802,8 @@ export default function WorkflowMonitorPage() {
           </Tooltip>
         </div>
 
-        <div
-          style={{
-            border: '1px solid var(--semi-color-border)',
-            borderRadius: 'var(--semi-border-radius-medium)',
-            padding: 14,
-            background: 'var(--surface-card)',
-          }}
-        >
-          <Space spacing={8} wrap align="center" style={{ marginBottom: 8 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <Space spacing={8} wrap align="center">
             <Tag color={focusMeta.color}>{focusMeta.text}</Tag>
             <Typography.Text strong>{focusDiagnosis.title}</Typography.Text>
             {focusDiagnosis.riskTags.map((tag) => (
@@ -819,14 +812,14 @@ export default function WorkflowMonitorPage() {
           </Space>
           <Typography.Text type="tertiary" size="small">{focusDiagnosis.description}</Typography.Text>
 
-          <StatGrid minItemWidth={150} gap={10} style={{ marginTop: 12 }}>
+          <StatGrid minItemWidth={150} gap={10}>
             {focusDiagnosis.metrics.map((metric) => (
               <StatCard key={metric.label} title={metric.label} value={metric.value} sub={metric.hint} />
             ))}
           </StatGrid>
 
           {focusDiagnosis.activeTasks.length > 0 && (
-            <div style={{ marginTop: 12 }}>
+            <div>
               <Typography.Text type="tertiary" size="small">当前活动任务</Typography.Text>
               <Space vertical align="start" spacing={6} style={{ width: '100%', marginTop: 6 }}>
                 {focusDiagnosis.activeTasks.slice(0, 3).map((task) => (
@@ -838,9 +831,7 @@ export default function WorkflowMonitorPage() {
                       gap: 10,
                       flexWrap: 'wrap',
                       width: '100%',
-                      padding: '7px 10px',
-                      border: '1px solid var(--semi-color-fill-1)',
-                      borderRadius: 'var(--semi-border-radius-medium)',
+                      padding: '4px 0',
                     }}
                   >
                     <Typography.Text type="tertiary" size="small">#{task.id}</Typography.Text>
@@ -864,7 +855,7 @@ export default function WorkflowMonitorPage() {
             </div>
           )}
 
-          <div style={{ marginTop: 12, padding: '8px 10px', borderRadius: 'var(--semi-border-radius-medium)', background: 'var(--semi-color-fill-0)' }}>
+          <div style={{ marginTop: 4 }}>
             <Typography.Text type="tertiary" size="small">建议动作：</Typography.Text>
             <Typography.Text size="small">{focusDiagnosis.nextAction}</Typography.Text>
           </div>
@@ -876,7 +867,7 @@ export default function WorkflowMonitorPage() {
             {diagnostics.issues.map((issue, index) => {
               const meta = ISSUE_SEVERITY_MAP[issue.severity];
               return (
-                <div key={`${issue.source}-${issue.title}-${index}`} style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)' }}>
+                <div key={`${issue.source}-${issue.title}-${index}`} style={{ width: '100%' }}>
                   <Space spacing={8} wrap>
                     <Tag color={meta.color}>{meta.text}</Tag>
                     <Tag color="grey">{ISSUE_SOURCE_MAP[issue.source]}</Tag>
