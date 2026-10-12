@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Banner, Button, Checkbox, Input, Modal, Select, Space, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
 import { ArrowLeft, Eye, EyeOff, HardDrive, Save, Send } from 'lucide-react';
 import type { WikiDoc } from '@zenith/shared/wiki';
+import { confirmDangerAsync } from '@/utils/confirm';
 import MarkdownPreviewPanel from '@/components/MarkdownPreviewPanel';
 import PageLoading from '@/components/PageLoading';
 import FileAttachment, { type AttachmentItem } from '@/components/FileAttachment';
@@ -209,18 +210,42 @@ export default function WikiDocEditPage() {
     submitMutation.mutate({ params: { id: savedId } }, {
       onSuccess: (saved) => {
         Toast.success(saved.status === 'published' ? '已发布' : '已提交审核');
-        navigate(-1);
+        leave();
       },
     });
   }
 
-  function handleBack() {
-    if (dirty) {
-      Toast.warning('有未保存的修改，请先保存或再次点击返回放弃修改');
-      setDirty(false);
+  /** 离开编辑页：有历史可回退，否则显式回到文档中心并带上空间/文档上下文 */
+  function leave() {
+    if (window.history.length > 1) {
+      navigate(-1);
       return;
     }
-    navigate(-1);
+    const fallbackSpaceId = doc?.spaceId ?? spaceIdParam;
+    const params = new URLSearchParams();
+    if (fallbackSpaceId !== undefined) params.set('spaceId', String(fallbackSpaceId));
+    if (id !== undefined) params.set('docId', String(id));
+    const query = params.toString();
+    navigate(query ? `/wiki/docs?${query}` : '/wiki/docs');
+  }
+
+  function handleBack() {
+    if (!dirty) {
+      leave();
+      return;
+    }
+    // 未保存保护：显式确认后才放弃修改（并清除自动草稿），确认前 beforeunload 始终有效
+    void confirmDangerAsync({
+      title: '放弃未保存的修改？',
+      content: '当前有未保存的修改，离开将丢弃这些修改（自动保存的草稿也会一并清除）。',
+      okText: '放弃并离开',
+      cancelText: '继续编辑',
+    }).then((confirmed) => {
+      if (!confirmed) return;
+      clearDraft();
+      setDirty(false);
+      leave();
+    });
   }
 
   if (!id && spaceIdParam === undefined) {
@@ -249,14 +274,7 @@ export default function WikiDocEditPage() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
         <Space spacing={8}>
           <Button icon={<ArrowLeft size={14} />} onClick={handleBack}>返回</Button>
-          <Input
-            style={{ width: 320 }}
-            placeholder="文档标题（必填）"
-            value={title}
-            onChange={(v) => { setTitle(v); markDirty(); }}
-            maxLength={200}
-          />
-          {doc ? <Text type="tertiary" size="small">v{doc.currentVersion} · {doc.spaceName ?? ''}</Text> : null}
+          {doc ? <Text type="tertiary" size="small">当前 v{doc.currentVersion} · {doc.spaceName ?? ''}</Text> : null}
         </Space>
         <Space spacing={8}>
           <Select
@@ -291,32 +309,55 @@ export default function WikiDocEditPage() {
         </Space>
       </div>
 
-      {/* 元信息行 */}
-      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-        <Input
-          style={{ flex: '1 1 240px' }}
-          placeholder="摘要（选填，用于列表与搜索展示）"
-          value={summary}
-          onChange={(v) => { setSummary(v); markDirty(); }}
-          maxLength={500}
-        />
-        <Select
-          multiple
-          style={{ flex: '1 1 240px' }}
-          placeholder="选择标签"
-          value={tagIds}
-          onChange={(v) => { setTagIds((v as number[]) ?? []); markDirty(); }}
-          optionList={(tagsQuery.data ?? []).map((t) => ({ value: t.id, label: t.name }))}
-          maxTagCount={4}
-        />
-        {id ? (
+      {/* 元信息行：统一宽度（flex 1 1 240px），常驻小标签说明字段语义 */}
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+        <div style={{ flex: '1 1 240px', minWidth: 200 }}>
+          <Text size="small" type="tertiary" style={{ display: 'block', marginBottom: 4 }}>文档标题（必填）</Text>
           <Input
-            style={{ flex: '1 1 240px' }}
-            placeholder="本次变更说明（选填，记入版本历史）"
-            value={changeNote}
-            onChange={setChangeNote}
-            maxLength={300}
+            style={{ width: '100%' }}
+            placeholder="请输入文档标题"
+            aria-label="文档标题"
+            value={title}
+            onChange={(v) => { setTitle(v); markDirty(); }}
+            maxLength={200}
           />
+        </div>
+        <div style={{ flex: '1 1 240px', minWidth: 200 }}>
+          <Text size="small" type="tertiary" style={{ display: 'block', marginBottom: 4 }}>摘要（选填）</Text>
+          <Input
+            style={{ width: '100%' }}
+            placeholder="用于列表与搜索展示"
+            aria-label="摘要"
+            value={summary}
+            onChange={(v) => { setSummary(v); markDirty(); }}
+            maxLength={500}
+          />
+        </div>
+        <div style={{ flex: '1 1 240px', minWidth: 200 }}>
+          <Text size="small" type="tertiary" style={{ display: 'block', marginBottom: 4 }}>标签</Text>
+          <Select
+            multiple
+            style={{ width: '100%' }}
+            placeholder="选择标签"
+            aria-label="标签"
+            value={tagIds}
+            onChange={(v) => { setTagIds((v as number[]) ?? []); markDirty(); }}
+            optionList={(tagsQuery.data ?? []).map((t) => ({ value: t.id, label: t.name }))}
+            maxTagCount={4}
+          />
+        </div>
+        {id ? (
+          <div style={{ flex: '1 1 240px', minWidth: 200 }}>
+            <Text size="small" type="tertiary" style={{ display: 'block', marginBottom: 4 }}>本次变更说明（选填）</Text>
+            <Input
+              style={{ width: '100%' }}
+              placeholder="记入版本历史"
+              aria-label="本次变更说明"
+              value={changeNote}
+              onChange={setChangeNote}
+              maxLength={300}
+            />
+          </div>
         ) : null}
         <Checkbox
           checked={requireReadReceipt}
