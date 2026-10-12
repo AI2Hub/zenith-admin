@@ -609,6 +609,7 @@ export default function WorkflowInstanceDetailPanel({
                     {c.status === 'pending'
                       ? <Tag size="small" color="amber">待回复</Tag>
                       : <Tag size="small" color="green">已回复</Tag>}
+                    <Typography.Text type="tertiary" size="small"><DateTimeText value={c.repliedAt ?? c.createdAt} /></Typography.Text>
                   </div>
                   {c.question && <div style={{ marginTop: 4, color: 'var(--semi-color-text-2)' }}>问题：{c.question}</div>}
                   {c.opinion && <div style={{ marginTop: 4 }}>意见：{c.opinion}</div>}

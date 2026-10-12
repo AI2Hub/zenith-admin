@@ -85,3 +85,49 @@ describe('slot times', () => {
     expect(screen.queryByText('2026-10-02 08:30:00')).not.toBeInTheDocument();
   });
 });
+
+describe('empty slot sections', () => {
+  const ccActivation: WorkflowNodeActivation = { id: 'cc-one', nodeKey: 'cc-admin', nodeName: '抄送行政部', tokenId: 2,
+    status: 'active', approveMethod: null, approveRatio: null, baseTotal: 0, baseRequired: 0, baseApproved: 0,
+    baseRejected: 0, baseSatisfied: true, slots: [], signGroups: [] };
+  const slotSectionCount = (container: HTMLElement) => [...container.querySelectorAll('div')]
+    .filter((d) => d.style.marginTop === '8px').length;
+
+  it('无基础席位的节点不渲染空席位区', () => {
+    const { container } = render(<WorkflowApprovalGroupsPanel activations={[ccActivation]} />);
+    expect(screen.getByText('抄送行政部')).toBeInTheDocument();
+    expect(slotSectionCount(container)).toBe(0);
+  });
+
+  it('有基础席位的节点正常渲染席位区', () => {
+    const { container } = render(<WorkflowApprovalGroupsPanel activations={[activation]} />);
+    expect(slotSectionCount(container)).toBe(1);
+  });
+});
+
+describe('auto node tasks', () => {
+  const ccActivation: WorkflowNodeActivation = { id: 'cc-one', nodeKey: 'cc-admin', nodeName: '抄送行政部', tokenId: 2,
+    status: 'active', approveMethod: null, approveRatio: null, baseTotal: 0, baseRequired: 0, baseApproved: 0,
+    baseRejected: 0, baseSatisfied: true, slots: [], signGroups: [] };
+  const ccTask: WorkflowTask = {
+    id: 201, instanceId: 9, nodeKey: 'cc-admin', nodeName: '抄送行政部', nodeType: 'ccNode',
+    activationId: null, slotId: null, taskKind: 'cc', waitReason: null,
+    activatedAt: '2026-10-11 20:35:38', signPosition: null, assigneeId: 3, assigneeName: '王五',
+    status: 'skipped', comment: null, actionAt: '2026-10-11 20:35:38', createdAt: '2026-10-11 20:35:38',
+  };
+
+  it('自动处理节点展示其任务时间（抄送显示已抄送）', () => {
+    render(<WorkflowApprovalGroupsPanel activations={[ccActivation]} tasks={[ccTask]} />);
+    // Semi Tag 把文本拆到多个子节点，按行容器整体断言
+    const wrapper = screen.getByText('2026-10-11 20:35:38').closest('span')?.parentElement;
+    expect(wrapper?.textContent).toContain('王五 · 已抄送');
+  });
+
+  it('已被席位认领的任务不在自动处理区重复展示', () => {
+    const claimedSlot = { ...base, id: 13, activationId: 'cc-one', currentTaskId: 101 };
+    const mixed: WorkflowNodeActivation = { ...ccActivation, slots: [claimedSlot] };
+    render(<WorkflowApprovalGroupsPanel activations={[mixed]} tasks={[{ ...ccTask, id: 101, nodeKey: 'cc-admin' }]} />);
+    // 时间只出现一次（席位行），自动处理区不再重复
+    expect(screen.getAllByText('2026-10-11 20:35:38')).toHaveLength(1);
+  });
+});

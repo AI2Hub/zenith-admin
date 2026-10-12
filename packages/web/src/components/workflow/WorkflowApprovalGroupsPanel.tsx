@@ -9,6 +9,7 @@ import {
 import { AppModal } from '@/components/AppModal';
 import DateTimeText from '@/components/DateTimeText';
 import { useReduceWorkflowSignGroup } from '@/hooks/queries/workflow-tasks';
+import { taskStatusDisplay } from './workflow-runtime';
 
 interface Props {
   activations: WorkflowNodeActivation[];
@@ -22,6 +23,59 @@ interface Props {
 function SlotTime({ value }: Readonly<{ value: string | null }>) {
   if (!value) return null;
   return <Typography.Text type="tertiary" size="small"><DateTimeText value={value} /></Typography.Text>;
+}
+
+/** 自动处理节点（抄送等）：无席位可挂时间，直接展示该节点下未被席位认领的任务时间 */
+function ActivationAutoTasks({ nodeKey, tasks, slotTaskIds }: Readonly<{
+  nodeKey: string;
+  tasks: WorkflowTask[];
+  slotTaskIds: ReadonlySet<number>;
+}>) {
+  const rows = tasks
+    .filter((t) => t.nodeKey === nodeKey && !slotTaskIds.has(t.id))
+    .sort((a, b) => a.id - b.id);
+  if (rows.length === 0) return null;
+  return (
+    <div style={{ marginTop: 8 }}>
+      <Space wrap>
+        {rows.map((t) => {
+          const display = taskStatusDisplay({ status: t.status, nodeType: t.nodeType });
+          return (
+            <span key={t.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <Tag color={display.color}>
+                {t.assigneeName ?? (t.assigneeId != null ? `用户#${t.assigneeId}` : '系统')} · {display.text}
+              </Tag>
+              <SlotTime value={t.actionAt ?? t.activatedAt ?? t.createdAt} />
+            </span>
+          );
+        })}
+      </Space>
+    </div>
+  );
+}
+
+/** 基础席位区：无席位（如自动处理的抄送节点）时整块不渲染，避免空容器撑出间距 */
+function ActivationBaseSlots({ slots, slotTime }: Readonly<{
+  slots: WorkflowApprovalSlot[];
+  slotTime: (slot: Pick<WorkflowApprovalSlot, 'currentTaskId'>) => string | null;
+}>) {
+  const baseSlots = slots.filter((slot) => slot.origin === 'base');
+  if (baseSlots.length === 0) return null;
+  return (
+    <div style={{ marginTop: 8 }}>
+      <Space wrap>
+        {baseSlots.map((slot) => (
+          <span key={slot.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <Tag>
+              {slot.assigneeName ?? `用户#${slot.currentAssigneeId ?? ''}`} · {WORKFLOW_APPROVAL_SLOT_STATUS_LABELS[slot.status]}
+              {slot.mandatory ? ' · 必须处理' : ''}
+            </Tag>
+            <SlotTime value={slotTime(slot)} />
+          </span>
+        ))}
+      </Space>
+    </div>
+  );
 }
 
 /** 直接展示服务端轮次/席位/组读模型，任务记录和委派建议不计作基础票。 */
@@ -46,6 +100,12 @@ export function WorkflowApprovalGroupsPanel({ activations, tasks = [], consults 
   const candidates = group?.slots.filter((slot) => slot.status === 'pending') ?? [];
   // 席位时间取其当前任务：已处理显示处理时间，未处理显示任务到达时间（激活→创建兜底）
   const taskById = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks]);
+  const slotTaskIds = useMemo(() => new Set(
+    activations
+      .flatMap((a) => [...a.slots, ...a.signGroups.flatMap((g) => g.slots)])
+      .map((s) => s.currentTaskId)
+      .filter((id): id is number => id != null),
+  ), [activations]);
   const slotTime = (slot: Pick<WorkflowApprovalSlot, 'currentTaskId'>): string | null => {
     const task = slot.currentTaskId != null ? taskById.get(slot.currentTaskId) : undefined;
     return task?.actionAt ?? task?.activatedAt ?? task?.createdAt ?? null;
@@ -75,19 +135,10 @@ export function WorkflowApprovalGroupsPanel({ activations, tasks = [], consults 
               <Typography.Text>基础意见 {activation.baseApproved}/{activation.baseTotal}，需 {activation.baseRequired} 票</Typography.Text>
               {activation.baseSatisfied && <Tag color="green">基础条件已满足</Tag>}
             </Space>
-            <div style={{ marginTop: 8 }}>
-              <Space wrap>
-                {activation.slots.filter((slot) => slot.origin === 'base').map((slot) => (
-                  <span key={slot.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                    <Tag>
-                      {slot.assigneeName ?? `用户#${slot.currentAssigneeId ?? ''}`} · {WORKFLOW_APPROVAL_SLOT_STATUS_LABELS[slot.status]}
-                      {slot.mandatory ? ' · 必须处理' : ''}
-                    </Tag>
-                    <SlotTime value={slotTime(slot)} />
-                  </span>
-                ))}
-              </Space>
-            </div>
+            <ActivationBaseSlots slots={activation.slots} slotTime={slotTime} />
+            {activation.approveMethod === null && (
+              <ActivationAutoTasks nodeKey={activation.nodeKey} tasks={tasks} slotTaskIds={slotTaskIds} />
+            )}
             {activation.signGroups.map((item) => (
               <div key={item.id} style={{ marginTop: 12, paddingLeft: 12, borderLeft: '2px solid var(--semi-color-border)' }}>
                 <Space wrap>
