@@ -19,7 +19,7 @@ function parseTab<T extends string>(
  * - URL 外部变化（页签导航、前进/后退）时跟随切换；
  * - 只读写自己的参数，页面上其他查询参数原样保留。
  *
- * 受偏好「页面状态同步到地址栏」（`syncPageStateToUrl`，默认开）控制：
+ * 受偏好「页面状态同步到地址栏」（`syncPageStateToUrl`，默认关）控制：
  * 关闭时降级为「消费即焚」——带参深链进入仍生效一次，随后参数从地址栏移除，
  * 切换 Tab 不再写 URL。无 PreferencesProvider 的入口（会员端等）保持始终同步。
  */
@@ -32,7 +32,7 @@ export function useUrlTabState<T extends string>(
   const location = useLocation();
   const navigate = useNavigate();
   const prefs = useOptionalPreferences();
-  const syncToUrl = prefs ? (prefs.preferences.syncPageStateToUrl ?? true) : true;
+  const syncToUrl = prefs ? (prefs.preferences.syncPageStateToUrl ?? false) : true;
   const validRef = useRef(validTabs);
   validRef.current = validTabs;
   const [activeTab, setActiveTab] = useState<T>(

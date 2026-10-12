@@ -992,7 +992,7 @@ export function PrefsGeneralSection({
             <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
           </Tooltip>
         </span>
-        <Switch checked={preferences.syncPageStateToUrl ?? true} onChange={(v) => setPreferences({ syncPageStateToUrl: v })} />
+        <Switch checked={preferences.syncPageStateToUrl ?? false} onChange={(v) => setPreferences({ syncPageStateToUrl: v })} />
       </div>
       </PreferenceControl>
       )}
