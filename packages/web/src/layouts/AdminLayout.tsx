@@ -88,17 +88,6 @@ interface AdminLayoutProps {
   readonly menus: Menu[];
 }
 
-/** 非菜单注册的固定路由（与 App.tsx 的静态 <Route> 对齐）：未知路径不写入页签 */
-const STATIC_TAB_PATHS = new Set([
-  '/profile', '/announcements', '/inbox', '/search',
-  '/system/firewall', '/system/nginx-sites', '/forbidden',
-]);
-const STATIC_TAB_PREFIXES = [
-  '/workflow/designer/', '/workflow/launch/', '/workflow/instance/',
-  '/report/dashboards/', '/report/print/', '/report/fill/',
-  '/system/oauth2-apps/', '/embed/',
-];
-
 export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLayoutProps) {
   const { preferences, setPreferences, resetPreferences, canEditPreference } = usePreferences();
   // hover 模式下侧边栏应保持收起：刷新页面后依据偏好恢复收起状态
@@ -437,14 +426,6 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
       const fallbackTitle = resolveTitle(location.pathname);
       const fallbackIcon = resolveIcon(location.pathname);
       const isExactMenuPath = flatMenus.some((menu) => menu.path === location.pathname);
-      // 未知路径（无权限直连 / 手输错地址）不写入页签，避免页签栏出现裸路径项；并清理历史残留
-      const isKnownRoute = isExactMenuPath || fallbackTitle !== location.pathname
-        || !!navState?.tabTitle || STATIC_TAB_PATHS.has(location.pathname)
-        || STATIC_TAB_PREFIXES.some((p) => location.pathname.startsWith(p));
-      if (!isKnownRoute) {
-        if (tabs.some((t) => t.key === location.pathname)) removeTab(location.pathname);
-        return;
-      }
       addTab(location.pathname, navState?.tabTitle, navState?.tabIcon, fallbackTitle);
       // addTab 对已存在的页签只激活不改元信息；菜单 / 固定路由元数据就绪后同步纠正持久化旧标题。
       if (navState?.tabTitle || navState?.tabIcon || fallbackTitle !== location.pathname || fallbackIcon) {
@@ -455,7 +436,7 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
         });
       }
     }
-  }, [location.pathname, location.state, preferences.enableTabs, resolveTitle, resolveIcon, flatMenus, addTab, setTabMeta, tabs, removeTab]);
+  }, [location.pathname, location.state, preferences.enableTabs, resolveTitle, resolveIcon, flatMenus, addTab, setTabMeta]);
 
   const tabsMetaValue = useMemo(
     () => ({ enabled: !!preferences.enableTabs, setTabMeta, closeTab: removeTab }),

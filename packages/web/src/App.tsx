@@ -133,9 +133,6 @@ function NotFoundOrForbidden({ userMenuPaths }: Readonly<{ userMenuPaths: Set<st
   const allMenuPaths = useMemo(() => buildAllMenuPaths(allMenusQuery.data ?? []), [allMenusQuery.data]);
   // 树未到达前不下结论：直接渲染 404 会对「有页面但无权限」的路径闪一下错误结论
   if (allMenusQuery.isPending) return <PageLoading />;
-  // 完整菜单树请求失败（多为无 system:menu:list 权限被 403）：无法判定路径是否存在，
-  // 按「可能存在但无权限」处理，渲染无权限页并给出联系管理员入口，避免把越权伪装成 404
-  if (allMenusQuery.isError) return <ForbiddenPage />;
 
   // 精确匹配或前缀匹配（如 /system/users/123 匹配 /system/users）
   const segments = path.split('/').filter(Boolean);
