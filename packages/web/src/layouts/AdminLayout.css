@@ -1749,7 +1749,7 @@
 .admin-tabs-bar--left,
 .admin-tabs-bar--right {
   flex-direction: column;
-  width: 200px;
+  width: 128px;
   flex-shrink: 0;
   border-top: none;
   border-bottom: none;
@@ -1765,7 +1765,7 @@
 
 .admin-tabs-bar--left.admin-tabs-bar--compact,
 .admin-tabs-bar--right.admin-tabs-bar--compact {
-  width: 184px;
+  width: 116px;
 }
 
 /* 纵向滚动区 */
@@ -1774,7 +1774,7 @@
   flex-direction: column;
   align-items: stretch;
   gap: 2px;
-  padding: 8px;
+  padding: 6px;
   overflow-x: hidden;
   overflow-y: auto;
 }
@@ -1788,7 +1788,7 @@
 /* 页签行：标题撑满、关闭按钮贴右 */
 .admin-tabs-bar--left .admin-tab-item,
 .admin-tabs-bar--right .admin-tab-item {
-  padding: 8px 10px;
+  padding: 8px 8px;
   border-radius: var(--semi-border-radius-medium);
 }
 
@@ -1949,7 +1949,7 @@
   .admin-tabs-bar--left.admin-tabs-bar--autohide:focus-within,
   .admin-tabs-bar--right.admin-tabs-bar--autohide:hover,
   .admin-tabs-bar--right.admin-tabs-bar--autohide:focus-within {
-    width: 200px;
+    width: 128px;
     max-height: none;
     margin-left: 0;
     margin-right: 0;
@@ -1959,7 +1959,7 @@
   .admin-tabs-bar--left.admin-tabs-bar--compact.admin-tabs-bar--autohide:focus-within,
   .admin-tabs-bar--right.admin-tabs-bar--compact.admin-tabs-bar--autohide:hover,
   .admin-tabs-bar--right.admin-tabs-bar--compact.admin-tabs-bar--autohide:focus-within {
-    width: 184px;
+    width: 116px;
   }
   .admin-tabs-bar--left.admin-tabs-bar--autohide::after,
   .admin-tabs-bar--right.admin-tabs-bar--autohide::after {
