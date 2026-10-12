@@ -711,16 +711,18 @@ export default function WorkflowMonitorPage() {
     const renderNodeTaskRow = (task: WorkflowTask) => {
       const display = nodeStatusDisplay(task.status, task.nodeType === 'ccNode');
       return (
-      <div key={task.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 10px', borderTop: '1px solid var(--semi-color-fill-1)', flexWrap: 'wrap' }}>
-        <Typography.Text type="tertiary" size="small" style={{ width: 40 }}>#{task.id}</Typography.Text>
-        <Tag size="small" color={display.color}>{display.label}</Tag>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 110 }}>
-          <UserAvatar name={task.assigneeName || '未指定'} avatar={task.assigneeAvatar} size={20} />
-          <Typography.Text size="small">{task.assigneeName || '未指定'}</Typography.Text>
-        </span>
-        <Typography.Text type="tertiary" size="small">{task.actionAt || task.createdAt}</Typography.Text>
+      <div key={task.id} style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '4px 0' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <Typography.Text type="tertiary" size="small" style={{ width: 40 }}>#{task.id}</Typography.Text>
+          <Tag size="small" color={display.color}>{display.label}</Tag>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 110 }}>
+            <UserAvatar name={task.assigneeName || '未指定'} avatar={task.assigneeAvatar} size={20} />
+            <Typography.Text size="small">{task.assigneeName || '未指定'}</Typography.Text>
+          </span>
+          <Typography.Text type="tertiary" size="small" style={{ marginLeft: 'auto' }}>{task.actionAt || task.createdAt}</Typography.Text>
+        </div>
         {task.comment && (
-          <Typography.Text size="small" ellipsis={{ showTooltip: true }} style={{ maxWidth: 220 }}>
+          <Typography.Text size="small" ellipsis={{ showTooltip: true }}>
             “{task.comment}”
           </Typography.Text>
         )}
@@ -741,10 +743,8 @@ export default function WorkflowMonitorPage() {
           {diagNodes.map((node) => {
             const stateMeta = NODE_STATE_MAP[node.state];
             const typeLabel = NODE_TYPE_LABEL[node.type] ?? node.type;
-            const lastTask = node.tasks[node.tasks.length - 1];
-            const nodeTime = lastTask ? (lastTask.actionAt || lastTask.createdAt) : undefined;
             return (
-              <Timeline.Item key={node.key} type={NODE_STATE_TIMELINE_TYPE[node.state]} time={nodeTime}>
+              <Timeline.Item key={node.key} type={NODE_STATE_TIMELINE_TYPE[node.state]}>
                 <div style={{ paddingBottom: 6 }}>
                   <Space spacing={8} wrap align="center" style={{ marginBottom: 2 }}>
                     <Tag size="small" color="grey" type="light">{typeLabel}</Tag>
@@ -756,7 +756,7 @@ export default function WorkflowMonitorPage() {
                   </Space>
                   {renderNodeConfigSummary(node)}
                   {node.tasks.length > 0 ? (
-                    <div style={{ border: '1px solid var(--semi-color-fill-1)', borderTop: 'none', borderRadius: 'var(--semi-border-radius-medium)' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                       {node.tasks.map(renderNodeTaskRow)}
                     </div>
                   ) : (
