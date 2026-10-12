@@ -599,9 +599,15 @@ export async function getWikiDocReadReceipts(docId: number) {
   ]);
 
   const confirmedIds = new Set(confirmedRows.map((r) => r.userId));
+  const memberIds = new Set(memberRows.map((m) => m.userId));
+  // 口径统一：应确认范围为空间成员；成员之外的确认（公开空间中非成员也可确认）单独列出，
+  // 不计入未确认分母，已确认覆盖率 = 成员确认 / 空间成员
+  const memberConfirmed = confirmedRows.filter((r) => memberIds.has(r.userId));
+  const outsideConfirmed = confirmedRows.filter((r) => !memberIds.has(r.userId));
   return {
-    confirmed: confirmedRows.map((r) => ({ ...r, confirmedAt: formatDateTime(r.confirmedAt) })),
+    confirmed: memberConfirmed.map((r) => ({ ...r, confirmedAt: formatDateTime(r.confirmedAt) })),
     unconfirmed: memberRows.filter((m) => !confirmedIds.has(m.userId)),
+    outsideConfirmed: outsideConfirmed.map((r) => ({ ...r, confirmedAt: formatDateTime(r.confirmedAt) })),
   };
 }
 
@@ -786,9 +792,15 @@ export async function recordWikiDocView(docId: number) {
 
 // ─── 全文检索与最近访问 ───────────────────────────────────────────────────────
 
-/** 从正文提取关键词命中片段（前后各 60 字符） */
-function extractSnippet(content: string, keyword: string): string {
-  const plain = content.replace(/[#>*`\-|[\]()]/g, ' ').replace(/\s+/g, ' ').trim();
+/** 从正文提取关键词命中片段（前后各 60 字符）：先归一链接语法再去行内标记，只按空白切分以保留 - : 等标点 */
+export function extractSnippet(content: string, keyword: string): string {
+  const plain = content
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/(\*\*|__|`{1,3}|~~)/g, '')
+    .replace(/^(#{1,6}\s+|>\s*|-\s+|\*\s+|\d+\.\s+)/gm, '')
+    .replace(/\s+/g, ' ')
+    .trim();
   const idx = plain.toLowerCase().indexOf(keyword.toLowerCase());
   if (idx === -1) return plain.slice(0, 120);
   const start = Math.max(0, idx - 60);
