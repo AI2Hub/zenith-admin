@@ -1333,11 +1333,12 @@ async function seedRest() {
   ).onConflictDoNothing({ target: wikiComments.id });
   await db.execute(sql`SELECT setval('wiki_comments_id_seq', GREATEST((SELECT MAX(id) FROM wiki_comments), 1))`);
 
-  // 无结果搜索词演示数据：仅空表时写入，避免重复执行堆积
-  if ((await db.$count(wikiSearchLogs)) === 0) {
-    await db.insert(wikiSearchLogs).values(
-      SEED_WIKI_SEARCH_LOGS.map(({ keyword, resultCount, userId }) => ({ keyword, resultCount, userId })),
-    );
+  // 无结果搜索词演示数据：按关键词去重写入，重复执行不堆积
+  for (const log of SEED_WIKI_SEARCH_LOGS) {
+    const hit = await db.$count(wikiSearchLogs, eq(wikiSearchLogs.keyword, log.keyword));
+    if (hit === 0) {
+      await db.insert(wikiSearchLogs).values({ keyword: log.keyword, resultCount: log.resultCount, userId: log.userId });
+    }
   }
 
   logger.info('  ✔ Wiki seeded (onConflictDoNothing)');

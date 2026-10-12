@@ -143,8 +143,9 @@ export const SEED_WIKI_DOCS: SeedWikiDoc[] = [
     content: '# 常见问题 FAQ\n\n> 整理中，欢迎补充。\n\n## 本地启动失败？\n\n检查 Node 版本与 .env 配置。\n\n## 数据库连接超时？\n\n确认 VPN 已连接。\n',
   },
   // ─── 内容治理演示数据：让已过期 / 待复审 / 长期未更新 / 已归档清单在干净环境下可见 ──
+  // id 取 101+：避开随手造数的自增区间（历史会话已占用到十几号段），预留后不再变更
   {
-    id: 7,
+    id: 101,
     spaceId: 1,
     parentId: null,
     title: '旧版考勤制度（已过期）',
@@ -158,7 +159,7 @@ export const SEED_WIKI_DOCS: SeedWikiDoc[] = [
     content: '# 旧版考勤制度\n\n本版本已过期，仅供追溯，请以现行考勤与休假制度为准。\n',
   },
   {
-    id: 8,
+    id: 102,
     spaceId: 1,
     parentId: null,
     title: '信息安全规范（待复审）',
@@ -173,7 +174,7 @@ export const SEED_WIKI_DOCS: SeedWikiDoc[] = [
     content: '# 信息安全规范\n\n## 密码要求\n\n长度不少于 12 位，包含大小写字母与数字。\n\n## 设备管理\n\n办公电脑必须开启磁盘加密与锁屏。\n',
   },
   {
-    id: 9,
+    id: 103,
     spaceId: 2,
     parentId: null,
     title: '旧架构说明（长期未更新）',
@@ -188,7 +189,7 @@ export const SEED_WIKI_DOCS: SeedWikiDoc[] = [
     content: '# 旧架构说明\n\n> 本文档已长期未更新，内容可能与现状不符。\n\n## 历史架构\n\n单体应用 + 直连数据库。\n',
   },
   {
-    id: 10,
+    id: 104,
     spaceId: 2,
     parentId: null,
     title: '下线系统交接记录（已归档）',

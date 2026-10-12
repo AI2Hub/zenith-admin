@@ -4,7 +4,6 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Banner, Button, Checkbox, Input, Modal, Select, Space, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
 import { ArrowLeft, Eye, EyeOff, HardDrive, Save, Send } from 'lucide-react';
 import type { WikiDoc } from '@zenith/shared/wiki';
-import { confirmDangerAsync } from '@/utils/confirm';
 import MarkdownPreviewPanel from '@/components/MarkdownPreviewPanel';
 import PageLoading from '@/components/PageLoading';
 import FileAttachment, { type AttachmentItem } from '@/components/FileAttachment';
@@ -56,6 +55,8 @@ export default function WikiDocEditPage() {
   const [dirty, setDirty] = useState(false);
   const [pendingDraft, setPendingDraft] = useState<EditorDraft | null>(null);
   const seededDocId = useRef<number | null>(null);
+  // 离开确认弹窗（页内受控：与页面同树挂载/卸载，避免 Modal.confirm 独立 root 在 afterClose 卸载时撞上渲染帧）
+  const [leaveConfirmVisible, setLeaveConfirmVisible] = useState(false);
   // 乐观锁：保存时回传加载详情时的 revision，冲突时服务端返回 409
   const revisionRef = useRef<number | undefined>(undefined);
 
@@ -236,18 +237,14 @@ export default function WikiDocEditPage() {
       return;
     }
     // 未保存保护：显式确认后才放弃修改（并清除自动草稿），确认前 beforeunload 始终有效
-    void confirmDangerAsync({
-      title: '放弃未保存的修改？',
-      content: '当前有未保存的修改，离开将丢弃这些修改（自动保存的草稿也会一并清除）。',
-      okText: '放弃并离开',
-      cancelText: '继续编辑',
-    }).then((confirmed) => {
-      if (!confirmed) return;
-      clearDraft();
-      setDirty(false);
-      // 延后一拍再跳转：让确认弹窗的独立 root 先完成卸载，避免与其同帧卸载触发 React 同步卸载告警
-      setTimeout(leave, 0);
-    });
+    setLeaveConfirmVisible(true);
+  }
+
+  function handleConfirmLeave() {
+    setLeaveConfirmVisible(false);
+    clearDraft();
+    setDirty(false);
+    leave();
   }
 
   if (!id && spaceIdParam === undefined) {
@@ -273,6 +270,19 @@ export default function WikiDocEditPage() {
         </Banner>
       ) : null}
       {/* 顶栏 */}
+      <Modal
+        title="放弃未保存的修改？"
+        visible={leaveConfirmVisible}
+        onCancel={() => setLeaveConfirmVisible(false)}
+        onOk={handleConfirmLeave}
+        okText="放弃并离开"
+        cancelText="继续编辑"
+        okButtonProps={{ type: 'danger', theme: 'solid' }}
+        closeOnEsc
+        maskClosable={false}
+      >
+        当前有未保存的修改，离开将丢弃这些修改（自动保存的草稿也会一并清除）。
+      </Modal>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
         <Space spacing={8}>
           <Button icon={<ArrowLeft size={14} />} onClick={handleBack}>返回</Button>
