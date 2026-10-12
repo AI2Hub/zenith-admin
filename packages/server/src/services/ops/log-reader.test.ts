@@ -57,6 +57,34 @@ describe('collectTailLines', () => {
     }
     await expect(collectTailLines(gen(), 5)).resolves.toEqual(['x', 'y']);
   });
+
+  it('按链路归属精确匹配，不把链路查询和日志搜索请求当作目标日志', async () => {
+    const traceId = '531e6124-0b53-4030-9109-67e7fdccc4ae';
+    const original = JSON.stringify({ reqId: traceId, msg: 'POST /api/mp/fans/unblacklist 200 60ms' });
+    const worker = JSON.stringify({ reqId: traceId, role: 'worker', msg: 'notification delivered' });
+    const queries = [
+      JSON.stringify({ reqId: 'query-request', msg: `GET /api/trace/${traceId} 200 37ms` }),
+      JSON.stringify({ reqId: 'log-request', msg: `GET /api/log-files/app.log/content?traceId=${traceId}` }),
+      JSON.stringify({ reqId: 'another-request', payload: { reqId: traceId } }),
+      JSON.stringify({ reqId: `${traceId}-suffix` }),
+      JSON.stringify({ trace_id: traceId }),
+      `not JSON: reqId=${traceId}`,
+      'null',
+    ];
+
+    // 原日志即使早于最后 N 行，也应先扫描全文件再截取命中结果。
+    await expect(collectTailLines([original, worker, ...queries], 2, { traceId })).resolves.toEqual([original, worker]);
+    await expect(collectTailLines(queries, 2, { traceId })).resolves.toEqual([]);
+    await expect(collectTailLines([original, worker, ...queries], 5, { traceId, keyword: 'DELIVERED' })).resolves.toEqual([worker]);
+  });
+
+  it('链路上下文围绕精确命中保留，正文包含 ID 不会扩大窗口', async () => {
+    const traceId = 'original-request';
+    const original = JSON.stringify({ reqId: traceId, msg: 'business operation' });
+    const query = JSON.stringify({ reqId: 'query-request', msg: `GET /api/trace/${traceId}` });
+    await expect(collectTailLines(['before', original, 'after', 'unrelated', query, 'last'], 10, { traceId, context: 1 }))
+      .resolves.toEqual(['before', original, 'after']);
+  });
 });
 
 describe('readTailLinesStream', () => {
@@ -67,6 +95,16 @@ describe('readTailLinesStream', () => {
   it('gzip 归档解压后读取，CRLF 同样按行切分', async () => {
     await expect(readTailLinesStream(gzFile, 3)).resolves.toEqual(['[error] boom', '  at fn (a.ts:1)', '[info] recovered']);
     await expect(readTailLinesStream(gzFile, 10, { keyword: 'warn' })).resolves.toEqual(['[warn] slow query']);
+  });
+
+  it.each(['.log', '.log.gz'])('在 %s 中精确读取旧链路，重复查询日志不污染结果', async (extension) => {
+    const traceId = 'original-request';
+    const original = JSON.stringify({ reqId: traceId, msg: 'POST /api/orders 200' });
+    const query = JSON.stringify({ reqId: 'query-request', msg: `GET /api/trace/${traceId}` });
+    const content = `${original}\n${query}\n${query}\n`;
+    const file = path.join(tmpRoot, `trace${extension}`);
+    fs.writeFileSync(file, extension.endsWith('.gz') ? zlib.gzipSync(content) : content);
+    await expect(readTailLinesStream(file, 1, { traceId })).resolves.toEqual([original]);
   });
 });
 

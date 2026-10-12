@@ -56,7 +56,10 @@ function selectionEquals<K extends string>(
  */
 export function useUrlSelectionParams<K extends string>(
   paramNames: readonly K[],
+  options: { replaceOnNavigate?: boolean } = {},
 ): [UrlSelection<K>, Dispatch<SetStateAction<UrlSelection<K>>>] {
+  // 文件 + 定位筛选等完整上下文：新深链省略的字段应清空，消费后无参数的 URL 则保持选中。
+  const replaceOnNavigate = options.replaceOnNavigate ?? false;
   const [searchParams] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
@@ -93,7 +96,7 @@ export function useUrlSelectionParams<K extends string>(
     let nextSelection = selection;
     if (urlChanged) {
       const fromUrl = readSelection(searchParams, names);
-      if (syncToUrl) {
+      if (syncToUrl || (replaceOnNavigate && names.some((name) => fromUrl[name] !== null))) {
         nextSelection = fromUrl;
       } else {
         // 消费模式：仅合并在场参数——参数应用后即被移除，缺参不代表清空选中
@@ -122,7 +125,7 @@ export function useUrlSelectionParams<K extends string>(
 
     if (!selectionEquals(selection, nextSelection, names)) setSelection(nextSelection);
     if (nextSearch !== search) navigate({ search: nextSearch, hash: location.hash }, { replace: true, state: location.state });
-  }, [location.hash, location.state, search, searchParams, selection, navigate, syncToUrl]);
+  }, [location.hash, location.state, search, searchParams, selection, navigate, syncToUrl, replaceOnNavigate]);
 
   return [selection, setSelection];
 }

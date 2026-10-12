@@ -19,11 +19,15 @@ export const logFileNameParam = z.object({
   filename: z.string().meta({ description: '应用日志目录下的文件名', example: 'app.log' }),
 });
 
+export const logFileContentQuery = logTailQuery.extend({
+  traceId: z.string().min(8).max(64).optional().meta({ description: '精确匹配日志顶层 reqId，不匹配正文中出现的链路 ID' }),
+});
+
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const logFileContract = defineContract('/api/log-files', {
   list: op.get('/', { access: { permission: 'system:log:files' }, response: z.array(logFileSchema), summary: '日志文件列表' }),
-  content: op.get('/{filename}/content', { access: { permission: 'system:log:files' }, params: logFileNameParam, query: logTailQuery, response: logLinesSchema, summary: '读取日志文件内容（最后 N 行）' }),
+  content: op.get('/{filename}/content', { access: { permission: 'system:log:files' }, params: logFileNameParam, query: logFileContentQuery, response: logLinesSchema, summary: '读取日志文件内容（最后 N 行）' }),
   remove: op.delete('/{filename}', { access: { permission: 'system:log:files:delete' }, audit: '删除日志文件', params: logFileNameParam, summary: '删除日志文件' }),
   download: op.get('/{filename}/download', { access: { permission: 'system:log:files:download' }, params: logFileNameParam, kind: 'file', summary: '下载日志文件' }),
   tail: op.get('/{filename}/tail', { access: { permission: 'system:log:files' }, params: logFileNameParam, kind: 'sse', response: z.string(), summary: '日志实时跟踪（SSE，event: log）' }),

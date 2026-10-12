@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button, Dropdown, Toast, Typography } from '@douyinfe/semi-ui';
 import { Download, FileText, RefreshCw, Trash2 } from 'lucide-react';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
@@ -9,7 +8,7 @@ import type { LogLevel } from '@/components/log-workbench/log-search';
 import { request } from '@/utils/request';
 import DateTimeText from '@/components/DateTimeText';
 import { usePermission } from '@/hooks/usePermission';
-import { useUrlSelectionState } from '@/hooks/useUrlSelectionState';
+import { useUrlSelectionParams } from '@/hooks/useUrlSelectionState';
 import type { LogFile } from '@zenith/shared/ops';
 import { logFileDownloadUrl, useDeleteLogFile, useLogFiles } from '@/hooks/queries/log-files';
 import { logSourceKey, type LogSource } from '@/hooks/queries/log-source';
@@ -25,10 +24,9 @@ function parseLevelParam(value: string | null): LogLevel | undefined {
 export default function LogFilesPage() {
   const { hasPermission } = usePermission();
   const [keyword, setKeyword] = useState('');
-  // 选中文件以 `?file=` 同步到 URL（刷新/分享链接/告警事件跳转直达）；选中对象按文件名派生
-  const [selectedFileKey, setSelectedFileKey] = useUrlSelectionState('file');
-  // ?level= 等伴随参数仍直接读取
-  const [searchParams] = useSearchParams();
+  // 文件与定位条件成组管理，消费深链或切换到同一文件的另一条链路时不会丢失筛选。
+  const [selection, setSelection] = useUrlSelectionParams(['file', 'level', 'keyword', 'traceId'], { replaceOnNavigate: true });
+  const selectedFileKey = selection.file;
 
   const filesQuery = useLogFiles();
   const files = filesQuery.data ?? EMPTY_LOG_FILES;
@@ -44,48 +42,32 @@ export default function LogFilesPage() {
     return files.filter((file) => file.name.toLowerCase().includes(normalizedKeyword));
   }, [files, keyword]);
 
-  // 已应用到工作台的选中项：点选路径在 selectFile 中登记，URL 驱动的选中在下方 effect 中登记
-  const appliedFileParamRef = useRef<string | null>(null);
-
   const selectFile = useCallback((file: LogFile) => {
     if (selected?.name === file.name) return;
-    appliedFileParamRef.current = file.name;
-    setSelectedFileKey(file.name);
-  }, [selected, setSelectedFileKey]);
+    setSelection({ file: file.name, level: null, keyword: null, traceId: null });
+  }, [selected, setSelection]);
 
   // URL ?file= 深链：文件列表就绪后应用（刷新/分享链接/告警事件跳转直达）。
   // 页面可能被页签缓存复用，因此按参数值追踪而非只应用一次；
   // 目标不存在时尝试同名 .gz（日志目录中的既有归档），落定后仍不存在则清参
   useEffect(() => {
-    if (!selectedFileKey) {
-      appliedFileParamRef.current = null;
-      return;
-    }
+    if (!selectedFileKey) return;
     if (files.length === 0) return;
-    if (appliedFileParamRef.current === selectedFileKey) return;
     const target = files.find((f) => f.name === selectedFileKey)
       ?? files.find((f) => f.name === `${selectedFileKey}.gz`);
     if (!target) {
-      if (!filesQuery.isFetching) setSelectedFileKey(null);
+      if (!filesQuery.isFetching) setSelection({ file: null, level: null, keyword: null, traceId: null });
       return;
     }
     if (target.name !== selectedFileKey) {
-      setSelectedFileKey(target.name);
-      return;
+      setSelection((prev) => ({ ...prev, file: target.name }));
     }
-    appliedFileParamRef.current = target.name;
-  }, [files, filesQuery.isFetching, selectedFileKey, setSelectedFileKey]);
+  }, [files, filesQuery.isFetching, selectedFileKey, setSelection]);
 
-  // ?level= 只作用于 URL 驱动的选中（告警跳转带 error/warn）：渲染期 ref 尚未登记即视为深链；
-  // 工作台仅在挂载时读取该值，点选其他文件后重挂载即回到「全部级别」
-  const initialLevel = selected && appliedFileParamRef.current !== selected.name
-    ? parseLevelParam(searchParams.get('level'))
-    : undefined;
-
-  // ?keyword= 只作用于 URL 驱动的选中（链路追踪跳转带 traceId）：与 ?level= 同一套深链语义，
-  // 工作台挂载时预填搜索并高亮首个匹配行，点选其他文件后重挂载即清空
-  const initialKeyword = selected && appliedFileParamRef.current !== selected.name
-    ? (searchParams.get('keyword')?.trim().slice(0, 200) || undefined)
+  const initialLevel = parseLevelParam(selection.level);
+  const initialKeyword = selection.keyword?.trim().slice(0, 200) || undefined;
+  const initialTraceId = selection.traceId && /^[\w-]{8,64}$/.test(selection.traceId)
+    ? selection.traceId
     : undefined;
 
   const handleDownload = async (file: LogFile) => {
@@ -97,9 +79,8 @@ export default function LogFilesPage() {
   };
 
   const deselectFile = useCallback(() => {
-    appliedFileParamRef.current = null;
-    setSelectedFileKey(null);
-  }, [setSelectedFileKey]);
+    setSelection({ file: null, level: null, keyword: null, traceId: null });
+  }, [setSelection]);
 
   const handleDelete = (file: LogFile) => {
     confirmAndDelete({
@@ -212,7 +193,7 @@ export default function LogFilesPage() {
         <>
           {selected && source ? (
             <LogWorkbench
-              key={logSourceKey(source)}
+              key={JSON.stringify([logSourceKey(source), initialLevel, initialKeyword, initialTraceId])}
               source={source}
               title={(
                 <>
@@ -225,6 +206,8 @@ export default function LogFilesPage() {
               canTail={!selected.isGzip && hasPermission('system:log:files')}
               initialLevel={initialLevel}
               initialKeyword={initialKeyword}
+              initialTraceId={initialTraceId}
+              onTraceIdChange={(traceId) => setSelection((prev) => ({ ...prev, traceId: traceId ?? null }))}
               exportName={selected.name}
               menuExtra={(canDownload || canDelete) ? (
                 <>

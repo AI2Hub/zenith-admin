@@ -1,10 +1,9 @@
 /**
  * 日志源：把「应用日志目录内的文件」与「白名单目录 / 远端主机上的绝对路径」两种来源
- * 收敛成同一组读取入口，供共享的日志工作台组件消费。两套契约的入参与响应形状一致
- * （`logTailQuery` / `logLinesSchema` / SSE `event: log`），差别只在寻址方式与权限码。
+ * 收敛成同一组读取入口，供共享的日志工作台组件消费。两套契约共用 `logTailQuery` /
+ * `logLinesSchema` / SSE `event: log`；应用日志额外支持按 reqId 精确筛选链路。
  */
-import type { LogTailQuery } from '@zenith/shared/ops';
-import { logFileDownloadUrl, logFileTailUrl, useLogFileContent } from './log-files';
+import { logFileDownloadUrl, logFileTailUrl, useLogFileContent, type LogFileContentParams } from './log-files';
 import { logViewerDownloadUrl, logViewerTailUrl, useLogViewerContent } from './log-viewer';
 
 export type LogSource =
@@ -13,7 +12,7 @@ export type LogSource =
   /** 白名单目录内的绝对路径，可选远端主机（`/api/log-viewer`，权限 `system:log:view`） */
   | { kind: 'path'; path: string; hostId?: number | null };
 
-export type LogTailParams = LogTailQuery;
+export type LogTailParams = LogFileContentParams;
 
 /** 同一来源的稳定标识：用作组件 key，切换来源时重挂载工作台 */
 export function logSourceKey(source: LogSource): string {
@@ -33,13 +32,15 @@ export function logSourceName(source: LogSource): string {
  * 只有与来源类型匹配的一条启用，另一条不发请求。
  */
 export function useLogSourceContent(source: LogSource, params: LogTailParams, enabled = true) {
+  // 精确链路筛选只属于应用日志契约，远程/任意路径查看器继续使用通用读取参数。
+  const { traceId: _traceId, ...pathParams } = params;
   const fileQuery = useLogFileContent(
     source.kind === 'file' ? source.filename : undefined,
     params,
     enabled && source.kind === 'file',
   );
   const pathQuery = useLogViewerContent(
-    { path: source.kind === 'path' ? source.path : '', hostId: source.kind === 'path' ? source.hostId : undefined, ...params },
+    { path: source.kind === 'path' ? source.path : '', hostId: source.kind === 'path' ? source.hostId : undefined, ...pathParams },
     enabled && source.kind === 'path',
   );
   return source.kind === 'file' ? fileQuery : pathQuery;

@@ -40,29 +40,36 @@ const KIND_COLORS = {
 
 const TRACE_ID_RE = /^[\w-]{8,64}$/;
 
-/** 链路日志（复用日志文件接口按 traceId 全文过滤，支持切换近 7 天的日志文件） */
-function TraceLogsPanel({ traceId }: { traceId: string }) {
+/** 按日志的链路标识检索，历史链路优先打开节点发生日期的日志。 */
+function TraceLogsPanel({ traceId, nodes }: { traceId: string; nodes: TraceTimelineNode[] }) {
   const navigate = useNavigate();
   const filesQuery = useLogFiles();
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
-  // pino-roll 按天滚动：候选 = 近 7 个未压缩的 app 日志文件，默认最新
+  // pino-roll 按进程角色、日期轮转；归档仍可检索，不以最近修改时间代替链路发生时间。
   const appFiles = useMemo(() => {
     const files = filesQuery.data ?? [];
+    const dates = new Set(nodes.map((node) => node.ts.slice(0, 10)));
+    const requestDate = nodes.find((node) => node.kind === 'request')?.ts.slice(0, 10);
+    const rank = (name: string) => {
+      const match = /^app(?:-(api|worker))?\.(\d{4}-\d{2}-\d{2})\./.exec(name);
+      if (!match) return 0;
+      if (match[2] === requestDate && match[1] !== 'worker') return 2;
+      return dates.has(match[2]) ? 1 : 0;
+    };
     return files
-      .filter((f) => f.name.startsWith('app.') && !f.isGzip)
-      .sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt))
-      .slice(0, 7);
-  }, [filesQuery.data]);
+      .filter((f) => /^app(?:-(?:api|worker))?\./.test(f.name))
+      .sort((a, b) => rank(b.name) - rank(a.name) || b.modifiedAt.localeCompare(a.modifiedAt));
+  }, [filesQuery.data, nodes]);
   const activeFile = selectedFile && appFiles.some((f) => f.name === selectedFile)
     ? selectedFile
     : appFiles[0]?.name;
-  const contentQuery = useLogFileContent(activeFile, { lines: 5000, keyword: traceId }, Boolean(activeFile));
+  const contentQuery = useLogFileContent(activeFile, { lines: 5000, traceId }, Boolean(activeFile));
   const lines = contentQuery.data?.lines ?? [];
 
-  /** 跳日志文件页：按当前文件选中 + traceId 预填搜索，落到高亮的首个匹配行 */
+  /** 日志文件页继续使用相同的精确链路筛选，避免查询 URL 自身误命中。 */
   const handleViewInLogFiles = () => {
     if (!activeFile) return;
-    const params = new URLSearchParams({ file: activeFile, keyword: traceId });
+    const params = new URLSearchParams({ file: activeFile, traceId });
     navigate(`/system/log-files?${params.toString()}`);
   };
 
@@ -95,7 +102,7 @@ function TraceLogsPanel({ traceId }: { traceId: string }) {
       )}
       {activeFile && (
         <Text type="tertiary" size="small" style={{ display: 'block', marginTop: 6 }}>
-          检索范围：{activeFile} 最近 5000 行
+          检索范围：{activeFile} 全文，最多展示 5000 条链路日志
         </Text>
       )}
     </Spin>
@@ -345,10 +352,10 @@ export default function TracePage() {
                     ))}
                   </Timeline>
 
-                  {hasPermission('system:log:files') && (
+                  {!timelineQuery.isPending && !timelineQuery.isError && hasPermission('system:log:files') && (
                     <Collapse style={{ marginTop: 16 }} defaultActiveKey={['logs']}>
                       <Collapse.Panel header="应用日志（按链路 ID 过滤）" itemKey="logs">
-                        <TraceLogsPanel traceId={traceId} />
+                        <TraceLogsPanel key={traceId} traceId={traceId} nodes={nodes} />
                       </Collapse.Panel>
                     </Collapse>
                   )}

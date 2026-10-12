@@ -87,7 +87,7 @@ describe('链路追踪默认视图', () => {
 /** 跳转断言用的日志文件页替身：原样回显深链参数 */
 function LogFilesStub() {
   const [params] = useSearchParams();
-  return <div>{`file=${params.get('file')}&keyword=${params.get('keyword')}`}</div>;
+  return <div>{`file=${params.get('file')}&traceId=${params.get('traceId')}&keyword=${params.get('keyword')}`}</div>;
 }
 
 describe('链路追踪 → 日志文件跳转', () => {
@@ -113,7 +113,7 @@ describe('链路追踪 → 日志文件跳转', () => {
     );
   }
 
-  it('应用日志面板按 traceId 过滤，跳转携带 file + keyword', async () => {
+  it('应用日志面板精确查询链路，跳转继续携带 file + traceId 而非正文关键词', async () => {
     recorder.on('GET', TIMELINE_RE, {
       traceId: recentEntry.traceId,
       nodes: [{
@@ -135,13 +135,35 @@ describe('链路追踪 → 日志文件跳转', () => {
     renderWithRoutes(`/system/trace?traceId=${recentEntry.traceId}`);
 
     expect(await screen.findByText('POST /api/mp/fans/unblacklist')).toBeInTheDocument();
-    // 日志面板用 traceId 作服务端关键词过滤
+    // traceId 不再作全文关键词，避免匹配查询接口 URL 中的链路 ID。
     await waitFor(() => {
-      expect(recorder.urls('GET').some((u) => u.includes('/content') && u.includes(recentEntry.traceId))).toBe(true);
+      const url = recorder.urls('GET').find((u) => u.includes('/content'));
+      const params = new URLSearchParams(url?.split('?')[1]);
+      expect(params.get('traceId')).toBe(recentEntry.traceId);
+      expect(params.has('keyword')).toBe(false);
     });
     expect(await screen.findByText(logLine)).toBeInTheDocument();
 
     fireEvent.click(await screen.findByRole('button', { name: '在日志文件中查看' }));
-    expect(await screen.findByText(`file=${traceFile}&keyword=${recentEntry.traceId}`)).toBeInTheDocument();
+    expect(await screen.findByText(`file=${traceFile}&traceId=${recentEntry.traceId}&keyword=null`)).toBeInTheDocument();
+  });
+
+  it.each(['app', 'app-api', 'app-worker'])('优先检索链路发生日期的 %s 归档，而不是最近写入的查询日志', async (prefix) => {
+    const historyFile = `${prefix}.2026-09-27.1.log.gz`;
+    recorder.on('GET', TIMELINE_RE, {
+      traceId: recentEntry.traceId,
+      nodes: [{ kind: 'request', ts: '2026-09-27 10:00:00', title: 'POST /api/orders', status: 'success', durationMs: 1, refId: 1, parentRef: null, detail: {} }],
+    });
+    recorder.on('GET', '/api/log-files', [
+      { name: traceFile, size: 1024, modifiedAt: '2026-10-12 21:40:03', isGzip: false },
+      { name: historyFile, size: 1024, modifiedAt: '2026-09-27 23:59:00', isGzip: true },
+    ]);
+    recorder.on('GET', `/api/log-files/${historyFile}/content`, { lines: [logLine] });
+
+    renderWithRoutes(`/system/trace?traceId=${recentEntry.traceId}`);
+
+    expect(await screen.findByText(logLine)).toBeInTheDocument();
+    expect(recorder.countOf('GET', `/api/log-files/${historyFile}/content`)).toBe(1);
+    expect(recorder.countOf('GET', `/api/log-files/${traceFile}/content`)).toBe(0);
   });
 });

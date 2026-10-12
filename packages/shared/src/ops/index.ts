@@ -7,6 +7,7 @@
 export * from './constants';
 export * from './contracts';
 export * from './processes';
+export * from './log-trace';
 export * from './types';
 export * from './validation';
 export * from './permissions';

@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import readline from 'node:readline';
 import zlib from 'node:zlib';
+import { matchesLogTraceId } from '@zenith/shared/ops';
 
 /** 固定容量环形缓冲：流式读取时只保留最后 N 行，避免整文件驻留内存 */
 export class TailRingBuffer {
@@ -37,7 +38,9 @@ export class TailRingBuffer {
 export interface TailReadOptions {
   /** 大小写不敏感的子串过滤；空串 / 纯空格视为不过滤 */
   keyword?: string;
-  /** keyword 命中行前后额外保留的上下文行数（0-10，仅 keyword 存在时生效） */
+  /** 精确匹配 JSON 日志顶层 reqId，与 keyword 同时存在时取交集 */
+  traceId?: string;
+  /** 命中行前后额外保留的上下文行数（0-10，仅存在过滤条件时生效） */
   context?: number;
 }
 
@@ -47,7 +50,7 @@ function isBlank(line: string): boolean {
 }
 
 /**
- * 从任意行序列收集「末尾 N 行」（可选关键词 + 上下文过滤）。
+ * 从任意行序列收集「末尾 N 行」（可选关键词 / 链路归属 + 上下文过滤）。
  * 文件读取与远端命令输出都走这里，保证两端过滤语义一致。
  */
 export async function collectTailLines(
@@ -56,7 +59,8 @@ export async function collectTailLines(
   opts: TailReadOptions = {},
 ): Promise<string[]> {
   const keyword = opts.keyword?.trim().toLowerCase();
-  const context = keyword ? Math.max(0, Math.min(opts.context ?? 0, 10)) : 0;
+  const filtering = Boolean(keyword || opts.traceId);
+  const context = filtering ? Math.max(0, Math.min(opts.context ?? 0, 10)) : 0;
 
   const ring = new TailRingBuffer(n);
   // 上下文窗口：before 保留匹配前的候选行，afterRemaining 统计匹配后还需保留的行数
@@ -65,11 +69,11 @@ export async function collectTailLines(
 
   for await (const line of source) {
     if (isBlank(line)) continue;
-    if (!keyword) {
+    if (!filtering) {
       ring.push(line);
       continue;
     }
-    if (line.toLowerCase().includes(keyword)) {
+    if ((!keyword || line.toLowerCase().includes(keyword)) && (!opts.traceId || matchesLogTraceId(line, opts.traceId))) {
       for (const b of before) ring.push(b);
       before.length = 0;
       ring.push(line);
