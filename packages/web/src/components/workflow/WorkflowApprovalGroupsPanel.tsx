@@ -4,9 +4,10 @@ import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import {
   WORKFLOW_APPROVAL_SLOT_STATUS_LABELS, WORKFLOW_APPROVE_METHOD_LABELS,
   WORKFLOW_SIGN_GROUP_STATUS_LABELS, WORKFLOW_SIGN_POSITION_LABELS,
-  type WorkflowNodeActivation, type WorkflowSignGroup, type WorkflowTask, type WorkflowTaskConsult,
+  type WorkflowApprovalSlot, type WorkflowNodeActivation, type WorkflowSignGroup, type WorkflowTask, type WorkflowTaskConsult,
 } from '@zenith/shared/workflow';
 import { AppModal } from '@/components/AppModal';
+import DateTimeText from '@/components/DateTimeText';
 import { useReduceWorkflowSignGroup } from '@/hooks/queries/workflow-tasks';
 
 interface Props {
@@ -15,6 +16,12 @@ interface Props {
   /** 实例协办记录：按邀请任务折算到所属节点，挂在对应审批组下（找不到归属的不展示） */
   consults?: readonly WorkflowTaskConsult[];
   allowActions?: boolean;
+}
+
+/** 席位 / 协办行内时间：审批流转记录统一经 DateTimeText 渲染，无时间时不占位 */
+function SlotTime({ value }: Readonly<{ value: string | null }>) {
+  if (!value) return null;
+  return <Typography.Text type="tertiary" size="small"><DateTimeText value={value} /></Typography.Text>;
 }
 
 /** 直接展示服务端轮次/席位/组读模型，任务记录和委派建议不计作基础票。 */
@@ -37,6 +44,12 @@ export function WorkflowApprovalGroupsPanel({ activations, tasks = [], consults 
   }, [tasks, consults, activations]);
   const group = activations.flatMap((activation) => activation.signGroups).find((item) => item.id === groupId);
   const candidates = group?.slots.filter((slot) => slot.status === 'pending') ?? [];
+  // 席位时间取其当前任务：已处理显示处理时间，未处理显示任务到达时间（激活→创建兜底）
+  const taskById = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks]);
+  const slotTime = (slot: Pick<WorkflowApprovalSlot, 'currentTaskId'>): string | null => {
+    const task = slot.currentTaskId != null ? taskById.get(slot.currentTaskId) : undefined;
+    return task?.actionAt ?? task?.activatedAt ?? task?.createdAt ?? null;
+  };
   const openReduce = (item: WorkflowSignGroup) => {
     setGroupId(item.id);
     formApi.current?.setValues({ targetSlotIds: [], comment: '' });
@@ -65,10 +78,13 @@ export function WorkflowApprovalGroupsPanel({ activations, tasks = [], consults 
             <div style={{ marginTop: 8 }}>
               <Space wrap>
                 {activation.slots.filter((slot) => slot.origin === 'base').map((slot) => (
-                  <Tag key={slot.id}>
-                    {slot.assigneeName ?? `用户#${slot.currentAssigneeId ?? ''}`} · {WORKFLOW_APPROVAL_SLOT_STATUS_LABELS[slot.status]}
-                    {slot.mandatory ? ' · 必须处理' : ''}
-                  </Tag>
+                  <span key={slot.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    <Tag>
+                      {slot.assigneeName ?? `用户#${slot.currentAssigneeId ?? ''}`} · {WORKFLOW_APPROVAL_SLOT_STATUS_LABELS[slot.status]}
+                      {slot.mandatory ? ' · 必须处理' : ''}
+                    </Tag>
+                    <SlotTime value={slotTime(slot)} />
+                  </span>
                 ))}
               </Space>
             </div>
@@ -83,9 +99,14 @@ export function WorkflowApprovalGroupsPanel({ activations, tasks = [], consults 
                   )}
                 </Space>
                 <div style={{ marginTop: 6 }}>
-                  <Space wrap>{item.slots.map((slot) => <Tag key={slot.id}>
-                    {slot.assigneeName ?? `用户#${slot.currentAssigneeId ?? ''}`} · {WORKFLOW_APPROVAL_SLOT_STATUS_LABELS[slot.status]}
-                  </Tag>)}</Space>
+                  <Space wrap>{item.slots.map((slot) => (
+                    <span key={slot.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      <Tag>
+                        {slot.assigneeName ?? `用户#${slot.currentAssigneeId ?? ''}`} · {WORKFLOW_APPROVAL_SLOT_STATUS_LABELS[slot.status]}
+                      </Tag>
+                      <SlotTime value={slotTime(slot)} />
+                    </span>
+                  ))}</Space>
                 </div>
               </div>
             ))}
@@ -99,6 +120,7 @@ export function WorkflowApprovalGroupsPanel({ activations, tasks = [], consults 
                   {c.status === 'pending'
                     ? <Tag size="small" color="amber">待回复</Tag>
                     : <Tag size="small" color="green">已回复</Tag>}
+                  <SlotTime value={c.repliedAt ?? c.createdAt} />
                 </Space>
                 {c.question && <div style={{ marginTop: 2, color: 'var(--semi-color-text-2)' }}>问题：{c.question}</div>}
                 {c.opinion && <div style={{ marginTop: 2 }}>意见：{c.opinion}</div>}

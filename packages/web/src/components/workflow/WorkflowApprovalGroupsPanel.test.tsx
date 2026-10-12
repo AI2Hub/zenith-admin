@@ -60,3 +60,28 @@ describe('consult entries', () => {
     expect(screen.queryByText('协办')).not.toBeInTheDocument();
   });
 });
+
+describe('slot times', () => {
+  const approvedTask: WorkflowTask = {
+    id: 101, instanceId: 9, nodeKey: 'review', nodeName: '合同审核', nodeType: 'approve',
+    activationId: 'round-one', slotId: 11, taskKind: 'approval', waitReason: null,
+    activatedAt: '2026-10-02 08:00:00', signPosition: null, assigneeId: 1, assigneeName: '张主管',
+    status: 'approved', comment: null, actionAt: '2026-10-02 09:00:00', createdAt: '2026-10-02 08:00:00',
+  };
+  const pendingTask: WorkflowTask = {
+    ...approvedTask, id: 102, slotId: 12, assigneeId: 2, assigneeName: '赵法务',
+    status: 'pending', actionAt: null, activatedAt: '2026-10-02 08:30:00', createdAt: '2026-10-02 08:30:00',
+  };
+
+  it('已处理席位显示处理时间，未处理席位显示到达时间', () => {
+    render(<WorkflowApprovalGroupsPanel activations={[activation]} tasks={[approvedTask, pendingTask]} />);
+    expect(screen.getByText('2026-10-02 09:00:00')).toBeInTheDocument();
+    expect(screen.getByText('2026-10-02 08:30:00')).toBeInTheDocument();
+  });
+
+  it('无关联任务的席位不展示时间', () => {
+    render(<WorkflowApprovalGroupsPanel activations={[activation]} tasks={[]} />);
+    expect(screen.queryByText('2026-10-02 09:00:00')).not.toBeInTheDocument();
+    expect(screen.queryByText('2026-10-02 08:30:00')).not.toBeInTheDocument();
+  });
+});
