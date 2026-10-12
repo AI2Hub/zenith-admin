@@ -126,6 +126,9 @@ export type WikiReviewRecord = z.infer<typeof wikiReviewRecordSchema>;
 export const wikiDocReadReceiptsSchema = z.object({
   confirmed: z.array(z.object({ ...wikiUserRefSchema.shape, confirmedAt: z.string() })),
   unconfirmed: z.array(wikiUserRefSchema),
+  /** 空间成员之外的确认（公开空间中非成员也可确认，此处单独列出，不计入未确认分母） */
+  outsideConfirmed: z.array(z.object({ ...wikiUserRefSchema.shape, confirmedAt: z.string() })).optional()
+    .meta({ description: '空间成员之外的确认' }),
 }).meta({ id: 'WikiDocReadReceipts' });
 
 export type WikiDocReadReceipts = z.infer<typeof wikiDocReadReceiptsSchema>;

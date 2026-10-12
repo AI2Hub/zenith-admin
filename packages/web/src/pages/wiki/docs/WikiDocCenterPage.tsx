@@ -38,6 +38,11 @@ const { Text, Title } = Typography;
 /** 与 .md-preview-content 相同的阅读列（860px 居中 + 40px 水平内边距），附件与评论跟随正文对齐 */
 const READING_COLUMN_STYLE = { maxWidth: 860, margin: '0 auto', padding: '0 40px' } as const;
 
+/** 阅读视图剥离正文首个 H1：头部已渲染 doc.title，模板与种子正文多以 `# 标题` 开头 */
+function stripLeadingH1(content: string): string {
+  return content.replace(/^\s*#[^#\n].*(\r?\n|$)/, (match) => (match.endsWith('\n') ? '' : ''));
+}
+
 function toTreeData(nodes: WikiDocTreeNode[], renderNodeActions?: (node: WikiDocTreeNode) => React.ReactNode): TreeNodeData[] {
   return nodes.map((n) => ({
     key: String(n.id),
@@ -138,6 +143,7 @@ export default function WikiDocCenterPage() {
   const [selectedDocId, setSelectedDocId] = useState<number | undefined>(() => Number(searchParams.get('docId')) || undefined);
   const [showDetailOnNarrow, setShowDetailOnNarrow] = useState(false);
   const isNarrowLayoutRef = useRef(false);
+  const [isNarrowLayout, setIsNarrowLayout] = useState(false);
   const [masterTab, setMasterTab] = useState('tree');
   const [moveTarget, setMoveTarget] = useState<{ id: number; title: string } | null>(null);
   const [moveParentId, setMoveParentId] = useState<number | null>(null);
@@ -449,7 +455,7 @@ export default function WikiDocCenterPage() {
     } catch { /* storage unavailable */ }
   }, [effectiveSpaceId]);
 
-  // 首次进入空间：恢复上次展开状态，无记录则全展开
+  // 首次进入空间：恢复上次展开状态，无记录则全展开并即时落盘，保证持久化语义与文档一致
   useEffect(() => {
     if (effectiveSpaceId === undefined || !treeQuery.data) return;
     if (expandInitSpaceRef.current === effectiveSpaceId) return;
@@ -459,12 +465,18 @@ export default function WikiDocCenterPage() {
       const raw = localStorage.getItem(`wiki-doc-tree-expanded:${effectiveSpaceId}`);
       stored = raw ? (JSON.parse(raw) as string[]) : null;
     } catch { stored = null; }
-    setExpandedKeys(stored ?? treeBranchKeys);
+    const next = stored ?? treeBranchKeys;
+    setExpandedKeys(next);
+    if (stored === null && next.length > 0) {
+      try {
+        localStorage.setItem(`wiki-doc-tree-expanded:${effectiveSpaceId}`, JSON.stringify(next));
+      } catch { /* storage unavailable */ }
+    }
   }, [effectiveSpaceId, treeQuery.data, treeBranchKeys]);
 
-  // 选中文档自动展开其祖先链（深链、正文内链、搜索/收藏/最近选中后目录树可定位）
+  // 选中文档自动展开其祖先链（深链、正文内链、搜索/收藏/最近选中后目录树可定位），并持久化
   useEffect(() => {
-    if (selectedDocId === undefined) return;
+    if (selectedDocId === undefined || effectiveSpaceId === undefined) return;
     const ancestors: string[] = [];
     let cursor = treeIndex.parentOf.get(selectedDocId) ?? null;
     while (cursor !== null) {
@@ -472,8 +484,10 @@ export default function WikiDocCenterPage() {
       cursor = treeIndex.parentOf.get(cursor) ?? null;
     }
     if (ancestors.length === 0) return;
-    setExpandedKeys((keys) => (ancestors.every((k) => keys.includes(k)) ? keys : [...new Set([...keys, ...ancestors])]));
-  }, [selectedDocId, treeIndex]);
+    const missing = ancestors.filter((k) => !expandedKeys.includes(k));
+    if (missing.length === 0) return;
+    applyExpandedKeys([...expandedKeys, ...missing]);
+  }, [selectedDocId, treeIndex, effectiveSpaceId, expandedKeys, applyExpandedKeys]);
 
   const isAllExpanded = treeBranchKeys.length > 0 && treeBranchKeys.every((k) => expandedKeys.includes(k));
 
@@ -507,9 +521,9 @@ export default function WikiDocCenterPage() {
     moveMutation.mutate({ params: { id: dragId }, body: { parentId, index } }, {
       onSuccess: () => {
         Toast.success('已移动');
-        // 移入的目标层级保持展开，落点立即可见
-        if (parentId !== null) {
-          setExpandedKeys((keys) => (keys.includes(String(parentId)) ? keys : [...keys, String(parentId)]));
+        // 移入的目标层级保持展开，落点立即可见（并持久化）
+        if (parentId !== null && !expandedKeys.includes(String(parentId))) {
+          applyExpandedKeys([...expandedKeys, String(parentId)]);
         }
       },
     });
@@ -541,8 +555,8 @@ export default function WikiDocCenterPage() {
     detailScrollRef.current?.scrollTo({ top: 0 });
   }, [selectedDocId]);
 
-  // 正文大纲（TOC）：标题少于 2 个不展示
-  const outline = useMemo(() => (doc?.content ? extractMarkdownHeadings(doc.content) : []), [doc?.content]);
+  // 正文大纲（TOC）：标题少于 2 个不展示；与阅读区一致，剥离与头部重复的首个 H1
+  const outline = useMemo(() => (doc?.content ? extractMarkdownHeadings(stripLeadingH1(doc.content)) : []), [doc?.content]);
   const outlineMinLevel = useMemo(() => Math.min(...outline.map((h) => h.level), 6), [outline]);
 
   function scrollToHeading(heading: MarkdownHeading) {
@@ -651,7 +665,7 @@ export default function WikiDocCenterPage() {
             />
           </Tooltip>
           {canEditDoc && doc.status !== 'pending' ? (
-            <Button icon={<Pencil size={14} />} onClick={() => navigate(`/wiki/docs/edit?id=${doc.id}`)}>编辑</Button>
+            <Button icon={<Pencil size={14} />} onClick={() => navigate(`/wiki/docs/edit?id=${doc.id}&spaceId=${doc.spaceId}`)}>编辑</Button>
           ) : null}
           {canSubmitDoc && (doc.status === 'draft' || doc.status === 'rejected') ? (
             <Button
@@ -745,7 +759,7 @@ export default function WikiDocCenterPage() {
       {/* 正文与评论 */}
       <div ref={detailScrollRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
         <div onClickCapture={handleContentClick}>
-          <MarkdownPreviewPanel content={doc.content ?? ''} anchorHeadings style={{ height: 'auto', overflowY: 'visible' }} />
+          <MarkdownPreviewPanel content={stripLeadingH1(doc.content ?? '')} anchorHeadings style={{ height: 'auto', overflowY: 'visible' }} />
         </div>
 
         {doc.attachments?.length ? (
@@ -881,6 +895,7 @@ export default function WikiDocCenterPage() {
         onBack={() => setShowDetailOnNarrow(false)}
         onResponsiveChange={(narrow) => {
           isNarrowLayoutRef.current = narrow;
+          setIsNarrowLayout(narrow);
           if (!narrow) setSelectedDocId((current) => current ?? treeDocIds[0]);
         }}
         master={(
@@ -967,7 +982,8 @@ export default function WikiDocCenterPage() {
                   ) : (
                     <Tree
                       treeData={treeData}
-                      value={selectedDocId !== undefined ? String(selectedDocId) : undefined}
+                      // 窄屏 master 视图下不维持选中高亮：选中即进入详情，避免选中态与详情态不一致
+                      value={isNarrowLayout && !showDetailOnNarrow ? undefined : selectedDocId !== undefined ? String(selectedDocId) : undefined}
                       onChange={(v) => selectDoc(Number(v))}
                       filterTreeNode={(input, _node, data) => textMatches(
                         String((data as { titleText?: unknown } | undefined)?.titleText ?? ''),
@@ -1083,9 +1099,9 @@ export default function WikiDocCenterPage() {
             {
               onSuccess: () => {
                 Toast.success('移动成功');
-                // 移入的目标层级保持展开，落点立即可见
-                if (moveParentId !== null) {
-                  setExpandedKeys((keys) => (keys.includes(String(moveParentId)) ? keys : [...keys, String(moveParentId)]));
+                // 移入的目标层级保持展开，落点立即可见（并持久化）
+                if (moveParentId !== null && !expandedKeys.includes(String(moveParentId))) {
+                  applyExpandedKeys([...expandedKeys, String(moveParentId)]);
                 }
                 setMoveTarget(null);
               },
@@ -1116,6 +1132,9 @@ export default function WikiDocCenterPage() {
       >
         <Spin spinning={receiptsQuery.isFetching}>
           <div style={{ maxHeight: '50vh', overflowY: 'auto' }}>
+            <Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 8 }}>
+              应确认范围为空间成员；空间成员之外的确认单独计入已确认，不计入未确认分母。
+            </Text>
             <Text strong>已确认（{receiptsQuery.data?.confirmed.length ?? 0}）</Text>
             <div style={{ margin: '8px 0 16px' }}>
               {(receiptsQuery.data?.confirmed ?? []).map((r) => (
@@ -1126,6 +1145,19 @@ export default function WikiDocCenterPage() {
               ))}
               {receiptsQuery.data?.confirmed.length === 0 ? <Text type="tertiary">还没有人确认</Text> : null}
             </div>
+            {(receiptsQuery.data?.outsideConfirmed?.length ?? 0) > 0 ? (
+              <div style={{ margin: '0 0 16px' }}>
+                <Text strong>成员外确认（{receiptsQuery.data?.outsideConfirmed?.length ?? 0}）</Text>
+                <div style={{ marginTop: 8 }}>
+                  {(receiptsQuery.data?.outsideConfirmed ?? []).map((r) => (
+                    <div key={r.userId} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
+                      <Text>{r.nickname}</Text>
+                      <Text type="tertiary" size="small">{r.confirmedAt}</Text>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
             <Text strong>未确认（{receiptsQuery.data?.unconfirmed.length ?? 0}）</Text>
             <div style={{ marginTop: 8 }}>
               {(receiptsQuery.data?.unconfirmed ?? []).map((r) => (
