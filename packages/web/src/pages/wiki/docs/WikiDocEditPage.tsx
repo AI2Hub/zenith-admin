@@ -215,9 +215,10 @@ export default function WikiDocEditPage() {
     });
   }
 
-  /** 离开编辑页：有历史可回退，否则显式回到文档中心并带上空间/文档上下文 */
+  /** 离开编辑页：有站内历史可回退，否则显式回到文档中心并带上空间/文档上下文 */
   function leave() {
-    if (window.history.length > 1) {
+    // 新标签页的 about:blank 也占一条历史，直接用 >1 会退到白屏；>2 才视为有可回退的站内页
+    if (window.history.length > 2) {
       navigate(-1);
       return;
     }
