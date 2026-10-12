@@ -122,12 +122,12 @@ function ActivityPanel({ canMaintain }: Readonly<{ canMaintain: boolean }>) {
     } },
     // 容纳 "idle in transaction"；"idle in transaction (aborted)" 等更长状态截断显示
     { title: '状态', dataIndex: 'state', width: 180, render: (v: string | null) => v ? renderEllipsisTag(v, stateColor(v)) : renderEmpty() },
-    { title: '用户 / 应用', width: 160, render: (_: unknown, r) => (
-      <div style={{ minWidth: 0 }}>
-        {renderEllipsis(r.username)}
-        <Text type="tertiary" size="small" ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%', display: 'block' }}>{r.applicationName ?? r.backendType ?? ''}</Text>
-      </div>
-    )},
+    // 用户与应用同格单行展示（`postgres / postgres.js`），超宽截断 + Tooltip，不换行
+    { title: '用户 / 应用', width: 210, render: (_: unknown, r) => {
+      const app = r.applicationName ?? r.backendType;
+      const text = r.username && app ? `${r.username} / ${app}` : (r.username ?? app);
+      return renderEllipsis(text);
+    } },
     // client_addr 带掩码（172.28.0.1/32）整行放得下；IPv6 截断显示
     { title: '来源', dataIndex: 'clientAddr', width: 160, render: (v: string | null) => v ? renderEllipsis(v) : <Text type="tertiary">本地</Text> },
     { title: '耗时', dataIndex: 'querySeconds', width: 90, align: 'right', render: (v: number | null) => {
