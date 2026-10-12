@@ -1646,6 +1646,98 @@
   padding: 0 10px;
 }
 
+/* ── 标签栏放底部：内容区在上、标签栏在下 ── */
+.admin-tabs-bar--bottom {
+  border-top: 1px solid var(--semi-color-border);
+}
+
+.admin-tabs-bar--bottom[data-tab-style="card"],
+.admin-tabs-bar--bottom[data-tab-style="chrome"] {
+  border-top: 1px solid var(--semi-color-border);
+  border-bottom: none;
+}
+
+/* 激活指示线贴内容一侧：默认线条从底部移到顶部 */
+.admin-tabs-bar--bottom .admin-tab-item--active::after {
+  top: 0;
+  bottom: auto;
+  border-radius: 0 0 var(--semi-border-radius-small) var(--semi-border-radius-small);
+}
+
+.admin-tabs-bar--bottom[data-tab-style="dot"] .admin-tab-item--active::after,
+.admin-tabs-bar--bottom[data-tab-style="shortline"] .admin-tab-item--active::after {
+  top: 2px;
+  bottom: auto;
+}
+
+/* 顶线风格保持外侧描边语义：移到栏底部 */
+.admin-tabs-bar--bottom[data-tab-style="topline"] .admin-tab-item--active::after {
+  top: auto;
+  bottom: 0;
+}
+
+/* 卡片风格：开口朝上与内容融合 */
+.admin-tabs-bar--bottom[data-tab-style="card"] .admin-tab-item {
+  margin-top: -1px;
+  margin-bottom: 0;
+  border: 1px solid transparent;
+  border-top: none;
+  border-radius: 0 0 var(--semi-border-radius-medium) var(--semi-border-radius-medium);
+}
+
+.admin-tabs-bar--bottom[data-tab-style="card"] .admin-tab-item--active {
+  border-color: var(--semi-color-border);
+}
+
+/* Chrome 风格：连体圆弧翻转朝上 */
+.admin-tabs-bar--bottom[data-tab-style="chrome"] .admin-tab-item--active {
+  margin-top: 0;
+  margin-bottom: 4px;
+  padding-top: 9px;
+  padding-bottom: 5px;
+  /* stylelint-disable-next-line declaration-property-value-disallowed-list -- Chrome 造型值：顶部规则 10px 10px 0 0 的垂直翻转，与径向渐变圆弧半径 10px 耦合 */
+  border-radius: 0 0 10px 10px;
+}
+
+.admin-tabs-bar--bottom[data-tab-style="chrome"] .admin-tabs-bar__scroll .admin-tab-item--active::before,
+.admin-tabs-bar--bottom[data-tab-style="chrome"] .admin-tabs-bar__scroll .admin-tab-item--active::after {
+  top: 0;
+  bottom: auto;
+}
+
+.admin-tabs-bar--bottom[data-tab-style="chrome"] .admin-tabs-bar__scroll .admin-tab-item--active::before {
+  background: radial-gradient(circle at 0 100%, transparent 9.5px, var(--semi-color-primary-light-default) 10px);
+}
+
+.admin-tabs-bar--bottom[data-tab-style="chrome"] .admin-tabs-bar__scroll .admin-tab-item--active::after {
+  background: radial-gradient(circle at 100% 100%, transparent 9.5px, var(--semi-color-primary-light-default) 10px);
+}
+
+/* 紧凑模式 + 底部：保持融合所需的负边距与对称内边距 */
+.admin-tabs-bar--bottom.admin-tabs-bar--compact[data-tab-style="card"] .admin-tab-item {
+  margin-top: -1px;
+  margin-bottom: 0;
+  padding: 6px 10px;
+}
+
+.admin-tabs-bar--bottom.admin-tabs-bar--compact[data-tab-style="chrome"] .admin-tab-item--active {
+  padding-top: 7px;
+  padding-bottom: 4px;
+}
+
+/* 自动隐藏：底部模式向上收起，把手移到顶部 */
+@media (hover: hover) {
+  .admin-tabs-bar--bottom.admin-tabs-bar--autohide:not(:hover):not(:focus-within) {
+    margin-top: -8px;
+    margin-bottom: 0;
+    border-top-color: transparent;
+  }
+  .admin-tabs-bar--bottom.admin-tabs-bar--autohide::after {
+    top: 2px;
+    bottom: auto;
+  }
+}
+
 .admin-tab-item__icon {
   display: inline-flex;
   align-items: center;

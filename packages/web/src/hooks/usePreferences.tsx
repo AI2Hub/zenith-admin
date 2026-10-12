@@ -7,7 +7,7 @@ export {
   isScheduleTime, isScheduledDarkNow, msUntilScheduleBoundary,
 } from '@zenith/shared/preferences';
 export type {
-  NavLayout, TabAnimation, TabStyle, TabSize, TabType, TableSizePreference, RouteAnimation,
+  NavLayout, TabAnimation, TabStyle, TabSize, TabType, TabsPosition, TableSizePreference, RouteAnimation,
   SidebarToggleIconPosition, BorderRadiusPreference, LoadingStyle, UiScale, FontFamilyPreference,
   TimeDisplay, DesktopNotificationContent, WeekStart, DarkSurfaceTone, TopbarClockMode, DoubleRailStyle,
   ScheduledDarkMode, TerminalFavorite, TerminalTabPosition, TerminalPreferences, UserPreferences,

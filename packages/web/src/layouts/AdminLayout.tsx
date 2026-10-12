@@ -834,6 +834,51 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
   const getSidebarPopupContainer = useSectionDarkPopupContainer(sidebarDark, sectionDarkVars);
   const getHeaderPopupContainer = useSectionDarkPopupContainer(headerDark, sectionDarkVars);
 
+  const tabsAtBottom = (preferences.tabsPosition ?? 'top') === 'bottom';
+  const tabsBarNode = preferences.enableTabs && tabs.length > 0 ? (
+    <div ref={tabsBarRef} className={`admin-tabs-bar${preferences.compactTabs ? ' admin-tabs-bar--compact' : ''}${preferences.showBreadcrumb ? ' admin-tabs-bar--with-breadcrumb' : ''}${preferences.autoHideTabs ? ' admin-tabs-bar--autohide' : ''}${reduceMotion ? ' admin-tabs-bar--autohide-no-motion' : ''}${tabsAtBottom ? ' admin-tabs-bar--bottom' : ''}`} data-tab-animation={reduceMotion ? 'none' : preferences.tabAnimation} data-tab-style={preferences.tabStyle ?? 'line'}>
+      <div ref={tabsScrollRef} className="admin-tabs-bar__scroll">
+      {tabs.map((tab, tabIndex) => {
+          const favMenuId = tabFavMenuIds?.[tabIndex] ?? null;
+          return (
+            <TabBarItem
+              key={tab.key}
+              tab={tab}
+              actions={tabActions}
+              isActive={tab.key === activeKey}
+              isEntering={enteringTabKeys.has(tab.key)}
+              isExiting={exitingTabKeys.has(tab.key)}
+              isDragging={dragSrcKey.current === tab.key}
+              isDragOver={dragOverKey === tab.key}
+              hasClosableLeft={tabClosableFlags[tabIndex].hasClosableLeft}
+              hasClosableRight={tabClosableFlags[tabIndex].hasClosableRight}
+              hasClosableOthers={tabClosableFlags[tabIndex].hasClosableOthers}
+              hasAnyClosable={tabClosableFlags[tabIndex].hasAnyClosable}
+              favMenuId={favMenuId}
+              faved={favMenuId !== null && isFavorite(favMenuId)}
+              showIcon={!!preferences.showTabIcon}
+              iconName={tab.icon ?? resolveIcon(tab.key)}
+              hoverTitle={tabHoverTitles[tabIndex]}
+              isContentFullscreen={isContentFullscreen}
+              innerRef={tab.key === activeKey ? activeTabRef : undefined}
+            />
+          );
+      })}
+      </div>
+      {(preferences.showTabSwitcher ?? true) && (
+      <TabSwitcher
+        tabs={tabs}
+        activeKey={activeKey}
+        resolveIcon={resolveIcon}
+        onNavigate={handleTabChange}
+        onClose={(key) => handleTabClose(key)}
+        recentlyClosed={recentlyClosed}
+        onReopen={handleTabReopen}
+      />
+      )}
+    </div>
+  ) : null;
+
   const adminLayoutEl = (
     <div
       className={layoutClassName}
@@ -976,50 +1021,8 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
               {headerActions}
             </header>
           )}
-          {/* Tabs bar — shown above breadcrumb for all layouts */}
-          {preferences.enableTabs && tabs.length > 0 && (
-            <div ref={tabsBarRef} className={`admin-tabs-bar${preferences.compactTabs ? ' admin-tabs-bar--compact' : ''}${preferences.showBreadcrumb ? ' admin-tabs-bar--with-breadcrumb' : ''}${preferences.autoHideTabs ? ' admin-tabs-bar--autohide' : ''}${reduceMotion ? ' admin-tabs-bar--autohide-no-motion' : ''}`} data-tab-animation={reduceMotion ? 'none' : preferences.tabAnimation} data-tab-style={preferences.tabStyle ?? 'line'}>
-              <div ref={tabsScrollRef} className="admin-tabs-bar__scroll">
-              {tabs.map((tab, tabIndex) => {
-                  const favMenuId = tabFavMenuIds?.[tabIndex] ?? null;
-                  return (
-                    <TabBarItem
-                      key={tab.key}
-                      tab={tab}
-                      actions={tabActions}
-                      isActive={tab.key === activeKey}
-                      isEntering={enteringTabKeys.has(tab.key)}
-                      isExiting={exitingTabKeys.has(tab.key)}
-                      isDragging={dragSrcKey.current === tab.key}
-                      isDragOver={dragOverKey === tab.key}
-                      hasClosableLeft={tabClosableFlags[tabIndex].hasClosableLeft}
-                      hasClosableRight={tabClosableFlags[tabIndex].hasClosableRight}
-                      hasClosableOthers={tabClosableFlags[tabIndex].hasClosableOthers}
-                      hasAnyClosable={tabClosableFlags[tabIndex].hasAnyClosable}
-                      favMenuId={favMenuId}
-                      faved={favMenuId !== null && isFavorite(favMenuId)}
-                      showIcon={!!preferences.showTabIcon}
-                      iconName={tab.icon ?? resolveIcon(tab.key)}
-                      hoverTitle={tabHoverTitles[tabIndex]}
-                      isContentFullscreen={isContentFullscreen}
-                      innerRef={tab.key === activeKey ? activeTabRef : undefined}
-                    />
-                  );
-              })}
-              </div>
-              {(preferences.showTabSwitcher ?? true) && (
-              <TabSwitcher
-                tabs={tabs}
-                activeKey={activeKey}
-                resolveIcon={resolveIcon}
-                onNavigate={handleTabChange}
-                onClose={(key) => handleTabClose(key)}
-                recentlyClosed={recentlyClosed}
-                onReopen={handleTabReopen}
-              />
-              )}
-            </div>
-          )}
+          {/* Tabs bar — 顶部模式时在内容区上方，底部模式时移到内容区下方 */}
+          {!tabsAtBottom && tabsBarNode}
           <div className="admin-content" style={{ overflow: 'auto', position: 'relative' }}>
             <RouteErrorBoundary>
               <TabsMetaContext.Provider value={tabsMetaValue}>
@@ -1046,6 +1049,7 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
               />
             )}
           </div>
+          {tabsAtBottom && tabsBarNode}
 
           {entityNavigation && <Suspense fallback={null}><EntityRelationBackButton /></Suspense>}
 

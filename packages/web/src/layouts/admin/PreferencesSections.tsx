@@ -3,7 +3,7 @@ import { Button, Dropdown, Input, InputNumber, Popover, Radio, RadioGroup, Selec
 import { ChevronDown, ChevronLeft, ChevronRight, ClipboardPaste, Copy, Download, Info } from 'lucide-react';
 import { LOADING_STYLE_OPTIONS, DARK_SURFACE_TONE_OPTIONS, UI_SCALE_OPTIONS, FONT_FAMILY_OPTIONS } from '@/hooks/usePreferences';
 import { clearAllListFilterSnapshots } from '@/lib/list-filter-memory';
-import type { NavLayout, TableSizePreference, RouteAnimation, BorderRadiusPreference, ScheduledDarkMode, TabStyle, TabSize, TabType, DarkSurfaceTone, TopbarClockMode, UserPreferences, UiScale, FontFamilyPreference, WeekStart, TimeDisplay, DoubleRailStyle } from '@/hooks/usePreferences';
+import type { NavLayout, TableSizePreference, RouteAnimation, BorderRadiusPreference, ScheduledDarkMode, TabStyle, TabSize, TabType, TabsPosition, DarkSurfaceTone, TopbarClockMode, UserPreferences, UiScale, FontFamilyPreference, WeekStart, TimeDisplay, DoubleRailStyle } from '@/hooks/usePreferences';
 import { isScheduleTime } from '@/hooks/usePreferences';
 import type { ThemeMode } from '@/hooks/useTheme';
 import { THEME_COLOR_PRESETS } from '@/lib/theme-color';
@@ -1264,6 +1264,26 @@ export function PrefsTabsSection({
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span>显示标签切换器</span>
         <Switch checked={preferences.showTabSwitcher ?? true} onChange={(v) => setPreferences({ showTabSwitcher: v })} />
+      </div>
+      </PreferenceControl>
+      )}
+      {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['标签栏位置', '页签位置', '底部', '顶部', 'bottom', '标签页', '标签']) && (
+      <PreferenceControl path="tabsPosition">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          标签栏位置
+          <Tooltip content="顶部：标签栏紧跟顶栏；底部：标签栏固定在内容区下方" position="right">
+            <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+          </Tooltip>
+        </span>
+        <RadioGroup
+          type="button"
+          value={preferences.tabsPosition ?? 'top'}
+          onChange={(e) => setPreferences({ tabsPosition: e.target.value as TabsPosition })}
+        >
+          <Radio value="top">顶部</Radio>
+          <Radio value="bottom">底部</Radio>
+        </RadioGroup>
       </div>
       </PreferenceControl>
       )}
