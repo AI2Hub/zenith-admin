@@ -38,6 +38,12 @@ export interface MockWikiDoc extends Omit<WikiDoc, 'tags'> {
   content: string;
 }
 
+/** 演示时间换算：updatedDaysAgo(N) → N 天前（与服务端种子一致，供「长期未更新」清单） */
+function demoUpdatedAt(d: { updatedDaysAgo?: number }): string {
+  if (!d.updatedDaysAgo) return now;
+  return mockDateTime(Date.now() - d.updatedDaysAgo * 24 * 60 * 60 * 1000);
+}
+
 export const mockWikiDocs: MockWikiDoc[] = SEED_WIKI_DOCS.map((d, i) => ({
   id: d.id,
   spaceId: d.spaceId,
@@ -49,23 +55,23 @@ export const mockWikiDocs: MockWikiDoc[] = SEED_WIKI_DOCS.map((d, i) => ({
   rejectReason: null,
   sort: d.sort,
   isPinned: d.isPinned,
-  viewCount: (6 - i) * 12,
+  viewCount: (SEED_WIKI_DOCS.length - i) * 12,
   currentVersion: 1,
   revision: 1,
   requireReadReceipt: false,
-  ownerId: 1,
-  ownerName: '管理员',
-  expireAt: null,
-  reviewCycleDays: null,
-  nextReviewAt: null,
-  isArchived: false,
+  ownerId: d.ownerId ?? null,
+  ownerName: d.ownerId ? '管理员' : null,
+  expireAt: d.expireAt ?? null,
+  reviewCycleDays: d.reviewCycleDays ?? null,
+  nextReviewAt: d.nextReviewAt ?? null,
+  isArchived: d.isArchived ?? false,
   publishedAt: d.status === 'published' ? now : null,
   deletedAt: null,
   tagIds: [...d.tagIds],
   authorName: '管理员',
   createdBy: 1,
   createdAt: now,
-  updatedAt: now,
+  updatedAt: demoUpdatedAt(d),
 }));
 
 export const mockWikiDocVersions: WikiDocVersion[] = SEED_WIKI_DOCS.map((d, i) => ({

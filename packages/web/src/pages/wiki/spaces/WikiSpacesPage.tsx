@@ -188,7 +188,7 @@ export default function WikiSpacesPage() {
         </Row>
       </EditFormModal>
 
-      {/* 成员授权抽屉 */}
+      {/* 成员授权抽屉：内容按空间 key 隔离并延后挂载，避免与编辑弹窗同帧切换时的卸载告警 */}
       <SideSheet
         title={`空间成员 · ${memberSpace?.name ?? ''}`}
         visible={!!memberSpace}
@@ -197,6 +197,8 @@ export default function WikiSpacesPage() {
         width={720}
         footer={<ModalFooter onCancel={() => setMemberSpace(null)} onOk={handleSaveMembers} okText="保存" loading={saveMembersMutation.isPending} />}
       >
+        {memberSpace ? (
+        <div key={memberSpace.id}>
         <Spin spinning={membersQuery.isFetching || usersQuery.isPending}>
           <UserTransferSelect
             dataSource={allUsers}
@@ -230,6 +232,8 @@ export default function WikiSpacesPage() {
             </div>
           ) : null}
         </Spin>
+        </div>
+        ) : null}
       </SideSheet>
     </div>
   );

@@ -9,7 +9,7 @@ import { mock } from '@/mocks/utils/contract';
 import { removeByIds, requireItem } from '@/mocks/utils/crud';
 import { badRequest, notFound } from '@/mocks/utils/handlers';
 import { removeWhere } from '@/mocks/utils/array';
-import { mockDateTime } from '@/mocks/utils/date';
+import { mockDateTime, mockDateTimeOffset } from '@/mocks/utils/date';
 import { includesKeyword, filterByKeyword } from '@/mocks/utils/filter';
 import {
   getNextWikiCommentId,
@@ -661,6 +661,7 @@ const statsHandlers = [
 
   mock(wikiStatsContract.ops, ({ ok }) => {
     const active = mockWikiDocs.filter((d) => !d.deletedAt);
+    const opsNow = mockDateTime();
     return ok({
       createdTrend: [{ date: mockDateTime().slice(0, 10), count: active.length }],
       spaceDistribution: mockWikiSpaces.map((s) => ({
@@ -672,8 +673,8 @@ const statsHandlers = [
       approvedCount30d: mockReviewRecords.filter((r) => r.action === 'approve').length,
       rejectedCount30d: mockReviewRecords.filter((r) => r.action === 'reject').length,
       pendingBacklog: active.filter((d) => d.status === 'pending').length,
-      expiredCount: 0,
-      reviewDueCount: 0,
+      expiredCount: active.filter((d) => !d.isArchived && d.expireAt != null && d.expireAt <= opsNow).length,
+      reviewDueCount: active.filter((d) => !d.isArchived && d.nextReviewAt != null && d.nextReviewAt <= opsNow).length,
       noOwnerCount: active.filter((d) => d.ownerId == null).length,
       archivedCount: active.filter((d) => d.isArchived).length,
     });
@@ -685,8 +686,14 @@ const statsHandlers = [
 const governanceHandlers = [
   mock(wikiGovernanceContract.listDocs, ({ query, ok, paginate }) => {
     let list = mockWikiDocs.filter((d) => !d.deletedAt);
+    const nowText = mockDateTime();
+    // 演示时间比较：mockDateTime 与种子日期同为 YYYY-MM-DD HH:mm:ss，可直接按字符串比较
+    const staleBefore = mockDateTimeOffset(-180 * 24 * 60 * 60 * 1000);
     switch (query.kind) {
       case 'all': list = list.filter((d) => !d.isArchived); break;
+      case 'expired': list = list.filter((d) => !d.isArchived && d.expireAt != null && d.expireAt <= nowText); break;
+      case 'review-due': list = list.filter((d) => !d.isArchived && d.nextReviewAt != null && d.nextReviewAt <= nowText); break;
+      case 'stale': list = list.filter((d) => !d.isArchived && d.status === 'published' && d.updatedAt < staleBefore); break;
       case 'archived': list = list.filter((d) => d.isArchived); break;
       case 'no-owner': list = list.filter((d) => !d.isArchived && d.ownerId == null); break;
       case 'draft-backlog': list = list.filter((d) => !d.isArchived && d.status === 'draft'); break;

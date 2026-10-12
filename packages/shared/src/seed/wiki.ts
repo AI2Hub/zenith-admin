@@ -48,7 +48,28 @@ export const SEED_WIKI_TEMPLATES = [
   },
 ];
 
-export const SEED_WIKI_DOCS = [
+/** 知识文档种子行：治理演示字段（有效期 / 复审 / 归档 / 陈旧天数）均为可选 */
+export interface SeedWikiDoc {
+  id: number;
+  spaceId: number;
+  parentId: number | null;
+  title: string;
+  summary: string;
+  status: 'draft' | 'pending' | 'published' | 'rejected';
+  sort: number;
+  isPinned: boolean;
+  tagIds: number[];
+  content: string;
+  ownerId?: number;
+  expireAt?: string;
+  reviewCycleDays?: number;
+  nextReviewAt?: string;
+  isArchived?: boolean;
+  /** 落库时换算为 updatedAt = now - N 天（演示「长期未更新」） */
+  updatedDaysAgo?: number;
+}
+
+export const SEED_WIKI_DOCS: SeedWikiDoc[] = [
   {
     id: 1,
     spaceId: 1,
@@ -121,6 +142,65 @@ export const SEED_WIKI_DOCS = [
     tagIds: [5],
     content: '# 常见问题 FAQ\n\n> 整理中，欢迎补充。\n\n## 本地启动失败？\n\n检查 Node 版本与 .env 配置。\n\n## 数据库连接超时？\n\n确认 VPN 已连接。\n',
   },
+  // ─── 内容治理演示数据：让已过期 / 待复审 / 长期未更新 / 已归档清单在干净环境下可见 ──
+  {
+    id: 7,
+    spaceId: 1,
+    parentId: null,
+    title: '旧版考勤制度（已过期）',
+    summary: '有效期已过的历史制度版本，保留供追溯',
+    status: 'published' as const,
+    sort: 4,
+    isPinned: false,
+    tagIds: [2],
+    ownerId: 1,
+    expireAt: '2025-06-30 23:59:59',
+    content: '# 旧版考勤制度\n\n本版本已过期，仅供追溯，请以现行考勤与休假制度为准。\n',
+  },
+  {
+    id: 8,
+    spaceId: 1,
+    parentId: null,
+    title: '信息安全规范（待复审）',
+    summary: '复审时间已到，需要负责人重新确认',
+    status: 'published' as const,
+    sort: 5,
+    isPinned: false,
+    tagIds: [2],
+    ownerId: 1,
+    reviewCycleDays: 90,
+    nextReviewAt: '2025-09-01 00:00:00',
+    content: '# 信息安全规范\n\n## 密码要求\n\n长度不少于 12 位，包含大小写字母与数字。\n\n## 设备管理\n\n办公电脑必须开启磁盘加密与锁屏。\n',
+  },
+  {
+    id: 9,
+    spaceId: 2,
+    parentId: null,
+    title: '旧架构说明（长期未更新）',
+    summary: '超过 180 天未更新的沉睡文档',
+    status: 'published' as const,
+    sort: 4,
+    isPinned: false,
+    tagIds: [4],
+    ownerId: 1,
+    // 落库 / Mock 时换算为 updatedAt = now - 200 天，进入「长期未更新」清单
+    updatedDaysAgo: 200,
+    content: '# 旧架构说明\n\n> 本文档已长期未更新，内容可能与现状不符。\n\n## 历史架构\n\n单体应用 + 直连数据库。\n',
+  },
+  {
+    id: 10,
+    spaceId: 2,
+    parentId: null,
+    title: '下线系统交接记录（已归档）',
+    summary: '已归档的历史交接材料',
+    status: 'published' as const,
+    sort: 5,
+    isPinned: false,
+    tagIds: [4],
+    ownerId: 1,
+    isArchived: true,
+    content: '# 下线系统交接记录\n\n旧报表系统已下线，本文档归档备查。\n',
+  },
 ];
 
 /** 演示评论（挂在已发布文档上，作者为管理员） */
@@ -128,4 +208,10 @@ export const SEED_WIKI_COMMENTS = [
   { id: 1, docId: 1, parentId: null, content: '写得很全面，建议补充工位申请的入口链接。', status: 'visible' as const, authorId: 1 },
   { id: 2, docId: 1, parentId: 1, content: '已记录，下个版本补充。', status: 'visible' as const, authorId: 1 },
   { id: 3, docId: 4, parentId: null, content: '分页约定和现有网关行为一致，点赞。', status: 'visible' as const, authorId: 1 },
+];
+
+/** 无结果搜索词演示数据（近 30 天知识缺口，供治理「无结果搜索词」清单展示） */
+export const SEED_WIKI_SEARCH_LOGS = [
+  { keyword: 'VPN 配置', resultCount: 0, userId: 1 },
+  { keyword: '远程办公申请流程', resultCount: 0, userId: 1 },
 ];

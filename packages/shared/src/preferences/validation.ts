@@ -92,7 +92,7 @@ export const preferenceValuesSchema = z.strictObject({
   showProgressBar: z.boolean().default(true),
   loadingStyle: z.enum(C.LOADING_STYLES).default('flip'),
   enableShortcuts: z.boolean().default(true),
-  syncPageStateToUrl: z.boolean().default(false),
+  syncPageStateToUrl: z.boolean().default(true),
   homePath: z.string().max(512).regex(/^\/(?!\/)[^\s\\]*$/, '请选择站内页面路径').default('/'),
   autoLockMinutes: z.union(C.AUTO_LOCK_MINUTES.map((value) => z.literal(value))).default(0),
   reduceMotion: z.boolean().default(false),

@@ -642,6 +642,14 @@
   border-radius: var(--radius);
   padding: 0;
   flex-shrink: 0;
+  /* 独立点击区：与品牌区保持间距并加边框，避免窄屏下视觉重叠不易发现 */
+  margin-right: 4px;
+  border: 1px solid var(--color-border);
+}
+
+.admin-mobile-header__menu:focus-visible {
+  outline: 2px solid var(--semi-color-focus-border);
+  outline-offset: 1px;
 }
 
 .admin-mobile-header__menu:hover,

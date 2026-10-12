@@ -74,8 +74,9 @@ export default function WikiDocHistoryPage() {
   const versions = useMemo(() => versionsQuery.data?.list ?? [], [versionsQuery.data]);
 
   const effectiveVersion = selectedVersion ?? versions[0]?.version;
-  // 默认与上一个版本对比
-  const effectiveBase = baseVersion ?? versions.find((v) => v.version < (effectiveVersion ?? 0))?.version;
+  // 默认与上一个版本对比；已是首个版本时无对比基准
+  const isFirstVersion = effectiveVersion !== undefined && !versions.some((v) => v.version < effectiveVersion);
+  const effectiveBase = baseVersion ?? (isFirstVersion ? undefined : versions.find((v) => v.version < (effectiveVersion ?? 0))?.version);
 
   const targetQuery = useWikiDocVersionDetail(docId, effectiveVersion);
   const baseQuery = useWikiDocVersionDetail(docId, effectiveBase, effectiveBase !== undefined);
@@ -84,8 +85,12 @@ export default function WikiDocHistoryPage() {
 
   const diff = useMemo(() => {
     if (!targetQuery.data) return [];
+    // 首个版本无对比基准：全文按未变更展示，避免整篇被算作新增
+    if (isFirstVersion && effectiveBase === undefined) {
+      return (targetQuery.data.content ?? '').split('\n').map((text) => ({ type: 'same' as const, text }));
+    }
     return diffLines(baseQuery.data?.content ?? '', targetQuery.data.content ?? '');
-  }, [baseQuery.data, targetQuery.data]);
+  }, [baseQuery.data, targetQuery.data, isFirstVersion, effectiveBase]);
 
   if (!docId) {
     return (
@@ -166,15 +171,20 @@ export default function WikiDocHistoryPage() {
                     <Text>对比基准：</Text>
                     <Select
                       style={{ width: 160 }}
-                      placeholder="选择基准版本"
-                      showClear
+                      placeholder={isFirstVersion ? '已是首个版本' : '选择基准版本'}
+                      showClear={!isFirstVersion}
+                      disabled={isFirstVersion}
                       value={effectiveBase}
                       onChange={(v) => setBaseVersion(v === undefined ? undefined : Number(v))}
                       optionList={versions
                         .filter((v) => v.version !== effectiveVersion)
                         .map((v) => ({ value: v.version, label: `v${v.version}` }))}
                     />
-                    <Text type="tertiary">→ v{effectiveVersion}</Text>
+                    {isFirstVersion ? (
+                      <Text type="tertiary" size="small">已是首个版本，无对比基准</Text>
+                    ) : (
+                      <Text type="tertiary">→ v{effectiveVersion}</Text>
+                    )}
                     <Tag size="small" color="green">+{addCount}</Tag>
                     <Tag size="small" color="red">-{delCount}</Tag>
                   </Space>
