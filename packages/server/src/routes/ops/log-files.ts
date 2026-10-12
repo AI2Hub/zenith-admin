@@ -26,8 +26,8 @@ const listRoute = defineContractRoute(logFileContract.list, {
 const contentRoute = defineContractRoute(logFileContract.content, {
   responses: fileErrorResponses,
   handler: async (c) => {
-    const { lines, keyword, traceId, context } = c.req.valid('query');
-    const result = await readLogFileLines(c.req.valid('param').filename, lines ?? 500, { keyword, traceId, context });
+    const { lines, keyword, traceId, locateTraceId, context } = c.req.valid('query');
+    const result = await readLogFileLines(c.req.valid('param').filename, lines ?? 500, { keyword, traceId, locateTraceId, context });
     return c.json(okBody({ lines: result }, 'success'), 200);
   },
 });

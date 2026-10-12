@@ -1,5 +1,5 @@
 /**
- * 日志工作台正文搜索与独立链路筛选：
+ * 日志工作台正文搜索与链路定位：
  * 挂载时预填搜索框并高亮匹配；无深链时搜索框为空。
  */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -54,8 +54,8 @@ describe('initialKeyword 深链预填', () => {
   });
 });
 
-describe('精确链路筛选', () => {
-  it('实时追踪只展示所属链路的行，忽略正文中出现该 ID 的查询请求', async () => {
+describe('精确链路定位', () => {
+  it('实时追踪保留全部行，但仅计数所属链路的匹配', async () => {
     vi.mocked(useLogTail).mockReturnValue({
       tailing: true, paused: false, reconnecting: false, pendingCount: 0, capped: false,
       lines: [
@@ -70,19 +70,20 @@ describe('精确链路筛选', () => {
     expect(recorder.countOf('GET', `/api/log-files/${FILENAME}/content`)).toBe(0);
   });
 
-  it('发送独立 traceId 筛选，普通正文搜索变化不改变链路归属', async () => {
+  it('发送 locateTraceId 加载连续日志并预填搜索，普通正文搜索保留定位窗口', async () => {
     renderWorkbench(undefined, { initialTraceId: KEYWORD });
 
-    expect(screen.getByText(`链路筛选：${KEYWORD}`)).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('搜索日志内容')).toHaveValue('');
+    expect(screen.getByText(`链路定位：${KEYWORD}`)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('搜索日志内容')).toHaveValue(KEYWORD);
     await waitFor(() => expect(recorder.countOf('GET', `/api/log-files/${FILENAME}/content`)).toBe(1));
     const params = new URLSearchParams(recorder.urls('GET')[0].split('?')[1]);
-    expect(params.get('traceId')).toBe(KEYWORD);
+    expect(params.get('locateTraceId')).toBe(KEYWORD);
+    expect(params.has('traceId')).toBe(false);
     expect(params.has('keyword')).toBe(false);
 
     fireEvent.change(screen.getByPlaceholderText('搜索日志内容'), { target: { value: 'unblacklist' } });
     expect(await screen.findByText('1/1')).toBeInTheDocument();
-    expect(screen.getByText(`链路筛选：${KEYWORD}`)).toBeInTheDocument();
+    expect(screen.getByText(`链路定位：${KEYWORD}`)).toBeInTheDocument();
     expect(recorder.countOf('GET', `/api/log-files/${FILENAME}/content`)).toBe(1);
   });
 });

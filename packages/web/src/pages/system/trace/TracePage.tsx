@@ -66,7 +66,7 @@ function TraceLogsPanel({ traceId, nodes }: { traceId: string; nodes: TraceTimel
   const contentQuery = useLogFileContent(activeFile, { lines: 5000, traceId }, Boolean(activeFile));
   const lines = contentQuery.data?.lines ?? [];
 
-  /** 日志文件页继续使用相同的精确链路筛选，避免查询 URL 自身误命中。 */
+  /** 日志文件页按链路精确定位并保留周围日志，避免把查询 URL 当作匹配目标。 */
   const handleViewInLogFiles = () => {
     if (!activeFile) return;
     const params = new URLSearchParams({ file: activeFile, traceId });

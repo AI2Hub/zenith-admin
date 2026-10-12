@@ -221,8 +221,12 @@ export const LogContentView = forwardRef<LogContentViewHandle, LogContentViewPro
   // 定位到当前激活匹配；追踪模式下行窗口滑动导致下标漂移，禁用自动定位
   useEffect(() => {
     if (!activeMatch || following) return;
+    cancelPin();
+    atBottomRef.current = false;
+    setAtBottom(false);
     virtualizer.scrollToIndex(activeMatch.lineIndex, { align: 'center' });
-  }, [activeMatch, following, virtualizer]);
+    requestAnimationFrame(updateAtBottom);
+  }, [activeMatch, following, virtualizer, cancelPin, updateAtBottom, resetKey]);
 
   const digits = Math.max(2, String(lines.length).length);
   const activeLine = activeMatch?.lineIndex ?? -1;

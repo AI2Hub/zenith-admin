@@ -54,13 +54,18 @@ export function findMatchRanges(line: string, pattern: RegExp | string): MatchRa
 }
 
 /** 一次遍历构建搜索索引：导航用扁平列表 + 高亮用按行区间 Map */
-export function buildSearchIndex(lines: string[], pattern: RegExp | string | null): SearchIndex {
+export function buildSearchIndex(
+  lines: string[],
+  pattern: RegExp | string | null,
+  acceptsLine?: (line: string) => boolean,
+): SearchIndex {
   const regex = typeof pattern === 'string' ? compileSearchPattern(pattern) : pattern;
   if (!regex) return EMPTY_INDEX;
 
   const matches: SearchMatch[] = [];
   const lineRanges = new Map<number, MatchRange[]>();
   lines.forEach((line, lineIndex) => {
+    if (acceptsLine && !acceptsLine(line)) return;
     const ranges = findMatchRanges(line, regex);
     if (ranges.length === 0) return;
     lineRanges.set(lineIndex, ranges);

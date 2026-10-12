@@ -33,7 +33,7 @@ export function logSourceName(source: LogSource): string {
  */
 export function useLogSourceContent(source: LogSource, params: LogTailParams, enabled = true) {
   // 精确链路筛选只属于应用日志契约，远程/任意路径查看器继续使用通用读取参数。
-  const { traceId: _traceId, ...pathParams } = params;
+  const { traceId: _traceId, locateTraceId: _locateTraceId, ...pathParams } = params;
   const fileQuery = useLogFileContent(
     source.kind === 'file' ? source.filename : undefined,
     params,

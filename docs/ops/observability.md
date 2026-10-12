@@ -69,7 +69,11 @@ API / Worker 分离部署时，纯 Worker 订阅 API 节点的 `wsStats` 镜像�
 - 与 QPS、HTTP 错误率一样是进程内口径，多实例部署时各实例统计自身；
 - 计数失败不影响日志写入。
 
-内置规则包括 ERROR ≥ 10 条/分持续 3 分钟（严重）和 WARN ≥ 30 条/分持续 5 分钟（警告）。此类告警事件操作列提供「查看日志」（需 `system:log:files`），跳转到 `/system/log-files?file=app.YYYY-MM-DD.1.log&level=error`。链路追踪的应用日志面板同样提供「在日志文件中查看」，跳转到 `/system/log-files?file=xxx.log&traceId=目标链路ID`。链路筛选在整个文件内精确匹配 JSON 日志顶层 `reqId`，再保留最后 N 条匹配记录；URL 或正文包含目标 ID 的查询请求不会被当作该链路日志。面板优先打开链路节点日期对应的日志，支持切换 `app`、`app-api`、`app-worker` 日志及 gzip 归档。
+内置规则包括 ERROR ≥ 10 条/分持续 3 分钟（严重）和 WARN ≥ 30 条/分持续 5 分钟（警告）。此类告警事件操作列提供「查看日志」（需 `system:log:files`），跳转到 `/system/log-files?file=app.YYYY-MM-DD.1.log&level=error`。
+
+链路追踪的应用日志面板按 `traceId` 在整个文件内精确匹配 JSON 日志顶层 `reqId`，保留最后 N 条匹配记录；URL 或正文包含目标 ID 的查询请求不会被当作该链路日志。面板优先打开链路节点日期对应的日志，支持切换 `app`、`app-api`、`app-worker` 日志及 gzip 归档。
+
+面板中的「在日志文件中查看」跳转到 `/system/log-files?file=xxx.log&traceId=目标链路ID`。日志文件页使用 `locateTraceId` 读取首条精确匹配记录周围最多 N 条连续非空日志，命中前保留约半个窗口，再用后续记录补满；找不到时返回普通末尾 N 行。页面保留其他日志行，并像搜索一样自动定位、高亮对应链路，便于查看前后发生的其他请求。
 
 ## 告警中心
 

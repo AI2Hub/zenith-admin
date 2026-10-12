@@ -32,7 +32,7 @@ beforeEach(() => {
 });
 
 describe('链路日志深链', () => {
-  it.each([true, false])('同文件切换链路会更新精确筛选（URL 同步 %s）', async (syncPageStateToUrl) => {
+  it.each([true, false])('同文件切换链路会更新定位（URL 同步 %s）', async (syncPageStateToUrl) => {
     render(
       <QueryClientProvider client={createTestQueryClient()}>
         <MemoryRouter initialEntries={[`/system/log-files?file=${FILENAME}&traceId=${FIRST_TRACE}&keyword=old-error&level=error`]}>
@@ -45,22 +45,22 @@ describe('链路日志深链', () => {
       </QueryClientProvider>,
     );
 
-    expect(await screen.findByText(`链路筛选：${FIRST_TRACE}`)).toBeInTheDocument();
+    expect(await screen.findByText(`链路定位：${FIRST_TRACE}`)).toBeInTheDocument();
     expect(screen.getByPlaceholderText('搜索日志内容')).toHaveValue('old-error');
     fireEvent.click(screen.getByRole('button', { name: '另一条链路' }));
-    expect(await screen.findByText(`链路筛选：${SECOND_TRACE}`)).toBeInTheDocument();
-    expect(screen.queryByText(`链路筛选：${FIRST_TRACE}`)).not.toBeInTheDocument();
-    expect(screen.getByPlaceholderText('搜索日志内容')).toHaveValue('');
+    expect(await screen.findByText(`链路定位：${SECOND_TRACE}`)).toBeInTheDocument();
+    expect(screen.queryByText(`链路定位：${FIRST_TRACE}`)).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText('搜索日志内容')).toHaveValue(SECOND_TRACE);
     await waitFor(() => {
       const requests = recorder.urls('GET').filter((url) => url.includes('/content'));
-      expect(requests.map((url) => new URLSearchParams(url.split('?')[1]).get('traceId'))).toEqual([FIRST_TRACE, SECOND_TRACE]);
+      expect(requests.map((url) => new URLSearchParams(url.split('?')[1]).get('locateTraceId'))).toEqual([FIRST_TRACE, SECOND_TRACE]);
     });
 
-    const closeButton = screen.getByText(`链路筛选：${SECOND_TRACE}`).closest('.semi-tag')?.querySelector('.semi-tag-close');
+    const closeButton = screen.getByText(`链路定位：${SECOND_TRACE}`).closest('.semi-tag')?.querySelector('.semi-tag-close');
     expect(closeButton).toBeTruthy();
     fireEvent.click(closeButton!);
-    await waitFor(() => expect(screen.queryByText(`链路筛选：${SECOND_TRACE}`)).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByText(`链路定位：${SECOND_TRACE}`)).not.toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: '另一条链路' }));
-    expect(await screen.findByText(`链路筛选：${SECOND_TRACE}`)).toBeInTheDocument();
+    expect(await screen.findByText(`链路定位：${SECOND_TRACE}`)).toBeInTheDocument();
   });
 });

@@ -61,9 +61,9 @@ export interface LogWorkbenchProps {
   initialLevel?: LogLevel;
   /** 初始搜索关键词（深链 `?keyword=`），仅挂载时读取 */
   initialKeyword?: string;
-  /** 应用日志的精确链路筛选（深链 `?traceId=`），独立于正文搜索。 */
+  /** 应用日志的链路定位（深链 `?traceId=`），保留连续日志并预填搜索。 */
   initialTraceId?: string;
-  /** 清除筛选时同步父级的深链状态，保证再次进入同一链路仍能恢复筛选。 */
+  /** 清除定位时同步父级的深链状态，保证再次进入同一链路仍能恢复定位。 */
   onTraceIdChange?: (traceId: string | undefined) => void;
   /** 追加到头部状态标签之后的内容 */
   headerExtra?: ReactNode;
@@ -80,7 +80,7 @@ export interface LogWorkbenchProps {
 export function LogWorkbench({ source, title, canTail = true, initialLevel, initialKeyword, initialTraceId, onTraceIdChange, headerExtra, menuExtra, exportName }: LogWorkbenchProps) {
   const [traceId, setTraceId] = useState(source.kind === 'file' ? initialTraceId : undefined);
   // 内容搜索：输入即时高亮（防抖），全文模式回车提交服务端过滤
-  const [searchDraft, setSearchDraft] = useState(initialKeyword ?? '');
+  const [searchDraft, setSearchDraft] = useState(initialKeyword ?? traceId ?? '');
   const debouncedSearch = useDebouncedValue(searchDraft.trim(), { wait: 250 })[0];
   const [searchRegex, setSearchRegex] = useState(false);
   const [searchCaseSensitive, setSearchCaseSensitive] = useState(false);
@@ -105,8 +105,9 @@ export function LogWorkbench({ source, title, canTail = true, initialLevel, init
   const contentParams = useMemo(
     () => ({
       lines: lineCount,
-      traceId,
-      keyword: fullText && serverKeyword ? serverKeyword : undefined,
+      locateTraceId: fullText && serverKeyword ? undefined : traceId,
+      traceId: fullText && serverKeyword === traceId ? traceId : undefined,
+      keyword: fullText && serverKeyword && serverKeyword !== traceId ? serverKeyword : undefined,
       context: fullText && serverKeyword && serverContext > 0 ? serverContext : undefined,
     }),
     [lineCount, traceId, fullText, serverKeyword, serverContext],
@@ -120,12 +121,8 @@ export function LogWorkbench({ source, title, canTail = true, initialLevel, init
   const refetchContent = contentQuery.refetch;
 
   // ── 派生数据：ANSI 去色 → 级别过滤（base 层）→ 搜索索引 → grep 模式（display 层） ──
-  // SSE 返回未过滤的新增行，与静态全文检索保持相同的链路归属语义。
-  const traceTailLines = useMemo(
-    () => traceId ? tail.lines.filter((line) => matchesLogTraceId(line, traceId)) : tail.lines,
-    [tail.lines, traceId],
-  );
-  const rawLines = tailing ? traceTailLines : (contentQuery.data?.lines ?? EMPTY_LINES);
+  // 链路只决定定位与高亮，不隐藏窗口内的其他日志；实时追踪同样保留连续行。
+  const rawLines = tailing ? tail.lines : (contentQuery.data?.lines ?? EMPTY_LINES);
   // 搜索 / 级别识别 / 复制导出都基于去色文本；无 ANSI 时复用同一数组，不多占内存
   const plainLines = useMemo(() => (rawLines.some(hasAnsi) ? rawLines.map(stripAnsi) : rawLines), [rawLines]);
   const levels = useMemo(() => computeEffectiveLevels(plainLines), [plainLines]);
@@ -160,7 +157,13 @@ export function LogWorkbench({ source, title, canTail = true, initialLevel, init
     [debouncedSearch, searchRegex, searchCaseSensitive],
   );
   const searchInvalid = searchRegex && debouncedSearch !== '' && searchPattern === null;
-  const searchIndex = useMemo(() => buildSearchIndex(baseLines, searchPattern), [baseLines, searchPattern]);
+  const searchIndex = useMemo(() => buildSearchIndex(
+    baseLines,
+    searchPattern,
+    traceId && debouncedSearch === traceId && !searchRegex
+      ? (line) => matchesLogTraceId(line, traceId)
+      : undefined,
+  ), [baseLines, searchPattern, traceId, debouncedSearch, searchRegex]);
 
   const grepActive = matchesOnly && searchPattern !== null;
   const { displayIndexes, displayLines, displayRanges, displayMatches } = useMemo(() => {
@@ -276,8 +279,6 @@ export function LogWorkbench({ source, title, canTail = true, initialLevel, init
     emptyText = '无匹配行';
   } else if (rawLines.length > 0 && levelFilter) {
     emptyText = '当前级别下无日志';
-  } else if (traceId) {
-    emptyText = '未检索到该链路的日志记录';
   } else if (fullText && serverKeyword) {
     emptyText = '未找到匹配的日志内容';
   } else {
@@ -342,9 +343,14 @@ export function LogWorkbench({ source, title, canTail = true, initialLevel, init
         {traceId && (
           <Tag
             color="blue" size="small" closable
-            onClose={() => { setTraceId(undefined); onTraceIdChange?.(undefined); }}
+            onClose={() => {
+              setTraceId(undefined);
+              if (searchDraft === traceId) setSearchDraft('');
+              setActiveMatchIndex(0);
+              onTraceIdChange?.(undefined);
+            }}
           >
-            链路筛选：{traceId}
+            链路定位：{traceId}
           </Tag>
         )}
         {headerExtra}

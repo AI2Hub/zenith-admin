@@ -3,6 +3,7 @@
  *
  * - 末尾 N 行：逐行流经固定容量环形缓冲，峰值内存 O(N)，普通文本与 gzip 归档同一入口；
  *   关键词过滤在整个文件范围内匹配（大小写不敏感子串），命中行前后可保留上下文；
+ *   链路定位返回首条归属匹配记录附近的连续窗口，保留其他链路的日志；
  * - 实时追踪：按文件增长轮询追加内容并逐批回调，不依赖 `tail` 二进制，Windows 同样可用；
  * - 行切分器：把分块到达的文本流（SSH `tail -f` 输出）拆成完整行，跨块的半行留待下一块。
  */
@@ -40,6 +41,8 @@ export interface TailReadOptions {
   keyword?: string;
   /** 精确匹配 JSON 日志顶层 reqId，与 keyword 同时存在时取交集 */
   traceId?: string;
+  /** 定位首条 reqId 匹配记录并保留连续上下文；优先于 keyword / traceId 过滤 */
+  locateTraceId?: string;
   /** 命中行前后额外保留的上下文行数（0-10，仅存在过滤条件时生效） */
   context?: number;
 }
@@ -50,7 +53,7 @@ function isBlank(line: string): boolean {
 }
 
 /**
- * 从任意行序列收集「末尾 N 行」（可选关键词 / 链路归属 + 上下文过滤）。
+ * 从任意行序列收集「末尾 N 行」（可选过滤），或首条链路匹配记录附近的连续 N 行。
  * 文件读取与远端命令输出都走这里，保证两端过滤语义一致。
  */
 export async function collectTailLines(
@@ -63,12 +66,28 @@ export async function collectTailLines(
   const context = filtering ? Math.max(0, Math.min(opts.context ?? 0, 10)) : 0;
 
   const ring = new TailRingBuffer(n);
+  const beforeLimit = Math.floor(n / 2);
+  const locateBefore = opts.locateTraceId && beforeLimit > 0 ? new TailRingBuffer(beforeLimit) : undefined;
+  let located: string[] | undefined;
   // 上下文窗口：before 保留匹配前的候选行，afterRemaining 统计匹配后还需保留的行数
   const before: string[] = [];
   let afterRemaining = 0;
 
   for await (const line of source) {
     if (isBlank(line)) continue;
+    if (opts.locateTraceId) {
+      // 未命中时仍保留普通末尾窗口，保证找不到目标也能查看文件内容。
+      ring.push(line);
+      if (located) {
+        located.push(line);
+      } else if (matchesLogTraceId(line, opts.locateTraceId)) {
+        located = [...(locateBefore?.toArray() ?? []), line];
+      } else {
+        locateBefore?.push(line);
+      }
+      if (located && located.length >= n) return located;
+      continue;
+    }
     if (!filtering) {
       ring.push(line);
       continue;
@@ -86,7 +105,7 @@ export async function collectTailLines(
       if (before.length > context) before.shift();
     }
   }
-  return ring.toArray();
+  return located ?? ring.toArray();
 }
 
 /**
