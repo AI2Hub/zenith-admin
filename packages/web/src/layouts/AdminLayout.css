@@ -1738,6 +1738,340 @@
   }
 }
 
+/* ── 左右垂直页签：与内容区横向排列 ── */
+.admin-tabs-side-body {
+  flex: 1;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+}
+
+.admin-tabs-bar--left,
+.admin-tabs-bar--right {
+  flex-direction: column;
+  width: 200px;
+  flex-shrink: 0;
+  border-top: none;
+  border-bottom: none;
+}
+
+.admin-tabs-bar--left {
+  border-right: 1px solid var(--semi-color-border);
+}
+
+.admin-tabs-bar--right {
+  border-left: 1px solid var(--semi-color-border);
+}
+
+.admin-tabs-bar--left.admin-tabs-bar--compact,
+.admin-tabs-bar--right.admin-tabs-bar--compact {
+  width: 184px;
+}
+
+/* 纵向滚动区 */
+.admin-tabs-bar--left .admin-tabs-bar__scroll,
+.admin-tabs-bar--right .admin-tabs-bar__scroll {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  padding: 8px;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.admin-tabs-bar--left .admin-tabs-bar__scroll::-webkit-scrollbar,
+.admin-tabs-bar--right .admin-tabs-bar__scroll::-webkit-scrollbar {
+  width: 0;
+  height: auto;
+}
+
+/* 页签行：标题撑满、关闭按钮贴右 */
+.admin-tabs-bar--left .admin-tab-item,
+.admin-tabs-bar--right .admin-tab-item {
+  padding: 8px 10px;
+  border-radius: var(--semi-border-radius-medium);
+}
+
+.admin-tabs-bar--left .admin-tab-item__text,
+.admin-tabs-bar--right .admin-tab-item__text {
+  flex: 1;
+  min-width: 0;
+  max-width: none;
+}
+
+/* 拖拽插入线改横向 */
+.admin-tabs-bar--left .admin-tab-item--drag-over,
+.admin-tabs-bar--right .admin-tab-item--drag-over {
+  box-shadow: 0 -2px 0 0 var(--color-primary);
+}
+
+/* 激活指示竖线：贴内容一侧（左栏在右、右栏在左） */
+.admin-tabs-bar--left .admin-tab-item--active::after {
+  top: 0;
+  bottom: 0;
+  left: auto;
+  right: 0;
+  width: 2px;
+  height: 100%;
+  border-radius: var(--semi-border-radius-small) 0 0 var(--semi-border-radius-small);
+}
+
+.admin-tabs-bar--right .admin-tab-item--active::after {
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: auto;
+  width: 2px;
+  height: 100%;
+  border-radius: 0 var(--semi-border-radius-small) var(--semi-border-radius-small) 0;
+}
+
+/* 短线 / 圆点：侧边居中 */
+.admin-tabs-bar--left[data-tab-style="shortline"] .admin-tab-item--active::after,
+.admin-tabs-bar--right[data-tab-style="shortline"] .admin-tab-item--active::after {
+  top: 50%;
+  bottom: auto;
+  height: 20px;
+  transform: translateY(-50%);
+}
+
+.admin-tabs-bar--left[data-tab-style="dot"] .admin-tab-item--active::after,
+.admin-tabs-bar--right[data-tab-style="dot"] .admin-tab-item--active::after {
+  top: 50%;
+  bottom: auto;
+  width: 4px;
+  height: 4px;
+  transform: translateY(-50%);
+  border-radius: 999px;
+}
+
+/* 顶线风格保持外侧描边语义：左栏在左、右栏在右 */
+.admin-tabs-bar--left[data-tab-style="topline"] .admin-tab-item--active::after {
+  left: 0;
+  right: auto;
+}
+
+.admin-tabs-bar--right[data-tab-style="topline"] .admin-tab-item--active::after {
+  left: auto;
+  right: 0;
+}
+
+/* 卡片风格：取消上下融合，退化为描边行 */
+.admin-tabs-bar--left[data-tab-style="card"],
+.admin-tabs-bar--right[data-tab-style="card"] {
+  border-bottom: none;
+}
+
+.admin-tabs-bar--left[data-tab-style="card"] .admin-tab-item,
+.admin-tabs-bar--right[data-tab-style="card"] .admin-tab-item {
+  margin: 0;
+  border: 1px solid transparent;
+  border-radius: var(--semi-border-radius-medium);
+  background: transparent;
+}
+
+.admin-tabs-bar--left[data-tab-style="card"] .admin-tab-item--active,
+.admin-tabs-bar--right[data-tab-style="card"] .admin-tab-item--active {
+  border-color: var(--semi-color-border);
+  background: var(--color-content-bg);
+}
+
+.admin-tabs-bar--left.admin-tabs-bar--compact[data-tab-style="card"] .admin-tab-item,
+.admin-tabs-bar--right.admin-tabs-bar--compact[data-tab-style="card"] .admin-tab-item {
+  margin: 0;
+  padding: 6px 10px;
+}
+
+/* Chrome 风格：取消连体圆弧与分隔线，退化为高亮行 */
+.admin-tabs-bar--left[data-tab-style="chrome"],
+.admin-tabs-bar--right[data-tab-style="chrome"] {
+  border-bottom: none;
+}
+
+.admin-tabs-bar--left[data-tab-style="chrome"] .admin-tab-item,
+.admin-tabs-bar--right[data-tab-style="chrome"] .admin-tab-item {
+  margin: 0;
+  padding: 8px 14px;
+  border-radius: var(--semi-border-radius-medium);
+  background: transparent;
+}
+
+.admin-tabs-bar--left[data-tab-style="chrome"] .admin-tab-item--active,
+.admin-tabs-bar--right[data-tab-style="chrome"] .admin-tab-item--active {
+  padding: 8px 14px;
+  background: var(--semi-color-primary-light-default);
+  color: var(--semi-color-primary);
+}
+
+.admin-tabs-bar--left.admin-tabs-bar--compact[data-tab-style="chrome"] .admin-tab-item--active,
+.admin-tabs-bar--right.admin-tabs-bar--compact[data-tab-style="chrome"] .admin-tab-item--active {
+  padding: 4px 10px;
+}
+
+.admin-tabs-bar--left[data-tab-style="chrome"] .admin-tab-item + .admin-tab-item::before,
+.admin-tabs-bar--right[data-tab-style="chrome"] .admin-tab-item + .admin-tab-item::before,
+.admin-tabs-bar--left[data-tab-style="chrome"] .admin-tabs-bar__scroll .admin-tab-item--active::before,
+.admin-tabs-bar--left[data-tab-style="chrome"] .admin-tabs-bar__scroll .admin-tab-item--active::after,
+.admin-tabs-bar--right[data-tab-style="chrome"] .admin-tabs-bar__scroll .admin-tab-item--active::before,
+.admin-tabs-bar--right[data-tab-style="chrome"] .admin-tabs-bar__scroll .admin-tab-item--active::after {
+  display: none;
+}
+
+/* 切换器沉底：上边框、全宽 */
+.admin-tabs-bar--left .admin-tabs-bar__switcher,
+.admin-tabs-bar--right .admin-tabs-bar__switcher {
+  border-left: none;
+  border-top: 1px solid var(--semi-color-border);
+  width: 100%;
+  height: auto;
+}
+
+/* 自动隐藏：左右模式收起为纵向细带，把手居中竖立 */
+@media (hover: hover) {
+  .admin-tabs-bar--left.admin-tabs-bar--autohide,
+  .admin-tabs-bar--right.admin-tabs-bar--autohide {
+    width: 8px;
+    max-height: none;
+    overflow: hidden;
+    transition: width 0.28s ease 0.45s, margin-left 0.28s ease 0.45s, margin-right 0.28s ease 0.45s, border-color 0.2s ease 0.45s;
+  }
+  .admin-tabs-bar--left.admin-tabs-bar--autohide:not(:hover):not(:focus-within) {
+    margin-right: -8px;
+    margin-bottom: 0;
+    border-right-color: transparent;
+  }
+  .admin-tabs-bar--right.admin-tabs-bar--autohide:not(:hover):not(:focus-within) {
+    margin-left: -8px;
+    margin-bottom: 0;
+    border-left-color: transparent;
+  }
+  .admin-tabs-bar--left.admin-tabs-bar--autohide:hover,
+  .admin-tabs-bar--left.admin-tabs-bar--autohide:focus-within,
+  .admin-tabs-bar--right.admin-tabs-bar--autohide:hover,
+  .admin-tabs-bar--right.admin-tabs-bar--autohide:focus-within {
+    width: 200px;
+    max-height: none;
+    margin-left: 0;
+    margin-right: 0;
+    transition-delay: 0.05s;
+  }
+  .admin-tabs-bar--left.admin-tabs-bar--compact.admin-tabs-bar--autohide:hover,
+  .admin-tabs-bar--left.admin-tabs-bar--compact.admin-tabs-bar--autohide:focus-within,
+  .admin-tabs-bar--right.admin-tabs-bar--compact.admin-tabs-bar--autohide:hover,
+  .admin-tabs-bar--right.admin-tabs-bar--compact.admin-tabs-bar--autohide:focus-within {
+    width: 184px;
+  }
+  .admin-tabs-bar--left.admin-tabs-bar--autohide::after,
+  .admin-tabs-bar--right.admin-tabs-bar--autohide::after {
+    top: 50%;
+    bottom: auto;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 3px;
+    height: 56px;
+  }
+}
+
+/* ── 垂直页签折叠态：图标栏（默认折叠，仿 Chrome）── */
+.admin-tabs-bar--left.admin-tabs-bar--collapsed,
+.admin-tabs-bar--right.admin-tabs-bar--collapsed {
+  width: 36px;
+}
+
+.admin-tabs-bar--left.admin-tabs-bar--collapsed .admin-tabs-bar__scroll,
+.admin-tabs-bar--right.admin-tabs-bar--collapsed .admin-tabs-bar__scroll {
+  padding: 6px;
+}
+
+.admin-tabs-bar--collapsed .admin-tabs-bar__collapse {
+  padding: 6px 6px 0;
+}
+
+/* 折叠切换过渡（减弱动效时由 no-motion 类与系统偏好关闭） */
+.admin-tabs-bar--left:not(.admin-tabs-bar--autohide-no-motion),
+.admin-tabs-bar--right:not(.admin-tabs-bar--autohide-no-motion) {
+  transition: width 0.2s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-tabs-bar--left,
+  .admin-tabs-bar--right {
+    transition: none;
+  }
+}
+
+/* 栏顶折叠按钮：展开态贴外侧边，折叠态撑满 */
+.admin-tabs-bar__collapse {
+  display: flex;
+  padding: 8px 8px 0;
+  flex-shrink: 0;
+}
+
+.admin-tabs-bar--left .admin-tabs-bar__collapse {
+  justify-content: flex-start;
+}
+
+.admin-tabs-bar--right .admin-tabs-bar__collapse {
+  justify-content: flex-end;
+}
+
+.admin-tabs-bar__collapse-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: var(--semi-border-radius-medium);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.admin-tabs-bar--collapsed .admin-tabs-bar__collapse-btn {
+  flex: 1;
+  width: auto;
+}
+
+.admin-tabs-bar__collapse-btn:hover {
+  background: var(--color-layout-hover);
+  color: var(--color-text);
+}
+
+.admin-tabs-bar__collapse-btn:focus-visible {
+  outline: 2px solid var(--semi-color-focus-border);
+  outline-offset: 1px;
+}
+
+/* 折叠行：图标居中，标题 / 固定标记 / 关闭按钮隐藏（关闭走右键菜单与切换器） */
+.admin-tabs-bar--collapsed .admin-tab-item {
+  justify-content: center;
+  padding: 8px 0;
+}
+
+.admin-tabs-bar--collapsed .admin-tab-item__text,
+.admin-tabs-bar--collapsed .admin-tab-item__pin,
+.admin-tabs-bar--collapsed .admin-tab-item__close {
+  display: none;
+}
+
+/* 无图标页签的首字兜底 */
+.admin-tab-item__icon--fallback {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* 自动隐藏展开时保持折叠宽度 */
+@media (hover: hover) {
+  .admin-tabs-bar--left.admin-tabs-bar--collapsed.admin-tabs-bar--autohide:hover,
+  .admin-tabs-bar--left.admin-tabs-bar--collapsed.admin-tabs-bar--autohide:focus-within,
+  .admin-tabs-bar--right.admin-tabs-bar--collapsed.admin-tabs-bar--autohide:hover,
+  .admin-tabs-bar--right.admin-tabs-bar--collapsed.admin-tabs-bar--autohide:focus-within {
+    width: 36px;
+  }
+}
+
 .admin-tab-item__icon {
   display: inline-flex;
   align-items: center;

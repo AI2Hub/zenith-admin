@@ -41,6 +41,7 @@ export const preferenceValuesSchema = z.strictObject({
   tabsSize: z.enum(C.TAB_SIZES).default('small'),
   tabsType: z.enum(C.TAB_TYPES).default('line'),
   tabsPosition: z.enum(C.TABS_POSITIONS).default('top'),
+  sideTabsCollapsed: z.boolean().default(true),
   tabStyle: z.enum(C.TAB_STYLES).default('line'),
   navLayout: z.enum(C.NAV_LAYOUTS).default('vertical'),
   doubleRailStyle: z.enum(C.DOUBLE_RAIL_STYLES).default('icon'),

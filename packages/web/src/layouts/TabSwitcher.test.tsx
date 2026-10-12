@@ -94,4 +94,11 @@ describe('TabSwitcher', () => {
     // 再次触发后收起：用分组标题是否还在判断
     expect(screen.queryByText('打开的标签页')).toBeNull();
   });
+
+  it('vertical 模式触发按钮横向撑满、固定高度', () => {
+    renderSwitcher({ vertical: true });
+    const button = screen.getByRole('button', { name: '所有标签页' });
+    expect(button.style.width).toBe('100%');
+    expect(button.style.height).toBe('32px');
+  });
 });

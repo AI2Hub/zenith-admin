@@ -199,4 +199,23 @@ describe('TabBarItem', () => {
     rerender(<TabBarItem {...baseProps(actions)} isDragOver />);
     expect(screen.getByRole('tab').className).toContain('admin-tab-item--drag-over');
   });
+
+  it('iconOnly 模式悬浮提示挂在行上，无图标时取标题首字兜底', () => {
+    const { rerender } = render(<TabBarItem {...baseProps(actions)} iconOnly hoverTitle="系统管理 / 用户管理" />);
+    // baseProps 默认 showIcon: false、无 iconName：兜底首字
+    expect(screen.getByText('用')).toBeTruthy();
+    expect(screen.getByRole('tab').getAttribute('title')).toBe('系统管理 / 用户管理');
+
+    rerender(
+      <TabBarItem {...baseProps(actions)} iconOnly showIcon iconName="Activity" />,
+    );
+    // 有图标时不渲染首字兜底
+    expect(screen.queryByText('用')).toBeNull();
+  });
+
+  it('常规模式行上无 title、无图标时不渲染兜底', () => {
+    render(<TabBarItem {...baseProps(actions)} />);
+    expect(screen.getByRole('tab').getAttribute('title')).toBeNull();
+    expect(screen.queryByText('用')).toBeNull();
+  });
 });

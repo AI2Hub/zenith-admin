@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 
 // ─── Tabs 滚动 ─────────────────────────────────────────────────────────────
-export function useTabsBarScroll(activeKey: string, tabsLength: number, enableTabs: boolean) {
+export function useTabsBarScroll(activeKey: string, tabsLength: number, enableTabs: boolean, isSideTabs = false) {
   const activeTabRef = useRef<HTMLDivElement>(null);
   const tabsBarRef = useRef<HTMLDivElement>(null);
   const tabsScrollRef = useRef<HTMLDivElement>(null);
@@ -15,8 +15,10 @@ export function useTabsBarScroll(activeKey: string, tabsLength: number, enableTa
     return () => clearTimeout(timer);
   }, [activeKey, tabsLength]);
 
-  // 滚轮横向滚动：监听挂在整条页签栏，但实际滚动的是内层 __scroll（overflow 在内层）
+  // 滚轮横向滚动：监听挂在整条页签栏，但实际滚动的是内层 __scroll（overflow 在内层）。
+  // 垂直页签（左右位置）本身纵向滚动，不劫持滚轮。
   useEffect(() => {
+    if (isSideTabs) return;
     const el = tabsBarRef.current;
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
@@ -32,7 +34,7 @@ export function useTabsBarScroll(activeKey: string, tabsLength: number, enableTa
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
-  }, [enableTabs, tabsLength]);
+  }, [enableTabs, tabsLength, isSideTabs]);
 
   return { activeTabRef, tabsBarRef, tabsScrollRef };
 }

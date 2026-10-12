@@ -31,6 +31,8 @@ interface TabSwitcherProps {
   readonly resolveIcon?: (pathname: string) => string | undefined;
   readonly recentlyClosed?: readonly RecentlyClosedTab[];
   readonly onReopen?: (key: string) => void;
+  /** 垂直页签栏（左右位置）：触发按钮横向撑满、固定高度 */
+  readonly vertical?: boolean;
 }
 
 /** 图标磁贴：无图标时取标题首字（Chrome 无 favicon 时的字母磁贴既视感） */
@@ -50,7 +52,7 @@ function TabIconTile({ title, iconName }: Readonly<{ title: string; iconName?: s
   );
 }
 
-export function TabSwitcher({ tabs, activeKey, onNavigate, onClose, resolveIcon, recentlyClosed = [], onReopen }: TabSwitcherProps) {
+export function TabSwitcher({ tabs, activeKey, onNavigate, onClose, resolveIcon, recentlyClosed = [], onReopen, vertical = false }: TabSwitcherProps) {
   useLucideIconsReady();
   const [visible, setVisible] = useState(false);
   const [search, setSearch] = useState('');
@@ -308,8 +310,8 @@ export function TabSwitcher({ tabs, activeKey, onNavigate, onClose, resolveIcon,
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
-            width: 28,
-            height: '100%',
+            width: vertical ? '100%' : 28,
+            height: vertical ? 32 : '100%',
             border: 'none',
             background: visible ? 'var(--semi-color-fill-1)' : 'transparent',
             cursor: 'pointer',

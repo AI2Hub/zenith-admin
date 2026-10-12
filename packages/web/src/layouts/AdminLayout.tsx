@@ -2,7 +2,7 @@ import { lazy, startTransition, Suspense, useCallback, useEffect, useMemo, useRe
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { RouteErrorBoundary } from '@/components/PageErrorBoundary';
 import { BackTop, Divider, SideSheet, Spin, Toast } from '@douyinfe/semi-ui';
-import { Expand, Shrink } from 'lucide-react';
+import { ChevronsLeft, ChevronsRight, Expand, Shrink } from 'lucide-react';
 import { ensurePinyin } from '@/utils/pinyin';
 import { copyText } from '@/utils/clipboard';
 import MenuSearchInput, { type FlatMenuItem } from '@/components/MenuSearchInput';
@@ -284,7 +284,7 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
   }, []);
 
   // ─── Tabs 滚动 ─────────────────────────────────────────────────────────────
-  const { activeTabRef, tabsBarRef, tabsScrollRef } = useTabsBarScroll(activeKey, tabs.length, preferences.enableTabs);
+  const { activeTabRef, tabsBarRef, tabsScrollRef } = useTabsBarScroll(activeKey, tabs.length, preferences.enableTabs, preferences.tabsPosition === 'left' || preferences.tabsPosition === 'right');
 
   // ─── 租户切换（仅平台管理员） ─────────────────────────────────────────────
   const isPlatformAdmin = config.multiTenantMode && !user.tenantId && user.roles?.some((r) => r.code === 'super_admin');
@@ -834,9 +834,32 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
   const getSidebarPopupContainer = useSectionDarkPopupContainer(sidebarDark, sectionDarkVars);
   const getHeaderPopupContainer = useSectionDarkPopupContainer(headerDark, sectionDarkVars);
 
-  const tabsAtBottom = (preferences.tabsPosition ?? 'top') === 'bottom';
+  const tabsPosition = preferences.tabsPosition ?? 'top';
+  const tabsAtBottom = tabsPosition === 'bottom';
+  const tabsAtLeft = tabsPosition === 'left';
+  const tabsAtRight = tabsPosition === 'right';
+  const tabsOnSide = tabsAtLeft || tabsAtRight;
+  // 垂直页签折叠态（默认折叠）：策略锁定时跟随默认值并隐藏切换按钮
+  const sideCollapsed = tabsOnSide && (preferences.sideTabsCollapsed ?? true);
+  const canCollapseTabs = canEditPreference('sideTabsCollapsed');
   const tabsBarNode = preferences.enableTabs && tabs.length > 0 ? (
-    <div ref={tabsBarRef} className={`admin-tabs-bar${preferences.compactTabs ? ' admin-tabs-bar--compact' : ''}${preferences.showBreadcrumb ? ' admin-tabs-bar--with-breadcrumb' : ''}${preferences.autoHideTabs ? ' admin-tabs-bar--autohide' : ''}${reduceMotion ? ' admin-tabs-bar--autohide-no-motion' : ''}${tabsAtBottom ? ' admin-tabs-bar--bottom' : ''}`} data-tab-animation={reduceMotion ? 'none' : preferences.tabAnimation} data-tab-style={preferences.tabStyle ?? 'line'}>
+    <div ref={tabsBarRef} className={`admin-tabs-bar${preferences.compactTabs ? ' admin-tabs-bar--compact' : ''}${preferences.showBreadcrumb ? ' admin-tabs-bar--with-breadcrumb' : ''}${preferences.autoHideTabs ? ' admin-tabs-bar--autohide' : ''}${reduceMotion ? ' admin-tabs-bar--autohide-no-motion' : ''}${tabsAtBottom ? ' admin-tabs-bar--bottom' : ''}${tabsAtLeft ? ' admin-tabs-bar--left' : ''}${tabsAtRight ? ' admin-tabs-bar--right' : ''}${sideCollapsed ? ' admin-tabs-bar--collapsed' : ''}`} data-tab-animation={reduceMotion ? 'none' : preferences.tabAnimation} data-tab-style={preferences.tabStyle ?? 'line'}>
+      {tabsOnSide && canCollapseTabs && (
+        <div className="admin-tabs-bar__collapse">
+          <button
+            type="button"
+            className="admin-tabs-bar__collapse-btn"
+            onClick={() => setPreferences({ sideTabsCollapsed: !sideCollapsed })}
+            title={sideCollapsed ? '展开页签栏' : '折叠页签栏'}
+            aria-label={sideCollapsed ? '展开页签栏' : '折叠页签栏'}
+            aria-expanded={!sideCollapsed}
+          >
+            {tabsAtLeft
+              ? (sideCollapsed ? <ChevronsRight size={16} /> : <ChevronsLeft size={16} />)
+              : (sideCollapsed ? <ChevronsLeft size={16} /> : <ChevronsRight size={16} />)}
+          </button>
+        </div>
+      )}
       <div ref={tabsScrollRef} className="admin-tabs-bar__scroll">
       {tabs.map((tab, tabIndex) => {
           const favMenuId = tabFavMenuIds?.[tabIndex] ?? null;
@@ -858,6 +881,7 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
               faved={favMenuId !== null && isFavorite(favMenuId)}
               showIcon={!!preferences.showTabIcon}
               iconName={tab.icon ?? resolveIcon(tab.key)}
+              iconOnly={sideCollapsed}
               hoverTitle={tabHoverTitles[tabIndex]}
               isContentFullscreen={isContentFullscreen}
               innerRef={tab.key === activeKey ? activeTabRef : undefined}
@@ -874,10 +898,39 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
         onClose={(key) => handleTabClose(key)}
         recentlyClosed={recentlyClosed}
         onReopen={handleTabReopen}
+        vertical={tabsOnSide}
       />
       )}
     </div>
   ) : null;
+  const contentNode = (
+    <div className="admin-content" style={{ overflow: 'auto', position: 'relative' }}>
+      <RouteErrorBoundary>
+        <TabsMetaContext.Provider value={tabsMetaValue}>
+          {pageCacheEnabled ? (
+            <KeepAliveOutlet
+              keepAlivePaths={keepAlivePaths}
+              openPaths={openTabPaths}
+              refreshVersion={tabRefreshVersion}
+              animation={routeAnimation}
+            />
+          ) : (
+            <RouteViewTransition key={outletRefreshKey} animation={routeAnimation}>
+              <div style={{ height: '100%' }}>
+                <Outlet />
+              </div>
+            </RouteViewTransition>
+          )}
+        </TabsMetaContext.Provider>
+      </RouteErrorBoundary>
+      {(preferences.showBackTop ?? true) && (
+        <BackTop
+          target={() => (document.querySelector('.admin-content') as HTMLElement) ?? document.body}
+          style={{ right: 24, bottom: 24 }}
+        />
+      )}
+    </div>
+  );
 
   const adminLayoutEl = (
     <div
@@ -1021,34 +1074,15 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
               {headerActions}
             </header>
           )}
-          {/* Tabs bar — 顶部模式时在内容区上方，底部模式时移到内容区下方 */}
-          {!tabsAtBottom && tabsBarNode}
-          <div className="admin-content" style={{ overflow: 'auto', position: 'relative' }}>
-            <RouteErrorBoundary>
-              <TabsMetaContext.Provider value={tabsMetaValue}>
-                {pageCacheEnabled ? (
-                  <KeepAliveOutlet
-                    keepAlivePaths={keepAlivePaths}
-                    openPaths={openTabPaths}
-                    refreshVersion={tabRefreshVersion}
-                    animation={routeAnimation}
-                  />
-                ) : (
-                  <RouteViewTransition key={outletRefreshKey} animation={routeAnimation}>
-                    <div style={{ height: '100%' }}>
-                      <Outlet />
-                    </div>
-                  </RouteViewTransition>
-                )}
-              </TabsMetaContext.Provider>
-            </RouteErrorBoundary>
-            {(preferences.showBackTop ?? true) && (
-              <BackTop
-                target={() => (document.querySelector('.admin-content') as HTMLElement) ?? document.body}
-                style={{ right: 24, bottom: 24 }}
-              />
-            )}
-          </div>
+          {/* Tabs bar — 顶部在内容区上方，底部在下方，左右与内容区横向排列 */}
+          {tabsPosition === 'top' && tabsBarNode}
+          {tabsOnSide ? (
+            <div className="admin-tabs-side-body">
+              {tabsAtLeft && tabsBarNode}
+              {contentNode}
+              {tabsAtRight && tabsBarNode}
+            </div>
+          ) : contentNode}
           {tabsAtBottom && tabsBarNode}
 
           {entityNavigation && <Suspense fallback={null}><EntityRelationBackButton /></Suspense>}

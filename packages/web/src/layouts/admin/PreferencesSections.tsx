@@ -1267,23 +1267,39 @@ export function PrefsTabsSection({
       </div>
       </PreferenceControl>
       )}
-      {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['标签栏位置', '页签位置', '底部', '顶部', 'bottom', '标签页', '标签']) && (
+      {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['标签栏位置', '页签位置', '底部', '顶部', '左侧', '右侧', '垂直', 'bottom', 'left', 'right', '标签页', '标签']) && (
       <PreferenceControl path="tabsPosition">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           标签栏位置
-          <Tooltip content="顶部：标签栏紧跟顶栏；底部：标签栏固定在内容区下方" position="right">
+          <Tooltip content="顶部 / 底部：标签栏横向排列；左侧 / 右侧：标签栏垂直排列在内容区侧边" position="right">
             <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
           </Tooltip>
         </span>
-        <RadioGroup
-          type="button"
+        <Select
           value={preferences.tabsPosition ?? 'top'}
-          onChange={(e) => setPreferences({ tabsPosition: e.target.value as TabsPosition })}
-        >
-          <Radio value="top">顶部</Radio>
-          <Radio value="bottom">底部</Radio>
-        </RadioGroup>
+          optionList={[
+            { value: 'top', label: '顶部' },
+            { value: 'bottom', label: '底部' },
+            { value: 'left', label: '左侧' },
+            { value: 'right', label: '右侧' },
+          ]}
+          onChange={(v) => setPreferences({ tabsPosition: v as TabsPosition })}
+          style={{ width: 120 }}
+        />
+      </div>
+      </PreferenceControl>
+      )}
+      {(preferences.enableTabs || !!prefsSearch.trim()) && (preferences.tabsPosition === 'left' || preferences.tabsPosition === 'right' || !!prefsSearch.trim()) && matchesPref(['折叠', '收起', '图标栏', '垂直页签', '展开', '标签页', '标签']) && (
+      <PreferenceControl path="sideTabsCollapsed">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          折叠垂直页签
+          <Tooltip content="左侧 / 右侧页签栏收起为图标栏，点击图标切换页面；展开后显示标题与关闭按钮" position="right">
+            <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+          </Tooltip>
+        </span>
+        <Switch checked={preferences.sideTabsCollapsed ?? true} onChange={(v) => setPreferences({ sideTabsCollapsed: v })} />
       </div>
       </PreferenceControl>
       )}

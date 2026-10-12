@@ -52,6 +52,8 @@ interface TabBarItemProps {
   readonly faved: boolean;
   readonly showIcon: boolean;
   readonly iconName?: string;
+  /** 图标栏模式（垂直页签折叠态）：只渲染图标、无图标时取标题首字兜底，悬浮提示挂在行上 */
+  readonly iconOnly?: boolean;
   /** 悬浮提示：完整菜单路径（如「系统设置 / 运维管理 / 接口限流」），缺省退回页签标题 */
   readonly hoverTitle?: string;
   readonly isContentFullscreen: boolean;
@@ -72,7 +74,7 @@ interface TabBarItemProps {
 function TabBarItemInner({
   tab, actions, isActive, isEntering, isExiting, isDragging, isDragOver,
   hasClosableLeft, hasClosableRight, hasClosableOthers, hasAnyClosable,
-  favMenuId, faved, showIcon, iconName, hoverTitle, isContentFullscreen, innerRef,
+  favMenuId, faved, showIcon, iconName, iconOnly = false, hoverTitle, isContentFullscreen, innerRef,
 }: TabBarItemProps) {
   // 首次右键后置 true 并保持，避免反复构建 / 卸载菜单
   const [menuReady, setMenuReady] = useState(false);
@@ -127,6 +129,8 @@ function TabBarItemInner({
         tabIndex={0}
         className={tabClass}
         draggable
+        // 图标栏模式下标题文本被隐藏，悬浮提示挂在行上；常规模式提示仍由标题文本承载
+        title={iconOnly ? (hoverTitle ?? tab.title) : undefined}
         // Semi 的 mergeEvents 会链式保留子元素原有事件，此处与 Semi 的显示逻辑同批次执行
         onContextMenu={() => setMenuReady(true)}
         onDragStart={() => actions.onDragStart(tab.key)}
@@ -139,9 +143,11 @@ function TabBarItemInner({
         onMouseDown={(e) => { if (e.button === 1 && tab.closable) { e.preventDefault(); actions.onMiddleClick(tab); } }}
         onKeyDown={(e) => { if (e.key === 'Enter') actions.onSelect(tab.key); }}
       >
-        {showIcon && iconName && (
+        {showIcon && iconName ? (
           <span className="admin-tab-item__icon">{renderLucideIcon(iconName, 14)}</span>
-        )}
+        ) : iconOnly ? (
+          <span className="admin-tab-item__icon admin-tab-item__icon--fallback" aria-hidden="true">{tab.title.slice(0, 1)}</span>
+        ) : null}
         <span className="admin-tab-item__text" title={hoverTitle ?? tab.title}>{tab.title}</span>
         {tab.pinned && (
           <span className="admin-tab-item__pin"><Pin size={10} /></span>

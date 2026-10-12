@@ -18,9 +18,9 @@ import {
 } from './index';
 
 describe('偏好策略与个人覆盖', () => {
-  it('保留全部现有默认值，98 项策略排除个人收藏', () => {
+  it('保留全部现有默认值，99 项策略排除个人收藏', () => {
     const policy = preferencePolicySchema.parse({});
-    expect(preferenceDefinitions).toHaveLength(98);
+    expect(preferenceDefinitions).toHaveLength(99);
     expect(defaultPreferences.topbarClock).toBe('off');
     expect(defaultPreferences.topbarClockShowDate).toBe(true);
     expect(defaultPreferences.scheduledDarkMode).toBe('off');
@@ -111,6 +111,16 @@ describe('偏好依赖与互斥', () => {
     expect(isPreferenceApplicable('doubleRailStyle', resolvePreferences(policy, { navLayout: 'double' }))).toBe(true);
     expect(isPreferenceApplicable('doubleRailStyle', resolvePreferences(policy, { navLayout: 'vertical' }))).toBe(false);
     expect(resolvePreferences(policy, {}).doubleRailStyle).toBe('icon');
+  });
+
+  it('垂直页签折叠只在左右位置适用，默认折叠', () => {
+    const policy = preferencePolicySchema.parse({});
+    expect(defaultPreferences.sideTabsCollapsed).toBe(true);
+    expect(isPreferenceApplicable('sideTabsCollapsed', resolvePreferences(policy, { tabsPosition: 'left' }))).toBe(true);
+    expect(isPreferenceApplicable('sideTabsCollapsed', resolvePreferences(policy, { tabsPosition: 'right' }))).toBe(true);
+    expect(isPreferenceApplicable('sideTabsCollapsed', resolvePreferences(policy, { tabsPosition: 'top' }))).toBe(false);
+    expect(isPreferenceApplicable('sideTabsCollapsed', resolvePreferences(policy, { tabsPosition: 'bottom' }))).toBe(false);
+    expect(isPreferenceApplicable('sideTabsCollapsed', resolvePreferences(policy, { enableTabs: false, tabsPosition: 'left' }))).toBe(false);
   });
 
   it('减弱动效优先，加载动画和页面内部标签栏保持适用', () => {
