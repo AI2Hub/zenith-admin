@@ -58,6 +58,8 @@ export interface LogWorkbenchProps {
   canTail?: boolean;
   /** 初始级别过滤（深链 `?level=`），仅挂载时读取 */
   initialLevel?: LogLevel;
+  /** 初始搜索关键词（深链 `?keyword=`，如链路追踪带 traceId 跳过来），仅挂载时读取 */
+  initialKeyword?: string;
   /** 追加到头部状态标签之后的内容 */
   headerExtra?: ReactNode;
   /** 追加到「更多」菜单末尾的页面专属动作（下载 / 删除等） */
@@ -70,9 +72,9 @@ export interface LogWorkbenchProps {
  * 日志工作台：末尾 N 行 / 服务端全文过滤 / 实时追踪 + 虚拟滚动查看器 + 搜索 / 级别筛选 / 复制导出。
  * 「日志文件」与「日志查看器」两个页面共用，只需提供来源与页面专属动作。
  */
-export function LogWorkbench({ source, title, canTail = true, initialLevel, headerExtra, menuExtra, exportName }: LogWorkbenchProps) {
+export function LogWorkbench({ source, title, canTail = true, initialLevel, initialKeyword, headerExtra, menuExtra, exportName }: LogWorkbenchProps) {
   // 内容搜索：输入即时高亮（防抖），全文模式回车提交服务端过滤
-  const [searchDraft, setSearchDraft] = useState('');
+  const [searchDraft, setSearchDraft] = useState(initialKeyword ?? '');
   const debouncedSearch = useDebouncedValue(searchDraft.trim(), { wait: 250 })[0];
   const [searchRegex, setSearchRegex] = useState(false);
   const [searchCaseSensitive, setSearchCaseSensitive] = useState(false);

@@ -3,7 +3,7 @@
  * 行内「查看链路」与 ?traceId= 深链都落到时间线查询；无 ID 时不请求时间线。
  */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useSearchParams } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PermissionContext } from '@/hooks/usePermission';
@@ -81,5 +81,67 @@ describe('链路追踪默认视图', () => {
     expect(recorder.countOf('GET', '/api/trace/recent')).toBe(0);
     // 时间线为空时给出「未找到留痕」而不是最近链路列表
     expect(await screen.findByText(/未找到该链路的留痕/)).toBeInTheDocument();
+  });
+});
+
+/** 跳转断言用的日志文件页替身：原样回显深链参数 */
+function LogFilesStub() {
+  const [params] = useSearchParams();
+  return <div>{`file=${params.get('file')}&keyword=${params.get('keyword')}`}</div>;
+}
+
+describe('链路追踪 → 日志文件跳转', () => {
+  const traceFile = 'app.2026-10-12.1.log';
+  const logLine = `{"level":30,"reqId":"${recentEntry.traceId}","msg":"POST /api/mp/fans/unblacklist 200 60ms"}`;
+
+  function renderWithRoutes(path: string) {
+    const client = createTestQueryClient();
+    const preferences = createPreferencesContext();
+    return render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={[path]}>
+          <PermissionContext.Provider value={['system:trace:view', 'system:log:files']}>
+            <PreferencesContext.Provider value={preferences}>
+              <Routes>
+                <Route path="/system/trace" element={<TracePage />} />
+                <Route path="/system/log-files" element={<LogFilesStub />} />
+              </Routes>
+            </PreferencesContext.Provider>
+          </PermissionContext.Provider>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+  }
+
+  it('应用日志面板按 traceId 过滤，跳转携带 file + keyword', async () => {
+    recorder.on('GET', TIMELINE_RE, {
+      traceId: recentEntry.traceId,
+      nodes: [{
+        kind: 'request',
+        ts: '2026-10-12 21:40:03',
+        title: 'POST /api/mp/fans/unblacklist',
+        status: 'success',
+        durationMs: 37,
+        refId: 1,
+        parentRef: null,
+        detail: {},
+      }],
+    });
+    recorder.on('GET', '/api/log-files', [
+      { name: traceFile, size: 1024, modifiedAt: '2026-10-12 21:40:03', isGzip: false },
+    ]);
+    recorder.on('GET', `/api/log-files/${traceFile}/content`, { lines: [logLine] });
+
+    renderWithRoutes(`/system/trace?traceId=${recentEntry.traceId}`);
+
+    expect(await screen.findByText('POST /api/mp/fans/unblacklist')).toBeInTheDocument();
+    // 日志面板用 traceId 作服务端关键词过滤
+    await waitFor(() => {
+      expect(recorder.urls('GET').some((u) => u.includes('/content') && u.includes(recentEntry.traceId))).toBe(true);
+    });
+    expect(await screen.findByText(logLine)).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole('button', { name: '在日志文件中查看' }));
+    expect(await screen.findByText(`file=${traceFile}&keyword=${recentEntry.traceId}`)).toBeInTheDocument();
   });
 });

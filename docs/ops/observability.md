@@ -69,7 +69,7 @@ API / Worker 分离部署时，纯 Worker 订阅 API 节点的 `wsStats` 镜像�
 - 与 QPS、HTTP 错误率一样是进程内口径，多实例部署时各实例统计自身；
 - 计数失败不影响日志写入。
 
-内置规则包括 ERROR ≥ 10 条/分持续 3 分钟（严重）和 WARN ≥ 30 条/分持续 5 分钟（警告）。此类告警事件操作列提供「查看日志」（需 `system:log:files`），跳转到 `/system/log-files?file=app.YYYY-MM-DD.1.log&level=error`。
+内置规则包括 ERROR ≥ 10 条/分持续 3 分钟（严重）和 WARN ≥ 30 条/分持续 5 分钟（警告）。此类告警事件操作列提供「查看日志」（需 `system:log:files`），跳转到 `/system/log-files?file=app.YYYY-MM-DD.1.log&level=error`。链路追踪的应用日志面板同样提供「在日志文件中查看」，跳转到 `/system/log-files?file=xxx.log&keyword=traceId`（工作台预填搜索并定位首个匹配行）。
 
 ## 告警中心
 

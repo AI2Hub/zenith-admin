@@ -82,6 +82,12 @@ export default function LogFilesPage() {
     ? parseLevelParam(searchParams.get('level'))
     : undefined;
 
+  // ?keyword= 只作用于 URL 驱动的选中（链路追踪跳转带 traceId）：与 ?level= 同一套深链语义，
+  // 工作台挂载时预填搜索并高亮首个匹配行，点选其他文件后重挂载即清空
+  const initialKeyword = selected && appliedFileParamRef.current !== selected.name
+    ? (searchParams.get('keyword')?.trim().slice(0, 200) || undefined)
+    : undefined;
+
   const handleDownload = async (file: LogFile) => {
     try {
       await request.download(logFileDownloadUrl(file.name), file.name);
@@ -218,6 +224,7 @@ export default function LogFilesPage() {
               )}
               canTail={!selected.isGzip && hasPermission('system:log:files')}
               initialLevel={initialLevel}
+              initialKeyword={initialKeyword}
               exportName={selected.name}
               menuExtra={(canDownload || canDelete) ? (
                 <>

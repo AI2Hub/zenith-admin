@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Banner, Button, Card, Collapse, Empty, Input, Select, SideSheet, Spin, Tabs, TabPane, Tag, Timeline, Typography,
 } from '@douyinfe/semi-ui';
@@ -42,6 +42,7 @@ const TRACE_ID_RE = /^[\w-]{8,64}$/;
 
 /** 链路日志（复用日志文件接口按 traceId 全文过滤，支持切换近 7 天的日志文件） */
 function TraceLogsPanel({ traceId }: { traceId: string }) {
+  const navigate = useNavigate();
   const filesQuery = useLogFiles();
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   // pino-roll 按天滚动：候选 = 近 7 个未压缩的 app 日志文件，默认最新
@@ -58,16 +59,28 @@ function TraceLogsPanel({ traceId }: { traceId: string }) {
   const contentQuery = useLogFileContent(activeFile, { lines: 5000, keyword: traceId }, Boolean(activeFile));
   const lines = contentQuery.data?.lines ?? [];
 
+  /** 跳日志文件页：按当前文件选中 + traceId 预填搜索，落到高亮的首个匹配行 */
+  const handleViewInLogFiles = () => {
+    if (!activeFile) return;
+    const params = new URLSearchParams({ file: activeFile, keyword: traceId });
+    navigate(`/system/log-files?${params.toString()}`);
+  };
+
   return (
     <Spin spinning={filesQuery.isPending || contentQuery.isFetching}>
-      {appFiles.length > 1 && (
-        <Select
-          size="small"
-          value={activeFile}
-          onChange={(v) => setSelectedFile(v as string)}
-          optionList={appFiles.map((f) => ({ value: f.name, label: f.name }))}
-          style={{ width: 260, marginBottom: 8 }}
-        />
+      {activeFile && (
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
+          {appFiles.length > 1 && (
+            <Select
+              size="small"
+              value={activeFile}
+              onChange={(v) => setSelectedFile(v as string)}
+              optionList={appFiles.map((f) => ({ value: f.name, label: f.name }))}
+              style={{ width: 260 }}
+            />
+          )}
+          <Button size="small" onClick={handleViewInLogFiles}>在日志文件中查看</Button>
+        </div>
       )}
       {lines.length === 0 ? (
         <Empty description="所选日志文件中未检索到该链路的记录" style={{ padding: '16px 0' }} />
