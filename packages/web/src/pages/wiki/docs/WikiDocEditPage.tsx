@@ -245,7 +245,8 @@ export default function WikiDocEditPage() {
       if (!confirmed) return;
       clearDraft();
       setDirty(false);
-      leave();
+      // 延后一拍再跳转：让确认弹窗的独立 root 先完成卸载，避免与其同帧卸载触发 React 同步卸载告警
+      setTimeout(leave, 0);
     });
   }
 
