@@ -14,6 +14,16 @@
   flex-wrap: wrap;
   gap: 8px;
   row-gap: 6px;
+  /* 作为容器供下方 @container 查询：面板宽度可拖拽，视口媒体查询在此无效 */
+  container-type: inline-size;
+}
+
+/* 面板拖到最窄 200px 时四个控件排不满一行：收起「全选」二字（勾选框与 aria 名称仍在），
+   把宽度让给退出与两个图标按钮，而不是把「退出」挤到第二行 */
+@container (max-width: 200px) {
+  .log-files-select-bar .semi-checkbox-addon {
+    display: none;
+  }
 }
 
 /* 「全选」的标签不参与收缩，否则窄面板下会折成「全 / 选」两行 */
