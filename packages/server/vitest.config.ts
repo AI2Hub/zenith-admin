@@ -27,12 +27,15 @@ export default defineConfig({
     // 限到 8 后 transform 231s、墙钟 121s 且全绿（12 已开始劣化并偶发超时）。
     // 这是上限而非目标值：CI 的 4 核 runner 本就只起 3 个 worker，不受影响。
     maxWorkers: 8,
-    // 发布流程四路并行（lint / test / build / docs）抢满 CPU 时，秒级用例会被
-    // 放大 10-40 倍：exceljs 渲染这类 ~0.5s 的用例实测撞破过 vitest 默认 5s
-    // （并非卡死，独占跑毫秒级通过）。与 web 侧同一口径放宽到 15s；
-    // 真死锁仍会在 15s 内快速失败。app.contract 的装配另有专属 480s 超时。
-    testTimeout: 15_000,
-    hookTimeout: 15_000,
+    // 发布流程多路并行抢满 CPU 时（按受影响包各一对 lint / test 再加 docs 一路），
+    // 秒级用例会被放大 10-40 倍：exceljs 渲染这类 ~0.5s 的用例实测撞破过 vitest 默认 5s。
+    // 16 核机器上按 5b 的多包 profile 并行 5 路实测 15s 仍被撞破——ws-manager 的
+    // presence 合并广播、log-viewer 的实时追踪两条（独占跑分别 4.8s / 1.0s，独占全量
+    // 499 个文件全绿），失败形态也全是超时而非断言失败，见 troubleshooting.md → 性能。
+    // 放宽到 30s；真死锁仍会在 30s 内快速失败。app.contract 的装配另有专属 480s 超时。
+    // web 侧保持 15s：其测试路在同样 5 路并行下全绿，没有证据需要放宽。
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
     // 不要用 isolate: false 换速度：本套测试重度依赖 per-file vi.mock，关闭隔离会
     // 产生跨文件模块状态泄漏（单跑全绿、混跑必挂），且文件→worker 的分配随时序
     // 变化，泄漏组合不可复现、白名单不可维护。
