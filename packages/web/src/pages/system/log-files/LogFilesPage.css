@@ -1,6 +1,12 @@
 /* ─── 日志文件：左侧文件列表的批量选择操作条 ─────────────────────────────── */
 
-/* 面板默认只有 260px，且可拖到 200px：条目按内容宽度排不下时换行，而不是挤压 / 裁掉删除按钮 */
+/* 标题行的选中计数：标题可省略，它不参与收缩 */
+.log-files-select-count {
+  white-space: nowrap;
+}
+
+/* 面板默认只有 260px，且可拖到 200px：靠 __hint 收缩保证「全选 / 退出 / 两个图标按钮」排成一行；
+   连它都放不下时才换行，而不是挤压 / 裁掉按钮 */
 .log-files-select-bar {
   width: 100%;
   display: flex;
@@ -17,18 +23,21 @@
 }
 
 .log-files-select-bar__hint {
-  margin-left: auto;
+  /* flex-basis 必须为 0：换行判定用的是未收缩的基准尺寸，auto 时它会按文案宽度
+     参与排行，把图标按钮挤到第二行（min-width: 0 只在压缩阶段生效，救不了排行） */
+  flex: 1 1 0;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  text-align: right;
 }
 
 .log-files-select-bar > .semi-button {
   flex-shrink: 0;
 }
 
-/* 批量动作（下载 / 删除）整组换行：窄面板下不会把其中一个孤零零挤到下一行 */
+/* 批量动作（下载 / 删除）整组出现、整组换行：窄面板下不会把其中一个孤零零挤到下一行 */
 .log-files-select-bar__actions {
   display: flex;
   align-items: center;

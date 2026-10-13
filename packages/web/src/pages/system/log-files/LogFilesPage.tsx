@@ -196,6 +196,13 @@ export default function LogFilesPage() {
             title="日志文件"
             headerExtra={
               <>
+                {/* 选中数量放头部：底部操作条在 260px 面板里只装得下图标按钮 + 全选/退出，
+                    文字放那儿必被截断；标题行有空间容纳这一行短文本 */}
+                {selecting && (
+                  <Typography.Text type="tertiary" size="small" className="log-files-select-count">
+                    {checkedNames.length > 0 ? `已选 ${checkedNames.length} 项` : `共 ${filteredFiles.length} 个文件`}
+                  </Typography.Text>
+                )}
                 <Button
                   icon={<RefreshCw size={13} />}
                   size="small"
@@ -230,19 +237,20 @@ export default function LogFilesPage() {
                     >
                       全选
                     </Checkbox>
-                    {/* 已选数量由删除按钮承载（「删除 (N)」），避免重复；窄面板下同一行放不下四处文字。
-                        该节点常驻以保持右侧按钮右对齐 */}
+                    {/* 空白占位：撑开「全选」与右侧的退出 / 图标按钮；文字只在非选择模式出现
+                        （选择模式的计数已移到面板标题行，此处再放一遍会被截断） */}
                     <Typography.Text type="tertiary" size="small" className="log-files-select-bar__hint">
-                      {checkedNames.length === 0 ? `共 ${filteredFiles.length} 个文件` : null}
+                      {selecting ? null : `共 ${filteredFiles.length} 个文件`}
                     </Typography.Text>
-                    <Button size="small" theme="borderless" onClick={exitSelecting}>退出</Button>
                     {checkedNames.length > 0 && (canDownload || canDelete) && (
-                      /* 两个动作同属一组：窄面板放不下时整组换行，而不是把「删除」单独拆到下一行 */
+                      /* 两个动作整组出现、且只用图标：带文案放不进 260px 的面板一行。
+                         排在「退出」左侧：退出是模式开关，位置固定在最右，勾选才浮现的动作不挤动它 */
                       <span className="log-files-select-bar__actions">
                         {canDownload && (
                           <BatchDownloadButton
                             count={checkedNames.length}
                             label="下载"
+                            iconOnly
                             loading={downloading}
                             onClick={() => void handleBatchDownload()}
                           />
@@ -251,12 +259,14 @@ export default function LogFilesPage() {
                           <BatchDeleteButton
                             count={checkedNames.length}
                             label="删除"
+                            iconOnly
                             loading={batchDeleteMutation.isPending}
                             onClick={handleBatchDelete}
                           />
                         )}
                       </span>
                     )}
+                    <Button size="small" theme="borderless" onClick={exitSelecting}>退出</Button>
                   </>
                 ) : (
                   <>

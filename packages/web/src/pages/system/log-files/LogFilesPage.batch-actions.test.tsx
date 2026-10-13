@@ -98,6 +98,10 @@ describe('日志文件选择模式下的批量操作（下载 / 删除）', () =
     check(FILE_B);
     check(FILE_C);
     await screen.findByRole('button', { name: /删除 \(2\)/ });
+    // 图标形态：选中数只在无障碍名称 / tooltip 里，按钮本身不带文字（窄面板才排得成一行）
+    expect(screen.getByRole('button', { name: '删除 (2)' }).textContent).toBe('');
+    // 计数落在面板标题行：底栏在 260px 面板下放不下文字，写在那里会被截成「已选 …」
+    expect(screen.getByText('已选 2 项').closest('.nav-list-panel__header')).not.toBeNull();
     fireEvent.click(screen.getByRole('button', { name: /删除 \(2\)/ }));
 
     expect(lastConfirm()).toMatchObject({
@@ -120,6 +124,8 @@ describe('日志文件选择模式下的批量操作（下载 / 删除）', () =
     expect(screen.queryByRole('checkbox', { name: '全选' })).not.toBeInTheDocument();
 
     enterSelection();
+    // 尚未勾选时标题行回退到总数，免得进入选择模式后左边一列没有任何数量信息
+    expect(screen.getByText('共 3 个文件').closest('.nav-list-panel__header')).not.toBeNull();
     check(FILE_A);
     await screen.findByRole('button', { name: /删除 \(1\)/ });
 
@@ -184,7 +190,9 @@ describe('日志文件选择模式下的批量操作（下载 / 删除）', () =
     enterSelection();
     check(FILE_B);
     check(FILE_C);
-    fireEvent.click(await screen.findByRole('button', { name: /下载 \(2\)/ }));
+    const downloadButton = await screen.findByRole('button', { name: /下载 \(2\)/ });
+    expect(downloadButton.textContent).toBe('');
+    fireEvent.click(downloadButton);
 
     await waitFor(() => expect(recorder.countOf('POST', '/api/log-files/batch-download')).toBe(1));
     // fetchRaw 传的是已序列化的请求体（混合响应用不了 api() 的自动序列化）

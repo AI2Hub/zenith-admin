@@ -13,7 +13,7 @@
  */
 import type { ReactNode } from 'react';
 import type { Permission } from '@zenith/shared/core';
-import { Button } from '@douyinfe/semi-ui';
+import { Button, Tooltip } from '@douyinfe/semi-ui';
 import { Ban, CircleCheck, Download, Plus, RotateCcw, Search, Trash2 } from 'lucide-react';
 import { usePermission } from '@/hooks/usePermission';
 
@@ -79,30 +79,60 @@ interface BatchDeleteButtonProps extends Omit<ToolbarButtonProps, 'children'> {
   readonly count: number;
   /** 覆盖默认文案「批量删除」，如「删除选中文件」 */
   readonly label?: ReactNode;
+  /**
+   * 只渲染图标（文案与选中数移入 tooltip）。供窄容器使用，如列表侧栏的批量操作条：
+   * 面板默认 260px，带文案的两个按钮在里面必然折行。
+   */
+  readonly iconOnly?: boolean;
+}
+
+/**
+ * 图标形态下的 tooltip 与无障碍名称。
+ * 名称始终带选中数，形态变了但读屏 / 测试取到的名字不变。
+ */
+function batchActionName(label: ReactNode, fallback: string, count: number): string {
+  return `${typeof label === 'string' ? label : fallback} (${count})`;
 }
 
 /**
  * 批量删除按钮（danger + 浅色 + 垃圾桶图标），文案带选中数。
  * 是否渲染由调用方按「有选中 && 有权限」判断——工具栏据此决定移动端是否出现「更多操作」菜单，组件内部不能自行返回 null。
  */
-export function BatchDeleteButton({ count, onClick, disabled, loading, label = '批量删除' }: BatchDeleteButtonProps) {
-  return (
-    <Button type="danger" theme="light" icon={<Trash2 size={14} />} onClick={onClick} disabled={disabled} loading={loading}>
-      {label} ({count})
+export function BatchDeleteButton({ count, onClick, disabled, loading, label = '批量删除', iconOnly = false }: BatchDeleteButtonProps) {
+  const button = (
+    <Button
+      type="danger"
+      theme="light"
+      icon={<Trash2 size={14} />}
+      onClick={onClick}
+      disabled={disabled}
+      loading={loading}
+      aria-label={iconOnly ? batchActionName(label, '批量删除', count) : undefined}
+    >
+      {iconOnly ? null : <>{label} ({count})</>}
     </Button>
   );
+  return iconOnly ? <Tooltip content={batchActionName(label, '批量删除', count)}>{button}</Tooltip> : button;
 }
 
 /**
  * 批量打包下载按钮（浅色 + 下载图标），文案带选中数。
  * 渲染时机同 `BatchDeleteButton`：由调用方按「有选中 && 有权限」判断。
  */
-export function BatchDownloadButton({ count, onClick, disabled, loading, label = '打包下载' }: BatchDeleteButtonProps) {
-  return (
-    <Button theme="light" icon={<Download size={14} />} onClick={onClick} disabled={disabled} loading={loading}>
-      {label} ({count})
+export function BatchDownloadButton({ count, onClick, disabled, loading, label = '打包下载', iconOnly = false }: BatchDeleteButtonProps) {
+  const button = (
+    <Button
+      theme="light"
+      icon={<Download size={14} />}
+      onClick={onClick}
+      disabled={disabled}
+      loading={loading}
+      aria-label={iconOnly ? batchActionName(label, '打包下载', count) : undefined}
+    >
+      {iconOnly ? null : <>{label} ({count})</>}
     </Button>
   );
+  return iconOnly ? <Tooltip content={batchActionName(label, '打包下载', count)}>{button}</Tooltip> : button;
 }
 
 interface BatchStatusButtonProps extends Omit<ToolbarButtonProps, 'children'> {
