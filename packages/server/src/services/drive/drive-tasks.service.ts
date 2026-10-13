@@ -1,6 +1,6 @@
 import { HTTPException } from 'hono/http-exception';
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
-import { PassThrough, Readable } from 'node:stream';
+import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { createWriteStream, openAsBlob } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -17,6 +17,7 @@ import { db } from '../../db';
 import { driveNodes, driveSpaces, fileStorageConfigs, managedFiles, type DriveNodeRow, type DriveSpaceRow } from '../../db/schema';
 import { currentUser, currentUserId } from '../../lib/context';
 import { readStoredFile } from '../../lib/file-storage';
+import { buildZipStream as streamZipArchive, toNodeReadable } from '../../lib/zip';
 import { registerTaskHandler, submitAsyncTask, TaskCancelledError } from '../../lib/task-center';
 import { saveGeneratedManagedFile } from '../files/files.service';
 import { ensureNodeRoleOnAll, loadDriveSubjects, resolveNodeRoles } from './drive-access.service';
@@ -84,7 +85,10 @@ async function ensureDownloadable(ids: number[]): Promise<DriveNodeRow[]> {
   return rows;
 }
 
-/** 把 zip 条目流式写入 archiver，返回 Node 可读流 */
+/**
+ * 把 zip 条目流式写入共享内核，返回 Node 可读流。
+ * 这里只负责把「节点条目」解析成托管文件 + 存储配置并打开源流，打包本身在 lib/zip。
+ */
 async function buildZipStream(entries: ZipEntry[], onEntry?: (index: number) => Promise<void>): Promise<Readable> {
   const fileIds = [...new Set(entries.map((e) => e.fileId))];
   const files = fileIds.length ? await db.select().from(managedFiles).where(inArray(managedFiles.id, fileIds)) : [];
@@ -92,30 +96,15 @@ async function buildZipStream(entries: ZipEntry[], onEntry?: (index: number) => 
   const configIds = [...new Set(files.map((f) => f.storageConfigId))];
   const configs = configIds.length ? await db.select().from(fileStorageConfigs).where(inArray(fileStorageConfigs.id, configIds)) : [];
   const configMap = new Map(configs.map((c) => [c.id, c]));
-  const { ZipArchive } = await import('archiver');
-  const archive = new ZipArchive({ zlib: { level: 5 } });
-  const passThrough = new PassThrough();
-  archive.on('error', (err: Error) => passThrough.destroy(err));
-  archive.pipe(passThrough);
-  void (async () => {
-    for (const [index, entry] of entries.entries()) {
+  return streamZipArchive(entries.map((entry) => ({
+    name: entry.entryName,
+    open: async () => {
       const file = fileMap.get(entry.fileId);
       const config = file ? configMap.get(file.storageConfigId) : undefined;
       if (!file || !config) throw new Error(`Archive source is missing: ${entry.entryName}`);
-        const { stream } = await readStoredFile(file, config);
-        archive.append(Readable.fromWeb(stream as Parameters<typeof Readable.fromWeb>[0]), { name: entry.entryName });
-        await new Promise<void>((resolve, reject) => {
-          const cleanup = () => { archive.off('entry', done); archive.off('error', fail); };
-          const done = () => { cleanup(); resolve(); };
-          const fail = (err: Error) => { cleanup(); reject(err); };
-          archive.once('entry', done);
-          archive.once('error', fail);
-        });
-        if (onEntry) await onEntry(index + 1);
-    }
-    await archive.finalize();
-  })().catch((err) => passThrough.destroy(err instanceof Error ? err : new Error(String(err))));
-  return passThrough;
+      return toNodeReadable((await readStoredFile(file, config)).stream);
+    },
+  })), { onEntry });
 }
 
 /**

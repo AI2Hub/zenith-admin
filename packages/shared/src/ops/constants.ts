@@ -547,3 +547,11 @@ export const DEPLOY_ENV_NAME_RE = /^[A-Z_][A-Z0-9_]{0,63}$/;
 
 /** 部署根目录禁止落在这些系统目录之内（或等于它们） */
 export const DEPLOY_FORBIDDEN_ROOTS = ['/', '/bin', '/boot', '/dev', '/etc', '/lib', '/lib64', '/proc', '/root', '/run', '/sbin', '/sys', '/usr', '/var/lib', '/var/run'] as const;
+
+// ─── 日志文件打包下载 ────────────────────────────────────────────────────────
+
+/** 同步返回 zip 的文件数上限；超过转任务中心异步打包（与网盘同阈值口径） */
+export const LOG_SYNC_ZIP_MAX_FILES = 50;
+
+/** 同步返回 zip 的总字节上限（200MB）；超过转任务中心异步打包 */
+export const LOG_SYNC_ZIP_MAX_BYTES = 200 * 1024 * 1024;

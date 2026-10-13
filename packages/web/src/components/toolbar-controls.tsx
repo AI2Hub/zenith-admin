@@ -14,7 +14,7 @@
 import type { ReactNode } from 'react';
 import type { Permission } from '@zenith/shared/core';
 import { Button } from '@douyinfe/semi-ui';
-import { Ban, CircleCheck, Plus, RotateCcw, Search, Trash2 } from 'lucide-react';
+import { Ban, CircleCheck, Download, Plus, RotateCcw, Search, Trash2 } from 'lucide-react';
 import { usePermission } from '@/hooks/usePermission';
 
 interface ToolbarButtonProps {
@@ -88,6 +88,18 @@ interface BatchDeleteButtonProps extends Omit<ToolbarButtonProps, 'children'> {
 export function BatchDeleteButton({ count, onClick, disabled, loading, label = '批量删除' }: BatchDeleteButtonProps) {
   return (
     <Button type="danger" theme="light" icon={<Trash2 size={14} />} onClick={onClick} disabled={disabled} loading={loading}>
+      {label} ({count})
+    </Button>
+  );
+}
+
+/**
+ * 批量打包下载按钮（浅色 + 下载图标），文案带选中数。
+ * 渲染时机同 `BatchDeleteButton`：由调用方按「有选中 && 有权限」判断。
+ */
+export function BatchDownloadButton({ count, onClick, disabled, loading, label = '打包下载' }: BatchDeleteButtonProps) {
+  return (
+    <Button theme="light" icon={<Download size={14} />} onClick={onClick} disabled={disabled} loading={loading}>
       {label} ({count})
     </Button>
   );

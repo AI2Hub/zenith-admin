@@ -22,6 +22,13 @@ const getLogFileBeforeAudit = vi.fn(async (name: string) => ({ name, size: 1, mo
 const getLogFilesBeforeAudit = vi.fn(async (names: string[]) => names.map((name) => ({ name, size: 1, modifiedAt: '2026-10-13 00:00:00', isGzip: false })));
 const listLogFiles = vi.fn(async () => []);
 
+/** 打包下载的双模服务：同步返回 zip 流 / 超阀值返回任务信封 */
+const batchDownloadLogFiles = vi.fn();
+
+vi.mock('../../services/ops/log-files-download.service', () => ({
+  batchDownloadLogFiles: (names: string[]) => batchDownloadLogFiles(names),
+}));
+
 vi.mock('../../services/ops/log-files.service', () => ({
   listLogFiles: () => listLogFiles(),
   readLogFileLines: vi.fn(async () => []),
@@ -40,6 +47,7 @@ const app = logFilesRouter.basePath('/api/log-files');
 beforeEach(() => {
   batchDeleteLogFiles.mockClear();
   deleteLogFile.mockClear();
+  batchDownloadLogFiles.mockReset();
 });
 
 describe('DELETE /api/log-files/batch 的分发归属', () => {
@@ -73,5 +81,56 @@ describe('DELETE /api/log-files/batch 的分发归属', () => {
 
     expect(res.status).toBe(400);
     expect(batchDeleteLogFiles).not.toHaveBeenCalled();
+  });
+});
+
+describe('POST /api/log-files/batch-download 的双模响应', () => {
+  const post = (filenames: unknown) => app.request('/batch-download', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ filenames }),
+  });
+
+  it('同步模式下响应体是 zip 流（含附件文件名，不套 JSON 外壳）', async () => {
+    const bytes = new Uint8Array([0x50, 0x4b, 0x03, 0x04]);
+    batchDownloadLogFiles.mockResolvedValue({
+      mode: 'sync',
+      stream: new Blob([bytes]).stream(),
+      filename: 'logs_1.zip',
+    });
+
+    const res = await post(['app.1.log']);
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('application/zip');
+    expect(res.headers.get('content-disposition')).toContain('logs_1.zip');
+    expect(new Uint8Array(await res.arrayBuffer())).toEqual(bytes);
+    expect(batchDownloadLogFiles).toHaveBeenCalledWith(['app.1.log']);
+  });
+
+  it('超阀值时以 JSON 信封返回任务信息（同一接口的另一种响应形态）', async () => {
+    batchDownloadLogFiles.mockResolvedValue({ mode: 'task', result: { mode: 'task', taskId: 42 } });
+
+    const res = await post(['a.log', 'b.log']);
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('application/json');
+    await expect(res.json()).resolves.toMatchObject({ code: 0, data: { mode: 'task', taskId: 42 } });
+  });
+
+  it('静态段 batch-download 不被 /{filename} 系列路由抢走', async () => {
+    batchDownloadLogFiles.mockResolvedValue({ mode: 'task', result: { mode: 'task', taskId: 1 } });
+
+    const res = await post(['a.log']);
+
+    expect(res.status).toBe(200);
+    expect(batchDownloadLogFiles).toHaveBeenCalledTimes(1);
+  });
+
+  it('空数组按契约 400，不落到服务层', async () => {
+    const res = await post([]);
+
+    expect(res.status).toBe(400);
+    expect(batchDownloadLogFiles).not.toHaveBeenCalled();
   });
 });

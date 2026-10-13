@@ -10,11 +10,29 @@ import { ApiRecorder, createRequestMock, createTestQueryClient } from '@/test-ut
 const recorder = new ApiRecorder();
 vi.mock('@/utils/request', () => ({ request: createRequestMock(() => recorder) }));
 
+// 同步 zip 会直接触发浏览器下载；替换掉真正的 blob 下载，只断言拿到的文件名
+const downloadBlob = vi.fn();
+vi.mock('@/utils/download', () => ({
+  downloadBlob: (blob: Blob, filename: string) => downloadBlob(blob, filename),
+}));
+
+/** 混合响应替身：不经 jsdom 的 fetch 实现，只提供生产代码用到的那几个面 */
+function rawResponse(headers: Record<string, string>, body: { json?: () => Promise<unknown>; blob?: () => Promise<Blob> }) {
+  return {
+    ok: true,
+    headers: { get: (name: string) => headers[name.toLowerCase()] ?? null },
+    json: body.json ?? (async () => { throw new Error('不是 JSON 响应'); }),
+    blob: body.blob ?? (async () => new Blob([])),
+  };
+}
+
 // Modal.confirm 是 Semi 的旧版命令式渲染 API（依赖 createRoot 注入），jsdom 下无法真实渲染；
 // 记录配置后手动触发 onOk，其余行为（危险按钮样式、确认文案）仍走真实的 confirmDelete。
 const confirmCalls: { title?: string; content?: React.ReactNode; okButtonProps?: Record<string, unknown>; onOk?: () => void | Promise<void> }[] = [];
+const toastInfo = vi.fn();
 vi.mock('@douyinfe/semi-ui', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@douyinfe/semi-ui')>();
+  Object.assign(actual.Toast, { info: (content: string) => toastInfo(content) });
   Object.assign(actual.Modal, {
     confirm: (config: { title?: string; content?: React.ReactNode; okButtonProps?: Record<string, unknown>; onOk?: () => void | Promise<void> }) => {
       confirmCalls.push(config);
@@ -37,7 +55,7 @@ function renderPage() {
   render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={['/system/log-files']}>
-        <PermissionContext.Provider value={['system:log:files', 'system:log:files:delete']}>
+        <PermissionContext.Provider value={['system:log:files', 'system:log:files:delete', 'system:log:files:download']}>
           <PreferencesContext.Provider value={createPreferencesContext()}>
             <LogFilesPage />
           </PreferencesContext.Provider>
@@ -64,12 +82,14 @@ const confirmOk = () => void lastConfirm().onOk?.();
 beforeEach(() => {
   recorder.reset();
   confirmCalls.length = 0;
+  downloadBlob.mockClear();
+  toastInfo.mockClear();
   recorder.on('GET', '/api/log-files', [file(FILE_A), file(FILE_B), file(FILE_C)]);
   recorder.on('GET', /\/content/, { lines: [] });
   recorder.on('DELETE', '/api/log-files/batch', { deleted: 2 });
 });
 
-describe('日志文件批量删除', () => {
+describe('日志文件选择模式下的批量操作（下载 / 删除）', () => {
   it('勾选多个文件后一次提交 DELETE /api/log-files/batch，删除后清选中', async () => {
     renderPage();
     await screen.findByText(FILE_A);
@@ -153,7 +173,67 @@ describe('日志文件批量删除', () => {
     await screen.findByRole('button', { name: /删除 \(3\)/ });
   });
 
-  it('无删除权限时不渲染勾选框与批量按钮', async () => {
+  it('多选打包下载：低于阈值时服务端返回 zip 流并直接触发下载', async () => {
+    recorder.on('POST', '/api/log-files/batch-download', () => rawResponse(
+      { 'content-type': 'application/zip', 'content-disposition': "attachment; filename*=UTF-8''logs_9.zip" },
+      { blob: async () => new Blob([new Uint8Array([0x50, 0x4b, 0x03, 0x04])]) },
+    ));
+    renderPage();
+    await screen.findByText(FILE_A);
+
+    enterSelection();
+    check(FILE_B);
+    check(FILE_C);
+    fireEvent.click(await screen.findByRole('button', { name: /下载 \(2\)/ }));
+
+    await waitFor(() => expect(recorder.countOf('POST', '/api/log-files/batch-download')).toBe(1));
+    // fetchRaw 传的是已序列化的请求体（混合响应用不了 api() 的自动序列化）
+    const postedBody = recorder.calls.find((c) => c.method === 'POST')?.body;
+    expect(JSON.parse(String(postedBody))).toEqual({ filenames: [FILE_B, FILE_C] });
+    await waitFor(() => expect(downloadBlob).toHaveBeenCalledTimes(1));
+    expect(downloadBlob.mock.calls[0][1]).toBe('logs_9.zip');
+    expect(toastInfo).not.toHaveBeenCalled();
+    // 下载不改动列表：勾选与详情状态都保留
+    expect(screen.getByRole('checkbox', { name: `选择 ${FILE_B}` })).toBeChecked();
+  });
+
+  it('超过阈值时转为后台任务，只提示并保留勾选', async () => {
+    recorder.on('POST', '/api/log-files/batch-download', () => rawResponse(
+      { 'content-type': 'application/json' },
+      { json: async () => ({ code: 0, message: '文件较多，已转为后台打包，完成后通知', data: { mode: 'task', taskId: 9 } }) },
+    ));
+    renderPage();
+    await screen.findByText(FILE_A);
+
+    enterSelection();
+    check(FILE_A);
+    fireEvent.click(await screen.findByRole('button', { name: /下载 \(1\)/ }));
+
+    await waitFor(() => expect(toastInfo).toHaveBeenCalledWith('文件较多，已转为后台打包，完成后会通知你下载'));
+    expect(downloadBlob).not.toHaveBeenCalled();
+  });
+
+  it('只有下载权限时：选择模式可用，但只出现下载按钮', async () => {
+    render(
+      <QueryClientProvider client={createTestQueryClient()}>
+        <MemoryRouter initialEntries={['/system/log-files']}>
+          <PermissionContext.Provider value={['system:log:files', 'system:log:files:download']}>
+            <PreferencesContext.Provider value={createPreferencesContext()}>
+              <LogFilesPage />
+            </PreferencesContext.Provider>
+          </PermissionContext.Provider>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    await screen.findByText(FILE_A);
+
+    enterSelection();
+    check(FILE_A);
+    await screen.findByRole('button', { name: /下载 \(1\)/ });
+    expect(screen.queryByRole('button', { name: /删除 \(/ })).not.toBeInTheDocument();
+  });
+
+  it('既无下载也无删除权限时不渲染选择模式入口与勾选框', async () => {
     render(
       <QueryClientProvider client={createTestQueryClient()}>
         <MemoryRouter initialEntries={['/system/log-files']}>

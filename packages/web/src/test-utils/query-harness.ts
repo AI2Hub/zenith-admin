@@ -68,8 +68,8 @@ export class ApiRecorder {
     return this;
   }
 
-  /** 供 `vi.mock('@/utils/request')` 的工厂调用；返回统一响应外壳 */
-  dispatch(method: HttpMethod, url: string, body?: unknown, opts?: { headers?: HeadersInit }): Promise<unknown> {
+  /** 记录调用并执行命中的桩；未注册时抛出（错误文案保持既有格式） */
+  private invoke(method: HttpMethod, url: string, body?: unknown, opts?: { headers?: HeadersInit }): unknown {
     const headers = opts?.headers ? Object.fromEntries(new Headers(opts.headers)) : undefined;
     const call: RecordedCall = {
       method,
@@ -80,13 +80,33 @@ export class ApiRecorder {
     this.calls.push(call);
     const stub = this.stubs.find((s) => (s.method === '*' || s.method === method) && s.match(url));
     if (!stub) {
-      return Promise.reject(
-        new Error(
-          `[ApiRecorder] 未注册响应桩：${method} ${url}（已注册 ${this.stubs.length} 条桩，已记录 ${this.calls.length} 次调用）`,
-        ),
+      throw new Error(
+        `[ApiRecorder] 未注册响应桩：${method} ${url}（已注册 ${this.stubs.length} 条桩，已记录 ${this.calls.length} 次调用）`,
       );
     }
-    return Promise.resolve({ code: 0, message: 'success', data: stub.responder(call) });
+    return stub.responder(call);
+  }
+
+  /** 供 `vi.mock('@/utils/request')` 的工厂调用；返回统一响应外壳 */
+  dispatch(method: HttpMethod, url: string, body?: unknown, opts?: { headers?: HeadersInit }): Promise<unknown> {
+    try {
+      return Promise.resolve({ code: 0, message: 'success', data: this.invoke(method, url, body, opts) });
+    } catch (err) {
+      return Promise.reject(err);
+    }
+  }
+
+  /**
+   * 同 `dispatch` 但返回桩的**原始**返回值，不套统一响应外壳：
+   * `fetchRaw` 这类二进制 / 混合响应接口（zip 流 + 任务 JSON）需要按 content-type 分流，
+   * 桩应直接返回 `Response` 本身。
+   */
+  dispatchRaw(method: HttpMethod, url: string, body?: unknown, opts?: { headers?: HeadersInit }): Promise<unknown> {
+    try {
+      return Promise.resolve(this.invoke(method, url, body, opts));
+    } catch (err) {
+      return Promise.reject(err);
+    }
   }
 
   /** 命中指定 URL 的调用次数；`url` 省略时统计该方法的全部调用 */
@@ -132,6 +152,17 @@ export function createRequestMock(getRecorder: () => ApiRecorder) {
     put: (url: string, body?: unknown, opts?: Opts) => getRecorder().dispatch('PUT', url, body, opts),
     patch: (url: string, body?: unknown, opts?: Opts) => getRecorder().dispatch('PATCH', url, body, opts),
     delete: (url: string, body?: unknown, opts?: Opts) => getRecorder().dispatch('DELETE', url, body, opts),
+    /**
+     * 无外壳的原始响应：桩直接返回 `Response`（或同形状的 `{ headers, blob/json }` 替身）时原样透传，
+     * 便于断言二进制 / 混合 content-type；其余按统一外壳序列化为 JSON Response。
+     */
+    fetchRaw: async (url: string, opts?: Opts & { method?: HttpMethod; body?: unknown }) => {
+      const value = await getRecorder().dispatchRaw(opts?.method ?? 'GET', url, opts?.body, opts);
+      if (typeof value === 'object' && value !== null && 'headers' in value && ('blob' in value || 'json' in value)) {
+        return value as Response;
+      }
+      return new Response(JSON.stringify(value), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    },
   };
 }
 

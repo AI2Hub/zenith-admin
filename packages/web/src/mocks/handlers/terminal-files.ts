@@ -100,6 +100,9 @@ export const terminalFilesHandlers = [
 
   mock(logFileContract.removeBatch, () => forbidden('演示模式下不支持删除日志', { status: 403 })),
 
+  // 演示模式的日志列表为空，选择模式入口不会出现；这里仍显式绑定，避免走到真实网络
+  mock(logFileContract.batchDownload, () => forbidden('演示模式下不支持打包下载日志', { status: 403 })),
+
   // ── 日志查看器（与日志文件同一行数组形状）─────────────────────────────────
   mock(logViewerContract.content, ({ ok }) => ok({ lines: ['[INFO] 演示模式：日志内容不可访问'] })),
 ];

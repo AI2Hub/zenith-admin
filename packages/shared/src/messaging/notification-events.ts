@@ -389,6 +389,17 @@ export const NOTIFICATION_EVENTS = defineNotificationEvents({
     content: '{{kindLabel}}：窗口 {{windowMinutes}} 分钟内该账号失败 {{failureCount}} 次、涉及 {{sourceCount}} 个来源 IP（最近来源 {{ip}}）。账号不会被锁定，请前往登录日志核查是否为真实攻击。',
   },
 
+  'ops.log_files.zip_ready': {
+    group: 'ops',
+    label: '日志打包下载已就绪',
+    severity: 'normal',
+    defaultChannels: ['inapp'],
+    availableChannels: ['inapp', 'email'],
+    vars: eventVars<{ fileCount: number; sizeText: string }>(),
+    title: '日志打包下载已就绪',
+    content: '你请求打包的 {{fileCount}} 个日志文件（{{sizeText}}）已准备完成，点击下载。',
+  },
+
   // ─── 运维与告警 ─────────────────────────────────────────────────────────────
   // 告警类事件由管理员在规则上显式指定渠道与接收人，收件人不得自行关闭：
   // 「配了规则却没人收到」正是这套系统最不能出现的失效模式。

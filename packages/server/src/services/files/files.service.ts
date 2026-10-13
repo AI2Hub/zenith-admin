@@ -1,5 +1,6 @@
 import { fileContract, managedFileSchema } from '@zenith/shared/platform';
 import { openAsBlob } from 'node:fs';
+import { Readable } from 'node:stream';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { buildListResult } from '../../lib/list-query';
 import { requireRow } from '../../lib/db-assert';
@@ -42,6 +43,7 @@ import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../lib/context';
 import { runAsUser } from '../../lib/audit-context';
 import { attachmentDisposition } from '../../lib/content-disposition';
+import { buildZipStream, toNodeReadable, type ZipEntrySource } from '../../lib/zip';
 import { resolveUserNames } from '../../lib/user-nicknames';
 import { pickEntity } from '../../lib/entity-map';
 import { localDayStart, localFormat, localTrunc } from "../../lib/datetime-sql";
@@ -386,42 +388,22 @@ export async function batchDownloadFilesAsZip(ids: string[]): Promise<{ stream: 
   const configs = await db.select().from(fileStorageConfigs).where(inArray(fileStorageConfigs.id, configIds));
   const configMap = new Map(configs.map((c) => [c.id, c]));
 
-  const { Readable, PassThrough } = await import('node:stream');
-  const { ZipArchive } = await import('archiver');
-  const archive = new ZipArchive({ zlib: { level: 5 } });
-  const passThrough = new PassThrough();
-  archive.on('error', (err: Error) => passThrough.destroy(err));
-  archive.pipe(passThrough);
+  // 同名文件按出现顺序去重命名（zip 内同名会互相覆盖）
+  const nameCount: Record<string, number> = {};
+  const zipEntries: ZipEntrySource[] = files.flatMap((file) => {
+    const config = configMap.get(file.storageConfigId);
+    if (!config) return [];
+    const count = nameCount[file.originalName] ?? 0;
+    nameCount[file.originalName] = count + 1;
+    return [{
+      name: count === 0 ? file.originalName : deduplicateEntryName(file.originalName, count),
+      open: async () => toNodeReadable((await readStoredFile(file, config)).stream),
+    }];
+  });
 
-  // 逐个文件流式写入 ZIP：等待上一个 entry 处理完再打开下一个远端连接，
-  // 同一时刻只持有一个源流，既不把整文件读进内存，也不并发打开全部连接。
-  void (async () => {
-    const nameCount: Record<string, number> = {};
-    for (const file of files) {
-      const config = configMap.get(file.storageConfigId);
-      if (!config) continue;
-      try {
-        const { stream } = await readStoredFile(file, config);
-        const nodeStream = Readable.fromWeb(stream as Parameters<typeof Readable.fromWeb>[0]);
-        const count = nameCount[file.originalName] ?? 0;
-        nameCount[file.originalName] = count + 1;
-        const entryName = count === 0 ? file.originalName : deduplicateEntryName(file.originalName, count);
-        archive.append(nodeStream, { name: entryName });
-        await new Promise<void>((resolve, reject) => {
-          const cleanup = () => { archive.off('entry', onEntry); archive.off('error', onError); };
-          const onEntry = () => { cleanup(); resolve(); };
-          const onError = (err: Error) => { cleanup(); reject(err); };
-          archive.once('entry', onEntry);
-          archive.once('error', onError);
-        });
-      } catch {
-        // 单个文件读取失败时跳过，不中断整体打包
-      }
-    }
-    await archive.finalize();
-  })().catch((err) => passThrough.destroy(err instanceof Error ? err : new Error(String(err))));
-
-  const webStream = Readable.toWeb(passThrough) as ReadableStream;
+  // 单个文件读取失败时跳过，不中断整体打包（其余条照常产出）
+  const zipStream = await buildZipStream(zipEntries, { skipEntryErrors: true });
+  const webStream = Readable.toWeb(zipStream) as ReadableStream;
   return { stream: webStream, filename: `files_${Date.now()}.zip` };
 }
 

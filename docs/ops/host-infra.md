@@ -150,8 +150,11 @@
 | `GET /api/log-files/:filename/download` | `system:log:files:download` | 下载日志文件 |
 | `DELETE /api/log-files/:filename` | `system:log:files:delete` | 删除日志文件 |
 | `DELETE /api/log-files/batch` | `system:log:files:delete` | 批量删除日志文件（请求体 `{ filenames: string[] }`，响应带实际删除个数）|
+| `POST /api/log-files/batch-download` | `system:log:files:download` | 批量打包下载（请求体同批量删除）；文件数 / 总大小低于阈值直接返回 zip 流，超过则提交任务中心异步打包并通知下载 |
 
-页面左侧为文件列表（多选批量删除 / 单个下载 / 删除 / 清理压缩日志），右侧为共用查看器，支持按 URL 参数 `?file=` / `?level=` 深链定位。
+页面左侧为文件列表（选择模式下的多选打包下载 / 批量删除，以及单个下载 / 删除 / 清理压缩日志），右侧为共用查看器，支持按 URL 参数 `?file=` / `?level=` 深链定位。
+
+打包下载沿用网盘的阈值口径（`LOG_SYNC_ZIP_MAX_FILES` / `LOG_SYNC_ZIP_MAX_BYTES`）：低于阈值同步返回 zip，避免为几个文件生成一次后台任务；超过阈值走「日志文件打包下载」任务（节点亲和，只在提交它的进程执行，因为日志目录在本机），产物落为托管文件并经通知中心下发下载链接。
 
 ## 防火墙管理
 

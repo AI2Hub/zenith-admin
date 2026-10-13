@@ -1,15 +1,16 @@
-import { OpenAPIHono } from '@hono/zod-openapi';
+import { OpenAPIHono, z } from '@hono/zod-openapi';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import { logFileContract } from '@zenith/shared/ops';
 import { setAuditBeforeData } from '../../middleware/guard';
 import { defineContractRoute } from '../../lib/contract-route';
-import { ErrorResponse, errBody, jsonContent, okBody, validationHook } from '../../lib/openapi-schemas';
+import { ErrorResponse, apiResponse, errBody, jsonContent, okBody, validationHook } from '../../lib/openapi-schemas';
 import { streamLogTail } from '../../lib/http-stream';
 import {
   listLogFiles, readLogFileLines, deleteLogFile, resolveLogFile, getLogFileBeforeAudit,
   batchDeleteLogFiles, getLogFilesBeforeAudit,
 } from '../../services/ops/log-files.service';
+import { batchDownloadLogFiles } from '../../services/ops/log-files-download.service';
 import { TAIL_REPLAY_LINES, readTailLinesStream, watchTail } from '../../services/ops/log-reader';
 import { attachmentDisposition } from '../../lib/content-disposition';
 import { orderRoutes } from '../_crud';
@@ -56,6 +57,30 @@ const batchDeleteRoute = defineContractRoute(logFileContract.removeBatch, {
   },
 });
 
+// 批量下载：小批量直接返回 zip 流（点完即下）；超过阈值以 JSON 信封返回任务信息，完成后通知下载
+const batchDownloadRoute = defineContractRoute(logFileContract.batchDownload, {
+  responses: {
+    200: {
+      content: {
+        'application/json': { schema: apiResponse(logFileContract.batchDownload.response) },
+        'application/zip': { schema: z.string().openapi({ format: 'binary' }) },
+      },
+      description: '同步打包返回 zip 流；超过阈值返回任务信息',
+    },
+  },
+  handler: async (c) => {
+    const result = await batchDownloadLogFiles(c.req.valid('json').filenames);
+    if (result.mode === 'task') return c.json(okBody(result.result, '文件较多，已转为后台打包，完成后通知'), 200);
+    return new Response(result.stream, {
+      headers: {
+        'Content-Type': 'application/zip',
+        'Content-Disposition': attachmentDisposition(result.filename),
+        'Cache-Control': 'private, no-store',
+      },
+    });
+  },
+});
+
 const downloadRoute = defineContractRoute(logFileContract.download, {
   handler: async (c) => {
     const { name, filepath } = await resolveLogFile(c.req.valid('param').filename);
@@ -90,6 +115,6 @@ const tailRoute = defineContractRoute(logFileContract.tail, {
 });
 
 // orderRoutes：静态段先于参数段注册，`DELETE /batch` 不会被 `DELETE /{filename}` 抢先匹配
-router.openapiRoutes(orderRoutes([listRoute, contentRoute, deleteApiRoute, batchDeleteRoute, downloadRoute, tailRoute]));
+router.openapiRoutes(orderRoutes([listRoute, contentRoute, deleteApiRoute, batchDeleteRoute, batchDownloadRoute, downloadRoute, tailRoute]));
 
 export default router;

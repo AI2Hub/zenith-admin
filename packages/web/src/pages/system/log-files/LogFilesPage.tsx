@@ -10,10 +10,10 @@ import DateTimeText from '@/components/DateTimeText';
 import { usePermission } from '@/hooks/usePermission';
 import { useUrlSelectionParams } from '@/hooks/useUrlSelectionState';
 import type { LogFile } from '@zenith/shared/ops';
-import { logFileDownloadUrl, useBatchDeleteLogFiles, useDeleteLogFile, useLogFiles } from '@/hooks/queries/log-files';
+import { batchDownloadLogFiles, logFileDownloadUrl, useBatchDeleteLogFiles, useDeleteLogFile, useLogFiles } from '@/hooks/queries/log-files';
 import { logSourceKey, type LogSource } from '@/hooks/queries/log-source';
 import { confirmAndDelete, useRowSelection } from '@/components/list-page';
-import { BatchDeleteButton } from '@/components/toolbar-controls';
+import { BatchDeleteButton, BatchDownloadButton } from '@/components/toolbar-controls';
 import { formatBytes } from '@zenith/shared/core';
 import './LogFilesPage.css';
 
@@ -147,6 +147,22 @@ export default function LogFilesPage() {
       : prev.filter((name) => !visible.has(name))));
   };
 
+  const [downloading, setDownloading] = useState(false);
+
+  /** 多选打包下载：小批量服务端直接返回 zip，超阈值转后台任务并提示去通知中心取件 */
+  const handleBatchDownload = async () => {
+    if (checkedNames.length === 0) return;
+    setDownloading(true);
+    try {
+      const result = await batchDownloadLogFiles(checkedNames);
+      if (result?.mode === 'task') Toast.info('文件较多，已转为后台打包，完成后会通知你下载');
+    } catch {
+      Toast.error('打包下载失败');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   const handleBatchDelete = () => {
     if (checkedNames.length === 0) return;
     confirmAndDelete({
@@ -164,6 +180,8 @@ export default function LogFilesPage() {
   const source: LogSource | null = selected ? { kind: 'file', filename: selected.name } : null;
   const canDownload = hasPermission('system:log:files:download');
   const canDelete = hasPermission('system:log:files:delete');
+  // 选择模式同时服务批量下载与批量删除：只给其中一项权限也应能进
+  const canSelect = canDownload || canDelete;
 
   return (
     <MasterDetailLayout
@@ -200,7 +218,7 @@ export default function LogFilesPage() {
             loading={filesQuery.isFetching}
             emptyText={files.length === 0 ? '暂无日志文件' : '未找到匹配的日志文件'}
             /* 选择模式的入口与出口同在底部操作条，避免「顶部进入、底部退出」两处入口 */
-            footer={canDelete && (selecting || filteredFiles.length > 0) ? (
+            footer={canSelect && (selecting || filteredFiles.length > 0) ? (
               <div className="log-files-select-bar">
                 {selecting ? (
                   <>
@@ -218,13 +236,26 @@ export default function LogFilesPage() {
                       {checkedNames.length === 0 ? `共 ${filteredFiles.length} 个文件` : null}
                     </Typography.Text>
                     <Button size="small" theme="borderless" onClick={exitSelecting}>退出</Button>
-                    {checkedNames.length > 0 && (
-                      <BatchDeleteButton
-                        count={checkedNames.length}
-                        label="删除"
-                        loading={batchDeleteMutation.isPending}
-                        onClick={handleBatchDelete}
-                      />
+                    {checkedNames.length > 0 && (canDownload || canDelete) && (
+                      /* 两个动作同属一组：窄面板放不下时整组换行，而不是把「删除」单独拆到下一行 */
+                      <span className="log-files-select-bar__actions">
+                        {canDownload && (
+                          <BatchDownloadButton
+                            count={checkedNames.length}
+                            label="下载"
+                            loading={downloading}
+                            onClick={() => void handleBatchDownload()}
+                          />
+                        )}
+                        {canDelete && (
+                          <BatchDeleteButton
+                            count={checkedNames.length}
+                            label="删除"
+                            loading={batchDeleteMutation.isPending}
+                            onClick={handleBatchDelete}
+                          />
+                        )}
+                      </span>
                     )}
                   </>
                 ) : (
@@ -252,7 +283,7 @@ export default function LogFilesPage() {
                   key={file.name}
                   active={active}
                   onClick={() => selectFile(file)}
-                  checkbox={canDelete && selecting ? {
+                  checkbox={canSelect && selecting ? {
                     checked: checkboxSelection.selectedRowKeys.includes(file.name),
                     onChange: (checked) => toggleChecked(file.name, checked),
                     'aria-label': `选择 ${file.name}`,

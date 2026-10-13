@@ -27,3 +27,11 @@
 .log-files-select-bar > .semi-button {
   flex-shrink: 0;
 }
+
+/* 批量动作（下载 / 删除）整组换行：窄面板下不会把其中一个孤零零挤到下一行 */
+.log-files-select-bar__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
