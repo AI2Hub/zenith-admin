@@ -1220,9 +1220,20 @@
   border-radius: var(--semi-border-radius-small) var(--semi-border-radius-small) 0 0;
 }
 
+/* 自动隐藏把手呼吸明暗：缓慢轻微起伏 */
+@keyframes admin-tabs-autohide-hint {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
 /* ── 自动隐藏标签栏（仅 hover 可用设备；触屏保持常显）──
    平时收起为 8px 细带 + 居中把手，悬停 / 键盘聚焦时展开；离开延迟收起。
-   把手与内容淡入淡出共用同一延迟节拍，避免收起瞬间闪一下。 */
+   展开时把手立即隐藏，收起时等页签内容淡出后再出现，避免两者底部横线重叠。 */
 @media (hover: hover) {
   .admin-tabs-bar--autohide {
     max-height: 8px;
@@ -1251,8 +1262,12 @@
     border-radius: var(--semi-border-radius-small);
     background: var(--semi-color-primary);
     opacity: 1;
-    transition: opacity 0.15s ease 0.45s;
+    transition: opacity 0.15s ease 0.6s;
     pointer-events: none;
+  }
+  /* 收起时把手呼吸明暗；等页签内容完全淡出（0.6s）后再出现并起呼吸，避免与页签底部横线重叠 */
+  .admin-tabs-bar--autohide:not(:hover):not(:focus-within)::after {
+    animation: admin-tabs-autohide-hint 6s ease-in-out 0.75s infinite;
   }
   .admin-tabs-bar--autohide:hover,
   .admin-tabs-bar--autohide:focus-within {
@@ -1271,7 +1286,8 @@
   .admin-tabs-bar--autohide:hover::after,
   .admin-tabs-bar--autohide:focus-within::after {
     opacity: 0;
-    transition-delay: 0s;
+    animation: none;
+    transition: none;
   }
   /* 减弱动效：即时显隐 */
   .admin-tabs-bar--autohide-no-motion,
@@ -1279,6 +1295,7 @@
   .admin-tabs-bar--autohide-no-motion .admin-tabs-bar__switcher,
   .admin-tabs-bar--autohide-no-motion::after {
     transition: none;
+    animation: none;
   }
 }
 
@@ -1288,6 +1305,7 @@
   .admin-tabs-bar--autohide .admin-tabs-bar__switcher,
   .admin-tabs-bar--autohide::after {
     transition: none;
+    animation: none;
   }
 }
 
