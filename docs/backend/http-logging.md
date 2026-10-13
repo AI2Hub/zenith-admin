@@ -28,13 +28,23 @@ HTTP 流量日志由 `packages/server/src/lib/http-logger.ts` 和 `packages/serv
 输出位置由两个 `*_FILE` 开关决定：默认 `false` 时合并进主日志 `app.*.log`（带 `[http-in]` / `[http-out]` 前缀）；
 置为 `true` 时写入独立的 `http-traffic.YYYY-MM-DD.N.log`，避免流量日志淹没应用日志。
 
+开发档下入站与出站都取 `body` 档（`HTTP_LOG_OUTGOING_LEVEL` 在其余环境仍为 `full`），
+入站响应体开关也默认打开，本地直接能看到请求报文与响应报文；headers 不在其中，需要时单独升到 `full`。
+
 ## 入站日志
 
 默认配置：
 
-- level：`access`
+- level：`access`（开发档 `body`）
 - max body bytes：`65536`
-- 记录请求 body；默认不记录响应 body
+- 记录请求 body；响应 body 需 `HTTP_LOG_INCOMING_RESPONSE_BODY=true`（开发档已默认开启）
+
+请求体只在 `content-type` 为 `application/json` 且方法不是 `GET` / `HEAD` / `OPTIONS` 时采集；
+响应体同样只采集 JSON 响应。非 JSON 请求体（表单、multipart 上传）不记录。
+
+`url` 字段记录**路径 + 查询串**（如 `/api/users?page=1&pageSize=20`，上限 2048 字符）。
+这一点对 `GET` 尤其重要：它不携带请求体，查询参数就是它的全部入参。
+排除路径的判断只用路径部分，不受查询串影响。
 
 内置排除路径：
 
@@ -78,7 +88,7 @@ body 只做长度采样，不替代业务字段级脱敏；涉及密码、token�
 | `HTTP_LOG_INCOMING_LEVEL` | `HTTP_LOG_OUTGOING_LEVEL` | 默认级别；入站 `access`，出站 `full`（开发模式 `access`） |
 | `HTTP_LOG_INCOMING_FORMAT` | `HTTP_LOG_OUTGOING_FORMAT` | 输出格式（`json` / `text` / `curl`） |
 | `HTTP_LOG_INCOMING_MAX_BODY` | `HTTP_LOG_OUTGOING_MAX_BODY` | body 截断阈值；入站 `65536`，出站 `4096` |
-| `HTTP_LOG_INCOMING_RESPONSE_BODY` | `HTTP_LOG_OUTGOING_RESPONSE_BODY` | 是否记录响应 body；入站默认关闭 |
+| `HTTP_LOG_INCOMING_RESPONSE_BODY` | `HTTP_LOG_OUTGOING_RESPONSE_BODY` | 是否记录响应 body；入站默认关闭（开发档开启），出站默认开启 |
 | `HTTP_LOG_INCOMING_FILE` | `HTTP_LOG_OUTGOING_FILE` | 写独立 `http-traffic.*.log` 而非合并进主日志 |
 | `HTTP_LOG_INCOMING_EXCLUDE` | — | 追加排除路径（逗号分隔） |
 | `HTTP_LOG_INCOMING_METHOD_*` | `HTTP_LOG_OUTGOING_METHOD_*` | 方法级覆盖，如 `HTTP_LOG_INCOMING_METHOD_POST=full` |

@@ -80,7 +80,7 @@ export interface HttpLogEntry {
   /** 请求阶段或响应阶段 */
   phase: 'request' | 'response';
   method: string;
-  /** 完整 URL（入站为路径，出站为完整 URL） */
+  /** 完整 URL（入站为路径 + 查询串，出站为完整 URL） */
   url: string;
   /** HTTP 响应状态码（仅 response 阶段） */
   statusCode?: number;

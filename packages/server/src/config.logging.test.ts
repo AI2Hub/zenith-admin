@@ -42,15 +42,16 @@ afterEach(() => {
 });
 
 describe('日志默认值的环境分档', () => {
-  it('开发模式：debug 级、彩色单行控制台、入站与出站流量日志开启（出站取 access）', async () => {
+  it('开发模式：debug 级、彩色单行控制台、入站与出站流量日志开启（均取 body 档）', async () => {
     const { config } = await loadConfig({ NODE_ENV: 'development' });
     expect(config.isDevelopment).toBe(true);
     expect(config.log.level).toBe('debug');
     expect(config.log.pretty).toBe(true);
     expect(config.httpLog.incoming.enabled).toBe(true);
-    expect(config.httpLog.incoming.level).toBe('access');
+    expect(config.httpLog.incoming.level).toBe('body');
+    expect(config.httpLog.incoming.logResponseBody).toBe(true);
     expect(config.httpLog.outgoing.enabled).toBe(true);
-    expect(config.httpLog.outgoing.level).toBe('access');
+    expect(config.httpLog.outgoing.level).toBe('body');
   });
 
   it('SQL 明细日志不受开发档影响：默认关闭，需显式开启', async () => {
@@ -90,8 +91,10 @@ describe('日志默认值的环境分档', () => {
       expect(config.log.level).toBe('info');
       expect(config.log.pretty).toBe(false);
       expect(config.httpLog.incoming.enabled).toBe(false);
+      expect(config.httpLog.incoming.level).toBe('access');
+      expect(config.httpLog.incoming.logResponseBody).toBe(false);
       expect(config.httpLog.outgoing.enabled).toBe(false);
-      // 出站生产档：显式开启时要的是 full（排查第三方集成），与开发档的 access 区分
+      // 出站非开发档：显式开启时要的是 full（排查第三方集成），与开发档的 body 区分
       expect(config.httpLog.outgoing.level).toBe('full');
     },
   );

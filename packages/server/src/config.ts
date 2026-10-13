@@ -33,8 +33,12 @@ const devLog = {
   level: DEV ? 'debug' as const : 'info' as const,
   prettyConsole: DEV,
   httpTraffic: DEV,
-  /** 出站默认档：开发取 access 只看「调了谁、通不通」，生产保持原有的 full（仅在显式开启时才生效） */
-  outgoingLevel: DEV ? 'access' as const : 'full' as const,
+  /** 入站档位：开发取 body（带请求体与响应体，直接看报文），其余环境保持 access（只记方法/路径/状态/耗时） */
+  incomingLevel: DEV ? 'body' as const : 'access' as const,
+  /** 入站响应体：开发默认记录；其余环境默认关闭——克隆响应有开销，响应体也最可能带业务数据 */
+  incomingResponseBody: DEV,
+  /** 出站档位：开发取 body（第三方联调要看报文），生产保持原有的 full（仅在显式开启时才生效） */
+  outgoingLevel: DEV ? 'body' as const : 'full' as const,
 };
 
 // ─── Env Schema ───────────────────────────────────────────────────────────────────────────────────
@@ -163,10 +167,10 @@ const envSchema = z.object({
   LOG_SQL: envBool(false),
   // HTTP 入站日志（开发默认开启，access 级）
   HTTP_LOG_INCOMING_ENABLED: envBool(devLog.httpTraffic),
-  HTTP_LOG_INCOMING_LEVEL: httpLogLevelEnum.default('access'),
+  HTTP_LOG_INCOMING_LEVEL: httpLogLevelEnum.default(devLog.incomingLevel),
   HTTP_LOG_INCOMING_FORMAT: httpLogFormatEnum.default('json'),
   HTTP_LOG_INCOMING_MAX_BODY: z.coerce.number().int().min(0).default(65536),
-  HTTP_LOG_INCOMING_RESPONSE_BODY: envBool(false),
+  HTTP_LOG_INCOMING_RESPONSE_BODY: envBool(devLog.incomingResponseBody),
   HTTP_LOG_INCOMING_EXCLUDE: z.string().default(''),
   HTTP_LOG_INCOMING_FILE: envBool(false),
   HTTP_LOG_INCOMING_METHOD_GET: httpLogLevelEnum.optional(),

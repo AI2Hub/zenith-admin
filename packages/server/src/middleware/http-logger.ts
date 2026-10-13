@@ -51,6 +51,9 @@ const BUILTIN_EXCLUDE_PREFIXES = [
 /** 不尝试读取 body 的 HTTP 方法（规范上不携带请求体） */
 const NO_BODY_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
+/** 请求目标（路径 + 查询串）的记录上限：查询串可能是大体积筛选条件，避免单行无限膨胀 */
+const MAX_URL_LENGTH = 2048;
+
 /**
  * 路由级 HTTP 日志级别覆盖工具中间件。
  *
@@ -94,6 +97,14 @@ export const httpLoggerMiddleware = createMiddleware(async (c, next) => {
     return;
   }
 
+  // ─── 请求目标：路径 + 查询串 ────────────────────────────────────────────
+  // 排除判断只用 path（防止 `?next=/api/health` 之类绕过）；但记录时必须带上查询串：
+  // GET 不携带请求体，查询参数就是它的「请求数据」，只记 path 会让这类请求在日志里
+  // 看起来没有任何入参（与异常采集的 `c.req.url` 口径对齐）。
+  const searchIndex = c.req.url.indexOf('?');
+  const requestTarget = (searchIndex === -1 ? path : `${path}${c.req.url.slice(searchIndex)}`)
+    .slice(0, MAX_URL_LENGTH);
+
   const method = c.req.method.toUpperCase();
   const startedAt = Date.now();
   const requestTimestamp = formatDateTime(new Date());
@@ -131,7 +142,7 @@ export const httpLoggerMiddleware = createMiddleware(async (c, next) => {
     direction: 'incoming',
     phase: 'request',
     method,
-    url: path,
+    url: requestTarget,
     requestHeaders: (level === 'headers' || level === 'full')
       ? redactHeaders(rawRequestHeaders)
       : undefined,
@@ -168,7 +179,7 @@ export const httpLoggerMiddleware = createMiddleware(async (c, next) => {
     direction: 'incoming',
     phase: 'response',
     method,
-    url: path,
+    url: requestTarget,
     statusCode: c.res.status,
     durationMs,
     responseHeaders,
