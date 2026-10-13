@@ -149,8 +149,9 @@
 | `GET /api/log-files/:filename/tail` | `system:log:files` | SSE 实时追踪，`.gz` 文件不支持实时追踪 |
 | `GET /api/log-files/:filename/download` | `system:log:files:download` | 下载日志文件 |
 | `DELETE /api/log-files/:filename` | `system:log:files:delete` | 删除日志文件 |
+| `DELETE /api/log-files/batch` | `system:log:files:delete` | 批量删除日志文件（请求体 `{ filenames: string[] }`，响应带实际删除个数）|
 
-页面左侧为文件列表（下载 / 删除 / 清理压缩日志），右侧为共用查看器，支持按 URL 参数 `?file=` / `?level=` 深链定位。
+页面左侧为文件列表（多选批量删除 / 单个下载 / 删除 / 清理压缩日志），右侧为共用查看器，支持按 URL 参数 `?file=` / `?level=` 深链定位。
 
 ## 防火墙管理
 

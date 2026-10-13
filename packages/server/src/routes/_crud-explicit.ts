@@ -146,7 +146,7 @@ export const explicitCrudRoutes: Readonly<Record<string, readonly ExplicitCrudEn
     { contract: 'hostFileContract', ops: ['list', 'create', 'remove'], reason: 'handler 含前置校验 / 业务分支' },
   ],
   'ops/log-files.ts': [
-    { contract: 'logFileContract', ops: ['list', 'remove'], reason: 'handler 含自定义逻辑（非「取参 → 服务 → 包络」）' },
+    { contract: 'logFileContract', ops: ['list', 'remove', 'removeBatch'], reason: 'handler 含自定义逻辑（非「取参 → 服务 → 包络」）' },
   ],
   'ops/maintenance.ts': [
     { contract: 'maintenanceContract', ops: ['detail', 'update'], reason: 'handler 含自定义逻辑（非「取参 → 服务 → 包络」）' },

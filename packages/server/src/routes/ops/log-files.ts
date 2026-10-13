@@ -8,9 +8,11 @@ import { ErrorResponse, errBody, jsonContent, okBody, validationHook } from '../
 import { streamLogTail } from '../../lib/http-stream';
 import {
   listLogFiles, readLogFileLines, deleteLogFile, resolveLogFile, getLogFileBeforeAudit,
+  batchDeleteLogFiles, getLogFilesBeforeAudit,
 } from '../../services/ops/log-files.service';
 import { TAIL_REPLAY_LINES, readTailLinesStream, watchTail } from '../../services/ops/log-reader';
 import { attachmentDisposition } from '../../lib/content-disposition';
+import { orderRoutes } from '../_crud';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -39,6 +41,18 @@ const deleteApiRoute = defineContractRoute(logFileContract.remove, {
     setAuditBeforeData(c, await getLogFileBeforeAudit(filename));
     await deleteLogFile(filename);
     return c.json(okBody(null, '删除成功'), 200);
+  },
+});
+
+// 批量删除：一次请求删掉面板里勾选的多个文件，日志轮转导致的「文件已不在」按跳过处理
+const batchDeleteRoute = defineContractRoute(logFileContract.removeBatch, {
+  responses: fileErrorResponses,
+  handler: async (c) => {
+    const { filenames } = c.req.valid('json');
+    const before = await getLogFilesBeforeAudit(filenames);
+    if (before.length > 0) setAuditBeforeData(c, before);
+    const deleted = await batchDeleteLogFiles(filenames);
+    return c.json(okBody({ deleted }, `已删除 ${deleted} 个日志文件`), 200);
   },
 });
 
@@ -75,6 +89,7 @@ const tailRoute = defineContractRoute(logFileContract.tail, {
   },
 });
 
-router.openapiRoutes([listRoute, contentRoute, deleteApiRoute, downloadRoute, tailRoute] as const);
+// orderRoutes：静态段先于参数段注册，`DELETE /batch` 不会被 `DELETE /{filename}` 抢先匹配
+router.openapiRoutes(orderRoutes([listRoute, contentRoute, deleteApiRoute, batchDeleteRoute, downloadRoute, tailRoute]));
 
 export default router;

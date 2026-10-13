@@ -1,6 +1,6 @@
 import { Children, Fragment } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
-import { Button, Dropdown, Input, List, Spin } from '@douyinfe/semi-ui';
+import { Button, Checkbox, Dropdown, Input, List, Spin } from '@douyinfe/semi-ui';
 import { MoreHorizontal, Search } from 'lucide-react';
 import './NavListPanel.css';
 import { MasterDetailLayout } from './MasterDetailLayout';
@@ -153,6 +153,15 @@ export interface NavListItemProps {
   /** 左侧图标 */
   icon?: ReactNode;
   /**
+   * 多选框（批量操作场景）。渲染在图标之前，点击不会顺带触发条目的 `onClick`
+   * ——面板条目本身通常承担「选中查看」语义，勾选与选中必须彼此独立。
+   */
+  checkbox?: {
+    checked: boolean;
+    onChange: (checked: boolean) => void;
+    'aria-label'?: string;
+  };
+  /**
    * 右侧操作区，默认 hover/active 时才可见。
    * 如需始终显示，设置 `extraAlwaysVisible`。
    */
@@ -170,6 +179,7 @@ export function NavListItem({
   secondary,
   meta,
   icon,
+  checkbox,
   extra,
   extraAlwaysVisible,
   style,
@@ -185,6 +195,15 @@ export function NavListItem({
       onClick={onClick}
       style={style}
     >
+      {checkbox && (
+        <span className="nav-list-item__check" onClick={(e) => e.stopPropagation()}>
+          <Checkbox
+            checked={checkbox.checked}
+            onChange={(e) => checkbox.onChange(Boolean(e.target.checked))}
+            aria-label={checkbox['aria-label']}
+          />
+        </span>
+      )}
       {icon && <span className="nav-list-item__icon">{icon}</span>}
 
       <div className="nav-list-item__body">

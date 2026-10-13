@@ -5,7 +5,6 @@ import { contractKey, urlOf, useApiMutation, useApiQuery } from '@/lib/contract-
 export type LogFileContentParams = NonNullable<QueryOf<typeof logFileContract.content>>;
 
 export const logFileKeys = {
-  all: ['log-files'] as const,
   lists: contractKey(logFileContract.list),
   list: () => contractKey(logFileContract.list),
   content: (filename: string | undefined, params: LogFileContentParams) =>
@@ -27,7 +26,22 @@ export function useLogFileContent(filename: string | undefined, params: LogFileC
 export function useDeleteLogFile() {
   return useApiMutation(logFileContract.remove, {
     invalidate: (qc) => {
-      void qc.invalidateQueries({ queryKey: logFileKeys.all });
+      void qc.invalidateQueries({ queryKey: logFileKeys.lists });
+    },
+  });
+}
+
+/**
+ * 批量删除：面板内多选后一次提交；响应带实际删除个数，用于成功文案。
+ *
+ * 失效只打列表：契约资源前缀 `['log-files']` 同时覆盖 `content`，按它失效会连带回源
+ * 正在查看的那个文件 —— 刚删掉必然 404，弹「文件不存在」。删除不改变其它文件的内容，
+ * 只有列表需要刷新。原先的 `logFileKeys.all` 因此移除，避免再被当成域级失效用。
+ */
+export function useBatchDeleteLogFiles() {
+  return useApiMutation(logFileContract.removeBatch, {
+    invalidate: (qc) => {
+      void qc.invalidateQueries({ queryKey: logFileKeys.lists });
     },
   });
 }

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Button, Dropdown, Toast, Typography } from '@douyinfe/semi-ui';
-import { Download, FileText, RefreshCw, Trash2 } from 'lucide-react';
+import { Button, Checkbox, Dropdown, Toast, Typography } from '@douyinfe/semi-ui';
+import { Download, FileText, ListChecks, RefreshCw, Trash2 } from 'lucide-react';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
 import { NavListPanel, NavListItem, NavListItemActions } from '@/components/NavListPanel';
 import { LogWorkbench } from '@/components/log-workbench/LogWorkbench';
@@ -10,10 +10,12 @@ import DateTimeText from '@/components/DateTimeText';
 import { usePermission } from '@/hooks/usePermission';
 import { useUrlSelectionParams } from '@/hooks/useUrlSelectionState';
 import type { LogFile } from '@zenith/shared/ops';
-import { logFileDownloadUrl, useDeleteLogFile, useLogFiles } from '@/hooks/queries/log-files';
+import { logFileDownloadUrl, useBatchDeleteLogFiles, useDeleteLogFile, useLogFiles } from '@/hooks/queries/log-files';
 import { logSourceKey, type LogSource } from '@/hooks/queries/log-source';
-import { confirmAndDelete } from '@/components/list-page';
+import { confirmAndDelete, useRowSelection } from '@/components/list-page';
+import { BatchDeleteButton } from '@/components/toolbar-controls';
 import { formatBytes } from '@zenith/shared/core';
+import './LogFilesPage.css';
 
 const EMPTY_LOG_FILES: LogFile[] = [];
 
@@ -35,12 +37,27 @@ export default function LogFilesPage() {
     [files, selectedFileKey],
   );
   const deleteMutation = useDeleteLogFile();
+  const batchDeleteMutation = useBatchDeleteLogFiles();
+  // 行键是文件名（字符串），与 Semi 表格无关但复用同一份多选状态收口
+  const checkboxSelection = useRowSelection<string>();
+  // 选择模式：列表以「点选查看」为主，多选框只在显式进入选择模式后出现，避免日常浏览被勾选框和操作条挤占
+  const [selecting, setSelecting] = useState(false);
 
   const filteredFiles = useMemo(() => {
     const normalizedKeyword = keyword.trim().toLowerCase();
     if (!normalizedKeyword) return files;
     return files.filter((file) => file.name.toLowerCase().includes(normalizedKeyword));
   }, [files, keyword]);
+
+  // 只保留仍在列表里的勾选项：日志按天轮转，文件可能在自己消失前就被选中过
+  const checkedFiles = useMemo(
+    () => files.filter((file) => checkboxSelection.selectedRowKeys.includes(file.name)),
+    [files, checkboxSelection.selectedRowKeys],
+  );
+  const checkedNames = useMemo(() => checkedFiles.map((file) => file.name), [checkedFiles]);
+  const checkedOnFiltered = filteredFiles.filter((file) => checkboxSelection.selectedRowKeys.includes(file.name));
+  const allChecked = filteredFiles.length > 0 && checkedOnFiltered.length === filteredFiles.length;
+  const someChecked = checkedOnFiltered.length > 0 && !allChecked;
 
   const selectFile = useCallback((file: LogFile) => {
     if (selected?.name === file.name) return;
@@ -95,20 +112,51 @@ export default function LogFilesPage() {
 
   const gzFiles = useMemo(() => files.filter((f) => f.isGzip), [files]);
 
+  /** 退出选择模式并清空勾选：选择态不跨模式保留，避免下次进入时带着看不见的旧勾选 */
+  const exitSelecting = () => {
+    setSelecting(false);
+    checkboxSelection.clear();
+  };
+
   const handleCleanGz = () => {
     if (gzFiles.length === 0) return;
     const totalSize = gzFiles.reduce((sum, f) => sum + f.size, 0);
+    const names = gzFiles.map((f) => f.name);
     confirmAndDelete({
       title: '确定要清理全部压缩日志吗？',
-      content: `共 ${gzFiles.length} 个 .gz 文件（${formatBytes(totalSize)}），删除后无法恢复。`,
-      run: async () => {
-        for (const file of gzFiles) {
-          await deleteMutation.mutateAsync({ params: { filename: file.name } });
-        }
-      },
-      successMessage: `已清理 ${gzFiles.length} 个压缩日志`,
+      content: `共 ${names.length} 个 .gz 文件（${formatBytes(totalSize)}），删除后无法恢复。`,
+      run: () => batchDeleteMutation.mutateAsync({ body: { filenames: names } }),
+      successMessage: (res) => `已清理 ${res.deleted} 个压缩日志`,
       onDeleted: () => {
+        exitSelecting();
         if (selected?.isGzip) deselectFile();
+      },
+    });
+  };
+
+  const toggleChecked = (name: string, checked: boolean) => {
+    checkboxSelection.setSelectedRowKeys((prev) => (checked
+      ? prev.includes(name) ? prev : [...prev, name]
+      : prev.filter((key) => key !== name)));
+  };
+
+  const toggleCheckedAll = (checked: boolean) => {
+    const visible = new Set(filteredFiles.map((file) => file.name));
+    checkboxSelection.setSelectedRowKeys((prev) => (checked
+      ? [...prev, ...[...visible].filter((name) => !prev.includes(name))]
+      : prev.filter((name) => !visible.has(name))));
+  };
+
+  const handleBatchDelete = () => {
+    if (checkedNames.length === 0) return;
+    confirmAndDelete({
+      title: `确定要删除选中的 ${checkedNames.length} 个日志文件吗？`,
+      content: '删除后无法恢复，请谨慎操作。',
+      run: () => batchDeleteMutation.mutateAsync({ body: { filenames: checkedNames } }),
+      successMessage: (res) => `已删除 ${res.deleted} 个日志文件`,
+      onDeleted: () => {
+        exitSelecting();
+        if (selected && checkedNames.includes(selected.name)) deselectFile();
       },
     });
   };
@@ -151,6 +199,51 @@ export default function LogFilesPage() {
             }}
             loading={filesQuery.isFetching}
             emptyText={files.length === 0 ? '暂无日志文件' : '未找到匹配的日志文件'}
+            /* 选择模式的入口与出口同在底部操作条，避免「顶部进入、底部退出」两处入口 */
+            footer={canDelete && (selecting || filteredFiles.length > 0) ? (
+              <div className="log-files-select-bar">
+                {selecting ? (
+                  <>
+                    <Checkbox
+                      checked={allChecked}
+                      indeterminate={someChecked}
+                      disabled={filteredFiles.length === 0}
+                      onChange={(e) => toggleCheckedAll(Boolean(e.target.checked))}
+                    >
+                      全选
+                    </Checkbox>
+                    {/* 已选数量由删除按钮承载（「删除 (N)」），避免重复；窄面板下同一行放不下四处文字。
+                        该节点常驻以保持右侧按钮右对齐 */}
+                    <Typography.Text type="tertiary" size="small" className="log-files-select-bar__hint">
+                      {checkedNames.length === 0 ? `共 ${filteredFiles.length} 个文件` : null}
+                    </Typography.Text>
+                    <Button size="small" theme="borderless" onClick={exitSelecting}>退出</Button>
+                    {checkedNames.length > 0 && (
+                      <BatchDeleteButton
+                        count={checkedNames.length}
+                        label="删除"
+                        loading={batchDeleteMutation.isPending}
+                        onClick={handleBatchDelete}
+                      />
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      size="small"
+                      theme="borderless"
+                      icon={<ListChecks size={13} />}
+                      onClick={() => setSelecting(true)}
+                    >
+                      选择
+                    </Button>
+                    <Typography.Text type="tertiary" size="small" className="log-files-select-bar__hint">
+                      共 {filteredFiles.length} 个文件
+                    </Typography.Text>
+                  </>
+                )}
+              </div>
+            ) : undefined}
             dataSource={filteredFiles}
             renderItem={(file) => {
               const active = selected?.name === file.name;
@@ -159,6 +252,11 @@ export default function LogFilesPage() {
                   key={file.name}
                   active={active}
                   onClick={() => selectFile(file)}
+                  checkbox={canDelete && selecting ? {
+                    checked: checkboxSelection.selectedRowKeys.includes(file.name),
+                    onChange: (checked) => toggleChecked(file.name, checked),
+                    'aria-label': `选择 ${file.name}`,
+                  } : undefined}
                   icon={<FileText size={13} style={{ color: 'var(--semi-color-primary)', flexShrink: 0 }} />}
                   primary={file.name}
                   meta={

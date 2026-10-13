@@ -1,0 +1,29 @@
+/* ─── 日志文件：左侧文件列表的批量选择操作条 ─────────────────────────────── */
+
+/* 面板默认只有 260px，且可拖到 200px：条目按内容宽度排不下时换行，而不是挤压 / 裁掉删除按钮 */
+.log-files-select-bar {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  row-gap: 6px;
+}
+
+/* 「全选」的标签不参与收缩，否则窄面板下会折成「全 / 选」两行 */
+.log-files-select-bar .semi-checkbox {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.log-files-select-bar__hint {
+  margin-left: auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.log-files-select-bar > .semi-button {
+  flex-shrink: 0;
+}

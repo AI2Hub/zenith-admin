@@ -169,6 +169,7 @@ exports[`路由表快照 > 完整路由表保持不变 1`] = `
   "DELETE /api/iot/whitelist/:id",
   "DELETE /api/iot/whitelist/products/:id/registration-secret",
   "DELETE /api/log-files/:filename",
+  "DELETE /api/log-files/batch",
   "DELETE /api/login-logs/clean",
   "DELETE /api/marketing/campaigns/:campaignId/prizes/:prizeId",
   "DELETE /api/marketing/campaigns/:id",
