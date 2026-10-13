@@ -106,13 +106,25 @@ export async function batchDownloadLogFiles(filenames: string[]): Promise<
   return { mode: 'sync', stream: Readable.toWeb(stream) as ReadableStream, filename };
 }
 
+/**
+ * 产物在应用内的落地页。
+ *
+ * 站内信的 link 契约是「深链地址（站内路由，点击消息跳转）」，消费方直接 `navigate(link)`：
+ * 传 `/api/files/:id/content` 会被当成路由跳转，落到前端 404；而且裸链接带不上 bearer 令牌，
+ * 就算强行新窗口打开也是 401。托管文件的落地页是文件库，按文件名过滤直达（与 entity-relations
+ * 的深链同一形式），用户在那里一行就是一个带鉴权的下载。
+ */
+export function managedFileDeepLink(filename: string): string {
+  return `/system/files?keyword=${encodeURIComponent(filename)}`;
+}
+
 /** 打包完成通知：失败只记日志，不阻断已完成的打包结果 */
 async function notifyLogZipReady(
   userId: number,
   tenantId: number | null,
   fileCount: number,
   bytes: number,
-  downloadUrl: string,
+  link: string,
   dedupeKey: string,
 ): Promise<void> {
   try {
@@ -120,7 +132,7 @@ async function notifyLogZipReady(
       recipients: [{ type: 'user', id: userId }],
       vars: { fileCount, sizeText: formatBytes(bytes) },
       tenantId,
-      link: downloadUrl,
+      link,
       dedupeKey,
     });
   } catch (err) {
@@ -160,6 +172,7 @@ export function registerLogFileTaskHandlers(): void {
       });
 
       const user = currentUser();
+      const zipName = `logs_${Date.now()}.zip`;
       const directory = await mkdtemp(join(tmpdir(), 'zenith-logs-'));
       let file;
       try {
@@ -167,7 +180,7 @@ export function registerLogFileTaskHandlers(): void {
         await pipeline(stream, createWriteStream(path));
         file = await saveGeneratedManagedFile({
           buffer: await openAsBlob(path, { type: 'application/zip' }),
-          filename: `logs_${Date.now()}.zip`,
+          filename: zipName,
           mimeType: 'application/zip',
           tenantId: user.tenantId ?? null,
           createdBy: user.userId,
@@ -176,8 +189,9 @@ export function registerLogFileTaskHandlers(): void {
         await rm(directory, { recursive: true, force: true });
       }
 
+      // 任务产物保留取件用的 API 路径（任务详情的 JSON 会原样展示）；通知只发站内路由
       const downloadUrl = `/api/files/${file.id}/content`;
-      await notifyLogZipReady(user.userId, user.tenantId ?? null, entries.length, totalBytes, downloadUrl, `log-zip:${ctx.taskId}`);
+      await notifyLogZipReady(user.userId, user.tenantId ?? null, entries.length, totalBytes, managedFileDeepLink(zipName), `log-zip:${ctx.taskId}`);
       return { fileId: file.id, downloadUrl, fileCount: entries.length, bytes: file.size };
     },
   });

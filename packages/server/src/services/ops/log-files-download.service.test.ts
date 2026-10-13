@@ -2,6 +2,8 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { registerTaskHandler } from '../../lib/task-center';
+import type { TaskHandlerRegistration, TaskRunContext } from '../../lib/task-center/types';
 
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'zenith-logzip-'));
 const logDir = path.join(tmpRoot, 'logs');
@@ -26,8 +28,10 @@ vi.mock('../../lib/task-center', () => ({
 vi.mock('../files/files.service', () => ({ saveGeneratedManagedFile: vi.fn() }));
 vi.mock('../messaging/notification-outbox.service', () => ({ notify: vi.fn() }));
 
-const { batchDownloadLogFiles, collectLogZipEntries } = await import('./log-files-download.service');
+const { batchDownloadLogFiles, collectLogZipEntries, registerLogFileTaskHandlers } = await import('./log-files-download.service');
 const { LOG_SYNC_ZIP_MAX_FILES } = await import('@zenith/shared/ops');
+const { notify } = await import('../messaging/notification-outbox.service');
+const { saveGeneratedManagedFile } = await import('../files/files.service');
 
 const write = (name: string, body = 'payload') => fs.writeFileSync(path.join(logDir, name), body);
 
@@ -108,5 +112,32 @@ describe('batchDownloadLogFiles', () => {
   it('所选文件全部不存在时 404，且不提交任务', async () => {
     await expect(batchDownloadLogFiles(['nope-1.log', 'nope-2.log'])).rejects.toMatchObject({ status: 404 });
     expect(submitAsyncTask).not.toHaveBeenCalled();
+  });
+});
+
+describe('registerLogFileTaskHandlers：完成通知的 link', () => {
+  it('是站内路由而不是 API 路径（站内信按 navigate(link) 消费，/api/... 会落到前端 404）', async () => {
+    registerLogFileTaskHandlers();
+    const registration = vi.mocked(registerTaskHandler).mock.calls
+      .map(([entry]) => entry as TaskHandlerRegistration)
+      .find((entry) => entry.taskType === 'log-files-batch-download');
+    expect(registration).toBeDefined();
+
+    write('notify-pack.log', 'x'.repeat(16));
+    vi.mocked(saveGeneratedManagedFile).mockResolvedValue({ id: 42, size: 16 } as never);
+    vi.mocked(notify).mockClear();
+
+    const ctx = {
+      taskId: 7,
+      payload: { filenames: ['notify-pack.log'] },
+      progress: vi.fn(async () => ({ cancelRequested: false })),
+    } as unknown as TaskRunContext;
+    await registration!.run(ctx);
+
+    // notify 的第二参是通知入参；只关心 link 的形状，不验其余字段（那属于派发层）
+    const lastCall = vi.mocked(notify).mock.calls.at(-1) as unknown as [string, { link?: string | null }];
+    expect(lastCall[0]).toBe('ops.log_files.zip_ready');
+    expect(lastCall[1].link).toMatch(/^\/system\/files\?keyword=/);
+    expect(lastCall[1].link).not.toMatch(/^\/api\//);
   });
 });
