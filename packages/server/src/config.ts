@@ -155,6 +155,12 @@ const envSchema = z.object({
   LOG_MAX_FILES: z.coerce.number().int().min(1).default(30),
   /** 控制台输出 pino-pretty 彩色单行（开发默认开启）；日志文件不受影响，始终 NDJSON */
   LOG_CONSOLE_PRETTY: envBool(devLog.prettyConsole),
+  /**
+   * 输出每条 SQL 明细（query + params），用于排查慢查询与 N+1；默认关闭，开发档也不开。
+   * SQL 属 debug 级细节，需同时 LOG_LEVEL=debug/trace 才会真正输出；两项不一致时由
+   * assertRuntimeLogOptions() 在启动时告警，避免「开关打开了却什么都没输出」的静默无效。
+   */
+  LOG_SQL: envBool(false),
   // HTTP 入站日志（开发默认开启，access 级）
   HTTP_LOG_INCOMING_ENABLED: envBool(devLog.httpTraffic),
   HTTP_LOG_INCOMING_LEVEL: httpLogLevelEnum.default('access'),
@@ -310,6 +316,19 @@ export function assertRuntimeRoles(log: { warn(msg: string): void; error(msg: st
   }
 }
 
+/**
+ * 服务进程（index.ts）启动时调用：日志类跨字段组合自检。
+ *
+ * 目前只有一条——`LOG_SQL=true` 而 `LOG_LEVEL` 高于 debug 时 SQL 明细不会输出；
+ * 光看单个变量都合法，不提醒就会出现「明明打开了却什么都没有」的静默无效（与 1.0 里
+ * `INCOMING_HTTP_LOG_*` 那类拼错变量名的坑同类，故宁可多一条告警）。
+ */
+export function assertRuntimeLogOptions(log: { warn(msg: string): void }): void {
+  if (env.LOG_SQL && env.LOG_LEVEL !== 'debug' && env.LOG_LEVEL !== 'trace') {
+    log.warn(`⚠ LOG_SQL=true 但 LOG_LEVEL=${env.LOG_LEVEL}，SQL 明细不会输出（属 debug 级）；请设 LOG_LEVEL=debug`);
+  }
+}
+
 // ─── HTTP 日志方法覆盖辅助 ───────────────────────────────────────────────────────────────────────────
 
 function buildMethodOverrides(prefix: 'HTTP_LOG_INCOMING_METHOD' | 'HTTP_LOG_OUTGOING_METHOD'): Partial<Record<HttpLogMethod, HttpLogLevel>> {
@@ -432,6 +451,8 @@ export const config = {
     dir: env.LOG_DIR,
     maxFiles: env.LOG_MAX_FILES,
     pretty: env.LOG_CONSOLE_PRETTY,
+    /** SQL 明细开关（见 LOG_SQL）；关闭时 db 层完全不安装查询日志器 */
+    sql: env.LOG_SQL,
   },
   httpLog: {
     incoming: {

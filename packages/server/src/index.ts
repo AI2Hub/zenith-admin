@@ -24,7 +24,7 @@ import { activateWorkerJobs, startWorkerRole, type WorkerRoleHandle } from './bo
 import { withTimeout } from './bootstrap/shutdown';
 import { registerEventSubscribers } from './bootstrap/subscribers';
 import { declareBackgroundJobs } from './bootstrap/workers';
-import { assertRuntimeRoles, assertRuntimeSecrets, config } from './config';
+import { assertRuntimeLogOptions, assertRuntimeRoles, assertRuntimeSecrets, config } from './config';
 import { closeDb } from './db';
 import { startErrorReporter, stopErrorReporter } from './lib/error-tracking/reporter';
 import { startInvalidationBus } from './lib/invalidation-bus';
@@ -41,6 +41,8 @@ import { registerOpenWebhookSubscriber } from './services/open-platform/app-webh
 assertRuntimeSecrets(logger);
 // 非开发环境必须显式声明进程角色，避免 api 集群里的副本静默以全量模式执行后台作业
 assertRuntimeRoles(logger);
+// 日志类跨字段自检：LOG_SQL=true 而级别高于 debug 时不输出，属静默无效，启动即提醒
+assertRuntimeLogOptions(logger);
 
 // 运行时设置注册表自检：默认文档不可解析 / 字段命名越界 / 路径冲突都在监听前终止，而不是留到首个请求抛错
 {

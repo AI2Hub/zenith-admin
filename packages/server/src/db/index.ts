@@ -9,6 +9,10 @@ import * as schema from './schema';
 import { instrumentPostgresClient } from './query-metrics';
 import { createPgClient } from './client';
 
+/**
+ * 逐条查询日志器（query + params），由 `LOG_SQL` 独立控制，不再跟随 LOG_LEVEL 自动开启：
+ * 开发档默认 debug 级别会让每 2 秒的作业轮询刷出近万行 SQL，淹没真正需要看的业务 debug 日志。
+ */
 class DrizzleLogger implements Logger {
   logQuery(query: string, params: unknown[]): void {
     logger.debug('SQL', { query, params });
@@ -25,7 +29,8 @@ const client = instrumentPostgresClient(createPgClient(config.databaseUrl, {
 const rawDb = drizzle(client, {
   schema,
   casing: 'snake_case',
-  logger: config.log.level === 'debug' ? new DrizzleLogger() : false,
+  // 只认 LOG_SQL：关闭时连日志器都不构造，查询路径零额外开销
+  logger: config.log.sql ? new DrizzleLogger() : false,
 });
 
 // ─── 审计字段自动注入 ──────────────────────────────────────────────────────────

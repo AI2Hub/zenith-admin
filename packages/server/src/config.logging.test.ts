@@ -13,6 +13,7 @@ const ENV_KEYS = [
   'NODE_ENV',
   'LOG_LEVEL',
   'LOG_CONSOLE_PRETTY',
+  'LOG_SQL',
   'HTTP_LOG_INCOMING_ENABLED',
   'HTTP_LOG_OUTGOING_ENABLED',
   'HTTP_LOG_OUTGOING_LEVEL',
@@ -50,6 +51,35 @@ describe('日志默认值的环境分档', () => {
     expect(config.httpLog.incoming.level).toBe('access');
     expect(config.httpLog.outgoing.enabled).toBe(true);
     expect(config.httpLog.outgoing.level).toBe('access');
+  });
+
+  it('SQL 明细日志不受开发档影响：默认关闭，需显式开启', async () => {
+    expect((await loadConfig({ NODE_ENV: 'development' })).config.log.sql).toBe(false);
+    expect((await loadConfig({ NODE_ENV: 'production' })).config.log.sql).toBe(false);
+    expect((await loadConfig({ NODE_ENV: 'development', LOG_SQL: 'true' })).config.log.sql).toBe(true);
+  });
+
+  describe('assertRuntimeLogOptions', () => {
+    it('LOG_SQL=true 而级别高于 debug 时告警（否则静默无输出）', async () => {
+      const { assertRuntimeLogOptions } = await loadConfig({ NODE_ENV: 'production', LOG_SQL: 'true', LOG_LEVEL: 'info' });
+      const log = { warn: vi.fn() };
+      assertRuntimeLogOptions(log);
+      expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('LOG_SQL=true'));
+    });
+
+    it.each(['debug', 'trace'])('LOG_LEVEL=%s 时不告警', async (level) => {
+      const { assertRuntimeLogOptions } = await loadConfig({ NODE_ENV: 'development', LOG_SQL: 'true', LOG_LEVEL: level });
+      const log = { warn: vi.fn() };
+      assertRuntimeLogOptions(log);
+      expect(log.warn).not.toHaveBeenCalled();
+    });
+
+    it('LOG_SQL 未开启时任何级别都不告警', async () => {
+      const { assertRuntimeLogOptions } = await loadConfig({ NODE_ENV: 'production', LOG_LEVEL: 'info' });
+      const log = { warn: vi.fn() };
+      assertRuntimeLogOptions(log);
+      expect(log.warn).not.toHaveBeenCalled();
+    });
   });
 
   it.each(['test', 'production', 'staging', undefined])(
