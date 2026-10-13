@@ -46,7 +46,7 @@
 
 ## 日志
 
-每次外呼会进入 `http-logger` 出站日志链路。日志级别、格式和 body 限制由 `OUTGOING_HTTP_LOG_*` 环境变量控制；敏感头会被脱敏。
+每次外呼会进入 `http-logger` 出站日志链路。日志级别、格式和 body 限制由 `HTTP_LOG_OUTGOING_*` 环境变量控制（默认总开关关闭，开发模式默认开启且取 `access` 级；详见 [HTTP 流量日志](./http-logging.md)）；敏感头会被脱敏。
 
 ## 使用建议
 

@@ -16,6 +16,27 @@ const httpLogFormatEnum = z.enum(['text', 'json', 'curl']);
 // 大小写不敏感）；空串与缺省回落默认值；其余取值启动即报错（fail-fast，拼写错误不再被静默当 false）
 const envBool = (def: boolean) => z.preprocess((v) => (v === '' ? undefined : v), z.stringbool().default(def));
 
+/**
+ * 是否为 `npm run dev` 注入的开发模式（NODE_ENV=development；dev.mjs 是唯一入口）。
+ * 与内置开发密钥、验证码回传同一套判定：只有显式的 development 才算，未设置 NODE_ENV 一律按严格模式。
+ */
+const DEV = isDevelopmentEnv(process.env.NODE_ENV);
+
+/**
+ * 日志类默认值按开发模式分档：本地开发要「看得见发生了什么」，生产要「安静且可采集」。
+ *
+ * 开发档（仅在 NODE_ENV=development 生效）：debug 级、彩色单行控制台、入站与出站 HTTP 流量日志各记一行；
+ * 其余环境沿用原有保守默认（info、NDJSON、流量日志关闭），行为与本次改动前完全一致。
+ * 环境变量始终优先——显式配置可随时覆盖任一档位（例如本地临时 `LOG_LEVEL=info` 降噪）。
+ */
+const devLog = {
+  level: DEV ? 'debug' as const : 'info' as const,
+  prettyConsole: DEV,
+  httpTraffic: DEV,
+  /** 出站默认档：开发取 access 只看「调了谁、通不通」，生产保持原有的 full（仅在显式开启时才生效） */
+  outgoingLevel: DEV ? 'access' as const : 'full' as const,
+};
+
 // ─── Env Schema ───────────────────────────────────────────────────────────────────────────────────
 
 const envSchema = z.object({
@@ -127,14 +148,15 @@ const envSchema = z.object({
   WORKFLOW_OUTBOUND_ALLOWED_HOSTS: z.string().default(''),
   /** 单次支付渠道 HTTP 调用硬超时。资金写请求超时后进入 unknown，由查单收敛。 */
   PAYMENT_PROVIDER_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60_000).default(10_000),
-  LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
+  /** 级别默认值按环境分档：开发 debug（解锁 debug 上下文日志），其余 info */
+  LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default(devLog.level),
   LOG_DIR: z.string().default('logs'),
   /** 轮转日志文件保留份数（按天轮转，1 份 = 1 天） */
   LOG_MAX_FILES: z.coerce.number().int().min(1).default(30),
-  /** 控制台输出 pino-pretty 彩色单行（本地开发用）；默认 NDJSON。日志文件不受影响，始终 NDJSON */
-  LOG_CONSOLE_PRETTY: envBool(false),
-  // HTTP 入站日志
-  HTTP_LOG_INCOMING_ENABLED: envBool(false),
+  /** 控制台输出 pino-pretty 彩色单行（开发默认开启）；日志文件不受影响，始终 NDJSON */
+  LOG_CONSOLE_PRETTY: envBool(devLog.prettyConsole),
+  // HTTP 入站日志（开发默认开启，access 级）
+  HTTP_LOG_INCOMING_ENABLED: envBool(devLog.httpTraffic),
   HTTP_LOG_INCOMING_LEVEL: httpLogLevelEnum.default('access'),
   HTTP_LOG_INCOMING_FORMAT: httpLogFormatEnum.default('json'),
   HTTP_LOG_INCOMING_MAX_BODY: z.coerce.number().int().min(0).default(65536),
@@ -148,9 +170,9 @@ const envSchema = z.object({
   HTTP_LOG_INCOMING_METHOD_DELETE: httpLogLevelEnum.optional(),
   HTTP_LOG_INCOMING_METHOD_OPTIONS: httpLogLevelEnum.optional(),
   HTTP_LOG_INCOMING_METHOD_HEAD: httpLogLevelEnum.optional(),
-  // HTTP 出站日志
-  HTTP_LOG_OUTGOING_ENABLED: envBool(false),
-  HTTP_LOG_OUTGOING_LEVEL: httpLogLevelEnum.default('full'),
+  // HTTP 出站日志（开发默认开启，access 级）
+  HTTP_LOG_OUTGOING_ENABLED: envBool(devLog.httpTraffic),
+  HTTP_LOG_OUTGOING_LEVEL: httpLogLevelEnum.default(devLog.outgoingLevel),
   HTTP_LOG_OUTGOING_FORMAT: httpLogFormatEnum.default('json'),
   HTTP_LOG_OUTGOING_MAX_BODY: z.coerce.number().int().min(0).default(4096),
   HTTP_LOG_OUTGOING_RESPONSE_BODY: envBool(true),
