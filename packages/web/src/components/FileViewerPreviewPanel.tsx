@@ -47,6 +47,12 @@ export default function FileViewerPreviewPanel({ file, style }: FileViewerPrevie
     rendererMode: 'replace',
     autoRenderers: false,
     renderers: fileViewerRenderers,
+    // 表格预览恒用 1:1 实际尺寸：spreadsheet 渲染器（3.1.x 起）默认会对宽表做
+    // shrink-to-fit（auto → 按 width 算出如 67% 再整体缩小），把十几列硬塞进
+    // 可见宽度导致字小看不清；传 fit: 'actual' 即显式关闭该默认收缩，保持
+    // 100% + 横向滚动的 Excel 习惯，用户仍可用工具栏手动缩小总览。
+    // 非表格类型保持默认自适应（undefined），不受影响。
+    fit: isSpreadsheet ? 'actual' : undefined,
     ui: { density: 'compact' },
     toolbar: {
       position: 'top-center',
@@ -87,7 +93,7 @@ export default function FileViewerPreviewPanel({ file, style }: FileViewerPrevie
       // （OpenFreeMap / OSM / 天地图 均需显式配置才会启用）。
       basemap: 'offline',
     },
-  }), [useDarkTheme]);
+  }), [useDarkTheme, isSpreadsheet]);
 
   return (
     <div style={{ width: '100%', height: '100%', minWidth: 0, minHeight: 0, ...style }}>
