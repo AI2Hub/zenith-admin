@@ -4,6 +4,28 @@
 
 ---
 
+## v2.80.0 - 2026-10-14
+
+本版本修复压缩包预览的 Worker 加载链路：开发与生产一致走直链 Worker，
+压缩包秒开，RAR / 7z / 加密包恢复正常预览。
+
+### Fixed
+
+- **压缩包预览不再卡 30s 超时**：file-viewer 3.1.2 的 fetch 源码 + patch + blob Worker
+  链路在 Vite 改写后的 worker 源码下必然失效（`Archive.open` 卡满 30s 才切兼容模式），
+  即使源码原样该链路也无法启动；现将 worker 与 wasm 以原样文件随 `public/vendor`
+  下发、只配置 `workerUrl`，渲染器直接 `new Worker`，wasm 由 worker 内相对路径自解析。
+  zip 实测 259ms 列出目录，RAR / 7z / 加密包不再依赖超时降级。
+
+### Changed
+
+- **libarchive 产物改由 `public/vendor/libarchive` 原样分发**：不再经 `?url` 打包资源，
+  构建产物固定为 `vendor/libarchive/worker-bundle.js` + `libarchive.wasm`；
+  后续升级 `libarchive.js` 版本后需同步重拷这两个文件（`FileViewerPreviewPanel` 与
+  vite.config 注释处已标注）。
+
+---
+
 ## v2.79.0 - 2026-10-13
 
 本版本聚焦本地开发的可观测性：开发模式自带更详细的日志档位与请求 / 响应报文，
