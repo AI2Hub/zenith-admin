@@ -22,6 +22,7 @@ import {
   type LogFileBatchDownloadResult,
 } from '@zenith/shared/ops';
 import { currentUser } from '../../lib/context';
+import { managedFileDeepLink } from '../../lib/managed-file-deep-link';
 import logger from '../../lib/logger';
 import { registerTaskHandler, submitAsyncTask, TaskCancelledError } from '../../lib/task-center';
 import { buildZipStream, type ZipEntrySource } from '../../lib/zip';
@@ -104,18 +105,6 @@ export async function batchDownloadLogFiles(filenames: string[]): Promise<
   const stream = await buildLogZipStream(entries);
   const filename = entries.length === 1 ? `${entries[0].name}.zip` : `logs_${Date.now()}.zip`;
   return { mode: 'sync', stream: Readable.toWeb(stream) as ReadableStream, filename };
-}
-
-/**
- * 产物在应用内的落地页。
- *
- * 站内信的 link 契约是「深链地址（站内路由，点击消息跳转）」，消费方直接 `navigate(link)`：
- * 传 `/api/files/:id/content` 会被当成路由跳转，落到前端 404；而且裸链接带不上 bearer 令牌，
- * 就算强行新窗口打开也是 401。托管文件的落地页是文件库，按文件名过滤直达（与 entity-relations
- * 的深链同一形式），用户在那里一行就是一个带鉴权的下载。
- */
-export function managedFileDeepLink(filename: string): string {
-  return `/system/files?keyword=${encodeURIComponent(filename)}`;
 }
 
 /** 打包完成通知：失败只记日志，不阻断已完成的打包结果 */

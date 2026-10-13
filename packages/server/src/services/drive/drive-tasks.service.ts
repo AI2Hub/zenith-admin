@@ -17,6 +17,7 @@ import { db } from '../../db';
 import { driveNodes, driveSpaces, fileStorageConfigs, managedFiles, type DriveNodeRow, type DriveSpaceRow } from '../../db/schema';
 import { currentUser, currentUserId } from '../../lib/context';
 import { readStoredFile } from '../../lib/file-storage';
+import { managedFileDeepLink } from '../../lib/managed-file-deep-link';
 import { buildZipStream as streamZipArchive, toNodeReadable } from '../../lib/zip';
 import { registerTaskHandler, submitAsyncTask, TaskCancelledError } from '../../lib/task-center';
 import { saveGeneratedManagedFile } from '../files/files.service';
@@ -155,6 +156,7 @@ export function registerDriveTaskHandlers(): void {
         if (cancelRequested) throw new TaskCancelledError('用户取消打包');
       });
       const user = currentUser();
+      const zipName = `drive_${Date.now()}.zip`;
       const directory = await mkdtemp(join(tmpdir(), 'zenith-drive-'));
       let file;
       try {
@@ -162,7 +164,7 @@ export function registerDriveTaskHandlers(): void {
         await pipeline(stream, createWriteStream(path));
         file = await saveGeneratedManagedFile({
           buffer: await openAsBlob(path, { type: 'application/zip' }),
-          filename: `drive_${Date.now()}.zip`,
+          filename: zipName,
           mimeType: 'application/zip',
           tenantId: user.tenantId ?? null,
           createdBy: user.userId,
@@ -170,11 +172,13 @@ export function registerDriveTaskHandlers(): void {
       } finally {
         await rm(directory, { recursive: true, force: true });
       }
+      // 产物结果保留取件用的 API 路径；通知发站内路由 —— 站内信按 navigate(link) 消费，
+      // 传 /api/... 会被当成前端路由落到 404，且裸链接带不上 bearer 令牌
       const downloadUrl = `/api/files/${file.id}/content`;
       for (const row of rows) {
         await logDriveActivity({ spaceId: row.spaceId, nodeId: row.id, nodeName: row.name, nodeType: row.type, action: 'download', detail: { batch: true, taskId: ctx.taskId } });
       }
-      await notifyBatchDownloadReady(user.userId, user.tenantId ?? null, entries.length, totalBytes, downloadUrl, `drive-zip:${ctx.taskId}`);
+      await notifyBatchDownloadReady(user.userId, user.tenantId ?? null, entries.length, totalBytes, managedFileDeepLink(zipName), `drive-zip:${ctx.taskId}`);
       return { fileId: file.id, downloadUrl, fileCount: entries.length, bytes: file.size };
     },
   });
