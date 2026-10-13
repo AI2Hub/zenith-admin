@@ -26,6 +26,15 @@ interface NotificationPopoverProps<T extends NotificationItem> {
   timeOf: (item: T) => string | null | undefined;
   /** 点击列表项：标记已读、跳转 / 打开详情由调用方决定；弹层会先关闭 */
   onItemClick: (item: T) => void;
+  /**
+   * 只标记单条已读，不关闭弹层、不跳转。
+   * 条目点击本身承担「打开详情」语义，带深链的消息点了就跳走，
+   * 用户想清掉红点却不必打开时走这个动作。缺省则不渲染该按钮。
+   */
+  onMarkRead?: (item: T) => void;
+  /** 一键全部已读；缺省则不渲染 */
+  onMarkAllRead?: () => void;
+  markAllReadLoading?: boolean;
   /** 「查看全部」跳转路径 */
   viewAllPath: string;
   unreadCount: number;
@@ -46,6 +55,9 @@ function NotificationPopover<T extends NotificationItem>({
   summaryOf,
   timeOf,
   onItemClick,
+  onMarkRead,
+  onMarkAllRead,
+  markAllReadLoading,
   viewAllPath,
   unreadCount,
   navigate,
@@ -64,8 +76,19 @@ function NotificationPopover<T extends NotificationItem>({
       showArrow
       content={
         <div style={{ width: 360, maxHeight: 440, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ padding: '12px 16px 8px', fontWeight: 600, fontSize: 14, borderBottom: '1px solid var(--semi-color-border)' }}>
-            {title}
+          <div className="notification-popover__header">
+            <span>{title}</span>
+            {onMarkAllRead && unreadCount > 0 && (
+              <Button
+                theme="borderless"
+                size="small"
+                type="tertiary"
+                loading={markAllReadLoading}
+                onClick={onMarkAllRead}
+              >
+                全部已读
+              </Button>
+            )}
           </div>
           {items.length === 0 ? (
             <Empty
@@ -73,6 +96,7 @@ function NotificationPopover<T extends NotificationItem>({
               description={emptyText} style={{ padding: '24px 0' }} />
           ) : (
             <List
+              className="notification-popover__list"
               style={{ overflow: 'auto', maxHeight: 340 }}
               dataSource={items}
               renderItem={(item: T) => (
@@ -95,6 +119,19 @@ function NotificationPopover<T extends NotificationItem>({
                       </Typography.Text>
                     </div>
                   }
+                  // 未读才给动作，但落在 List.Item 固定的右侧列里（列宽恒定），
+                  // 按钮的横向位置不会随「这一行有没有按钮」漂移
+                  extra={!item.isRead && onMarkRead ? (
+                    <Button
+                      theme="borderless"
+                      size="small"
+                      className="notification-popover__mark-read"
+                      // 阻止冒泡：条目 onClick 会关闭弹层并跳转，与「只标已读」的语义冲突
+                      onClick={(e) => { e.stopPropagation(); onMarkRead(item); }}
+                    >
+                      已读
+                    </Button>
+                  ) : undefined}
                 />
               )}
             />
@@ -125,6 +162,8 @@ export function AnnouncementPopover({
   fetchRecentAnnouncements,
   recentAnnouncements,
   markAnnouncementAsRead,
+  markAllAnnouncementsAsRead,
+  markAllReadPending,
   setSelectedAnnouncement,
   announcementUnreadCount,
   navigate,
@@ -134,6 +173,8 @@ export function AnnouncementPopover({
   fetchRecentAnnouncements: () => void;
   recentAnnouncements: (Announcement & { isRead: boolean })[];
   markAnnouncementAsRead: (id: number) => void;
+  markAllAnnouncementsAsRead: () => void;
+  markAllReadPending: boolean;
   setSelectedAnnouncement: Dispatch<SetStateAction<Announcement | null>>;
   announcementUnreadCount: number;
   navigate: NavigateFunction;
@@ -152,6 +193,9 @@ export function AnnouncementPopover({
         if (!item.isRead) markAnnouncementAsRead(item.id);
         setSelectedAnnouncement(item);
       }}
+      onMarkRead={(item) => markAnnouncementAsRead(item.id)}
+      onMarkAllRead={markAllAnnouncementsAsRead}
+      markAllReadLoading={markAllReadPending}
       viewAllPath="/announcements"
       unreadCount={announcementUnreadCount}
       navigate={navigate}
@@ -169,6 +213,8 @@ export function MessagePopover({
   fetchInAppMessages,
   inAppMessages,
   markAsRead,
+  markAllAsRead,
+  markAllReadPending,
   setSelectedMessage,
   unreadCount,
   navigate,
@@ -178,6 +224,8 @@ export function MessagePopover({
   fetchInAppMessages: () => void;
   inAppMessages: InAppMessage[];
   markAsRead: (id: number) => void;
+  markAllAsRead: () => void;
+  markAllReadPending: boolean;
   setSelectedMessage: Dispatch<SetStateAction<InAppMessage | null>>;
   unreadCount: number;
   navigate: NavigateFunction;
@@ -198,6 +246,9 @@ export function MessagePopover({
         if (item.link) navigate(item.link);
         else setSelectedMessage(item);
       }}
+      onMarkRead={(item) => markAsRead(item.id)}
+      onMarkAllRead={markAllAsRead}
+      markAllReadLoading={markAllReadPending}
       viewAllPath="/inbox"
       unreadCount={unreadCount}
       navigate={navigate}

@@ -5,6 +5,7 @@ import type { InAppMessage, Announcement } from '@zenith/shared/messaging';
 import type { WsMessage } from '@zenith/shared/platform';
 import {
   announcementKeys,
+  useMarkAllMyAnnouncementsRead,
   useMarkMyAnnouncementRead,
   useMyAnnouncementUnreadCount,
   usePublishedAnnouncements,
@@ -45,6 +46,7 @@ export function useInAppNotifications() {
   const { data: announcementUnreadCount = 0 } = useMyAnnouncementUnreadCount();
   const { data: recentAnnouncements = [] } = usePublishedAnnouncements();
   const markAnnouncementReadMutation = useMarkMyAnnouncementRead();
+  const markAllAnnouncementReadMutation = useMarkAllMyAnnouncementsRead();
 
   // WebSocket 推送直接写缓存，保持与既有 setState 调用形状一致
   const setInAppMessages: Dispatch<SetStateAction<InAppMessage[]>> = useCallback((update) => {
@@ -160,6 +162,11 @@ export function useInAppNotifications() {
     markAnnouncementReadMutation.mutate({ params: { id } });
   }, [markAnnouncementReadMutation]);
 
+  /** 弹层「全部已读」：与单条同一套失效契约（收件箱 / 气泡 / 未读数 / 已读统计） */
+  const markAllAnnouncementsAsRead = useCallback(() => {
+    markAllAnnouncementReadMutation.mutate({});
+  }, [markAllAnnouncementReadMutation]);
+
   return {
     inAppMessages, setInAppMessages,
     unreadCount, setUnreadCount,
@@ -170,7 +177,9 @@ export function useInAppNotifications() {
     messagePopVisible, setMessagePopVisible,
     selectedMessage, setSelectedMessage,
     recentInAppMessageRef,
-    fetchRecentAnnouncements, markAnnouncementAsRead, fetchInAppMessages,
+    fetchRecentAnnouncements, markAnnouncementAsRead, markAllAnnouncementsAsRead,
+    markAllAnnouncementReadPending: markAllAnnouncementReadMutation.isPending,
+    fetchInAppMessages,
     prependInAppMessage, refreshInboxLists, applyAnnouncementEvent, refetchAfterReconnect,
   };
 }

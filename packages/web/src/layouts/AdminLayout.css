@@ -2152,6 +2152,35 @@
   flex-shrink: 0;
 }
 
+/* ===== 通知弹层（公告 / 站内信）=====
+   标题行右侧放「全部已读」；单条「已读」放在 List.Item 的右侧固定列，常显。
+   该列只对未读行渲染，但列宽恒定 —— 否则按钮会贴着时间戳飘、或各行左右位置不一。 */
+.notification-popover__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 16px 8px;
+  font-weight: 600;
+  font-size: 14px;
+  border-bottom: 1px solid var(--semi-color-border);
+}
+
+.notification-popover__list .semi-list-item-extra {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-shrink: 0;
+  min-width: 44px;
+}
+
+/* Semi List.Item 的内容区默认 min-width: auto（flex 子项不收缩），
+   长标题会把行撑宽并带出横向滚动条；允许收缩并兜底隐藏横向溢出 */
+.notification-popover__list .semi-list-item-body,
+.notification-popover__list .semi-list-item-body-main {
+  min-width: 0;
+}
+
 /* ===== Notification badge dot ===== */
 /* 按钮 32px、图标 16px 居中：圆点压住图标右上角（24,8），不再飘在按钮盒子角上 */
 .admin-notify-badge .semi-badge-dot {

@@ -22,6 +22,7 @@ import RouteViewTransition from './RouteViewTransition';
 import { navigateWithDirection } from './route-transition-types';
 import { useWorkflowRealtime } from '@/hooks/useWorkflowNotifications';
 import { useMarkMyInAppMessageRead } from '@/hooks/queries/in-app-messages';
+import { useMarkAllInboxMessagesRead } from '@/hooks/queries/inbox';
 import { config } from '@/config';
 import NProgress from '@/components/NProgress';
 import Watermark from '@/components/Watermark';
@@ -305,7 +306,8 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
     messagePopVisible, setMessagePopVisible,
     selectedMessage, setSelectedMessage,
     recentInAppMessageRef,
-    fetchRecentAnnouncements, markAnnouncementAsRead, fetchInAppMessages,
+    fetchRecentAnnouncements, markAnnouncementAsRead, markAllAnnouncementsAsRead,
+    markAllAnnouncementReadPending, fetchInAppMessages,
     prependInAppMessage, refreshInboxLists, applyAnnouncementEvent, refetchAfterReconnect,
   } = useInAppNotifications();
 
@@ -348,6 +350,10 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
       },
     });
   };
+
+  // 铃铛「全部已读」：与收件箱页共用同一契约操作与失效（列表 / 详情 / 未读数）
+  const markAllInboxRead = useMarkAllInboxMessagesRead();
+  const markAllAsRead = useCallback(() => { markAllInboxRead.mutate({}); }, [markAllInboxRead]);
 
   const { currentSectionKeys, displayBreadcrumbs } = useBreadcrumbData(menuTree, location.pathname, preferences.breadcrumbShowHome);
   const { openKeys, setOpenKeys } = useSidebarOpenKeys(currentSectionKeys, preferences.sidebarAccordion);
@@ -718,6 +724,8 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
         fetchRecentAnnouncements={fetchRecentAnnouncements}
         recentAnnouncements={recentAnnouncements}
         markAnnouncementAsRead={markAnnouncementAsRead}
+        markAllAnnouncementsAsRead={markAllAnnouncementsAsRead}
+        markAllReadPending={markAllAnnouncementReadPending}
         setSelectedAnnouncement={setSelectedAnnouncement}
         announcementUnreadCount={announcementUnreadCount}
         navigate={navigate}
@@ -728,6 +736,8 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
         fetchInAppMessages={fetchInAppMessages}
         inAppMessages={inAppMessages}
         markAsRead={markAsRead}
+        markAllAsRead={markAllAsRead}
+        markAllReadPending={markAllInboxRead.isPending}
         setSelectedMessage={setSelectedMessage}
         unreadCount={unreadCount}
         navigate={navigate}
