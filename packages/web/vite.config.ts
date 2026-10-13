@@ -138,9 +138,12 @@ export default defineConfig(({ command, mode }) => {
     },
     plugins: [
       fileViewerRenderers({
-        // Presentation and Archive are registered explicitly in FileViewerPreviewPanel.
-        // Keeping them out prevents copyAssets from duplicating resources that
-        // Vite already emits under assets/.
+        // Presentation 和 Archive 在 FileViewerPreviewPanel 里显式注册。
+        // Presentation 的 worker 仍走 `?url` 产物；Archive 的 worker/wasm 改放
+        // public/vendor/libarchive（原样下发、与 wasm 同目录，渲染器只配 workerUrl
+        // 即走直链 Worker；放 public/file-viewer 下会被 .gitignore 忽略）。
+        // 两处都不进 copyAssets，避免与上述产物重复分发；
+        // `libarchive.js` 升级后记得同步重拷那两个文件。
         formats: ['word', 'spreadsheet', 'ofd', 'email', 'xmind', 'mermaid', 'drawio', 'dio', 'excalidraw', 'plantuml', 'puml', 'data', 'geo'],
         inject: false,
         copyAssets: { baseDir: 'file-viewer', mode: 'both' },
@@ -293,9 +296,11 @@ export default defineConfig(({ command, mode }) => {
               ...(entry === 'approval' ? [{ name: 'vendor-approval-query', test: /node_modules[\\/]@tanstack[\\/](?:react-query|query-core)[\\/]/, priority: 13 }] : []),
               // Debounce/throttle hooks share one framework, rather than a tiny chunk per consuming page.
               ...(entry === 'approval' ? [{ name: 'vendor-approval-pacer', test: /node_modules[\\/]@tanstack[\\/](?:react-pacer|pacer)[\\/]/, priority: 13 }] : []),
-              // The preview's two archive asset URL strings have no consumer outside this deferred panel.
+              // The preview panel no longer imports libarchive `?url` assets
+              // (worker/wasm ship pristine under public/vendor/libarchive),
+              // so only the panel module itself needs to stay out of the shared chunks.
               ...(entry === 'approval' ? [{ name: 'approval-file-preview',
-                test: (id: string) => id.includes('virtual:file-viewer-renderers') || /(?:[\\/]components[\\/]FileViewerPreviewPanel\.tsx$|[\\/]libarchive\.js[\\/]dist[\\/](?:worker-bundle\.js|libarchive\.wasm)\?url$)/.test(id), priority: 13 }] : []),
+                test: (id: string) => id.includes('virtual:file-viewer-renderers') || /[\\/]components[\\/]FileViewerPreviewPanel\.tsx$/.test(id), priority: 13 }] : []),
               // Reused approval display/search helpers are small and use the same existing UI foundation.
               // Keep them together instead of emitting a separate request for every sub-kilobyte helper.
               ...(entry === 'approval' ? [{
