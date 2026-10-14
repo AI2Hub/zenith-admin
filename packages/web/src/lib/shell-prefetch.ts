@@ -1,6 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { TOKEN_KEY } from '@zenith/shared/core';
-import { settingsContract } from '@zenith/shared/settings';
+import { settingsProjectionContract as settingsContract } from '@zenith/shared/settings/projections';
 import { apiQueryOptions } from '@/lib/contract-query';
 import { LOOKUP_STALE_TIME } from '@/lib/query';
 import { userMenuTreeQueryOptions } from '@/hooks/queries/menus';

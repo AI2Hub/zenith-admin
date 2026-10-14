@@ -8,7 +8,7 @@ import {
 } from '@zenith/shared/preferences';
 import { applyWeekStart } from '@/lib/week-start';
 import { readPreferenceCache, writePreferenceCache } from '@/lib/preference-cache';
-import { settingsKeys, useMySettings } from './queries/settings';
+import { settingsProjectionKeys as settingsKeys, useMySettings } from './queries/settings-projections';
 import { preferencesKey, usePersonalPreferences, useSavePersonalPreferences } from './queries/preferences';
 import { subscribeWsStatus, useWebSocket } from './useWebSocket';
 import { PreferencesContext, type PreferenceChangeResult } from './usePreferences';

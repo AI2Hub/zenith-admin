@@ -74,6 +74,11 @@ export function isSettingsModuleKey(value: string): value is SettingsModuleKey {
   return Object.hasOwn(SETTINGS_MODULES, value);
 }
 
+/** 历史资源路径与缓存前缀共用；读取公开投影时无需初始化整组历史操作。 */
+export function settingsHistoryBasePath(module: SettingsModuleKey): string {
+  return `/api/settings${SETTINGS_MODULE_PATHS[module]}/versions`;
+}
+
 /** 模块 key ↔ 路径片段（去掉前导斜杠）互查 */
 export function settingsModuleBySlug(slug: string): SettingsModuleKey | null {
   for (const key of SETTINGS_MODULE_KEYS) {

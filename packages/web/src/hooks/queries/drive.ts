@@ -19,7 +19,8 @@ import { invalidateEntityRelations } from '@/lib/entity-relation-cache';
 import { request } from '@/utils/request';
 import { chunkedUpload, type ChunkedUploadEndpoints } from '@/utils/chunked-upload';
 import { formatDate } from '@/utils/date';
-import { useMySettings, useSaveSettings, useSettings } from './settings';
+import { useSaveSettings, useSettings } from './settings';
+import { useMySettings } from './settings-projections';
 
 /** 网盘自有的分片上传接口（init / chunk / complete / status / abort），由契约派生；目录上传队列与新版本面板共用 */
 export const DRIVE_UPLOAD_ENDPOINTS: ChunkedUploadEndpoints = {

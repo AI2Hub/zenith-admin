@@ -18,7 +18,7 @@ import { UserAvatar } from '@/components/UserAvatar';
 import AppLogo from '@/components/AppLogo';
 import { OAuthProviderIcon } from '@/components/OAuthProviderIcon';
 import { useEnterpriseProviders, useOAuthProviders, usePublicCaptcha } from '@/hooks/queries/auth-public';
-import { usePublicSettings } from '@/hooks/queries/settings';
+import { usePublicSettings } from '@/hooks/queries/settings-projections';
 import { useDebouncedValue } from '@tanstack/react-pacer';
 import { useLoginForm, type FieldRules } from './login-form';
 import { LoginField, LoginFormError } from './LoginField';

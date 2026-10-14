@@ -48,7 +48,7 @@ import { usePageTracker } from '@/hooks/usePageTracker';
 import { useMediaQuery, useIsMobile } from '@/hooks/useMediaQuery';
 import { mediaDown } from '@/lib/breakpoints';
 import { findBreadcrumbs, findNavItemAncestorKeys, updateMessageRead, computeTabClosableFlags } from './admin/utils';
-import { useMySettings } from '@/hooks/queries/settings';
+import { useMySettings } from '@/hooks/queries/settings-projections';
 import { useFullscreen } from './admin/useFullscreen';
 import { usePreferencesPanel } from './admin/usePreferencesPanel';
 import { useAutoLock } from './admin/useAutoLock';

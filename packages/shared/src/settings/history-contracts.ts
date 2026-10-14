@@ -3,7 +3,7 @@ import { paginated, paginationQuery } from '../core/api-schemas';
 import { defineContract, op } from '../core/contract';
 import { SETTINGS_REVISION_ACTIONS } from './constants';
 import { settingsEnvelopeMetaSchema, settingsGetOp, type SettingsEnvelope } from './contracts';
-import { SETTINGS_MODULE_KEYS, SETTINGS_MODULE_PATHS, SETTINGS_MODULES, type SettingsModuleKey } from './registry';
+import { SETTINGS_MODULE_KEYS, SETTINGS_MODULES, settingsHistoryBasePath, type SettingsModuleKey } from './registry';
 
 export const settingsDocumentSchema = z.record(z.string(), z.unknown());
 
@@ -80,9 +80,9 @@ export const settingsRestoreBodySchema = settingsRestorePreviewBodySchema.extend
 function createSettingsHistoryContract<M extends SettingsModuleKey>(module: M) {
   const def = SETTINGS_MODULES[module];
   const platformOnly = def.platformOnly ? { platformOnly: def.platformOnly } : {};
-  const readAccess = def.readPermission ? { permission: def.readPermission, ...platformOnly } : def.platformOnly ? platformOnly : 'authenticated' as const;
+  const readAccess = def.readPermission ? { permission: def.readPermission, ...platformOnly } : def.platformOnly ? { platformOnly: def.platformOnly } : 'authenticated' as const;
   const writeAccess = { permission: def.writePermission, ...platformOnly };
-  return defineContract(`/api/settings${SETTINGS_MODULE_PATHS[module]}/versions`, {
+  return defineContract(settingsHistoryBasePath(module), {
     list: op.get('/', {
       access: readAccess,
       query: paginationQuery,
@@ -122,9 +122,13 @@ function createSettingsHistoryContract<M extends SettingsModuleKey>(module: M) {
 export type SettingsHistoryContract<M extends SettingsModuleKey = SettingsModuleKey> = ReturnType<typeof createSettingsHistoryContract<M>>;
 
 /** 模块特性、平台限制与读写权限从同一注册表派生，不能绕过原设置页面的访问控制。 */
-export const settingsHistoryContracts = Object.fromEntries(
-  SETTINGS_MODULE_KEYS.map((module) => [module, createSettingsHistoryContract(module)]),
-) as { [M in SettingsModuleKey]: SettingsHistoryContract<M> };
+function createHistoryContracts() {
+  return Object.fromEntries(SETTINGS_MODULE_KEYS.map((module) => [module, createSettingsHistoryContract(module)])) as {
+    [M in SettingsModuleKey]: SettingsHistoryContract<M>;
+  };
+}
+// 仅构造操作元数据；未使用历史的入口无需执行该组初始化。
+export const settingsHistoryContracts = /* @__PURE__ */ createHistoryContracts();
 
 export function settingsHistoryOps<M extends SettingsModuleKey>(module: M): SettingsHistoryContract<M> {
   return settingsHistoryContracts[module] as SettingsHistoryContract<M>;

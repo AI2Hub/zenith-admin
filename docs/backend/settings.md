@@ -143,8 +143,9 @@ const policy = await getSettings('identitySecurity', { tenantId });       // 租
 
 ## 前端
 
-- 域 hooks 在 `packages/web/src/hooks/queries/settings.ts`：`useSettings(module)` / `useSaveSettings(module)` /
-  `useMySettings()` / `usePublicSettings(tenantCode)` / `useSettingsModules()`。布局与页面读开关一律走 `useMySettings()`（一次请求共享缓存），
+- 管理 hooks 在 `packages/web/src/hooks/queries/settings.ts`；历史查询在 `settings-history.ts`；
+  `useMySettings()` / `usePublicSettings(tenantCode)` 位于轻量的 `settings-projections.ts`，仅引用独立投影契约。
+  布局与页面读开关一律走 `useMySettings()`（一次请求共享缓存），
   登录 / 注册页走 `usePublicSettings()`；保存后写回本模块信封并失效三个投影。
 - 通用设置页 `/system/settings`（`pages/system/settings/SettingsPage.tsx`）左侧为模块清单，右侧由 `components/settings/SchemaForm.tsx`
   按模块 schema 自动渲染：布尔 → 开关、数值 → 数字输入（范围与整数约束取自 schema）、枚举 → 下拉、字符串数组 → 标签输入、嵌套对象 → 分组，

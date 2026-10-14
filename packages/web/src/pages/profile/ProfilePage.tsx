@@ -16,7 +16,7 @@ import { formatDateForApi, formatDateTime, formatDateTimeForApi } from '@/utils/
 import DateTimeText from '@/components/DateTimeText';
 import type { PasswordRules as PasswordPolicy, SessionConcurrencyPolicy } from '@zenith/shared/settings';
 import { formatSessionPolicyHint } from '@zenith/shared/settings';
-import { useMySettings } from '@/hooks/queries/settings';
+import { useMySettings } from '@/hooks/queries/settings-projections';
 import { PasswordStrengthMeter } from '@/components/PasswordStrengthMeter';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { useDictItems } from '@/hooks/useDictItems';

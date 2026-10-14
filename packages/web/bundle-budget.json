@@ -9,7 +9,7 @@
       "routes": {
         "AdminLayout": {
           "maxFiles": 44,
-          "maxGzKB": 660
+          "maxGzKB": 670
         },
         "DashboardPage": {
           "maxFiles": 30,

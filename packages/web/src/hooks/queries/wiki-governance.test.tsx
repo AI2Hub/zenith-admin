@@ -15,6 +15,7 @@ vi.mock('@/utils/request', () => ({ request: createRequestMock(() => api) }));
 import { useWikiDocDetail } from './wiki-docs';
 import { useSetGovernanceReview, useWikiGovernanceDocs } from './wiki-governance';
 import { useUpdateWikiSettings, useWikiOpsStats, useWikiSettings } from './wiki-stats';
+import { useRestoreSettings } from './settings-history';
 
 const SETTINGS: WikiSettings = {
   requireApproval: true,
@@ -32,7 +33,8 @@ const SAVED_SETTINGS: WikiSettings = {
 };
 // 运行时设置的读取信封：生效值 / 上级值 / 覆盖路径 / 版本
 function envelope(effective: WikiSettings, version: number): SettingsEnvelope<'wiki'> {
-  return { module: 'wiki', scope: 'platform', tenantId: null, version, effective, inherited: SETTINGS, overriddenPaths: [], updatedAt: null };
+  return { module: 'wiki', scope: 'platform', tenantId: null, version, effective, inherited: SETTINGS, overriddenPaths: [], updatedAt: null,
+    currentRevisionId: version, baseToken: `revision-${version}`, inheritedVersion: 0, definitionHash: 'definition', overrides: {} };
 }
 const DOC: WikiDoc = {
   id: 1,
@@ -83,6 +85,7 @@ beforeEach(() => {
   api
     .on('GET', '/api/settings/wiki', envelope(SETTINGS, 1))
     .on('PUT', '/api/settings/wiki', envelope(SAVED_SETTINGS, 2))
+    .on('POST', '/api/settings/wiki/versions/0/restore', envelope(SAVED_SETTINGS, 2))
     .on('GET', '/api/wiki/docs/1', DOC)
     .on('GET', '/api/wiki/stats/ops', OPS)
     .on('GET', GOVERNANCE_PATH, { list: [], total: 0, page: 1, pageSize: 10 })
@@ -110,11 +113,27 @@ describe('知识中心治理缓存契约', () => {
     });
 
     api.resetCalls();
-    await result.current.update.mutateAsync({ body: { version: 1, data: SAVED_SETTINGS } });
+    await result.current.update.mutateAsync({ body: { baseToken: 'revision-1', overrides: { commentsEnabled: false, pendingRemindHours: 24 } } });
     await waitFor(() => expect(api.countOf('GET', GOVERNANCE_PATH)).toBe(1));
 
     expect(api.countOf('GET', '/api/wiki/docs/1')).toBe(1);
     expect(api.countOf('GET', '/api/wiki/stats/ops')).toBe(1);
+  });
+
+  it('从通用版本入口恢复也刷新知识库消费者', async () => {
+    const qc = createTestQueryClient();
+    const { result } = renderHook(() => ({
+      settings: useWikiSettings(), detail: useWikiDocDetail(1), ops: useWikiOpsStats(),
+      backlog: useWikiGovernanceDocs('review-backlog', { page: 1, pageSize: 10 }), restore: useRestoreSettings('wiki'),
+    }), { wrapper: createWrapper(qc) });
+    await waitFor(() => expect([result.current.settings, result.current.detail, result.current.ops, result.current.backlog].every((query) => query.isSuccess)).toBe(true));
+    api.resetCalls();
+    await result.current.restore.mutateAsync({ params: { version: 0 }, body: { baseToken: 'revision-1', note: '恢复继承' } });
+    await waitFor(() => {
+      expect(api.countOf('GET', GOVERNANCE_PATH)).toBe(1);
+      expect(api.countOf('GET', '/api/wiki/docs/1')).toBe(1);
+      expect(api.countOf('GET', '/api/wiki/stats/ops')).toBe(1);
+    });
   });
 
   it('设置或取消复审后同步刷新治理清单与运营统计', async () => {

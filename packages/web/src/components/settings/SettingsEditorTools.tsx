@@ -17,8 +17,9 @@ export function SettingsEditorTools<M extends SettingsModuleKey>({ module, edito
   const [inheritanceOpen, setInheritanceOpen] = useState(false);
   const fields = useMemo(() => describeSettingsFields(module), [module]);
   const reload = async () => {
-    const result = await onReload();
-    if (!result.isError) editor.discard();
+    // 只放弃点击时已确认的草稿；请求在途期间的新输入由编辑器继续保护。
+    editor.discard();
+    await onReload();
   };
   const discard = () => {
     if (!editor.dirty) { void reload(); return; }

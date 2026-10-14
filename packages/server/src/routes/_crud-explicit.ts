@@ -211,6 +211,7 @@ export const explicitCrudRoutes: Readonly<Record<string, readonly ExplicitCrudEn
   ],
   'platform/settings.ts': [
     { contract: 'settingsContract', ops: ['list'], reason: '服务函数需要请求上下文（当前用户 / IP）作额外入参' },
+    { contract: 'history', ops: ['list', 'detail'], reason: '按模块动态装配并显式传入当前用户作用域；详情参数为可取 0 的版本号 version，非标准 CRUD 的实体 id' },
   ],
   'platform/user-feedbacks.ts': [
     { contract: 'userFeedbackContract', ops: ['removeBatch', 'remove'], reason: 'handler 含前置校验 / 业务分支；handler 含自定义逻辑（非「取参 → 服务 → 包络」）' },

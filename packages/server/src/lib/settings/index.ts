@@ -96,12 +96,13 @@ const scopeKey = (tenantId: number | null) => (tenantId === null ? 'platform' : 
 
 /** 清空某模块所有作用域的副本（平台行改动会影响所有继承它的租户，故按模块整段清） */
 export function invalidateSettings(module: SettingsModuleKey): void {
-  caches.get(module)?.clear();
+  // 废弃整个实例，旧的在途 loader 即使完成也只能写回已失效的实例。
+  caches.delete(module);
 }
 
 /** 清空全部副本（监听重建 / 测试） */
 export function resetSettingsCache(): void {
-  for (const cache of caches.values()) cache.clear();
+  caches.clear();
   tenantIdByCode.clear();
 }
 

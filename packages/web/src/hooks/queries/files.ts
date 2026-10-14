@@ -5,7 +5,7 @@ import { fileContract, UPLOAD_CHUNK_MIN_BYTES, type FileAccessPurpose, type File
 import { api, contractKey, createResourceQueries, urlOf, useApiQuery } from '@/lib/contract-query';
 import { unwrap } from '@/lib/query';
 import { request } from '@/utils/request';
-import { useMySettings } from './settings';
+import { useMySettings } from './settings-projections';
 
 export type FileListParams = QueryOf<typeof fileContract.list>;
 

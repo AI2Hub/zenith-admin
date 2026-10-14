@@ -15,12 +15,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { HTTPException } from 'hono/http-exception';
 import type { JwtPayload } from '../../middleware/auth';
-import { SETTINGS_MODULES } from '@zenith/shared/settings';
 
 // vi.mock 工厂会被提升到文件顶部，工厂内引用的状态必须经 vi.hoisted 声明
 const { dbState, configState, ctx, logger } = vi.hoisted(() => ({
   dbState: {
-    selectResults: [] as unknown[][],
+    selectResults: [] as Array<unknown[] | Promise<unknown[]>>,
     inserts: [] as Record<string, unknown>[],
     insertResults: [] as unknown[][],
     updates: [] as Record<string, unknown>[],
@@ -106,6 +105,20 @@ beforeEach(() => {
 });
 
 describe('getSettings', () => {
+  it('失效前的在途加载完成后不会重新污染新副本', async () => {
+    let finishOld!: (rows: unknown[]) => void;
+    const delayed = new Promise<unknown[]>((resolve) => { finishOld = resolve; });
+    dbState.selectResults.push(delayed);
+    const oldRead = getSettings('auth');
+    await vi.waitFor(() => expect(selectMock).toHaveBeenCalledTimes(1));
+    invalidateSettings('auth');
+    dbState.selectResults.push([row('auth', null, { captchaEnabled: true }, 2)]);
+    expect((await getSettings('auth')).captchaEnabled).toBe(true);
+    finishOld([row('auth', null, { captchaEnabled: false }, 1)]);
+    await oldRead;
+    expect((await getSettings('auth')).captchaEnabled).toBe(true);
+    expect(selectMock).toHaveBeenCalledTimes(2);
+  });
   it('无任何行时返回 schema 默认文档，并缓存（第二次不查库）', async () => {
     dbState.selectResults.push([]);
     const first = await getSettings('auth');

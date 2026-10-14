@@ -9,6 +9,7 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SettingsDoc, SettingsModuleKey } from '@zenith/shared/settings';
+import { describeSettingsDefinition } from '@zenith/shared/settings';
 import { createPgClient } from '../../db/client';
 import type { Db, DbExecutor, DbTransaction } from '../../db/types';
 import type { JwtPayload } from '../../middleware/auth';
@@ -41,7 +42,7 @@ vi.mock('../logger', () => ({ default: { error: vi.fn(), warn: vi.fn(), info: vi
 vi.mock('../invalidation-bus', () => ({ onInvalidate: vi.fn(), onInvalidationReset: vi.fn() }));
 vi.mock('../ws-manager', () => ({ scheduleBroadcast: vi.fn(), onBroadcastMessage: vi.fn() }));
 
-const integration = process.env.RUN_SETTINGS_DB_TESTS === '1' ? describe.sequential : describe.skip;
+const integration = describe.skipIf(process.env.RUN_SETTINGS_DB_TESTS !== '1');
 
 integration('settings immutable revisions on real PostgreSQL', () => {
   let client: ReturnType<typeof createPgClient> | undefined;
@@ -159,7 +160,9 @@ integration('settings immutable revisions on real PostgreSQL', () => {
     expect(records[0].revision).toMatchObject({ version: 1, action: 'save', overrides: saved.overrides,
       effective: saved.effective, inherited: saved.inherited, inheritedVersion: saved.inheritedVersion,
       definitionHash: saved.definitionHash, actorId: actor.userId, actorName: actor.username });
-    expect(records[0].revision.definition).toHaveProperty('properties');
+    expect(describeSettingsDefinition(records[0].revision.definition)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: 'password.minLength', type: 'integer' }),
+    ]));
     expect(records[0].revision.changedPaths).toEqual(['password.minLength']);
   });
 

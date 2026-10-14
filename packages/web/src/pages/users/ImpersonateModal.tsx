@@ -3,7 +3,7 @@ import { useMemo } from 'react';
 import { Banner, Descriptions, Form, Tag, Typography } from '@douyinfe/semi-ui';
 import { IMPERSONATION_DURATION_OPTIONS, type User } from '@zenith/shared/identity';
 import { EditFormModal } from '@/components/EditFormModal';
-import { useMySettings } from '@/hooks/queries/settings';
+import { useMySettings } from '@/hooks/queries/settings-projections';
 import type { UseEditModalReturn } from '@/hooks/useEditModal';
 import { EMPTY_PLACEHOLDER } from '@/utils/table-columns';
 

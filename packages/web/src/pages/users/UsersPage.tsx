@@ -33,7 +33,7 @@ import ImportButton from '@/components/ImportButton';
 import { useAllRoles } from '@/hooks/queries/roles';
 import { departmentsToTreeData, useFlatDepartments } from '@/hooks/queries/departments';
 import { useAllPositions } from '@/hooks/queries/positions';
-import { useMySettings } from '@/hooks/queries/settings';
+import { useMySettings } from '@/hooks/queries/settings-projections';
 import { useListSearch } from '@/hooks/useListSearch';
 import { useListDeepLink } from '@/hooks/useListDeepLink';
 import {

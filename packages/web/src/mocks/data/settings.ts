@@ -38,7 +38,7 @@ export function mockSettingsEnvelope<M extends SettingsModuleKey>(module: M): Se
   const { hash } = definition(module);
   const overrides = structuredClone(current?.overrides ?? {});
   return {
-    module, scope: 'platform', tenantId: null, version: current?.version ?? 0,
+    module, scope: SETTINGS_MODULES[module].scope, tenantId: null, version: current?.version ?? 0,
     currentRevisionId: current?.id ?? null, baseToken: `demo:${module}:${current?.id ?? 0}:${hash}`,
     inheritedVersion: 0, definitionHash: hash, overrides,
     effective: getMockSettings(module), inherited: resolveSettings(module, []).value,

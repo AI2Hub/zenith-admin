@@ -1,15 +1,9 @@
 import * as z from 'zod';
 import { defineContract, op, type Operation } from '../core/contract';
 import { SETTINGS_SCOPES } from './constants';
-import { authSettingsSchema } from './modules/auth';
-import { driveSettingsSchema } from './modules/drive';
-import { filesSettingsSchema } from './modules/files';
-import { identitySecuritySettingsSchema } from './modules/identity-security';
-import { rulesSettingsSchema } from './modules/rules';
-import { terminalSettingsSchema } from './modules/terminal';
-import { uiSettingsSchema } from './modules/ui';
 import { SETTINGS_MODULE_KEYS, SETTINGS_MODULE_PATHS, SETTINGS_MODULES, type SettingsModuleKey, type SettingsOf } from './registry';
 import { settingsOverridesSchema } from './overrides';
+import { settingsProjectionContract } from './projections';
 
 // ─── 模块清单 ────────────────────────────────────────────────────────────────
 
@@ -33,29 +27,8 @@ export type SettingsModuleMeta = z.infer<typeof settingsModuleMetaSchema>;
 // 显式书写而非按注册表推导，是为了给前端精确类型；`settings.test.ts` 断言这里的键集与
 // 注册表 `visibility` 声明一致，两处不会漂移。
 
-export const publicSettingsSchema = z.object({
-  auth: authSettingsSchema.pick({ captchaEnabled: true, captchaComplexity: true, allowRegistration: true, forgotPasswordEnabled: true }),
-  identitySecurity: identitySecuritySettingsSchema.pick({ password: true }),
-}).meta({ id: 'PublicSettings' });
-
-export type PublicSettings = z.output<typeof publicSettingsSchema>;
-
-export const mySettingsSchema = z.object({
-  auth: authSettingsSchema.pick({ captchaEnabled: true, captchaComplexity: true, allowRegistration: true, forgotPasswordEnabled: true }),
-  identitySecurity: identitySecuritySettingsSchema.pick({ password: true, impersonation: true, session: true }),
-  ui: uiSettingsSchema.pick({ watermark: true, quickChatEnabled: true, feedbackEntryEnabled: true, preferencesEntryEnabled: true, preferences: true }),
-  files: filesSettingsSchema.pick({ chunkThresholdMb: true, chunkSizeMb: true }),
-  // 带 License 门控的模块：租户套餐未含该特性时不返回
-  terminal: terminalSettingsSchema.pick({ recordingEnabled: true }).optional(),
-  rules: rulesSettingsSchema.pick({ publishApproval: true }).optional(),
-  drive: driveSettingsSchema.pick({ previewWatermarkEnabled: true }).optional(),
-}).meta({ id: 'MySettings' });
-
-export type MySettings = z.output<typeof mySettingsSchema>;
-
-export const publicSettingsQuery = z.object({
-  tenantCode: z.string().trim().max(64).optional().meta({ description: '多租户模式下按租户编码解析租户级设置；缺省或无效时返回平台值' }),
-});
+export { publicSettingsSchema, mySettingsSchema, publicSettingsQuery } from './projections';
+export type { PublicSettings, MySettings } from './projections';
 
 // ─── 模块读写载荷 ────────────────────────────────────────────────────────────
 
@@ -109,7 +82,7 @@ function moduleOps<M extends SettingsModuleKey>(module: M) {
   const platformOnly = def.platformOnly ? { platformOnly: def.platformOnly } : {};
   return {
     get: op.get(path, {
-      access: def.readPermission ? { permission: def.readPermission, ...platformOnly } : def.platformOnly ? platformOnly : 'authenticated',
+      access: def.readPermission ? { permission: def.readPermission, ...platformOnly } : def.platformOnly ? { platformOnly: def.platformOnly } : 'authenticated',
       ...feature,
       response: envelope,
       summary: `读取「${def.title}」设置`,
@@ -146,8 +119,8 @@ const sqlMonitor = moduleOps('sqlMonitor');
 
 export const settingsContract = defineContract('/api/settings', {
   list: op.get('/', { access: 'authenticated', response: z.array(settingsModuleMetaSchema), summary: '当前用户可读的设置模块清单' }),
-  public: op.get('/public', { query: publicSettingsQuery, response: publicSettingsSchema, public: true, summary: '匿名可见的设置投影（登录 / 注册页）' }),
-  me: op.get('/me', { access: 'authenticated', response: mySettingsSchema, summary: '登录用户可见的设置投影（布局开关 / 密码规则 / 终端录屏）' }),
+  public: settingsProjectionContract.public,
+  me: settingsProjectionContract.me,
 
   getAuth: auth.get, updateAuth: auth.update,
   getAnalytics: analytics.get, updateAnalytics: analytics.update,

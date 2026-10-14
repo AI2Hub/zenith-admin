@@ -10,8 +10,9 @@ import { ListPagination } from '@/components/ListPagination';
 import { ModalFooter } from '@/components/ModalFooter';
 import { usePagination } from '@/hooks/usePagination';
 import {
-  useRestoreSettings, useSettings, useSettingsComparison, useSettingsRestorePreview, useSettingsVersion, useSettingsVersions,
-} from '@/hooks/queries/settings';
+  useRestoreSettings, useSettingsComparison, useSettingsRestorePreview, useSettingsVersion, useSettingsVersions,
+} from '@/hooks/queries/settings-history';
+import { useSettings } from '@/hooks/queries/settings';
 import DateTimeText from '@/components/DateTimeText';
 
 interface SettingsHistoryButtonProps {
@@ -82,14 +83,16 @@ function HistoryDrawer({ module, dirty = false, canRestore = false, onRestored, 
   const currentQuery = useSettings(module);
   const current = currentQuery.data;
   const [selectedVersion, setSelectedVersion] = useState(current?.version ?? 0);
-  const [fromVersion, setFromVersion] = useState(Math.max(0, selectedVersion - 1));
+  const [fromVersion, setFromVersion] = useState<number | null>(null);
   const [toVersion, setToVersion] = useState(selectedVersion);
   const [tab, setTab] = useState('detail');
   const [note, setNote] = useState('');
   const pagination = usePagination({ pageSize: 10, resetKey: module });
   const versions = useSettingsVersions(module, pagination.page, pagination.pageSize);
   const detail = useSettingsVersion(module, selectedVersion);
-  const comparison = useSettingsComparison(module, fromVersion, toVersion, tab === 'compare');
+  // 初始快照之前没有留存历史，不能把 version - 1 当作一个真实版本。
+  const comparisonFrom = fromVersion ?? (detail.data?.action === 'initial' ? 0 : Math.max(0, selectedVersion - 1));
+  const comparison = useSettingsComparison(module, comparisonFrom, toVersion, tab === 'compare' && !!detail.data);
   const previewMutation = useSettingsRestorePreview(module);
   const restoreMutation = useRestoreSettings(module);
   const preview = previewMutation.data?.targetVersion === selectedVersion ? previewMutation.data : undefined;
@@ -97,7 +100,7 @@ function HistoryDrawer({ module, dirty = false, canRestore = false, onRestored, 
   const pending = restoreMutation.isPending;
   const selectVersion = (version: number) => {
     setSelectedVersion(version);
-    setFromVersion(Math.max(0, version - 1));
+    setFromVersion(null);
     setToVersion(version);
     setNote('');
     previewMutation.reset();
@@ -156,7 +159,7 @@ function HistoryDrawer({ module, dirty = false, canRestore = false, onRestored, 
         </TabPane>
         <TabPane tab="版本比较" itemKey="compare">
           <Space wrap spacing={12} style={{ margin: '12px 0' }}>
-            <label>起点版本 <InputNumber aria-label="比较起点版本" min={0} max={current?.version} precision={0} value={fromVersion} onChange={(value) => { if (typeof value === 'number') setFromVersion(value); }} /></label>
+            <label>起点版本 <InputNumber aria-label="比较起点版本" min={0} max={current?.version} precision={0} value={comparisonFrom} onChange={(value) => { if (typeof value === 'number') setFromVersion(value); }} /></label>
             <label>终点版本 <InputNumber aria-label="比较终点版本" min={0} max={current?.version} precision={0} value={toVersion} onChange={(value) => { if (typeof value === 'number') setToVersion(value); }} /></label>
           </Space>
           <Spin spinning={comparison.isLoading}>{comparison.data ? <Changes changes={comparison.data.changes} /> : null}</Spin>

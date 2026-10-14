@@ -31,3 +31,5 @@ export * from './modules/wiki';
 export * from './modules/workflow';
 export * from './registry';
 export * from './resolve';
+
+export { settingsProjectionContract } from './projections';

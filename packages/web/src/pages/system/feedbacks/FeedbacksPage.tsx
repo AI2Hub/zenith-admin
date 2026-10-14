@@ -13,7 +13,7 @@ import AppModal from '@/components/AppModal';
 import { dateTimeColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '@/utils/table-columns';
 import { formatDateRangeForApi } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
-import { useMySettings } from '@/hooks/queries/settings';
+import { useMySettings } from '@/hooks/queries/settings-projections';
 import { useDeleteFeedbacks, useHandleFeedback, useUserFeedbackList, userFeedbackKeys } from '@/hooks/queries/user-feedbacks';
 import { useEditModal } from '@/hooks/useEditModal';
 import { abortSubmit } from '@/lib/abort-submit';

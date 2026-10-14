@@ -18,7 +18,7 @@ import { WebglAddon } from '@xterm/addon-webgl';
 import { TOKEN_KEY } from '@zenith/shared/core';
 import { terminalRecordingContract } from '@zenith/shared/ops';
 import { wsAuthProtocols } from '@zenith/shared/platform';
-import { settingsContract } from '@zenith/shared/settings';
+import { settingsProjectionContract as settingsContract } from '@zenith/shared/settings/projections';
 import { config } from '@/config';
 import { api } from '@/lib/contract-query';
 import { formatDateTime } from '@/utils/date';
