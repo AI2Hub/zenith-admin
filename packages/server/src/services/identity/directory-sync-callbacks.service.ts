@@ -33,7 +33,6 @@ export async function markCallbackSyncPending(sourceId: number): Promise<void> {
 }
 
 export interface CallbackHandleResult {
-  /** HTTP 状态码 */
   status: 200 | 403 | 400;
   /** 响应体：字符串按 text/plain 返回，对象按 JSON 返回 */
   body: string | Record<string, unknown>;

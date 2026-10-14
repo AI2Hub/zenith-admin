@@ -171,7 +171,6 @@ export const asyncTaskItems = pgTable('async_task_items', {
   itemKey: varchar({ length: 128 }).notNull(),
   label: varchar({ length: 256 }),
   status: asyncTaskItemStatusEnum().notNull().default('pending'),
-  /** 错误信息 / 备注 */
   message: text(),
   data: jsonb().$type<Record<string, unknown>>(),
   /** 在第几次执行中处理 */

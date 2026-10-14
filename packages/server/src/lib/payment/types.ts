@@ -69,12 +69,10 @@ export interface ProfitShareReceiver {
   amount: number;
   /** 接收方名称（备注用） */
   name?: string;
-  /** 接收方类型 */
   receiverType?: 'merchant' | 'personal';
 }
 
 export interface ProfitShareResult {
-  /** 渠道分账单号 */
   channelSharingNo?: string;
   status: ChannelOperationStatus;
   raw?: unknown;
@@ -120,7 +118,6 @@ export interface TransferInput {
   receiverName?: string;
   /** 转账金额（分） */
   amount: number;
-  /** 转账备注/标题 */
   remark?: string;
 }
 
@@ -176,7 +173,6 @@ export interface ContractQueryResult {
 
 /** 签约代扣：单期扣款入参 */
 export interface ContractDeductInput {
-  /** 渠道协议号 */
   channelContractNo: string;
   /** 本期扣款商户订单号（幂等键） */
   outTradeNo: string;
@@ -204,7 +200,6 @@ export interface PreauthFreezeInput {
 }
 
 export interface PreauthFreezeResult {
-  /** 渠道资金授权订单号 */
   channelPreauthNo?: string;
   /** sandbox 即时 frozen；真实渠道异步授权时为 pending */
   status: 'pending' | 'frozen';
@@ -247,13 +242,11 @@ export interface PreauthQueryResult {
 
 /** 回调验签 + 解析后的标准化结果 */
 export interface NotifyResult {
-  /** 验签是否通过 */
   valid: boolean;
   /** 通知场景：支付 / 退款 */
   scene: 'payment' | 'refund';
   /** 商户订单号（out_trade_no） */
   outTradeNo?: string;
-  /** 渠道交易号 */
   channelTradeNo?: string;
   /** 渠道通知唯一标识，供 Inbox 防重放。 */
   providerEventId?: string;

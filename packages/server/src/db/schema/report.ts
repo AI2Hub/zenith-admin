@@ -170,7 +170,6 @@ export const reportPrintTemplates = pgTable('report_print_templates', {
   content: jsonb().$type<ReportPrintContent>().notNull().default(sql`'{}'::jsonb`),
   /** 参数定义（${param} 注入）*/
   params: jsonb().$type<ReportDatasetParam[]>().notNull().default(sql`'[]'::jsonb`),
-  /** 页面/打印配置 */
   pageConfig: jsonb().$type<ReportPrintPageConfig>().notNull().default(sql`'{}'::jsonb`),
   status: statusColumn(),
   remark: remarkColumn(),
@@ -205,7 +204,6 @@ export const reportAlertRules = pgTable('report_alert_rules', {
   aggregate: varchar({ length: 16 }).notNull().default('sum'),
   /** 比较运算符：gt/gte/lt/lte/eq/neq */
   op: varchar({ length: 8 }).notNull().default('gt'),
-  /** 阈值 */
   threshold: real().notNull().default(0),
   /** 评估 Cron（留空=仅手动） */
   cron: varchar({ length: 64 }),
@@ -280,7 +278,6 @@ export const reportDashboards = pgTable('report_dashboards', {
   layout: jsonb().$type<ReportGridItem[]>().notNull().default(sql`'[]'::jsonb`),
   /** 自由画布定位数组（canvas 大屏模式）*/
   canvasLayout: jsonb().$type<ReportCanvasItem[]>().notNull().default(sql`'[]'::jsonb`),
-  /** 组件配置数组 */
   widgets: jsonb().$type<ReportWidget[]>().notNull().default(sql`'[]'::jsonb`),
   /** 全局筛选器 */
   filters: jsonb().$type<ReportFilter[]>().notNull().default(sql`'[]'::jsonb`),

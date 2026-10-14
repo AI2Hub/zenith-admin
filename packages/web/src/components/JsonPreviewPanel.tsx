@@ -3,7 +3,6 @@ import type { CSSProperties } from 'react';
 import { JsonViewer, Typography } from '@douyinfe/semi-ui';
 
 interface JsonPreviewPanelProps {
-  /** JSON 文本内容 */
   readonly content: string;
   readonly style?: CSSProperties;
 }

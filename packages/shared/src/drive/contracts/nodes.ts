@@ -252,7 +252,6 @@ export const drivePresenceUserSchema = z.object({
   userId: z.int(),
   name: z.string(),
   avatar: z.string().nullable(),
-  /** 最近一次心跳时间 */
   lastSeenAt: z.string(),
 }).meta({ id: 'DrivePresenceUser' });
 

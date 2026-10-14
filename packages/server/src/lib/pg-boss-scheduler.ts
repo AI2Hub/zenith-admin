@@ -832,7 +832,6 @@ interface JobData {
   handlerName: string;
   params: string | null;
   jobId: number;
-  /** 投递来源 */
   trigger: CronRunTrigger;
   /** 手动执行的操作人 */
   triggeredBy: number | null;

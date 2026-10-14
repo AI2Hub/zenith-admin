@@ -247,13 +247,11 @@ export interface SubProcessNodeProps {
   subProcessMode?: 'single' | 'multi';
   /** 多实例循环数据源字段 key */
   subProcessMultiSource?: string;
-  /** 多实例执行方式 */
   subProcessMultiExecution?: 'parallel' | 'serial';
   /** 多实例：当前循环项写入子实例的字段 key */
   subProcessMultiItemKey?: string;
   /** 多实例：子实例驳回策略 */
   subProcessOnChildReject?: 'abort' | 'continue';
-  /** 子实例发起人来源 */
   subProcessInitiator?: 'parentInitiator' | 'formField' | 'specifiedUser';
   subProcessInitiatorField?: string;
   subProcessInitiatorUserId?: number;

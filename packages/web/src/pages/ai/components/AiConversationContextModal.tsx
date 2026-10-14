@@ -7,7 +7,6 @@ const { Text } = Typography;
 
 interface AiConversationContextModalProps {
   visible: boolean;
-  /** 上下文查询进行中 */
   loading: boolean;
   /** 目标消息前后的会话上下文（反馈 / 审计接口同一形态） */
   context: AiFeedbackContext | undefined;

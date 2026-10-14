@@ -8,7 +8,6 @@ export interface DataGridColumn {
   dataType?: string;
   /** 是否主键（表头钥匙标记 + 固定列） */
   isPrimaryKey?: boolean;
-  /** 是否可空 */
   nullable?: boolean;
   /** 外键信息（表头 FK 标记 + 单元格跳转） */
   fk?: { schema: string; table: string; columns: string[] } | null;
@@ -64,7 +63,6 @@ export interface SelectionSnapshot {
   rowIndexes: number[];
   /** 逐行的单元格坐标（行内按列升序）；rows 模式下为整行所有可见列 */
   matrix: CellPos[][];
-  /** 单元格总数 */
   cellCount: number;
 }
 
@@ -75,7 +73,6 @@ export interface DataGridHandle {
   getVisibleColumns: () => DataGridColumn[];
   /** 清空选区（含行选择） */
   clearSelection: () => void;
-  /** 滚回顶部 */
   scrollToTop: () => void;
   /** 复制当前选区为 TSV（返回是否成功） */
   copySelection: () => Promise<boolean>;
@@ -85,7 +82,6 @@ export interface DataGridHandle {
     updates: Array<{ pk: Record<string, unknown>; changes: Record<string, unknown>; originals: Record<string, unknown> }>;
     deletes: Array<{ pk: Record<string, unknown> }>;
   };
-  /** 放弃所有暂存变更 */
   discardPending: () => void;
   /** 程序化暂存一个单元格值（右键「设为 NULL」等）；rowIndex 支持新增行区间 */
   stageCellValue: (rowIndex: number, columnName: string, value: unknown) => void;
@@ -95,7 +91,6 @@ export interface DataGridHandle {
   addNewRow: (initial?: Record<string, unknown>) => number;
   /** 标记删除（已有行）或移除（新增行草稿）指定行 */
   stageDeleteRows: (rowIndexes: number[]) => void;
-  /** 取消删除标记 */
   unstageDeleteRows: (rowIndexes: number[]) => void;
   /** 克隆行为新增草稿（自动清空主键列），返回克隆数量 */
   cloneRows: (rowIndexes: number[]) => number;
@@ -111,7 +106,6 @@ export interface DataGridProps {
   totalRows?: number;
   /** 是否还有更多数据可加载 */
   hasMore?: boolean;
-  /** 正在加载更多 */
   loadingMore?: boolean;
   /** 滚动接近底部时触发 */
   onLoadMore?: () => void;
@@ -128,7 +122,6 @@ export interface DataGridProps {
   onCellContextMenu?: (e: React.MouseEvent, pos: CellPos, snapshot: SelectionSnapshot) => void;
   /** 表头筛选渲染插槽（返回完整的漏斗按钮元素，如 Popover 包裹的 Button） */
   headerFilterRender?: (col: DataGridColumn) => React.ReactNode;
-  /** FK 单元格跳转 */
   onFkClick?: (columnName: string, value: unknown, rowIndex: number) => void;
   /** 行选择变化（供批量操作条） */
   onSelectedRowsChange?: (rows: Set<number>) => void;

@@ -4,9 +4,7 @@ import type { Edge as RFEdge, Node as RFNode } from '@xyflow/react';
 export interface DagreLayoutOptions<N extends RFNode = RFNode> {
   /** 排布方向：`TB` 自上而下（拓扑树）/ `LR` 自左向右（依赖图 / ER 图） */
   rankdir: 'TB' | 'LR';
-  /** 同层节点间距 */
   nodesep: number;
-  /** 层间距 */
   ranksep: number;
   /** 节点尺寸；定尺图直接给对象，尺寸随内容变化的图给函数 */
   nodeSize: { width: number; height: number } | ((node: N) => { width: number; height: number });

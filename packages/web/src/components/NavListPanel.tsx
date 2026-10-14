@@ -15,15 +15,12 @@ export interface NavListPanelSearchProps {
 }
 
 export interface NavListPanelProps<T = unknown> {
-  /** 标题栏左侧文字 */
   title?: ReactNode;
   /** 标题栏右侧操作区（按钮/下拉菜单等） */
   headerExtra?: ReactNode;
   /** 如果提供，在标题栏下方渲染搜索输入框 */
   search?: NavListPanelSearchProps;
-  /** 列表加载中 */
   loading?: boolean;
-  /** 空状态文字 */
   emptyText?: string;
   /** 底部插槽（分页等） */
   footer?: ReactNode;
@@ -141,7 +138,6 @@ export function NavListPanel<T = unknown>({
 /* ─────────────────────────── NavListItem ───────────────────────────────── */
 
 export interface NavListItemProps {
-  /** 高亮激活状态 */
   active?: boolean;
   onClick?: () => void;
   /** 主标题（加粗） */
@@ -150,7 +146,6 @@ export interface NavListItemProps {
   secondary?: ReactNode;
   /** 底部元信息行（日期/大小/标签等，颜色更淡） */
   meta?: ReactNode;
-  /** 左侧图标 */
   icon?: ReactNode;
   /**
    * 多选框（批量操作场景）。渲染在图标之前，点击不会顺带触发条目的 `onClick`

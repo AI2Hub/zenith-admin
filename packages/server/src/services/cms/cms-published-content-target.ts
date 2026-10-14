@@ -8,7 +8,6 @@ import { contentUrl } from './cms-urls';
 export interface PublishedContentTarget {
   content: CmsContentRow;
   site: CmsSiteRow;
-  /** 站点绝对地址前缀 */
   origin: string;
   /** 内容站内路径（以 / 开头） */
   path: string;

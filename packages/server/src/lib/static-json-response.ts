@@ -15,7 +15,6 @@ import { gzipSync } from 'node:zlib';
 import type { Context } from 'hono';
 
 export interface StaticJsonRepresentation {
-  /** 响应体原文 */
   readonly json: string;
   /** 预压缩字节 */
   readonly gzip: Uint8Array<ArrayBuffer>;

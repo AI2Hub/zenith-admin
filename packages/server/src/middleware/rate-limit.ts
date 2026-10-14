@@ -503,7 +503,6 @@ export async function unblockRateLimitKey(name: string, key: string): Promise<bo
 export interface RateLimitBan {
   name: string;
   key: string;
-  /** 剩余毫秒 */
   ttlMs: number;
 }
 

@@ -33,7 +33,6 @@ interface DriveSubjectPickerProps {
   readonly disabled?: boolean;
   /** 只允许的主体类型；缺省四类全部 */
   readonly subjectTypes?: readonly DriveSubjectType[];
-  /** 表格空态文案 */
   readonly emptyText?: string;
 }
 

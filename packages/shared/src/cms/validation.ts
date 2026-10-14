@@ -299,7 +299,6 @@ export const createCmsContentSchema = z.object({
   summary: z.string().max(2000).nullable().optional(),
   coverImage: cmsAssetUrlSchema.nullable().optional(),
   author: z.string().max(50).nullable().optional(),
-  /** 责任编辑 */
   editor: z.string().max(50).nullable().optional(),
   source: z.string().max(100).nullable().optional(),
   sourceUrl: cmsLinkUrlSchema.nullable().optional(),

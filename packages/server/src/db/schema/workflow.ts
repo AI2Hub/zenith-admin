@@ -257,9 +257,7 @@ export const workflowDataSources = pgTable('workflow_data_sources', {
   headersEncrypted: text(),
   /** 响应中数组所在路径，点分隔（如 data.list），留空表示响应根即数组 */
   itemsPath: varchar({ length: 128 }),
-  /** 每项取值字段 */
   valueField: varchar({ length: 64 }).notNull(),
-  /** 每项显示字段 */
   labelField: varchar({ length: 64 }).notNull(),
   /** 远程搜索时传入关键词的参数名（留空表示不支持远程搜索） */
   keywordParam: varchar({ length: 64 }),
@@ -290,7 +288,6 @@ export const workflowConnectors = pgTable('workflow_connectors', {
   timeoutMs: integer().notNull().default(10000),
   /** 失败重试次数（5xx/网络错误，指数退避） */
   retryMax: integer().notNull().default(0),
-  /** 熔断开关 */
   circuitBreakerEnabled: boolean().notNull().default(true),
   /** 熔断：连续失败阈值（达到则打开熔断，快速失败） */
   failureThreshold: integer().notNull().default(5),
@@ -337,7 +334,6 @@ export const workflowSimulationCases = pgTable('workflow_simulation_cases', {
   name: varchar({ length: 64 }).notNull(),
   /** 测试发起人（可空，空表示用当前登录用户） */
   starterUserId: integer().references(() => users.id, { onDelete: 'set null' }),
-  /** 测试表单数据 */
   formData: jsonb().notNull().default(sql`'{}'::jsonb`),
   /** 仿真决策序列（逐节点 approve/reject/skip/wait + reason + formPatch） */
   decisions: jsonb().notNull().default(sql`'[]'::jsonb`),
@@ -539,7 +535,6 @@ export const workflowTaskTransfers = pgTable('workflow_task_transfers', {
   instanceId: integer().notNull().references(() => workflowInstances.id, { onDelete: 'cascade' }),
   /** 移出方（系统超时转交等场景可能无原处理人） */
   fromUserId: integer().references(() => users.id, { onDelete: 'set null' }),
-  /** 接收方 */
   toUserId: integer().notNull().references(() => users.id, { onDelete: 'cascade' }),
   action: workflowTaskTransferActionEnum().notNull(),
   reason: varchar({ length: 500 }),
@@ -658,7 +653,6 @@ export const workflowEventSubscriptions = pgTable('workflow_event_subscriptions'
   description: varchar({ length: 256 }),
   /** 为 null 表示订阅全部流程；否则仅订阅指定流程 */
   definitionId: integer().references(() => workflowDefinitions.id, { onDelete: 'cascade' }),
-  /** 订阅的事件类型列表 */
   events: jsonb().$type<string[]>().notNull().default(sql`'[]'::jsonb`),
   url: varchar({ length: 512 }).notNull(),
   /** HMAC 密钥（AES-256-GCM 加密存储，经 lib/secret-crypto） */
@@ -704,7 +698,6 @@ export const workflowJobs = pgTable('workflow_jobs', {
   payload: jsonb().notNull().default(sql`'{}'::jsonb`),
   /** 优先级（复用实例 priority：low/normal/high/urgent，数值越小越先） */
   priority: integer().notNull().default(100),
-  /** 已尝试次数 */
   attempts: integer().notNull().default(0),
   /** 最大尝试次数（超过进死信） */
   maxAttempts: integer().notNull().default(1),
@@ -721,7 +714,6 @@ export const workflowJobs = pgTable('workflow_jobs', {
   leaseUntil: timestamptz(),
   executionDeadline: timestamptz(),
   pausedRemainingMs: bigint({ mode: 'number' }),
-  /** 最近一次错误 */
   lastError: text(),
   /** 执行结果（成功时写入，供审计/串联） */
   result: jsonb(),
@@ -874,9 +866,7 @@ export const workflowTaskConsults = pgTable('workflow_task_consults', {
   id: idColumn(),
   taskId: integer().notNull().references(() => workflowTasks.id, { onDelete: 'cascade' }),
   instanceId: integer().notNull().references(() => workflowInstances.id, { onDelete: 'cascade' }),
-  /** 发起协办的审批人 */
   inviterId: integer().notNull().references(() => users.id, { onDelete: 'cascade' }),
-  /** 被邀请协办的人 */
   consulteeId: integer().notNull().references(() => users.id, { onDelete: 'cascade' }),
   question: varchar({ length: 500 }),
   opinion: text(),

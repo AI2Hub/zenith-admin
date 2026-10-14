@@ -48,7 +48,6 @@ export const oauth2Clients = pgTable('oauth2_clients', {
   reviewedAt: timestamptz(),
   reviewedBy: integer().references((): AnyPgColumn => users.id, { onDelete: 'set null' }),
   status: statusColumn(),
-  /** 应用归属用户 */
   ownerId: integer().references((): AnyPgColumn => users.id, { onDelete: 'set null' }),
   /** 外部调用的租户权威来源，不接受请求参数覆盖。 */
   tenantId: tenantIdColumn(),

@@ -3,7 +3,6 @@ import type React from 'react';
 interface EmptyChartProps {
   /** 占位高度，与对应图表高度保持一致 */
   readonly height?: number;
-  /** 空状态文案 */
   readonly text?: string;
   /** 文案色调：muted 普通灰、success 绿色（用于「无异常」类正向空态） */
   readonly tone?: 'muted' | 'success';

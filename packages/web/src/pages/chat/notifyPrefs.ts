@@ -2,7 +2,6 @@
 export interface ChatNotifyPrefs {
   /** 桌面通知（需浏览器授权） */
   desktop: boolean;
-  /** 新消息提示音 */
   sound: boolean;
 }
 

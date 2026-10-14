@@ -34,7 +34,6 @@ export const aiProviderConfigs = pgTable('ai_provider_configs', {
   providerOptions: jsonb().$type<Record<string, Record<string, unknown>>>(),
   /** 多级降级链：主模型失败（5xx/限流/超时）后按序切换（Mastra ModelWithRetries 持久化形态） */
   fallbacks: jsonb().$type<AiModelFallbackRef[]>(),
-  /** 模型能力标签 */
   capabilities: jsonb().$type<AiModelCapabilities>(),
   /** 输入单价（分 / 百万 token），null = 未配置不计成本 */
   priceInputPerM: integer(),
@@ -109,7 +108,6 @@ export const aiMessages = pgTable('ai_messages', {
   feedbackStatus: aiFeedbackStatusEnum(),
   /** 管理员处理备注 */
   feedbackRemark: varchar({ length: 500 }),
-  /** 反馈处理时间 */
   feedbackHandledAt: timestamptz(),
   /** 生成调用链 trace（assistant 消息：检索/工具/LLM 轮次耗时明细） */
   trace: jsonb().$type<AiTraceStep[]>(),
@@ -266,7 +264,6 @@ export const aiAgents = pgTable('ai_agents', {
   userId: integer().notNull().references(() => users.id, { onDelete: 'cascade' }),
   name: varchar({ length: 100 }).notNull(),
   description: varchar({ length: 300 }),
-  /** 头像 emoji */
   avatar: varchar({ length: 20 }).notNull().default('🤖'),
   /** Agent 指令(Mastra instructions) */
   instructions: text().notNull(),
@@ -282,9 +279,7 @@ export const aiAgents = pgTable('ai_agents', {
   knowledgeBaseId: integer(),
   /** 启用的工具名集合（内置 + HTTP 工具） */
   tools: text().array(),
-  /** 开场白 */
   openingMessage: text(),
-  /** 建议问题 */
   suggestedQuestions: text().array(),
   usageCount: integer().notNull().default(0),
   isEnabled: boolean().notNull().default(true),

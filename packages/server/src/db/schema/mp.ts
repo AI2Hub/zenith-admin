@@ -13,7 +13,6 @@ export const mpEncryptModeEnum = pgEnum('mp_encrypt_mode', ['plaintext', 'compat
 
 export const mpAccounts = pgTable('mp_accounts', {
   id: idColumn(),
-  /** 公众号名称 */
   name: varchar({ length: 100 }).notNull(),
   /** 微信号 / 原始 ID（gh_xxx） */
   account: varchar({ length: 100 }),
@@ -29,7 +28,6 @@ export const mpAccounts = pgTable('mp_accounts', {
   encryptMode: mpEncryptModeEnum().notNull().default('plaintext'),
   /** 账号类型：订阅号 / 服务号 / 测试号 */
   type: mpAccountTypeEnum().notNull().default('service'),
-  /** 二维码图片地址 */
   qrCodeUrl: varchar({ length: 500 }),
   /** 是否默认公众号（同租户内唯一） */
   isDefault: boolean().notNull().default(false),
@@ -284,7 +282,6 @@ export const mpDrafts = pgTable('mp_drafts', {
   accountId: integer().notNull().references((): AnyPgColumn => mpAccounts.id, { onDelete: 'cascade' }),
   /** 草稿标题（内部标识，取首篇文章标题） */
   title: varchar({ length: 200 }).notNull(),
-  /** 图文文章数组 */
   articles: jsonb().$type<unknown[]>().notNull().default([]),
   /** 微信草稿 media_id（推送后回填） */
   wechatMediaId: varchar({ length: 128 }),
@@ -304,7 +301,6 @@ export type NewMpDraft = typeof mpDrafts.$inferInsert;
 export const mpMessageTemplates = pgTable('mp_message_templates', {
   id: idColumn(),
   accountId: integer().notNull().references((): AnyPgColumn => mpAccounts.id, { onDelete: 'cascade' }),
-  /** 微信模板 id */
   templateId: varchar({ length: 128 }).notNull(),
   title: varchar({ length: 200 }).notNull(),
   content: text(),
@@ -392,7 +388,6 @@ export const mpQrcodes = pgTable('mp_qrcodes', {
   type: mpQrcodeTypeEnum().notNull().default('permanent'),
   /** 场景值（字符串型 scene_str，用于渠道来源标识） */
   sceneStr: varchar({ length: 64 }).notNull(),
-  /** 备注名称 */
   name: varchar({ length: 100 }).notNull(),
   /** 微信返回的 ticket（换取二维码图片） */
   ticket: varchar({ length: 256 }),

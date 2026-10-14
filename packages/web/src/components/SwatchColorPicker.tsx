@@ -5,9 +5,7 @@ import './swatch-color-picker.css';
 export interface SwatchColorOption {
   /** 存档值：主题预设 key 或 `#rrggbb` */
   key: string;
-  /** 悬停提示 */
   label: string;
-  /** 色块展示色 */
   color: string;
 }
 

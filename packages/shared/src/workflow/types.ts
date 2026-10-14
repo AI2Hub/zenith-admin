@@ -205,7 +205,6 @@ export type WorkflowActionUploadMode = 'hidden' | 'optional' | 'required';
 
 /** 单个操作按钮的配置 */
 export interface WorkflowActionButtonConfig {
-  /** 是否启用此按钮 */
   enabled: boolean;
   /** 按钮显示名称（覆盖默认文案） */
   displayName?: string;
@@ -301,7 +300,6 @@ export interface WorkflowNodeConfig {
   timeout?: WorkflowTimeoutConfig;
   /** manager / multiLevelManager 的层级（1 = 直属上级） */
   managerLevel?: number;
-  /** 多级模式的终点类型 */
   multiLevelEndType?: 'topLevel' | 'level' | 'role';
   multiLevelEndLevel?: number;
   multiLevelEndRoleId?: number;
@@ -399,7 +397,6 @@ export interface WorkflowTriggerNodeConfig {
   fieldKeys?: string[];
   /** updateData：字段 key → 新值（支持 {{form.field}} 占位） */
   fieldValues?: Record<string, string>;
-  /** 失败策略 */
   onFailure?: 'continue' | 'retry' | 'block';
   maxRetries?: number;
   timeoutMs?: number;
@@ -523,11 +520,9 @@ export interface WorkflowAdvancedSettings {
   allowComment?: boolean;
   /** 待办/列表摘要字段（≤3 个表单字段 key，钉钉式卡片摘要） */
   summaryFields?: string[];
-  /** 业务编号生成规则 */
   numbering?: NumberingBindingRef;
   /** 待办/结果的多渠道通知（站内信始终开启；email/sms 可选） */
   notifyChannels?: WorkflowNotifyChannels;
-  /** 审批单打印限制与水印 */
   print?: WorkflowPrintSettings;
 }
 
@@ -535,7 +530,6 @@ export interface WorkflowAdvancedSettings {
 export interface WorkflowPrintSettings {
   /** 仅审批通过后允许打印（用章 / 合同类流程防止打印未生效单据） */
   onlyWhenApproved?: boolean;
-  /** 页面叠加水印 */
   watermark?: boolean;
   /** 水印文本，支持 {printer} / {time} / {serialNo} 占位；空 = 「打印人 时间」 */
   watermarkText?: string;
@@ -807,9 +801,7 @@ export interface WorkflowCustomFormVariable {
   id?: string;
   /** 变量 key（业务页提交时写入 formData 的字段名） */
   key: string;
-  /** 显示名称 */
   label: string;
-  /** 变量类型 */
   type: 'string' | 'number' | 'boolean' | 'date' | 'user' | 'dept';
 }
 

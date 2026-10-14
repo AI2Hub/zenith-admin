@@ -22,7 +22,6 @@ const IS_PROD = process.env.NODE_ENV === 'production';
 export interface IslandsAsset {
   /** 打包后的 ESM 源码 */
   js: string;
-  /** 内容指纹 */
   hash: string;
   /** 站点静态目录内的相对路径：_assets/islands.{hash}.js */
   relPath: string;

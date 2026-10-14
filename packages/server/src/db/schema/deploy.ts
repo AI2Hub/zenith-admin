@@ -171,7 +171,6 @@ export const deployReleases = pgTable('deploy_releases', {
   version: varchar({ length: 32 }).notNull(),
   appReleaseId: integer().references(() => appReleases.id, { onDelete: 'set null' }),
   artifactId: integer().references(() => appArtifacts.id, { onDelete: 'set null' }),
-  /** 创建它的部署 run */
   runId: integer().references(() => deployRuns.id, { onDelete: 'set null' }),
   /** 镜像主机上 current 软链的指向；每个 (target, host) 至多一个 */
   isCurrent: boolean().notNull().default(false),

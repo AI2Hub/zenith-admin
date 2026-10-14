@@ -379,11 +379,9 @@ export interface JobFailureClusterMember {
 }
 
 export interface JobFailureCluster {
-  /** 聚类维度 */
   dimension: JobClusterDimension;
   /** 归一后的聚类键（reason 归一前缀 / jobType / 实例 id / traceId） */
   key: string;
-  /** 展示用标签 */
   label: string;
   count: number;
   jobTypes: string[];
@@ -393,11 +391,8 @@ export interface JobFailureCluster {
   traceId: string | null;
   /** reason 维度下的错误关键字，供"重放该簇"（模糊匹配） */
   reasonKeyword: string | null;
-  /** 簇内最早失败时间 */
   firstAt: string | null;
-  /** 簇内最近失败时间 */
   lastAt: string | null;
-  /** 涉及的流程实例数 */
   instanceCount: number;
   /** 成员作业明细（最多 CLUSTER_MEMBER_LIMIT 条，按最近失败倒序） */
   jobs: JobFailureClusterMember[];
@@ -628,7 +623,6 @@ export function workflowLedgerSlots(metadata: unknown): { capacity: number; acti
 }
 
 export interface WorkflowJobAlertMetrics {
-  /** 死信作业数 */
   workflowDeadLetter: number;
   /** 近 60 分钟执行失败率（%） */
   workflowFailureRate: number;

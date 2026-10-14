@@ -23,7 +23,6 @@ const EMPTY_INDEX: SearchIndex = { matches: [], lineRanges: new Map() };
 export interface SearchOptions {
   /** 按正则表达式解释关键词（无效正则返回 null） */
   regex?: boolean;
-  /** 区分大小写 */
   caseSensitive?: boolean;
 }
 

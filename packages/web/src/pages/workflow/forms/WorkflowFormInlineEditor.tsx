@@ -89,7 +89,6 @@ export interface WorkflowFormInlineEditorProps {
   formId: number | null;
   /** 保存成功回调，返回最新表单实体 */
   onSaved: (form: WorkflowForm) => void;
-  /** 返回 / 取消 */
   onBack?: () => void;
   /** 返回按钮文案，默认「返回」 */
   backLabel?: string;

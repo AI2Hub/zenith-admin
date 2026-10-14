@@ -7,7 +7,6 @@ import { useRevealedValue } from './useRevealedValue';
 export interface SensitiveTextProps {
   /** 契约实体名（schema meta.id），如 `User` */
   entity: string;
-  /** 记录主键 */
   id: number;
   /** 实体内字段名，如 `phone` */
   field: string;

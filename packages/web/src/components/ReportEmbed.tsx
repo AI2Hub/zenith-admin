@@ -46,7 +46,6 @@ export interface ReportEmbedHandle {
 }
 
 export interface ReportEmbedProps {
-  /** 要嵌入的仪表盘 ID */
   dashboardId?: number;
   /** 可选 scoped embed token；传入后无需后台登录 */
   embedToken?: string;

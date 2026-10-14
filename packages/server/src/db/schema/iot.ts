@@ -162,7 +162,6 @@ export const iotProductEvents = pgTable('iot_product_events', {
   identifier:  varchar({ length: 64 }).notNull(),
   name:        varchar({ length: 64 }).notNull(),
   level:       iotEventLevelEnum().notNull().default('info'),
-  /** 事件携带参数定义 */
   params:      jsonb().$type<IotParamDef[]>().notNull().default([]),
   sort:        sortColumn(),
   description: varchar({ length: 256 }),

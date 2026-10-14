@@ -21,7 +21,6 @@ type Props = Readonly<{
   openPaths: ReadonlySet<string>;
   /** 页签「刷新」版本号，变化时强制重建对应页面 */
   refreshVersion: Record<string, number>;
-  /** 共享滚动容器选择器 */
   scrollContainerSelector?: string;
   /** 路由切换动画偏好（缓存页显隐与非缓存页进出统一由 RouteViewTransition 过渡） */
   animation?: RouteAnimation;

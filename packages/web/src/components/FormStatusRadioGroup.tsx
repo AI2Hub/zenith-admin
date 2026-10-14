@@ -8,7 +8,6 @@ interface FormStatusRadioGroupProps {
   disabled?: boolean;
   /** Semi RadioGroup 外观（默认圆点，`button` 为按钮组） */
   type?: 'default' | 'button' | 'card' | 'pureCard';
-  /** 字段下方的说明文字 */
   extraText?: ReactNode;
   /** 透传给 Form.RadioGroup 的校验规则 */
   rules?: ComponentProps<typeof Form.RadioGroup>['rules'];

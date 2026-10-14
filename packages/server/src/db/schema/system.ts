@@ -236,7 +236,6 @@ export const retentionPolicies = pgTable('retention_policies', {
   enabled: boolean().notNull().default(true),
   /** 保留天数；0 表示不清理 */
   retentionDays: integer().notNull(),
-  /** 单批删除行数上限 */
   batchSize: integer().notNull().default(5000),
   lastRunAt: timestamptz(),
   lastDeleted: integer().notNull().default(0),

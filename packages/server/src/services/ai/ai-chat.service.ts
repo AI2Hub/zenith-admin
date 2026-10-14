@@ -28,7 +28,6 @@ type ResolvedStreamConfig = {
   snapshot: ProviderSnapshot;
   /** 配置级系统提示词(对话覆盖优先) */
   systemPrompt: string | null;
-  /** 并发流上限 */
   maxConcurrent?: number | null;
 };
 

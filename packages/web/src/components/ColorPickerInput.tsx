@@ -6,11 +6,9 @@ export interface ColorPickerInputProps {
   /** 颜色值（hex，或开启 alpha 时为 rgba 字符串）；空串/undefined 视为未选择 */
   value?: string;
   onChange?: (value: string) => void;
-  /** 是否支持透明度 */
   alpha?: boolean;
   /** 展示「清除」按钮，选中后 onChange('')，用于颜色可空的场景（如留空跟随默认） */
   allowClear?: boolean;
-  /** 清除按钮提示文案 */
   clearTitle?: string;
   /** 只读态：展示色块 + 文本，不渲染交互选择器（ColorPicker 无 disabled 属性） */
   disabled?: boolean;

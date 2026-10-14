@@ -108,7 +108,6 @@ export const chatWebhooks = pgTable('chat_webhooks', {
   description: varchar({ length: 255 }),
   /** 入站推送令牌（明文存储，随机生成） */
   token: varchar({ length: 128 }).notNull().unique(),
-  /** 消息投递的目标会话 */
   conversationId: integer().notNull().references(() => chatConversations.id, { onDelete: 'cascade' }),
   enabled: boolean().notNull().default(true),
   lastUsedAt: timestamptz(),
@@ -144,7 +143,6 @@ export const chatScheduledMessages = pgTable('chat_scheduled_messages', {
   type: chatMessageTypeEnum().notNull().default('text'),
   content: text().notNull(),
   extra: jsonb(),
-  /** 计划发送时间 */
   scheduledAt: timestamptz().notNull(),
   status: chatScheduledStatusEnum().notNull().default('pending'),
   failReason: varchar({ length: 255 }),
@@ -163,7 +161,6 @@ export type ChatScheduledMessageRow = typeof chatScheduledMessages.$inferSelect;
 export const chatCustomEmojis = pgTable('chat_custom_emojis', {
   id: idColumn(),
   userId: integer().notNull().references(() => users.id, { onDelete: 'cascade' }),
-  /** 图片访问 URL */
   url: varchar({ length: 512 }).notNull(),
   /** 托管文件 ID（认证预览用，可空） */
   fileId: varchar({ length: 64 }),
@@ -206,7 +203,6 @@ export const chatGroupJoinRequests = pgTable('chat_group_join_requests', {
   userId: integer().notNull().references(() => users.id, { onDelete: 'cascade' }),
   inviteId: integer().references(() => chatGroupInvites.id, { onDelete: 'set null' }),
   status: chatJoinRequestStatusEnum().notNull().default('pending'),
-  /** 申请附言 */
   message: varchar({ length: 255 }),
   handledBy: integer().references(() => users.id, { onDelete: 'set null' }),
   handledAt: timestamptz(),

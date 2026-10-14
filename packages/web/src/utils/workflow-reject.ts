@@ -2,7 +2,6 @@ import type { WorkflowFlowData, WorkflowInstance, WorkflowRejectStrategy } from 
 
 export interface RejectTargetHint {
   strategy: WorkflowRejectStrategy;
-  /** 提示文案 */
   text: string;
   /** 是否为终止流程语义（用于在 UI 中以警示色显示） */
   terminating: boolean;

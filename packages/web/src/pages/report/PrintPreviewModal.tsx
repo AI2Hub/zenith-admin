@@ -4,7 +4,6 @@ import PrintReportView from './PrintReportView';
 
 interface PrintPreviewModalProps {
   visible: boolean;
-  /** 渲染请求进行中 */
   loading: boolean;
   result: ReportPrintRenderResult | null;
   /** 本次渲染使用的参数（供预览视图回显） */

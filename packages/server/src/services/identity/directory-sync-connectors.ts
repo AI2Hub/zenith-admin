@@ -25,7 +25,6 @@ export interface DirectoryExtUser {
   nickname: string;
   email: string | null;
   phone: string | null;
-  /** 源侧是否在职/启用 */
   active: boolean;
   /** 归属外部部门（首个视为主部门） */
   deptExternalIds: string[];

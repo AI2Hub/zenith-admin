@@ -257,9 +257,7 @@ export function collectReferences(ast: Node): { paths: string[]; roots: string[]
 export interface ExpressionValidation {
   valid: boolean;
   error?: string;
-  /** 引用到的成员路径 */
   references: string[];
-  /** 引用到的根标识符 */
   roots: string[];
 }
 

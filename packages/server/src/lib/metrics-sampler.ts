@@ -78,7 +78,6 @@ export interface GcStats {
   totalCount: number;
   /** 自启动以来 GC 总耗时（毫秒） */
   totalDurationMs: number;
-  /** 按类型统计 */
   byKind: Record<string, { count: number; durationMs: number }>;
 }
 

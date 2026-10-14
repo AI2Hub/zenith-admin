@@ -22,9 +22,7 @@ export async function mapWithConcurrency<T, R>(
 export interface ConcurrencyLimiter {
   /** 在限流器内执行任务：有空位立即开始，否则按先来后到排队 */
   run<T>(task: () => Promise<T>): Promise<T>;
-  /** 正在执行的任务数 */
   readonly active: number;
-  /** 排队等待空位的任务数 */
   readonly pending: number;
 }
 

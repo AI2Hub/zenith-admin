@@ -77,7 +77,6 @@ export interface HttpLogEntry {
   correlation: string;
   /** 流量方向：incoming = 进入本系统，outgoing = 本系统发出 */
   direction: 'incoming' | 'outgoing';
-  /** 请求阶段或响应阶段 */
   phase: 'request' | 'response';
   method: string;
   /** 完整 URL（入站为路径 + 查询串，出站为完整 URL） */

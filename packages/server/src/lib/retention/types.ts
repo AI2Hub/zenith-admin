@@ -6,18 +6,15 @@ export type TenantRetentionDays = Map<number | null, number>;
 export interface RetentionPolicyDefinition {
   /** 策略唯一键，与目标物理表名一致 */
   key: string;
-  /** 展示名 */
   title: string;
   /** 归属模块，用于后台分组展示 */
   module: string;
-  /** 目标物理表名 */
   tableName: string;
   /** 裁剪依据的物理时间列 */
   timeColumn: string;
   /** 默认保留天数；0 表示默认不清理 */
   defaultDays: number;
   mode?: RetentionMode;
-  /** 单批删除行数上限 */
   batchSize?: number;
   /**
    * `ageAndCap` 模式：按时间裁剪后，再按 `capColumn` 分组只保留最近 `capLimit` 行。

@@ -201,7 +201,6 @@ export function startOfRecentDays(days: number): Date {
 }
 
 export interface StatsWindow {
-  /** 夹紧后的天数 */
   days: number;
   /** 本期起点：近 `days` 天（含今日）的 00:00:00 */
   startDate: Date;

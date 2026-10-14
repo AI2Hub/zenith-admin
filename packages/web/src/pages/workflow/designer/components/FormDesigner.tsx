@@ -58,7 +58,6 @@ export interface FormHistoryControls {
   selectField: (key: string) => void;
   /** 历史步骤列表（含当前指针），供历史面板渲染 */
   getHistoryEntries: () => { entries: FormHistoryEntry[]; pointer: number };
-  /** 跳转到指定历史步骤 */
   jumpTo: (index: number) => void;
 }
 

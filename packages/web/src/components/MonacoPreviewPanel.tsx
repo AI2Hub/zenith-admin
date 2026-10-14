@@ -9,7 +9,6 @@ import { useThemeController } from '@/providers/theme-controller';
 import { monacoLanguageByExt } from '@/utils/monaco-language';
 
 interface MonacoPreviewPanelProps {
-  /** 文件内容 */
   readonly content: string;
   /** 文件名，用于自动检测语言 */
   readonly fileName?: string;

@@ -64,7 +64,6 @@ export function useImportUpload({ resolveTarget, onSubmitted }: UseImportUploadO
   return {
     fileInput,
     pickFile,
-    /** 上传或提交进行中 */
     submitting: uploadMutation.isPending || submitMutation.isPending,
     /** 当前这次选择是否为预检 */
     isDryRun: () => dryRunRef.current,

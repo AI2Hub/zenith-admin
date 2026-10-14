@@ -29,7 +29,6 @@ export interface UploadItem {
   status: UploadItemStatus;
   percent: number;
   error?: string;
-  /** 秒传命中 */
   instant?: boolean;
   node?: DriveNode;
 }

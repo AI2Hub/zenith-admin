@@ -20,15 +20,11 @@ import { normalizeAuditSubjects, type AuditSubjectRef, type NormalizedAuditSubje
 
 /** 从 DB 加载的完整用户详情（部门 + 岗位 + 角色），仅在需要时懒查询。 */
 export interface CurrentUserDetail {
-  /** 用户 ID */
   id: number;
-  /** 用户名 */
   username: string;
-  /** 昵称 */
   nickname: string;
   /** 所属部门（未分配时为 null） */
   department: { id: number; name: string; code: string; parentId: number } | null;
-  /** 所属岗位列表 */
   positions: { id: number; name: string; code: string }[];
   /** 角色列表（含完整角色信息） */
   roles: { id: number; name: string; code: string; dataScope: string }[];

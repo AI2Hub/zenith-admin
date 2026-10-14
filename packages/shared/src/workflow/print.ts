@@ -588,7 +588,6 @@ const STYLE = {
 export interface WorkflowPrintLayoutOptions {
   /** 是否输出沟通评论段（服务端按实例有无评论决定；设计器生成模板时默认包含） */
   includeComments?: boolean;
-  /** 是否输出抄送行 */
   includeCc?: boolean;
   /** 是否输出协办意见段（服务端按实例有无协办决定；设计器生成模板时默认包含） */
   includeConsults?: boolean;

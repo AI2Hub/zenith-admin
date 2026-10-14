@@ -5,7 +5,6 @@ import { useDictItems } from '@/hooks/useDictItems';
 interface DictTagProps extends Omit<TagProps, 'color' | 'children'> {
   /** 字典编码，如 'common_status' */
   dictCode: string;
-  /** 字典项的值 */
   value: string | undefined | null;
   /** 找不到字典项时的兜底文本，默认显示原始 value */
   fallback?: string;

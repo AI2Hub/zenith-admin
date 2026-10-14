@@ -161,7 +161,6 @@ export const cmsModelFields = pgTable('cms_model_fields', {
   required: boolean().notNull().default(false),
   /** 是否纳入全文检索索引 */
   searchable: boolean().notNull().default(false),
-  /** 是否在内容列表中显示 */
   showInList: boolean().notNull().default(false),
   /** 是否在前台详情页「模型字段表」中展示（Theme API ctx.content.modelFields 消费） */
   showInDetail: boolean().notNull().default(false),
@@ -305,14 +304,10 @@ export const cmsContents = pgTable('cms_contents', {
   summary: text(),
   coverImage: varchar({ length: 500 }),
   author: varchar({ length: 50 }),
-  /** 责任编辑 */
   editor: varchar({ length: 50 }),
   source: varchar({ length: 100 }),
-  /** 来源链接 */
   sourceUrl: varchar({ length: 500 }),
-  /** 原创标记 */
   isOriginal: boolean().notNull().default(false),
-  /** 正文富文本 HTML */
   body: text(),
   /**
    * 正文纯文本导语（数据库生成列，随 body 自动维护，PG 仅在 body 变更时重算）。
@@ -435,7 +430,6 @@ export type CmsContentOpLogRow = typeof cmsContentOpLogs.$inferSelect;
 export const cmsErrorProneWords = pgTable('cms_error_prone_words', {
   id: idColumn(),
   word: varchar({ length: 50 }).notNull().unique(),
-  /** 对应正确写法 */
   correction: varchar({ length: 50 }).notNull(),
   status: statusColumn(),
   remark: remarkColumn(200),

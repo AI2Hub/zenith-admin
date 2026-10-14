@@ -35,7 +35,6 @@ export interface UseListSearchOptions<T> {
   readonly resetKey?: unknown;
   /** 查询后的额外副作用，如清空已选中的行 */
   readonly onSearch?: () => void;
-  /** 重置后的额外副作用 */
   readonly onReset?: () => void;
 }
 

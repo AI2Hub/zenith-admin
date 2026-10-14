@@ -2,7 +2,6 @@ import { createContext, useContext, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 
 export interface TabsMetaContextValue {
-  /** 多页签是否启用 */
   enabled: boolean;
   /** 动态设置某个标签页的标题/图标 */
   setTabMeta: (key: string, meta: { title?: string; icon?: string }) => void;

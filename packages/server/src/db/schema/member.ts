@@ -30,7 +30,6 @@ export const memberLevels = pgTable('member_levels', {
   /** 等级折扣（百分比，100=原价，95=95折）*/
   discount: integer().notNull().default(100),
   icon: varchar({ length: 256 }),
-  /** 等级权益描述列表 */
   benefits: jsonb().$type<string[]>().notNull().default([]),
   description: varchar({ length: 256 }),
   sort: sortColumn(),
@@ -75,7 +74,6 @@ export const members = pgTable('members', {
   deletedAt: timestamptz(),
   /** 邀请码（懒生成，全局唯一）*/
   inviteCode: varchar({ length: 16 }),
-  /** 邀请人会员 ID */
   invitedBy: integer().references((): AnyPgColumn => members.id, { onDelete: 'set null' }),
   tenantId: tenantIdColumn(),
   ...auditColumns(),
@@ -150,11 +148,8 @@ export const memberPointAccounts = pgTable('member_point_accounts', {
   memberId: integer().notNull().references(() => members.id, { onDelete: 'cascade' }),
   /** 当前可用积分 */
   balance: integer().notNull().default(0),
-  /** 冻结积分 */
   frozen: integer().notNull().default(0),
-  /** 累计获得积分 */
   totalEarned: integer().notNull().default(0),
-  /** 累计消耗积分 */
   totalSpent: integer().notNull().default(0),
   /** 乐观锁版本号 */
   version: integer().notNull().default(0),
@@ -172,7 +167,6 @@ export const memberPointTransactions = pgTable('member_point_transactions', {
   type: pointTxTypeEnum().notNull(),
   /** 积分变动量（正=增加，负=减少）*/
   amount: integer().notNull(),
-  /** 变动后余额 */
   balanceAfter: integer().notNull(),
   /** 业务类型：signin / purchase / redeem / admin_adjust / refund ... */
   bizType: varchar({ length: 64 }),
@@ -252,7 +246,6 @@ export const coupons = pgTable('coupons', {
   maxDiscount: integer(),
   /** 发行总量，0=不限量 */
   totalQuantity: integer().notNull().default(0),
-  /** 已发放数量 */
   issuedQuantity: integer().notNull().default(0),
   /** 每人限领数量 */
   perLimit: integer().notNull().default(1),

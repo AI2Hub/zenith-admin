@@ -153,9 +153,7 @@ function cartesianTooltipSpec({ palette, multi, xField, singleName, singleField,
 export interface LineAreaOptions {
   /** 宽表数据（每行含 xField 与各系列字段） */
   readonly data: readonly unknown[];
-  /** x 轴字段 */
   readonly xField: string;
-  /** 一个或多个系列 */
   readonly series: readonly SeriesField[];
   readonly palette: ChartPalette;
   /** 是否堆叠（多系列） */
@@ -164,7 +162,6 @@ export interface LineAreaOptions {
   readonly smooth?: boolean;
   /** 是否显示数据点，默认 false */
   readonly point?: boolean;
-  /** 数据点大小 */
   readonly pointSize?: number;
   /** 是否显示图例，默认在多系列时显示 */
   readonly legend?: boolean;
@@ -235,11 +232,9 @@ export interface BarOptions {
   readonly palette: ChartPalette;
   /** 水平条形图（分类在 y 轴） */
   readonly horizontal?: boolean;
-  /** 多系列堆叠 */
   readonly stack?: boolean;
   /** 单系列时按数据项着色（返回颜色） */
   readonly colorByDatum?: (datum: ChartDatum) => string;
-  /** 柱最大宽度 */
   readonly barMaxWidth?: number;
   /** 柱最小高度，适合水平 Top 榜避免极小值不可见 */
   readonly barMinHeight?: number;

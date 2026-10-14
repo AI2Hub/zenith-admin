@@ -11,7 +11,6 @@ interface FileDetailModalProps {
   visible: boolean;
   /** 当前展示的文件（详情查询结果优先，缺省回退列表行） */
   file: ManagedFile | null;
-  /** 详情查询进行中 */
   loading: boolean;
   /** 访问链接口径（文件中心 directUrl 优先；存储浏览器统一走代理地址），与页面「复制链接」保持一致 */
   resolveUrl: (file: ManagedFile) => string;

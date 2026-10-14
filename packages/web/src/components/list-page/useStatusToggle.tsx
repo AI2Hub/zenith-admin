@@ -45,9 +45,7 @@ export interface StatusToggleController<T extends Data> {
   pendingKey: RowKey | null;
   /** 触发切换：按配置先弹确认，再执行 toggle 并提示 */
   request: (record: T, enabled: boolean) => void;
-  /** 渲染单元格开关 */
   renderSwitch: (record: T) => ReactNode;
-  /** 生成状态列 */
   column: (options?: StatusToggleColumnOptions) => ColumnProps<T>;
 }
 

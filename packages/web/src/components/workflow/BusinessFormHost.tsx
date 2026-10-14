@@ -29,7 +29,6 @@ export interface WorkflowBusinessFormProps {
   mode: WorkflowBusinessFormMode;
   /** 容器：sheet=嵌入抽屉（当前），tab=整页多页签（预留） */
   container: 'sheet' | 'tab';
-  /** 所属流程定义 id */
   definitionId: number;
   /** 查看/审批时的实例 id；创建时为 null */
   instanceId?: number | null;

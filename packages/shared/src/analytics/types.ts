@@ -41,8 +41,6 @@ export interface TrackEventInput {
   source?: AnalyticsEventSource;
   /** 应用标识（多 App 场景预留） */
   appId?: string;
-  /** 采集环境 */
   environment?: AnalyticsEnvironment;
-  /** 采集 SDK 版本 */
   sdkVersion?: string;
 }

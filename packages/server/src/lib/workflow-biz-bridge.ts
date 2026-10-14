@@ -21,7 +21,6 @@ import { createInstance } from '../services/workflow/workflow-instances.service'
 export interface StartWorkflowForBizInput {
   /** 已发布的流程定义 ID */
   definitionId: number;
-  /** 流程实例标题 */
   title: string;
   /** 业务类型（与业务表对应，如 biz_leave） */
   bizType: string;
@@ -29,7 +28,6 @@ export interface StartWorkflowForBizInput {
   bizId: string | number;
   /** 暴露给流程的路由变量（写入实例 formData，供条件分支/审批人使用） */
   variables?: Record<string, unknown>;
-  /** 优先级 */
   priority?: WorkflowInstancePriority;
   /**
    * 指定发起人上下文。省略时取当前登录用户（currentUser）。

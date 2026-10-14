@@ -124,7 +124,6 @@ export interface CrudServiceConfig<C extends CrudContractLike, T extends CrudTab
   readonly scope?: () => SQL | undefined;
   /** 插入时自动补的列（`tenant: true` 已含 `tenantId`） */
   readonly defaults?: () => Partial<Insert<T>>;
-  /** 列表筛选与排序 */
   readonly list: (query: CrudListQueryOf<C>) => CrudListSpec;
   readonly create?: CrudCreateSpec<T, CrudCreateInputOf<C>, CrudEntityOf<C>>;
   readonly update?: CrudUpdateSpec<T, CrudUpdateInputOf<C>, CrudEntityOf<C>>;

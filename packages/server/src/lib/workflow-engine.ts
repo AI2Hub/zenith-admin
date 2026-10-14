@@ -147,11 +147,9 @@ export interface TaskAction {
 
 /** 引擎推进结果 */
 export interface AdvanceResult {
-  /** 流程是否结束 */
   finished: boolean;
   /** 流程是否被自动拒绝 */
   rejected?: boolean;
-  /** 需要创建的新任务 */
   tasksToCreate: TaskAction[];
   /** 流程当前所在节点（可能有多个，如并行网关 fork 后） */
   currentNodeKeys: string[];

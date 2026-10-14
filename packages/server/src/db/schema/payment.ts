@@ -810,9 +810,7 @@ export const paymentContracts = pgTable('payment_contracts', {
   lastDeductAt: timestamptz(),
   /** 当前期连续扣款失败次数（成功后清零，达到计划 maxRetries 自动暂停） */
   failCount: integer().notNull().default(0),
-  /** 累计成功扣款期数 */
   totalDeductCount: integer().notNull().default(0),
-  /** 最近一期扣款订单号 */
   lastOrderNo: varchar({ length: 64 }),
   signedAt: timestamptz(),
   terminatedAt: timestamptz(),
@@ -855,9 +853,7 @@ export const paymentDisputes = pgTable('payment_disputes', {
   /** 投诉人标识（openid / 手机号掩码） */
   complainant: varchar({ length: 128 }),
   complainantPhone: varchar({ length: 32 }),
-  /** 投诉类型 */
   type: paymentDisputeTypeEnum().notNull().default('other'),
-  /** 投诉描述 */
   content: text().notNull(),
   /** 涉诉金额（分） */
   amount: integer().notNull().default(0),

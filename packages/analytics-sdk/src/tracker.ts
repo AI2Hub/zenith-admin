@@ -78,7 +78,6 @@ type PendingEvent = Omit<TrackEventInput, 'sessionId' | 'anonymousId' | 'distinc
 
 // ─── 运行时参数化（多端 SDK 接入：后台 admin / 会员 member 共用同一份 tracker）───
 export interface TrackerRuntimeConfig extends AnalyticsRuntimeBaseConfig {
-  /** 采集 SDK 版本 */
   sdkVersion: string;
   /** 白屏检测根节点选择器 */
   rootSelector: string;

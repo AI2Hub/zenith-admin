@@ -62,7 +62,6 @@ export const directorySyncSources = pgTable('directory_sync_sources', {
     kickSessions: true,
     defaultRoleIds: [],
   }),
-  /** 是否同步部门树 */
   syncDepartments: boolean().notNull().default(true),
   /** 定时表达式；为空表示仅手动同步 */
   cronExpression: varchar({ length: 64 }),

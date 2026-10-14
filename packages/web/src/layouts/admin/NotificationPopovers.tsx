@@ -35,7 +35,6 @@ interface NotificationPopoverProps<T extends NotificationItem> {
   /** 一键全部已读；缺省则不渲染 */
   onMarkAllRead?: () => void;
   markAllReadLoading?: boolean;
-  /** 「查看全部」跳转路径 */
   viewAllPath: string;
   unreadCount: number;
   navigate: NavigateFunction;

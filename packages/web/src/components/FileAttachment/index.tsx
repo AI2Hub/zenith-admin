@@ -66,15 +66,10 @@ interface FileAttachmentProps {
   maxSizeMB?: number;
   /** 允许的文件类型，如 '.pdf,.doc,.docx' */
   accept?: string;
-  /** 自定义标题 */
   title?: string;
-  /** 是否显示标题 */
   showTitle?: boolean;
-  /** 上传提示文本 */
   uploadTip?: string;
-  /** 样式 */
   style?: CSSProperties;
-  /** 是否禁用 */
   disabled?: boolean;
   /** 上传接口路径（相对 apiBaseUrl），默认通用单文件上传 `fileContract.uploadOne`；审批表单等场景可指向按业务权限放行的专用端点 */
   uploadPath?: string;

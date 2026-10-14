@@ -21,7 +21,6 @@ export interface AcMatch<T> {
 }
 
 export interface AcPattern<T> {
-  /** 待匹配的词 */
   word: string;
   /** 命中时回传给调用方的载荷 */
   payload: T;

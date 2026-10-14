@@ -103,7 +103,6 @@ export interface NotifyInput<K extends NotificationEventKey> {
   tenantId?: number | null;
   /** 幂等键：同键只会入队一次，用于重复触发的定时任务与重放场景 */
   dedupeKey?: string | null;
-  /** 站内路由深链 */
   link?: string | null;
   /** 管理员配置层的渠道策略（流程 notifyChannels、告警规则 channels） */
   channelPolicy?: NotificationChannelPolicy | null;

@@ -89,7 +89,6 @@ export function isEmptyValues(
 
 /** 多系列配置：来自宽表的某个字段 + 展示名 + 颜色 */
 export interface SeriesField {
-  /** 宽表里的字段名 */
   readonly field: string;
   /** 系列展示名（图例 / tooltip） */
   readonly name: string;

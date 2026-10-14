@@ -27,13 +27,10 @@ export class TaskNonRetryableError extends Error {
 }
 
 export interface TaskProgressUpdate {
-  /** 已处理数 */
   processed?: number;
-  /** 失败数 */
   failed?: number;
   /** 总量；null 表示不可枚举（前端显示不定进度条） */
   total?: number | null;
-  /** 进度说明文案 */
   note?: string | null;
   /** 断点状态（handler 自定义结构），中断恢复时通过 ctx.checkpoint 取回 */
   checkpoint?: Record<string, unknown> | null;
@@ -50,7 +47,6 @@ export interface TaskItemReport {
   key: string;
   label?: string | null;
   status: 'pending' | 'success' | 'failed' | 'skipped';
-  /** 错误信息 / 备注 */
   message?: string | null;
   data?: Record<string, unknown> | null;
 }
@@ -59,7 +55,6 @@ export interface TaskRunContext {
   taskId: number;
   /** 本次派发的持久化标识；业务提交点可用它拒绝旧 worker 的副作用。 */
   dispatchToken: string;
-  /** 任务入参 */
   payload: Record<string, unknown>;
   /** 上次中断时保存的断点状态；首次执行为 null */
   checkpoint: Record<string, unknown> | null;

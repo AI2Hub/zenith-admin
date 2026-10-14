@@ -120,7 +120,6 @@ export interface CmsModelFieldValue {
   /** 字段名称（如「文号」） */
   label: string;
   fieldType: string;
-  /** 原始值 */
   rawValue: unknown;
   /** 格式化后的展示值：日期格式化、select/radio/checkbox/dict 翻译为选项标签、switch 转 是/否 */
   displayValue: string;

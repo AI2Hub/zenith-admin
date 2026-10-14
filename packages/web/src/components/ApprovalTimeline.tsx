@@ -43,7 +43,6 @@ interface ApprovalTimelineProps {
   initiator?: { name?: string | null; avatar?: string | null; submittedAt?: string | null };
   /** 实例状态（终态时展示底部「流程结束」节点） */
   instanceStatus?: WorkflowInstanceStatus;
-  /** 流程结束时间 */
   finishedAt?: string | null;
   /** 当前登录人 ID：用于高亮「轮到你处理」的待办节点 */
   currentUserId?: number | null;

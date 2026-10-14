@@ -18,7 +18,6 @@ interface AnnouncementDetailModalProps {
   visible: boolean;
   announcement: AnnouncementWithRead | null;
   onClose: () => void;
-  /** 加载状态 */
   loading?: boolean;
   /** 上一条回调，传入时显示导航按钮 */
   onPrev?: () => void;
