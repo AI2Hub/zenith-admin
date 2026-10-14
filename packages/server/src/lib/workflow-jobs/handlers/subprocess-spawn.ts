@@ -11,7 +11,7 @@ const ACTOR = { userId: 0, name: 'system:subprocess-spawn' } as const;
 
 /**
  * subprocess_spawn：为 subProcess 节点发起子实例（含多实例展开）。
- * 取代 subprocess-recovery 的 spawn 扫描分支；maybeSpawnSubProcessChild 内部幂等。
+ * maybeSpawnSubProcessChild 内部幂等。
  * 最终失败时走统一失败策略（handleNodeExecutionError），与 trigger/external 一致。
  * payload: { taskId }
  */

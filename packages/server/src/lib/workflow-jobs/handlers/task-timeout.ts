@@ -56,7 +56,7 @@ async function scheduleNextTimeout(
 
 /**
  * task_timeout：单个审批任务超时处理（提醒 / 自动通过 / 自动拒绝 / 升级转交）。
- * 取代 workflow-timeout-processor.ts 的全表扫描，改为 per-task 单作业 + 续期靠重新入队。
+ * per-task 单作业 + 续期靠重新入队（无全表扫描）。
  * payload: { taskId, remindCount? }
  */
 async function handle({ payload }: WorkflowJobContext): Promise<void> {

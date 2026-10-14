@@ -10,8 +10,7 @@ import { isConflict, requireNumber } from './shared';
 const ACTOR = { userId: 0, name: 'system:delay' } as const;
 
 /**
- * delay_wake：延时节点到期唤醒。
- * 取代 workflow-resume.service.ts:resumeDelayTask（不再依赖 task.wakeAt 列）。
+ * delay_wake：延时节点到期唤醒（不依赖 task.wakeAt 列）。
  * payload: { taskId }
  */
 async function handle({ payload }: WorkflowJobContext): Promise<void> {

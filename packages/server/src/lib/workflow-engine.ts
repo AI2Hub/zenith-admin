@@ -3,7 +3,7 @@
  *
  * ⚠️ 本文件**不是**运行时推进引擎：实例推进的唯一权威是显式执行 Token 引擎
  * （lib/workflow-token-engine.ts 的 advanceTokens，由 services/workflow/instances/materialize.ts
- * 的 advanceAndMaterialize 调用并落库）。旧 DAG 逐节点推进已被其取代。
+ * 的 advanceAndMaterialize 调用并落库）。
  *
  * 本文件职责（纯函数，无副作用、不触库）：
  * - schema 兼容迁移：normalizeFlowData

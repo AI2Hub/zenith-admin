@@ -67,7 +67,7 @@ export const operationLogs = pgTable('operation_logs', {
   tenantId: tenantIdColumn(),
   createdAt: timestamptz().notNull().defaultNow(),
 }, (t) => [
-  // 同 login_logs：租户 + 时间范围复合索引取代单列 tenant 索引
+  // 同 login_logs：租户 + 时间范围复合索引（无需单列 tenant 索引）
   index('operation_logs_tenant_created_idx').on(t.tenantId, t.createdAt),
   index('operation_logs_created_at_idx').on(t.createdAt),
   index('operation_logs_user_idx').on(t.userId),

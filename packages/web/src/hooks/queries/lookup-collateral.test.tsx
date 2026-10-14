@@ -143,8 +143,7 @@ describe('identity-providers：租户下拉源与身份源配置无关', () => {
     await waitFor(() => expect(result.current.list.isFetching).toBe(false));
 
     expect(api.countOf('GET', '/api/tenants/all')).toBe(0);
-    // 租户下拉已收敛到 tenants 域的共享 lookup（原先在 identityProviderKeys.tenants
-    // 下另存一份，与 AdminLayout 常驻的租户切换器重复请求同一端点）
+    // 租户下拉统一用 tenants 域的共享 lookup（不在本域另存，避免与 AdminLayout 常驻的租户切换器重复请求同一端点）
     expect(isFresh(qc, tenantKeys.lookup)).toBe(true);
   });
 });

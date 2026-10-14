@@ -2,7 +2,7 @@
  * computeTabClosableFlags 单元测试
  *
  * 这是页签右键菜单「关闭左侧 / 右侧 / 其他 / 全部」的禁用判据，
- * 由 O(n) 前缀扫描替代原先的 O(n²) slice/some，需保证结果完全一致。
+ * O(n) 前缀扫描实现（对照基准为 O(n²) slice/some），需保证结果完全一致。
  */
 import { describe, it, expect } from 'vitest';
 import { computeTabClosableFlags } from './utils';

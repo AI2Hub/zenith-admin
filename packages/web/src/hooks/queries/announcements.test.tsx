@@ -9,7 +9,7 @@
  *  1. **不能回填**：写接口返回公告主体，详情接口额外带 recipients / attachments，
  *     形状不一致，`setQueryData` 会丢字段。
  *  2. **跨域 lookup 归还所有者域**：收件人选项拉的是 /api/roles/all 与
- *     /api/departments/flat，原先却以 announcementKeys 为键，导致角色或部门被
+ *     /api/departments/flat，若以 announcementKeys 为键，角色或部门被
  *     增删改后没有任何来源会失效它。
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -225,7 +225,7 @@ describe('收件人选项归还所有者域', () => {
     api.resetCalls();
     await result.current.saveUser.mutateAsync({ id: 1, values: { nickname: '张三（改）' } });
 
-    // 原先以 announcementKeys.userSearch 为键，用户改名后没有任何来源会失效它
+    // 必须以 users 域为键缓存：用户改名后由该域回源
     await waitFor(() => expect(api.countOf('GET', '/api/users')).toBe(1));
   });
 });

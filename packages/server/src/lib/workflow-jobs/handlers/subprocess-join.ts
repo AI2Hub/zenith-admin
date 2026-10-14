@@ -11,7 +11,6 @@ const ACTOR = { userId: 0, name: 'system:subprocess-join' } as const;
 
 /**
  * subprocess_join：子实例结束后唤醒/汇聚父 subProcess 任务。
- * 取代 subprocess-recovery 的 resume / multi-reconcile 分支。
  * payload: { parentTaskId }
  */
 async function handle({ payload }: WorkflowJobContext): Promise<void> {

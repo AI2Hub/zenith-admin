@@ -5,7 +5,7 @@ type Attrs = Record<string, string | number | boolean | null | undefined>;
 /**
  * 极简元素构造：`h('div', { class: 'x', 'data-id': 1 }, '文本', child)`。
  * 文本子节点走 textContent 语义（自动转义），属性走 setAttribute；布尔 true 输出空属性、false / null 跳过。
- * 取代原字符串拼 HTML + 手写 esc()，从根上消除注入面。
+ * 不拼 HTML 字符串，从根上消除注入面。
  */
 export function h<K extends keyof HTMLElementTagNameMap>(tag: K, attrs?: Attrs | null, ...children: Child[]): HTMLElementTagNameMap[K] {
   const el = document.createElement(tag);

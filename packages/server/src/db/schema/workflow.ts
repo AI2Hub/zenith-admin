@@ -532,7 +532,7 @@ export type NewWorkflowTask = typeof workflowTasks.$inferInsert;
 /** 转办动作类型：转办 / 委派 / 管理员改派 / 离职交接 / 超时升级转交 */
 export const workflowTaskTransferActionEnum = pgEnum('workflow_task_transfer_action', ['transfer', 'delegate', 'reassign', 'handover', 'timeout']);
 
-// 任务转办明细（替代原 transfer_chain 数组：完整回答"谁在何时因何把任务交给了谁"）
+// 任务转办明细：完整回答"谁在何时因何把任务交给了谁"
 export const workflowTaskTransfers = pgTable('workflow_task_transfers', {
   id: idColumn(),
   taskId: integer().notNull().references(() => workflowTasks.id, { onDelete: 'cascade' }),
@@ -742,7 +742,7 @@ export type WorkflowJobRow = typeof workflowJobs.$inferSelect;
 
 export type NewWorkflowJob = typeof workflowJobs.$inferInsert;
 
-// 作业每一次执行尝试的审计日志（取代 workflow_trigger_executions，泛化到所有 jobType）
+// 作业每一次执行尝试的审计日志（泛化到所有 jobType）
 export const workflowJobExecutions = pgTable('workflow_job_executions', {
   id: idColumn(),
   jobId: integer().notNull().references(() => workflowJobs.id, { onDelete: 'cascade' }),

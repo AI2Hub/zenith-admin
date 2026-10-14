@@ -12,7 +12,7 @@ import {
 import type { WorkflowFlowData } from '@zenith/shared/workflow';
 import { WORKFLOW_SCHEMA_VERSION } from '@zenith/shared/workflow';
 
-// 说明：DAG 推进（advanceFlow/getInitialTasks）已被显式执行 Token 引擎取代，
+// 说明：推进语义归显式执行 Token 引擎，
 // fork/join/网关/自动节点/回边等推进语义的回归测试见 workflow-token-engine.test.ts。
 // 本文件仅覆盖仍由 workflow-engine.ts 导出的纯工具：条件求值 / 结构校验 / 祖先与退回目标。
 

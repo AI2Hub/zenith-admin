@@ -137,7 +137,7 @@ function toDetail(r: TriggerRunResult): WorkflowJobResult {
 
 /**
  * trigger_dispatch：触发器节点执行（webhook/callback/updateData/deleteData）。
- * 取代 trigger.ts 的 dispatch/claim/mark/recover；attempts/退避/死信交给引擎，执行明细入 job_executions。
+ * attempts/退避/死信交给引擎，执行明细入 job_executions。
  * payload: { taskId }
  */
 async function handle({ payload, attempt, job, operationKey }: WorkflowJobContext): Promise<WorkflowJobResult | void> {

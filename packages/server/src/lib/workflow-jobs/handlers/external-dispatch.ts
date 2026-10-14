@@ -29,8 +29,7 @@ async function applyFallback(callbackId: string, strategy: WorkflowExternalAppro
 }
 
 /**
- * external_dispatch：调用外部审批服务，外部系统再回调推进。
- * 取代 external-approver.ts 的 dispatch/claim/recover；attempts/退避/死信交给引擎。
+ * external_dispatch：调用外部审批服务，外部系统再回调推进（attempts/退避/死信交给引擎）。
  * payload: { taskId }
  */
 async function handle({ payload, attempt, job }: WorkflowJobContext): Promise<WorkflowJobResult | void> {

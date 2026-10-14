@@ -25,8 +25,7 @@ function parseHeaders(raw: string | null): Record<string, string> {
 }
 
 /**
- * webhook_delivery：向一个订阅投递一个事件（HMAC 签名 + 重试由引擎接管）。
- * 取代 webhook.ts:dispatchDelivery + workflow_event_deliveries 表；执行明细入 job_executions。
+ * webhook_delivery：向一个订阅投递一个事件（HMAC 签名 + 重试由引擎接管，执行明细入 job_executions）。
  * payload: { subscriptionId, event }
  */
 async function handle({ payload, attempt, job }: WorkflowJobContext): Promise<WorkflowJobResult | void> {
