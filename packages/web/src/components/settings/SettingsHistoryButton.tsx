@@ -1,5 +1,5 @@
 import { useMemo, useState, type CSSProperties } from 'react';
-import { Banner, Button, Empty, InputNumber, SideSheet, Space, Spin, TabPane, Tabs, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
+import { Banner, Button, Empty, InputNumber, List, SideSheet, Space, Spin, TabPane, Tabs, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
 import { History } from 'lucide-react';
 import { getByPath } from '@zenith/shared/core';
 import {
@@ -14,6 +14,7 @@ import {
 } from '@/hooks/queries/settings-history';
 import { useSettings } from '@/hooks/queries/settings';
 import DateTimeText from '@/components/DateTimeText';
+import './SettingsHistoryButton.css';
 
 interface SettingsHistoryButtonProps {
   readonly module: SettingsModuleKey;
@@ -131,23 +132,26 @@ function HistoryDrawer({ module, dirty = false, canRestore = false, onRestored, 
         <Button size="small" disabled={pending} onClick={() => { void currentQuery.refetch(); void versions.refetch(); void detail.refetch(); if (tab === 'compare') void comparison.refetch(); }}>刷新历史</Button>
         <Button size="small" disabled={pending} onClick={() => selectVersion(0)}>版本 0 · 全部继承</Button>
       </Space>
-      <Spin spinning={versions.isLoading}>
-        <div style={{ marginTop: 12 }}>
-          {versions.isError ? <Banner type="danger" description="版本历史加载失败，请重试。" /> : null}
-          {versions.data?.list.length === 0 ? <Empty description="尚未保存配置，当前使用默认继承状态" /> : null}
-          {versions.data?.list.map((revision) => <div key={revision.id} style={{ padding: 12, marginBottom: 8, borderRadius: 'var(--semi-border-radius-medium)',
-            border: `1px solid ${selectedVersion === revision.version ? 'var(--semi-color-primary)' : 'var(--semi-color-border)'}`, background: 'var(--surface-card)' }}>
-            <Space wrap spacing={12}>
-              <Button theme="borderless" size="small" disabled={pending} onClick={() => selectVersion(revision.version)}>版本 {revision.version}</Button>
+      {versions.isError ? <Banner type="danger" description="版本历史加载失败，请重试。" /> : null}
+      <List className="settings-version-list" split loading={versions.isLoading} dataSource={versions.data?.list ?? []}
+        emptyContent={<Empty description="尚未保存配置，当前使用默认继承状态" />}
+        renderItem={(revision) => {
+          const selected = selectedVersion === revision.version;
+          // 整行即选中入口：点击行内任意位置都切换到该版本，恢复中（pending）不接受切换。
+          const select = () => { if (!pending) selectVersion(revision.version); };
+          return <List.Item key={revision.id} main={
+            <div className={`settings-version-row${selected ? ' settings-version-row--selected' : ''}${pending ? ' settings-version-row--disabled' : ''}`}
+              role="button" tabIndex={0} aria-current={selected ? 'true' : undefined} onClick={select}
+              onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); select(); } }}>
+              <span className="settings-version-row__version">版本 {revision.version}</span>
               {revision.version === current?.version ? <Tag color="blue">当前</Tag> : null}
               <Typography.Text>{revision.actorName ?? '已删除用户'} · <DateTimeText value={revision.createdAt} /></Typography.Text>
               <Tag>{revision.action === 'restore' ? `恢复自版本 ${revision.restoredFromVersion}` : revision.action === 'initial' ? '初始版本' : '保存'}</Tag>
               <Typography.Text type="tertiary">{revision.changedPaths.length} 项变更</Typography.Text>
-            </Space>
-            {revision.note ? <Typography.Paragraph style={{ margin: '6px 0 0', overflowWrap: 'anywhere' }}>{revision.note}</Typography.Paragraph> : null}
-          </div>)}
-        </div>
-      </Spin>
+              {revision.note ? <Typography.Paragraph className="settings-version-row__note">{revision.note}</Typography.Paragraph> : null}
+            </div>
+          } />;
+        }} />
       <ListPagination pagination={pagination.buildPagination(versions.data?.total ?? 0)} />
       <Typography.Title heading={5} style={{ marginTop: 24 }}>版本 {selectedVersion}{selectedVersion === 0 ? ' · 当前上级的默认继承状态' : ''}</Typography.Title>
       <Tabs collapsible="auto" activeKey={tab} onChange={setTab}>

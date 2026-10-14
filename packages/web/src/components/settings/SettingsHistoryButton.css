@@ -1,0 +1,74 @@
+/**
+ * 版本历史列表：Semi List 的扁平分隔行，不使用卡片外观。
+ *
+ * 交互与留白都落在整行的点击目标上，所以把 List.Item 自身的内边距清零，
+ * 让悬停 / 选中反馈覆盖整行，而不是只有版本号看起来可点。
+ * 选中态只用淡背景 + 版本号强调色表达，不加左侧描边。
+ */
+.settings-version-list {
+  margin-top: 12px;
+  border-top: 1px solid var(--semi-color-border);
+}
+
+.settings-version-list .semi-list-item {
+  padding: 0;
+}
+
+.settings-version-list .semi-list-item-body-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-version-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.settings-version-row:hover {
+  background: var(--semi-color-fill-0);
+}
+
+.settings-version-row:focus-visible {
+  outline: 2px solid var(--semi-color-primary);
+  outline-offset: -2px;
+}
+
+.settings-version-row--selected,
+.settings-version-row--selected:hover {
+  background: var(--semi-color-primary-light-default);
+}
+
+.settings-version-row--disabled {
+  cursor: default;
+}
+
+.settings-version-row--disabled:hover {
+  background: none;
+}
+
+.settings-version-row--disabled.settings-version-row--selected,
+.settings-version-row--disabled.settings-version-row--selected:hover {
+  background: var(--semi-color-primary-light-default);
+}
+
+.settings-version-row__version {
+  font-weight: 600;
+}
+
+.settings-version-row--selected .settings-version-row__version {
+  color: var(--semi-color-primary);
+}
+
+.settings-version-row__note {
+  flex-basis: 100%;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
