@@ -4,12 +4,27 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { Button, Tooltip, Typography } from '@douyinfe/semi-ui';
 import { ChevronsDown, ChevronsUp } from 'lucide-react';
 import type { LogLevel, MatchRange, SearchMatch } from './log-search';
+import { tokenizeLogLine } from './log-highlight';
 import { hasAnsi, parseAnsi, type AnsiSpan } from './ansi';
 
 const LEVEL_COLORS: Partial<Record<LogLevel, string>> = {
   error: 'var(--semi-color-danger)',
   warn: 'var(--semi-color-warning)',
   debug: 'var(--semi-color-text-2)',
+};
+
+/**
+ * 方案 A 的 error / warn 强调：token 着色优先，正文不再整行染红，
+ * 级别改由行底色 + 左侧指示条承载（info / debug 行无底色、无指示条）。
+ */
+const LEVEL_ROW_BG: Partial<Record<LogLevel, string>> = {
+  error: 'var(--semi-color-danger-light-default)',
+  warn: 'var(--semi-color-warning-light-default)',
+};
+
+const LEVEL_BAR: Partial<Record<LogLevel, string>> = {
+  error: 'var(--semi-color-danger)',
+  warn: 'var(--semi-color-warning)',
 };
 
 const markStyle: CSSProperties = {
@@ -69,7 +84,24 @@ function ansiSpanStyle(span: AnsiSpan): CSSProperties | undefined {
 
 /** 渲染整行：带 ANSI 颜色的行按片段着色，匹配高亮映射到去色文本的偏移上 */
 function renderLine(raw: string, ranges: MatchRange[] | undefined, activeStart: number | null): ReactNode {
-  if (!hasAnsi(raw)) return renderHighlightedSegment(raw, ranges, activeStart);
+  if (!hasAnsi(raw)) {
+    // 无 ANSI 的行（NDJSON / pretty 文本）先做语法切分，token 拼接恒等于原行，
+    // 搜索区间按同一偏移系映射；超长行 tokenize 返回 null，退回纯文本。
+    const tokens = tokenizeLogLine(raw);
+    if (tokens) {
+      let offset = 0;
+      return tokens.map((token, index) => {
+        const base = offset;
+        offset += token.text.length;
+        return (
+          <span key={index} style={token.color ? { color: token.color } : undefined}>
+            {renderHighlightedSegment(token.text, ranges, activeStart, base)}
+          </span>
+        );
+      });
+    }
+    return renderHighlightedSegment(raw, ranges, activeStart);
+  }
   let offset = 0;
   return parseAnsi(raw).map((span, index) => {
     const base = offset;
@@ -264,7 +296,11 @@ export const LogContentView = forwardRef<LogContentViewHandle, LogContentViewPro
               const level = levels[originalIndex];
               const ranges = lineRanges.get(item.index);
               const isActiveLine = item.index === activeLine;
-              const indicator = `3px solid ${isActiveLine ? 'var(--semi-color-primary)' : 'transparent'}`;
+              // 激活行（搜索定位）> 级别条 > 无：error / warn 行常驻红色 / 橙色指示条
+              const barColor = isActiveLine
+                ? 'var(--semi-color-primary)'
+                : level ? (LEVEL_BAR[level] ?? 'transparent') : 'transparent';
+              const indicator = `3px solid ${barColor}`;
               return (
                 <div
                   key={item.key}
@@ -283,7 +319,10 @@ export const LogContentView = forwardRef<LogContentViewHandle, LogContentViewPro
                     // 显示行号时，左缩进与激活指示条挂在 sticky 行号列上，随列一起固定
                     padding: showLineNumbers ? '0 16px 0 0' : '0 16px 0 13px',
                     borderLeft: showLineNumbers ? undefined : indicator,
-                    background: isActiveLine ? 'var(--semi-color-primary-light-default)' : undefined,
+                    // 激活行盖住级别底色；error / warn 行着淡底色（替代原来的整行染红）
+                    background: isActiveLine
+                      ? 'var(--semi-color-primary-light-default)'
+                      : level ? LEVEL_ROW_BG[level] : undefined,
                   }}
                 >
                   {showLineNumbers && (

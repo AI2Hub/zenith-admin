@@ -48,6 +48,20 @@ body {
   --topbar-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
 }
 
+/* 日志行内语法着色（log-highlight.ts）：内置代码配色，不跟随主题色切换，
+   否则红 / 绿 / 橙 / 蓝全饱和色挤在一行太花。取 GitHub 风格的哑色：
+   key / number 一档蓝、string 绿、字面量紫、标点灰；深色另给一组。
+   声明在 body（见上方注释：Semi token 只挂在 body 上，plain 要引用它）。 */
+body {
+  --logtok-plain: var(--semi-color-text-1);
+  --logtok-key: #0550ae;
+  --logtok-string: #116329;
+  --logtok-number: #0550ae;
+  --logtok-literal: #8250df;
+  --logtok-punct: var(--semi-color-text-3);
+  --logtok-dim: var(--semi-color-text-3);
+}
+
 /* 深色语义变量：全局深色（body[theme-mode='dark']）与分区局部暗色（.semi-always-dark）
    共用同一套映射，同样取自 Semi 的深色 token。 */
 body[theme-mode='dark'],
@@ -68,6 +82,11 @@ body .semi-always-dark {
   --scrollbar-thumb-hover: var(--semi-color-text-3);
   --surface-card: var(--semi-color-bg-1);
   --topbar-shadow: 0 1px 6px rgba(0, 0, 0, 0.18);
+  /* 日志代码配色的深色档（GitHub Dark 风格哑色） */
+  --logtok-key: #79c0ff;
+  --logtok-string: #7ee787;
+  --logtok-number: #79c0ff;
+  --logtok-literal: #d2a8ff;
 }
 
 /* 局部暗色区域内的原生控件（滚动条、表单）跟随深色；全局深色由 applyThemeToDom() 写在 body 上 */
