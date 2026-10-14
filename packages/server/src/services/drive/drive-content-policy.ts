@@ -4,7 +4,7 @@ import { blockedExtensionSet, getDriveSettings } from './drive-settings.service'
 
 /**
  * 网盘内容策略：扩展名黑名单 + 魔数识别的可执行文件拦截。
- * 取代通用 `file_upload_allowed_types` 白名单（企业网盘需要承载任意办公 / 设计 / 归档格式）。
+ * 企业网盘需要承载任意办公 / 设计 / 归档格式，不复用通用 `file_upload_allowed_types` 白名单。
  * 上传、上传新版本、重命名（改后缀绕过）共用。
  */
 

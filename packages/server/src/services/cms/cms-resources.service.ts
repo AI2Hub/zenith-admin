@@ -284,7 +284,7 @@ export async function deleteCmsResources(ids: number[]): Promise<number> {
   return rows.length;
 }
 
-/** 站点内孤立素材 id 全量（治理任务用；一条索引查询取代逐素材全表扫描） */
+/** 站点内孤立素材 id 全量（治理任务用；一条索引查询，避免逐素材全表扫描） */
 export async function listCmsSiteOrphanResourceIds(siteId: number): Promise<number[]> {
   await ensureCmsSiteExists(siteId);
   await assertSiteAccess(siteId);

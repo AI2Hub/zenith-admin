@@ -74,7 +74,7 @@ const STDERR_TAIL_LIMIT = 4000;
  *
  * 不经 shell 管道：`pg_dump … | gzip > file` 的退出码只反映 gzip，pg_dump 缺失、连接失败或
  * 认证失败时管道照样返回 0，只留下一个 20 字节的空 gzip 却被记成「成功」。这里直接按 pg_dump 的
- * 退出码与 stderr 判定，任何失败都删除半成品文件后抛错；同时不再依赖系统 gzip、连接串不再进入命令行。
+ * 退出码与 stderr 判定，任何失败都删除半成品文件后抛错；同时不依赖系统 gzip、连接串不进入命令行。
  */
 export async function runPgDumpToGzip(launch: PgDumpLaunch, filePath: string): Promise<void> {
   const child = spawn(launch.file, launch.args, {

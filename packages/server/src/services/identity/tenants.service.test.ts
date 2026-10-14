@@ -80,10 +80,10 @@ describe('listTenants', () => {
 
     const res = await listTenants({ page: 1, pageSize: 200 });
 
-    // 用户数统计只发 1 条，与 pageSize 无关（此前是 200 条）
+    // 用户数统计只发 1 条，与 pageSize 无关
     expect(dbMock.select).toHaveBeenCalledTimes(1);
     expect(countChain.groupBy).toHaveBeenCalledTimes(1);
-    // $count 只用于 total，不再用于逐行统计
+    // $count 只用于 total，不用于逐行统计
     expect(dbMock.$count).toHaveBeenCalledTimes(1);
     expect(res.list).toHaveLength(200);
     expect(res.total).toBe(200);

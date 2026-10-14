@@ -10,7 +10,7 @@ import type { WorkflowTriggerNodeConfig } from '@zenith/shared/workflow';
 import dayjs from 'dayjs';
 
 /**
- * 子实例结束后入队 subprocess_join 作业唤醒/汇聚父任务（取代直接 resumeParentSubProcess 调用）。
+ * 子实例结束后入队 subprocess_join 作业唤醒/汇聚父任务（不同步直接调用 resumeParentSubProcess）。
  * 幂等键含 childInst.id，确保每个子实例的结束都触发一次（多实例汇聚靠 reconcile 绝对重算收敛）。
  */
 export async function enqueueSubprocessJoin(childInst: typeof workflowInstances.$inferSelect, executor: DbExecutor = db): Promise<void> {

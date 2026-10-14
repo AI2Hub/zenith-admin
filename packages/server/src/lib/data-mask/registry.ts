@@ -3,7 +3,7 @@ import { collectSensitiveFields, sensitiveKeyOf, type AnyOperation, type Sensiti
 /**
  * 敏感字段注册表：每条契约路由在定义时把响应 schema 里 `sensitive()` 声明的字段登记进来，
  * 因此注册表就是「本进程实际对外暴露的敏感字段全集」——脱敏策略页据此列出可配置项，
- * 不再依赖扫描数据库列名猜测。
+ * 不依赖扫描数据库列名猜测。
  */
 
 export interface SensitiveFieldEntry {

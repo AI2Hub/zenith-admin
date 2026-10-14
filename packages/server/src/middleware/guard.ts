@@ -68,7 +68,7 @@ async function writeOperationLog(
     const { browser: browserName, os: osName } = resolveRequestClient(ua, getPlatformVersion(c), user?.os);
 
     const responseCode = c.res?.status ?? 200;
-    // 脱敏 → 结构化裁剪：合法 JSON 且 UTF-8 字节 ≤ 4KB（不再用字符串 slice 切坏 JSON）
+    // 脱敏 → 结构化裁剪：合法 JSON 且 UTF-8 字节 ≤ 4KB（不用字符串 slice，避免切坏 JSON）
     const bodyStr =
       options.recordBody !== false && requestBody !== undefined
         ? clampAuditJson(redactBody(requestBody), AUDIT_REQUEST_BODY_BUDGET_BYTES)

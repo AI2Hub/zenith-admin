@@ -1,5 +1,5 @@
 /**
- * IoT 设备批量导入 Definition（收编 iot-devices.service 原同步 Excel 导入）。
+ * IoT 设备批量导入 Definition。
  * SN 留空自动生成、密钥自动分配、产品按名称解析（重名拒绝）、分组按名称关联。
  */
 import { eq } from 'drizzle-orm';

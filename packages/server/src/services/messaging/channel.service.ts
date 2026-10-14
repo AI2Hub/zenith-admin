@@ -6,7 +6,7 @@
  *  - targeted ：仅指定用户可见（工作流待办等定向通知）
  *
  * 发送者身份由频道（name/avatar）承载，消息 publishedById 仅记录触发的管理员/系统（可空），
- * 不再依赖 users 表的机器人假用户。
+ * 不依赖 users 表的机器人假用户。
  */
 import { and, desc, eq, exists, gt, inArray, isNull, lte, or, sql, type SQL } from 'drizzle-orm';
 import { db } from '../../db';

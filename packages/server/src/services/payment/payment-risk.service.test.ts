@@ -5,7 +5,7 @@
  *  1. 无规则且策略表未发布 → pass
  *  2. L1 名单：黑名单命中 → 规则动作 + dimension=blocklist；白名单命中 → 跳过本规则全部检查
  *  3. 原生维度保留：单笔上限命中 → block
- *  4. L2 决策表：matched block/review → dimension=decision（ruleId=null，不再走原生维度）；
+ *  4. L2 决策表：matched block/review → dimension=decision（ruleId=null，不走原生维度）；
  *     matched pass → 显式放行（跳过原生检查）；未发布 → 回退原生维度
  *
  * Mock 策略：db / rules-lists 批量判定 / rules-runtime decide / rules.service 快照探测全 mock。
