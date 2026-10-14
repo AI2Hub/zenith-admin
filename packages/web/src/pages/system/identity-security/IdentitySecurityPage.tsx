@@ -1,10 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef } from 'react';
 import { Button, Empty, Form, Tabs, Toast } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Save } from 'lucide-react';
 import { identitySecurityContract, type LoginRiskEvent } from '@zenith/shared/identity';
-import { identitySecuritySettingsSchema, type IdentitySecuritySettings } from '@zenith/shared/settings';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { ListSearchToolbar } from '@/components/list-page';
@@ -12,17 +11,14 @@ import { EMPTY_PLACEHOLDER, dateTimeColumn, renderEllipsis } from '@/utils/table
 import { usePermission } from '@/hooks/usePermission';
 import { useLoginRiskEventList } from '@/hooks/queries/identity-security';
 import { useSaveSettings, useSettings } from '@/hooks/queries/settings';
-import { ApiError } from '@/lib/query';
-import { RefreshButton } from '@/components/toolbar-controls';
+import { SettingsEditorTools } from '@/components/settings/SettingsEditorTools';
+import { useSettingsEditor } from '@/hooks/useSettingsEditor';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import { useListPage } from '@/hooks/useListPage';
 import { SessionPolicyFields } from './SessionPolicyFields';
 import './IdentitySecurityPage.css';
 const { TabPane } = Tabs;
-
-// 默认值以 shared schema 为唯一真相（通用设置页与服务端同源）
-const defaultPolicy: IdentitySecuritySettings = identitySecuritySettingsSchema.parse({});
 
 export default function IdentitySecurityPage() {
   const { hasPermission } = usePermission();
@@ -33,9 +29,8 @@ export default function IdentitySecurityPage() {
     ...(canReadRiskEvents ? ['risk' as const] : []),
   ];
   const [activeTab, setActiveTab] = useUrlTabState(tabs, canManagePolicy ? 'policy' : 'risk');
-  // useEditModal 例外：页面级全局配置表单（身份安全策略），保存后不关闭；表单 key 跟随策略值重挂载
+  // useEditModal 例外：页面级全局配置表单，版本切换/明确恢复继承时重挂载。
   const formApi = useRef<FormApi | null>(null);
-  const [policy, setPolicy] = useState<IdentitySecuritySettings>(defaultPolicy);
   const page = useListPage({
     op: identitySecurityContract.riskEvents,
     useList: useLoginRiskEventList,
@@ -45,26 +40,15 @@ export default function IdentitySecurityPage() {
   // 页面级全局配置表单（无弹窗、保存后不关闭），不走 useEditModal；策略由运行时设置 identitySecurity 模块承载
   const policyQuery = useSettings('identitySecurity', canManagePolicy && activeTab === 'policy');
   const savePolicyMutation = useSaveSettings('identitySecurity');
-
-  useEffect(() => {
-    if (policyQuery.data) setPolicy(policyQuery.data.effective);
-  }, [policyQuery.data]);
+  const editor = useSettingsEditor('identitySecurity', policyQuery.data);
 
   async function handleSavePolicy() {
-    let values: IdentitySecuritySettings;
     try {
-      values = await formApi.current?.validate() as IdentitySecuritySettings;
+      await formApi.current?.validate();
     } catch {
       return;
     }
-    try {
-      const saved = await savePolicyMutation.mutateAsync({ body: { version: policyQuery.data?.version ?? 0, data: values } });
-      setPolicy(saved.effective);
-      Toast.success('身份安全策略已保存');
-    } catch (err) {
-      // 409 = 他人已修改：请求层已提示，重载最新值供比对后再保存
-      if (err instanceof ApiError && err.code === 409) void policyQuery.refetch();
-    }
+    if (await editor.save((body) => savePolicyMutation.mutateAsync({ body }))) Toast.success('身份安全策略已保存');
   }
 
   const riskColumns: ColumnProps<LoginRiskEvent>[] = [
@@ -89,13 +73,15 @@ export default function IdentitySecurityPage() {
       <Tabs collapsible="auto" type="line" keepDOM={false} activeKey={activeTab} onChange={(k) => setActiveTab(k as typeof activeTab)}>
         {canManagePolicy && <TabPane tab="策略配置" itemKey="policy">
           <SearchToolbar>
-            <Button type="primary" icon={<Save size={14} />} loading={savePolicyMutation.isPending} onClick={handleSavePolicy}>保存</Button>
-            <RefreshButton onClick={() => void policyQuery.refetch()} loading={policyQuery.isFetching}>重载</RefreshButton>
+            <Button type="primary" icon={<Save size={14} />} disabled={!editor.dirty} loading={savePolicyMutation.isPending} onClick={handleSavePolicy}>保存</Button>
           </SearchToolbar>
           <div style={{ maxWidth: 760, padding: '4px 0' }}>
+            <SettingsEditorTools module="identitySecurity" editor={editor} canWrite={canManagePolicy} saving={savePolicyMutation.isPending} onReload={policyQuery.refetch} />
             <Form
-              key={JSON.stringify(policy)}
-              initValues={policy}
+              key={`${editor.base?.baseToken}:${editor.resetKey}`}
+              initValues={editor.value}
+              onValueChange={(_values, changedValues) => editor.setFields(changedValues)}
+              disabled={savePolicyMutation.isPending || !policyQuery.data}
               getFormApi={(api) => { formApi.current = api; }}
               labelPosition="left"
               labelWidth={150}

@@ -8,13 +8,17 @@ import { SettingDivider, SettingRow, SettingSection } from './SettingRow';
  * 枚举 → Select、字符串 → Input、字符串数组 → TagInput、嵌套对象 → 分组。
  * 标签 / 说明取字段 `.meta({ title, description })`，新增设置项只改 shared schema，页面零改动。
  *
- * 受控组件：`value` 为完整生效文档，`onChange` 回传替换后的完整文档；`inheritedValue` 用于「已覆盖」标记与「恢复继承」。
+ * 受控组件：`value` 为完整生效文档，覆盖标记来自显式 `overriddenPaths`，恢复继承调用 `onRevert`。
  */
 export interface SchemaFormProps {
   readonly schema: z.ZodObject;
   readonly value: Record<string, unknown>;
   readonly inheritedValue?: Record<string, unknown>;
-  readonly onChange: (next: Record<string, unknown>) => void;
+  readonly onChange?: (next: Record<string, unknown>) => void;
+  /** 系统设置使用显式路径更新，避免把未编辑字段一并保存为覆盖。 */
+  readonly onFieldChange?: (path: string, value: unknown) => void;
+  readonly overriddenPaths?: readonly string[];
+  readonly onRevert?: (path: string) => void;
   readonly disabled?: boolean;
   /** 是否显示「恢复继承」操作（租户作用域 / 平台作用域相对默认值均适用） */
   readonly allowRevert?: boolean;
@@ -104,10 +108,6 @@ function describe(field: z.ZodType): FieldInfo {
   }
 }
 
-function sameValue(a: unknown, b: unknown): boolean {
-  return JSON.stringify(a) === JSON.stringify(b);
-}
-
 function setPath(doc: Record<string, unknown>, path: string[], value: unknown): Record<string, unknown> {
   if (path.length === 1) return { ...doc, [path[0]]: value };
   const [head, ...rest] = path;
@@ -119,16 +119,19 @@ function getPath(doc: Record<string, unknown> | undefined, path: string[]): unkn
   return path.reduce<unknown>((acc, seg) => (acc && typeof acc === 'object' ? (acc as Record<string, unknown>)[seg] : undefined), doc);
 }
 
-export function SchemaForm({ schema, value, inheritedValue, onChange, disabled, allowRevert = true, enumLabels, controls }: SchemaFormProps) {
-  const update = (path: string[], next: unknown) => onChange(setPath(value, path, next));
+export function SchemaForm({ schema, value, inheritedValue, onChange, onFieldChange, overriddenPaths, onRevert, disabled, allowRevert = true, enumLabels, controls }: SchemaFormProps) {
+  const update = (path: string[], next: unknown) => {
+    if (onFieldChange) onFieldChange(path.join('.'), next);
+    else onChange?.(setPath(value, path, next));
+  };
 
   const renderLeaf = (path: string[], info: FieldInfo): ReactNode => {
     const key = path.join('.');
     const current = getPath(value, path);
     const inherited = inheritedValue ? getPath(inheritedValue, path) : undefined;
-    const overridden = inheritedValue !== undefined && !sameValue(current, inherited);
+    const overridden = overriddenPaths?.includes(key) ?? false;
     const revert = allowRevert && overridden && !disabled
-      ? <Button size="small" theme="borderless" onClick={() => update(path, inherited)}>恢复继承</Button>
+      ? <Button size="small" theme="borderless" onClick={() => onRevert ? onRevert(key) : update(path, inherited)}>恢复继承</Button>
       : null;
     const title = info.meta.title ?? path[path.length - 1];
     const customControl = controls?.[key];

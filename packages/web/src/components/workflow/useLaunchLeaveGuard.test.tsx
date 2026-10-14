@@ -56,6 +56,27 @@ describe('shared launch navigation registration', () => {
     return { push: vi.fn(), replace: vi.fn(), go: vi.fn(), createHref: vi.fn() } as unknown as Parameters<typeof registerLaunchLeaveGuard>[0];
   }
 
+  it('keeps same-page navigation unchanged unless the registration explicitly protects it', () => {
+    const navigator = navigatorStub();
+    const originalPush = navigator.push;
+    const confirm = vi.fn();
+    const registration = {
+      pathname: '/settings', activePathname: () => '/settings', confirmLeave: confirm, shouldWarnBeforeUnload: () => true,
+    };
+    const removeDefault = registerLaunchLeaveGuard(navigator, registration);
+    navigator.push('/settings?module=wiki');
+    expect(originalPush).toHaveBeenCalledOnce();
+    expect(confirm).not.toHaveBeenCalled();
+    removeDefault();
+
+    const removeSettings = registerLaunchLeaveGuard(navigator, { ...registration, protectSamePage: () => true });
+    navigator.push('/settings?module=drive');
+    expect(confirm).toHaveBeenCalledOnce();
+    expect(originalPush).toHaveBeenCalledOnce();
+    removeSettings();
+    expect(navigator.push).toBe(originalPush);
+  });
+
   it('installs once and restores original methods after the older registration cleans up first', () => {
     const navigator = navigatorStub();
     const originals = { push: navigator.push, replace: navigator.replace, go: navigator.go };

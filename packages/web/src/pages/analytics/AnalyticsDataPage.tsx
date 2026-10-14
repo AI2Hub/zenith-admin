@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { ListSearchToolbar, listTableProps } from '@/components/list-page';
 import { useQueryClient } from '@tanstack/react-query';
 import { useListSearch } from '@/hooks/useListSearch';
@@ -47,6 +47,8 @@ import { JsonBlock } from '@/components/JsonBlock';
 import { msToReadable, nullableText, trimToNull } from './analytics-format';
 import { useFilterQuery } from '@/hooks/useFilterQuery';
 import { useSaveSettings, useSettings } from '@/hooks/queries/settings';
+import { SettingsEditorTools } from '@/components/settings/SettingsEditorTools';
+import { useSettingsEditor } from '@/hooks/useSettingsEditor';
 
 const PAGE_SIZE = 20;
 
@@ -202,8 +204,6 @@ export default function AnalyticsDataPage() {
 
   const [rollupDays, setRollupDays] = useState(30);
 
-  const [settingsDraft, setSettingsDraft] = useState<AnalyticsSettings | null>(null);
-
   // 已提交筛选 → 契约查询参数：列表与导出共用同一份映射
   const [startTime, endTime] = formatDateTimeRangeValuesForApi(submittedEventSearch.timeRange);
   const eventFilterQuery = useFilterQuery({
@@ -240,19 +240,15 @@ export default function AnalyticsDataPage() {
   const rollupQuery = useAnalyticsRollup(rollupDays, activeTab === 'rollup');
   const rollupItems = rollupQuery.data?.items ?? [];
   const settingsQuery = useSettings('analytics', activeTab === 'settings');
-  const settings = settingsDraft;
-
-  useEffect(() => {
-    if (settingsQuery.data?.effective) setSettingsDraft(settingsQuery.data.effective);
-  }, [settingsQuery.data?.effective]);
+  const settingsEditor = useSettingsEditor('analytics', settingsQuery.data);
+  const settings = settingsQuery.data ? settingsEditor.value : null;
 
   const cleanMutation = useCleanAnalyticsEvents();
   const saveMetaMutation = useSaveAnalyticsEventMeta();
   const deleteMetaMutation = useDeleteAnalyticsEventMeta();
   const rebuildRollupMutation = useRebuildAnalyticsRollup();
-  const saveSettingsMutation = useSaveSettings('analytics', (qc) => {
-    void qc.invalidateQueries({ queryKey: analyticsKeys.all });
-  });
+  const saveSettingsMutation = useSaveSettings('analytics');
+  const canEditSettings = hasPermission('analytics:manage') && !saveSettingsMutation.isPending;
   const metaModal = useEditModal<AnalyticsEventMeta, EventMetaFormValues, EventMetaPayload>({
     entityName: '事件字典',
     save: saveMetaMutation,
@@ -356,16 +352,12 @@ export default function AnalyticsDataPage() {
   };
 
   const updateSettings = <K extends keyof SettingsPayload>(key: K, value: SettingsPayload[K]) => {
-    setSettingsDraft((prev) => (prev ? { ...prev, [key]: value } : prev));
+    settingsEditor.setField(key, value);
   };
 
   const handleSaveSettings = async () => {
     if (!settings) return;
-    const next = await saveSettingsMutation.mutateAsync({
-      body: { version: settingsQuery.data?.version ?? 0, data: settings },
-    });
-    setSettingsDraft(next.effective);
-    Toast.success('保存成功');
+    if (await settingsEditor.save((body) => saveSettingsMutation.mutateAsync({ body }))) Toast.success('保存成功');
   };
 
   const eventColumns: ColumnProps<EventListItem>[] = [
@@ -567,13 +559,15 @@ export default function AnalyticsDataPage() {
 
     return (
       <Card>
-        <Form labelPosition="left" labelWidth={150}>
+        <SettingsEditorTools module="analytics" editor={settingsEditor} canWrite={hasPermission('analytics:manage')} saving={saveSettingsMutation.isPending} onReload={settingsQuery.refetch} />
+        <Form labelPosition="left" labelWidth={150} disabled={!hasPermission('analytics:manage') || saveSettingsMutation.isPending}>
           <Form.Slot label="启用采集">
-            <Switch checked={settings.enabled} onChange={(checked) => updateSettings('enabled', checked)} />
+            <Switch disabled={!canEditSettings} checked={settings.enabled} onChange={(checked) => updateSettings('enabled', checked)} />
           </Form.Slot>
           <Form.Slot label="采样率">
             <div className="zx-slider-row">
               <Slider
+                disabled={!canEditSettings}
                 min={0}
                 max={1}
                 step={0.05}
@@ -586,34 +580,35 @@ export default function AnalyticsDataPage() {
             </div>
           </Form.Slot>
           <Form.Slot label="页面浏览">
-            <Switch checked={settings.trackPageviews} onChange={(checked) => updateSettings('trackPageviews', checked)} />
+            <Switch disabled={!canEditSettings} checked={settings.trackPageviews} onChange={(checked) => updateSettings('trackPageviews', checked)} />
           </Form.Slot>
           <Form.Slot label="点击行为">
-            <Switch checked={settings.trackClicks} onChange={(checked) => updateSettings('trackClicks', checked)} />
+            <Switch disabled={!canEditSettings} checked={settings.trackClicks} onChange={(checked) => updateSettings('trackClicks', checked)} />
           </Form.Slot>
           <Form.Slot label="性能指标">
-            <Switch checked={settings.trackPerformance} onChange={(checked) => updateSettings('trackPerformance', checked)} />
+            <Switch disabled={!canEditSettings} checked={settings.trackPerformance} onChange={(checked) => updateSettings('trackPerformance', checked)} />
           </Form.Slot>
           <Form.Slot label="错误采集">
-            <Switch checked={settings.trackErrors} onChange={(checked) => updateSettings('trackErrors', checked)} />
+            <Switch disabled={!canEditSettings} checked={settings.trackErrors} onChange={(checked) => updateSettings('trackErrors', checked)} />
           </Form.Slot>
           <Form.Slot label="API 请求">
-            <Switch checked={settings.trackApi} onChange={(checked) => updateSettings('trackApi', checked)} />
+            <Switch disabled={!canEditSettings} checked={settings.trackApi} onChange={(checked) => updateSettings('trackApi', checked)} />
           </Form.Slot>
           <Form.Slot label="脱敏输入内容">
-            <Switch checked={settings.maskInputs} onChange={(checked) => updateSettings('maskInputs', checked)} />
+            <Switch disabled={!canEditSettings} checked={settings.maskInputs} onChange={(checked) => updateSettings('maskInputs', checked)} />
           </Form.Slot>
           <Form.Slot label="尊重 DNT">
-            <Switch checked={settings.respectDnt} onChange={(checked) => updateSettings('respectDnt', checked)} />
+            <Switch disabled={!canEditSettings} checked={settings.respectDnt} onChange={(checked) => updateSettings('respectDnt', checked)} />
           </Form.Slot>
           <Form.Slot label="IP 匿名化">
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Switch checked={settings.anonymizeIp} onChange={(checked) => updateSettings('anonymizeIp', checked)} />
+              <Switch disabled={!canEditSettings} checked={settings.anonymizeIp} onChange={(checked) => updateSettings('anonymizeIp', checked)} />
               <Typography.Text type="tertiary" size="small">开启后仅存储网段（IPv4 抹掉末段），地理解析不受影响</Typography.Text>
             </div>
           </Form.Slot>
           <Form.Slot label="黑名单路径">
             <TagInput
+                disabled={!canEditSettings}
               value={settings.blacklistPaths}
               placeholder="输入路径后回车，如 /login"
               onChange={(value: string[]) => updateSettings('blacklistPaths', value)}
@@ -623,6 +618,7 @@ export default function AnalyticsDataPage() {
           <Form.Slot label="错误忽略规则">
             <div>
               <TagInput
+                disabled={!canEditSettings}
                 value={settings.errorIgnorePatterns}
                 placeholder="输入正则后回车，如 Invalid DOM property"
                 onChange={(value: string[]) => updateSettings('errorIgnorePatterns', value)}
@@ -635,6 +631,7 @@ export default function AnalyticsDataPage() {
           </Form.Slot>
           <Form.Slot label="事件保留天数">
             <InputNumber
+                disabled={!canEditSettings}
               min={1}
               value={settings.retentionDays}
               onChange={(value) => updateSettings('retentionDays', numberValue(value, settings.retentionDays))}
@@ -643,6 +640,7 @@ export default function AnalyticsDataPage() {
           </Form.Slot>
           <Form.Slot label="错误保留天数">
             <InputNumber
+                disabled={!canEditSettings}
               min={1}
               value={settings.errorRetentionDays}
               onChange={(value) => updateSettings('errorRetentionDays', numberValue(value, settings.errorRetentionDays))}
@@ -651,6 +649,7 @@ export default function AnalyticsDataPage() {
           </Form.Slot>
           <Form.Slot label="会话超时分钟">
             <InputNumber
+                disabled={!canEditSettings}
               min={1}
               value={settings.sessionTimeoutMinutes}
               onChange={(value) => updateSettings('sessionTimeoutMinutes', numberValue(value, settings.sessionTimeoutMinutes))}
@@ -659,7 +658,7 @@ export default function AnalyticsDataPage() {
           </Form.Slot>
           <Form.Slot label="会话回放">
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Switch checked={settings.trackReplay} onChange={(checked) => updateSettings('trackReplay', checked)} />
+              <Switch disabled={!canEditSettings} checked={settings.trackReplay} onChange={(checked) => updateSettings('trackReplay', checked)} />
               <Typography.Text type="tertiary" size="small">开启后 SDK 按需加载 rrweb 录制器（关闭时零开销）</Typography.Text>
             </div>
           </Form.Slot>
@@ -667,13 +666,14 @@ export default function AnalyticsDataPage() {
             <>
               <Form.Slot label="错误触发回放">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Switch checked={settings.replayOnError} onChange={(checked) => updateSettings('replayOnError', checked)} />
+                  <Switch disabled={!canEditSettings} checked={settings.replayOnError} onChange={(checked) => updateSettings('replayOnError', checked)} />
                   <Typography.Text type="tertiary" size="small">报错时上传错误前约 60s 缓冲现场并继续录制</Typography.Text>
                 </div>
               </Form.Slot>
               <Form.Slot label="全程录制采样率">
                 <div className="zx-slider-row">
                   <Slider
+                disabled={!canEditSettings}
                     min={0}
                     max={1}
                     step={0.01}
@@ -687,12 +687,13 @@ export default function AnalyticsDataPage() {
               </Form.Slot>
               <Form.Slot label="回放打码所有文本">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Switch checked={settings.replayMaskAllText} onChange={(checked) => updateSettings('replayMaskAllText', checked)} />
+                  <Switch disabled={!canEditSettings} checked={settings.replayMaskAllText} onChange={(checked) => updateSettings('replayMaskAllText', checked)} />
                   <Typography.Text type="tertiary" size="small">输入框始终打码；开启后页面全部文本一并脱敏</Typography.Text>
                 </div>
               </Form.Slot>
               <Form.Slot label="回放屏蔽选择器">
                 <Input
+                disabled={!canEditSettings}
                   value={settings.replayBlockSelector}
                   placeholder="CSS 选择器，如 .sensitive-area（命中元素整块不录制）"
                   onChange={(value) => updateSettings('replayBlockSelector', value)}
@@ -701,6 +702,7 @@ export default function AnalyticsDataPage() {
               </Form.Slot>
               <Form.Slot label="回放保留天数">
                 <InputNumber
+                disabled={!canEditSettings}
                   min={1}
                   value={settings.replayRetentionDays}
                   onChange={(value) => updateSettings('replayRetentionDays', numberValue(value, settings.replayRetentionDays))}
@@ -710,6 +712,7 @@ export default function AnalyticsDataPage() {
               <Form.Slot label="回放存储配额">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <InputNumber
+                disabled={!canEditSettings}
                     min={0}
                     step={512}
                     value={settings.replayStorageQuotaMb}
@@ -725,7 +728,7 @@ export default function AnalyticsDataPage() {
             </>
           )}
           <Form.Slot label=" ">
-            <Button type="primary" loading={saveSettingsMutation.isPending} onClick={() => void handleSaveSettings()}>保存</Button>
+            {hasPermission('analytics:manage') ? <Button type="primary" disabled={!settingsEditor.dirty} loading={saveSettingsMutation.isPending} onClick={() => void handleSaveSettings()}>保存</Button> : null}
           </Form.Slot>
         </Form>
       </Card>

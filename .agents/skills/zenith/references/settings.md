@@ -89,8 +89,8 @@ const policy = await getSettings('identitySecurity', { tenantId: user.tenantId }
 | --- | --- |
 | 布局 / 页面里的开关（水印、反馈入口、录屏、审批开关） | `useMySettings()` → `data?.ui?.…`；带 License 门控的段可能缺省 |
 | 登录 / 注册 / 改密页 | `usePublicSettings(tenantCode)`；密码提示用 `validatePassword` / `formatPasswordPolicyHint`（`@zenith/shared/settings`） |
-| 管理某模块（专用页面） | `useSettings(module)` 拿信封（`effective` / `inherited` / `overriddenPaths` / `version`），`useSaveSettings(module)` 整体替换；409 → 提示后 `refetch` |
-| 保存后有别的域受影响（如网盘配额影响空间列表） | `useSaveSettings(module, (qc, saved) => …)` 的 `extraInvalidate` 追加失效 |
+| 管理某模块（专用页面） | `useSettings(module)` 读信封，`useSettingsEditor(module, envelope)` 管理显式覆盖与固定并发基线；`SettingsEditorTools` 接历史、说明和继承管理，409 保留草稿。写协议与恢复语义见 [运行时设置](../../../../docs/backend/settings.md) |
+| 保存 / 恢复后有别的域受影响（如网盘配额影响空间列表） | 在 `hooks/queries/settings-effects.ts` 登记领域失效，由统一成功处理调用，确保通用页面恢复也能触发 |
 
 ## E. Mock
 

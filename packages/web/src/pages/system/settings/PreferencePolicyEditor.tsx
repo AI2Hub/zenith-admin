@@ -35,7 +35,10 @@ import './preference-policy-editor.css';
 
 interface PreferencePolicyEditorProps {
   readonly value: PreferencePolicy;
-  readonly onChange: (next: PreferencePolicy) => void;
+  readonly onChange?: (next: PreferencePolicy) => void;
+  readonly onFieldChange?: (path: string, value: unknown) => void;
+  readonly overriddenPaths?: readonly string[];
+  readonly onRevert?: (path: string) => void;
   readonly disabled?: boolean;
 }
 
@@ -79,7 +82,7 @@ function PolicyColorInput({ value, disabled, onChange, label }: {
 }
 
 /** 系统偏好草稿编辑器。所有字段始终可配置，适用条件只解释用户端何时生效。 */
-export function PreferencePolicyEditor({ value, onChange, disabled }: PreferencePolicyEditorProps) {
+export function PreferencePolicyEditor({ value, onChange, onFieldChange, overriddenPaths, onRevert, disabled }: PreferencePolicyEditorProps) {
   const { hasPermission, hasAnyPermission } = usePermission();
   const canReadAllMenus = hasPermission('system:menu:list');
   const menuTree = useMenuTree({ enabled: canReadAllMenus });
@@ -144,11 +147,24 @@ export function PreferencePolicyEditor({ value, onChange, disabled }: Preference
   const defaultValues = resolvePreferences(value, {});
 
   function updateDefault(path: PreferencePath, next: string | number | boolean) {
-    onChange({ ...value, defaults: setPreferenceValue(value.defaults, path, next) });
+    if (onFieldChange) onFieldChange(`defaults.${path}`, next);
+    else onChange?.({ ...value, defaults: setPreferenceValue(value.defaults, path, next) });
   }
 
+  function updateAllowed(path: PreferencePath, next: boolean) {
+    if (onFieldChange) onFieldChange(`allowUserOverride.${path}`, next);
+    else onChange?.({ ...value, allowUserOverride: setPreferenceValue(value.allowUserOverride, path, next) });
+  }
+
+  const isOverridden = (path: PreferencePath) => overriddenPaths?.some((field) => field === `preferences.defaults.${path}` || field === `preferences.allowUserOverride.${path}`) ?? isAdjusted(value, path);
+
   function resetField(path: PreferencePath) {
-    onChange({
+    if (onRevert) {
+      onRevert(`defaults.${path}`);
+      onRevert(`allowUserOverride.${path}`);
+      return;
+    }
+    onChange?.({
       defaults: setPreferenceValue(value.defaults, path, getPreferenceValue(defaultPreferences, path)),
       allowUserOverride: setPreferenceValue(value.allowUserOverride, path, true),
     });
@@ -245,7 +261,7 @@ export function PreferencePolicyEditor({ value, onChange, disabled }: Preference
                 <Fragment key={definition.path}>
                   {index > 0 ? <SettingDivider /> : null}
                   <div className="preference-policy-editor__row" data-preference-path={definition.path}>
-                    <SettingRow title={definition.label} description={renderDescription(definition)} style={{ flexWrap: 'wrap' }}
+                    <SettingRow title={definition.label} description={renderDescription(definition)} overridden={overriddenPaths ? isOverridden(definition.path) : undefined} style={{ flexWrap: 'wrap' }}
                       control={(
                         <div className="preference-policy-editor__controls">
                           <div className="preference-policy-editor__value">
@@ -256,12 +272,12 @@ export function PreferencePolicyEditor({ value, onChange, disabled }: Preference
                             <span className="preference-policy-editor__mobile-label">用户可修改</span>
                             <Switch aria-label={`${definition.label}用户可修改`} disabled={disabled}
                               checked={canOverridePreference(definition.path, value)}
-                              onChange={(next) => onChange({ ...value, allowUserOverride: setPreferenceValue(value.allowUserOverride, definition.path, next) })} />
+                              onChange={(next) => updateAllowed(definition.path, next)} />
                           </div>
-                          <Tooltip content="恢复内置默认值并允许用户修改">
+                          <Tooltip content={onRevert ? '恢复此项默认值与用户修改权限的继承' : '恢复内置默认值并允许用户修改'}>
                             <Space>
-                              <Button theme="borderless" size="small" aria-label={`恢复${definition.label}内置策略`}
-                                icon={<RotateCcw size={14} />} disabled={disabled || !isAdjusted(value, definition.path)}
+                              <Button theme="borderless" size="small" aria-label={`恢复${definition.label}${onRevert ? '继承' : '内置策略'}`}
+                                icon={<RotateCcw size={14} />} disabled={disabled || !isOverridden(definition.path)}
                                 onClick={() => resetField(definition.path)} />
                             </Space>
                           </Tooltip>

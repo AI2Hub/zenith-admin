@@ -8,6 +8,8 @@ interface GuardRegistration {
   activePathname: () => string;
   confirmLeave: (action: () => void) => void;
   shouldWarnBeforeUnload: () => boolean;
+  /** 少数页面通过查询参数切换会卸载的编辑对象。 */
+  protectSamePage?: (to: To) => boolean;
 }
 interface GuardRegistry {
   registrations: Map<symbol, GuardRegistration>;
@@ -28,7 +30,7 @@ export function registerLaunchLeaveGuard(navigator: Navigator, registration: Gua
     const samePage = (entry: GuardRegistration, to: To) => {
       const base = new URL(entry.pathname, window.location.href);
       const target = typeof to === 'string' ? new URL(to, base).pathname : to.pathname ?? entry.pathname;
-      return target === entry.pathname;
+      return target === entry.pathname && !entry.protectSamePage?.(to);
     };
     const push: typeof originalPush = (...args) => {
       const entry = active();

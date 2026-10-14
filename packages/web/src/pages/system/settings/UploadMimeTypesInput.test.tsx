@@ -2,16 +2,19 @@ import { useState } from 'react';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_UPLOAD_ALLOWED_TYPES, filesSettingsSchema } from '@zenith/shared/settings';
+import { DEFAULT_UPLOAD_ALLOWED_TYPES, filesSettingsSchema, mergeSettingsLayers, removeSettingsOverride, setSettingsOverride, settingsOverriddenPaths } from '@zenith/shared/settings';
 import { SchemaForm } from '@/components/settings/SchemaForm';
 import { UploadMimeTypesInput } from './UploadMimeTypesInput';
 import { UPLOAD_MIME_PRESETS } from './upload-mime-presets';
 
 function Harness({ initial = ['application/x-custom'], disabled = false }: { initial?: string[]; disabled?: boolean }) {
   const inherited = filesSettingsSchema.parse({});
-  const [value, setValue] = useState<Record<string, unknown>>({ ...inherited, uploadAllowedTypes: initial });
+  const [overrides, setOverrides] = useState<Record<string, unknown>>({ uploadAllowedTypes: initial });
+  const value = mergeSettingsLayers(inherited, overrides);
   return <>
-    <SchemaForm schema={filesSettingsSchema} value={value} inheritedValue={inherited} onChange={setValue} disabled={disabled}
+    <SchemaForm schema={filesSettingsSchema} value={value} inheritedValue={inherited} overriddenPaths={settingsOverriddenPaths(overrides)}
+      onFieldChange={(path, next) => setOverrides((current) => setSettingsOverride(current, path, next))}
+      onRevert={(path) => setOverrides((current) => removeSettingsOverride(current, path))} disabled={disabled}
       controls={{ uploadAllowedTypes: (props) => <UploadMimeTypesInput {...props} /> }} />
     <output data-testid="types">{JSON.stringify(value.uploadAllowedTypes)}</output>
   </>;
@@ -20,6 +23,13 @@ function Harness({ initial = ['application/x-custom'], disabled = false }: { ini
 const selectedTypes = () => JSON.parse(screen.getByTestId('types').textContent ?? '[]') as string[];
 
 describe('上传 MIME 快捷填入', () => {
+  it('等于默认列表的显式覆盖仍显示恢复继承，恢复后移除覆盖标记', () => {
+    render(<Harness initial={[...DEFAULT_UPLOAD_ALLOWED_TYPES]} />);
+    expect(screen.getByRole('button', { name: '恢复继承' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '恢复继承' }));
+    expect(screen.queryByRole('button', { name: '恢复继承' })).not.toBeInTheDocument();
+    expect(selectedTypes()).toEqual([...DEFAULT_UPLOAD_ALLOWED_TYPES]);
+  });
   it('默认追加，保留自定义值并忽略重复和大小写差异', () => {
     render(<Harness initial={['application/x-custom', ' IMAGE/* ']} />);
     fireEvent.click(screen.getByRole('button', { name: '图片' }));

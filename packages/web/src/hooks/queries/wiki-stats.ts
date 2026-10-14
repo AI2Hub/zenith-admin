@@ -1,9 +1,6 @@
 import { wikiStatsContract } from '@zenith/shared/wiki';
-import type { SettingsEnvelope } from '@zenith/shared/settings';
-import { settingsKeys, useSaveSettings, useSettings } from './settings';
+import { useSaveSettings, useSettings } from './settings';
 import { useApiQuery } from '@/lib/contract-query';
-import { wikiDocDetailPrefix } from './wiki-docs';
-import { wikiGovernanceKeys, wikiStatsKeys } from './wiki-query-keys';
 
 export { wikiStatsKeys } from './wiki-query-keys';
 
@@ -32,19 +29,7 @@ export function useWikiSettings() {
   return useSettings('wiki');
 }
 
-/**
- * 保存设置：响应即最新设置，直接回填缓存；只有真正变化的开关才波及其消费者——
- * 评论开关影响文档详情的 commentsEnabled，审核积压时限影响治理「审核积压」清单与运营统计。
- */
+/** 保存和历史恢复的文档、治理与运营统计联动统一由 settings hooks 处理。 */
 export function useUpdateWikiSettings() {
-  return useSaveSettings('wiki', (qc, saved) => {
-    const previous = qc.getQueryData<SettingsEnvelope<'wiki'>>(settingsKeys.module('wiki'))?.effective;
-    if (previous?.commentsEnabled !== saved.effective.commentsEnabled) {
-      void qc.invalidateQueries({ queryKey: wikiDocDetailPrefix });
-    }
-    if (previous?.pendingRemindHours !== saved.effective.pendingRemindHours) {
-      void qc.invalidateQueries({ queryKey: wikiGovernanceKeys.lists });
-      void qc.invalidateQueries({ queryKey: wikiStatsKeys.ops });
-    }
-  });
+  return useSaveSettings('wiki');
 }

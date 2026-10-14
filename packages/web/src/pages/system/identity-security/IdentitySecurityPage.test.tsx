@@ -32,6 +32,8 @@ vi.mock('@/components/SearchToolbar', () => ({ SearchToolbar: ({ children }: { c
 vi.mock('@/components/list-page', () => ({ ListSearchToolbar: () => null, listTableProps: () => ({}) }));
 vi.mock('@/components/toolbar-controls', () => ({ RefreshButton: () => null }));
 vi.mock('@/components/search-filters', () => ({ KeywordInput: () => null }));
+// 本组只验证权限驱动的 Tab 查询，不挂载版本历史与编辑工具。
+vi.mock('@/components/settings/SettingsEditorTools', () => ({ SettingsEditorTools: () => null }));
 // 会话并发字段依赖 Semi Form 上下文（useFormApi / useFormState），本测试只关心 Tab 权限与请求触发
 vi.mock('./SessionPolicyFields', () => ({ SessionPolicyFields: () => null }));
 

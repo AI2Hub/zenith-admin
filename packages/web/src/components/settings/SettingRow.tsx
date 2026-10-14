@@ -12,7 +12,7 @@ export interface SettingRowProps {
   readonly title: ReactNode;
   readonly description?: ReactNode;
   readonly control: ReactNode;
-  /** 当前值来自本作用域的显式覆盖（与上级不同），标记「已覆盖」 */
+  /** 当前值来自本作用域的显式覆盖（即使与上级相同），标记「已覆盖」 */
   readonly overridden?: boolean;
   /** 覆盖标记右侧的附加操作（如「恢复继承」） */
   readonly extra?: ReactNode;

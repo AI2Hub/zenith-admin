@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Banner, Button, Empty, Spin, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import { ExternalLink, Save, Settings2 } from 'lucide-react';
 import { emptyIllustration } from '@/components/EmptyIllustration';
+import DateTimeText from '@/components/DateTimeText';
 import {
   CAPTCHA_COMPLEXITY_LABELS,
   SETTINGS_MODULES,
@@ -15,9 +16,10 @@ import { getPreferenceValue, preferenceDefinitions } from '@zenith/shared/prefer
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
 import { NavListItem, NavListPanel } from '@/components/NavListPanel';
 import { SchemaForm, type SchemaFormProps } from '@/components/settings/SchemaForm';
+import { SettingsEditorTools } from '@/components/settings/SettingsEditorTools';
+import { useSettingsEditor } from '@/hooks/useSettingsEditor';
 import { useUrlSelectionState } from '@/hooks/useUrlSelectionState';
 import { useSaveSettings, useSettings, useSettingsModules } from '@/hooks/queries/settings';
-import { ApiError } from '@/lib/query';
 import { PreferencePolicyEditor } from './PreferencePolicyEditor';
 import { UploadMimeTypesInput } from './UploadMimeTypesInput';
 
@@ -29,6 +31,7 @@ const ENUM_LABELS: Record<string, Record<string, string>> = {
 };
 
 const SCOPE_LABELS = { platform: '平台级', tenant: '租户级' } as const;
+type ConfirmModuleLeave = (action: () => void) => void;
 const FILE_SETTINGS_CONTROLS: SchemaFormProps['controls'] = {
   uploadAllowedTypes: (props) => <UploadMimeTypesInput {...props} />,
 };
@@ -42,6 +45,7 @@ export default function SettingsPage() {
   const modulesQuery = useSettingsModules();
   const modules = useMemo(() => modulesQuery.data ?? [], [modulesQuery.data]);
   const [selectedKey, setSelectedKey] = useUrlSelectionState('module');
+  const leaveGuard = useRef<ConfirmModuleLeave>((action) => action());
   // 窄屏单栏下若沿用桌面端「默认选中首项」会直接落到详情，列表反而要点返回才能看到；
   // 布局形态参与选中派生，故用 state
   const [isNarrowLayout, setIsNarrowLayout] = useState(false);
@@ -68,7 +72,7 @@ export default function SettingsPage() {
         persistKey="system-settings"
         style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}
         showDetail={activeKey !== null}
-        onBack={() => setSelectedKey(null)}
+        onBack={() => leaveGuard.current(() => setSelectedKey(null))}
         onResponsiveChange={setIsNarrowLayout}
         master={(
           <NavListPanel<SettingsModuleMeta>
@@ -80,7 +84,7 @@ export default function SettingsPage() {
               <NavListItem
                 key={item.module}
                 active={item.module === activeKey}
-                onClick={() => setSelectedKey(item.module)}
+                onClick={() => { if (item.module !== activeKey) leaveGuard.current(() => setSelectedKey(item.module)); }}
                 icon={<Settings2 size={16} />}
                 primary={item.title}
                 secondary={item.version > 0 ? `v${item.version}` : undefined}
@@ -100,7 +104,7 @@ export default function SettingsPage() {
             )}
           />
         )}
-        detail={activeKey && activeMeta ? <ModuleDetail key={activeKey} module={activeKey} meta={activeMeta} /> : (
+        detail={activeKey && activeMeta ? <ModuleDetail key={activeKey} module={activeKey} meta={activeMeta} leaveGuard={leaveGuard} /> : (
           <div style={{ padding: 48 }}>
             <Empty {...emptyIllustration('NoContent', 120)} description="选择左侧模块查看或修改设置" />
           </div>
@@ -110,16 +114,19 @@ export default function SettingsPage() {
   );
 }
 
-function ModuleDetail({ module, meta }: { readonly module: SettingsModuleKey; readonly meta: SettingsModuleMeta }) {
+function ModuleDetail({ module, meta, leaveGuard }: { readonly module: SettingsModuleKey; readonly meta: SettingsModuleMeta; readonly leaveGuard: RefObject<ConfirmModuleLeave> }) {
   const navigate = useNavigate();
   const def = SETTINGS_MODULES[module];
   const query = useSettings(module);
   const save = useSaveSettings(module);
   const envelope = query.data;
-  const [draft, setDraft] = useState<Record<string, unknown> | null>(null);
-  useEffect(() => { setDraft(null); }, [envelope?.version]);
-  const value = useMemo(() => (draft ?? (envelope?.effective as Record<string, unknown> | undefined) ?? null), [draft, envelope]);
-  const dirty = draft !== null && JSON.stringify(draft) !== JSON.stringify(envelope?.effective);
+  const editor = useSettingsEditor(module, envelope);
+  useEffect(() => {
+    leaveGuard.current = editor.confirmLeave;
+    return () => { leaveGuard.current = (action) => action(); };
+  }, [editor.confirmLeave, leaveGuard]);
+  const value = editor.value as Record<string, unknown>;
+  const dirty = editor.dirty;
   const uiValue = module === 'ui' && value ? value as UiSettings : null;
   const savedUi = module === 'ui' && envelope ? envelope.effective as UiSettings : null;
   const changedPreferences = uiValue && savedUi ? preferenceDefinitions.filter(({ path }) =>
@@ -128,24 +135,7 @@ function ModuleDetail({ module, meta }: { readonly module: SettingsModuleKey; re
   const forcedChanges = changedPreferences.filter(({ path }) => uiValue && !getPreferenceValue(uiValue.preferences.allowUserOverride, path)).length;
 
   async function handleSave() {
-    if (!envelope || !value) return;
-    const parsed = def.schema.safeParse(value);
-    if (!parsed.success) {
-      const issue = parsed.error.issues[0];
-      Toast.error(`${issue.path.join('.') || '表单'}：${issue.message}`);
-      return;
-    }
-    try {
-      await save.mutateAsync({ body: { version: envelope.version, data: parsed.data } });
-      setDraft(null);
-      Toast.success('设置已保存');
-    } catch (err) {
-      // 409 = 他人已修改：请求层已弹出服务端文案，这里只丢弃草稿并重载最新值
-      if (err instanceof ApiError && err.code === 409) {
-        setDraft(null);
-        void query.refetch();
-      }
-    }
+    if (await editor.save((body) => save.mutateAsync({ body }))) Toast.success('设置已保存');
   }
 
   return (
@@ -163,10 +153,10 @@ function ModuleDetail({ module, meta }: { readonly module: SettingsModuleKey; re
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
           <Tag color={meta.scope === 'tenant' ? 'blue' : 'grey'}>{SCOPE_LABELS[meta.scope]}</Tag>
           {meta.feature ? <Tag>License 特性：{meta.feature}</Tag> : null}
-          {envelope ? <Tag>版本 {envelope.version}</Tag> : null}
           {meta.overriddenCount > 0 ? <Tag color="orange">{meta.overriddenCount} 项覆盖</Tag> : null}
-          {envelope?.updatedAt ? <Text type="tertiary" size="small">最后修改 {envelope.updatedAt}</Text> : null}
+          {envelope?.updatedAt ? <Text type="tertiary" size="small">最后修改 <DateTimeText value={envelope.updatedAt} /></Text> : null}
         </div>
+        <SettingsEditorTools module={module} editor={editor} canWrite={!meta.page && meta.canWrite} saving={save.isPending} onReload={query.refetch} />
 
         {meta.page ? (
           <Banner
@@ -192,16 +182,20 @@ function ModuleDetail({ module, meta }: { readonly module: SettingsModuleKey; re
             <SchemaForm
               schema={module === 'ui' ? SETTINGS_MODULES.ui.schema.omit({ preferences: true }) : def.schema}
               value={value}
-              inheritedValue={envelope.inherited as Record<string, unknown>}
-              onChange={(next) => setDraft({ ...value, ...next })}
-              disabled={Boolean(meta.page) || !meta.canWrite}
+              inheritedValue={editor.base?.inherited as Record<string, unknown>}
+              overriddenPaths={editor.overriddenPaths}
+              onFieldChange={editor.setField}
+              onRevert={editor.revert}
+              disabled={Boolean(meta.page) || !meta.canWrite || save.isPending}
               enumLabels={ENUM_LABELS}
               controls={module === 'files' ? FILE_SETTINGS_CONTROLS : undefined}
             />
             {uiValue ? <PreferencePolicyEditor
               value={uiValue.preferences}
-              onChange={(preferences) => setDraft({ ...value, preferences })}
-              disabled={!meta.canWrite}
+              onFieldChange={(path, next) => editor.setField(`preferences.${path}`, next)}
+              overriddenPaths={editor.overriddenPaths}
+              onRevert={(path) => editor.revert(`preferences.${path}`)}
+              disabled={!meta.canWrite || save.isPending}
             /> : null}
             </>
           ) : null}

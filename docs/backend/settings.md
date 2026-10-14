@@ -55,14 +55,13 @@ flowchart LR
     Tenant --> Effective["生效文档 effective"]
 ```
 
-表 `system_settings`：
+配置正文只存于不可变版本表，`system_settings` 维护当前指针：
 
 | 列 | 说明 |
 | --- | --- |
 | `module` | 模块 key |
 | `tenant_id` | `NULL` = 平台行；租户行仅 `tenant` 作用域模块会写 |
-| `data` (jsonb) | **稀疏覆盖文档**：只存与上一层不同的叶子 |
-| `version` | 行版本，每次保存 +1，写接口做乐观锁 |
+| `current_revision_id` | 指向本模块、本作用域的当前版本；复合外键防止指向其它配置头的版本 |
 | 审计列 | `created_at` / `updated_at` / `created_by` / `updated_by` |
 
 唯一约束 `(module, tenant_id)` 使用 `NULLS NOT DISTINCT`（PostgreSQL ≥ 15），平台行不会重复。
@@ -71,8 +70,21 @@ flowchart LR
 解析失败时**逐路径降级**：先丢弃校验失败的叶子再解析，仍失败则回落到完整默认值并记录 `error` 日志——
 一条坏数据只影响它自己，不会让登录或上传整体失效。
 
-保存时前端提交完整生效文档，服务端与上一层（租户 → 平台生效值；平台 → schema 默认值）做叶级 `diffSettings`，只落库差异；
-把某字段改回与上一层相同即视为「恢复继承」。`system_runtime_state` 表另存机器状态（如 CMS 主题指纹），不属于设置，也不进入本接口。
+`system_settings_revisions` 保存版本号、显式覆盖 `overrides`、当时的 `inherited` / `effective`、上级版本、定义快照与摘要、
+操作人、时间、变更字段、说明、动作（保存 / 恢复 / 初始）及恢复来源。唯一约束 `(settings_id, version)` 保证版本号不重复。
+数据库触发器拒绝修改或直接删除版本；租户 / 配置头删除时随所有者级联回收，版本不进入按时间裁剪的日志保留策略。
+
+保存请求提交 `{ baseToken, overrides, note? }`，整体替换本层覆盖。省略字段表示继承；显式写入与上级相同的值仍是覆盖，
+只有移除对应路径才是恢复继承。对象递归稀疏，数组整体替换；未知字段和不合法值返回 400。
+`baseToken` 包含模块、作用域、本层 / 平台版本指针与当前定义摘要，上级或代码默认值变化也使旧表单失效。
+同模块写入在事务级 advisory lock 内完成指纹检查、完整生效文档校验、追加版本和切换指针；相同内容及覆盖关系不生成空版本。
+保存返回持锁事务内取得的精确信封，再执行缓存失效与偏好推送。
+
+恢复使用历史的本层覆盖，继续继承当前上级；预览展示历史当时值与恢复后实际生效值，确认时再次校验指纹和当前规则。
+恢复会生成新的递增版本并记录来源，不倒退版本指针。虚拟版本 0 表示**当前**继承状态，可用于清除全部覆盖；它没有历史创建时间。
+迁移只为迁移时正在使用的配置保存初始快照，不重建此前未留存的历史。
+
+`system_runtime_state` 表另存机器状态（如 CMS 主题指纹），不属于设置，也不进入本接口。
 
 ## 服务端读取
 
@@ -88,8 +100,10 @@ const policy = await getSettings('identitySecurity', { tenantId });       // 租
 | 函数 | 用途 |
 | --- | --- |
 | `getSettings(module, { tenantId? })` | 类型化生效文档 `SettingsOf<M>`；`tenantId` 缺省时从请求上下文推导（后台任务无上下文即平台值）。进程内 `TtlCache` 按 `module + 作用域` 缓存，TTL `SETTINGS_CACHE_TTL_MS`（默认 30 s，SWR） |
-| `getSettingsEnvelope(module)` | 管理界面读取信封：`effective` / `inherited` / `overriddenPaths` / `version`；作用域取「当前用户保存时会写到哪一行」 |
-| `saveSettings(module, user, { version, data })` | 作用域与权限判定、`version` 乐观锁（不一致 409）、diff 落库、失效缓存 |
+| `getSettingsEnvelope(module)` | 信封含 `effective` / `inherited` / `overrides` / `overriddenPaths` / `version` / `currentRevisionId` / `baseToken` / `inheritedVersion` / `definitionHash`；作用域取当前编辑目标 |
+| `saveSettings(module, user, { baseToken, overrides, note? })` | 显式覆盖写入；指纹不一致 409；版本和指针原子落库 |
+| `restoreSettings(module, user, version, { baseToken, note })` | 历史覆盖复用统一写入链；恢复说明必填 |
+| `getSettingsForAllScopes(module)` | 后台保留策略等批量读者按当前版本解析全部作用域，不直接读取旧配置正文列 |
 | `getPublicSettings(tenantCode?)` / `getMySettings()` | 匿名 / 登录用户（管理员或会员）投影，按 `visibility` 与租户套餐特性过滤 |
 | `listSettingsModules(user)` | 当前用户可读的模块清单（通用设置页导航） |
 | `invalidateSettings(module)` / `resetSettingsCache()` | 失效某模块全部作用域副本 / 清空（总线回调与测试使用） |
@@ -116,8 +130,13 @@ const policy = await getSettings('identitySecurity', { tenantId });       // 租
 | `GET` | `/public?tenantCode=` | 无 | 匿名投影（登录 / 注册页）：`auth` 开关与密码规则；多租户模式下按租户编码解析租户覆盖 |
 | `GET` | `/me` | 登录 | 登录用户投影：`ui` 布局开关、密码规则、终端录屏开关、规则审批开关（带 License 门控的模块套餐未含时省略） |
 | `GET` | `/` | 登录 | 当前用户可读的模块清单：作用域、License、`canWrite`、版本、覆盖数 |
-| `GET` | `/{module-path}` | 模块 `readPermission` | 读取信封 `{ module, scope, tenantId, version, effective, inherited, overriddenPaths, updatedAt }` |
-| `PUT` | `/{module-path}` | 模块 `writePermission`，记录审计 | 整体替换：`{ version, data }`；`data` 全字段必填、未知键 400；`version` 与当前行不一致返回 409 |
+| `GET` | `/{module-path}` | 模块 `readPermission` | 读取当前版本信封 |
+| `PUT` | `/{module-path}` | 模块 `writePermission`，记录审计 | `{ baseToken, overrides, note? }`；校验失败 400，基线过期 409 |
+| `GET` | `/{module-path}/versions` | 模块 `readPermission` | 分页历史，仅加载元数据，不加载大快照 |
+| `GET` | `/{module-path}/versions/{version}` | 模块 `readPermission` | 完整版本快照；0 为虚拟当前继承态 |
+| `GET` | `/{module-path}/versions/compare?from=…&to=…` | 模块 `readPermission` | 比较生效值、继承关系、嵌套字段和数组增删 |
+| `POST` | `/{module-path}/versions/{version}/restore-preview` | 模块 `writePermission` | `{ baseToken }`，返回预览及当前规则的校验问题 |
+| `POST` | `/{module-path}/versions/{version}/restore` | 模块 `writePermission`，记录审计 | `{ baseToken, note }`，确认恢复并产生新版本 |
 
 写入作用域规则：`platform` 模块在多租户模式下只有平台管理员可写；`tenant` 模块由平台管理员按当前租户范围写、租户管理员写本租户。
 公开投影只暴露 `visibility: 'public'` 的字段，新增公开字段前评估敏感性。
@@ -130,8 +149,12 @@ const policy = await getSettings('identitySecurity', { tenantId });       // 租
 - 通用设置页 `/system/settings`（`pages/system/settings/SettingsPage.tsx`）左侧为模块清单，右侧由 `components/settings/SchemaForm.tsx`
   按模块 schema 自动渲染：布尔 → 开关、数值 → 数字输入（范围与整数约束取自 schema）、枚举 → 下拉、字符串数组 → 标签输入、嵌套对象 → 分组，
   并显示「已覆盖」标记与「恢复继承」。**新增设置项只改 shared schema，无需改页面。**
-- 有专用页面的模块（身份安全、IP 访问控制、网盘、知识库）同样读写信封，保存携带 `version`，409 时提示并重载。
-- Demo 模式（MSW）由 `mocks/handlers/settings.ts` 提供同一套接口，复用 shared 的解析 / diff / 投影函数。
+- 通用与专用页面（身份安全、IP 访问控制、网盘、知识库、行为分析）统一使用 `useSettingsEditor`：编辑时固定生效基线，
+  后台刷新与 409 保留草稿及说明；离开或切换模块时保护未保存修改。显式继承管理与变更说明由 `SettingsEditorTools` 承接。
+- `SettingsHistoryButton` 提供分页历史、快照、双版本比较和恢复预览；有脏草稿时仍可查看历史，但须先保存或放弃才能恢复。
+- 保存与恢复共用 `applySettingsSaved`：回填当前信封，失效本模块历史及 me/public/list，并触发网盘空间、知识库文档 / 治理、
+  行为分析等相关查询失效。业务联动仅在写入时加载，避免扩大登录首屏依赖。
+- Demo 模式（MSW）由 `mocks/handlers/settings.ts` 提供相同协议及不可变历史，复用 shared 的覆盖校验、快照对比和投影函数。
 
 ## 新增设置项 / 新增模块
 

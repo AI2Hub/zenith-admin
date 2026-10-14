@@ -961,10 +961,7 @@ export function useDriveSettings(enabled = true) {
   return useSettings('drive', enabled);
 }
 
-/** 保存设置：默认配额变化影响空间生效配额展示，额外失效空间列表 */
+/** 保存和历史恢复的空间联动统一由 settings hooks 处理。 */
 export function useSaveDriveSettings() {
-  return useSaveSettings('drive', (qc) => {
-    invalidateAllSpaces(qc);
-    void qc.invalidateQueries({ queryKey: driveKeys.adminSpacesPrefix });
-  });
+  return useSaveSettings('drive');
 }

@@ -7,6 +7,8 @@ import {
   publicSettingsSchema,
   settingsContract,
   settingsGetOp,
+  settingsHistoryOps,
+  diffSettingsSnapshots,
   settingsUpdateOp,
   type MySettings,
   type PublicSettings,
@@ -16,8 +18,7 @@ import {
   type SettingsUpdateOperation,
 } from '@zenith/shared/settings';
 import { mock } from '@/mocks/utils/contract';
-import { conflict } from '@/mocks/utils/handlers';
-import { getMockSettings, mockSettingsEnvelope, mockSettingsVersion, putMockSettings } from '@/mocks/data/settings';
+import { getMockSettings, mockSettingsEnvelope, mockSettingsRevision, mockSettingsRevisions, previewMockSettingsRestore, putMockSettings } from '@/mocks/data/settings';
 import { mockDriveSettings } from '@/mocks/data/drive';
 import { mockWikiSettings } from '@/mocks/data/wiki';
 
@@ -47,13 +48,26 @@ function syncDomainMirrors(module: SettingsModuleKey) {
 }
 
 function moduleHandlers<M extends SettingsModuleKey>(module: M) {
+  const history = settingsHistoryOps(module);
   return [
     mock(settingsGetOp(module) as unknown as SettingsGetOperation<M>, ({ ok }) => ok(mockSettingsEnvelope(module))),
     mock(settingsUpdateOp(module) as unknown as SettingsUpdateOperation<M>, ({ body, ok }) => {
-      if (body.version !== mockSettingsVersion(module)) return conflict('设置已被他人修改，请刷新后重试', { status: 409 });
-      const saved = putMockSettings(module, body.data);
+      const saved = putMockSettings(module, body);
       syncDomainMirrors(module);
       return ok(saved, '保存成功');
+    }),
+    mock(history.list, ({ ok, paginate }) => ok(paginate(mockSettingsRevisions(module)))),
+    mock(history.compare, ({ query, ok }) => {
+      const from = mockSettingsRevision(module, query.from);
+      const to = mockSettingsRevision(module, query.to);
+      return ok({ fromVersion: query.from, toVersion: query.to, changes: diffSettingsSnapshots(from, to, to.definition, from.definition) });
+    }),
+    mock(history.detail, ({ params, ok }) => ok(mockSettingsRevision(module, params.version))),
+    mock(history.preview, ({ params, body, ok }) => ok(previewMockSettingsRestore(module, params.version, body.baseToken))),
+    mock(history.restore, ({ params, body, ok }) => {
+      const saved = putMockSettings(module, { ...body, overrides: {} }, params.version);
+      syncDomainMirrors(module);
+      return ok(saved, '恢复成功');
     }),
   ];
 }

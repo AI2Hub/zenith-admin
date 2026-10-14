@@ -1,43 +1,28 @@
-import { useEffect, useState } from 'react';
 import { Button, InputNumber, Spin, Switch, TagInput, Toast, Typography } from '@douyinfe/semi-ui';
-import { driveSettingsSchema, type DriveSettings } from '@zenith/shared/settings';
+import type { DriveSettings } from '@zenith/shared/settings';
 import { usePermission } from '@/hooks/usePermission';
 import { useDriveSettings, useSaveDriveSettings } from '@/hooks/queries/drive';
 import { SettingDivider, SettingRow, SettingSection } from '@/components/settings/SettingRow';
-import { ApiError } from '@/lib/query';
+import { SettingsEditorTools } from '@/components/settings/SettingsEditorTools';
+import { useSettingsEditor } from '@/hooks/useSettingsEditor';
 
 const { Text, Title } = Typography;
-
-/** 默认值以 shared schema 为唯一真相 */
-const DEFAULTS: DriveSettings = driveSettingsSchema.parse({});
 
 /** 页面级全局配置表单（无弹窗、保存后不关闭），不走 useEditModal；设置由运行时设置 drive 模块承载 */
 export default function DriveAdminSettingsPage() {
   const { hasPermission } = usePermission();
-  const canEdit = hasPermission('drive:setting:edit');
   const query = useDriveSettings();
   const save = useSaveDriveSettings();
+  const canEdit = hasPermission('drive:setting:edit');
   const envelope = query.data;
-  const [form, setForm] = useState<DriveSettings>(DEFAULTS);
-  useEffect(() => { if (envelope) setForm(envelope.effective); }, [envelope]);
-  const patch = <K extends keyof DriveSettings>(key: K, value: DriveSettings[K]) => setForm((p) => ({ ...p, [key]: value }));
+  const editor = useSettingsEditor('drive', envelope);
+  const form = editor.value;
+  const patch = <K extends keyof DriveSettings>(key: K, value: DriveSettings[K]) => editor.setField(key, value);
   const num = (v: unknown, fallback: number) => (typeof v === 'number' && Number.isFinite(v) ? v : fallback);
-  const overridden = (key: keyof DriveSettings) => !!envelope && JSON.stringify(envelope.effective[key]) !== JSON.stringify(envelope.inherited[key]);
+  const overridden = (key: keyof DriveSettings) => editor.overriddenPaths.includes(key);
 
   const handleSave = async () => {
-    const parsed = driveSettingsSchema.safeParse(form);
-    if (!parsed.success) {
-      const issue = parsed.error.issues[0];
-      Toast.error(`${issue.path.join('.')}：${issue.message}`);
-      return;
-    }
-    try {
-      await save.mutateAsync({ body: { version: envelope?.version ?? 0, data: parsed.data } });
-      Toast.success('设置已保存');
-    } catch (err) {
-      // 409 = 他人已修改：请求层已提示，重载最新值供比对后再保存
-      if (err instanceof ApiError && err.code === 409) void query.refetch();
-    }
+    if (await editor.save((body) => save.mutateAsync({ body }))) Toast.success('设置已保存');
   };
 
   return (
@@ -48,37 +33,38 @@ export default function DriveAdminSettingsPage() {
             <Title heading={5} style={{ margin: 0 }}>网盘设置</Title>
             <Text type="tertiary">容量配额、版本与回收策略、外链安全与内容处理{envelope?.tenantId != null ? '；当前为租户级覆盖，未修改的项跟随平台值' : ''}</Text>
           </div>
+          <SettingsEditorTools module="drive" editor={editor} canWrite={hasPermission('drive:setting:edit')} saving={save.isPending} onReload={query.refetch} />
 
           <SettingSection title="容量配额（GB，0 = 不限）">
-            <SettingRow title="个人空间默认配额" description="新建及未单独设置配额的个人空间生效" overridden={overridden('personalQuotaGb')} control={<InputNumber style={{ width: 140 }} min={0} precision={2} disabled={!canEdit} value={form.personalQuotaGb} onChange={(v) => patch('personalQuotaGb', num(v, 0))} suffix="GB" />} />
+            <SettingRow title="个人空间默认配额" description="新建及未单独设置配额的个人空间生效" overridden={overridden('personalQuotaGb')} control={<InputNumber style={{ width: 140 }} min={0} precision={2} disabled={!canEdit || save.isPending} value={form.personalQuotaGb} onChange={(v) => patch('personalQuotaGb', num(v, 0))} suffix="GB" />} />
             <SettingDivider />
-            <SettingRow title="部门空间默认配额" description="部门空间未单独设置配额时生效" overridden={overridden('departmentQuotaGb')} control={<InputNumber style={{ width: 140 }} min={0} precision={2} disabled={!canEdit} value={form.departmentQuotaGb} onChange={(v) => patch('departmentQuotaGb', num(v, 0))} suffix="GB" />} />
+            <SettingRow title="部门空间默认配额" description="部门空间未单独设置配额时生效" overridden={overridden('departmentQuotaGb')} control={<InputNumber style={{ width: 140 }} min={0} precision={2} disabled={!canEdit || save.isPending} value={form.departmentQuotaGb} onChange={(v) => patch('departmentQuotaGb', num(v, 0))} suffix="GB" />} />
             <SettingDivider />
-            <SettingRow title="协作空间默认配额" description="协作空间未单独设置配额时生效" overridden={overridden('teamQuotaGb')} control={<InputNumber style={{ width: 140 }} min={0} precision={2} disabled={!canEdit} value={form.teamQuotaGb} onChange={(v) => patch('teamQuotaGb', num(v, 0))} suffix="GB" />} />
+            <SettingRow title="协作空间默认配额" description="协作空间未单独设置配额时生效" overridden={overridden('teamQuotaGb')} control={<InputNumber style={{ width: 140 }} min={0} precision={2} disabled={!canEdit || save.isPending} value={form.teamQuotaGb} onChange={(v) => patch('teamQuotaGb', num(v, 0))} suffix="GB" />} />
             <SettingDivider />
-            <SettingRow title="配额预警阈值" description="用量达到该百分比时通知空间管理者" overridden={overridden('quotaWarningPercent')} control={<InputNumber style={{ width: 140 }} min={50} max={100} disabled={!canEdit} value={form.quotaWarningPercent} onChange={(v) => patch('quotaWarningPercent', num(v, 90))} suffix="%" />} />
+            <SettingRow title="配额预警阈值" description="用量达到该百分比时通知空间管理者" overridden={overridden('quotaWarningPercent')} control={<InputNumber style={{ width: 140 }} min={50} max={100} disabled={!canEdit || save.isPending} value={form.quotaWarningPercent} onChange={(v) => patch('quotaWarningPercent', num(v, 90))} suffix="%" />} />
             <SettingDivider />
-            <SettingRow title="自动创建部门空间" description="用户首次访问网盘时，为其所属部门自动创建部门空间" overridden={overridden('departmentSpaceAutoCreate')} control={<Switch disabled={!canEdit} checked={form.departmentSpaceAutoCreate} onChange={(v) => patch('departmentSpaceAutoCreate', v)} />} />
+            <SettingRow title="自动创建部门空间" description="用户首次访问网盘时，为其所属部门自动创建部门空间" overridden={overridden('departmentSpaceAutoCreate')} control={<Switch disabled={!canEdit || save.isPending} checked={form.departmentSpaceAutoCreate} onChange={(v) => patch('departmentSpaceAutoCreate', v)} />} />
           </SettingSection>
 
           <SettingSection title="版本与回收">
-            <SettingRow title="最多保留版本数" description="超出时自动清理最早的历史版本并释放容量；空间可单独覆盖" overridden={overridden('maxVersions')} control={<InputNumber style={{ width: 140 }} min={1} max={200} disabled={!canEdit} value={form.maxVersions} onChange={(v) => patch('maxVersions', num(v, 20))} suffix="个" />} />
+            <SettingRow title="最多保留版本数" description="超出时自动清理最早的历史版本并释放容量；空间可单独覆盖" overridden={overridden('maxVersions')} control={<InputNumber style={{ width: 140 }} min={1} max={200} disabled={!canEdit || save.isPending} value={form.maxVersions} onChange={(v) => patch('maxVersions', num(v, 20))} suffix="个" />} />
             <SettingDivider />
-            <SettingRow title="回收站保留天数" description="超期项目由每日治理任务彻底删除；0 表示永久保留" overridden={overridden('recycleRetentionDays')} control={<InputNumber style={{ width: 140 }} min={0} max={3650} disabled={!canEdit} value={form.recycleRetentionDays} onChange={(v) => patch('recycleRetentionDays', num(v, 30))} suffix="天" />} />
+            <SettingRow title="回收站保留天数" description="超期项目由每日治理任务彻底删除；0 表示永久保留" overridden={overridden('recycleRetentionDays')} control={<InputNumber style={{ width: 140 }} min={0} max={3650} disabled={!canEdit || save.isPending} value={form.recycleRetentionDays} onChange={(v) => patch('recycleRetentionDays', num(v, 30))} suffix="天" />} />
           </SettingSection>
 
           <SettingSection title="外链分享">
-            <SettingRow title="允许外链分享" description="关闭后全站禁止创建新外链，已有外链仍按各自状态生效" overridden={overridden('externalShareEnabled')} control={<Switch disabled={!canEdit} checked={form.externalShareEnabled} onChange={(v) => patch('externalShareEnabled', v)} />} />
+            <SettingRow title="允许外链分享" description="关闭后全站禁止创建新外链，已有外链仍按各自状态生效" overridden={overridden('externalShareEnabled')} control={<Switch disabled={!canEdit || save.isPending} checked={form.externalShareEnabled} onChange={(v) => patch('externalShareEnabled', v)} />} />
             <SettingDivider />
-            <SettingRow title="外链最长有效期" description="创建外链时必须设置不超过该天数的过期时间；0 表示允许永久有效" overridden={overridden('externalShareMaxDays')} control={<InputNumber style={{ width: 140 }} min={0} max={3650} disabled={!canEdit} value={form.externalShareMaxDays} onChange={(v) => patch('externalShareMaxDays', num(v, 30))} suffix="天" />} />
+            <SettingRow title="外链最长有效期" description="创建外链时必须设置不超过该天数的过期时间；0 表示允许永久有效" overridden={overridden('externalShareMaxDays')} control={<InputNumber style={{ width: 140 }} min={0} max={3650} disabled={!canEdit || save.isPending} value={form.externalShareMaxDays} onChange={(v) => patch('externalShareMaxDays', num(v, 30))} suffix="天" />} />
             <SettingDivider />
-            <SettingRow title="外链必须设置密码" description="开启后不允许创建无密码的外链" overridden={overridden('externalShareRequirePassword')} control={<Switch disabled={!canEdit} checked={form.externalShareRequirePassword} onChange={(v) => patch('externalShareRequirePassword', v)} />} />
+            <SettingRow title="外链必须设置密码" description="开启后不允许创建无密码的外链" overridden={overridden('externalShareRequirePassword')} control={<Switch disabled={!canEdit || save.isPending} checked={form.externalShareRequirePassword} onChange={(v) => patch('externalShareRequirePassword', v)} />} />
             <SettingDivider />
-            <SettingRow title="文件收集单文件上限" description="匿名提交为单请求上传；收集链接可在此上限内单独收紧" overridden={overridden('collectMaxFileSizeMb')} control={<InputNumber style={{ width: 140 }} min={1} max={10_240} disabled={!canEdit} value={form.collectMaxFileSizeMb} onChange={(v) => patch('collectMaxFileSizeMb', num(v, 100))} suffix="MB" />} />
+            <SettingRow title="文件收集单文件上限" description="匿名提交为单请求上传；收集链接可在此上限内单独收紧" overridden={overridden('collectMaxFileSizeMb')} control={<InputNumber style={{ width: 140 }} min={1} max={10_240} disabled={!canEdit || save.isPending} value={form.collectMaxFileSizeMb} onChange={(v) => patch('collectMaxFileSizeMb', num(v, 100))} suffix="MB" />} />
             <SettingDivider />
-            <SettingRow title="到期提前提醒" description="外链与临时授权到期前提醒创建者 / 被授权人；0 表示关闭" overridden={overridden('shareExpiryReminderHours')} control={<InputNumber style={{ width: 140 }} min={0} max={720} disabled={!canEdit} value={form.shareExpiryReminderHours} onChange={(v) => patch('shareExpiryReminderHours', num(v, 24))} suffix="小时" />} />
+            <SettingRow title="到期提前提醒" description="外链与临时授权到期前提醒创建者 / 被授权人；0 表示关闭" overridden={overridden('shareExpiryReminderHours')} control={<InputNumber style={{ width: 140 }} min={0} max={720} disabled={!canEdit || save.isPending} value={form.shareExpiryReminderHours} onChange={(v) => patch('shareExpiryReminderHours', num(v, 24))} suffix="小时" />} />
             <SettingDivider />
-            <SettingRow title="站内预览水印" description="登录用户在线预览时叠加「姓名 · 账号 · 日期」水印（外链水印在各外链上单独开启）" overridden={overridden('previewWatermarkEnabled')} control={<Switch disabled={!canEdit} checked={form.previewWatermarkEnabled} onChange={(v) => patch('previewWatermarkEnabled', v)} />} />
+            <SettingRow title="站内预览水印" description="登录用户在线预览时叠加「姓名 · 账号 · 日期」水印（外链水印在各外链上单独开启）" overridden={overridden('previewWatermarkEnabled')} control={<Switch disabled={!canEdit || save.isPending} checked={form.previewWatermarkEnabled} onChange={(v) => patch('previewWatermarkEnabled', v)} />} />
           </SettingSection>
 
           <SettingSection title="内容处理">
@@ -89,7 +75,7 @@ export default function DriveAdminSettingsPage() {
               control={(
                 <TagInput
                   style={{ width: 320, maxWidth: '100%' }}
-                  disabled={!canEdit}
+                  disabled={!canEdit || save.isPending}
                   value={form.blockedExtensions}
                   allowDuplicates={false}
                   separator={[',', ' ', '\n']}
@@ -100,23 +86,22 @@ export default function DriveAdminSettingsPage() {
               )}
             />
             <SettingDivider />
-            <SettingRow title="生成缩略图" description="图片上传后异步生成缩略图，用于网格视图预览" overridden={overridden('thumbnailEnabled')} control={<Switch disabled={!canEdit} checked={form.thumbnailEnabled} onChange={(v) => patch('thumbnailEnabled', v)} />} />
+            <SettingRow title="生成缩略图" description="图片上传后异步生成缩略图，用于网格视图预览" overridden={overridden('thumbnailEnabled')} control={<Switch disabled={!canEdit || save.isPending} checked={form.thumbnailEnabled} onChange={(v) => patch('thumbnailEnabled', v)} />} />
             <SettingDivider />
-            <SettingRow title="全文索引" description="提取文档正文建立全文索引，支持按内容搜索；关闭后仅按文件名搜索" overridden={overridden('textIndexEnabled')} control={<Switch disabled={!canEdit} checked={form.textIndexEnabled} onChange={(v) => patch('textIndexEnabled', v)} />} />
+            <SettingRow title="全文索引" description="提取文档正文建立全文索引，支持按内容搜索；关闭后仅按文件名搜索" overridden={overridden('textIndexEnabled')} control={<Switch disabled={!canEdit || save.isPending} checked={form.textIndexEnabled} onChange={(v) => patch('textIndexEnabled', v)} />} />
           </SettingSection>
 
           <SettingSection title="异常行为告警（平台值，租户覆盖不生效）">
-            <SettingRow title="统计窗口" description="批量下载与外链爆破按该滑动窗口计数，每 5 分钟扫描一次" overridden={overridden('alertWindowMinutes')} control={<InputNumber style={{ width: 140 }} min={5} max={1440} disabled={!canEdit} value={form.alertWindowMinutes} onChange={(v) => patch('alertWindowMinutes', num(v, 10))} suffix="分钟" />} />
+            <SettingRow title="统计窗口" description="批量下载与外链爆破按该滑动窗口计数，每 5 分钟扫描一次" overridden={overridden('alertWindowMinutes')} control={<InputNumber style={{ width: 140 }} min={5} max={1440} disabled={!canEdit || save.isPending} value={form.alertWindowMinutes} onChange={(v) => patch('alertWindowMinutes', num(v, 10))} suffix="分钟" />} />
             <SettingDivider />
-            <SettingRow title="批量下载告警阈值" description="同一用户或 IP 在窗口内下载次数达到该值即通知网盘管理员；0 表示关闭" overridden={overridden('alertBulkDownloadCount')} control={<InputNumber style={{ width: 140 }} min={0} max={100_000} disabled={!canEdit} value={form.alertBulkDownloadCount} onChange={(v) => patch('alertBulkDownloadCount', num(v, 200))} suffix="次" />} />
+            <SettingRow title="批量下载告警阈值" description="同一用户或 IP 在窗口内下载次数达到该值即通知网盘管理员；0 表示关闭" overridden={overridden('alertBulkDownloadCount')} control={<InputNumber style={{ width: 140 }} min={0} max={100_000} disabled={!canEdit || save.isPending} value={form.alertBulkDownloadCount} onChange={(v) => patch('alertBulkDownloadCount', num(v, 200))} suffix="次" />} />
             <SettingDivider />
-            <SettingRow title="外链爆破告警阈值" description="同一 IP 或同一外链在窗口内被拒绝（密码错误 / IP 拦截等）次数达到该值即告警；0 表示关闭" overridden={overridden('alertShareFailureCount')} control={<InputNumber style={{ width: 140 }} min={0} max={100_000} disabled={!canEdit} value={form.alertShareFailureCount} onChange={(v) => patch('alertShareFailureCount', num(v, 30))} suffix="次" />} />
+            <SettingRow title="外链爆破告警阈值" description="同一 IP 或同一外链在窗口内被拒绝（密码错误 / IP 拦截等）次数达到该值即告警；0 表示关闭" overridden={overridden('alertShareFailureCount')} control={<InputNumber style={{ width: 140 }} min={0} max={100_000} disabled={!canEdit || save.isPending} value={form.alertShareFailureCount} onChange={(v) => patch('alertShareFailureCount', num(v, 30))} suffix="次" />} />
           </SettingSection>
 
           {canEdit && (
             <div style={{ marginTop: 24, display: 'flex', gap: 8 }}>
-              <Button theme="solid" loading={save.isPending} onClick={() => void handleSave()}>保存设置</Button>
-              <Button onClick={() => { if (envelope) setForm(envelope.effective); }} disabled={save.isPending}>重置</Button>
+              <Button theme="solid" disabled={!editor.dirty} loading={save.isPending} onClick={() => void handleSave()}>保存设置</Button>
             </div>
           )}
         </div>
