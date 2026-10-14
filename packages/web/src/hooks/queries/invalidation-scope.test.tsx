@@ -1,7 +1,7 @@
 /**
  * cms 站点域与 payment-contracts 域的失效粒度契约
  *
- * 两个域收敛前都用 `xxxKeys.all` 广播，把与本次改动无因果关系、且带长 staleTime
+ * 不用 `xxxKeys.all` 广播，避免把无因果关系、且带长 staleTime
  * 的下拉源/元数据一并打回源：
  *  - `cmsSiteKeys.all` 覆盖主题元数据（themes / themeTemplates / themeSettingsSchema，
  *    均为 `LOOKUP_STALE_TIME` 5 分钟）与站点下拉源 `allSites`

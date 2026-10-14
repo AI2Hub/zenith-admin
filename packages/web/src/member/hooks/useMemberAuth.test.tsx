@@ -1,5 +1,5 @@
 /**
- * useMemberAuth 单元测试（聚焦本次改动：logout() 的埋点身份收尾）
+ * useMemberAuth 单元测试（覆盖 logout() 的埋点身份收尾）
  *
  * 覆盖要点：
  *  1. logout() 会在移除 MEMBER token 之前调用 prepareTrackerLogout()（尽力用旧身份 flush 队列）

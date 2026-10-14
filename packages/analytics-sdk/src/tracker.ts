@@ -797,8 +797,8 @@ export function prepareTrackerLogout(): void { tracker.prepareLogout(); }
 
 // ─── 页面停留生命周期（SDK 统一权威）─────────────────────────────────────────
 // usePageTracker 只报路由边界；可见时长累计、滚动深度、整页卸载（pagehide）兜底都在这里维护。
-// 旧实现把时长统计放在 React effect cleanup 里，整页刷新 / 关标签 / 直达 URL 不执行 cleanup，
-// 导致所有以 full-reload 结束的访问停留数据全部丢失（页面停留 / 会话时长 / 跳出率系统性失真）。
+// 时长统计不放在 React effect cleanup 里（整页刷新 / 关标签 / 直达 URL 不执行 cleanup，
+// 否则所有以 full-reload 结束的访问停留数据全部丢失：页面停留 / 会话时长 / 跳出率系统性失真）。
 interface CurrentPageContext { path: string; title?: string; visibleMs: number; visibleSince: number | null }
 
 let currentPage: CurrentPageContext | null = null;
