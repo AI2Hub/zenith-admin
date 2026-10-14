@@ -40,10 +40,8 @@ ORDER BY user_count DESC;`,
 ];
 
 export const dbQueryFavoritesHandlers = [
-  // 获取收藏夹列表
   mock(dbAdminContract.favorites, ({ ok }) => ok([...mockFavorites], 'success')),
 
-  // 新增收藏
   mock(dbAdminContract.createFavorite, ({ body, ok }) => {
     const now = mockDateTime();
     const newFav: DbQueryFavorite = {
@@ -59,7 +57,6 @@ export const dbQueryFavoritesHandlers = [
     return ok(newFav, 'success', { status: 201 });
   }),
 
-  // 更新收藏
   mock(dbAdminContract.updateFavorite, ({ params, body, ok }) => {
     const idx = mockFavorites.findIndex((f) => f.id === params.id);
     if (idx === -1) {
@@ -78,7 +75,6 @@ export const dbQueryFavoritesHandlers = [
     return ok(updated, 'success');
   }),
 
-  // 删除收藏
   mock(dbAdminContract.removeFavorite, ({ params, ok }) => {
     const idx = mockFavorites.findIndex((f) => f.id === params.id);
     if (idx !== -1) {

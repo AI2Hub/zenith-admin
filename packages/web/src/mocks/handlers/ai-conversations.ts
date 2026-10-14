@@ -58,7 +58,6 @@ export const aiConversationsHandlers = [
     return ok(sorted);
   }),
 
-  // 创建对话
   mock(aiConversationContract.create, ({ body, ok }) => {
     const now = mockDateTime();
     const newConv: AiConversation = {
@@ -127,7 +126,6 @@ export const aiConversationsHandlers = [
     return ok(null, '处理成功');
   }),
 
-  // 更新对话标签
   mock(aiConversationContract.setTags, ({ params, body, ok }) => {
     const conv = requireItem(convStore, params.id, '对话不存在', { status: 404 });
     conv.tags = body.tags.slice(0, 10);
@@ -186,13 +184,11 @@ export const aiConversationsHandlers = [
     return ok({ systemPromptOverride: value });
   }),
 
-  // 获取单条对话
   mock(aiConversationContract.detail, ({ params, ok }) => {
     const conv = requireItem(convStore, params.id, '对话不存在', { status: 404 });
     return ok(conv);
   }),
 
-  // 删除对话
   mock(aiConversationContract.remove, ({ params, ok }) => {
     requireItem(convStore, params.id, '对话不存在', { status: 404 });
     removeByIds(convStore, [params.id]);
@@ -200,7 +196,6 @@ export const aiConversationsHandlers = [
     return ok(null, '删除成功');
   }),
 
-  // 获取消息列表
   mock(aiConversationContract.messages, ({ params, ok }) => ok(msgStore[params.id] ?? [])),
 
   // 导出对话（Markdown / JSON）

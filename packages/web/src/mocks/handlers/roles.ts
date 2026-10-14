@@ -19,7 +19,6 @@ export const rolesHandlers = [
     exclude: ['create', 'update', 'remove'],
   }),
 
-  // 新增角色
   mock(roleContract.create, ({ body, ok }) => {
     if (body.code === 'super_admin') {
       return badRequest('角色编码 super_admin 为系统保留编码，不允许使用', { status: 400 });
@@ -40,7 +39,6 @@ export const rolesHandlers = [
     return ok(newRole, '新增成功');
   }),
 
-  // 更新角色
   mock(roleContract.update, ({ params, body, ok }) => {
     const role = requireItem(mockRoles, params.id, '角色不存在', { status: 404 });
     if (body.code !== undefined && body.code !== role.code) {
@@ -71,7 +69,6 @@ export const rolesHandlers = [
     return ok(null, '删除成功');
   }),
 
-  // 更新角色菜单
   mock(roleContract.assignMenus, ({ params, body, ok }) => {
     const role = requireItem(mockRoles, params.id, '角色不存在', { status: 404 });
     role.menuIds = body.menuIds;
@@ -79,7 +76,6 @@ export const rolesHandlers = [
     return ok(null, '菜单权限更新成功');
   }),
 
-  // 获取角色下的用户列表
   mock(roleContract.users, ({ params, ok }) => {
     const roleId = params.id;
     requireItem(mockRoles, roleId, '角色不存在', { status: 404 });

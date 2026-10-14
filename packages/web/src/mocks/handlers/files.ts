@@ -324,7 +324,6 @@ export const filesHandlers = [
     return ok(null, '存储连接测试通过');
   }),
 
-  // 获取单个存储配置
   mock(fileStorageConfigContract.detail, ({ params, ok }) => {
     const config = requireItem(mockFileStorageConfigs, params.id, '存储配置不存在');
     return ok(stripStorageSecrets(config));
@@ -344,7 +343,6 @@ export const filesHandlers = [
     return ok(stripStorageSecrets(newConfig), '新增成功');
   }),
 
-  // 更新存储配置
   mock(fileStorageConfigContract.update, ({ params, body, ok }) => {
     const config = requireItem(mockFileStorageConfigs, params.id, '存储配置不存在');
     // 密钥留空表示不修改，删除空密钥字段后再合并（write-only）
@@ -356,7 +354,6 @@ export const filesHandlers = [
     return ok(stripStorageSecrets(config), '更新成功');
   }),
 
-  // 删除存储配置
   mock(fileStorageConfigContract.remove, ({ params, ok }) => {
     requireItem(mockFileStorageConfigs, params.id, '存储配置不存在');
     removeByIds(mockFileStorageConfigs, [params.id]);

@@ -13,7 +13,6 @@ const BASE = oauth2AuthContract.basePath;
 const accessTokens = new Map<string, { userId: number; clientId: string; scopes: string[] }>();
 
 export const oauth2AuthHandlers = [
-  // 查询应用授权信息
   mock(oauth2AuthContract.authorizeInfo, ({ query, ok }) => {
     const requestedScopes = query.scope.split(' ').filter(Boolean);
     return ok({

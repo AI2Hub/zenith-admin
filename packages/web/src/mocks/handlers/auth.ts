@@ -187,7 +187,6 @@ export const authHandlers = [
     });
   }),
 
-  // 修改个人资料
   mock(authContract.updateProfile, ({ body, ok }) => {
     const user = mockUsers[0];
     Object.assign(user, body, { updatedAt: mockDateTime() });
@@ -195,7 +194,6 @@ export const authHandlers = [
     return ok(userWithoutPassword, '保存成功');
   }),
 
-  // 修改密码
   mock(authContract.changePassword, ({ body, ok }) => {
     const user = mockUsers[0];
     if (body.oldPassword !== user.password) {
@@ -340,7 +338,6 @@ export const authHandlers = [
     return ok(null, '验证通过');
   }),
 
-  // 获取偏好设置
   mock(authContract.preferences, ({ ok }) => {
     return ok(mockPreferencesStore);
   }),
@@ -359,12 +356,10 @@ export const authHandlers = [
     return ok(mockPreferencesStore, '已保存');
   }),
 
-  // 获取收藏菜单
   mock(authContract.favoriteMenus, ({ ok }) => {
     return ok(mockFavoriteMenusStore);
   }),
 
-  // 更新收藏菜单
   mock(authContract.saveFavoriteMenus, ({ body, ok }) => {
     mockFavoriteMenusStore = body.menuIds;
     return ok(mockFavoriteMenusStore, '已更新');

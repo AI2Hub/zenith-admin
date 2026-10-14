@@ -71,7 +71,6 @@ export const userFeedbacksHandlers = [
     return ok(null, `已删除 ${deleted} 条记录`);
   }),
 
-  // 删除
   mock(userFeedbackContract.remove, ({ params, ok }) => {
     const idx = mockUserFeedbacks.findIndex((f) => f.id === params.id);
     if (idx === -1) {

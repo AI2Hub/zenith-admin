@@ -31,7 +31,6 @@ export const regionsHandlers = [
     return ok(region);
   }),
 
-  // 创建
   mock(regionContract.create, ({ body, ok }) => {
     const levelError = validateLevelHierarchy(body.level, body.parentCode);
     if (levelError) return badRequest(levelError, { status: 400 });
@@ -51,7 +50,6 @@ export const regionsHandlers = [
     return ok(newRegion, '创建成功');
   }),
 
-  // 更新
   mock(regionContract.update, ({ params, body, ok }) => {
     const region = mockRegions.find((r) => r.id === params.id);
     if (!region) {
@@ -65,7 +63,6 @@ export const regionsHandlers = [
     return ok(region, '更新成功');
   }),
 
-  // 删除
   mock(regionContract.remove, ({ params, ok }) => {
     const region = mockRegions.find((r) => r.id === params.id);
     if (!region) {

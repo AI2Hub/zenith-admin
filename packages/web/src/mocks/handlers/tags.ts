@@ -13,6 +13,5 @@ export const tagsHandlers = [
     messages: { removeBatch: (count) => `已删除 ${count} 条标签` },
   }),
 
-  // 获取分组列表
   mock(tagContract.groups, ({ ok }) => ok(getTagGroups())),
 ];

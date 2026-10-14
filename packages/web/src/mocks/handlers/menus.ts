@@ -30,7 +30,6 @@ export const menusHandlers = [
     exclude: ['create', 'remove'],
   }),
 
-  // 新增菜单
   mock(menuContract.create, ({ body, ok }) => {
     const newMenu: Menu = {
       id: getNextMenuId(),

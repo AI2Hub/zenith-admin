@@ -47,7 +47,6 @@ export const bizPayDemoHandlers = [
     return ok(demo, '创建成功');
   }),
 
-  // 删除
   mock(bizPayDemoContract.remove, ({ params, ok }) => {
     const item = requireItem(mockBizPayDemos, params.id, '示例单不存在');
     if (item.status === 'paid') return badRequest('已支付的示例单不可删除');

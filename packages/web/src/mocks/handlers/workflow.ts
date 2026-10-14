@@ -1506,7 +1506,6 @@ export const workflowHandlers = [
     return ok(report);
   }),
 
-  // 获取单个流程定义
   mock(workflowDefinitionContract.detail, ({ params, ok }) => {
     const def = mockWorkflowDefinitions.find(d => d.id === params.id);
     if (!def) return notFound('流程定义不存在');
@@ -1543,7 +1542,6 @@ export const workflowHandlers = [
     return ok(resolveWorkflowDefinition(newDef));
   }),
 
-  // 更新流程定义
   mock(workflowDefinitionContract.update, ({ params, body, ok }) => {
     const idx = mockWorkflowDefinitions.findIndex(d => d.id === params.id);
     if (idx === -1) return notFound('流程定义不存在');
@@ -1710,7 +1708,6 @@ export const workflowHandlers = [
     return ok(resolveWorkflowDefinition(mockWorkflowDefinitions[idx]));
   }),
 
-  // 删除流程定义
   mock(workflowDefinitionContract.remove, ({ params, ok }) => {
     const idx = mockWorkflowDefinitions.findIndex(d => d.id === params.id);
     if (idx === -1) return notFound('流程定义不存在');

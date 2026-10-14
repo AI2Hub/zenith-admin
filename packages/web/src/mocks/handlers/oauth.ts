@@ -12,7 +12,6 @@ export const oauthHandlers = [
     return ok([...OAUTH_PROVIDERS]);
   }),
 
-  // 获取登录授权链接
   mock(oauthContract.authUrl, ({ params, ok }) => {
     return ok({
       authUrl: `https://example.com/oauth/${params.provider}?demo=true`,

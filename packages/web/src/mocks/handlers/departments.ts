@@ -65,7 +65,6 @@ export const departmentsHandlers = [
     exclude: ['create', 'remove'],
   }),
 
-  // 新增部门
   mock(departmentContract.create, ({ body, ok }) => {
     const newDept: Department = {
       id: getNextDeptId(),
@@ -78,7 +77,6 @@ export const departmentsHandlers = [
     return ok(newDept, '新增成功');
   }),
 
-  // 删除部门
   mock(departmentContract.remove, ({ params, ok }) => {
     requireItem(mockDepartments, params.id, '部门不存在', { status: 404 });
     removeByIds(mockDepartments, [params.id]);

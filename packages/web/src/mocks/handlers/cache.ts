@@ -215,7 +215,6 @@ export const cacheHandlers = [
     return ok(null, '修改成功');
   }),
 
-  // 批量删除 key
   mock(cacheContract.removeKeys, ({ body, ok }) => {
     const keys = new Set(body.keys);
     const count = removeWhere(mockCacheItems, (item) => keys.has(item.key));

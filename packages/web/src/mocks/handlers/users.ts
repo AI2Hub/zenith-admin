@@ -86,7 +86,6 @@ export const usersHandlers = [
     return ok({ ...paged, list: paged.list.map((u) => ({ ...toUserResponse(u), isOnline: onlineUserIds.has(u.id), lastActiveAt: lastActiveMap.get(u.id) ?? null })) });
   }),
 
-  // 新增用户
   mock(userContract.create, ({ body, ok }) => {
     const newUser: MockUser = {
       id: getNextUserId(),
@@ -111,7 +110,6 @@ export const usersHandlers = [
     return ok(toUserResponse(newUser), '新增成功');
   }),
 
-  // 批量删除用户
   mock(userContract.removeBatch, ({ body, ok }) => {
     const ids = new Set(body.ids);
     if (ids.size === 0) return badRequest('请选择要删除的用户', { status: 400 });
@@ -155,13 +153,11 @@ export const usersHandlers = [
     return ok(null, 'success');
   }),
 
-  // 获取单个用户
   mock(userContract.detail, ({ params, ok }) => {
     const user = requireItem(mockUsers, params.id, '用户不存在', { status: 404 });
     return ok(toUserResponse(user));
   }),
 
-  // 更新用户
   mock(userContract.update, ({ params, body, ok }) => {
     const user = requireItem(mockUsers, params.id, '用户不存在', { status: 404 });
     const { roleIds, positionIds, ...rest } = body;
@@ -176,7 +172,6 @@ export const usersHandlers = [
     return ok(toUserResponse(user), '更新成功');
   }),
 
-  // 删除用户
   mock(userContract.remove, ({ params, ok }) => {
     const item = requireItem(mockUsers, params.id, '用户不存在', { status: 404 });
     if (item.username === 'admin') {

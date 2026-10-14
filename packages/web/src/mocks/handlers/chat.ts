@@ -337,7 +337,6 @@ export const chatHandlers = [
     return ok(data);
   }),
 
-  // 创建群聊
   mock(chatContract.createGroup, ({ body, ok }) => {
     if (!body.name.trim()) {
       return badRequest('群聊名称不能为空', { status: 400 });

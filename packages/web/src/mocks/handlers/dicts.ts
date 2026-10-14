@@ -27,7 +27,6 @@ export const dictsHandlers = [
     exclude: ['list', 'create', 'remove'],
   }),
 
-  // 新增字典
   mock(dictContract.create, ({ body, ok }) => {
     const newDict: Dict = {
       id: getNextDictId(),
@@ -50,7 +49,6 @@ export const dictsHandlers = [
     return ok(null, '删除成功');
   }),
 
-  // 获取字典条目列表
   mock(dictContract.items, ({ params, ok }) => {
     return ok(mockDictItems.filter((item) => item.dictId === params.id));
   }),
@@ -69,7 +67,6 @@ export const dictsHandlers = [
     return ok(item);
   }),
 
-  // 新增字典条目
   mock(dictContract.createItem, ({ params, body, ok }) => {
     const newItem: DictItem = {
       id: getNextDictItemId(),
@@ -89,13 +86,11 @@ export const dictsHandlers = [
     return ok(newItem, '新增成功');
   }),
 
-  // 更新字典条目
   mock(dictContract.updateItem, ({ params, body, ok }) => {
     const item = updateItem(mockDictItems, params.itemId, body, { notFoundMessage: '字典条目不存在', now: mockDateTime });
     return ok(item, '更新成功');
   }),
 
-  // 删除字典条目
   mock(dictContract.removeItem, ({ params, ok }) => {
     requireItem(mockDictItems, params.itemId, '字典条目不存在');
     removeByIds(mockDictItems, [params.itemId]);

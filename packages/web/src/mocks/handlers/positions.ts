@@ -31,13 +31,11 @@ export const positionsHandlers = [
     exclude: ['create', 'removeBatch'],
   }),
 
-  // 批量删除岗位
   mock(positionContract.removeBatch, ({ body, ok }) => {
     removeByIds(mockPositions, body.ids);
     return ok(null, `已删除 ${body.ids.length} 个岗位`);
   }),
 
-  // 新增岗位
   mock(positionContract.create, ({ body, ok }) => {
     const newPos: Position = {
       id: getNextPositionId(),
@@ -49,7 +47,6 @@ export const positionsHandlers = [
     return ok(newPos, '新增成功');
   }),
 
-  // 获取岗位成员
   mock(positionContract.members, ({ params, ok }) => {
     const positionId = params.id;
     requireItem(mockPositions, positionId, '岗位不存在', { status: 404 });

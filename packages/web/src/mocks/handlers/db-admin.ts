@@ -406,7 +406,6 @@ export const dbAdminHandlers = [
     return ok(row, 'success');
   }),
 
-  // 更新行
   mock(dbAdminContract.updateRow, ({ params, body, ok }) => {
     const t = findTable(params.schema, params.name);
     if (!t) return notFound('表不存在', { status: 404 });
@@ -457,7 +456,6 @@ export const dbAdminHandlers = [
     return ok({ inserted: inserts.length, updated: updateTargets.length, deleted: deleteIdxs.length }, 'success');
   }),
 
-  // 删除行
   mock(dbAdminContract.deleteRow, ({ params, body, ok }) => {
     const t = findTable(params.schema, params.name);
     if (!t) return notFound('表不存在', { status: 404 });
@@ -536,7 +534,6 @@ export const dbAdminHandlers = [
     return ok({ plan, durationMs: analyze ? 9 : 4, analyzed: analyze }, 'success');
   }),
 
-  // 查询历史
   mock(dbAdminContract.history, ({ ok, paginate }) => ok(paginate(queryHistory), 'success')),
 
   mock(dbAdminContract.removeHistory, ({ params, ok }) => {

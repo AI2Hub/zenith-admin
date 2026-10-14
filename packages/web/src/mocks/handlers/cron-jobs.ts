@@ -101,7 +101,6 @@ export const cronJobsHandlers = [
     return ok(null, '执行成功');
   }),
 
-  // 更新任务状态
   mock(cronJobContract.setStatus, ({ params, body, ok }) => {
     const job = requireItem(mockCronJobs, params.id, '任务不存在');
     job.status = body.status;
