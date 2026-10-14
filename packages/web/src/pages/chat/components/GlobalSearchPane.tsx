@@ -8,7 +8,7 @@ import type { Setter } from '../types';
 
 const { Text } = Typography;
 
-/** 左栏全局搜索面板：搜索框 + 结果列表 + 分页（自 ChatPage 原样搬移） */
+/** 左栏全局搜索面板：搜索框 + 结果列表 + 分页 */
 export function GlobalSearchPane({
   leftPaneMode, globalSearchKeyword, setGlobalSearchKeyword, setGlobalSearchResults, setGlobalSearchTotal, setGlobalSearchHasSearched,
   setGlobalSearchLoading, globalSearchLoading, globalSearchHasSearched, globalSearchTotal, globalSearchResults, globalSearchPage,

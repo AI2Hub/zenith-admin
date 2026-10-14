@@ -1,8 +1,8 @@
 /**
  * 事件总线订阅者注册（工作流 / 支付 / CMS / 分析）。
  *
- * 从 src/index.ts 抽出。这些订阅者把领域事件接到 WS 推送、通知、聊天、账本、
- * 手续费、分账等下游——delay/trigger/external/webhook 已统一为 workflow_jobs 作业。
+ * 这些订阅者把领域事件接到 WS 推送、通知、聊天、账本、手续费、分账等下游。
+ * delay/trigger/external/webhook 由 workflow_jobs 作业处理。
  */
 import logger from '../lib/logger';
 import { initNotificationAdapters } from '../lib/notification/adapters';

@@ -10,7 +10,7 @@ import { DateRangeFilter, FilterSelect } from '@/components/search-filters';
 
 const { Text } = Typography;
 
-/** 聊天记录搜索弹窗：关键词/类型/发送人/时间筛选 + 结果跳转（自 ChatPage 原样搬移） */
+/** 聊天记录搜索弹窗：关键词/类型/发送人/时间筛选 + 结果跳转 */
 export function MessageSearchModal({
   showSearchPanel, setShowSearchPanel, resetSearchFilters, searchHasSearched, searchTotal, msgSearch,
   setMsgSearch, executeSearch, searchTypeFilters, setSearchTypeFilters, searchSenderId, setSearchSenderId,

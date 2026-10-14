@@ -38,7 +38,7 @@ import { GB_BYTES, effectiveQuotaBytes, getDriveSettings } from './drive-setting
 import { decorateSpaceRows, ensureDriveSpaceExists } from './drive-spaces.service';
 
 /**
- * 网盘治理（阶段 4）：法律保留 / 空间归档 / 扩容申请 / 管理员收件人。
+ * 网盘治理：法律保留 / 空间归档 / 扩容申请 / 管理员收件人。
  * 全部为内置能力，不依赖外部服务；通知统一经 notify() 进通知中心。
  */
 

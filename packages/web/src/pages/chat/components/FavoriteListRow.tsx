@@ -6,7 +6,7 @@ import type { LeftPaneContextMenuState, Setter } from '../types';
 
 const { Text } = Typography;
 
-/** 左栏收藏消息列表行（自 ChatPage renderItem 原样搬移） */
+/** 左栏收藏消息列表行 */
 export function FavoriteListRow({
   msg, conversations, setFavPreviewMsg, setFavPreviewVisible, setLeftPaneContextMenu,
 }: Readonly<{

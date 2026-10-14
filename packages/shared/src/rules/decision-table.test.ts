@@ -1,7 +1,4 @@
-/**
- * 决策表命中策略单测：期望值与 server rules-engine.test.ts 中的既有断言对齐（golden），
- * 保证 hit-policy 装配上移 shared 后服务端与 Mock 行为一致。
- */
+/** 决策表命中策略：服务端与 Mock 共用语义的回归用例。 */
 import { describe, expect, it } from 'vitest';
 import { aggregateCollectedOutputs, defaultDecisionOutputs, matchDecisionRows, resolveDecisionHits, type DecisionTableLike } from './decision-table';
 import type { RuleDecisionOutput, RuleDecisionRow } from './contracts';

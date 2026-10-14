@@ -9,7 +9,6 @@ const ALL_MEMBERS_VIRTUAL: ChatGroupMember = { id: -1, nickname: '全体成员',
 
 /**
  * 输入框 @提及：光标前的 `@query` 解析、候选成员过滤（含 @全体成员）、键盘高亮索引与手动关闭态
- * （自 ChatPage 原样搬移）
  */
 export function useMentionInput({
   activeConv, input, inputRef, activeGroupMembers, currentUserId,

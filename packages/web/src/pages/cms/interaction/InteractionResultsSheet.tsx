@@ -79,7 +79,7 @@ function MatrixTable({ question }: Readonly<{ question: CmsInteractionQuestionSt
   );
 }
 
-/** 文本类答案分页浏览（含关键词搜索），替代此前只给前 50 条的一次性样本 */
+/** 文本类答案分页浏览（含关键词搜索） */
 function TextAnswers({ interactionId, question }: Readonly<{
   interactionId: number;
   question: CmsInteractionQuestionStats;

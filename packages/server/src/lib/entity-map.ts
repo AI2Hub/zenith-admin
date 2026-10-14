@@ -2,12 +2,12 @@ import type * as z from 'zod';
 import { formatDateTime } from './datetime';
 
 /**
- * 契约实体投影：按契约实体 schema 的键从数据库行取值，替代逐资源手写的 `mapXxx(row)`。
+ * 契约实体投影：按契约实体 schema 的键从数据库行取值。
  *
  * 规则（只做「行 → JSON 实体」的机械归一，不含业务换算）：
  * - 键集合以**实体 schema** 为准：行上多出的列（`headersEncrypted` / 内部标记）不会泄漏进响应；
  * - `Date` → `YYYY-MM-DD HH:mm:ss`（应用时区，同 `formatTimestamps`）；日期型（`YYYY-MM-DD`）字段请在 `overrides` 里自行 `formatDate`；
- * - 行值 `undefined` 且实体字段可为 `null` → `null`（对应此前的 `row.x ?? null`）；
+ * - 行值 `undefined` 且实体字段可为 `null` → `null`；
  * - 行值 `null` 而实体字段只允许缺省（`.optional()` 不带 `.nullable()`）→ `undefined`；
  * - `overrides` 里给出的键原样采用（解密 / 脱敏 / 关联字段 / 计算字段都写在这里）。
  *

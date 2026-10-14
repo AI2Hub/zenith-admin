@@ -128,7 +128,7 @@ export function clampLimit(limit: unknown, fallback = 20, max = 100): number {
   return Math.min(Math.max(Number(limit) || fallback, 1), max);
 }
 
-// ─── 行为中心阶段 1：多端平台字段推断（采集入口统一收口）───────────────────────
+// ─── 多端平台字段推断（采集入口统一收口）───────────────────────
 /**
  * 统一推断埋点/错误上报的多端平台字段（source/appId/environment）。
  *

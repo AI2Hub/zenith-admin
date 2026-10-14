@@ -12,7 +12,7 @@ import type { WsMessage } from '@zenith/shared/platform';
 import { getNextMentionUnread, markConversationReadById, recallMessageById, removeConversationById, removeMessageById, setMessageReactions, setMessageVoteData, applyPresenceToLastSeen, applyPresenceToOnlineIds } from '../utils-state';
 import type { GroupAvatarMap, Setter, TypingUsersMap } from '../types';
 
-/** WebSocket 消息分发、群头像成员刷新、触底/触顶回调、断线重连兜底（自 ChatPage 原样搬移） */
+/** WebSocket 消息分发、群头像成员刷新、触底/触顶回调、断线重连兜底 */
 export function useChatWebSocket({
   activeChannelId, activeConvId, contextMode, conversations, currentUserId, hasMore,
   loadingMsgs, oldestMsgId, pendingNewMsgCount, queryClient, restoreLatestMessages,

@@ -374,7 +374,7 @@ export async function deleteCmsChannel(id: number) {
   await enqueueCmsPublishOutboxes([mutation.task], `栏目 #${id} 删除`);
 }
 
-// ─── 栏目运维（P1：合并 / 清空 / 批量新增 / 拼音 slug）─────────────────────────
+// ─── 栏目运维（合并 / 清空 / 批量新增 / 拼音 slug）─────────────────────────
 
 /**
  * 汉字名称 → 拼音 slug（非拼音字符转中划线，兜底 channel-时间戳）。

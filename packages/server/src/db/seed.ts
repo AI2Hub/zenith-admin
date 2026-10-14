@@ -1510,7 +1510,7 @@ async function seedRest() {
   ).onConflictDoNothing({ target: iotDeviceLogs.id });
   await db.execute(sql`SELECT setval('iot_device_logs_id_seq', GREATEST((SELECT MAX(id) FROM iot_device_logs), 1))`);
 
-  // 六期：设备计划任务（演示）
+  // 设备计划任务（演示）
   await db.insert(iotSchedules).overridingSystemValue().values(
     SEED_IOT_SCHEDULES.map(({ id, name, scheduleType, cronExpression, runAt, productId, groupId, deviceId, actionType, service, params, desired, status }) => ({
       id, name, scheduleType, cronExpression,
@@ -1527,7 +1527,7 @@ async function seedRest() {
   ).onConflictDoNothing({ target: iotScheduleRuns.id });
   await db.execute(sql`SELECT setval('iot_schedule_runs_id_seq', GREATEST((SELECT MAX(id) FROM iot_schedule_runs), 1))`);
 
-  // 六期：维护窗口（演示）
+  // 维护窗口（演示）
   await db.insert(iotMaintenanceWindows).overridingSystemValue().values(
     SEED_IOT_MAINTENANCE_WINDOWS.map(({ id, name, productId, groupId, deviceId, startAt, endAt, reason }) => ({
       id, name, productId, groupId, deviceId,
@@ -1536,7 +1536,7 @@ async function seedRest() {
   ).onConflictDoNothing({ target: iotMaintenanceWindows.id });
   await db.execute(sql`SELECT setval('iot_maintenance_windows_id_seq', GREATEST((SELECT MAX(id) FROM iot_maintenance_windows), 1))`);
 
-  // 六期：动态注册白名单（演示）
+  // 动态注册白名单（演示）
   await db.insert(iotDeviceWhitelist).overridingSystemValue().values(
     SEED_IOT_WHITELIST.map(({ id, productId, sn, used, remark }) => ({ id, productId, sn, used, remark })),
   ).onConflictDoNothing({ target: iotDeviceWhitelist.id });

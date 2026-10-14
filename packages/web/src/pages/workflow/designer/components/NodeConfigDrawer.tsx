@@ -171,7 +171,7 @@ interface NodeConfigDrawerProps {
   zIndex?: number;
 }
 
-/** 节点严重问题内联提示：紧凑红字 + 修复建议，替代抽屉顶部的整块 Banner */
+/** 节点严重问题内联提示：紧凑红字 + 修复建议 */
 function InlineCriticalErrors({ issues }: Readonly<{ issues: NodeHealthIssue[] }>) {
   if (issues.length === 0) return null;
   return (

@@ -941,7 +941,7 @@ export async function deleteCmsSite(id: number) {
   await invalidateCmsSiteCaches(id);
 }
 
-// ─── 行为统计开通（P3：关联 analytics_sites，前台注入采集 beacon）───────────────
+// ─── 行为统计开通（关联 analytics_sites，前台注入采集 beacon）───────────────
 export async function enableSiteAnalytics(siteId: number) {
   await assertSiteAccess(siteId);
   const site = await ensureCmsSiteExists(siteId);

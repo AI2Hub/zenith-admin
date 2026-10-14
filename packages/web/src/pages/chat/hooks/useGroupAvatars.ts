@@ -4,7 +4,7 @@ import type { ChatConversation, ChatGroupMember } from '@zenith/shared/chat';
 import { api } from '@/lib/contract-query';
 import type { GroupAvatarMap, Setter } from '../types';
 
-/** 群聊九宫格头像成员缓存补齐（自 ChatPage 原样搬移） */
+/** 群聊九宫格头像成员缓存补齐 */
 export function useGroupAvatars({
   conversations, groupAvatarMap, setGroupAvatarMap, refreshGroupAvatarMembers,
 }: {

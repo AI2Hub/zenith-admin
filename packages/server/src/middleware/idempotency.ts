@@ -98,8 +98,7 @@ async function hashBody(c: Context): Promise<string> {
  * 顺序有讲究：
  *  1. 开放应用 —— 网关请求没有管理员/会员 ALS 上下文，但已鉴权的 AppKey 就在 context 里
  *  2. 会员（前台 C 端）—— 走 memberAuthMiddleware，身份在 c.get('member')，
- *     **不在** c.get('user')。此前这里只试 currentUser()，会员全部退化为同一身份，
- *     导致签到（无请求体，指纹必然相同）、同额充值等接口跨会员互相回放响应
+ *     **不在** c.get('user')。必须读取会员身份，避免签到、同额充值等接口跨会员回放响应
  *  3. 管理员 —— 编入 tenantId，防止多租户下同 userId 序列在不同租户间碰撞
  *  4. 匿名 —— 退化到来源 IP；连 IP 都没有时才用固定兜底
  *

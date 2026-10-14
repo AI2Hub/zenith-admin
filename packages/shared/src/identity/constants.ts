@@ -175,7 +175,6 @@ export const LOGIN_RISK_NEW_DEVICE_ACTIONS = ['allow', 'challenge'] as const;
 
 export type LoginRiskNewDeviceAction = (typeof LOGIN_RISK_NEW_DEVICE_ACTIONS)[number];
 
-// ─── 自 validation 上移（枚举 SSOT：供跨域 z.enum() 引用，避免 validation 间值环）───
 export function isSafeOAuthRedirectUri(value: string): boolean {
   try {
     const url = new URL(value);

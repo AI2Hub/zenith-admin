@@ -1,5 +1,5 @@
 /**
- * 行为中心阶段 1：服务端权威事件核心持久化逻辑单测（persistServerEvent）。
+ * 服务端权威事件核心持久化逻辑单测（persistServerEvent）。
  *
  * 覆盖要点：
  *  1. eventId 幂等：onConflictDoNothing 未命中新行时，画像 upsert / 事件字典登记均跳过

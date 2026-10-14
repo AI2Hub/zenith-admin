@@ -15,7 +15,7 @@ import type { MessageReadReceipt } from '../types';
 
 const { Text } = Typography;
 
-// 将图片 URL 转为 PNG Blob，提取到模块级以避免函数嵌套 >4 层
+// 将图片 URL 转为 PNG Blob
 function imageToPngBlob(src: string): Promise<Blob> {
   return new Promise<Blob>((resolve, reject) => {
     const img = new Image();

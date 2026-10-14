@@ -7,7 +7,7 @@ import type { Setter } from '../types';
 
 const { Text } = Typography;
 
-/** 发现频道弹窗：搜索 + 订阅（自 ChatPage 原样搬移） */
+/** 发现频道弹窗：搜索 + 订阅 */
 export function DiscoverChannelsModal({
   discoverVisible, setDiscoverVisible, discoverKeyword, setDiscoverKeyword, discoverList, handleSubscribeChannel,
 }: Readonly<{

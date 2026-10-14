@@ -1,5 +1,5 @@
 /**
- * 行为中心阶段 1：Tracking Plan 治理闭环。
+ * Tracking Plan 治理闭环。
  *
  * 职责：
  * - 60s 缓存事件字典（Tracking Plan：status/strictMode/propertySchema）与租户级事件覆盖（禁用名单）；

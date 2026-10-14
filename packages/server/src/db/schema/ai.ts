@@ -256,7 +256,7 @@ export const aiKbChunks = pgTable('ai_kb_chunks', {
 
 export type AiKbChunkRow = typeof aiKbChunks.$inferSelect;
 
-// ─── P3：自定义智能体 ─────────────────────────────────────────────────────────
+// ─── 自定义智能体 ─────────────────────────────────────────────────────────
 
 /** 自定义智能体(Mastra AgentConfig 形状:instructions + model + tools + memory 组合;创建即用) */
 export const aiAgents = pgTable('ai_agents', {
@@ -290,7 +290,7 @@ export type AiAgentRow = typeof aiAgents.$inferSelect;
 
 export type NewAiAgent = typeof aiAgents.$inferInsert;
 
-// ─── P3：HTTP API 工具 ────────────────────────────────────────────────────────
+// ─── HTTP API 工具 ────────────────────────────────────────────────────────
 
 /** HTTP 工具参数定义 */
 export interface AiHttpToolParam {
@@ -320,7 +320,7 @@ export const aiHttpTools = pgTable('ai_http_tools', {
 
 export type AiHttpToolRow = typeof aiHttpTools.$inferSelect;
 
-// ─── P3：提示词模板版本 ───────────────────────────────────────────────────────
+// ─── 提示词模板版本 ───────────────────────────────────────────────────────
 
 /** 提示词模板历史版本快照（内容变更时自动留档） */
 export const aiPromptTemplateVersions = pgTable('ai_prompt_template_versions', {
@@ -334,5 +334,3 @@ export const aiPromptTemplateVersions = pgTable('ai_prompt_template_versions', {
 });
 
 export type AiPromptTemplateVersionRow = typeof aiPromptTemplateVersions.$inferSelect;
-
-// ─── P3:评测(Mastra Datasets + Experiments,mastra schema 承载,业务表已移除) ──

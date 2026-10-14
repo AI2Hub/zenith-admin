@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import type { Setter } from '../types';
 
-/** 聊天草稿：localStorage 持久化 + draftsMap 同步（自 ChatPage 原样搬移） */
+/** 聊天草稿：localStorage 持久化 + draftsMap 同步 */
 export function useChatDrafts({
   setDraftsMap,
 }: {

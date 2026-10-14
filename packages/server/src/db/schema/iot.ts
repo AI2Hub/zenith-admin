@@ -1,7 +1,7 @@
 /**
  * IoT 设备管理（iot 域）。
  *
- * 二期（物模型驱动）：
+ * 物模型驱动：
  * - iot_products                产品（设备类型），物模型三元组挂在产品下
  * - iot_product_properties     物模型·属性（遥测校验 / 图表单位 / 影子键的唯一定义源）
  * - iot_product_services       物模型·服务（指令模板：参数 schema 驱动表单化下发）
@@ -14,19 +14,19 @@
  * - iot_alarm_rules / iot_alarms 告警规则（阈值/离线/事件）与告警记录（firing→resolved）
  * - iot_device_groups (+members) 设备静态分组（批量操作圈选目标）
  *
- * 三期（可视化与规模化运维）：
+ * 可视化与规模化运维：
  * - iot_telemetry_hourly        遥测小时聚合（长窗口图表与仪表盘数据源，明细保留期可独立缩短）
  * - iot_online_snapshots        在线率采样（离线扫描任务顺带落点，仪表盘在线趋势）
  * - iot_firmwares               固件包（产品维度版本 + 托管文件 + sha256）
  * - iot_ota_tasks (+devices)    OTA 升级任务与单设备状态机（notified→downloading→installing→succeeded/failed）
  *
- * 五期（规模接入与智能运维）：
+ * 规模接入与智能运维：
  * - iot_devices.node_type/gateway_id  设备形态：直连 / 网关 / 子设备（网关代理接入）
  * - iot_forward_rules / iot_forward_logs  数据流转：遥测/事件/告警/生命周期 → HTTP 推送 + 投递留痕
  * - iot_device_logs             设备日志通道（设备上报运行日志，保留期裁剪）
  * - iot_product_properties.anomaly_enabled  遥测异常检测开关（3σ 基线判定）
  *
- * 六期（运维闭环与智能升级）：
+ * 运维闭环与智能升级：
  * - iot_alarms 认领/处理备注 + 规则升级策略 + iot_maintenance_windows 维护静默窗口
  * - iot_schedules (+runs)       设备计划任务（时间驱动的指令/期望属性下发）
  * - iot_ota_tasks 灰度分批（batch_size/failure_threshold/paused）+ 设备批次号
@@ -403,7 +403,7 @@ export const iotDeviceGroupMembers = pgTable('iot_device_group_members', {
 
 export type IotDeviceGroupMemberRow = typeof iotDeviceGroupMembers.$inferSelect;
 
-// ─── 三期：遥测聚合与在线快照 ─────────────────────────────────────────────────
+// ─── 遥测聚合与在线快照 ─────────────────────────────────────────────────
 /** 遥测小时聚合：数值属性按 (设备, 属性, 小时桶) 物化 min/max/avg/last，长窗口图表与仪表盘数据源 */
 export const iotTelemetryHourly = pgTable('iot_telemetry_hourly', {
   id:        bigint({ mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
@@ -438,7 +438,7 @@ export const iotOnlineSnapshots = pgTable('iot_online_snapshots', {
 
 export type IotOnlineSnapshotRow = typeof iotOnlineSnapshots.$inferSelect;
 
-// ─── 三期：固件与 OTA ─────────────────────────────────────────────────────────
+// ─── 固件与 OTA ─────────────────────────────────────────────────────────
 export const iotOtaTaskStatusEnum = pgEnum('iot_ota_task_status', ['running', 'paused', 'completed', 'cancelled']);
 
 export const iotOtaDeviceStatusEnum = pgEnum('iot_ota_device_status', [
@@ -523,7 +523,7 @@ export type IotOtaTaskDeviceRow = typeof iotOtaTaskDevices.$inferSelect;
 
 export type NewIotOtaTaskDevice = typeof iotOtaTaskDevices.$inferInsert;
 
-// ─── 四期：场景联动 ───────────────────────────────────────────────────────────
+// ─── 场景联动 ───────────────────────────────────────────────────────────
 export const iotAutomationTriggerEnum = pgEnum('iot_automation_trigger', ['property', 'event', 'online', 'offline']);
 
 /** 联动动作（jsonb 内嵌，随联动整体编辑） */
@@ -594,7 +594,7 @@ export const iotAutomationRuns = pgTable('iot_automation_runs', {
 
 export type IotAutomationRunRow = typeof iotAutomationRuns.$inferSelect;
 
-// ─── 五期：数据流转 ───────────────────────────────────────────────────────────
+// ─── 数据流转 ───────────────────────────────────────────────────────────
 export const iotForwardRules = pgTable('iot_forward_rules', {
   id:                  idColumn(),
   name:                varchar({ length: 128 }).notNull(),
@@ -644,7 +644,7 @@ export const iotForwardLogs = pgTable('iot_forward_logs', {
 
 export type IotForwardLogRow = typeof iotForwardLogs.$inferSelect;
 
-// ─── 五期：设备日志通道 ───────────────────────────────────────────────────────
+// ─── 设备日志通道 ───────────────────────────────────────────────────────
 export const iotDeviceLogs = pgTable('iot_device_logs', {
   id:         bigint({ mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
   deviceId:   integer().notNull().references(() => iotDevices.id, { onDelete: 'cascade' }),
@@ -661,7 +661,7 @@ export const iotDeviceLogs = pgTable('iot_device_logs', {
 
 export type IotDeviceLogRow = typeof iotDeviceLogs.$inferSelect;
 
-// ─── 六期：维护窗口 ───────────────────────────────────────────────────────────
+// ─── 维护窗口 ───────────────────────────────────────────────────────────
 /** 计划性维护静默：窗口内命中的告警仍记录但不派发通知/升级 */
 export const iotMaintenanceWindows = pgTable('iot_maintenance_windows', {
   id:        idColumn(),
@@ -682,7 +682,7 @@ export const iotMaintenanceWindows = pgTable('iot_maintenance_windows', {
 
 export type IotMaintenanceWindowRow = typeof iotMaintenanceWindows.$inferSelect;
 
-// ─── 六期：设备计划任务 ───────────────────────────────────────────────────────
+// ─── 设备计划任务 ───────────────────────────────────────────────────────
 /** 时间驱动的自动化（与场景联动的事件驱动互补）：cron/一次性定时下发指令或期望属性 */
 export const iotSchedules = pgTable('iot_schedules', {
   id:             idColumn(),
@@ -732,7 +732,7 @@ export const iotScheduleRuns = pgTable('iot_schedule_runs', {
 
 export type IotScheduleRunRow = typeof iotScheduleRuns.$inferSelect;
 
-// ─── 六期：动态注册白名单 ─────────────────────────────────────────────────────
+// ─── 动态注册白名单 ─────────────────────────────────────────────────────
 /** 一型一密预注册：SN 白名单（设备首连以产品注册密钥签名，命中白名单即自动建档换取设备密钥） */
 export const iotDeviceWhitelist = pgTable('iot_device_whitelist', {
   id:        idColumn(),

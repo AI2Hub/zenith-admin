@@ -625,8 +625,7 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
   const keepAlivePaths = useKeepAlivePaths(menuTree);
   const openTabPaths = useMemo(() => new Set(tabs.map((t) => t.key)), [tabs]);
 
-  // 「关闭左侧/右侧/其他/全部」的可用性：一次 O(n) 前缀扫描得出，
-  // 替代此前在 tabs.map 内部对每个页签重复 slice/some 的 O(n²) 写法。
+  // 一次 O(n) 前缀扫描计算各页签「关闭左侧/右侧/其他/全部」的可用性。
   const tabClosableFlags = useMemo(() => computeTabClosableFlags(tabs), [tabs]);
 
   // 收藏态：仅在开启收藏功能时按 path 建索引，避免每个页签各做一次 flatMenus.find

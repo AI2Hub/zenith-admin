@@ -9,7 +9,7 @@ import type { ChatConversation } from '@zenith/shared/chat';
 import type { Channel } from '@zenith/shared/messaging';
 import type { Setter } from '../types';
 
-/** 会话/频道列表加载 + 发现频道（防抖搜索、订阅/退订）（自 ChatPage 原样搬移） */
+/** 会话/频道列表加载 + 发现频道（防抖搜索、订阅/退订） */
 export function useChannelsAndDiscover({
   discoverVisible, debouncedDiscoverKeyword, setLoadingConvs, setConversations, setChannels,
   setActiveChannelId, setDiscoverKeyword, setDiscoverVisible,

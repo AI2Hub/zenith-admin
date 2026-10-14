@@ -1,9 +1,8 @@
 /**
  * 用户组访问的共享内核：统一「启用组 ∩ 启用角色 / 启用用户」的口径。
  *
- * 此前四处各自手写组继承查询（permissions / data-scope / users.service 诊断×2），
- * 且 workflow 审批人解析与报表 ACL 漏掉了组状态过滤——禁用组仍参与审批路由与资源授权。
- * 本模块把查询片段、运行时过滤与两类展开查询收敛为唯一实现：
+ * 权限、数据范围、审批人解析与报表 ACL 均须过滤禁用组，防止其参与审批路由与资源授权。
+ * 本模块提供查询片段、运行时过滤与两类展开查询：
  *
  * - {@link enabledGroupRolesWith}：RQB `with` 片段工厂，强制携带组/角色 status 列；
  * - {@link extractEnabledGroupRoles}：统一过滤禁用组与禁用角色；

@@ -5,7 +5,7 @@ import type { ChatConversation, ChatMessage, ChatMessageSearchItem } from '@zeni
 import { api } from '@/lib/contract-query';
 import type { ChatUser, PendingFile, PendingImage, SearchDatePreset, Setter } from '../types';
 
-/** 会话切换 / 新建单聊 / 建群回调 / 消息去重追加（自 ChatPage 原样搬移） */
+/** 会话切换 / 新建单聊 / 建群回调 / 消息去重追加 */
 export function useConversationSelection({
   activeConvId, input, currentUserId, onConvChange, saveDraft, loadDraft,
   fetchMessages, fetchConversations, virtuosoRef, showMediaPanelRef, mediaTypeRef, activeConvIdRef,

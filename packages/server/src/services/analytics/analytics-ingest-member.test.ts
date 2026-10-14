@@ -1,5 +1,5 @@
 /**
- * 行为中心阶段 1：会员身份埋点采集测试。
+ * 会员身份埋点采集测试。
  *
  * 覆盖点：
  * - 已登录会员上报事件时，userEvents 行写入 memberId / source=web_member / appId / environment

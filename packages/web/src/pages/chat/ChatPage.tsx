@@ -213,7 +213,6 @@ export default function ChatPage({
 
   // 群成员是服务端状态，交给 Query 统一持有：GroupMembersPanel 用的是同一个缓存条目，
   // 因此加人/踢人/转让群主等 mutation 失效后，本页的 @提及候选、群主判定会一起刷新。
-  // 此前这里另存了一份 useState 副本，只在切换会话时拉取，面板改完成员后本页仍是旧数据。
   const groupMembersQuery = useChatGroupMembers(
     activeConvId ?? undefined,
     activeConv?.type === 'group',
@@ -427,7 +426,7 @@ export default function ChatPage({
   // 列表行 memo 依赖稳定回调：handleSelectConv 闭包含 input（保存草稿用），每次击键都会换引用
   const selectConvFromList = useEventCallback(handleSelectConv);
 
-  /** 打开全局搜索结果：拉取上下文并跳转（原全局搜索列表 onClick 内联逻辑原样搬出） */
+  /** 打开全局搜索结果：拉取上下文并跳转 */
   const onOpenSearchResult = async (item: ChatMessageSearchItem) => {
     const context: ChatMessageContext | null = await api(chatContract.messageContext, {
       params: { id: item.message.conversationId, messageId: item.message.id },

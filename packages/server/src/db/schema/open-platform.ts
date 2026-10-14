@@ -65,7 +65,7 @@ export type NewOAuth2Client = typeof oauth2Clients.$inferInsert;
  */
 export const oauth2AuthorizationCodes = pgTable('oauth2_authorization_codes', {
   id: idColumn(),
-  /** 授权码 SHA-256 摘要；旧版明文授权码在迁移时全部失效 */
+  /** 授权码仅保存 SHA-256 摘要 */
   codeHash: varchar({ length: 64 }).unique('oauth2_authorization_codes_code_hash_unique'),
   clientId: varchar({ length: 64 }).notNull().references(() => oauth2Clients.clientId, { onDelete: 'cascade' }),
   userId: integer().notNull().references(() => users.id, { onDelete: 'cascade' }),

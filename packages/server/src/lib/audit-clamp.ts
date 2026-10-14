@@ -1,9 +1,8 @@
 /**
  * 审计 payload 裁剪：把任意数据收敛为「体积有硬上界的合法 JSON 字符串」。
  *
- * 背景：operation_logs 的 before_data / after_data / request_body 是 text 列，
- * 此前 `JSON.stringify(data).slice(0, n)` 式截断会切出非法 JSON，且实体快照
- * （工作流 flowData、批量操作数组等）完全无上界，存在日志膨胀与 trgm 索引写放大风险。
+ * operation_logs 的 before_data / after_data / request_body 是 text 列。
+ * 不可直接截断序列化字符串，否则会产生非法 JSON；实体快照必须限大小，避免日志膨胀与 trgm 索引写放大。
  *
  * 策略：对象层面按「宽松 → 收紧 → 激进」三档降级裁剪，每档序列化后按 UTF-8
  * 字节实测；全部超标时落为不含原始值的摘要对象（体积有常数上界）。
@@ -12,7 +11,7 @@
 
 /** before/after 快照与响应体的默认预算 */
 export const AUDIT_SNAPSHOT_BUDGET_BYTES = 16 * 1024;
-/** 请求体预算（沿用历史 4KB 上界） */
+/** 请求体预算（4KB 上界） */
 export const AUDIT_REQUEST_BODY_BUDGET_BYTES = 4 * 1024;
 
 const TRUNCATED_MARK = '…[截断]';

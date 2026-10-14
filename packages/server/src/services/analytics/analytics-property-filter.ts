@@ -1,5 +1,5 @@
 /**
- * 行为中心阶段 1：事件/画像属性过滤条件 → 安全 SQL 片段的公共转换。
+ * 事件/画像属性过滤条件 → 安全 SQL 片段的公共转换。
  *
  * 供 analytics-event-query.service（事件分析工作台）、analytics-conversion.service（有序漏斗）、
  * analytics-segments.service（分群圈选）三处复用，避免各自重复实现且保持同一套注入防护规则：

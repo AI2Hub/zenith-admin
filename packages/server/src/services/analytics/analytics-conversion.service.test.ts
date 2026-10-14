@@ -1,5 +1,5 @@
 /**
- * 行为中心阶段 1：有序转化漏斗（getFunnel）+ 双口径留存（getRetention）单测。
+ * 有序转化漏斗（getFunnel）+ 双口径留存（getRetention）单测。
  *
  * 技术手段：mock `db.execute` 捕获真实 Drizzle `sql` 模板对象，再用
  * `PgDialect.sqlToQuery()` 纯文本编译（不连接真实数据库）校验生成的 SQL 结构，

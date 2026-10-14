@@ -1,5 +1,5 @@
 /**
- * 行为中心阶段 1：租户级事件启停覆盖（Tracking Plan 全局屏蔽之外的租户自助开关）。
+ * 租户级事件启停覆盖（Tracking Plan 全局屏蔽之外的租户自助开关）。
  */
 import { and, desc, eq } from 'drizzle-orm';
 import { listRows } from '../../lib/list-query';

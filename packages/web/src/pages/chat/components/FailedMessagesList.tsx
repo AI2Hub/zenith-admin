@@ -3,7 +3,7 @@ import { AlertCircle } from 'lucide-react';
 import { removeFailedMessageById } from '../utils-state';
 import type { FailedMessage, Setter } from '../types';
 
-/** 发送失败消息提示列表：重试编辑 / 移除（自 ChatPage 原样搬移） */
+/** 发送失败消息提示列表：重试编辑 / 移除 */
 export function FailedMessagesList({
   isQuick, failedMessages, activeConvId, setFailedMessages, setInput, inputRef,
 }: Readonly<{

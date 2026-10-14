@@ -74,5 +74,4 @@ export const BASIC_COMPARISON_SYMBOL_OPTIONS: Array<{
   label: string;
 }> = createLabelOptions(BASIC_COMPARISON_OPERATORS, BASIC_COMPARISON_OPERATOR_SYMBOLS);
 
-// ─── 自 validation 上移（枚举 SSOT：供跨域 z.enum() 引用，避免 validation 间值环）───
 export const DATE_TIME_PATTERN = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;

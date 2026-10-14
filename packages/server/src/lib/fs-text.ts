@@ -1,9 +1,8 @@
 /**
  * 文本文件在线编辑的共享原语。
  *
- * 本机文件系统（terminal-files.service）与远程 SFTP（ssh-sftp.service）此前各自
- * 复制了一份大小上限、二进制探测与写入逻辑，规则一改就要改两处且容易漂移。
- * 这里集中三件事：编辑约束、版本标识、原子写。
+ * 本机文件系统（terminal-files.service）与远程 SFTP（ssh-sftp.service）共用
+ * 编辑约束、版本标识与原子写。
  */
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';

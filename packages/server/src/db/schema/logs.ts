@@ -126,7 +126,3 @@ export const ipAccessLogs = pgTable('ip_access_logs', {
 export type IpAccessLogRow = typeof ipAccessLogs.$inferSelect;
 
 export type NewIpAccessLog = typeof ipAccessLogs.$inferInsert;
-
-// ════════════════════════════════════════════════════════════════════════════
-// 数据分析 / 埋点 / 错误监控（对标 GA4 / PostHog / 神策 / Sentry，重构）
-// ════════════════════════════════════════════════════════════════════════════

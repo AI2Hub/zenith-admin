@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import type { ChatConversation } from '@zenith/shared/chat';
 
-/** 禁言状态：个人禁言优先；全员禁言豁免群主/管理员；限时禁言到期后自动恢复输入框（自 ChatPage 原样搬移） */
+/** 禁言状态：个人禁言优先；全员禁言豁免群主/管理员；限时禁言到期后自动恢复输入框 */
 export function useMuteState(activeConv: ChatConversation | null) {
   const [muteTick, setMuteTick] = useState(0);
   const muteState = useMemo(() => {

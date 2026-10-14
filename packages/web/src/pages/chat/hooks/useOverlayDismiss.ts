@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import type { PendingImage, Setter } from '../types';
 
-/** 覆盖层与引用同步：emoji/reaction 外点关闭、pendingImagesRef 同步、卸载回收预览 URL（自 ChatPage 原样搬移） */
+/** 覆盖层与引用同步：emoji/reaction 外点关闭、pendingImagesRef 同步、卸载回收预览 URL */
 export function useOverlayDismiss({
   emojiVisible, setEmojiVisible, emojiContainerRef, emojiPickerRef, reactionPickerVisible, setReactionPickerVisible,
   reactionPickerRef, pendingImages, pendingImagesRef,

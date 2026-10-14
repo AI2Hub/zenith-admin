@@ -120,7 +120,7 @@ export const errorEventsRelations = relations(errorEvents, ({ one }) => ({
 }));
 
 
-// 行为中心阶段 2：站点 → 租户
+// 站点 → 租户
 export const analyticsSitesRelations = relations(analyticsSites, ({ one }) => ({
   tenant: one(tenants, { fields: [analyticsSites.tenantId], references: [tenants.id] }),
 }));
@@ -129,24 +129,24 @@ export const analyticsExperimentsRelations = relations(analyticsExperiments, ({ 
   tenant: one(tenants, { fields: [analyticsExperiments.tenantId], references: [tenants.id] }),
 }));
 
-// 行为中心阶段 1：Tracking Plan 负责人
+// Tracking Plan 负责人
 export const analyticsEventMetaRelations = relations(analyticsEventMeta, ({ one }) => ({
   owner: one(users, { fields: [analyticsEventMeta.ownerId], references: [users.id] }),
 }));
 
-// 行为中心阶段 1：租户级事件启停覆盖
+// 租户级事件启停覆盖
 export const analyticsEventOverridesRelations = relations(analyticsEventOverrides, ({ one }) => ({
   tenant: one(tenants, { fields: [analyticsEventOverrides.tenantId], references: [tenants.id] }),
 }));
 
-// 行为中心阶段 1：用户画像（userId / memberId 无物理外键，此处仅提供逻辑关联，供 RQB with 查询使用）
+// 用户画像（userId / memberId 无物理外键，此处仅提供逻辑关联，供 RQB with 查询使用）
 export const analyticsUserProfilesRelations = relations(analyticsUserProfiles, ({ one }) => ({
   tenant: one(tenants, { fields: [analyticsUserProfiles.tenantId], references: [tenants.id] }),
   user: one(users, { fields: [analyticsUserProfiles.userId], references: [users.id] }),
   member: one(members, { fields: [analyticsUserProfiles.memberId], references: [members.id] }),
 }));
 
-// 行为中心阶段 1：分群定义 ↔ 分群成员物化快照
+// 分群定义 ↔ 分群成员物化快照
 export const analyticsUserSegmentsRelations = relations(analyticsUserSegments, ({ one, many }) => ({
   tenant: one(tenants, { fields: [analyticsUserSegments.tenantId], references: [tenants.id] }),
   members: many(analyticsSegmentMembers),

@@ -1,5 +1,5 @@
 /**
- * 行为中心阶段 1：用户分群 CRUD + 规则 SQL 构建 + 成员物化。
+ * 用户分群 CRUD + 规则 SQL 构建 + 成员物化。
  *
  * 安全设计：
  *  - 规则仅支持 event / attribute 两类原子条件（AnalyticsSegmentCondition 判别联合已在 shared 层杜绝 cohort 嵌套）

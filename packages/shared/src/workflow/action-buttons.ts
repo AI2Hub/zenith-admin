@@ -3,9 +3,7 @@ import type { WorkflowActionButtonConfig, WorkflowActionButtonKey } from './type
 /**
  * 操作按钮（`actionButtons`）元数据与默认值的唯一事实源。
  *
- * 设计器（节点「操作按钮」页）、运行时审批面板、移动审批详情与服务端动作校验
- * 共用同一份默认值：此前三处各写一份，导致未配置按钮的节点在「设计器显示已开启 /
- * 运行时隐藏按钮 / 服务端 403」之间漂移，设计器保存时还会把错误的启用态写进流程快照。
+ * 设计器、审批面板、移动审批与服务端动作校验共用此处默认值。
  *
  * 契约（docs/workflow/node-config.md）：未配置按钮时，通过与拒绝默认启用，其余协作按钮默认关闭。
  */

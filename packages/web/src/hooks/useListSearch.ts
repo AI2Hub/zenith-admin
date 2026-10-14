@@ -83,8 +83,7 @@ export interface UseListSearchReturn<T> extends UsePaginationReturn {
 /**
  * 列表页搜索状态。
  *
- * 把此前每个列表页手抄一遍的三件套收敛到一处：
- * `draft`/`submitted` 双状态、页码重置、以及**查询/重置必回源**的失效调用。
+ * 统一维护 `draft`/`submitted` 双状态、页码重置，以及**查询/重置必回源**的失效调用。
  *
  * ## 为什么必须失效
  * 条件没变化时 query key 不变，`staleTime` 内 TanStack Query 不会重新发请求。

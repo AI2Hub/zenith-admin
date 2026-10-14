@@ -1,7 +1,7 @@
 /**
- * Channel 双向客服服务（第三期 2D）
+ * Channel 双向客服服务
  *
- * 在第一二期「系统号广播 / 定向 / 订阅」基础上扩展运营号（business）能力：
+ * 运营号（business）能力：
  *  - 公众号底部菜单（channel_menus，最多 3 个一级 + 每级 5 个二级）
  *  - 关键词自动回复（channel_auto_replies：subscribe / keyword / default）
  *  - 用户 ↔ 运营号双向消息（channel_messages.direction in/out）

@@ -1,5 +1,5 @@
 /**
- * 行为中心阶段 1：前端错误上报（reportError）身份归属测试。
+ * 前端错误上报（reportError）身份归属测试。
  *
  * 覆盖点：
  * - 已登录管理员上报 → source=web_admin，userId 归属，memberId=null

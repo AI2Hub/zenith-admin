@@ -142,7 +142,7 @@ export default function DashboardListPage() {
     successMessage: ({ isEdit }) => isEdit ? '分类更新成功' : '分类创建成功',
   });
 
-  // 仪表盘批量启停不弹确认（与此前一致）
+  // 仪表盘批量启停不弹确认
   const handleBatchStatus = batchStatusHandler({
     selectedRowKeys, clearSelection,
     run: (ids, status) => batchStatusMutation.mutateAsync({ body: { ids, status } }),

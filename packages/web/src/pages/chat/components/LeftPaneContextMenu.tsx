@@ -11,7 +11,7 @@ import type { Channel } from '@zenith/shared/messaging';
 import { removeConversationById, toggleConvMuted, toggleConvStarred, togglePinAndSort } from '../utils-state';
 import type { LeftPaneContextMenuState, Setter } from '../types';
 
-/** 左栏右键菜单：会话（置顶/星标/免打扰/归档/删除）、频道（退订）与收藏（定位/取消收藏）（自 ChatPage 原样搬移） */
+/** 左栏右键菜单：会话（置顶/星标/免打扰/归档/删除）、频道（退订）与收藏（定位/取消收藏） */
 export function LeftPaneContextMenu({
   leftPaneContextMenu, setLeftPaneContextMenu, setConversations, activeConvId, setActiveConvId, setMessages,
   setPendingNewMsgCount, openFavoriteMessage, setFavPreviewVisible, handleToggleFavorite, handleTogglePinMessage,

@@ -5,7 +5,7 @@ import { api, urlOf } from '@/lib/contract-query';
 import { ApiError } from '@/lib/query';
 import { request } from '@/utils/request';
 
-/** 导出当前会话聊天记录（自 ChatPage 原样搬移：state + handler） */
+/** 导出当前会话聊天记录 */
 export function useExportChat() {
   // 导出当前会话聊天记录（走导出中心，xlsx 同步下载）
   const [exportingChat, setExportingChat] = useState(false);

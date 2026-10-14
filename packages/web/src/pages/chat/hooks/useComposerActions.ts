@@ -8,7 +8,7 @@ import { extractFirstUrl, getImageDimensions } from '../utils';
 import { VIRTUOSO_FIRST_INDEX_BUFFER, makeProgressHandler, removeUploadingItemById } from '../utils-state';
 import type { FailedMessage, PendingFile, PendingImage, Setter, UploadingItem } from '../types';
 
-/** 发送、选图/选文件、粘贴、消息定位滚动、@提及插入、消息更新应用（自 ChatPage 原样搬移） */
+/** 发送、选图/选文件、粘贴、消息定位滚动、@提及插入、消息更新应用 */
 export function useComposerActions({
   activeConvId, sending, setSending, input, setInput, pendingImages,
   setPendingImages, pendingFiles, setPendingFiles, saveDraft, setDraftsMap, replyTo,

@@ -250,8 +250,7 @@ export const CMS_RESOURCE_TYPE_LABELS: Record<(typeof CMS_RESOURCE_TYPES)[number
  *
  * 内容正文、JSONB 字段与标量列统一以 `cms-res://{id}` 引用素材中心条目，
  * 写入时由服务端把已知素材 URL 归一为句柄，读取/渲染时再解析回真实 URL。
- * 句柄化使「替换素材」「迁移存储 / CDN」「改文件名」不再产生死链，
- * 并让 `cms_resource_refs` 反向索引可以精确建立（不再靠子串匹配）。
+ * 替换素材、迁移存储或改名时保持引用稳定，`cms_resource_refs` 按句柄建立反向索引。
  */
 export const CMS_RESOURCE_URI_PREFIX = 'cms-res://';
 

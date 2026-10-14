@@ -5,7 +5,7 @@ import { createDisplayableImageUrl } from '@/utils/image-decode';
 import type { ChatMessage } from '@zenith/shared/chat';
 import type { Setter } from '../types';
 
-/** 图片点击预览：blob 会话式加载 + 预览列表填充（自 ChatPage 原样搬移） */
+/** 图片点击预览：blob 会话式加载 + 预览列表填充 */
 export function useImagePreview({
   previewSessionRef, previewBlobUrlsRef, setPreviewSrcList, setPreviewCurrentIndex, setPreviewVisible,
 }: {

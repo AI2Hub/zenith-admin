@@ -66,9 +66,8 @@ interface TabBarItemProps {
  * 两项性能约束：
  * 1. `memo` —— AdminLayout 因任意无关 state（WebSocket 未读数、锁屏、偏好面板…）
  *    重渲染时，未变化的页签不参与 reconciliation。
- * 2. 右键菜单懒构建 —— 菜单 14 个 Dropdown.Item（各带图标）此前在每次渲染中
- *    对每个页签都急切创建，20 个页签即 600+ 个从未展示的元素。现在首次右键
- *    时才构建：`onContextMenu` 与 Semi 自身的显示逻辑在同一个原生事件内触发，
+ * 2. 右键菜单首次打开时才构建，避免为未打开的菜单创建元素。
+ *    `onContextMenu` 与 Semi 自身的显示逻辑在同一个原生事件内触发，
  *    React 18 会把两次 setState 批处理进同一次渲染，弹层挂载时菜单已就绪。
  */
 function TabBarItemInner({

@@ -1,11 +1,6 @@
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 
-/**
- * `@zenith/shared` 此前没有任何 lint 配置——111 个文件、前后端共用的全部类型与
- * Zod schema 完全不受约束，而 CI 的 `npm run lint` 也只覆盖 server / analytics-sdk / web。
- * 一处 schema 改错可以同时打穿两端却无人拦截。
- */
 export default tseslint.config(
   { ignores: ['dist/**', 'node_modules/**'] },
   js.configs.recommended,
@@ -61,7 +56,7 @@ export default tseslint.config(
     },
   },
   // 契约积木纪律（constraints.md → Shared 层「契约积木」）：查询串里的标准时间范围与关联 ID 只用 core/api-schemas 的积木，
-  // 逐个手写六段链式调用是本轮收敛前 141 / 72 处重复的来源。同名规则整体覆盖，故把 .partial() 那条一并带上。
+  // 同名规则整体覆盖，需同时保留 .partial() 限制。
   {
     files: ['src/*/contracts/**/*.ts'],
     ignores: ['src/**/*.test.ts'],

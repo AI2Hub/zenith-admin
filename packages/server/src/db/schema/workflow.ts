@@ -550,7 +550,7 @@ export const workflowTaskTransfers = pgTable('workflow_task_transfers', {
 export type WorkflowTaskTransferRow = typeof workflowTaskTransfers.$inferSelect;
 
 // ─── 显式执行 Token（活动路径 / 网关汇聚的权威来源）──────────────────────────
-// 每条活动执行路径 = 一行 token。替代"扫已完成任务行 + 重算 BFS"的隐式推导：
+// 每条活动执行路径对应一行 token：
 // fork 沿 branchPath 压入一帧分支栈、产生多条兄弟 token；join 在同组分支全部 parked
 // 后消费它们并产出 1 条续接 token（弹出栈顶帧），构成可观测、可重放的执行树。
 export const workflowTokens = pgTable('workflow_tokens', {

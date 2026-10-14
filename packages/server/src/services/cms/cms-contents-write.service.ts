@@ -98,7 +98,7 @@ async function assertRelatedContentAccess(siteId: number, relatedIds: number[]):
   await requireCmsContentsAccess(targets);
 }
 
-// ─── 属性自动标记（P4：保存时按正文/形态数据/封面检测含图/含视频/含附件）──────────
+// ─── 属性自动标记（保存时按正文/形态数据/封面检测含图/含视频/含附件）──────────
 const ATTACHMENT_LINK_RE = /<a\b[^>]*href="[^"]*\.(?:pdf|docx?|xlsx?|pptx?|zip|rar|7z|csv)(?:[?#][^"]*)?"/i;
 
 export function detectContentFlags(input: {

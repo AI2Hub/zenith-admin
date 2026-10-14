@@ -103,8 +103,7 @@ async function shutdown(signal: NodeJS.Signals) {
   shuttingDown = true;
   logger.info(`Received ${signal}, shutting down gracefully...`);
   // 硬闸：无论清理卡在哪一步，超时后强制退出（api 15s 断连接即可；纯 worker 缺省 120s 排空在飞作业）。
-  // 此前 stopAllJobs/closeDb/closeRedis 无超时，任一环节挂起会导致
-  // 「监听已关闭但进程永不退出」，tsx watch 等不到子进程退出也不会重启。
+  // 清理超时必须终止进程，避免监听已关闭却一直不退出，导致 tsx watch 无法重启。
   setTimeout(() => {
     logger.error(`Graceful shutdown deadline (${config.shutdownGraceMs}ms) exceeded, forcing exit`);
     process.exit(1);

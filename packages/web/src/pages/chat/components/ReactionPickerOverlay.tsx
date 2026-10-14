@@ -1,7 +1,7 @@
 import type { Setter } from '../types';
 import { ThemedEmojiPicker } from './ThemedEmojiPicker';
 
-/** 消息表情回应选择浮层（自 ChatPage 原样搬移） */
+/** 消息表情回应选择浮层 */
 export function ReactionPickerOverlay({
   reactionPickerRef, reactionPickerAnchor, reactionTargetMsgId, handleReaction, setReactionPickerVisible,
 }: Readonly<{

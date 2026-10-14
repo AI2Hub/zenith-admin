@@ -3,7 +3,7 @@ import { Bookmark, Forward, Trash2 } from 'lucide-react';
 
 const { Text } = Typography;
 
-/** 多选模式操作条：转发/收藏/删除/退出（自 ChatPage 原样搬移） */
+/** 多选模式操作条：转发/收藏/删除/退出 */
 export function MultiSelectActionBar({
   selectedMessageIds, handleForwardSelected, handleFavoriteSelected, handleDeleteSelected, handleExitMultiSelect,
 }: Readonly<{

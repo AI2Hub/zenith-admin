@@ -4,7 +4,7 @@ import type { ChatMessage } from '@zenith/shared/chat';
 import { api } from '@/lib/contract-query';
 import type { Setter } from '../types';
 
-/** 媒体库（图片/文件/链接）分页拉取与联动刷新（自 ChatPage 原样搬移） */
+/** 媒体库（图片/文件/链接）分页拉取与联动刷新 */
 export function useMediaLibrary({
   activeConvId, mediaType, showMediaPanel, setMediaHasMore, setMediaItems, setMediaLoading,
   setMediaPage,

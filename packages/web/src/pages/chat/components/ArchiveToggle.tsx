@@ -5,7 +5,7 @@ import type { Setter } from '../types';
 
 const { Text } = Typography;
 
-/** 左栏「已归档会话」折叠开关行（自 ChatPage 原样搬移） */
+/** 左栏「已归档会话」折叠开关行 */
 export function ArchiveToggle({
   showArchived, setShowArchived, archivedConvs, archivedUnread,
 }: Readonly<{

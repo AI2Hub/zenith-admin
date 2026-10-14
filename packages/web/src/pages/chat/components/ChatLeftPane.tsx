@@ -136,7 +136,7 @@ export function ChatLeftPane({
       </div>
 
       <div style={{ padding: '0 12px 8px', display: 'flex', gap: 8 }}>
-        {/* 未读总数原先挂在左栏标题上，标题去掉后落到「会话」页签，避免丢掉这处全局未读提示 */}
+        {/* 「会话」页签显示全部会话的未读总数 */}
         <Badge count={totalUnread} overflowCount={99}>
           <Button
             size="small"

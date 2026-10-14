@@ -315,7 +315,7 @@ export async function getCmsContentCalendar(q: QueryOutputOf<typeof cmsContentCo
   return [...days.values()].sort((a, b) => a.date.localeCompare(b.date));
 }
 
-// ─── 标题查重（P4：编辑辅助提示，不阻断保存；排除回收站与自身）───────────────────
+// ─── 标题查重（编辑辅助提示，不阻断保存；排除回收站与自身）───────────────────
 export async function checkCmsContentTitle(siteId: number, title: string, excludeId?: number) {
   await ensureCmsSiteExists(siteId);
   await assertSiteAccess(siteId);

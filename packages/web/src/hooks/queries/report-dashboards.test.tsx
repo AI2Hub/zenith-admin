@@ -1,11 +1,8 @@
 /**
- * report-dashboards 域缓存一致性契约（S10 消除空转）
+ * report-dashboards 域缓存一致性契约。
  *
- * 该域此前有 4 处「先 `.all` 再补具体键」的空转：`.all` 是那些具体键的前缀，
- * 后补的调用完全不产生额外效果，等于只有广播生效。
- *
- * 更重要的是本域最贵的缓存 —— `dashboardData`（一屏可能扇出数十个数据集查询）
- * 也挂在同一根下，于是「收藏一个看板」这种纯标记操作会把整屏图表全部重跑。
+ * 按操作的实际影响精确失效；收藏、克隆不影响源看板的 `dashboardData`，
+ * 避免触发整屏图表背后的数据集查询。删除则移除该看板详情、数据、版本与分享缓存。
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';

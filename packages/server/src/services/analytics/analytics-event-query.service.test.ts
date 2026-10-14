@@ -1,5 +1,5 @@
 /**
- * 行为中心阶段 1：通用事件分析工作台 queryEvents 单测。
+ * 通用事件分析工作台 queryEvents 单测。
  * 覆盖：
  *  - groupBy 维度白名单（即便绕过 TS 类型传入非法维度也会在服务端被拒绝，不接受任意列名）
  *  - 属性过滤 key 非法时拒绝（复用 analytics-property-filter 的注入防护）

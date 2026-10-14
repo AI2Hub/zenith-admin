@@ -10,7 +10,7 @@ import { applyPresenceToLastSeen, applyPresenceToOnlineIds } from '../utils-stat
 
 const EMPTY_ANNOUNCEMENT_HISTORY: ChatMessage[] = [];
 
-/** 会话附属数据：置顶/收藏消息、群公告历史、已读回执、在线状态（自 ChatPage 原样搬移） */
+/** 会话附属数据：置顶/收藏消息、群公告历史、已读回执、在线状态 */
 export function useConversationExtras({
   activeConvId, announcementHistoryVisible, activeConv, activeGroupMembers, currentUserId, conversations,
   readStates, setPinnedMessages, setFavoriteMessages, setLeftPaneMode, setActiveConvId, setMessages,

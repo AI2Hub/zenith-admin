@@ -164,7 +164,7 @@ function AlarmRecordsTab({ detailId, onOpenDetail, onCloseDetail }: {
     dateTimeColumn<IotAlarm>('触发时间', 'firedAt'),
     dateTimeColumn<IotAlarm>('恢复时间', 'resolvedAt'),
     overflowTagColumn<IotAlarm>({
-      // 状态 + 「升」标记：超宽时收进 +N（原注释 52 + 4 + 28 = 84，列宽 120 保持不变）
+      // 状态 + 「升」标记：超宽时收进 +N
       title: '状态',
       dataIndex: 'status',
       width: 120,

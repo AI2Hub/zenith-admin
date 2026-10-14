@@ -65,8 +65,8 @@ export interface UseTreeExpansionReturn {
 /**
  * 树形表格的「全部展开 / 全部折叠」状态。
  *
- * 把此前每个树形页面手抄的四件套收敛到一处：受控 `expandedRowKeys`、
- * 递归收集全部节点 key、`isAllExpanded` 判定，以及 `onExpandedRowsChange` 的行→key 映射。
+ * 统一维护受控 `expandedRowKeys`、递归收集全部节点 key、`isAllExpanded` 判定，
+ * 以及 `onExpandedRowsChange` 的行→key 映射。
  *
  * ## 传入的必须是**表格实际渲染的数据**
  * 传未筛选的原始树会让 `isAllExpanded` 跟可见行数对不上：筛选后所有可见节点已展开，

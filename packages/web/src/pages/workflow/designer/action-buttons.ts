@@ -6,9 +6,7 @@ export type ActionButtonMeta = WorkflowActionButtonMeta;
 
 /**
  * 按钮顺序、默认启用态与默认文案全部来自 shared 的 `WORKFLOW_ACTION_BUTTONS`。
- * 本文件不再自持一份默认值：此前设计器默认「转办/委派/加签/退回开启」与运行时、
- * 服务端的默认关闭相互矛盾（未配置按钮的节点在画布里显示已开启，保存后还会把
- * 错误的启用态写进流程快照，运行时却隐藏按钮、接口返回 403）。
+ * 设计器、审批面板与服务端共用这些默认值，避免展示、流程快照与权限判断不一致。
  */
 export const ACTION_BUTTON_META: readonly ActionButtonMeta[] = WORKFLOW_ACTION_BUTTONS;
 

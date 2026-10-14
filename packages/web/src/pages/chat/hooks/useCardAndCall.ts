@@ -7,7 +7,7 @@ import type { Setter } from '../types';
 import { isRootRelativePath } from '@zenith/shared/core';
 import { openExternalUrl } from '@/utils/safe-url';
 
-/** 卡片消息动作（工作流审批/链接跳转）与音视频通话发起（自 ChatPage 原样搬移） */
+/** 卡片消息动作（工作流审批/链接跳转）与音视频通话发起 */
 export function useCardAndCall({
   activeConv, navigate, setCardSheet,
 }: {

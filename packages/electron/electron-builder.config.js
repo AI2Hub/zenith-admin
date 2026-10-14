@@ -1,5 +1,5 @@
 /**
- * electron-builder 配置（唯一来源，package.json 不再重复 build 字段）。
+ * electron-builder 配置的唯一来源。
  *
  * 安全相关的构建期输入（环境变量）：
  * - ZENITH_UPDATE_SERVER：在线升级服务器地址（https），写入打包后 package.json 的 updateServer 字段，

@@ -6,7 +6,7 @@ import { WsDisconnectedBanner } from './WsDisconnectedBanner';
 
 const { Text } = Typography;
 
-/** 消息列表顶部：断线提示、置顶消息条、加载更多提示（自 ChatPage Virtuoso Header 原样搬移） */
+/** 消息列表顶部：断线提示、置顶消息条、加载更多提示 */
 export function MessagesListHeader({
   isQuick, wsConnected, pinnedMessages, scrollToMessage, handleTogglePinMessage, hasMore,
   loadingMsgs,

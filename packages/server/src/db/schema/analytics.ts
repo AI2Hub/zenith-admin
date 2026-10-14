@@ -12,7 +12,7 @@ export const userBehaviorEventTypeEnum = pgEnum('user_behavior_event_type', [
 
 export const analyticsDeviceTypeEnum = pgEnum('analytics_device_type', ['desktop', 'mobile', 'tablet', 'bot', 'unknown']);
 
-// 行为中心阶段 1：事件来源平台（后台 SPA / 会员前台 SPA / 服务端埋点），默认 web_admin 兼容存量数据
+// 事件来源平台（后台 SPA / 会员前台 SPA / 服务端埋点），默认 web_admin 兼容存量数据
 export const analyticsEventSourceEnum = pgEnum('analytics_event_source', ['web_admin', 'web_member', 'server']);
 
 // 身份归属类型：后台管理员 / 前台会员 / 匿名访客
@@ -72,7 +72,7 @@ export const userEvents = pgTable('user_events', {
   // 性能指标（perf 事件）
   metricName: varchar({ length: 32 }),
   metricValue: real(),
-  // 行为中心阶段 1：多端来源归因（后台 SPA / 会员前台 SPA / 服务端上报）
+  // 多端来源归因（后台 SPA / 会员前台 SPA / 服务端上报）
   source: analyticsEventSourceEnum().notNull().default('web_admin'),
   // 应用标识（多 App 场景预留，默认 admin 兼容存量后台数据）
   appId: varchar({ length: 64 }).notNull().default('admin'),
@@ -163,7 +163,7 @@ export const analyticsSessions = pgTable('analytics_sessions', {
   country: varchar({ length: 64 }),
   region: varchar({ length: 64 }),
   isBounce: boolean().notNull().default(true),
-  // 行为中心阶段 1：多端来源归因，与 user_events 保持同一套平台字段口径
+  // 多端来源归因，与 user_events 保持同一套平台字段口径
   source: analyticsEventSourceEnum().notNull().default('web_admin'),
   appId: varchar({ length: 64 }).notNull().default('admin'),
   environment: varchar({ length: 32 }).notNull().default('production').$type<AnalyticsEnvironment>(),
@@ -321,7 +321,7 @@ export const errorEvents = pgTable('error_events', {
   httpStatus: integer(),
   httpMethod: varchar({ length: 16 }),
   httpUrl: varchar({ length: 512 }),
-  // 行为中心阶段 1：多端来源归因，与 user_events / analytics_sessions 保持同一套平台字段口径
+  // 多端来源归因，与 user_events / analytics_sessions 保持同一套平台字段口径
   source: analyticsEventSourceEnum().notNull().default('web_admin'),
   appId: varchar({ length: 64 }).notNull().default('admin'),
   environment: varchar({ length: 32 }).notNull().default('production').$type<AnalyticsEnvironment>(),
@@ -364,7 +364,7 @@ export type NewErrorEvent = typeof errorEvents.$inferInsert;
 
 // 错误分组 × 受影响身份（'u:<userId>' / 'm:<memberId>' / 'a:<sessionId>'）：
 // ingest 时 ON CONFLICT DO NOTHING 增量去重，支撑 error_groups.affected_users 的 O(1) 维护，
-// 替代旧的「详情页 COUNT(DISTINCT) 懒回写」。纯关联表，不加审计列。
+// 纯关联表，不加审计列。
 export const errorGroupIdentities = pgTable('error_group_identities', {
   groupId: integer().notNull().references((): AnyPgColumn => errorGroups.id, { onDelete: 'cascade' }),
   identity: varchar({ length: 80 }).notNull(),
@@ -461,7 +461,7 @@ export type AnalyticsSavedReportRow = typeof analyticsSavedReports.$inferSelect;
 
 export type NewAnalyticsSavedReport = typeof analyticsSavedReports.$inferInsert;
 
-// ─── 行为中心阶段 1：租户级事件启停覆盖 ───────────────────────────────────────
+// ─── 租户级事件启停覆盖 ───────────────────────────────────────
 // 全局封禁（blocked）仍由 analytics_event_meta 平台超管维护；本表仅承载租户自助的启/停开关
 export const analyticsEventOverrideStatusEnum = pgEnum('analytics_event_override_status', ['enabled', 'disabled']);
 
@@ -483,7 +483,7 @@ export type AnalyticsEventOverrideRow = typeof analyticsEventOverrides.$inferSel
 export type NewAnalyticsEventOverride = typeof analyticsEventOverrides.$inferInsert;
 
 
-// ─── 行为中心阶段 2：站点模型（匿名 site key 归属）──────────────────────────────
+// ─── 站点模型（匿名 site key 归属）──────────────────────────────
 export const analyticsSites = pgTable('analytics_sites', {
   id: idColumn(),
   tenantId: tenantIdColumn(),
@@ -505,7 +505,7 @@ export type AnalyticsSiteRow = typeof analyticsSites.$inferSelect;
 
 export type NewAnalyticsSite = typeof analyticsSites.$inferInsert;
 
-// ─── 行为中心阶段 1：埋点质量日聚合（轻量，供质量看板/告警使用）──────────────────
+// ─── 埋点质量日聚合（轻量，供质量看板/告警使用）──────────────────
 // tenantId 非空（0 = 平台/无租户哨兵），避免 NULL 在唯一索引中视为相异导致 upsert 失效，与 analytics_daily_rollup 约定一致
 export const analyticsEventQualityIssueTypeEnum = pgEnum('analytics_event_quality_issue_type', [
   'missing_required', 'type_mismatch', 'invalid_enum', 'event_disabled', 'origin_rejected', 'quota_exceeded',
@@ -532,7 +532,7 @@ export type AnalyticsEventQualityDailyRow = typeof analyticsEventQualityDaily.$i
 
 export type NewAnalyticsEventQualityDaily = typeof analyticsEventQualityDaily.$inferInsert;
 
-// ─── 行为中心阶段 1：统一用户画像（系统派生，供分群圈选使用）────────────────────
+// ─── 统一用户画像（系统派生，供分群圈选使用）────────────────────
 export const analyticsUserProfiles = pgTable('analytics_user_profiles', {
   id: idColumn(),
   tenantId: tenantIdColumn(),
@@ -561,7 +561,7 @@ export type AnalyticsUserProfileRow = typeof analyticsUserProfiles.$inferSelect;
 
 export type NewAnalyticsUserProfile = typeof analyticsUserProfiles.$inferInsert;
 
-// ─── 行为中心阶段 1：用户分群定义 ──────────────────────────────────────────────
+// ─── 用户分群定义 ──────────────────────────────────────────────
 export const analyticsUserSegments = pgTable('analytics_user_segments', {
   id: idColumn(),
   tenantId: tenantIdColumn(),
@@ -705,7 +705,7 @@ export const replayAccessLogs = pgTable('replay_access_logs', {
 
 export type ReplayAccessLogRow = typeof replayAccessLogs.$inferSelect;
 
-// ─── 行为中心阶段 1：分群成员物化快照（系统派生，定时任务重算）─────────────────
+// ─── 分群成员物化快照（系统派生，定时任务重算）─────────────────
 export const analyticsSegmentMembers = pgTable('analytics_segment_members', {
   id: idColumn(),
   segmentId: integer().notNull().references(() => analyticsUserSegments.id, { onDelete: 'cascade' }),
@@ -728,7 +728,7 @@ export type AnalyticsSegmentMemberRow = typeof analyticsSegmentMembers.$inferSel
 export type NewAnalyticsSegmentMember = typeof analyticsSegmentMembers.$inferInsert;
 
 
-// ─── 行为中心阶段 2：A/B 实验（无状态确定性分流）───────────────────────────────
+// ─── A/B 实验（无状态确定性分流）───────────────────────────────
 export const analyticsExperiments = pgTable('analytics_experiments', {
   id: idColumn(),
   tenantId: tenantIdColumn(),
@@ -753,7 +753,7 @@ export type AnalyticsExperimentRow = typeof analyticsExperiments.$inferSelect;
 
 export type NewAnalyticsExperiment = typeof analyticsExperiments.$inferInsert;
 
-// ─── 行为中心阶段 2：分群触达活动 ──────────────────────────────────────────────
+// ─── 分群触达活动 ──────────────────────────────────────────────
 export const analyticsSegmentCampaigns = pgTable('analytics_segment_campaigns', {
   id: idColumn(),
   tenantId: tenantIdColumn(),

@@ -3,7 +3,7 @@ import { UserAvatar } from '@/components/UserAvatar';
 import type { UploadingItem } from '../types';
 import { resolveChatImageBox } from '../utils';
 
-/** 消息列表底部：当前会话上传中条目进度（自 ChatPage Virtuoso Footer 原样搬移） */
+/** 消息列表底部：当前会话上传中条目进度 */
 export function UploadingFooter({
   uploadingItems, activeConvId, isQuick,
 }: Readonly<{

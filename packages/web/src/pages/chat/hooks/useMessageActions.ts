@@ -7,7 +7,7 @@ import { confirmDelete } from '@/utils/confirm';
 import { removeMessageById, removeMessagesByIds, setMessageReactions } from '../utils-state';
 import type { Setter } from '../types';
 
-/** 消息级操作：收藏/置顶/转发/删除/表情回应/投票/编辑/撤回（自 ChatPage 原样搬移） */
+/** 消息级操作：收藏/置顶/转发/删除/表情回应/投票/编辑/撤回 */
 export function useMessageActions({
   activeConvId, messages, selectedMessageIds, recalledDrafts, forwardingMessageIds, forwardingMode,
   inputRef, applyMessageUpdate, appendMessageOnce, setInput, setSelectedMentions,

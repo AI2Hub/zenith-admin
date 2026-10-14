@@ -148,8 +148,7 @@ interface NumberFilterProps extends Omit<InputNumberProps, 'onChange' | 'onNumbe
 
 /**
  * 单个数字筛选（ID / 阈值 / 金额上下界）：隐藏步进按钮、固定宽度，并把 Semi 宽松的
- * `onChange`（`number | string`，清空时为空串）收窄为 `number | undefined`——
- * 页面此前各自手写 `v !== '' && v != null ? Number(v) : null` / `typeof v === 'number' ? v : undefined`。
+ * `onChange`（`number | string`，清空时为空串）收窄为 `number | undefined`。
  * 搭配 `useListSearch` 的 `bind('字段')`，字段声明为可选 `number`。
  */
 export function NumberFilter({ value, onChange, width = 130, style, ...rest }: NumberFilterProps) {
@@ -189,7 +188,7 @@ interface DateRangeFilterProps extends Omit<DatePickerProps, 'onChange' | 'value
 
 /**
  * 时间范围筛选：统一占位文案与宽度，并把 Semi 宽松的 onChange 值收窄成
- * `[Date, Date] | null`——页面此前各自手写 `Array.isArray(v) && v.length >= 2` 之类的判断。
+ * `[Date, Date] | null`。
  */
 export function DateRangeFilter({
   value,

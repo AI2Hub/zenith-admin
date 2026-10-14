@@ -9,7 +9,7 @@ import { MessageContent } from './MessageContent';
 
 const { Text } = Typography;
 
-/** 收藏消息预览弹窗（自 ChatPage 原样搬移；原为 IIFE，改为组件内计算） */
+/** 收藏消息预览弹窗 */
 export function FavoriteMessageModal({
   favPreviewMsg, conversations, favPreviewVisible, setFavPreviewVisible, handleToggleFavorite, openFavoriteMessage,
   handleOpenForwardView,

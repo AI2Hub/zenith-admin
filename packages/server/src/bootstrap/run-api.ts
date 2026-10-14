@@ -1,7 +1,7 @@
 /**
  * api 角色：HTTP / WebSocket 接入面。
  *
- * 从 src/index.ts 抽出：监听业务端口、承载 WS 升级、订阅跨进程 WS fan-out、加载限流规则、预热 OpenAPI 文档，
+ * 监听业务端口、承载 WS 升级、订阅跨进程 WS fan-out、加载限流规则、预热 OpenAPI 文档，
  * 以及只与「持有连接的进程」有关的运行时（终端会话持久化 / 对账 / reaper——PTY 进程随本进程存在）。
  * pg-boss 的声明与事件订阅者不在这里：它们对所有角色一致，由 index.ts 统一装配。
  */

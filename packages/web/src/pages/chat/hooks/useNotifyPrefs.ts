@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 import { Toast } from '@douyinfe/semi-ui';
 import { getChatNotifyPrefs, setChatNotifyPrefs } from '../notifyPrefs';
 
-/** 桌面通知 / 提示音偏好：读写 localStorage，开启桌面通知时申请浏览器权限（自 ChatPage 原样搬移） */
+/** 桌面通知 / 提示音偏好：读写 localStorage，开启桌面通知时申请浏览器权限 */
 export function useNotifyPrefs() {
   const [notifyDesktop, setNotifyDesktop] = useState(() => getChatNotifyPrefs().desktop);
   const [notifySound, setNotifySound] = useState(() => getChatNotifyPrefs().sound);

@@ -7,7 +7,7 @@ import { GroupGridAvatar } from './GroupGridAvatar';
 
 const { Text, Title } = Typography;
 
-/** 会话头部标题区：单聊在线状态 / 群聊成员气泡（自 ChatPage 原样搬移） */
+/** 会话头部标题区：单聊在线状态 / 群聊成员气泡 */
 export function ChatConvTitle({
   activeConv, isQuick, onlineUserIds, lastSeenMap, groupAvatarMap,
 }: Readonly<{

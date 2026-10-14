@@ -9,7 +9,7 @@ import { formatBytes } from '@zenith/shared/core';
 
 const { Text } = Typography;
 
-/** 右侧媒体库面板：图片/文件/链接三类分页浏览（自 ChatPage 原样搬移） */
+/** 右侧媒体库面板：图片/文件/链接三类分页浏览 */
 export function MediaPanel({
   setShowMediaPanel, mediaType, setMediaType, mediaLoading, mediaItems, openImagePreview,
   handleMediaFilePreview, activeConvId, fetchMediaItems, mediaPage, mediaHasMore,

@@ -257,8 +257,7 @@
   font-size: 12px;
 }
 
-/* 图标降为标签前的小标记（原先是 44px 填充方块，属于卡片式装饰）。
-   各页传入的 size 不一，这里统一收敛，避免出现大小不一的图标。 */
+/* 标签前的图标统一为 14px，避免各页传入的 size 导致大小不一。 */
 .zx-stat__icon {
   display: inline-flex;
   flex-shrink: 0;

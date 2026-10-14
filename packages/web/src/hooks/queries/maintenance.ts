@@ -24,11 +24,7 @@ export function publicMaintenanceStatusQueryOptions() {
   return apiQueryOptions(maintenanceContract.status, PUBLIC_STATUS_OPTIONS);
 }
 
-/**
- * 公开维护状态。全站维护遮罩、超管横幅共用这一份缓存——此前 App.tsx、
- * MaintenanceOverlay、useMaintenanceBanner 各自裸取一次，再靠 CustomEvent
- * 手工广播失效，等于手写了一遍 invalidateQueries。
- */
+/** 公开维护状态：全站维护遮罩与超管横幅共用缓存。 */
 export function usePublicMaintenanceStatus(options?: { enabled?: boolean; refetchInterval?: number | false }) {
   return useApiQuery(maintenanceContract.status, {
     ...PUBLIC_STATUS_OPTIONS,

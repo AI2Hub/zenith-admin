@@ -6,7 +6,7 @@ import { api } from '@/lib/contract-query';
 import { formatDateTimeRangeValuesForApi } from '@/utils/date';
 import type { SearchDatePreset, Setter } from '../types';
 
-/** 会话内消息搜索：筛选、日期预设、执行搜索、跳转定位（自 ChatPage 原样搬移） */
+/** 会话内消息搜索：筛选、日期预设、执行搜索、跳转定位 */
 export function useConversationSearch({
   activeConv, activeConvId, currentUserId, currentUserNickname, messages, msgSearch,
   searchMembers, searchResults, searchSenderId, searchTimeRange, searchTypeFilters, showSearchPanel,

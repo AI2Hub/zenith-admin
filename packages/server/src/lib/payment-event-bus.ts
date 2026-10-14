@@ -1,7 +1,7 @@
 /**
  * 支付事件总线
  *
- * 进程内 pub-sub（照搬 workflow-event-bus 设计）。业务模块通过
+ * 进程内 pub-sub。业务模块通过
  * `paymentEventBus.on('payment.succeeded', handler)` 订阅支付/退款结果，
  * 与支付中心解耦。emit 通过 queueMicrotask 异步隔离，任一 handler 抛错不影响其它。
  *

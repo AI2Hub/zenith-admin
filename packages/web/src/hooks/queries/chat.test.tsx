@@ -1,15 +1,8 @@
 /**
- * chat 域群成员缓存归一（S7 首个切片）
+ * chat 域群成员缓存一致性契约。
  *
- * 背景：ChatPage 曾把群成员镜像成本地 useState，只在切换会话时手工拉一次；
- * 而 GroupMembersPanel 用的是 `useChatGroupMembers`（Query 缓存）。同一份服务端
- * 状态存在两份副本，成员相关 mutation 只会刷新面板那份，页面那份保持陈旧。
- *
- * 后果不止于列表显示：ChatPage 用它算 @提及候选、**群主判定（决定操作权限）**
- * 与在线状态拉取名单，转让群主后页面仍按旧数据判断。
- *
- * 这些用例锁定「单一数据源」这一修复：成员类 mutation 之后，任何读取
- * `chatKeys.groupMembers(convId)` 的消费方都必须拿到同一份最新数据。
+ * ChatPage 与 GroupMembersPanel 共用 `chatKeys.groupMembers(convId)`；成员类 mutation 后，
+ * 所有消费方须读取同一份最新数据，保持 @提及候选、群主权限判定与在线状态名单一致。
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
@@ -128,7 +121,7 @@ describe('群成员单一数据源', () => {
     await result.current.transfer.mutateAsync({ params: { id: 10 }, body: { newOwnerId: 2 } });
 
     await waitFor(() => expect(isOwner(result.current.page.data, 2)).toBe(true));
-    // 转让后原群主不应仍被判定为群主（此前页面副本不刷新，会继续放行群主操作）
+    // 转让后原群主不应仍被判定为群主
     expect(isOwner(result.current.page.data, 1)).toBe(false);
     expect(getCacheEntry<ChatGroupMember[]>(qc, chatKeys.groupMembers(10))).toEqual(OWNER_BOB);
   });
@@ -146,7 +139,7 @@ describe('群成员单一数据源', () => {
 describe('成员类 mutation 不再牵动同根静态 lookup', () => {
   it('leaves quick replies, custom emojis and the user lookup untouched', async () => {
     const qc = createTestQueryClient();
-    // ChatPage 上这三个 lookup 长期挂载，收敛前每次成员变更都被 chatKeys.all 打回源
+    // ChatPage 上这三个 lookup 长期挂载，成员变更不应触发它们回源
     const { result } = renderHook(
       () => ({
         members: useChatGroupMembers(10, true),
@@ -193,7 +186,7 @@ describe('会话级 key 与成员 key 解耦', () => {  it('refreshing conversat
     const fetches = observeFetches(qc);
     api.resetCalls();
 
-    // 改群名/公告只是会话字段；此前成员 key 嵌在 conversations 之下，会被前缀连坐
+    // 改群名/公告只影响会话字段，不应刷新成员缓存
     await result.current.updateInfo.mutateAsync({ params: { id: 10 }, body: { name: '新群名' } });
 
     expect(fetches.countOf(chatKeys.groupMembers(10))).toBe(0);
@@ -255,7 +248,7 @@ describe('会话列表：壳层消费方共用一份缓存', () => {
       expect(result.current.groups.isSuccess).toBe(true);
     });
 
-    // 此前三处各自请求（其中通知器还每 60s 轮询一次）；现在共用 chatKeys.conversations，只发一次
+    // 三处共用 chatKeys.conversations，只发起一次请求
     expect(api.countOf('GET', '/api/chat/conversations')).toBe(1);
     expect(result.current.unread.data).toBe(5);
     expect(result.current.list.data).toEqual(CONVERSATIONS);

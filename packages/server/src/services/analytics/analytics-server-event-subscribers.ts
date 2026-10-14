@@ -1,5 +1,5 @@
 /**
- * 行为中心阶段 1：支付 / 工作流事件总线 → 服务端权威语义事件订阅桥接。
+ * 支付 / 工作流事件总线 → 服务端权威语义事件订阅桥接。
  *
  * - paymentEventBus.onAny：5 种支付/退款事件 1:1 映射为同名语义事件。
  * - workflowEventBus.onAny：14 种工作流事件映射为 `workflow.<type>`，通过既有 event_dispatch

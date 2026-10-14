@@ -1,6 +1,5 @@
 /**
  * 跨域纯函数单测：数值比较算子、百分比、正整数 ID 归一化、凭据打码。
- * 期望值取自迁移前各域的历史实现输出（golden），保证上移 shared 后行为不变。
  */
 import { describe, expect, it } from 'vitest';
 import { compareNumber, NUMERIC_COMPARE_OPS } from './compare';

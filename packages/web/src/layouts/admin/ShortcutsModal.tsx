@@ -2,7 +2,7 @@ import { Divider } from '@douyinfe/semi-ui';
 import { Keyboard } from 'lucide-react';
 import { AppModal } from '@/components/AppModal';
 
-// 快捷键说明 Modal（原样迁移自 AdminLayout）
+// 快捷键说明 Modal
 export function ShortcutsModal({
   shortcutsVisible,
   setShortcutsVisible,

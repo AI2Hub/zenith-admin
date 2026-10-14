@@ -3,7 +3,7 @@ import { Bell, BellOff } from 'lucide-react';
 
 const { Text } = Typography;
 
-/** 通知设置浮层：桌面通知与提示音开关（自 ChatPage 原样搬移） */
+/** 通知设置浮层：桌面通知与提示音开关 */
 export function NotifySettingsPopover({
   notifyDesktop, notifyPermission, notifySound, handleToggleNotifyDesktop, handleToggleNotifySound,
 }: Readonly<{

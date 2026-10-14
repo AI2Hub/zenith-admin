@@ -6,7 +6,7 @@ import type { FileObjectAcl } from './types';
 /**
  * WebSocket 鉴权子协议名。浏览器 WebSocket 无法自定义请求头，access token 经
  * `Sec-WebSocket-Protocol: zenith-auth, <token>` 头传递（服务端只回显 zenith-auth），
- * 不再放进 URL 查询串，避免落入代理 / 访问日志。
+ * 禁止将令牌放进 URL 查询串，避免落入代理 / 访问日志。
  */
 export const WS_AUTH_SUBPROTOCOL = 'zenith-auth';
 

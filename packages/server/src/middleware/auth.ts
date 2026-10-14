@@ -126,8 +126,8 @@ async function loadTenantRow(tenantId: number): Promise<TenantLivenessRow | null
 
 // ─── API Token 主体副本 ──────────────────────────────────────────────────────
 /**
- * `zat_` 令牌鉴权此前每请求都重新做 token → user → tenant → user_roles → roles 的关联查询，是 JWT 路径缓存后
- * 全局中间件链上仅剩的每请求 PG 查询；脚本 / 集成调用方高频且突发，同样会把同一条查询排进连接池几十次。
+ * `zat_` 令牌主体使用缓存，避免脚本 / 集成调用突发时反复执行 token → user → tenant → user_roles → roles
+ * 关联查询，占满数据库连接池。
  *
  * - 副本只放令牌行本身与所属用户的角色码（tokenHash 键）；用户 / 租户活性复用上面的 subjectRows +
  *   checkSubjectLiveness，禁用 / 移出租户 / 租户停用的即时性与 JWT 路径完全一致（同一失效链路）；

@@ -13,7 +13,7 @@ import { registerChatImageHandoff, releaseChatImageHandoff, warmChatImage } from
 import type { Setter, UploadingItem } from '../types';
 import { useVoiceRecorder } from '../useVoiceRecorder';
 
-/** 文件/图片/贴纸/语音发送、正在输入节流、链接预览抓取（自 ChatPage 原样搬移） */
+/** 文件/图片/贴纸/语音发送、正在输入节流、链接预览抓取 */
 export function useSendMedia({
   activeConvId, currentUserId, currentUserNickname, appendMessageOnce, addEmojiMutation,
   setEmojiVisible, setUploadingItems,

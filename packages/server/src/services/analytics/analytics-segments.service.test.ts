@@ -1,5 +1,5 @@
 /**
- * 行为中心阶段 1：用户分群 CRUD + 规则合法性校验 + AND/OR SQL 编译 + 物化事务 单测。
+ * 用户分群 CRUD + 规则合法性校验 + AND/OR SQL 编译 + 物化事务 单测。
  *
  * 覆盖：
  *  - validateRules 边界（条件数量 0/11、事件属性 key 非法、属性字段非法）经 createSegment 触发，

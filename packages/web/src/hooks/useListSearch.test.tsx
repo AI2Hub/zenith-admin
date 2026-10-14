@@ -4,8 +4,6 @@ import { createPreferencesContext } from '@/test-utils/preferences';
  *
  * 核心是锁住「**查询 / 重置必回源**」——条件没变化时 query key 不变，
  * staleTime 内不会重新发请求，而本系统的「查询」按钮兼具刷新语义。
- * 此前这段样板由每个列表页手抄，91 个页面里有 5 个漏了 invalidateQueries，
- * 表现为「点查询没反应」且不报错。契约焊进 hook 后，调用方漏不掉。
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ReactNode } from 'react';

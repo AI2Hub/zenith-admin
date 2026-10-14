@@ -1,5 +1,5 @@
 /**
- * 行为中心阶段 1：paymentEventBus / workflowEventBus → trackServerEvent 订阅桥接单测。
+ * paymentEventBus / workflowEventBus → trackServerEvent 订阅桥接单测。
  *
  * 覆盖要点：
  *  1. 注册幂等：重复调用 registerAnalyticsServerEventSubscribers 只挂载一次 onAny 监听器

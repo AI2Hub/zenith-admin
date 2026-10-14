@@ -1,7 +1,7 @@
 import { Space } from '@douyinfe/semi-ui';
 import type { TypingUsersMap } from '../types';
 
-/** 正在输入提示条（自 ChatPage 原样搬移） */
+/** 正在输入提示条 */
 export function TypingIndicator({
   typingUsers,
 }: Readonly<{

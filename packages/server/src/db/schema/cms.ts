@@ -980,7 +980,7 @@ export const cmsSiteUsers = pgTable('cms_site_users', {
 
 export type CmsSiteUserRow = typeof cmsSiteUsers.$inferSelect;
 
-// ─── 栏目数据权限（P5：绑定后该用户仅可管理绑定栏目下的内容；未绑定用户不受限）────
+// ─── 栏目数据权限（绑定后该用户仅可管理绑定栏目下的内容；未绑定用户不受限）────
 export const cmsChannelUsers = pgTable('cms_channel_users', {
   channelId: integer().notNull().references(() => cmsChannels.id, { onDelete: 'cascade' }),
   userId: integer().notNull().references(() => users.id, { onDelete: 'cascade' }),

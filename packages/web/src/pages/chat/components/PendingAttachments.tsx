@@ -4,7 +4,7 @@ import { getFileTypeIcon } from '@/utils/file-utils';
 import type { PendingFile, PendingImage, Setter } from '../types';
 import { formatBytes } from '@zenith/shared/core';
 
-/** 待发送附件条：图片缩略图 + 文件卡片（自 ChatPage 原样搬移） */
+/** 待发送附件条：图片缩略图 + 文件卡片 */
 export function PendingAttachments({
   pendingImages, pendingFiles, setPreviewSrcList, setPreviewCurrentIndex, setPreviewVisible, handleRemovePendingImage,
   handleRemovePendingFile,

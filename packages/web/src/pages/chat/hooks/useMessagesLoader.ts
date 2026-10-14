@@ -5,7 +5,7 @@ import { api } from '@/lib/contract-query';
 import { VIRTUOSO_FIRST_INDEX_BUFFER } from '../utils-state';
 import type { Setter } from '../types';
 
-/** 收藏列表联动加载 + 消息分页加载 fetchMessages（自 ChatPage 原样搬移） */
+/** 收藏列表联动加载 + 消息分页加载 fetchMessages */
 export function useMessagesLoader({
   leftPaneMode, fetchFavoriteMessages, setLoadingMsgs, setMessages, setOldestMsgId, setFirstItemIndex,
   setPendingNewMsgCount, setContextMode, setHasMore,

@@ -37,7 +37,7 @@ export type EmailEncryption = (typeof EMAIL_ENCRYPTIONS)[number];
 // ─── 通知/告警渠道 ────────────────────────────────────────────────────
 /**
  * 通知渠道统一文案（站内信/邮件/Webhook）。
- * 注意：report 域后端 value 为驼峰 `inApp`（历史枚举），label 仍统一复用此处，
+ * report 域后端 value 为驼峰 `inApp`，label 统一复用此处，
  * 渲染时可用 `value.toLowerCase()` 归一后查表。
  */
 export const NOTIFY_CHANNEL_LABELS = {

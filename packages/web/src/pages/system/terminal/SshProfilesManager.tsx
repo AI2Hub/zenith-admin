@@ -34,7 +34,7 @@ interface SshProfileFormData {
 
 interface SshProfilesManagerProps {
   readonly onConnect: (profile: SshProfile) => void;
-  /** 打开远程 SFTP 文件面板（Phase B） */
+  /** 打开远程 SFTP 文件面板 */
   readonly onBrowseSftp?: (profile: SshProfile) => void;
 }
 

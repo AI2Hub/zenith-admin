@@ -10,7 +10,7 @@ import { areLeftListRowPropsEqual, type LeftListRowProps } from './left-list-row
 
 const { Text } = Typography;
 
-/** 左栏列表行：频道条目 / 会话条目（自 ChatPage renderItem 原样搬移）；memo 化，仅本行数据变化时重渲染 */
+/** 左栏列表行：频道条目 / 会话条目；memo 化，仅本行数据变化时重渲染 */
 export const LeftListRow = memo(function LeftListRow({
   item, isActive, isTargetOnline, groupMembers, hasFailedMsg, draftText,
   channelAvatarNode, setActiveChannelId, setActiveConvId, setChannels, handleSelectConv, setLeftPaneContextMenu,

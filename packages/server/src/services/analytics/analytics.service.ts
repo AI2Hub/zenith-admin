@@ -393,7 +393,7 @@ async function upsertSessions(
 }
 
 /**
- * 行为中心阶段 1：统一用户画像 upsert（tenant + distinctId 唯一）。
+ * 统一用户画像 upsert（tenant + distinctId 唯一）。
  *
  * 唯一索引为表达式索引（coalesce(tenant_id, 0), distinct_id），Drizzle 的
  * onConflictDoUpdate 难以直接指定该 target；改用「插入忽略冲突 + 逐条更新」，

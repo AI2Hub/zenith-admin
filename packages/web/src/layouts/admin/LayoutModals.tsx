@@ -5,7 +5,7 @@ import type { InAppMessage } from '@zenith/shared/messaging';
 import type { UserPreferences } from '@/hooks/usePreferences';
 import DateTimeText from '@/components/DateTimeText';
 
-// 导入偏好 Modal（原样迁移自 AdminLayout）
+// 导入偏好 Modal
 export function ImportPreferencesModal({
   importPrefsVisible,
   setImportPrefsVisible,
@@ -47,7 +47,7 @@ export function ImportPreferencesModal({
   );
 }
 
-// 锁屏密码设置 Modal（原样迁移自 AdminLayout）
+// 锁屏密码设置 Modal
 export function LockPasswordModal({
   lockPasswordModalMode,
   lockPasswordModalVisible,
@@ -123,7 +123,7 @@ export function LockPasswordModal({
   );
 }
 
-// 消息详情 Modal（原样迁移自 AdminLayout）
+// 消息详情 Modal
 export function MessageDetailModal({
   selectedMessage,
   setSelectedMessage,

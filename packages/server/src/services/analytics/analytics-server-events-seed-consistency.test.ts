@@ -1,5 +1,5 @@
 /**
- * 行为中心阶段 1：Tracking Plan 种子常量一致性校验。
+ * Tracking Plan 种子常量一致性校验。
  *
  * 确保 `SEED_ANALYTICS_EVENT_META`（DB seed / MSW mock 共用的事件字典种子）与
  * `ANALYTICS_SEMANTIC_EVENT_NAMES`（服务端订阅桥接 / 会员业务调用点唯一引用的事件名常量）

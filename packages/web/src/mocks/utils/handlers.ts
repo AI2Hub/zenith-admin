@@ -3,19 +3,12 @@ import { HttpResponse } from 'msw';
 /**
  * MSW handler 的统一响应构造。
  *
- * 全部 handler 都返回后端约定的 `{ code, message, data }` 信封，此前这段信封在
- * 120 个 handler 文件里逐字内联了 1200+ 次，改一次响应结构要动上百个文件。
- *
- * ## 关于 HTTP 状态码
- * 真实后端失败时会同时返回非 2xx 的 HTTP 状态码，但 mock 侧历史上并不统一：
- * 一部分 handler 只在响应体里写 `code`（HTTP 仍是 200），另一部分同时设置 HTTP 状态码。
- * 二者对 `utils/request.ts` 的表现不同（401/429/503 会被 http-client 特殊拦截），
- * 且 `mocks/*.test.ts` 里有 `expect(response.status).toBe(423)` 这类断言，
- * 因此**不能擅自统一**。所有构造函数都接受可选的 `ResponseInit` 原样透传，
- * 调用点写成 `notFound('标签不存在', { status: 404 })` 即可与原行为逐字对应。
+ * 返回后端约定的 `{ code, message, data }` 信封，并透传可选的 `ResponseInit`。
+ * 业务 `code` 不决定 HTTP 状态码：调用点需显式传入，如 `notFound('标签不存在', { status: 404 })`。
+ * HTTP 401/429/503 会被 http-client 特殊拦截，须保留各 handler 的状态码语义，不能自动统一。
  */
 
-/** 成功响应。`data` 省略时响应体不含 `data` 字段（与内联写法一致）。 */
+/** 成功响应。`data` 省略时响应体不含 `data` 字段。 */
 export function ok<T>(data?: T, message = 'ok', init?: ResponseInit) {
   return HttpResponse.json({ code: 0, message, data }, init);
 }

@@ -6,7 +6,7 @@ import type { Setter } from '../types';
 
 const { Text } = Typography;
 
-/** 群公告历史弹窗（自 ChatPage 原样搬移） */
+/** 群公告历史弹窗 */
 export function AnnouncementHistoryModal({
   announcementHistoryVisible, setAnnouncementHistoryVisible, announcementHistory, isOwnerOfActiveGroup, handleDeleteAnnouncementHistory,
 }: Readonly<{

@@ -304,7 +304,7 @@ export async function getReplayStorageMbMetric(): Promise<number> {
   return Math.round(Number(row?.bytes ?? 0) / 1024 / 1024);
 }
 
-// ─── 页面点击热力（五期）──────────────────────────────────────────────────────
+// ─── 页面点击热力──────────────────────────────────────────────────────
 /** 有点击数据的页面路径清单（热力页下拉） */
 export async function listHeatmapPages(days: number): Promise<string[]> {
   const cutoff = new Date(Date.now() - days * 86_400_000);

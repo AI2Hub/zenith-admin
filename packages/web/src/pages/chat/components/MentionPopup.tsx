@@ -5,7 +5,7 @@ import type { Setter } from '../types';
 
 const { Text } = Typography;
 
-/** @提及候选浮层（自 ChatPage 原样搬移） */
+/** @提及候选浮层 */
 export function MentionPopup({
   mentionListRef, mentionCandidates, mentionActiveIndex, setMentionActiveIndex, insertMention,
 }: Readonly<{

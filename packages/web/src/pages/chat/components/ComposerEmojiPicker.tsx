@@ -3,7 +3,7 @@ import type { ChatCustomEmoji } from '@zenith/shared/chat';
 import { StickerPanel } from './StickerPanel';
 import { ThemedEmojiPicker } from './ThemedEmojiPicker';
 
-/** 输入区表情选择浮层：emoji + 收藏贴纸两个 Tab（自 ChatPage 原样搬移） */
+/** 输入区表情选择浮层：emoji + 收藏贴纸两个 Tab */
 export function ComposerEmojiPicker({
   emojiPickerRef, emojiAnchor, handleEmojiSelect, sendSticker,
 }: Readonly<{

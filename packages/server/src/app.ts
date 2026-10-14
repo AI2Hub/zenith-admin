@@ -3,10 +3,9 @@
  *
  * 与 src/index.ts 的分工：本文件只负责"把 app 组装出来"（中间件栈 → 路由挂载
  * → 文档 → 兜底与错误处理），不启动服务器、不注册后台 worker、不订阅事件总线、
- * 不启动采样器。这样 app 才能在测试中被直接构造（此前 index.ts 顶层就有
- * serve()，导致 250 个路由文件里只有 2 个有测试）。
+ * 不启动采样器，供测试直接构造应用。
  *
- * 路由不再逐条罗列，而是由 src/routes/index.ts 的 ROUTE_DOMAINS 按域装配，
+ * 路由由 src/routes/index.ts 的 ROUTE_DOMAINS 按域装配，
  * 详见 src/routes/_kit.ts。路由表由 src/app.contract.test.ts 快照锁定。
  */
 import { OpenAPIHono } from '@hono/zod-openapi';
