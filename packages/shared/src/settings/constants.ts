@@ -9,6 +9,9 @@
 export const SETTINGS_SCOPES = ['platform', 'tenant'] as const;
 export type SettingsScope = (typeof SETTINGS_SCOPES)[number];
 
+export const SETTINGS_REVISION_ACTIONS = ['save', 'restore', 'initial'] as const;
+export type SettingsRevisionAction = (typeof SETTINGS_REVISION_ACTIONS)[number];
+
 /**
  * 字段可见性（默认 `admin`）：
  * - `public`：匿名可读（登录页开关、公开密码策略）→ `GET /api/settings/public`

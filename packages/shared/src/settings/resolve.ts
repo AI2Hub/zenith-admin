@@ -1,4 +1,4 @@
-import { isPlainObject } from '../core/json';
+import { isPlainObject, stableStringify } from '../core/json';
 import type { SettingsVisibility } from './constants';
 import { SETTINGS_MODULES, type SettingsModuleKey, type SettingsOf } from './registry';
 
@@ -6,7 +6,7 @@ import { SETTINGS_MODULES, type SettingsModuleKey, type SettingsOf } from './reg
 export type SettingsDoc = Record<string, unknown>;
 
 function sameLeaf(a: unknown, b: unknown): boolean {
-  return JSON.stringify(a) === JSON.stringify(b);
+  return stableStringify(a) === stableStringify(b);
 }
 
 /**
@@ -65,8 +65,7 @@ export function resolveSettings<M extends SettingsModuleKey>(module: M, layers: 
 }
 
 /**
- * 生效文档相对于上级生效文档的稀疏覆盖：叶级比较，相等的叶子不落库，空对象整体删除。
- * 「显式设成与上级相同的值 = 继承」是刻意语义（与通知偏好的稀疏存储一致）：上级之后变化时随之变化。
+ * 两个文档的叶级值差。仅用于比较值，不能用来构造覆盖文档：覆盖 / 继承关系须显式保存。
  */
 export function diffSettings(effective: SettingsDoc, inherited: SettingsDoc): SettingsDoc {
   const result: SettingsDoc = {};

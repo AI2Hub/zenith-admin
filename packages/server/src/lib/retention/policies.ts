@@ -1,22 +1,12 @@
 import { sql } from 'drizzle-orm';
 import { db } from '../../db';
-import { systemSettings } from '../../db/schema';
-import { resolveSettings, type SettingsDoc } from '@zenith/shared/settings';
+import { getSettingsForAllScopes } from '../settings';
 import { CMS_STAT_MIN_RETENTION_DAYS } from '@zenith/shared/cms';
 import type { RetentionPolicyDefinition, TenantRetentionDays } from './types';
 
 /** system_settings 中 analytics 模块的租户覆盖，平台行作为未覆盖租户的回退。 */
-async function analyticsRetentionSettings(): Promise<Map<number | null, ReturnType<typeof resolveSettings<'analytics'>>['value']>> {
-  const rows = await db.select({ tenantId: systemSettings.tenantId, data: systemSettings.data })
-    .from(systemSettings)
-    .where(sql`${systemSettings.module} = 'analytics'`);
-  const platform = rows.find((row) => row.tenantId === null)?.data ?? {};
-  const result = new Map<number | null, ReturnType<typeof resolveSettings<'analytics'>>['value']>();
-  result.set(null, resolveSettings('analytics', [platform]).value);
-  for (const row of rows) {
-    if (row.tenantId !== null) result.set(row.tenantId, resolveSettings('analytics', [platform, row.data as SettingsDoc]).value);
-  }
-  return result;
+async function analyticsRetentionSettings() {
+  return getSettingsForAllScopes('analytics');
 }
 
 async function analyticsEventRetention(): Promise<TenantRetentionDays> {

@@ -10,7 +10,7 @@ import { departments, menus, positions, roleDeptScopes, roleMenus, roles, tenant
 import { domainEventSubjects, domainEvents, entityRelationEdges } from './entity-relations';
 import { businessFiles, fileStorageConfigs, managedFiles, uploadChunks, uploadSessions } from './files';
 import { asyncTaskItems, asyncTaskSubjects, asyncTasks, exportJobDownloads, exportJobs } from './tasks';
-import { cronJobLogs, cronJobs, userFeedbacks } from './system';
+import { cronJobLogs, cronJobs, userFeedbacks, systemSettings, systemSettingsRevisions } from './system';
 import { loginRiskEvents, passwordResetTokens, userApiTokens, userSignatures, userMfaFactors, userOauthAccounts, userTrustedDevices } from './auth';
 import { identityProviderSyncLogs, tenantIdentityProviders, userIdentityAccounts } from './identity-providers';
 import { directorySyncConflicts, directorySyncDeptLinks, directorySyncRunItems, directorySyncRuns, directorySyncSources, directorySyncUserLinks } from './directory-sync';
@@ -2262,4 +2262,13 @@ export const numberingCountersRelations = relations(numberingCounters, ({ one })
 export const numberingAllocationsRelations = relations(numberingAllocations, ({ one }) => ({
   rule: one(numberingRules, { fields: [numberingAllocations.ruleId], references: [numberingRules.id] }),
   version: one(numberingVersions, { fields: [numberingAllocations.versionId], references: [numberingVersions.id] }),
+}));
+
+export const systemSettingsRelations = relations(systemSettings, ({ one, many }) => ({
+  currentRevision: one(systemSettingsRevisions, { fields: [systemSettings.currentRevisionId], references: [systemSettingsRevisions.id], relationName: 'settingsCurrentRevision' }),
+  revisions: many(systemSettingsRevisions, { relationName: 'settingsRevisionOwner' }),
+}));
+
+export const systemSettingsRevisionsRelations = relations(systemSettingsRevisions, ({ one }) => ({
+  settings: one(systemSettings, { fields: [systemSettingsRevisions.settingsId], references: [systemSettings.id], relationName: 'settingsRevisionOwner' }),
 }));

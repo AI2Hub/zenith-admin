@@ -1,10 +1,15 @@
-import { and, eq, isNull } from 'drizzle-orm';
+import { createHash } from 'node:crypto';
+import { and, eq, sql } from 'drizzle-orm';
+import * as z from 'zod';
 import { HTTPException } from 'hono/http-exception';
 import {
   SETTINGS_MODULES,
   SETTINGS_MODULE_KEYS,
   SETTINGS_MODULE_PATHS,
-  diffSettings,
+  parseSettingsOverrides,
+  stableSettingsSerialize,
+  mergeSettingsLayers,
+  getSettingsDefinition,
   mySettingsSchema,
   pickSettingsFields,
   publicSettingsSchema,
@@ -16,12 +21,18 @@ import {
   type SettingsModuleDef,
   type SettingsModuleKey,
   type SettingsModuleMeta,
+  type SettingsEnvelope,
+  type SettingsWriteBody,
   type SettingsOf,
 } from '@zenith/shared/settings';
 import { config } from '../../config';
 import { db } from '../../db';
-import { systemSettings, tenants } from '../../db/schema';
-import { currentUserOrNull } from '../context';
+import { systemSettings, systemSettingsRevisions, tenants } from '../../db/schema';
+import type { DbExecutor } from '../../db/types';
+import { requireRow } from '../db-assert';
+import { getByPath } from '@zenith/shared/core';
+import { currentUserOrNull, setAuditBefore, setAuditAfter } from '../context';
+import { redactBody } from '../sanitize';
 import { formatNullableDateTime } from '../datetime';
 import { onInvalidate, onInvalidationReset } from '../invalidation-bus';
 import { isFeatureEnabled } from '../licensing';
@@ -54,12 +65,16 @@ export type SettingsTenantOptions = {
   readonly tenantId?: number | null;
 };
 
-interface SettingsEntry<M extends SettingsModuleKey = SettingsModuleKey> {
+export interface SettingsEntry<M extends SettingsModuleKey = SettingsModuleKey> {
   readonly module: M;
   readonly tenantId: number | null;
   readonly effective: SettingsOf<M>;
   readonly inherited: SettingsOf<M>;
   readonly own: SettingsDoc;
+  readonly currentRevisionId: number | null;
+  readonly inheritedVersion: number;
+  readonly definitionHash: string;
+  readonly baseToken: string;
   readonly version: number;
   readonly updatedAt: Date | null;
 }
@@ -103,11 +118,35 @@ onBroadcastMessage((message) => {
 
 // ─── 加载与解析 ──────────────────────────────────────────────────────────────
 
-type SettingsRow = typeof systemSettings.$inferSelect;
+type SettingsLayerRow = {
+  id: number;
+  tenantId: number | null;
+  currentRevisionId: number | null;
+  data: SettingsDoc | null;
+  version: number | null;
+  updatedAt: Date | null;
+};
 
-async function loadRows(module: SettingsModuleKey, tenantId: number | null): Promise<{ platform: SettingsRow | null; tenant: SettingsRow | null }> {
+/** 配置定义随代码部署变化，参与生效指纹，避免旧表单覆盖新的默认值。 */
+const definitions = new Map<SettingsModuleKey, { hash: string; snapshot: SettingsDoc }>();
+export function settingsDefinition(module: SettingsModuleKey) {
+  let definition = definitions.get(module);
+  if (!definition) {
+    const snapshot = getSettingsDefinition(module);
+    definition = { hash: createHash('sha256').update(stableSettingsSerialize(snapshot)).digest('hex'), snapshot };
+    definitions.set(module, definition);
+  }
+  return definition;
+}
+
+async function loadRows(module: SettingsModuleKey, tenantId: number | null, executor: DbExecutor = db): Promise<{ platform: SettingsLayerRow | null; tenant: SettingsLayerRow | null }> {
   const scope = inheritedTenantCondition(systemSettings.tenantId, tenantId);
-  const rows = await db.select().from(systemSettings).where(and(eq(systemSettings.module, module), scope));
+  const rows = await executor.select({
+    id: systemSettings.id, tenantId: systemSettings.tenantId, currentRevisionId: systemSettings.currentRevisionId,
+    data: systemSettingsRevisions.overrides, version: systemSettingsRevisions.version, updatedAt: systemSettingsRevisions.createdAt,
+  }).from(systemSettings)
+    .leftJoin(systemSettingsRevisions, eq(systemSettings.currentRevisionId, systemSettingsRevisions.id))
+    .where(and(eq(systemSettings.module, module), scope));
   return {
     platform: rows.find((row) => row.tenantId === null) ?? null,
     tenant: tenantId === null ? null : rows.find((row) => row.tenantId === tenantId) ?? null,
@@ -124,30 +163,38 @@ function resolveLogged<M extends SettingsModuleKey>(module: M, tenantId: number 
   return resolved.value;
 }
 
-function buildEntry<M extends SettingsModuleKey>(module: M, tenantId: number | null, rows: { platform: SettingsRow | null; tenant: SettingsRow | null }): SettingsEntry<M> {
+function buildEntry<M extends SettingsModuleKey>(module: M, tenantId: number | null, rows: { platform: SettingsLayerRow | null; tenant: SettingsLayerRow | null }): SettingsEntry<M> {
   const platformData = rows.platform?.data ?? {};
-  const platformEffective = resolveLogged(module, null, [platformData]);
-  if (tenantId === null) {
-    return {
-      module,
-      tenantId,
-      effective: platformEffective,
-      inherited: resolveSettings(module, []).value,
-      own: platformData,
-      version: rows.platform?.version ?? 0,
-      updatedAt: rows.platform?.updatedAt ?? null,
-    };
-  }
-  const tenantData = rows.tenant?.data ?? {};
+  const ownRow = tenantId === null ? rows.platform : rows.tenant;
+  const own = ownRow?.data ?? {};
+  const inherited = tenantId === null ? resolveSettings(module, []).value : resolveLogged(module, null, [platformData]);
+  const definitionHash = settingsDefinition(module).hash;
+  const currentRevisionId = ownRow?.currentRevisionId ?? null;
+  const inheritedVersion = tenantId === null ? 0 : rows.platform?.version ?? 0;
+  const baseToken = createHash('sha256').update(stableSettingsSerialize({
+    module, tenantId, currentRevisionId, parent: tenantId === null ? null : rows.platform?.currentRevisionId ?? null, definitionHash,
+  })).digest('hex');
   return {
-    module,
-    tenantId,
-    effective: resolveLogged(module, tenantId, [platformData, tenantData]),
-    inherited: platformEffective,
-    own: tenantData,
-    version: rows.tenant?.version ?? 0,
-    updatedAt: rows.tenant?.updatedAt ?? null,
+    module, tenantId, own, currentRevisionId, inheritedVersion, definitionHash, baseToken,
+    effective: resolveLogged(module, tenantId, tenantId === null ? [own] : [platformData, own]),
+    inherited, version: ownRow?.version ?? 0, updatedAt: ownRow?.updatedAt ?? null,
   };
+}
+
+/** 事务调用方必须传 executor，绕过副本并在同一连接读取。 */
+export async function loadSettingsEntry<M extends SettingsModuleKey>(executor: DbExecutor, module: M, tenantId: number | null): Promise<SettingsEntry<M>> {
+  return buildEntry(module, tenantId, await loadRows(module, tenantId, executor));
+}
+
+/** 保留策略等批量后台读者也只从设置运行时读取配置正文。 */
+export async function getSettingsForAllScopes<M extends SettingsModuleKey>(module: M): Promise<Map<number | null, SettingsOf<M>>> {
+  const rows = await db.select({ tenantId: systemSettings.tenantId, data: systemSettingsRevisions.overrides })
+    .from(systemSettings).leftJoin(systemSettingsRevisions, eq(systemSettings.currentRevisionId, systemSettingsRevisions.id))
+    .where(eq(systemSettings.module, module));
+  const platform = rows.find((row) => row.tenantId === null)?.data ?? {};
+  const result = new Map<number | null, SettingsOf<M>>([[null, resolveLogged(module, null, [platform])]]);
+  for (const row of rows) if (row.tenantId !== null) result.set(row.tenantId, resolveLogged(module, row.tenantId, [platform, row.data ?? {}]));
+  return result;
 }
 
 async function loadEntry<M extends SettingsModuleKey>(module: M, tenantId: number | null): Promise<SettingsEntry<M>> {
@@ -188,23 +235,17 @@ export async function getSettings<M extends SettingsModuleKey>(module: M, option
   return entry.effective;
 }
 
-export interface SettingsEnvelope<M extends SettingsModuleKey> {
-  module: M;
-  scope: SettingsModuleDef['scope'];
-  tenantId: number | null;
-  version: number;
-  effective: SettingsOf<M>;
-  inherited: SettingsOf<M>;
-  overriddenPaths: string[];
-  updatedAt: string | null;
-}
-
-function toEnvelope<M extends SettingsModuleKey>(entry: SettingsEntry<M>): SettingsEnvelope<M> {
+export function toSettingsEnvelope<M extends SettingsModuleKey>(entry: SettingsEntry<M>): SettingsEnvelope<M> {
   return {
     module: entry.module,
     scope: SETTINGS_MODULES[entry.module].scope,
     tenantId: entry.tenantId,
     version: entry.version,
+    currentRevisionId: entry.currentRevisionId,
+    baseToken: entry.baseToken,
+    inheritedVersion: entry.inheritedVersion,
+    definitionHash: entry.definitionHash,
+    overrides: entry.own,
     effective: entry.effective,
     inherited: entry.inherited,
     overriddenPaths: settingsOverriddenPaths(entry.own),
@@ -215,12 +256,12 @@ function toEnvelope<M extends SettingsModuleKey>(entry: SettingsEntry<M>): Setti
 /** 管理界面读取：生效值 + 上级值 + 覆盖路径 + 版本（写入时回传） */
 export async function getSettingsEnvelope<M extends SettingsModuleKey>(module: M): Promise<SettingsEnvelope<M>> {
   const user = currentUserOrNull();
-  const tenantId = user ? writeScopeOrRead(module, user) : readTenantId(module);
-  return toEnvelope(await loadEntry(module, tenantId));
+  const tenantId = user ? settingsReadScope(module, user) : readTenantId(module);
+  return toSettingsEnvelope(await loadEntry(module, tenantId));
 }
 
 /** 管理界面读的是「我保存时会写到哪一行」；租户管理员越权读平台级模块时按读取语义降级（页面只读） */
-function writeScopeOrRead(module: SettingsModuleKey, user: JwtPayload): number | null {
+export function settingsReadScope(module: SettingsModuleKey, user: JwtPayload): number | null {
   try {
     return writeTenantId(module, user);
   } catch {
@@ -230,54 +271,77 @@ function writeScopeOrRead(module: SettingsModuleKey, user: JwtPayload): number |
 
 // ─── 写入 ────────────────────────────────────────────────────────────────────
 
-export interface SaveSettingsInput<M extends SettingsModuleKey> {
-  readonly version: number;
-  readonly data: SettingsOf<M>;
+export type SaveSettingsInput<M extends SettingsModuleKey> = SettingsWriteBody<M>;
+
+/** 同模块写入极低频，串行化平台 / 租户两层与首次创建，保证继承快照和指纹一致。 */
+export async function lockSettingsModule(executor: DbExecutor, module: SettingsModuleKey): Promise<void> {
+  await executor.execute(sql`select pg_advisory_xact_lock(hashtextextended(${'settings:' + module}, 0))`);
 }
 
-/**
- * 整体替换保存：`data` 是完整生效文档（契约已按写入 schema 校验），落库前对上级生效值做叶级 diff，
- * 只存差异（等值即继承）。`version` 与当前行不一致 → 409；无行时 `version` 必须为 0。
- */
-export async function saveSettings<M extends SettingsModuleKey>(module: M, user: JwtPayload, input: SaveSettingsInput<M>): Promise<SettingsEnvelope<M>> {
-  const def = SETTINGS_MODULES[module];
+export function assertSettingsBase(entry: SettingsEntry, token: string): void {
+  if (entry.baseToken !== token) throw new HTTPException(409, { message: '设置或继承来源已发生变化，请查看最新配置后重试；未保存的修改已保留' });
+}
+
+/** 在统一事务里写入显式覆盖；恢复直接使用历史覆盖，不对上级做 diff。 */
+async function writeSettings<M extends SettingsModuleKey>(module: M, user: JwtPayload, input: SaveSettingsInput<M>, restoreVersion?: number): Promise<SettingsEnvelope<M>> {
   const tenantId = writeTenantId(module, user);
-  const normalized = def.schema.parse(input.data) as SettingsOf<M>;
-
-  await db.transaction(async (tx) => {
-    const [existing] = await tx.select({ id: systemSettings.id, version: systemSettings.version })
-      .from(systemSettings)
-      .where(and(eq(systemSettings.module, module), exactTenantCondition(systemSettings.tenantId, tenantId)))
-      .for('update');
-    const currentVersion = existing?.version ?? 0;
-    if (currentVersion !== input.version) {
-      throw new HTTPException(409, { message: '设置已被他人修改，请刷新后重试' });
+  const result = await db.transaction(async (tx) => {
+    await lockSettingsModule(tx, module);
+    const before = await loadSettingsEntry(tx, module, tenantId);
+    assertSettingsBase(before, input.baseToken);
+    setAuditBefore(redactBody(toSettingsEnvelope(before)));
+    const [head] = await tx.select({ id: systemSettings.id }).from(systemSettings)
+      .where(and(eq(systemSettings.module, module), exactTenantCondition(systemSettings.tenantId, tenantId)));
+    let candidate = input.overrides;
+    if (restoreVersion === 0) candidate = {};
+    else if (restoreVersion !== undefined) {
+      const source = head ? await tx.select({ overrides: systemSettingsRevisions.overrides }).from(systemSettingsRevisions)
+        .where(and(eq(systemSettingsRevisions.settingsId, head.id), eq(systemSettingsRevisions.version, restoreVersion))).limit(1) : [];
+      candidate = requireRow(source[0], '设置版本不存在').overrides;
     }
-
-    let inherited: SettingsDoc;
-    if (tenantId === null) {
-      inherited = resolveSettings(module, []).value as SettingsDoc;
-    } else {
-      const [platformRow] = await tx.select({ data: systemSettings.data }).from(systemSettings)
-        .where(and(eq(systemSettings.module, module), isNull(systemSettings.tenantId)));
-      inherited = resolveSettings(module, [platformRow?.data ?? {}]).value as SettingsDoc;
+    let own: SettingsDoc;
+    let effective: SettingsOf<M>;
+    try {
+      own = parseSettingsOverrides(module, candidate);
+      effective = SETTINGS_MODULES[module].schema.parse(mergeSettingsLayers(before.inherited as SettingsDoc, own)) as SettingsOf<M>;
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const issue = error.issues[0];
+        throw new HTTPException(400, { message: `${issue.path.join('.') || '设置'}：${issue.message}` });
+      }
+      throw error;
     }
-    const own = diffSettings(normalized as SettingsDoc, inherited);
-
-    if (existing) {
-      await tx.update(systemSettings)
-        .set({ data: own, version: currentVersion + 1 })
-        .where(eq(systemSettings.id, existing.id));
-    } else {
-      await tx.insert(systemSettings).values({ module, tenantId, data: own, version: 1 });
-    }
+    if (stableSettingsSerialize(own) === stableSettingsSerialize(before.own)) return { saved: toSettingsEnvelope(before), changed: false };
+    const settingsId = head?.id ?? requireRow((await tx.insert(systemSettings).values({ module, tenantId }).returning({ id: systemSettings.id }))[0], '创建设置失败').id;
+    const definition = settingsDefinition(module);
+    const paths = [...new Set([...settingsOverriddenPaths(before.own), ...settingsOverriddenPaths(own)])].filter((path) => {
+      return stableSettingsSerialize(getByPath(before.own, path)) !== stableSettingsSerialize(getByPath(own, path));
+    });
+    const revision = requireRow((await tx.insert(systemSettingsRevisions).values({
+      settingsId, version: before.version + 1, action: restoreVersion === undefined ? 'save' : 'restore',
+      restoredFromVersion: restoreVersion ?? null, overrides: own, inherited: before.inherited as SettingsDoc,
+      effective: effective as SettingsDoc, inheritedVersion: before.inheritedVersion,
+      definitionHash: definition.hash, definition: definition.snapshot, changedPaths: paths,
+      note: input.note ?? '', actorId: user.userId, actorName: user.username,
+    }).returning({ id: systemSettingsRevisions.id }))[0], '创建设置版本失败');
+    await tx.update(systemSettings).set({ currentRevisionId: revision.id }).where(eq(systemSettings.id, settingsId));
+    // 在持锁事务中取得这次提交的精确信封，不能提交后再读到另一位操作者的新版本。
+    return { saved: toSettingsEnvelope(await loadSettingsEntry(tx, module, tenantId)), changed: true };
   });
+  if (result.changed) {
+    invalidateSettings(module);
+    if (module === 'ui') scheduleBroadcast({ type: 'preferences:policy-updated', payload: { version: result.saved.version } });
+  }
+  setAuditAfter(redactBody(result.saved));
+  return result.saved;
+}
 
-  // 触发器会广播失效；本实例同步清一次，保证保存后立即回显新值
-  invalidateSettings(module);
-  const saved = toEnvelope(await loadEntry(module, tenantId));
-  if (module === 'ui') scheduleBroadcast({ type: 'preferences:policy-updated', payload: { version: saved.version } });
-  return saved;
+export async function saveSettings<M extends SettingsModuleKey>(module: M, user: JwtPayload, input: SaveSettingsInput<M>): Promise<SettingsEnvelope<M>> {
+  return writeSettings(module, user, input);
+}
+
+export async function restoreSettings<M extends SettingsModuleKey>(module: M, user: JwtPayload, version: number, input: { baseToken: string; note: string }): Promise<SettingsEnvelope<M>> {
+  return writeSettings(module, user, { ...input, overrides: {} }, version);
 }
 
 // ─── 投影：匿名 / 登录用户 ─────────────────────────────────────────────────────
@@ -338,7 +402,7 @@ export async function listSettingsModules(user: JwtPayload): Promise<SettingsMod
     const def: SettingsModuleDef = SETTINGS_MODULES[module];
     if (!(await canRead(def, user, permissions))) continue;
     if (!(await moduleAvailable(def, tenantId))) continue;
-    const entry = await loadEntry(module, writeScopeOrRead(module, user));
+    const entry = await loadEntry(module, settingsReadScope(module, user));
     const canWrite = isSuperAdmin(user) || (permissions ?? []).includes(def.writePermission);
     result.push({
       module,

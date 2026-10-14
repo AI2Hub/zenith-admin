@@ -1,6 +1,7 @@
-import { pgTable, varchar, pgEnum, integer, boolean, unique, text, index, jsonb, type AnyPgColumn } from 'drizzle-orm/pg-core';
+import { pgTable, varchar, pgEnum, integer, boolean, unique, text, index, jsonb, foreignKey, check, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { PROCESS_ROLES } from '@zenith/shared/platform';
+import type { SettingsRevisionAction } from '@zenith/shared/settings';
 import { timestampColumns, idColumn, statusColumn, sortColumn, timestamptz } from './common';
 import { auditColumns, users, tenantIdColumn } from './core';
 
@@ -15,8 +16,8 @@ export const processRoleEnum = pgEnum('process_role', PROCESS_ROLES);
 
 // ─── 运行时设置 ──────────────────────────────────────────────────────────────
 /**
- * 运行时设置：一行 = 一个模块（`@zenith/shared/settings` 注册表的 key）在一个作用域的**显式覆盖**，
- * `data` 是稀疏文档，缺失字段继承上级（租户行 → 平台行 → schema 默认值）。
+ * 运行时设置头：一行 = 一个模块在一个作用域的当前版本指针。
+ * 正文唯一来源是 systemSettingsRevisions，缺失字段继承上级。
  * 读写一律经 `lib/settings`，禁止业务代码直查本表；写入触发 `cache_invalidate` 通知（触发器见 0001_extensions.sql）。
  */
 export const systemSettings = pgTable('system_settings', {
@@ -24,17 +25,40 @@ export const systemSettings = pgTable('system_settings', {
   module: varchar({ length: 64 }).notNull(),
   /** null = 平台级 */
   tenantId: tenantIdColumn(),
-  data: jsonb().$type<Record<string, unknown>>().notNull().default({}),
-  /** 乐观锁版本：每次保存 +1；客户端携带的 version 不一致时拒绝（409） */
-  version: integer().notNull().default(1),
+  currentRevisionId: integer(),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [
   // NULLS NOT DISTINCT（PG15+）：平台行 (module, NULL) 同样受唯一约束，ON CONFLICT 可直接以 (module, tenant_id) 为目标
   unique('system_settings_module_tenant_unique').on(t.module, t.tenantId).nullsNotDistinct(),
+  foreignKey({ name: 'system_settings_current_revision_fk', columns: [t.id, t.currentRevisionId], foreignColumns: [systemSettingsRevisions.settingsId, systemSettingsRevisions.id] }),
 ]);
 
 export type SystemSettingsRow = typeof systemSettings.$inferSelect;
+
+/** 不可修改的设置版本；只有切换头指针才会改变当前配置。 */
+export const systemSettingsRevisions = pgTable('system_settings_revisions', {
+  id: idColumn(),
+  settingsId: integer().notNull().references((): AnyPgColumn => systemSettings.id, { onDelete: 'cascade' }),
+  version: integer().notNull(),
+  action: varchar({ length: 16 }).$type<SettingsRevisionAction>().notNull(),
+  restoredFromVersion: integer(),
+  overrides: jsonb().$type<Record<string, unknown>>().notNull(),
+  inherited: jsonb().$type<Record<string, unknown>>().notNull(),
+  effective: jsonb().$type<Record<string, unknown>>().notNull(),
+  inheritedVersion: integer().notNull().default(0),
+  definitionHash: varchar({ length: 64 }).notNull(),
+  definition: jsonb().$type<Record<string, unknown>>().notNull(),
+  changedPaths: jsonb().$type<string[]>().notNull().default([]),
+  note: varchar({ length: 500 }).notNull().default(''),
+  actorId: integer(),
+  actorName: varchar({ length: 100 }),
+  createdAt: timestamptz().defaultNow().notNull(),
+}, (t) => [
+  unique('system_settings_revisions_settings_version_unique').on(t.settingsId, t.version),
+  unique('system_settings_revisions_settings_id_unique').on(t.settingsId, t.id),
+  check('system_settings_revisions_positive_version', sql`${t.version} > 0`),
+]);
 
 /**
  * 进程维护的运行时状态（非人工配置）：CMS 主题指纹等机器写入的键值。

@@ -43,6 +43,13 @@
       "when": 1791672881183,
       "tag": "0005_curved_shockwave",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791957023118,
+      "tag": "0006_thick_frog_thor",
+      "breakpoints": true
     }
   ]
 }

@@ -7,11 +7,9 @@ import {
   settingsGetOp,
   settingsUpdateOp,
   type SettingsModuleKey,
-  type SettingsOf,
 } from '@zenith/shared/settings';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
-import { redactBody } from '../../lib/sanitize';
 import {
   getMySettings,
   getPublicSettings,
@@ -19,7 +17,6 @@ import {
   listSettingsModules,
   saveSettings,
 } from '../../lib/settings';
-import { setAuditBeforeData } from '../../middleware/guard';
 
 const settingsRoutes = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -43,7 +40,7 @@ const meRoute = defineContractRoute(settingsContract.me, {
  * 响应形状由 `lib/settings` 单一代码路径产出，并由 `settings.test.ts` / 路由测试在运行期校验。
  */
 type WideGetOp = Operation<'get', string, undefined, undefined, undefined, z.ZodType<unknown>, 'json', undefined>;
-type WideUpdateOp = Operation<'put', string, undefined, undefined, z.ZodType<{ version: number; data: unknown }>, z.ZodType<unknown>, 'json', undefined>;
+type WideUpdateOp = Operation<'put', string, undefined, undefined, z.ZodType<{ baseToken: string; overrides: Record<string, unknown>; note?: string }>, z.ZodType<unknown>, 'json', undefined>;
 
 function moduleRoutes(module: SettingsModuleKey) {
   const getOp = settingsGetOp(module) as unknown as WideGetOp;
@@ -54,11 +51,8 @@ function moduleRoutes(module: SettingsModuleKey) {
     }),
     defineContractRoute(updateOp, {
       handler: async (c) => {
-        // 审计 before / after 快照不经 redactBody，这里主动脱敏一次作为纵深防御（注册表自检已禁止凭证类字段）
-        const before = await getSettingsEnvelope(module);
-        setAuditBeforeData(c, redactBody(before.effective));
         const body = c.req.valid('json');
-        const saved = await saveSettings(module, c.get('user'), { version: body.version, data: body.data as SettingsOf<typeof module> });
+        const saved = await saveSettings(module, c.get('user'), body);
         return c.json(okBody(saved, '保存成功'), 200);
       },
     }),

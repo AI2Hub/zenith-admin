@@ -1,7 +1,6 @@
 import * as z from 'zod';
 import { defineContract, op, type Operation } from '../core/contract';
-import { stripDefaultsDeep } from '../core/validation';
-import { SETTINGS_SCOPES, type SettingsScope } from './constants';
+import { SETTINGS_SCOPES } from './constants';
 import { authSettingsSchema } from './modules/auth';
 import { driveSettingsSchema } from './modules/drive';
 import { filesSettingsSchema } from './modules/files';
@@ -10,6 +9,7 @@ import { rulesSettingsSchema } from './modules/rules';
 import { terminalSettingsSchema } from './modules/terminal';
 import { uiSettingsSchema } from './modules/ui';
 import { SETTINGS_MODULE_KEYS, SETTINGS_MODULE_PATHS, SETTINGS_MODULES, type SettingsModuleKey, type SettingsOf } from './registry';
+import { settingsOverridesSchema } from './overrides';
 
 // ─── 模块清单 ────────────────────────────────────────────────────────────────
 
@@ -22,7 +22,7 @@ export const settingsModuleMetaSchema = z.object({
   feature: z.string().nullable().meta({ description: 'License 特性门控；null = 无门控' }),
   page: z.string().nullable().meta({ description: '专用页面路由；null = 使用通用设置页' }),
   canWrite: z.boolean(),
-  version: z.int().min(0).meta({ description: '当前作用域的行版本；0 = 尚无覆盖行' }),
+  version: z.int().min(0).meta({ description: '当前作用域的配置版本；0 = 尚未保存' }),
   overriddenCount: z.int().min(0).meta({ description: '当前作用域显式覆盖的叶子字段数' }),
   updatedAt: z.string().nullable(),
 }).meta({ id: 'SettingsModuleMeta' });
@@ -63,33 +63,40 @@ function pascal(key: string): string {
   return key.charAt(0).toUpperCase() + key.slice(1);
 }
 
-/**
- * 单个模块的读取信封：`effective` 为解析后的生效文档，`inherited` 为上级生效文档
- * （租户作用域 = 平台生效值；平台作用域 = schema 默认值），两者叶级比较即得「已覆盖」标记。
- */
-function settingsEnvelopeSchema<M extends SettingsModuleKey>(module: M): z.ZodType<SettingsEnvelope<M>> {
+export const settingsEnvelopeMetaSchema = z.object({
+  scope: z.enum(SETTINGS_SCOPES),
+  tenantId: z.int().nullable(),
+  version: z.int().min(0).meta({ description: '当前作用域配置版本；0 = 尚未保存' }),
+  currentRevisionId: z.int().positive().nullable(),
+  baseToken: z.string().min(1).max(512).meta({ description: '不透明并发指纹，涵盖本层、上级与设置定义，保存时原样回传' }),
+  inheritedVersion: z.int().min(0),
+  definitionHash: z.string(),
+  overrides: z.record(z.string(), z.unknown()).meta({ description: '显式覆盖；省略字段继承，等于上级的叶子仍保留覆盖' }),
+  overriddenPaths: z.array(z.string()).meta({ description: '当前作用域显式覆盖的叶子路径（a.b.c）' }),
+  updatedAt: z.string().nullable(),
+});
+
+/** 读取信封直接携带显式覆盖关系，禁止通过 effective 与 inherited 的值差推断继承。 */
+export function settingsEnvelopeSchema<M extends SettingsModuleKey>(module: M): z.ZodType<SettingsEnvelope<M>> {
   const schema = SETTINGS_MODULES[module].schema;
-  return z.object({
+  return settingsEnvelopeMetaSchema.extend({
     module: z.literal(module),
-    scope: z.enum(SETTINGS_SCOPES),
-    tenantId: z.int().nullable(),
-    version: z.int().min(0).meta({ description: '当前作用域行版本；0 = 尚无覆盖行，保存时原样回传' }),
     effective: schema,
     inherited: schema,
-    overriddenPaths: z.array(z.string()).meta({ description: '当前作用域显式覆盖的叶子路径（a.b.c）' }),
-    updatedAt: z.string().nullable(),
   // 信封结构是固定的；显式类型避免每个 get / update 都重复展开整套设置的 Zod 节点类型。
   }).meta({ id: `Settings${pascal(module)}Envelope` }) as unknown as z.ZodType<SettingsEnvelope<M>>;
 }
 
-/**
- * 整体替换请求体：`data` 由读取 schema 深度剥离默认值派生——全字段必填、未知键 400，
- * 客户端必须回传完整文档；`version` 与当前行版本不一致时服务端返回 409。
- */
+export const settingsWriteBodySchema = z.strictObject({
+  baseToken: settingsEnvelopeMetaSchema.shape.baseToken,
+  overrides: z.record(z.string(), z.unknown()),
+  note: z.string().trim().max(500).optional(),
+});
+
+/** 全量替换本层覆盖文档；仅已知叶子可写，默认值不会填入省略字段。 */
 function settingsWriteSchema<M extends SettingsModuleKey>(module: M): z.ZodType<SettingsWriteBody<M>, SettingsWriteBody<M>> {
-  return z.object({
-    version: z.int().min(0),
-    data: stripDefaultsDeep(SETTINGS_MODULES[module].schema, { strictObjects: true }),
+  return settingsWriteBodySchema.extend({
+    overrides: settingsOverridesSchema(module),
   }).meta({ id: `Settings${pascal(module)}Write` }) as unknown as z.ZodType<SettingsWriteBody<M>, SettingsWriteBody<M>>;
 }
 
@@ -102,7 +109,7 @@ function moduleOps<M extends SettingsModuleKey>(module: M) {
   const platformOnly = def.platformOnly ? { platformOnly: def.platformOnly } : {};
   return {
     get: op.get(path, {
-      access: def.readPermission ? { permission: def.readPermission, ...platformOnly } : 'authenticated',
+      access: def.readPermission ? { permission: def.readPermission, ...platformOnly } : def.platformOnly ? platformOnly : 'authenticated',
       ...feature,
       response: envelope,
       summary: `读取「${def.title}」设置`,
@@ -113,7 +120,7 @@ function moduleOps<M extends SettingsModuleKey>(module: M) {
       ...feature,
       body: settingsWriteSchema(module),
       response: envelope,
-      summary: `保存「${def.title}」设置（整体替换，version 乐观锁）`,
+      summary: `保存「${def.title}」设置（显式覆盖，baseToken 并发校验）`,
     }),
   };
 }
@@ -175,26 +182,18 @@ export function settingsUpdateOp<M extends SettingsModuleKey>(module: M): Settin
 }
 
 /**
- * 模块读取信封。显式接口而非 `z.output<契约响应>`：在以模块 key 为泛型参数的调用点
- * （前端 hooks、Mock、路由循环）索引访问类型无法即时展开，显式结构才能保住 `SettingsOf<M>` 的精确类型。
- * `settings.test.ts` 断言它与契约响应的 zod 输出一致。
+ * 信封公共字段从 schema 派生，仅对模块与设置正文参数化，保留 hooks / Mock 循环调用的精确类型。
  */
-export interface SettingsEnvelope<M extends SettingsModuleKey> {
+export type SettingsEnvelope<M extends SettingsModuleKey> = z.infer<typeof settingsEnvelopeMetaSchema> & {
   module: M;
-  scope: SettingsScope;
-  tenantId: number | null;
-  version: number;
   effective: SettingsOf<M>;
   inherited: SettingsOf<M>;
-  overriddenPaths: string[];
-  updatedAt: string | null;
-}
+};
 
-/** 模块写入请求体：`data` 为剥离默认值后的完整文档（各叶子输入输出类型一致，直接复用 `SettingsOf`） */
-export interface SettingsWriteBody<M extends SettingsModuleKey> {
-  version: number;
-  data: SettingsOf<M>;
-}
+/** 泛型参数保持模块调用点统一；覆盖内容由该模块的运行时 schema 严格校验。 */
+export type SettingsWriteBody<M extends SettingsModuleKey = SettingsModuleKey> = {
+  [K in M]: z.output<typeof settingsWriteBodySchema>;
+}[M];
 
 /**
  * 按模块参数化的操作类型：泛型调用点把 `settingsGetOp(module)` / `settingsUpdateOp(module)` 断言到这里，

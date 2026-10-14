@@ -5,7 +5,7 @@
  *  1. 无任何行 → schema 默认文档；命中副本后不再查库；invalidateSettings 后重新加载
  *  2. 租户级模块：默认 ← 平台行 ← 租户行 逐层覆盖；平台级模块忽略租户上下文
  *  3. 存量文档不合规 → 剔除违规字段、记 error 日志，而不是抛错
- *  4. saveSettings：version 不一致 → 409；落库只存与上级不同的叶子（稀疏）；保存后副本失效
+ *  4. saveSettings：生效指纹不一致 → 409；显式覆盖与版本原子落库；保存后副本失效
  *  5. 作用域越权：多租户下租户管理员写平台级模块 → 403；写租户级模块落到自身租户行
  *  6. 失效总线：收到 system_settings/{module} 通知只清该模块，reset 清全部
  *
@@ -22,6 +22,7 @@ const { dbState, configState, ctx, logger } = vi.hoisted(() => ({
   dbState: {
     selectResults: [] as unknown[][],
     inserts: [] as Record<string, unknown>[],
+    insertResults: [] as unknown[][],
     updates: [] as Record<string, unknown>[],
   },
   configState: { multiTenantMode: false },
@@ -34,19 +35,22 @@ vi.mock('../../db', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const p: any = {
       from: () => p,
+      leftJoin: () => p,
+      returning: () => p,
       where: () => p,
       for: () => p,
       limit: () => p,
       set: (v: Record<string, unknown>) => { dbState.updates.push(v); return p; },
       values: (v: Record<string, unknown>) => { dbState.inserts.push(v); return p; },
       then: (resolve: (v: unknown) => unknown, reject: (e: unknown) => unknown) => {
-        const result = kind === 'select' ? (dbState.selectResults.shift() ?? []) : [];
+        const result = kind === 'select' ? (dbState.selectResults.shift() ?? []) : kind === 'insert' ? (dbState.insertResults.shift() ?? []) : [];
         return Promise.resolve(result).then(resolve, reject);
       },
     };
     return p;
   }
   const db = {
+    execute: vi.fn(async () => []),
     select: vi.fn(() => chain('select')),
     insert: vi.fn(() => chain('insert')),
     update: vi.fn(() => chain('update')),
@@ -63,7 +67,7 @@ vi.mock('../../config', () => ({
   },
 }));
 
-vi.mock('../context', () => ({ currentUserOrNull: () => ctx.user ?? undefined }));
+vi.mock('../context', () => ({ currentUserOrNull: () => ctx.user ?? undefined, setAuditBefore: vi.fn(), setAuditAfter: vi.fn() }));
 vi.mock('../member-context', () => ({ currentMemberOrNull: () => undefined }));
 vi.mock('../licensing', () => ({ isFeatureEnabled: vi.fn(async () => true) }));
 vi.mock('../tenant-package', () => ({ getTenantPackageFeatureSet: vi.fn(async () => null) }));
@@ -87,13 +91,14 @@ const platformAdmin: JwtPayload = { userId: 1, username: 'admin', roles: ['super
 const tenantAdmin: JwtPayload = { userId: 7, username: 't-admin', roles: ['tenant_admin'], tenantId: 3 };
 
 function row(module: string, tenantId: number | null, data: Record<string, unknown>, version = 1) {
-  return { id: tenantId ?? 100, module, tenantId, data, version, updatedAt: new Date('2026-09-05T10:00:00Z'), createdAt: new Date(), createdBy: null, updatedBy: null };
+  return { id: tenantId ?? 100, module, tenantId, data, version, currentRevisionId: (tenantId ?? 100) + version * 1000, updatedAt: new Date('2026-09-05T10:00:00Z'), createdAt: new Date(), createdBy: null, updatedBy: null };
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
   dbState.selectResults = [];
   dbState.inserts = [];
+  dbState.insertResults = [];
   dbState.updates = [];
   configState.multiTenantMode = false;
   ctx.user = null;
@@ -181,41 +186,71 @@ describe('getSettingsEnvelope', () => {
 });
 
 describe('saveSettings', () => {
-  it('version 不一致 → 409，不写库', async () => {
-    dbState.selectResults.push([{ id: 100, version: 3 }]);
-    await expect(saveSettings('ui', platformAdmin, { version: 2, data: SETTINGS_MODULES.ui.schema.parse({ watermark: { enabled: true } }) }))
+  it('本层或继承来源的指纹不一致 → 409，不写库', async () => {
+    dbState.selectResults.push([]);
+    await expect(saveSettings('ui', platformAdmin, { baseToken: 'stale', overrides: {} }))
       .rejects.toMatchObject({ status: 409 });
     expect(dbState.inserts).toEqual([]);
     expect(dbState.updates).toEqual([]);
     expect(scheduleBroadcast).not.toHaveBeenCalled();
   });
 
-  it('首次保存（无行，version 0）：插入稀疏覆盖，等于默认值的字段不落库', async () => {
-    dbState.selectResults.push([]); // for update：无行
-    dbState.selectResults.push([row('ui', null, { watermark: { enabled: true }, feedbackEntryEnabled: true }, 1)]); // 保存后重载
-    const saved = await saveSettings('ui', platformAdmin, {
-      version: 0,
-      data: SETTINGS_MODULES.ui.schema.parse({ watermark: { enabled: true }, feedbackEntryEnabled: true }),
-    });
-    expect(dbState.inserts).toEqual([{ module: 'ui', tenantId: null, data: { watermark: { enabled: true }, feedbackEntryEnabled: true }, version: 1 }]);
-    expect(saved.module).toBe('ui');
+  it('首次保存也保留等于默认值的显式覆盖，正文只写版本表', async () => {
+    dbState.selectResults.push([]);
+    const before = await getSettingsEnvelope('ui');
+    const overrides = { watermark: { enabled: false } };
+    dbState.selectResults.push([], [], [row('ui', null, overrides, 1)]);
+    dbState.insertResults.push([{ id: 100 }], [{ id: 1100 }]);
+    const saved = await saveSettings('ui', platformAdmin, { baseToken: before.baseToken, overrides, note: '明确关闭' });
+    expect(dbState.inserts[0]).toEqual({ module: 'ui', tenantId: null });
+    expect(dbState.inserts[1]).toMatchObject({ settingsId: 100, version: 1, overrides, action: 'save', note: '明确关闭' });
+    expect(dbState.updates).toEqual([{ currentRevisionId: 1100 }]);
+    expect(saved.overrides).toEqual(overrides);
+    expect(saved.baseToken).not.toBe(before.baseToken);
     expect(scheduleBroadcast).toHaveBeenCalledWith({ type: 'preferences:policy-updated', payload: { version: 1 } });
   });
 
-  it('已有行：版本 +1 并整体替换稀疏文档；租户行只存与平台生效值不同的叶子', async () => {
+  it('租户只替换自身覆盖，等于平台的值仍是显式覆盖', async () => {
     configState.multiTenantMode = true;
-    dbState.selectResults.push([{ id: 3, version: 2 }]);                                   // 租户行 for update
-    dbState.selectResults.push([{ data: { loginChallenge: { maxAttemptsPerSource: 5 } } }]); // 平台行
-    dbState.selectResults.push([]);                                                        // 重载
-    const defaults = { password: { minLength: 6, requireUppercase: false, requireSpecialChar: false, expiryEnabled: false, expiryDays: 90 }, loginChallenge: { maxAttemptsPerSource: 5, sourceLimit: 5, windowMinutes: 45, alert: { enabled: true, sourceThreshold: 3, failureThreshold: 60 } }, mfa: { enabled: false, mode: 'off' as const, rememberDeviceDays: 30 }, risk: { enabled: false, newDeviceAction: 'allow' as const } };
-    await saveSettings('identitySecurity', tenantAdmin, { version: 2, data: defaults });
-    // maxAttemptsPerSource=5 与平台生效值相同 → 继承；只有 windowMinutes 落库
-    expect(dbState.updates).toEqual([{ data: { loginChallenge: { windowMinutes: 45 } }, version: 3 }]);
+    ctx.user = tenantAdmin;
+    const platform = row('identitySecurity', null, { loginChallenge: { maxAttemptsPerSource: 5 } });
+    const tenant = row('identitySecurity', 3, { loginChallenge: { windowMinutes: 120 } }, 2);
+    dbState.selectResults.push([platform, tenant]);
+    const before = await getSettingsEnvelope('identitySecurity');
+    const overrides = { loginChallenge: { maxAttemptsPerSource: 5, windowMinutes: 45 } };
+    dbState.selectResults.push([platform, tenant], [{ id: 3 }], [platform, row('identitySecurity', 3, overrides, 3)]);
+    dbState.insertResults.push([{ id: 3003 }]);
+    const saved = await saveSettings('identitySecurity', tenantAdmin, { baseToken: before.baseToken, overrides });
+    expect(dbState.inserts[0]).toMatchObject({ settingsId: 3, version: 3, overrides, inheritedVersion: 1 });
+    expect(saved.overriddenPaths).toContain('loginChallenge.maxAttemptsPerSource');
+  });
+
+  it('内容与覆盖关系都未变化时不创建版本或广播', async () => {
+    const current = row('ui', null, { watermark: { enabled: false } }, 2);
+    dbState.selectResults.push([current]);
+    const before = await getSettingsEnvelope('ui');
+    dbState.selectResults.push([current], [{ id: 100 }]);
+    const saved = await saveSettings('ui', platformAdmin, { baseToken: before.baseToken, overrides: before.overrides });
+    expect(saved.version).toBe(2);
+    expect(dbState.inserts).toEqual([]);
+    expect(dbState.updates).toEqual([]);
+    expect(scheduleBroadcast).not.toHaveBeenCalled();
+  });
+
+  it('平台变化即使租户自身版本不变也拒绝旧表单', async () => {
+    configState.multiTenantMode = true;
+    ctx.user = tenantAdmin;
+    const tenant = row('identitySecurity', 3, {}, 2);
+    dbState.selectResults.push([row('identitySecurity', null, {}, 1), tenant]);
+    const before = await getSettingsEnvelope('identitySecurity');
+    dbState.selectResults.push([row('identitySecurity', null, { mfa: { enabled: true } }, 2), tenant]);
+    await expect(saveSettings('identitySecurity', tenantAdmin, { baseToken: before.baseToken, overrides: {} })).rejects.toMatchObject({ status: 409 });
+    expect(dbState.inserts).toEqual([]);
   });
 
   it('多租户下租户管理员写平台级模块 → 403', async () => {
     configState.multiTenantMode = true;
-    await expect(saveSettings('ui', tenantAdmin, { version: 0, data: SETTINGS_MODULES.ui.schema.parse({}) }))
+    await expect(saveSettings('ui', tenantAdmin, { baseToken: 'unused', overrides: {} }))
       .rejects.toBeInstanceOf(HTTPException);
     expect(selectMock).not.toHaveBeenCalled();
   });

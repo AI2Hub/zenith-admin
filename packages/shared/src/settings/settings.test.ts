@@ -12,6 +12,8 @@ import {
 } from './contracts';
 import { identitySecuritySettingsSchema, validatePassword } from './modules/identity-security';
 import { isIpOrCidr } from './modules/ip-access';
+import { describeSettingsFields } from './definition';
+import { parseSettingsOverrides, removeSettingsOverride, setSettingsOverride, stableSettingsSerialize } from './overrides';
 import {
   SETTINGS_MODULE_KEYS,
   SETTINGS_MODULE_PATHS,
@@ -112,7 +114,7 @@ describe('resolveSettings', () => {
     expect(resolved.value).toEqual(SETTINGS_MODULES.ui.schema.parse({}));
   });
 
-  it('diff 只保留与上级不同的叶子，等值即继承', () => {
+  it('文档值差仅保留不同叶子，不承担覆盖关系推导', () => {
     const inherited = SETTINGS_MODULES.identitySecurity.schema.parse({});
     const effective: SettingsOf<'identitySecurity'> = {
       ...inherited,
@@ -176,13 +178,15 @@ describe('settingsContract', () => {
     expect(settingsContract.list.fullPath).toBe('/api/settings');
   });
 
-  it('PUT 请求体不含任何 default，且 version + 完整 data 必填', () => {
+  it('PUT 请求体不含 default，baseToken + 显式覆盖必填，空覆盖表示全量继承', () => {
     for (const key of SETTINGS_MODULE_KEYS) {
       const body = settingsUpdateOp(key).body;
       const json = JSON.stringify(z.toJSONSchema(body, { unrepresentable: 'any' }));
       // 枚举值可以叫 default（例如表格密度），这里只禁止 JSON Schema 的默认值关键字。
       expect(json, key).not.toContain('"default":');
-      expect(body.safeParse({ version: 0, data: SETTINGS_MODULES[key].schema.parse({}) }).success, key).toBe(true);
+      expect(body.safeParse({ baseToken: 'revision-fingerprint', overrides: {} }).success, key).toBe(true);
+      expect(body.safeParse({ baseToken: 'revision-fingerprint' }).success, key).toBe(false);
+      expect(body.safeParse({ overrides: {} }).success, key).toBe(false);
       expect(body.safeParse({ version: 0, data: {} }).success, key).toBe(false);
     }
   });
@@ -226,6 +230,54 @@ describe('settingsContract', () => {
     expectTypeOf<z.output<typeof settingsContract.getIdentitySecurity.response>>().toEqualTypeOf<SettingsEnvelope<'identitySecurity'>>();
     expectTypeOf<z.input<typeof settingsContract.updateDrive.body>>().toEqualTypeOf<SettingsWriteBody<'drive'>>();
     expectTypeOf<z.input<typeof settingsContract.updateIdentitySecurity.body>>().toEqualTypeOf<SettingsWriteBody<'identitySecurity'>>();
+  });
+});
+
+describe('explicit settings overrides', () => {
+  it('等于上级的显式叶子仍保留，其它默认值不被填入', () => {
+    expect(parseSettingsOverrides('identitySecurity', { password: { minLength: 6 } }))
+      .toEqual({ password: { minLength: 6 } });
+    expect(parseSettingsOverrides('identitySecurity', { password: {} })).toEqual({});
+  });
+
+  it('拒绝未知路径、错误叶子类型与非法范围，数组整体校验', () => {
+    expect(() => parseSettingsOverrides('identitySecurity', { password: { unknown: true } })).toThrow(z.ZodError);
+    expect(() => parseSettingsOverrides('identitySecurity', { password: { minLength: 0 } })).toThrow(z.ZodError);
+    expect(() => parseSettingsOverrides('identitySecurity', { password: null })).toThrow(z.ZodError);
+    expect(() => parseSettingsOverrides('files', { allowedMimeTypes: [123] })).toThrow(z.ZodError);
+  });
+
+  it('设置和删除深层覆盖均不可变，删除最后一项时清理空父分组', () => {
+    const original = { password: { minLength: 6 }, mfa: { enabled: true } };
+    const next = setSettingsOverride(original, 'password.requireUppercase', true);
+    expect(original).toEqual({ password: { minLength: 6 }, mfa: { enabled: true } });
+    expect(next).toEqual({ password: { minLength: 6, requireUppercase: true }, mfa: { enabled: true } });
+    expect(removeSettingsOverride(original, 'password.minLength')).toEqual({ mfa: { enabled: true } });
+    expect(removeSettingsOverride(original, 'password')).toEqual({ mfa: { enabled: true } });
+  });
+
+  it('覆盖写入不共享数组引用，拒绝原型链和空路径片段', () => {
+    const list = ['image/*'];
+    const overrides = setSettingsOverride({}, 'allowedMimeTypes', list);
+    list.push('video/*');
+    expect(overrides).toEqual({ allowedMimeTypes: ['image/*'] });
+    for (const path of ['__proto__.polluted', 'constructor.prototype.x', '', 'a..b']) {
+      expect(() => setSettingsOverride({}, path, true)).toThrow();
+      expect(() => removeSettingsOverride({}, path)).toThrow();
+    }
+  });
+
+  it('对象键重排不影响指纹，数组排序仍有意义，undefined 有确定表示', () => {
+    expect(stableSettingsSerialize({ a: 1, b: { x: 2, y: 3 } }))
+      .toBe(stableSettingsSerialize({ b: { y: 3, x: 2 }, a: 1 }));
+    expect(stableSettingsSerialize([1, 2])).not.toBe(stableSettingsSerialize([2, 1]));
+    expect(stableSettingsSerialize(undefined)).toBe('undefined');
+  });
+
+  it('叶子描述带分组中文名称与枚举选项', () => {
+    const fields = describeSettingsFields('identitySecurity');
+    expect(fields.find((field) => field.path === 'password.minLength')?.title).toBe('密码策略 / 密码最小长度');
+    expect(fields.find((field) => field.path === 'mfa.mode')?.enumValues).toEqual(['off', 'optional', 'required']);
   });
 });
 
