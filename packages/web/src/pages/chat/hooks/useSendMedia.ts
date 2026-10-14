@@ -9,31 +9,9 @@ import { sendWsMessage } from '@/hooks/useWebSocket';
 import { useAddChatCustomEmoji } from '@/hooks/queries/chat';
 import type { ChatAssetMeta, ChatCustomEmoji, ChatLinkPreview, ChatMessage } from '@zenith/shared/chat';
 import { getFileExtension, getImageDimensions } from '../utils';
+import { warmChatImage } from '../image-cache';
 import type { Setter } from '../types';
 import { useVoiceRecorder } from '../useVoiceRecorder';
-
-/** 预热远端图片到浏览器缓存：发送落库前完成解码，消息进列表时直接命中缓存、不闪白 */
-function preloadRemoteImage(url: string, timeoutMs = 4000): Promise<void> {
-  return new Promise((resolve) => {
-    let settled = false;
-    const finish = () => {
-      if (settled) return;
-      settled = true;
-      resolve();
-    };
-    const timer = setTimeout(finish, timeoutMs);
-    try {
-      const img = new Image();
-      img.decoding = 'async';
-      img.onload = () => { clearTimeout(timer); finish(); };
-      img.onerror = () => { clearTimeout(timer); finish(); };
-      img.src = url;
-    } catch {
-      clearTimeout(timer);
-      finish();
-    }
-  });
-}
 
 /** 文件/图片/贴纸/语音发送、正在输入节流、链接预览抓取（自 ChatPage 原样搬移） */
 export function useSendMedia({
@@ -86,6 +64,7 @@ export function useSendMedia({
       height: emoji.height,
       thumbnailUrl: emoji.url,
     };
+    await warmChatImage(emoji.url);
     const msg = await api(chatContract.sendMessage, {
       params: { id: activeConvId },
       body: { content: emoji.url, type: 'image', extra: { asset } },
@@ -128,8 +107,8 @@ export function useSendMedia({
       return false;
     }
     const { url, originalName, size } = uploadRes.data;
-    // 先预热远端图片再落库：上传占位仍在，消息进列表时图片已在缓存中，直接显示不闪烁
-    await preloadRemoteImage(url);
+    // 先把图片预热到「已解码可绘制」再落库：上传占位仍在，消息进列表时首帧即可成像
+    await warmChatImage(url);
     const asset: ChatAssetMeta = {
       kind: 'image',
       name: originalName,

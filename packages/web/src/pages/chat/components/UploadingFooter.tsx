@@ -36,6 +36,7 @@ export function UploadingFooter({
 /**
  * 上传中图片预览：与最终图片消息同尺寸算法（等比、不放大），
  * 发送完成时占位移除、消息进列表，两者等高、无视觉跳动。
+ * 预览不做压暗：压暗会在占位移除的瞬间产生一次亮度跳变，看起来就是「闪一下」。
  */
 function UploadingImagePreview({ item }: Readonly<{ item: UploadingItem }>) {
   const box = resolveChatImageBox(item.width, item.height);
@@ -47,12 +48,12 @@ function UploadingImagePreview({ item }: Readonly<{ item: UploadingItem }>) {
           alt={item.name}
           decoding="async"
           draggable={false}
-          style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'var(--semi-border-radius-medium)', display: 'block', opacity: 0.55 }}
+          style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'var(--semi-border-radius-medium)', display: 'block' }}
         />
       ) : (
         <div style={{ width: '100%', height: '100%', borderRadius: 'var(--semi-border-radius-medium)', background: 'var(--semi-color-fill-1)' }} />
       )}
-      <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderRadius: 'var(--semi-border-radius-medium)', background: 'rgba(0,0,0,0.45)', gap: 6 }}>
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderRadius: 'var(--semi-border-radius-medium)', background: 'rgba(0,0,0,0.35)', gap: 6 }}>
         <Progress type="circle" percent={item.progress ?? 0} size="small" showInfo={false} stroke="#fff" orbitStroke="rgba(255,255,255,0.25)" />
         <span style={{ fontSize: 12, color: '#fff', fontWeight: 600 }}>{item.progress ?? 0}%</span>
       </div>

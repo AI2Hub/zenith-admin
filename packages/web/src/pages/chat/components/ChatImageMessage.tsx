@@ -1,21 +1,35 @@
-import { useEffect, useState } from 'react';
-import { Spin, Typography } from '@douyinfe/semi-ui';
+import { memo, useEffect, useRef, useState } from 'react';
+import { Typography } from '@douyinfe/semi-ui';
 import { safeLinkUrl } from '@/utils/safe-url';
-import {
-  CHAT_IMAGE_MAX_HEIGHT,
-  CHAT_IMAGE_MAX_WIDTH,
-  resolveChatImageBox,
-} from '../utils';
+import { isChatImageReady, markChatImageReady, warmChatImage } from '../image-cache';
+import { CHAT_IMAGE_MAX_HEIGHT, CHAT_IMAGE_MAX_WIDTH, resolveChatImageBox } from '../utils';
 
 const { Text } = Typography;
 
+interface ImageRenderState {
+  /** 状态对应的 src：切源时在渲染期直接重置，不留旧状态的一帧 */
+  src: string;
+  loaded: boolean;
+  failed: boolean;
+  natural: { width: number; height: number } | null;
+}
+
+function initialState(src: string): ImageRenderState {
+  return { src, loaded: isChatImageReady(src), failed: false, natural: null };
+}
+
 /**
- * 图片消息气泡：按素材宽高比预留固定占位 + 加载淡入，消除图片解码前的
- * 0 高度闪烁与 Virtuoso 列表的布局跳动（CLS）。
+ * 图片消息气泡：按素材宽高比预留固定占位，消除图片到位前的 0 高度闪烁与
+ * Virtuoso 列表的布局跳动（CLS）。
+ *
+ * 占位与成像之间不做任何过渡——两者在同一帧切换才是无闪烁的前提：
+ * 发送流程已把图片预热到「可绘制」，首帧即命中 `image-cache`，此时既不渲染
+ * 占位也不做淡入；真正需要等待的慢图（对方发来的、历史里滚回来的）才显示
+ * 带延迟微光的占位。
  * 有宽高时占位盒与最终图等比等大；无宽高（老数据）时先给默认占位，
  * 加载完成后按自然尺寸收敛。
  */
-export function ChatImageMessage({
+export const ChatImageMessage = memo(function ChatImageMessage({
   src, name, width, height, onOpen,
 }: Readonly<{
   src: string;
@@ -24,22 +38,32 @@ export function ChatImageMessage({
   height?: number | null;
   onOpen?: () => void;
 }>) {
-  const [loaded, setLoaded] = useState(false);
-  const [failed, setFailed] = useState(false);
-  const [natural, setNatural] = useState<{ width: number; height: number } | null>(null);
+  const safeSrc = safeLinkUrl(src);
+  const [state, setState] = useState<ImageRenderState>(() => initialState(safeSrc ?? ''));
+  // 渲染期派生重置：走 useEffect 会先提交一帧旧状态，那正是「闪一下」的来源
+  if (state.src !== safeSrc) setState(initialState(safeSrc ?? ''));
+  const { loaded, failed, natural } = state;
 
+  const imgRef = useRef<HTMLImageElement>(null);
+
+  // 未就绪的图片顺手预热：虚拟列表滚走再滚回来时同样首帧成像
   useEffect(() => {
-    setLoaded(false);
-    setFailed(false);
-    setNatural(null);
-  }, [src]);
+    if (!safeSrc || loaded || failed) return;
+    void warmChatImage(safeSrc);
+  }, [safeSrc, loaded, failed]);
+
+  // 命中缓存的图片可能在 React 挂上监听前就完成加载、load 事件不再到达，用 complete 兜底
+  useEffect(() => {
+    const el = imgRef.current;
+    if (!el || loaded || failed || !el.complete) return;
+    setState((prev) => (prev.loaded || prev.failed ? prev : { ...prev, loaded: el.naturalWidth > 0, failed: el.naturalWidth === 0 }));
+  }, [loaded, failed]);
 
   const box = resolveChatImageBox(width, height);
   // 无宽高时：加载完成后用自然尺寸（同样钳制上限）收敛，避免默认占位与实图比例不一致
   const display = !box.hasRatio && natural
     ? resolveChatImageBox(natural.width, natural.height)
     : box;
-  const safeSrc = safeLinkUrl(src);
 
   if (failed || !safeSrc) {
     return (
@@ -74,28 +98,16 @@ export function ChatImageMessage({
           height: box.hasRatio ? display.height : undefined,
           minHeight: box.hasRatio ? undefined : 120,
           maxWidth: CHAT_IMAGE_MAX_WIDTH,
+          // 就绪那一帧随图片一起让出底色（供透明 PNG 透出气泡背景），不加过渡：
+          // 过渡会在图片上方叠一层灰底淡出，看起来就是整块图闪了一下
           background: loaded ? 'transparent' : 'var(--semi-color-fill-1)',
           borderRadius: 'var(--semi-border-radius-medium)',
           overflow: 'hidden',
-          transition: 'background 160ms ease',
         }}
       >
-        {!loaded && (
-          <span
-            style={{
-              position: 'absolute',
-              inset: 0,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: box.hasRatio ? display.width : '100%',
-              height: box.hasRatio ? display.height : '100%',
-            }}
-          >
-            <Spin size="small" />
-          </span>
-        )}
+        {!loaded && <span className="chat-image-placeholder" />}
         <img
+          ref={imgRef}
           src={safeSrc}
           alt={name ?? '图片'}
           loading="eager"
@@ -103,13 +115,20 @@ export function ChatImageMessage({
           draggable={false}
           onLoad={(e) => {
             const el = e.currentTarget;
-            if (el.naturalWidth > 0 && el.naturalHeight > 0) {
-              setNatural({ width: el.naturalWidth, height: el.naturalHeight });
-            }
-            setLoaded(true);
+            markChatImageReady(safeSrc);
+            setState((prev) => (prev.loaded
+              ? prev
+              : {
+                ...prev,
+                loaded: true,
+                natural: el.naturalWidth > 0 && el.naturalHeight > 0
+                  ? { width: el.naturalWidth, height: el.naturalHeight }
+                  : prev.natural,
+              }));
           }}
-          onError={() => setFailed(true)}
+          onError={() => setState((prev) => (prev.failed ? prev : { ...prev, failed: true }))}
           style={{
+            position: 'relative',
             width: box.hasRatio ? '100%' : undefined,
             height: box.hasRatio ? '100%' : undefined,
             maxWidth: CHAT_IMAGE_MAX_WIDTH,
@@ -119,11 +138,9 @@ export function ChatImageMessage({
             cursor: 'zoom-in',
             border: 'none',
             boxShadow: 'none',
-            opacity: loaded ? 1 : 0,
-            transition: 'opacity 160ms ease',
           }}
         />
       </span>
     </button>
   );
-}
+});

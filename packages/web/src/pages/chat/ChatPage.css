@@ -11,6 +11,24 @@
   min-width: 0;
 }
 
+/* 图片消息未就绪时的占位：前 400ms 与容器同色静置（快速加载的图片全程不显示），
+   之后才开始微光，避免「先闪一下再出现」的观感 */
+.chat-image-placeholder {
+  position: absolute;
+  inset: 0;
+  background: var(--semi-color-fill-1);
+  animation: chat-image-shimmer 1.4s ease-in-out 0.4s infinite;
+}
+
+@keyframes chat-image-shimmer {
+  0%, 100% { background: var(--semi-color-fill-1); }
+  50% { background: var(--semi-color-fill-2); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-image-placeholder { animation: none; }
+}
+
 @keyframes qcVoicePulse {
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.4; transform: scale(0.7); }

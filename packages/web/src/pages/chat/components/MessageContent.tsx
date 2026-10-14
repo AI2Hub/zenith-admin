@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { Typography, List, Button } from '@douyinfe/semi-ui';
 import { getFileTypeIcon, canPreviewFile } from '@/utils/file-utils';
 import { getMessageExtra, renderTextWithMentions } from '../utils';
@@ -42,6 +43,8 @@ export function MessageContent({
   const extra = getMessageExtra(msg);
   const asset = extra?.asset ?? null;
   const linkPreview = extra?.linkPreview ?? null;
+  // 稳定身份：内联箭头每次渲染都是新引用，会击穿 ChatImageMessage 的 memo
+  const openImage = useCallback(() => onOpenImage?.(msg), [onOpenImage, msg]);
   const bubbleStyle: React.CSSProperties = {
     background: isSelf ? 'var(--semi-color-primary)' : 'var(--semi-color-fill-1)',
     color: isSelf ? '#fff' : 'inherit',
@@ -110,7 +113,7 @@ export function MessageContent({
         name={asset?.name}
         width={asset?.width}
         height={asset?.height}
-        onOpen={() => onOpenImage?.(msg)}
+        onOpen={openImage}
       />
     );
   }
