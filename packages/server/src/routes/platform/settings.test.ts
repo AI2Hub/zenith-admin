@@ -13,7 +13,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Hono } from 'hono';
 import { sign } from 'hono/jwt';
 import { contextStorage } from 'hono/context-storage';
-import { SETTINGS_MODULES, SETTINGS_MODULE_KEYS, settingsGetOp, settingsUpdateOp } from '@zenith/shared/settings';
+import { SETTINGS_MODULES, SETTINGS_MODULE_KEYS, settingsGetOp, settingsUpdateOp, settingsHistoryOps } from '@zenith/shared/settings';
+
+const BASE_TOKEN = 'a'.repeat(64);
 
 const { guardCalls } = vi.hoisted(() => ({ guardCalls: [] as unknown[] }));
 
@@ -59,16 +61,23 @@ vi.mock('../../lib/settings', () => ({
   getMySettings: vi.fn(async () => ({ auth: {}, identitySecurity: {}, ui: {} })),
   getSettingsEnvelope: vi.fn(async (module: string) => ({
     module, scope: 'platform', tenantId: null, version: 2,
+    effective: {}, inherited: {}, overrides: {}, currentRevisionId: 2, baseToken: 'a'.repeat(64), definitionHash: 'd'.repeat(64), inheritedVersion: 0, overriddenPaths: [], updatedAt: null,
+  })),
+  saveSettings: vi.fn(async (module: string, _user: unknown, _input: unknown) => ({
+    module, scope: 'platform', tenantId: null, version: 3,
     effective: {}, inherited: {}, overriddenPaths: [], updatedAt: null,
   })),
-  saveSettings: vi.fn(async (module: string, _user: unknown, input: { version: number }) => ({
-    module, scope: 'platform', tenantId: null, version: input.version + 1,
-    effective: {}, inherited: {}, overriddenPaths: [], updatedAt: null,
-  })),
+  restoreSettings: vi.fn(async () => ({ module: 'ui', scope: 'platform', tenantId: null, version: 4, currentRevisionId: 4, baseToken: 'b'.repeat(64), definitionHash: 'd'.repeat(64), overrides: {}, inheritedVersion: 0, effective: {}, inherited: {}, overriddenPaths: [], updatedAt: null })),
+}));
+vi.mock('../../services/platform/settings-history.service', () => ({
+  listSettingsVersions: vi.fn(async () => ({ list: [], total: 0, page: 1, pageSize: 20 })),
+  getSettingsVersion: vi.fn(async () => ({ id: 0, version: 0, action: 'initial', note: '', actorId: null, actorName: '系统默认', createdAt: null, changedPaths: [], restoredFromVersion: null, overrides: {}, effective: {}, inherited: {}, definition: {}, definitionHash: '', inheritedVersion: 0 })),
+  compareSettingsVersions: vi.fn(async () => ({ fromVersion: 0, toVersion: 1, changes: [] })),
+  previewSettingsRestore: vi.fn(async () => ({ baseToken: 'a'.repeat(64), currentVersion: 3, targetVersion: 0, current: {}, restored: {}, changes: [], issues: [] })),
 }));
 
 import settingsRoutes from './settings';
-import { getSettingsEnvelope, saveSettings } from '../../lib/settings';
+import { getSettingsEnvelope, saveSettings, restoreSettings } from '../../lib/settings';
 
 async function token() {
   return sign({ userId: 1, username: 'admin', roles: ['super_admin'], tenantId: null, jti: 'j1', exp: Math.floor(Date.now() / 1000) + 600 }, 'unit-test-only-fake-secret-do-not-use-in-production');
@@ -118,13 +127,13 @@ describe('settings routes', () => {
     expect(bad.status).toBe(400);
     expect(saveSettings).not.toHaveBeenCalled();
 
-    const full = SETTINGS_MODULES.ui.schema.parse({});
-    const ok = await app.request('/api/settings/ui', { method: 'PUT', headers, body: JSON.stringify({ version: 2, data: { ...full, quickChatEnabled: true } }) });
+    const overrides = { watermark: { enabled: false } };
+    const ok = await app.request('/api/settings/ui', { method: 'PUT', headers, body: JSON.stringify({ baseToken: BASE_TOKEN, overrides }) });
     expect(ok.status).toBe(200);
     expect(await ok.json()).toMatchObject({ code: 0, data: { module: 'ui', version: 3 } });
-    expect(saveSettings).toHaveBeenCalledWith('ui', expect.objectContaining({ userId: 1 }), { version: 2, data: { ...full, quickChatEnabled: true } });
+    expect(saveSettings).toHaveBeenCalledWith('ui', expect.objectContaining({ userId: 1 }), { baseToken: BASE_TOKEN, overrides });
 
-    const unknownKey = await app.request('/api/settings/ui', { method: 'PUT', headers, body: JSON.stringify({ version: 2, data: { ...full, extra: 1 } }) });
+    const unknownKey = await app.request('/api/settings/ui', { method: 'PUT', headers, body: JSON.stringify({ baseToken: BASE_TOKEN, overrides: { extra: 1 } }) });
     expect(unknownKey.status).toBe(400);
   });
 
@@ -142,12 +151,37 @@ describe('settings routes', () => {
   it('偏好策略值经过真实写入契约校验，非法枚举与范围不能入库', async () => {
     const app = buildApp();
     const headers = { Authorization: `Bearer ${await token()}`, 'Content-Type': 'application/json' };
-    for (const overrides of [ { colorMode: 'invalid' }, { tablePageSize: -1 }, { grayscale: true, colorBlind: true } ]) {
+    for (const overrides of [ { colorMode: 'invalid' }, { tablePageSize: -1 } ]) {
       const full = SETTINGS_MODULES.ui.schema.parse({});
       const data = { ...full, preferences: { ...full.preferences, defaults: { ...full.preferences.defaults, ...overrides } } };
-      const response = await app.request('/api/settings/ui', { method: 'PUT', headers, body: JSON.stringify({ version: 2, data }) });
+      const response = await app.request('/api/settings/ui', { method: 'PUT', headers, body: JSON.stringify({ baseToken: BASE_TOKEN, overrides: data }) });
       expect(response.status).toBe(400);
     }
     expect(saveSettings).not.toHaveBeenCalled();
+  });
+});
+
+
+describe('设置版本接口', () => {
+  it('每个模块的历史、比较、预览、恢复都经过认证，静态compare路由优先于version', async () => {
+    const app = buildApp();
+    for (const module of SETTINGS_MODULE_KEYS) {
+      const ops = settingsHistoryOps(module);
+      for (const op of [ops.list, ops.compare, ops.detail, ops.preview, ops.restore]) {
+        const response = await app.request(op.fullPath.replace('{version}', '0'), { method: op.method.toUpperCase() });
+        expect(response.status, op.fullPath).toBe(401);
+      }
+    }
+  });
+  it('恢复要求说明和并发指纹，v0可恢复', async () => {
+    const app = buildApp();
+    const headers = { Authorization: 'Bearer ' + await token(), 'Content-Type': 'application/json' };
+    const route = settingsHistoryOps('ui').restore.fullPath.replace('{version}', '0');
+    expect((await app.request(route, { method: 'POST', headers, body: JSON.stringify({ baseToken: BASE_TOKEN, note: ' ' }) })).status).toBe(400);
+    expect(restoreSettings).not.toHaveBeenCalled();
+    const response = await app.request(route, { method: 'POST', headers, body: JSON.stringify({ baseToken: BASE_TOKEN, note: '恢复继承' }) });
+    expect(response.status).toBe(200);
+    expect(restoreSettings).toHaveBeenCalledWith('ui', expect.objectContaining({ userId: 1 }), 0, { baseToken: BASE_TOKEN, note: '恢复继承' });
+    expect((await app.request(settingsHistoryOps('ui').compare.fullPath + '?from=0&to=1', { headers })).status).toBe(200);
   });
 });

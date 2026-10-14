@@ -26,6 +26,7 @@ import * as platform from './platform/contracts';
 import * as report from './report/contracts';
 import * as rules from './rules/contracts';
 import * as settings from './settings/contracts';
+import { settingsHistoryContracts } from './settings/history-contracts';
 import * as shortLink from './short-link/contracts';
 import * as tasks from './tasks/contracts';
 import * as wiki from './wiki/contracts';
@@ -51,7 +52,7 @@ export const CONTRACTS_BY_DOMAIN = {
   messaging: collectContracts(messaging),
   tasks: collectContracts(tasks),
   licensing: collectContracts(licensing),
-  settings: collectContracts(settings),
+  settings: [...collectContracts(settings), ...Object.values(settingsHistoryContracts)],
   workflow: collectContracts(workflow),
   chat: collectContracts(chat),
   rules: collectContracts(rules),

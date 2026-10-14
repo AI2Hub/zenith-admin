@@ -6,6 +6,7 @@ import {
   settingsContract,
   settingsGetOp,
   settingsUpdateOp,
+  settingsHistoryOps,
   type SettingsModuleKey,
 } from '@zenith/shared/settings';
 import { defineContractRoute } from '../../lib/contract-route';
@@ -16,7 +17,9 @@ import {
   getSettingsEnvelope,
   listSettingsModules,
   saveSettings,
+  restoreSettings,
 } from '../../lib/settings';
+import { listSettingsVersions, getSettingsVersion, compareSettingsVersions, previewSettingsRestore } from '../../services/platform/settings-history.service';
 
 const settingsRoutes = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -35,8 +38,8 @@ const meRoute = defineContractRoute(settingsContract.me, {
 
 /**
  * 逐模块 get / update 的**类型视图**：运行时仍使用契约上的精确操作对象（OpenAPI 文档、入参校验、
- * 响应 schema、访问要求与审计全部逐模块强类型），这里只是把 TS 视图放宽到「响应任意、请求体 { version, data }」，
- * 让 13 个模块共用同一个循环装配，而不是复制 26 段只差模块名的路由定义。
+ * 响应 schema、访问要求与审计全部逐模块强类型），这里只是把 TS 视图放宽到统一的覆盖写入请求，
+ * 让所有模块共用同一个循环装配。
  * 响应形状由 `lib/settings` 单一代码路径产出，并由 `settings.test.ts` / 路由测试在运行期校验。
  */
 type WideGetOp = Operation<'get', string, undefined, undefined, undefined, z.ZodType<unknown>, 'json', undefined>;
@@ -62,6 +65,16 @@ function moduleRoutes(module: SettingsModuleKey) {
 settingsRoutes.openapiRoutes([listRoute, publicRoute, meRoute] as const);
 for (const module of SETTINGS_MODULE_KEYS) {
   settingsRoutes.openapiRoutes(moduleRoutes(module));
+  const history = settingsHistoryOps(module);
+  const router = new OpenAPIHono({ defaultHook: validationHook });
+  router.openapiRoutes([
+    defineContractRoute(history.list, { handler: async (c) => c.json(okBody(await listSettingsVersions(module, c.get('user'), c.req.valid('query'))), 200) }),
+    defineContractRoute(history.compare, { handler: async (c) => c.json(okBody(await compareSettingsVersions(module, c.get('user'), c.req.valid('query'))), 200) }),
+    defineContractRoute(history.detail, { handler: async (c) => c.json(okBody(await getSettingsVersion(module, c.get('user'), c.req.valid('param').version)), 200) }),
+    defineContractRoute(history.preview, { handler: async (c) => c.json(okBody(await previewSettingsRestore(module, c.get('user'), c.req.valid('param').version, c.req.valid('json'))), 200) }),
+    defineContractRoute(history.restore, { handler: async (c) => c.json(okBody(await restoreSettings(module, c.get('user'), c.req.valid('param').version, c.req.valid('json')), '设置版本已恢复'), 200) }),
+  ] as const);
+  settingsRoutes.route(history.basePath.slice(settingsContract.basePath.length), router);
 }
 
 export default settingsRoutes;

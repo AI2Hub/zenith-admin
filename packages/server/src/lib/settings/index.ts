@@ -217,7 +217,7 @@ function readTenantId(module: SettingsModuleKey, options?: SettingsTenantOptions
  * 写入作用域：平台级模块在多租户下只有平台管理员可写；租户级模块——平台管理员在全平台视角写平台行、
  * 切换租户视角写该租户行，租户管理员只能写自身租户（越权到平台级 / 他租户在此处直接 403）。
  */
-function writeTenantId(module: SettingsModuleKey, user: JwtPayload): number | null {
+export function settingsWriteScope(module: SettingsModuleKey, user: JwtPayload): number | null {
   if (!config.multiTenantMode) return null;
   if (SETTINGS_MODULES[module].scope === 'platform') {
     if (!isPlatformAdmin(user)) throw new HTTPException(403, { message: '平台级设置仅平台管理员可修改' });
@@ -263,7 +263,7 @@ export async function getSettingsEnvelope<M extends SettingsModuleKey>(module: M
 /** 管理界面读的是「我保存时会写到哪一行」；租户管理员越权读平台级模块时按读取语义降级（页面只读） */
 export function settingsReadScope(module: SettingsModuleKey, user: JwtPayload): number | null {
   try {
-    return writeTenantId(module, user);
+    return settingsWriteScope(module, user);
   } catch {
     return readTenantId(module);
   }
@@ -284,7 +284,7 @@ export function assertSettingsBase(entry: SettingsEntry, token: string): void {
 
 /** 在统一事务里写入显式覆盖；恢复直接使用历史覆盖，不对上级做 diff。 */
 async function writeSettings<M extends SettingsModuleKey>(module: M, user: JwtPayload, input: SaveSettingsInput<M>, restoreVersion?: number): Promise<SettingsEnvelope<M>> {
-  const tenantId = writeTenantId(module, user);
+  const tenantId = settingsWriteScope(module, user);
   const result = await db.transaction(async (tx) => {
     await lockSettingsModule(tx, module);
     const before = await loadSettingsEntry(tx, module, tenantId);
@@ -423,7 +423,7 @@ export async function listSettingsModules(user: JwtPayload): Promise<SettingsMod
 
 function canWriteScope(module: SettingsModuleKey, user: JwtPayload): boolean {
   try {
-    writeTenantId(module, user);
+    settingsWriteScope(module, user);
     return true;
   } catch {
     return false;

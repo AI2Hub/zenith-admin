@@ -10,6 +10,8 @@ export * from './constants';
 export * from './contracts';
 export * from './definition';
 export * from './overrides';
+export * from './history';
+export * from './history-contracts';
 export * from './module-def';
 export * from './modules/ai';
 export * from './modules/analytics';
