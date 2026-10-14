@@ -105,7 +105,7 @@ export function canonicalizeCmsResourceUris<T>(value: T, urlToId: ReadonlyMap<st
 
 /**
  * 句柄 → URL 解析（深度遍历，返回新值，不修改入参）。
- * resolver 返回 null 表示素材已不存在，替换为空串（等价于旧实现里的死链，但不会把内部句柄泄露到页面）。
+ * resolver 返回 null 表示素材已不存在，替换为空串（渲染为空，不把内部句柄泄露到页面）。
  */
 export function resolveCmsResourceUris<T>(value: T, resolver: (id: number) => string | null): T {
   return mapStrings(value, (text) => {

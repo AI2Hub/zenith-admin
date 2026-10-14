@@ -105,7 +105,7 @@ describe('CMS Stage4 unified interactions', () => {
 
   it('aggregates statistics in SQL instead of pulling answers into memory', async () => {
     const service = await readFile(new URL('./cms-interactions-stats.service.ts', import.meta.url), 'utf8');
-    // 旧实现把最多 10 万条 answers 拉进内存做 JS 聚合，超限即静默截断
+    // 不把 answers 拉进内存做 JS 聚合（大数据量下超限即静默截断）
     expect(service).not.toContain('limit(100_000)');
     expect(service).toContain('GROUP BY a.question_id, v.val');
     // 数组与标量答案统一由 LATERAL 摊平，避免在 JS 里分支处理

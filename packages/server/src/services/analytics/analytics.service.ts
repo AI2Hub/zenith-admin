@@ -848,7 +848,7 @@ export async function getHeatmapData(q: HeatmapQuery) {
   const dominantLabel = dominant(userEvents.elementLabel);
 
   const [binRows, totalRows, elementRows, rageRows] = await Promise.all([
-    // 分箱在 SQL 侧完成：旧实现取前 5000 行再内存分箱，数据量大时会静默丢点。
+    // 分箱在 SQL 侧完成，避免取前 N 行再内存分箱在数据量大时静默丢点。
     // GROUP BY 用序号引用 select 列：drizzle 在 select 与 groupBy 中渲染的列限定不一致，
     // 重复表达式会被 PG 判为「未出现在 GROUP BY 中」（42803）
     db

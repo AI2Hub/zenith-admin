@@ -55,7 +55,7 @@ export function registerCmsResourceTaskHandler(): void {
         return { operation: 'move', processed, total: ids.length };
       }
 
-      // 孤立判定由 cms_resource_refs 索引一次查全（旧实现是逐素材对 9 张表做全表 LIKE 扫描）
+      // 孤立判定由 cms_resource_refs 索引一次查全，避免逐素材全表 LIKE 扫描
       const total = await db.$count(cmsResources, eq(cmsResources.siteId, payload.siteId));
       const orphanIds = await listCmsSiteOrphanResourceIds(payload.siteId);
       const orphanSet = new Set(orphanIds);

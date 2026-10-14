@@ -98,7 +98,7 @@ describe('useUrlSelectionState', () => {
       renders += 1;
       probe = { selection, search: location.search };
       useEffect(() => {
-        // 上限防止旧实现的同步渲染风暴饿死事件循环把用例挂死：超过上限就放弃清参，让断言直接失败
+        // 上限防止同步渲染风暴饿死事件循环把用例挂死：超过上限就放弃清参，让断言直接失败
         if (renders > 200) return;
         if (selection !== null && !/^\d+$/.test(selection)) setSelection(null);
       }, [selection, setSelection]);
