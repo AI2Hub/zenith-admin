@@ -9,14 +9,14 @@ import { sendWsMessage } from '@/hooks/useWebSocket';
 import { useAddChatCustomEmoji } from '@/hooks/queries/chat';
 import type { ChatAssetMeta, ChatCustomEmoji, ChatLinkPreview, ChatMessage } from '@zenith/shared/chat';
 import { getFileExtension, getImageDimensions } from '../utils';
-import { warmChatImage } from '../image-cache';
-import type { Setter } from '../types';
+import { registerChatImageHandoff, releaseChatImageHandoff, warmChatImage } from '../image-cache';
+import type { Setter, UploadingItem } from '../types';
 import { useVoiceRecorder } from '../useVoiceRecorder';
 
 /** 文件/图片/贴纸/语音发送、正在输入节流、链接预览抓取（自 ChatPage 原样搬移） */
 export function useSendMedia({
   activeConvId, currentUserId, currentUserNickname, appendMessageOnce, addEmojiMutation,
-  setEmojiVisible,
+  setEmojiVisible, setUploadingItems,
 }: {
   activeConvId: number | null;
   currentUserId: number | null;
@@ -24,6 +24,7 @@ export function useSendMedia({
   appendMessageOnce: (message: ChatMessage) => void;
   addEmojiMutation: ReturnType<typeof useAddChatCustomEmoji>;
   setEmojiVisible: Setter<boolean>;
+  setUploadingItems: Setter<UploadingItem[]>;
 }) {
   const sendFileMessage = useCallback(async (file: File, onProgress?: (percent: number) => void) => {
     if (!activeConvId) return false;
@@ -64,7 +65,7 @@ export function useSendMedia({
       height: emoji.height,
       thumbnailUrl: emoji.url,
     };
-    await warmChatImage(emoji.url);
+    void warmChatImage(emoji.url);
     const msg = await api(chatContract.sendMessage, {
       params: { id: activeConvId },
       body: { content: emoji.url, type: 'image', extra: { asset } },
@@ -97,18 +98,26 @@ export function useSendMedia({
     sendTypingSignal(activeConvId, currentUserId);
   }, [activeConvId, currentUserId, sendTypingSignal]);
 
-  const sendImageFile = useCallback(async (file: File, onProgress?: (percent: number) => void) => {
-    if (!activeConvId) return false;
+  const sendImageFile = useCallback(async (
+    file: File,
+    onProgress?: (percent: number) => void,
+    previewUrl?: string,
+    uploadId?: string,
+  ): Promise<ChatMessage | null> => {
+    if (!activeConvId) return null;
     const dimensions = await getImageDimensions(file);
     const fd = new FormData();
     fd.append('file', file);
     const uploadRes = await request.postForm<ManagedFile>(urlOf(fileContract.uploadOne), fd, { onProgress, silent: true });
     if (uploadRes.code !== 0 || !uploadRes.data) {
-      return false;
+      return null;
     }
     const { url, originalName, size } = uploadRes.data;
-    // 先把图片预热到「已解码可绘制」再落库：上传占位仍在，消息进列表时首帧即可成像
-    await warmChatImage(url);
+    if (uploadId) {
+      setUploadingItems((prev) => prev.map((item) => item.id === uploadId ? { ...item, remoteUrl: url } : item));
+    }
+    // 消息立即落库，让头像和消息元数据先出现；预热只作为后台加速，不阻塞挂载。
+    void warmChatImage(url);
     const asset: ChatAssetMeta = {
       kind: 'image',
       name: originalName,
@@ -119,13 +128,14 @@ export function useSendMedia({
       height: dimensions?.height ?? null,
       thumbnailUrl: url,
     };
+    if (previewUrl) registerChatImageHandoff(url, previewUrl);
     const msg = await api(chatContract.sendMessage, {
       params: { id: activeConvId },
       body: { content: url, type: 'image', extra: { asset } },
     }, { silent: true }).catch(() => null);
-    if (msg) appendMessageOnce(msg);
-    return Boolean(msg);
-  }, [activeConvId, appendMessageOnce]);
+    if (!msg && previewUrl) releaseChatImageHandoff(url);
+    return msg;
+  }, [activeConvId, setUploadingItems]);
 
   const sendVoiceMessage = useCallback(async (blob: Blob, durationSec: number, mimeType: string) => {
     if (!activeConvId) return;

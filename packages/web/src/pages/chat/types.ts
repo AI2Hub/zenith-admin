@@ -53,6 +53,8 @@ export interface UploadingItem {
   /** 图片本地尺寸（有值时上传占位与最终消息等比等大，消除发送完成时的跳动） */
   width?: number | null;
   height?: number | null;
+  /** 上传成功后绑定的远端地址，用于收到 WS 回执时原子移除上传行 */
+  remoteUrl?: string;
   mimeType?: string | null;
   convId: number;
   /** 上传进度 0-100，未开始时为 undefined */

@@ -37,7 +37,7 @@ export function useComposerActions({
   appendMessageOnce: (message: ChatMessage) => void;
   setFailedMessages: Setter<FailedMessage[]>;
   setUploadingItems: Setter<UploadingItem[]>;
-  sendImageFile: (file: File, onProgress?: (percent: number) => void) => Promise<boolean>;
+  sendImageFile: (file: File, onProgress?: (percent: number) => void, previewUrl?: string, uploadId?: string) => Promise<ChatMessage | null>;
   sendFileMessage: (file: File, onProgress?: (percent: number) => void) => Promise<boolean>;
   setHighlightedMessageId: Setter<number | null>;
   messages: ChatMessage[];
@@ -127,10 +127,11 @@ export function useComposerActions({
       void Promise.all([
         ...imagesToSend.map(async (item) => {
           const uploadId = `upload-img-${item.id}`;
-          const ok = await sendImageFile(item.file, makeProgressHandler(uploadId, setUploadingItems));
-          URL.revokeObjectURL(item.previewUrl);
+          const sent = await sendImageFile(item.file, makeProgressHandler(uploadId, setUploadingItems), item.previewUrl, uploadId);
+          if (sent) appendMessageOnce(sent);
+          else URL.revokeObjectURL(item.previewUrl);
           setUploadingItems(removeUploadingItemById(uploadId));
-          return ok ? null : 'image';
+          return sent ? null : 'image';
         }),
         ...filesToSend.map(async (item) => {
           const uploadId = `upload-file-${item.id}`;

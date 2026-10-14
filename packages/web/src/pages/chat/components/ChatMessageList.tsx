@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useLayoutEffect, useMemo, useRef } from 'react';
 import type { ComponentProps, RefObject } from 'react';
 import { Button, Divider, Empty, Spin } from '@douyinfe/semi-ui';
 import { Virtuoso, type VirtuosoHandle, type Components } from 'react-virtuoso';
@@ -9,7 +9,7 @@ import { shouldDisplayMessageTime } from '../utils';
 import { markConversationReadById } from '../utils-state';
 import type { FailedMessage, MessageReadReceipt, Setter, UploadingItem } from '../types';
 import { MessageBubble } from './MessageBubble';
-import { UploadingFooter } from './UploadingFooter';
+import { UploadingFooter, UploadingImageMessage } from './UploadingFooter';
 import { MessagesListHeader } from './MessagesListHeader';
 import { FailedMessagesList } from './FailedMessagesList';
 import { WsDisconnectedBanner } from './WsDisconnectedBanner';
@@ -51,12 +51,23 @@ function MessagesVirtuosoHeader({ context }: Readonly<{ context?: MessagesVirtuo
   );
 }
 
-const MESSAGES_VIRTUOSO_COMPONENTS: Components<ChatMessage, MessagesVirtuosoContext> = {
+type ChatListItem = ChatMessage | {
+  kind: 'uploading-image';
+  item: UploadingItem;
+};
+
+function isUploadingImage(item: ChatListItem): item is Extract<ChatListItem, { kind: 'uploading-image' }> {
+  return 'kind' in item && item.kind === 'uploading-image';
+}
+
+const MESSAGES_VIRTUOSO_COMPONENTS: Components<ChatListItem, MessagesVirtuosoContext> = {
   Footer: MessagesVirtuosoFooter,
   Header: MessagesVirtuosoHeader,
 };
 
-const computeMessageItemKey = (_idx: number, msg: ChatMessage) => msg.id;
+const computeMessageItemKey = (_idx: number, item: ChatListItem) => (
+  isUploadingImage(item) ? item.item.id : item.id
+);
 
 type BubbleProps = ComponentProps<typeof MessageBubble>;
 
@@ -71,6 +82,8 @@ interface ChatMessageListProps {
   isQuick: boolean;
   activeConvId: number | null;
   currentUserId: number | null;
+  currentUserNickname: string;
+  currentUserAvatar?: string | null;
   /** 全部消息（判定首载）与过滤掉「对我隐藏」后的展示消息 */
   messages: ChatMessage[];
   displayMessages: ChatMessage[];
@@ -106,7 +119,7 @@ interface ChatMessageListProps {
 
 /** 消息区：首载 Spin / 空态 / Virtuoso 虚拟列表（含未读分隔线与置顶头、上传底栏）、发送失败重试列表与「N 条新消息」按钮 */
 export function ChatMessageList({
-  isQuick, activeConvId, currentUserId, messages, displayMessages, loadingMsgs, hasMore, wsConnected, pinnedMessages,
+  isQuick, activeConvId, currentUserId, currentUserNickname, currentUserAvatar, messages, displayMessages, loadingMsgs, hasMore, wsConnected, pinnedMessages,
   uploadingItems, virtuosoRef, firstItemIndex, handleStartReached, handleAtBottomStateChange, scrollToMessage,
   handleTogglePinMessage, unreadDivider, bubbleHandlers, recalledDrafts, multiSelectMode, selectedMessageIds,
   highlightedMessageId, readReceiptMap, canPinInActiveConv,
@@ -118,8 +131,29 @@ export function ChatMessageList({
     scrollToMessage, handleTogglePinMessage, hasMore, loadingMsgs,
   }), [uploadingItems, activeConvId, isQuick, wsConnected, pinnedMessages, scrollToMessage, handleTogglePinMessage, hasMore, loadingMsgs]);
 
+  const pendingImageItems = useMemo(
+    () => uploadingItems
+      .filter((item) => item.convId === activeConvId && item.type === 'image')
+      .map((item) => ({ kind: 'uploading-image' as const, item })),
+    [activeConvId, uploadingItems],
+  );
+  const listItems = useMemo<ChatListItem[]>(
+    () => [...displayMessages, ...pendingImageItems],
+    [displayMessages, pendingImageItems],
+  );
+  const previousPendingImageIds = useRef<Set<string>>(new Set());
+  useLayoutEffect(() => {
+    const nextIds = new Set(pendingImageItems.map(({ item }) => item.id));
+    const added = [...nextIds].some((id) => !previousPendingImageIds.current.has(id));
+    previousPendingImageIds.current = nextIds;
+    if (!added) return;
+    const frame = requestAnimationFrame(() => {
+      virtuosoRef.current?.scrollToIndex({ index: 'LAST', align: 'end', behavior: 'auto' });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [pendingImageItems, virtuosoRef]);
   const hasFailedInCurrentConv = failedMessages.some((m) => m.convId === activeConvId);
-  const isEmptyMessagesView = displayMessages.length === 0 && !hasFailedInCurrentConv;
+  const isEmptyMessagesView = listItems.length === 0 && !hasFailedInCurrentConv;
   const isInitialLoadingMessages = loadingMsgs && messages.length === 0;
 
   return (
@@ -139,19 +173,31 @@ export function ChatMessageList({
         <Virtuoso
           ref={virtuosoRef}
           style={{ flex: 1 }}
-          data={displayMessages}
+          data={listItems}
           context={virtuosoContext}
           firstItemIndex={firstItemIndex}
-          initialTopMostItemIndex={Math.max(displayMessages.length - 1, 0)}
-          followOutput={uploadingItems.some((u) => u.convId === activeConvId) ? 'smooth' : false}
+          initialTopMostItemIndex={Math.max(listItems.length - 1, 0)}
+          followOutput={false}
           startReached={handleStartReached}
           atBottomStateChange={handleAtBottomStateChange}
           atBottomThreshold={120}
           increaseViewportBy={{ top: 600, bottom: 200 }}
           computeItemKey={computeMessageItemKey}
           components={MESSAGES_VIRTUOSO_COMPONENTS}
-          itemContent={(virtualIndex, msg) => { // NOSONAR
+          itemContent={(virtualIndex, item) => { // NOSONAR
             const realIndex = virtualIndex - firstItemIndex;
+            if (isUploadingImage(item)) {
+              return (
+                <div style={{ padding: isQuick ? '0 12px 16px' : '0 20px 16px' }}>
+                  <UploadingImageMessage
+                    item={item.item}
+                    userName={currentUserNickname}
+                    userAvatar={currentUserAvatar}
+                  />
+                </div>
+              );
+            }
+            const msg = item;
             const showUnreadDivider = unreadDivider?.convId === activeConvId && unreadDivider.messageId === msg.id;
             return (
               <div style={{ padding: isQuick ? '0 12px 16px' : '0 20px 16px' }}>

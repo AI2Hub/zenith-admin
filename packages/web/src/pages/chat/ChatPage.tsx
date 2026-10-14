@@ -203,6 +203,7 @@ export default function ChatPage({
   const { user: authUser } = useAuth();
   const currentUserId = authUser?.id ?? null;
   const currentUserNickname = authUser?.nickname ?? authUser?.username ?? '我';
+  const currentUserAvatar = authUser?.avatar ?? null;
   const { hasPermission } = usePermission();
 
   const { exportingChat, handleExportChat } = useExportChat();
@@ -329,7 +330,7 @@ export default function ChatPage({
 
   const { saveDraft, loadDraft } = useChatDrafts({ setDraftsMap });
 
-  const { handleSelectConv, handleNewDirectChat, handleGroupCreated, appendMessageOnce } = useConversationSelection({
+  const { handleSelectConv, handleNewDirectChat, handleGroupCreated, appendMessageOnce: appendMessageOnceRaw } = useConversationSelection({
     activeConvId, input, currentUserId, onConvChange, saveDraft, loadDraft,
     fetchMessages, fetchConversations, virtuosoRef, showMediaPanelRef, mediaTypeRef, activeConvIdRef,
     setActiveConvId, setActiveChannelId, setReplyTo, setSelectedMentions, setPendingImages, setPendingFiles,
@@ -339,12 +340,21 @@ export default function ChatPage({
     setInput, setUnreadDivider, setConversations, setShowNewChat, setMessages,
   });
 
+  const appendMessageOnce = useCallback((message: ChatMessage) => {
+    appendMessageOnceRaw(message);
+    if (message.type !== 'image') return;
+    const remoteUrl = message.extra?.asset?.thumbnailUrl ?? message.content;
+    setUploadingItems((prev) => prev.some((item) => item.remoteUrl === remoteUrl)
+      ? prev.filter((item) => item.remoteUrl !== remoteUrl)
+      : prev);
+  }, [appendMessageOnceRaw]);
+
   const {
     sendFileMessage, sendSticker, handleSaveAsEmoji, handleTyping, sendImageFile,
     voiceRecorder, fetchLinkPreview,
   } = useSendMedia({
     activeConvId, currentUserId, currentUserNickname, appendMessageOnce, addEmojiMutation,
-    setEmojiVisible,
+    setEmojiVisible, setUploadingItems,
   });
 
   const {
@@ -609,6 +619,8 @@ export default function ChatPage({
               isQuick={isQuick}
               activeConvId={activeConvId}
               currentUserId={currentUserId}
+              currentUserNickname={currentUserNickname}
+              currentUserAvatar={currentUserAvatar}
               messages={messages}
               displayMessages={displayMessages}
               loadingMsgs={loadingMsgs}
