@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { Banner, Button, Input, Modal, Space, Tag, Typography } from '@douyinfe/semi-ui';
+import { useMemo, useRef, useState } from 'react';
+import { Banner, Button, Input, Modal, Space, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import { describeSettingsFields, type SettingsModuleKey } from '@zenith/shared/settings';
 import type { useSettingsEditor } from '@/hooks/useSettingsEditor';
 import { SettingsHistoryButton } from './SettingsHistoryButton';
@@ -15,13 +15,28 @@ interface SettingsEditorToolsProps<M extends SettingsModuleKey> {
 /** 通用页和专用页共用历史、草稿保护、变更说明与显式继承管理。 */
 export function SettingsEditorTools<M extends SettingsModuleKey>({ module, editor, canWrite, saving, onReload }: SettingsEditorToolsProps<M>) {
   const [inheritanceOpen, setInheritanceOpen] = useState(false);
+  const [reloading, setReloading] = useState(false);
+  // 重载期间按钮处于 loading，但状态更新前的连点仍可能进来，用 ref 守住重入。
+  const reloadingRef = useRef(false);
   const fields = useMemo(() => describeSettingsFields(module), [module]);
   const reload = async () => {
+    if (reloadingRef.current) return;
+    reloadingRef.current = true;
+    setReloading(true);
     // 只放弃点击时已确认的草稿；请求在途期间的新输入由编辑器继续保护。
     editor.discard();
-    await onReload();
+    try {
+      const result = await onReload();
+      // 无草稿时重载常常拉回同样的数据，本地看不出变化，必须给出明确反馈。
+      if (result.isError) Toast.error('载入最新版本失败，请检查网络后重试');
+      else Toast.success('已载入最新版本');
+    } finally {
+      reloadingRef.current = false;
+      setReloading(false);
+    }
   };
   const discard = () => {
+    if (reloading) return;
     if (!editor.dirty) { void reload(); return; }
     Modal.confirm({
       title: '放弃当前修改并载入最新版本？',
@@ -35,7 +50,9 @@ export function SettingsEditorTools<M extends SettingsModuleKey>({ module, edito
         {editor.base ? <Tag>版本 {editor.base.version}</Tag> : null}
         <SettingsHistoryButton module={module} dirty={editor.dirty} canRestore={canWrite && !saving} onRestored={editor.discard} />
         {editor.dirty ? <Tag color="orange">有未保存的修改</Tag> : null}
-        {canWrite ? <Button size="small" disabled={saving} onClick={discard}>{editor.dirty ? '放弃修改并重载' : '载入最新'}</Button> : null}
+        {canWrite ? <Tooltip content="重新拉取服务端已保存的最新配置，丢弃未保存的修改；不会创建新版本">
+          <Button size="small" loading={reloading} disabled={saving} onClick={discard}>{editor.dirty ? '放弃修改并重载' : '载入最新'}</Button>
+        </Tooltip> : null}
         {editor.overriddenPaths.length > 0 ? <Button size="small" disabled={saving} onClick={() => setInheritanceOpen((open) => !open)}>{inheritanceOpen ? '收起继承设置' : `管理继承（${editor.overriddenPaths.length} 项覆盖）`}</Button> : null}
       </Space>
       {editor.stale || editor.conflict ? <Banner type="warning" closeIcon={null} style={{ marginTop: 12 }}
