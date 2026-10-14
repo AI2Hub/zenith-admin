@@ -67,7 +67,6 @@ export async function declareBackgroundJobs(): Promise<boolean> {
     await registerWorkflowPrintArchiveWorker(); // 审批单终态归档件（PDF 存证）生成
     const { reloadCmsSearchDict } = await import('../services/cms/cms-search.service');
     await reloadCmsSearchDict(); // CMS 检索自定义词典（DB → jieba）：内容保存（api）与索引重建（worker）都要分词
-    // AI 评测已迁移至 Mastra Datasets/Experiments(自带异步执行),不再挂任务中心
     registerReportDatasourceTaskHandlers();
     registerReportDatasetTaskHandlers();
     registerReportDeliveryTaskHandlers();

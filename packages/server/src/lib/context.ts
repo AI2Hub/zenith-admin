@@ -5,8 +5,7 @@
  * 任意同步/异步函数栈内都可用 `currentUser()` / `getCtx()` 获取当前请求上下文，
  * 无需再把 `c: Context` 或 `user: JwtPayload` 一路透传到辅助函数。
  *
- * 注意：既有显式传参的函数（如 `tenantCondition(table, user)`）继续可用，
- * 新代码可选择使用此处零参风格。
+ * 显式传参的函数（如 `tenantCondition(table, user)`）与此处零参风格可混用。
  */
 import { getContext, tryGetContext } from 'hono/context-storage';
 import { eq } from 'drizzle-orm';

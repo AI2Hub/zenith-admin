@@ -142,7 +142,7 @@ export function useSetCmsSiteUsers() {
 // ─── 开通行为统计 ─────────────────────────────────────────────────────────────
 /**
  * 只在该站点上写入 siteKey；主题元数据（themes / themeTemplates / themeSettingsSchema，
- * 均为 5 分钟长缓存）与本次改动无因果关系，不应被打回源
+ * 均为 5 分钟长缓存）无因果关系，不应被打回源
  */
 export function useEnableSiteAnalytics() {
   return useApiMutation(cmsSiteContract.enableAnalytics, {

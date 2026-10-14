@@ -34,7 +34,7 @@ import { EditFormModal } from '@/components/EditFormModal';
 import '../drive.css';
 
 const DriveAdminCharts = lazy(() => import('./DriveAdminCharts'));
-/** 所有者作为受控表单字段（原先直读 formApi 不触发重渲染，选择后不回显） */
+/** 所有者作为受控表单字段（直读 formApi 不触发重渲染，选择后不回显） */
 const FormUserSelect = withField(UserSelect);
 
 interface SearchParams {

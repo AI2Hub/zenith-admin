@@ -1360,7 +1360,7 @@ export type CmsResourceRow = typeof cmsResources.$inferSelect;
  * 素材在业务对象中以 `cms-res://{id}` 句柄存储，owner 每次写入时在**同一事务内**
  * 按 owner 维度整体重建自己的引用行（先删后插），因此索引不会漂移。
  * 孤立素材判定、删除保护与引用明细全部由本表的索引查询完成，
- * 取代原先「按 URL 子串对 9 张表做全表 LIKE 扫描」的 O(N×M) 实现。
+ * 避免「按 URL 子串对多表做全表 LIKE 扫描」的 O(N×M) 开销。
  */
 export const cmsResourceRefs = pgTable('cms_resource_refs', {
   id: idColumn(),

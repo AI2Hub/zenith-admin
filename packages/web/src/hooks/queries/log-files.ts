@@ -37,7 +37,7 @@ export function useDeleteLogFile() {
  *
  * 失效只打列表：契约资源前缀 `['log-files']` 同时覆盖 `content`，按它失效会连带回源
  * 正在查看的那个文件 —— 刚删掉必然 404，弹「文件不存在」。删除不改变其它文件的内容，
- * 只有列表需要刷新。原先的 `logFileKeys.all` 因此移除，避免再被当成域级失效用。
+ * 只有列表需要刷新。不要用域级失效（`logFileKeys.all`）。
  */
 export function useBatchDeleteLogFiles() {
   return useApiMutation(logFileContract.removeBatch, {

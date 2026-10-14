@@ -873,7 +873,7 @@ async function seedRest() {
   await db.execute(sql`SELECT setval('report_fill_templates_id_seq', GREATEST((SELECT MAX(id) FROM report_fill_templates), 1))`);
   logger.info('  ✔ Report center seeded');
 
-  // ─── 意见反馈：不再预置示例数据（历史库 admin id 不固定，硬编码 userId 会触发 FK 失败）──
+  // ─── 意见反馈：不预置示例数据（admin id 不固定，硬编码 userId 会触发 FK 失败）──
 
   // ─── 行为中心：服务端权威事件 Tracking Plan 初始种子（数据来源：@zenith/shared SEED_ANALYTICS_EVENT_META）──
   // 冲突目标为 eventName（业务唯一键），不写 id（由数据库自增），避免覆盖治理侧已运行时调整的字段

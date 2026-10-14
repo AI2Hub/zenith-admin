@@ -78,7 +78,7 @@ export default function WorkflowDefinitionsPage() {
   } = useListPage({
     defaults: defaultSearchParams,
     listKey: workflowDefinitionKeys.lists,
-    // 条件变化后原先勾选的行可能已不在结果集里，一并清空
+    // 条件变化后勾选的行可能已不在结果集里，一并清空
     onSearch: clearSelection,
     onReset: clearSelection,
     useList: useWorkflowDefinitionList,

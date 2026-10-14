@@ -116,8 +116,8 @@ export function inheritedTenantCondition(column: SQLWrapper, tenantId: number | 
 }
 
 // ─── 零参便捷重载：依赖 `contextStorage()` 中间件 ─────────────────────────
-// 新代码可直接写 `tenantScope(table)`、`currentCreateTenantId()`，无需手动传 user。
-// 既有显式传参 API 保持不变。
+// 可直接写 `tenantScope(table)`、`currentCreateTenantId()`，无需手动传 user。
+// 显式传参 API 保持不变。
 
 // 延迟导入避免循环：context.ts 依赖 middleware/auth 的类型，无运行时依赖
 import { currentUser } from './context';

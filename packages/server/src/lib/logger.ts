@@ -8,7 +8,7 @@
  *  - 例外：Windows 终端直接运行时控制台输出留在主线程（见 consoleOnMainThread）
  *
  * 调用约定（`hooks.logMethod` 归一化，两种写法都支持）：
- *  - pino 原生：`logger.info({ userId }, '登录成功')`，新代码优先用这种
+ *  - pino 原生：`logger.info({ userId }, '登录成功')`，优先用这种
  *  - 消息在前：`logger.info('登录成功', meta)` —— meta 为 Error 记入 `err`（带堆栈），
  *    普通对象作为结构化字段合并，其余类型记入 `meta` 字段
  *  - 请求级子 logger：`logger.child({ requestId })` 原生可用

@@ -1,6 +1,6 @@
 /**
  * 流程仿真用例服务：保存/列出/删除按流程定义归档的测试场景（表单数据 + 决策 + 发起人）。
- * 取代设计器仿真抽屉原先的 localStorage 占位，落库 + 租户隔离 + 重名覆盖（按 definitionId + name 唯一）。
+ * 落库 + 租户隔离 + 重名覆盖（按 definitionId + name 唯一）。
  */
 import { desc, eq } from 'drizzle-orm';
 import { db } from '../../db';

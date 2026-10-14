@@ -99,7 +99,7 @@ export const SEED_TENANTS: Tenant[] = [
 
 // ─── 租户套餐 ─────────────────────────────────────────────────────────────────
 // 套餐 = 一组可授权功能 + 配额。菜单可见性由 menus.featureKey 与套餐功能交集派生，
-// 不再维护菜单 ID 白名单；页面级微调交给角色（RBAC）。
+// 不维护菜单 ID 白名单；页面级微调交给角色（RBAC）。
 export const SEED_TENANT_PACKAGES: TenantPackage[] = [
   { id: 1, name: '基础版', status: 'enabled', remark: '基础功能套餐：核心管理 + 工作流 + 知识中心', features: ['workflow', 'wiki'], quotas: { maxUsers: 20 }, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 2, name: '标准版', status: 'enabled', remark: '标准功能套餐：含数据分析、报表、CMS 与 AI', features: ['workflow', 'wiki', 'chat', 'analytics', 'report', 'cms', 'ai'], quotas: { maxUsers: 100 }, createdAt: SEED_DATE, updatedAt: SEED_DATE },

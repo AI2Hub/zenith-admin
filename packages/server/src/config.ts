@@ -26,7 +26,7 @@ const DEV = isDevelopmentEnv(process.env.NODE_ENV);
  * 日志类默认值按开发模式分档：本地开发要「看得见发生了什么」，生产要「安静且可采集」。
  *
  * 开发档（仅在 NODE_ENV=development 生效）：debug 级、彩色单行控制台、入站与出站 HTTP 流量日志各记一行；
- * 其余环境沿用原有保守默认（info、NDJSON、流量日志关闭），行为与本次改动前完全一致。
+ * 其余环境沿用保守默认（info、NDJSON、流量日志关闭）。
  * 环境变量始终优先——显式配置可随时覆盖任一档位（例如本地临时 `LOG_LEVEL=info` 降噪）。
  */
 const devLog = {
@@ -37,7 +37,7 @@ const devLog = {
   incomingLevel: DEV ? 'body' as const : 'access' as const,
   /** 入站响应体：开发默认记录；其余环境默认关闭——克隆响应有开销，响应体也最可能带业务数据 */
   incomingResponseBody: DEV,
-  /** 出站档位：开发取 body（第三方联调要看报文），生产保持原有的 full（仅在显式开启时才生效） */
+  /** 出站档位：开发取 body（第三方联调要看报文），生产保持 full（仅在显式开启时才生效） */
   outgoingLevel: DEV ? 'body' as const : 'full' as const,
 };
 

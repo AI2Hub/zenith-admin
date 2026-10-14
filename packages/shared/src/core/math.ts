@@ -10,7 +10,7 @@ export function clamp(value: number, min: number, max: number): number {
  */
 export function percentOf(part: number, total: number, digits = 1): number | null {
   if (!Number.isFinite(part) || !Number.isFinite(total) || total <= 0) return null;
-  // 与历史写法 `Math.round(ratio * 1000) / 10` 逐字等价（单次乘法），保证浮点结果一致
+  // 与 `Math.round(ratio * 1000) / 10` 逐字等价（单次乘法），保证浮点结果一致
   return Math.round((part / total) * 10 ** (digits + 2)) / 10 ** digits;
 }
 

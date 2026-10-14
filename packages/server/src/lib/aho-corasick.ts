@@ -94,7 +94,6 @@ export function toCodePoints(text: string): string[] {
 
 /**
  * 按「起点升序、长词优先」排序后剔除重叠区间，返回可直接用于切片替换的命中序列。
- * 三处调用方原先各写了一遍同样的排序 + 跳重叠逻辑。
  */
 export function dedupeOverlaps<T>(matches: AcMatch<T>[]): AcMatch<T>[] {
   matches.sort((a, b) => a.start - b.start || b.end - a.end);
@@ -126,8 +125,7 @@ export function applyReplacements<T>(
 }
 
 /**
- * TTL 内存缓存：词库类数据「读多写少 + 允许秒级陈旧」，三处服务原先各自复制了
- * `let cache = null` + `Date.now() - loadedAt >= TTL` 的判定。
+ * TTL 内存缓存：词库类数据「读多写少 + 允许秒级陈旧」。
  *
  * `invalidate()` 供写路径（增删改词）调用，让下次读取立即重建。
  */

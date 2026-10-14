@@ -45,7 +45,7 @@ async function pushCronFailureAlert(jobId: number, jobName: string, message: str
       recipients: [{ type: 'user', id: targetId }],
       vars: { jobName, errorMessage: message.slice(0, 200) },
       tenantId: null,
-      // 历史行为是聊天卡片，收口后保持同一渠道，避免告警投递位置发生漂移
+      // 保持聊天卡片渠道，避免告警投递位置漂移
       channelPolicy: { only: ['chat'] },
       link: '/system/cron-jobs',
     });

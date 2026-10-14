@@ -6,7 +6,7 @@ export const NUMERIC_COMPARE_OPS = ['gt', 'gte', 'lt', 'lte', 'eq', 'neq'] as co
 
 export type NumericCompareOp = (typeof NUMERIC_COMPARE_OPS)[number];
 
-/** 未知算子恒为 false（fail-closed），与各域历史实现一致 */
+/** 未知算子恒为 false（fail-closed），与各域实现一致 */
 export function compareNumber(value: number, op: NumericCompareOp, threshold: number): boolean {
   switch (op) {
     case 'gt': return value > threshold;

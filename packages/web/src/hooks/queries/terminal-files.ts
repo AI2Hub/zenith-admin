@@ -378,6 +378,6 @@ export function sftpDownloadUrl(profileId: number, path: string) {
 
 /**
  * Docker Explorer 的容器启停：与 Docker 管理页同一 mutation（容器清单 + 该容器的目录浏览失效）。
- * 原先额外广播整个 terminal-files 域，但容器启停不影响宿主机本地文件。
+ * 容器启停不影响宿主机本地文件，不广播整个 terminal-files 域。
  */
 export const useDockerExplorerAction = useDockerContainerAction;

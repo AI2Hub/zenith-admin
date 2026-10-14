@@ -1,8 +1,7 @@
 /**
  * CMS 内容事件外推。
  *
- * 原先是 fire-and-forget 的直接 POST：失败只打日志，进程崩溃即丢事件，也没有重试与投递记录。
- * 现改为接入开放平台既有的 Webhook 投递管线（`app_webhook_subscriptions` +
+ * 接入开放平台既有的 Webhook 投递管线（`app_webhook_subscriptions` +
  * `app_webhook_deliveries`），白捡到 HMAC 签名、eventId 去重、指数退避重试、连续失败自动禁用、
  * 投递日志与后台手工重投。
  *

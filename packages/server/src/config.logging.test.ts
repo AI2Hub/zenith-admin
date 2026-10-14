@@ -2,7 +2,7 @@
  * 日志类默认值的环境分档（见 config.ts 的 devLog）。
  *
  * 只有 `npm run dev` 注入的 NODE_ENV=development 才提高日志默认值（debug / 彩色单行 / HTTP 流量日志）；
- * 其余环境（test / production / 未设置）必须保持原有关闭与保守档位——这条边界是本次改动的核心，
+ * 其余环境（test / production / 未设置）必须保持关闭与保守档位——这条边界防止回归，
  * 一旦回退，测试环境会被流量日志淹没、生产会被静默切换到 debug。
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
