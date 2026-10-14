@@ -49,6 +49,36 @@ export const LOG_PALETTES = [
     light: { background: '#eff1f5', plain: '#4c4f69', key: '#185fdf', string: '#267e17', number: '#a35300', literal: '#8839ef', muted: '#626580' },
     dark: { background: '#1e1e2e', plain: '#cdd6f4', key: '#89b4fa', string: '#a6e3a1', number: '#fab387', literal: '#cba6f7', muted: '#a6adc8' },
   },
+  {
+    id: 'dracula', name: 'Dracula',
+    light: { background: '#f8f8f2', plain: '#282a36', key: '#6e3fa3', string: '#226d37', number: '#945116', literal: '#a32866', muted: '#626b86' },
+    dark: { background: '#282a36', plain: '#f8f8f2', key: '#8be9fd', string: '#50fa7b', number: '#ffb86c', literal: '#bd93f9', muted: '#a3acd0' },
+  },
+  {
+    id: 'tokyo-night', name: 'Tokyo Night',
+    light: { background: '#e1e2e7', plain: '#343b58', key: '#34548a', string: '#33635c', number: '#7d431d', literal: '#5a4a78', muted: '#565a6e' },
+    dark: { background: '#1a1b26', plain: '#c0caf5', key: '#7aa2f7', string: '#9ece6a', number: '#ff9e64', literal: '#bb9af7', muted: '#969fca' },
+  },
+  {
+    id: 'rose-pine', name: 'Rosé Pine',
+    light: { background: '#faf4ed', plain: '#575279', key: '#286983', string: '#386b68', number: '#985514', literal: '#755888', muted: '#716b8a' },
+    dark: { background: '#191724', plain: '#e0def4', key: '#9ccfd8', string: '#ebbcba', number: '#f6c177', literal: '#c4a7e7', muted: '#a5a0bc' },
+  },
+  {
+    id: 'everforest', name: 'Everforest',
+    light: { background: '#fdf6e3', plain: '#4f585e', key: '#326f70', string: '#526b2e', number: '#926322', literal: '#875782', muted: '#626e63' },
+    dark: { background: '#2d353b', plain: '#d3c6aa', key: '#7fbbb3', string: '#a7c080', number: '#dbbc7f', literal: '#d699b6', muted: '#a7b3a8' },
+  },
+  {
+    id: 'monokai', name: 'Monokai',
+    light: { background: '#faf9f5', plain: '#3e3d32', key: '#086e83', string: '#4d6f16', number: '#714ca6', literal: '#ad1752', muted: '#716d5b' },
+    dark: { background: '#272822', plain: '#f8f8f2', key: '#66d9ef', string: '#a6e22e', number: '#ae81ff', literal: '#ff6e9e', muted: '#a8a48b' },
+  },
+  {
+    id: 'flexoki', name: 'Flexoki',
+    light: { background: '#fffcf0', plain: '#403e3c', key: '#205ea6', string: '#526000', number: '#ad4b0b', literal: '#5e409d', muted: '#6f6e69' },
+    dark: { background: '#100f0f', plain: '#cecdc3', key: '#6eace0', string: '#a0af54', number: '#da9c3f', literal: '#b2a2e8', muted: '#a8a69d' },
+  },
 ] as const satisfies readonly LogPalette[];
 
 export type LogPaletteId = typeof LOG_PALETTES[number]['id'];

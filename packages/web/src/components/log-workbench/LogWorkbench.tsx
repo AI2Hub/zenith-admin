@@ -501,12 +501,16 @@ export function LogWorkbench({ source, title, canTail = true, initialLevel, init
           <Tooltip content="日志配色随明暗模式自动切换">
             <Select
               aria-labelledby={paletteLabelId}
-              prefix={<span id={paletteLabelId} aria-label="日志配色"><Palette size={13} /></span>}
+              prefix={(
+                <span id={paletteLabelId} aria-label="日志配色" style={{ display: 'inline-flex', alignItems: 'center', margin: '0 8px', lineHeight: 1 }}>
+                  <Palette size={13} />
+                </span>
+              )}
               size="small"
               value={palette.id}
               onChange={(value) => setPalettePreference(resolveLogPalette(value).id)}
               optionList={LOG_PALETTES.map(({ id, name }) => ({ value: id, label: name }))}
-              style={{ width: 142 }}
+              style={{ width: 166 }}
             />
           </Tooltip>
           <Dropdown
