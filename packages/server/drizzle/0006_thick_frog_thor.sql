@@ -43,13 +43,13 @@ INSERT INTO settings_revision_definitions_0006 VALUES
 ('errorTracking','{"enabled":true,"captureLoggedErrors":true,"perIssuePerMinute":60,"globalPerMinute":600,"request":{"captureBody":true,"bodyMaxBytes":4096,"redactKeys":[]},"ignorePatterns":[]}'::jsonb,'f7a6ea89408880939229c1f13be966dbec82e330a4f1b9a7e849f7e0cec02a66','{"$schema":"https://json-schema.org/draft/2020-12/schema","$ref":"#/$defs/Settings.ErrorTracking","$defs":{"Settings.ErrorTracking":{"type":"object","properties":{"enabled":{"default":true,"title":"采集服务端异常","description":"关闭后异常只写进程日志，不再进入异常日志 / 告警","type":"boolean"},"captureLoggedErrors":{"default":true,"title":"采集 error / fatal 日志写入点","description":"携带 Error 对象的 logger.error / logger.fatal 调用也记为异常事件（覆盖「已捕获但只打日志」的失败）","type":"boolean"},"perIssuePerMinute":{"default":60,"title":"单个 Issue 每分钟保存事件上限","description":"同一指纹超出部分只累加发生次数，不再保存事件详情","type":"integer","minimum":1,"maximum":10000},"globalPerMinute":{"default":600,"title":"全部 Issue 每分钟保存事件上限","description":"错误风暴时的总闸；超出部分只累加发生次数","type":"integer","minimum":1,"maximum":100000},"request":{"title":"请求快照","type":"object","properties":{"captureBody":{"default":true,"title":"记录请求体","description":"非 GET 请求的 JSON / 表单体，写入前按脱敏字段名打码并截断","type":"boolean"},"bodyMaxBytes":{"default":4096,"title":"请求体截断长度（字节）","type":"integer","minimum":0,"maximum":65536},"redactKeys":{"default":[],"title":"额外脱敏字段名","description":"在内置的 password / secret / authorization / cookie 等之外追加；按字段名包含匹配，不区分大小写","maxItems":100,"type":"array","items":{"type":"string","minLength":1,"maxLength":64}}},"required":["captureBody","bodyMaxBytes","redactKeys"],"additionalProperties":false},"ignorePatterns":{"default":[],"title":"忽略规则（正则）","description":"异常消息命中任一正则即不记录（压制已知无价值的噪音）","maxItems":100,"type":"array","items":{"type":"string","minLength":1,"maxLength":200}}},"required":["enabled","captureLoggedErrors","perIssuePerMinute","globalPerMinute","request","ignorePatterns"],"additionalProperties":false}}}'::jsonb,'["enabled","captureLoggedErrors","perIssuePerMinute","globalPerMinute","request.captureBody","request.bodyMaxBytes","request.redactKeys","ignorePatterns"]'::jsonb),
 ('sqlMonitor','{"enabled":true,"sampleIntervalMinutes":1,"sampleLimit":200,"queryTextMaxChars":2000}'::jsonb,'2c5d191c6228e72bd6f78dc293d62bcb95ecd434d1b4ecf0f3dde18c219623d4','{"$schema":"https://json-schema.org/draft/2020-12/schema","$ref":"#/$defs/Settings.SqlMonitor","$defs":{"Settings.SqlMonitor":{"type":"object","properties":{"enabled":{"default":true,"title":"启用 SQL 查询采样","description":"关闭后保留实时查询统计，停止分钟级历史采样","type":"boolean"},"sampleIntervalMinutes":{"default":1,"title":"采样间隔（分钟）","description":"系统调度每分钟触发一次，实际采样按此间隔执行","type":"integer","minimum":1,"maximum":60},"sampleLimit":{"default":200,"title":"每次采样查询数","description":"按累计总耗时取 Top N；数值越大，历史明细写入量越高","type":"integer","minimum":20,"maximum":500},"queryTextMaxChars":{"default":2000,"title":"SQL 文本最大长度","description":"入库前再次截断已归一化 SQL，避免异常长语句占用采样存储","type":"integer","minimum":200,"maximum":2000}},"required":["enabled","sampleIntervalMinutes","sampleLimit","queryTextMaxChars"],"additionalProperties":false}}}'::jsonb,'["enabled","sampleIntervalMinutes","sampleLimit","queryTextMaxChars"]'::jsonb);
 --> statement-breakpoint
-DO $ BEGIN
+DO $$ BEGIN
   IF EXISTS (SELECT 1 FROM system_settings s LEFT JOIN settings_revision_definitions_0006 d ON d.module=s.module WHERE d.module IS NULL) THEN
     RAISE EXCEPTION 'Unknown settings module: refusing to discard current configuration';
   END IF;
-END $;
+END $$;
 --> statement-breakpoint
-CREATE OR REPLACE FUNCTION pg_temp.merge_settings_0006(base jsonb, overrides jsonb) RETURNS jsonb LANGUAGE plpgsql AS $
+CREATE OR REPLACE FUNCTION pg_temp.merge_settings_0006(base jsonb, overrides jsonb) RETURNS jsonb LANGUAGE plpgsql AS $$
 DECLARE result jsonb := base; pair record;
 BEGIN
  FOR pair IN SELECT key, value FROM jsonb_each(overrides) LOOP
@@ -58,7 +58,7 @@ BEGIN
   ELSE result := jsonb_set(result, ARRAY[pair.key],pair.value); END IF;
  END LOOP;
  RETURN result;
-END $;
+END $$;
 --> statement-breakpoint
 INSERT INTO system_settings_revisions(settings_id,version,action,overrides,inherited,effective,inherited_version,definition_hash,definition,changed_paths,note,actor_id,actor_name,created_at)
 SELECT s.id,s.version,'initial',s.data,
