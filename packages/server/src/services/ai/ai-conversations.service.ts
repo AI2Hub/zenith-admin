@@ -250,7 +250,6 @@ export async function setConversationSystemPrompt(id: number, systemPrompt: stri
   return value;
 }
 
-/** 更新对话标签 */
 export async function updateConversationTags(id: number, tags: string[]) {
   await ensureConversationOwner(id);
   const cleaned = [...new Set(tags.map((t) => t.trim()).filter(Boolean))].slice(0, 10);

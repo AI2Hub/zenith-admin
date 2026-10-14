@@ -45,7 +45,6 @@ export async function getUserAiConfigs() {
   return rows.map(mapRow);
 }
 
-/** 新增用户 AI 配置 */
 export async function createUserAiConfig(input: SaveUserAiConfigInput) {
   const user = currentUser();
   assertDefaultInModels(input.models, input.defaultModel);
