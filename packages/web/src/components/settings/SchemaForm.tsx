@@ -20,6 +20,14 @@ export interface SchemaFormProps {
   readonly allowRevert?: boolean;
   /** 枚举字段的展示文案：键为字段路径（a.b），值为 value → label；缺省显示原始值 */
   readonly enumLabels?: Record<string, Record<string, string>>;
+  /** 复杂字段的整行控件，键为字段路径；仍复用覆盖标记、恢复继承和表单草稿。 */
+  readonly controls?: Record<string, (props: SchemaFieldControlProps) => ReactNode>;
+}
+
+export interface SchemaFieldControlProps {
+  readonly value: unknown;
+  readonly disabled?: boolean;
+  readonly onChange: (value: unknown) => void;
 }
 
 interface FieldMeta {
@@ -111,7 +119,7 @@ function getPath(doc: Record<string, unknown> | undefined, path: string[]): unkn
   return path.reduce<unknown>((acc, seg) => (acc && typeof acc === 'object' ? (acc as Record<string, unknown>)[seg] : undefined), doc);
 }
 
-export function SchemaForm({ schema, value, inheritedValue, onChange, disabled, allowRevert = true, enumLabels }: SchemaFormProps) {
+export function SchemaForm({ schema, value, inheritedValue, onChange, disabled, allowRevert = true, enumLabels, controls }: SchemaFormProps) {
   const update = (path: string[], next: unknown) => onChange(setPath(value, path, next));
 
   const renderLeaf = (path: string[], info: FieldInfo): ReactNode => {
@@ -123,6 +131,12 @@ export function SchemaForm({ schema, value, inheritedValue, onChange, disabled, 
       ? <Button size="small" theme="borderless" onClick={() => update(path, inherited)}>恢复继承</Button>
       : null;
     const title = info.meta.title ?? path[path.length - 1];
+    const customControl = controls?.[key];
+    if (customControl) {
+      return <SettingRow key={key} title={title} description={info.meta.description}
+        control={customControl({ value: current, disabled, onChange: (next) => update(path, next) })}
+        overridden={overridden} extra={revert} style={{ flexDirection: 'column', alignItems: 'stretch' }} />;
+    }
     let control: ReactNode;
     switch (info.leaf.kind) {
       case 'boolean':

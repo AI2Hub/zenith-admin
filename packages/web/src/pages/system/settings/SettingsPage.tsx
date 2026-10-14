@@ -14,11 +14,12 @@ import {
 import { getPreferenceValue, preferenceDefinitions } from '@zenith/shared/preferences';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
 import { NavListItem, NavListPanel } from '@/components/NavListPanel';
-import { SchemaForm } from '@/components/settings/SchemaForm';
+import { SchemaForm, type SchemaFormProps } from '@/components/settings/SchemaForm';
 import { useUrlSelectionState } from '@/hooks/useUrlSelectionState';
 import { useSaveSettings, useSettings, useSettingsModules } from '@/hooks/queries/settings';
 import { ApiError } from '@/lib/query';
 import { PreferencePolicyEditor } from './PreferencePolicyEditor';
+import { UploadMimeTypesInput } from './UploadMimeTypesInput';
 
 const { Text, Title } = Typography;
 
@@ -28,6 +29,9 @@ const ENUM_LABELS: Record<string, Record<string, string>> = {
 };
 
 const SCOPE_LABELS = { platform: '平台级', tenant: '租户级' } as const;
+const FILE_SETTINGS_CONTROLS: SchemaFormProps['controls'] = {
+  uploadAllowedTypes: (props) => <UploadMimeTypesInput {...props} />,
+};
 
 /**
  * 通用设置页：左侧模块清单（按权限 / License 过滤），右侧由模块 Zod schema 驱动的表单。
@@ -192,6 +196,7 @@ function ModuleDetail({ module, meta }: { readonly module: SettingsModuleKey; re
               onChange={(next) => setDraft({ ...value, ...next })}
               disabled={Boolean(meta.page) || !meta.canWrite}
               enumLabels={ENUM_LABELS}
+              controls={module === 'files' ? FILE_SETTINGS_CONTROLS : undefined}
             />
             {uiValue ? <PreferencePolicyEditor
               value={uiValue.preferences}
