@@ -1,26 +1,7 @@
 /**
- * HTTP 入站请求日志中间件
- *
- * 通过 Hono 中间件拦截进入本系统的所有 HTTP 请求，
- * 按配置记录请求/响应的 headers 和 body。
- *
- * 配置项（详见 config.httpLog.incoming）：
- *  - enabled:        全局开关
- *  - level:          默认级别（off / access / headers / body / full）
- *  - methods:        方法级别覆盖（优先于全局级别）
- *  - format:         输出格式（json / text / curl）
- *  - maxBodyBytes:   body 截断阈值
- *  - logResponseBody:是否捕获响应体（需克隆 Response）
- *  - excludePaths:   不记录的路径前缀
- *  - separateFile:   是否写入独立的 http-traffic.*.log
- *
- * 路由级覆盖：
- *  - 使用 withHttpLog(level) 工具中间件覆盖全局级别（仅对当前路由生效）
- *  - 示例：middleware: [authMiddleware, withHttpLog('full')] as const
- *
- * 安全说明：
- *  - 请求 body 中的敏感字段（password / secret / token 等）自动脱敏
- *  - Authorization、Cookie 等敏感 Header 自动替换为 "***"
+ * 按 config.httpLog.incoming 记录入站请求 / 响应的 headers 与 body，级别优先级为
+ * 路由 withHttpLog > 方法配置 > 全局配置；响应体采集需克隆 Response。
+ * 请求体敏感字段自动脱敏，Authorization、Cookie 等敏感头替换为 "***"。
  */
 
 import { createMiddleware } from 'hono/factory';
@@ -55,19 +36,9 @@ const NO_BODY_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 const MAX_URL_LENGTH = 2048;
 
 /**
- * 路由级 HTTP 日志级别覆盖工具中间件。
- *
- * 放置在路由的 `middleware` 数组中，可以为该路由单独指定日志级别，
- * 优先级高于全局配置和方法级配置。
- *
+ * 在路由 middleware 中覆盖全局与方法级日志配置；传 'off' 可关闭敏感路由的日志。
  * @example
- * ```typescript
- * // 仅对这个路由开启全量日志（全局配置为 access 也不影响）
  * middleware: [authMiddleware, withHttpLog('full')] as const
- *
- * // 对敏感路由关闭日志记录
- * middleware: [authMiddleware, withHttpLog('off')] as const
- * ```
  */
 export function withHttpLog(level: HttpLogLevel) {
   return createMiddleware(async (c, next) => {

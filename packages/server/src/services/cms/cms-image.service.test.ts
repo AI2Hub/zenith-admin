@@ -53,7 +53,7 @@ describe('processCmsImageUpload 体积校验先于解码', () => {
     await expect(processCmsImageUpload(file, 1)).rejects.toMatchObject({ status: 400 });
 
     expect(assertUploadSizeAllowed).toHaveBeenCalledWith(file.size);
-    // 此前体积校验藏在 uploadManagedFile 末尾：超限图片被拒绝前已被完整解码、压缩并生成缩略图
+    // 超限图片必须在读取内容和解码前被拒绝。
     expect(arrayBuffer).not.toHaveBeenCalled();
     expect(ensureCmsSiteExists).not.toHaveBeenCalled();
     expect(uploadManagedFile).not.toHaveBeenCalled();

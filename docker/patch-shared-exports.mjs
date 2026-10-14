@@ -1,14 +1,8 @@
 #!/usr/bin/env node
 /**
- * 生产化 @zenith/shared 的 package.json:把 exports/main/types 从 TS 源码指向编译产物。
- *
- * 源码 exports 指向 ./src/*.ts(供 tsx dev / Vite 直接消费);纯 Node 运行 dist 时
- * 无法执行 TS,需要把每个入口机械改写为 ./dist/*.js(目录型域入口如
- * "./analytics" → "./dist/analytics/index.js" 由原值 "./src/analytics/index.ts" 自然得出,
- * 无需硬编码域清单)。构建产物中的相对导入扩展名由 tsc-alias 在包构建时处理。
- *
- * 用法:node docker/patch-shared-exports.mjs [shared-pkg-dir]
- * (默认 packages/shared;Docker builder 阶段在构建完成后调用)
+ * 构建后将 @zenith/shared 的 exports/main/types 从 src/*.ts 映射到 dist/*.js 或 *.d.ts，
+ * 供纯 Node 加载；产物内的相对导入扩展名由 tsc-alias 处理。
+ * 用法：node docker/patch-shared-exports.mjs [shared-pkg-dir]（默认 packages/shared）。
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';

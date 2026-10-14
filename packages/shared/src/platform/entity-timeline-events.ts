@@ -1,14 +1,9 @@
 import type { DomainEventType } from './domain-events';
 
 /**
- * 对象时间线展示的事件标签与筛选项（纯数据，无运行时依赖）。
- *
- * 独立成模块而不是留在 `domain-events.ts`：延迟加载的关联运行时在模块顶层直接读取这些值
- * （契约里的 `queryEnum(ENTITY_TIMELINE_EVENT_TYPES, …)`、`utils/entity-relations.ts` 的
- * `const EVENT_LABELS = ENTITY_TIMELINE_EVENT_LABELS`），而 `domain-events.ts` 依赖各领域常量模块，
- * 会被分到与 `entity-discovery` 互相 import 的共享 chunk，形成跨 chunk 环——此时这些绑定仍是
- * undefined，入口求值即抛 “Cannot convert undefined or null to object”。本模块与
- * `entity-primitives` 同组（见 `packages/web/vite.config.ts`），保证先于关联运行时求值。
+ * 时间线标签与筛选项保持纯数据、无运行时依赖，避免 domain-events 与 entity-discovery
+ * 的跨 chunk 循环导致顶层读取到未初始化值。与 entity-primitives 同组，
+ * 确保先于关联运行时求值（见 packages/web/vite.config.ts）。
  */
 export const ENTITY_TIMELINE_EVENT_LABELS = {
   'payment.succeeded': '支付成功', 'payment.closed': '订单关闭', 'payment.failed': '支付失败',

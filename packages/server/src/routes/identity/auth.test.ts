@@ -1,19 +1,6 @@
 /**
- * auth 路由接口测试
- *
- * 覆盖要点：
- *  1. GET  /api/auth/captcha  — 验证码关闭 → `{enabled: false}`
- *  2. GET  /api/auth/captcha  — 验证码开启 → 返回 SVG
- *  3. POST /api/auth/login    — body 缺少必填字段 → 400 验证错误
- *  4. POST /api/auth/login    — 用户名/密码类型错误 → 400
- *  5. GET  /api/auth/me       — 无 Authorization → 401
- *  6. GET  /api/auth/me       — 无效 JWT → 401
- *  7. GET  /api/auth/me       — 有效 JWT + 用户不存在 → 401（中间件实时校验）
- *  8. GET  /api/auth/me       — 有效 JWT + 用户存在 → 200
- *
- * Mock 策略：
- *  - db / redis / session-manager / settings / email / logger 全部 mock
- *  - JWT 使用固定测试密钥签名，与 config.jwtSecret mock 对齐
+ * 认证路由回归：DB / Redis / 会话 / 设置 / 邮件 / 日志使用 mock；
+ * JWT 用固定测试密钥签名，与 config.jwtSecret mock 对齐。
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Hono } from 'hono';

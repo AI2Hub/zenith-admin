@@ -90,7 +90,7 @@ async function handle({ payload }: WorkflowJobContext): Promise<void> {
   const maxRemind = cfg.remindCount ?? 3;
   if (nextCount < maxRemind) {
     logger.info('workflow task timeout remind', { taskId, instanceId: inst.id, nextCount, maxRemind });
-    // 复用催办事件链路：处理人收到站内信 + WS 提醒（此前仅记日志，处理人无感知）
+    // 复用催办事件链路，向处理人发送站内信与 WS 提醒。
     await runWorkflowJobStep('timeout-reminder', async (tx) => {
       const event = await workflowEventBus.emitInTx({
         type: 'task.urged',

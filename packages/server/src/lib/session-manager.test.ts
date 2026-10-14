@@ -1,20 +1,4 @@
-/**
- * session-manager 单元测试
- *
- * 覆盖要点：
- *  1. generateTokenId — 格式是 UUID v4
- *  2. registerSession — 写会话（TTL 8h）并挂到用户索引 SET
- *  3. touchSession    — 更新 lastActiveAt；key 不存在时为 no-op
- *  4. isTokenBlacklisted / getTokenRevocation — 命中 / 未命中黑名单，黑名单值即吊销原因
- *  5. forceLogout     — 写黑名单（值 = 原因）+ 删 session 与 refresh 授权 + 摘出索引；两者都不存在时返回 false
- *  6. removeSession   — 登出即吊销：原因 logout
- *  7. grantRefresh / consumeRefreshGrant — refresh 授权签发与一次性消费（轮换基础）
- *  8. listUserSessions / forceLogoutAllByUserExcept — 按用户索引取会话、懒清理过期成员、保留指定 jti
- *
- * 之所以 mock redis 而非真实连接：session-manager 是纯业务逻辑，
- * 其正确性不依赖 Redis 存储细节，只需验证它发送了正确的命令、
- * 使用了正确的 key 前缀和 TTL。
- */
+/** 会话管理回归：用 Redis mock 验证业务命令、key 前缀与 TTL，不依赖真实存储连接。 */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import redis from './redis';
 import {

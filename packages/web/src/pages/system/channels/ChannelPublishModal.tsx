@@ -1,13 +1,7 @@
 /**
- * 频道群发 / 草稿编辑 Modal
- *
- * 支持消息类型：文本（text）/ 图片（image）/ 图文（news）。
- * 支持受众：全员 / 指定用户 / 按部门 / 按角色。
- * 支持发送方式：立即发送 / 定时发送 / 存草稿。
- *
- * 复用：UserSelect（指定用户）、DepartmentSelect（按部门，TreeSelect），
- * 角色通过角色下拉源（`roleContract.all`）加载为 Select multiple。
- * 封面图经通用单文件上传（`fileContract.uploadOne`，见 ImageUploadField）得到 URL。
+ * 频道群发/草稿编辑：text / image / news，受众为全员/用户/部门/角色，支持立即/定时发送或存草稿。
+ * 用户、部门复用 UserSelect / DepartmentSelect；角色多选取 roleContract.all。
+ * 封面由 ImageUploadField 经 fileContract.uploadOne 上传并取得 URL。
  */
 import { useEffect, useMemo, useState } from 'react';
 import { useDebouncer } from '@tanstack/react-pacer';

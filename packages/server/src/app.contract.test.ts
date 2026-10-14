@@ -1,28 +1,10 @@
 /**
- * 路由契约测试——覆盖全部路由文件暴露的所有操作，并锁定完整路由表快照。
- *
- * 为什么需要这层测试：
- * service 层已有近 200 个单测，但它们测不到路由声明本身。以下缺陷类型只有在
- * 装配好的 app 上才能发现，且一旦发生后果严重：
- *
- *  1. 敏感路由漏挂 `authMiddleware` —— 未认证即可访问，service 单测完全无感
- *  2. 公开路由漏写 `security: []` —— OpenAPI 文档撒谎，接入方被误导；更糟的是
- *     它污染了「已声明受保护」集合，使真正的漏挂认证淹没在噪声里无法辨识
- *  3. 漏写 `commonErrorResponses` —— 前端拿不到规范的错误契约
- *  4. 接口被静默删掉 / 误改路径 / 子路由器忘记挂载 —— 由路由表快照锁定，
- *     契约断言只有 `operations.length > 1500` 这类下界，删单个路由不会触发
- *
- * 快照与契约放在同一个文件：两者都需要装配整个 app（转译 + 执行 1400+ 模块的
- * 完整模块图，是全套件最贵的一步），拆成两个文件会在隔离 worker 里把这笔成本
- * 原样付两遍（实测每份 50-60s）。
- *
- * 快照变更本身不是错误——新增接口就应该更新快照。它的价值在于**强制这件事被看见**：
- * `npx vitest -u` 之后 diff 会明确显示动了哪些路由。
- *
- * **不锁挂载顺序。** 路由表快照按方法与路径排序去重，不能验证同一路径多次挂载的先后关系。
- * 顺序改动需人工核对，见 `routes/_kit.ts` 约束 1。
- *
- * 相关约束见 .agents/skills/zenith/references/constraints.md 的 Route 层章节。
+ * 在装配后的 app 上校验认证、公开接口 security 声明及 commonErrorResponses，
+ * 并用路由表快照检测端点增删、路径变更和漏挂载（仅断言总数下限无法覆盖这些变化）。
+ * 契约与快照共用一次 app 装配，避免隔离 worker 重复加载完整模块图。
+ * 有意的接口变更需更新快照并审查 diff；快照按方法和路径排序去重，不验证挂载顺序，
+ * 顺序调整须人工核对 routes/_kit.ts 约束 1。
+ * 相关规范见 .agents/skills/zenith/references/constraints.md 的 Route 层。
  */
 import { describe, it, expect, beforeAll } from 'vitest';
 import { accessPermissions, accessPlatformOnly } from '@zenith/shared/core';

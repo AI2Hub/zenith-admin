@@ -5,10 +5,7 @@
  *  1. 会话标识由服务端生成——客户端带一个自选 ID 连接不会创建会话，只会被拒；
  *  2. handler 只操作「本连接在 onOpen 中取得的会话引用」，不按 ID 反查注册表。
  *
- * 历史实现按客户端传入的 sessionId 反查并允许覆盖登记，导致：
- *  - 同名 ID 被覆盖 → 原 PTY 脱管泄漏，且原连接的输入被写入他人进程；
- *  - 被拒连接的 onClose 仍能清空受害者 currentWs 并安排销毁；
- *  - 任何知道 ID 的人发一帧 terminal:close 即可销毁他人会话。
+ * 防止同名 ID 覆盖造成 PTY 泄漏或输入串线，以及被拒连接通过 onClose / terminal:close 销毁他人会话。
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 

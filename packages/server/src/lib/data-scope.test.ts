@@ -1,20 +1,6 @@
 /**
- * data-scope 单元测试
- *
- * 覆盖要点：
- *  1. super_admin 角色  → 返回 undefined（全量访问）
- *  2. dataScope = 'all' → 返回 undefined（全量访问）
- *  3. dataScope = 'dept' + 用户有部门 → 返回 inArray 条件（含递归子部门）
- *  4. dataScope = 'dept' + 用户无部门 → 降级为 self（返回 eq 条件）
- *  5. dataScope = 'dept' + 不传 deptColumn → 降级为 self
- *  6. dataScope = 'self' → 返回 eq(ownerColumn, userId)
- *  7. 无角色 (userRoles 为空) → 返回 undefined（ownerColumn 未传）
- *  8. collectDescendants 递归收集子部门（通过 dept 场景间接验证）
- *
- * Mock 策略：
- *  - `db.query.users.findFirst` 返回 { departmentId, userRoles: [{ role: { dataScope, code } }] }
- *  - `db.select` 链式 mock（仅用于 dept 场景查询部门树）
- *  - drizzle-orm 的 eq / inArray 保持真实实现（纯函数，无 DB 依赖）
+ * 数据范围条件回归：用户 / 部门查询使用 mock，Drizzle eq / inArray 保持真实实现。
+ * 子部门递归通过 dept 场景间接验证。
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { pgTable, integer } from 'drizzle-orm/pg-core';

@@ -314,7 +314,6 @@ export async function sendInApp(input: SendInAppInput) {
     tenantId,
   }));
   // 取回真实行：推送载荷带 id / createdAt，客户端直接写入铃铛缓存而不必回源
-  // （此前载荷 id 为 0，每个在线收件人都要重拉列表 + 未读数，群发即惊群）
   const inserted = await db.insert(inAppMessages).values(rows)
     .returning({ id: inAppMessages.id, userId: inAppMessages.userId, createdAt: inAppMessages.createdAt });
   scheduleSendPerUser(inserted.map((row) => ({

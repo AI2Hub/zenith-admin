@@ -4,8 +4,7 @@ import type { TaskHandlerRegistration, TaskRunContext } from '../../lib/task-cen
 /**
  * 素材引用索引重建任务的分片循环。
  *
- * 此前每个 owner 类型在一个事务里把全站行（含正文）一次装进内存并逐行重建；
- * 这里锁定新行为：按 id 游标分片、每片一个事务整批重建、断点落在「阶段 + 游标」、取消即停。
+ * 按 id 游标分片、每片一个事务整批重建，断点记录阶段与游标，取消即停。
  * 各阶段的取数 SQL 与批量重建的语义由真实数据库验证，本文件只关心编排。
  */
 const runtime = vi.hoisted(() => ({

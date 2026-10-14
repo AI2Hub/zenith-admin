@@ -32,19 +32,10 @@ interface JsonBlockProps {
 }
 
 /**
- * 只读 JSON 行内展示块（详情抽屉、执行结果、请求响应体等场景）。
- *
- * 相比手写 `<pre>{JSON.stringify(v, null, 2)}</pre>`，提供折叠展开、语法高亮与搜索。
- * `JsonViewer` 的 `height` 是必填且不随内容自增，因此这里按行数估算并夹在上下限之间，
- * 否则小对象会留出大片空白、大对象会被压成一条缝。
- *
- * 宽度不能传 "100%"：JsonViewer 是虚拟化编辑器，仅在挂载瞬间测一次容器宽度且不再响应
- * 变化——表格展开行/抽屉在展开动画中挂载时测得极小宽度，内容会坍缩成一条竖缝。
- * 因此外层包一个 block 容器，用 ResizeObserver 测得稳定像素宽后再挂载，并以 key 驱动
- * 宽度变化时重建（只读展示，重建无状态损失）。
- *
- * 内容不是合法 JSON 时降级为等宽 `<pre>`：调用方常传入「可能是 JSON 也可能是纯文本」
- * 的字段（如 webhook 响应体、错误信息），塞进 JSON 编辑器只会显示成一行报错。
+ * 只读 JSON 展示，支持折叠、高亮与搜索；非法 JSON 降级为等宽 `<pre>`。
+ * JsonViewer 的 height 必填且不自增，按行数估算后限制在 minHeight / maxHeight 内。
+ * 它仅在挂载时测宽，不能传 "100%"：抽屉动画中可能测得极小宽度且不再更新。
+ * 因此先用 ResizeObserver 测得稳定像素宽，再挂载；宽度变化时用 key 重建，只读模式无状态损失。
  */
 export function JsonBlock({ value, minHeight = 80, maxHeight = 240, style }: JsonBlockProps) {
   const wrapRef = useRef<HTMLDivElement>(null);

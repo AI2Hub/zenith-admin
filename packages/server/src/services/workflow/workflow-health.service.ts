@@ -214,7 +214,7 @@ export async function getWorkflowHealthSummary(thresholdMinutes = 30): Promise<W
       }));
       continue;
     }
-    // 普通人工待办滞留：无任何失败/超时特征但超过阈值仍未处理（此前静默穿过整条规则链，健康巡检对超龄待办零感知）
+    // 无失败或超时标记的人工待办也须检测滞留。
     if (task.status === 'pending') {
       issues.push(taskIssue({
         type: 'waiting_task_stuck',

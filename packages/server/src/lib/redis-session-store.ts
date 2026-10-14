@@ -1,19 +1,11 @@
 /**
- * 通用 Redis 会话存储（管理员 / 会员会话共用的底层实现）。
- *
- * 通过 key 前缀参数化隔离不同用户体系（如 `session:` 与 `member-session:`），
- * 上层 session-manager / member-session-manager 各自实例化并保持原有导出 API。
- *
- * 每个登录会话由 jti 标识，对应三类 key 与一个按主体的索引：
- * - `{sessionPrefix}{jti}`      在线会话（滑动 TTL，供在线用户列表 / 活跃时间）
- * - `{refreshPrefix}{jti}`      refresh 授权（TTL = refresh token 有效期）。refresh token 只是承载 jti 的凭据，
- *                               能否续签以该 key 是否存在为准：登出 / 强制下线 / 改密即删除，续签时一次性消费并轮换到新 jti
- * - `{blacklistPrefix}{jti}`    吊销标记（TTL = access token 有效期），值为吊销原因，让尚未过期的 access token 立即失效，
- *                               认证中间件据原因返回精确的 401 文案（被挤下线 / 改密 / 管理员强退）
- * - `{ownerIndexPrefix}{owner}` 该主体（用户 / 会员）全部在线 jti 的 SET：登录期并发限制、我的设备、按用户强退
- *                               都按主体 O(k) 取会话，不再全量 SCAN；成员随会话自然过期而失效，读取时懒清理
- *
- * 因此「登出」与「强制下线」语义一致：吊销 access token + 撤销 refresh 授权 + 删在线会话 + 摘出索引。
+ * 管理员 / 会员共用的 Redis 会话存储，通过 key 前缀隔离身份体系。
+ * - {sessionPrefix}{jti}：在线会话，滑动 TTL。
+ * - {refreshPrefix}{jti}：续签授权，以 key 存在为准，TTL 与 refresh token 一致；
+ *   登出 / 强退 / 改密时删除，续签时一次性消费并轮换 jti。
+ * - {blacklistPrefix}{jti}：吊销原因，TTL 与 access token 一致，认证据此返回对应 401。
+ * - {ownerIndexPrefix}{owner}：主体的在线 jti SET，供并发限制、设备管理和强退按 O(k) 查询，过期成员读取时清理。
+ * 登出与强退都吊销 access token、撤销 refresh 授权、删除在线会话并移出索引。
  */
 import { SESSION_REVOKE_REASONS, type SessionRevokeReason } from '@zenith/shared/identity';
 import redis from './redis';

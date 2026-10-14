@@ -1,23 +1,11 @@
 /**
- * 路由域（Route Domain）契约。
+ * 各域在 routes/<domain>/index.ts 用 defineRouteDomain 声明挂载清单，
+ * routes/index.ts 声明域顺序。
  *
- * `src/index.ts` 曾把 234 条路由 import 与 236 个 `app.route()` 全部摊在一个文件里：
- * 任何域新增端点都要改这唯一的公共文件（合并冲突高发），挂载顺序只能靠人肉连读，
- * 且整个应用图在启动时被无条件全量加载。
- *
- * 现在每个业务域用 `defineRouteDomain` 在自己的 `routes/<domain>/index.ts` 里
- * 声明挂载清单，`routes/index.ts` 只负责声明域顺序。
- *
- * ─── 约束 ───────────────────────────────────────────────────────────────────
- * 1. `mounts` 返回的数组**顺序即挂载顺序**。同一路径被多次挂载时（如
- *    `/api/analytics` ×4、`/api/ai/conversations` ×3），顺序是语义的一部分，
- *    不得调整。
- * 2. 需要在所有 API 路由之后兜底的挂载（如 CMS 前台 SSR 按 Host 匹配的 `/`）
- *    必须放进 `fallback`，而不是 `mounts` 末尾——后者只能保证域内靠后，
- *    保证不了全局最后。用类型把这条隐式约束变成结构约束。
- * 3. 路由表由 `src/app.contract.test.ts` 快照锁定：增删接口、改动路径都会在 CI 暴露。
- *    但**挂载顺序不在锁定范围内**——快照按 method + path 排序去重，同一路径的多条
- *    挂载在表里无法区分。约束 1 只能靠人工保证，调整顺序时请自行核对匹配结果。
+ * 1. mounts 的数组顺序即挂载顺序；同一路径多次挂载时顺序影响匹配语义，须保持。
+ * 2. 全局兜底（如 CMS SSR 的 `/`）必须放进 fallback，放在 mounts 末尾只能保证域内靠后。
+ * 3. app.contract.test.ts 快照检测端点及路径变更，但按 method + path 排序去重，
+ *    不验证挂载顺序；调整顺序须人工核对约束 1 的匹配结果。
  */
 import type { Hono } from 'hono';
 import { isLicenseFeatureKey, type LicenseFeatureKey } from '@zenith/shared/licensing';

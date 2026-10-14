@@ -22,14 +22,10 @@ const fileViewerRenderers = [
   presentationRenderer,
 ] as ViewerOptions['renderers'];
 
-// 压缩包解析走 public/ 下原样下发的 libarchive 文件，且只传 workerUrl、不传 wasmUrl：
-// 1. Vite dev 会改写 `?url` 拿到的 worker-bundle.js 源码（new URL 资源改写），
-//    archive 渲染器的 patch 正则随即失效；
-// 2. 即使源码原样，渲染器的 fetch→patch→blob Worker 链路也起不来（实测必超时），
-//    而直链 `new Worker(workerUrl, { type: 'module' })` 180ms 即成功，
-//    worker 内 `new URL("libarchive.wasm", import.meta.url)` 自动指向同目录 wasm。
-// public/ 文件不进 transform 管道，dev 与构建产物都是字节级原样；
-// `libarchive.js` 升级后须同步重拷这两个文件（见 vite.config 里 fileViewerRenderers 的注释）。
+// libarchive 的 worker/wasm 放在 public/ 原样下发，避免 Vite 改写 `?url` 源码后破坏渲染器的 patch 正则。
+// 只传 workerUrl 以直链 module Worker 启动，wasm 由 import.meta.url 定位到同目录；
+// 同时传 wasmUrl 会走 fetch→patch→blob Worker 链路，在 dev 与生产构建下均会卡 30s 超时。
+// 升级 libarchive.js 须同步重拷这两个文件（见 vite.config 中 fileViewerRenderers 的注释）。
 const archiveWorkerSource =
   `${import.meta.env.BASE_URL}vendor/libarchive/worker-bundle.js`;
 
@@ -47,11 +43,8 @@ export default function FileViewerPreviewPanel({ file, style }: FileViewerPrevie
     rendererMode: 'replace',
     autoRenderers: false,
     renderers: fileViewerRenderers,
-    // 表格预览恒用 1:1 实际尺寸：spreadsheet 渲染器（3.1.x 起）默认会对宽表做
-    // shrink-to-fit（auto → 按 width 算出如 67% 再整体缩小），把十几列硬塞进
-    // 可见宽度导致字小看不清；传 fit: 'actual' 即显式关闭该默认收缩，保持
-    // 100% + 横向滚动的 Excel 习惯，用户仍可用工具栏手动缩小总览。
-    // 非表格类型保持默认自适应（undefined），不受影响。
+    // 宽表按 1:1 显示并横向滚动，避免默认 shrink-to-fit 将文字压小；用户仍可手动缩放。
+    // 非表格类型保留默认自适应。
     fit: isSpreadsheet ? 'actual' : undefined,
     ui: { density: 'compact' },
     toolbar: {
@@ -78,9 +71,6 @@ export default function FileViewerPreviewPanel({ file, style }: FileViewerPrevie
       resizableRows: true,
     },
     archive: {
-      // 只给 workerUrl：渲染器此时直接 `new Worker(workerUrl)`，wasm 由 worker 内
-      // 相对路径自解析；一旦同时给 wasmUrl 就会走 fetch→patch→blob Worker 链路，
-      // 该链路在 dev 与生产构建下均无法启动（见上方注释），还会卡 30s 超时。
       workerUrl: archiveWorkerSource,
     },
     drawing: {

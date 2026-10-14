@@ -64,8 +64,7 @@ export async function canonicalizeCmsResourcePayload<T>(
     .where(and(eq(cmsResources.siteId, siteId), inArray(cmsResources.url, urls)));
   const urlToId = new Map(rows.map((row) => [row.url, row.id]));
 
-  // 统一媒体库：从文件中心直接选取的文件此前完全游离于素材中心之外（引用扫描看不见、
-  // 孤立治理也保护不了）。这里按需把它们登记为本站素材，复用同一 file_id 不复制物理文件。
+  // 文件中心选取的文件须登记为本站素材，纳入引用扫描与孤立治理；复用 file_id，不复制物理文件。
   const unregistered = urls.filter((url) => !urlToId.has(url));
   for (const [url, id] of await adoptManagedFilesAsResources(executor, siteId, unregistered)) {
     urlToId.set(url, id);
@@ -214,8 +213,7 @@ export async function syncCmsResourceRefs(
 /**
  * 整批重建一组同类型 owner 的引用行，语义与逐个 {@link syncCmsResourceRefs} 一致（先删后插、
  * 未登记句柄忽略、外站句柄拒绝），但无论多少 owner 都只有 delete / 素材校验 select / insert 三条语句。
- * 供引用索引重建任务按分片调用：此前一个站点的全部内容在一个事务里逐行 3 条语句地重建，
- * 既长时间持有 cms_resource_refs 行锁，也要求把全部正文一次装进内存。
+ * 重建任务按分片调用，以限制行锁持有时间和正文内存占用。
  */
 export async function rebuildCmsResourceRefsForOwners(
   executor: DbExecutor,

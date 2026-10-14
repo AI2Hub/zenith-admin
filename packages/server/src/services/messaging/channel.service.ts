@@ -406,7 +406,7 @@ export async function listChannelsAdmin(q: QueryOutputOf<typeof channelContract.
           .orderBy(desc(channels.builtin), channels.id).$dynamic(), page, pageSize),
         db.$count(users),
       ]);
-      // 两条 GROUP BY 聚合取齐本页全部频道计数（此前每频道各发 2 条 COUNT，查询数随页大小线性增长）
+      // 两条 GROUP BY 聚合取齐本页频道计数，查询数与页大小无关。
       const ids = rows.map((ch) => ch.id);
       const [subRows, msgRows] = ids.length === 0 ? [[], []] : await Promise.all([
         db.select({ channelId: channelSubscriptions.channelId, count: sql<number>`count(*)::int` })

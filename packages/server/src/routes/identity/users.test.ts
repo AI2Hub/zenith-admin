@@ -1,18 +1,6 @@
 /**
- * users 路由接口测试
- *
- * 覆盖要点：
- *  1. GET  /api/users   — 无 Authorization → 401
- *  2. GET  /api/users   — 无效 JWT → 401
- *  3. GET  /api/users   — 有效 JWT + 空列表 → 200 分页响应
- *  4. POST /api/users   — 有效 JWT + body 缺少必填字段 → 400
- *  5. DELETE /api/users/:id — 有效 JWT + 合法请求 → 204/200（mocked DB）
- *
- * Mock 策略：
- *  - guard 中间件 mock 为 pass-through（不测试权限校验逻辑）
- *  - authMiddleware 使用真实实现 + test JWT secret
- *  - DB 使用可链式调用的 mock chain
- *  - data-scope 返回 undefined（全量访问）
+ * 用户路由回归：认证使用真实 authMiddleware 与测试 JWT；DB 使用链式 mock。
+ * guard 放行、data-scope 返回全量访问，此处不覆盖权限或数据隔离校验。
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Hono } from 'hono';

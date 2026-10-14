@@ -118,8 +118,7 @@ export interface CmsProcessedImage {
  */
 export async function processCmsImageUpload(file: File, siteId: number): Promise<CmsProcessedImage> {
   await assertSiteAccess(siteId);
-  // 体积上限必须先于读入内存与解码判定：此前只由 uploadManagedFile 在末尾校验，
-  // 超限图片在被拒绝前已经被 sharp 完整解码、压缩并生成过缩略图
+  // 读入内存与解码前先检查体积，避免为超限图片执行压缩和缩略图生成。
   await assertUploadSizeAllowed(file.size);
   const site = await ensureCmsSiteExists(siteId);
   const cfg = resolveImageSettings(site.settings as Record<string, unknown>);

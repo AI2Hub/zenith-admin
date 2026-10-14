@@ -1,18 +1,6 @@
 /**
- * 接口限流中间件单测。
- *
- * 覆盖要点：
- *  1. 固定窗口：到限额放行、超限 429，标准 RateLimit-* 头与 Retry-After
- *  2. monitor 观察模式：超限只记拦截统计，请求放行
- *  3. 同请求规则去重：named + pathBound 命中同一规则只计一次
- *  4. 路径绑定：exact 与 /* 通配匹配、多规则命中按 priority 取大者
- *  5. 禁用规则直接放行（不触 Redis）
- *  6. Redis 故障放行（可用性优先于限流精确性）
- *  7. 解封：删除计数键 + 按裸身份清理 recent 记录（JSON member）
- *  8. 目录一致性：内置规则全部登记在 PREDEFINED_NAMES 且无死规则
- *
- * Mock 策略：redis 用带状态的内存假实现（eval 模拟固定窗口 Lua 语义），
- * config / db / logger / context 全部 mock。Lua 脚本本身的正确性由真实 Redis 冒烟验证。
+ * 限流行为回归：Redis 使用带状态的内存实现模拟固定窗口 Lua，配置 / DB / 日志 / 上下文使用 mock。
+ * 此处不验证 Lua 脚本本身，其正确性需用真实 Redis 冒烟验证。
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Hono } from 'hono';

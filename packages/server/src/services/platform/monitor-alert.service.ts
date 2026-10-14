@@ -135,12 +135,7 @@ export function mapEvent(row: MonitorAlertEventRow, handledByName: string | null
 }
 
 // ─── 规则 CRUD ───────────────────────────────────────────────────────────
-/**
- * 规则列表的 WHERE 构造。
- *
- * 抽成独立函数是因为筛选此前只在前端对「当前页」做过滤：搜第 2 页搜不到第 1 页的规则，
- * 且分页总数仍是未过滤的值，列表与页码对不上。条件必须下推到 SQL。
- */
+/** 列表与计数共用 SQL 筛选，保证跨页检索和分页总数一致。 */
 export function buildRuleListWhere(q: MonitorAlertRuleQuery) {
   return buildWhere(
     tenantScope(monitorAlertRules),

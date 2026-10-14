@@ -81,15 +81,9 @@ export interface UseListSearchReturn<T> extends UsePaginationReturn {
 }
 
 /**
- * 列表页搜索状态。
- *
- * 统一维护 `draft`/`submitted` 双状态、页码重置，以及**查询/重置必回源**的失效调用。
- *
- * ## 为什么必须失效
- * 条件没变化时 query key 不变，`staleTime` 内 TanStack Query 不会重新发请求。
- * 但本系统的「查询」按钮兼具刷新语义——用户点它就是想看最新数据。
- * 手写这段样板时很容易漏掉 `invalidateQueries`，页面表现为「点查询没反应」，
- * 且因为列表仍有数据、不报错，极难被发现。契约焊在 hook 里，调用方漏不掉。
+ * 列表页搜索状态：维护 `draft`/`submitted` 双状态并重置页码。
+ * 查询/重置兼具刷新语义，必须失效列表；否则条件不变时 query key 不变，
+ * `staleTime` 内 TanStack Query 不会回源。
  *
  * @example
  * const {

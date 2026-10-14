@@ -27,14 +27,7 @@ export function optionalHttpUrl(message = 'URL 格式不正确，仅支持 http(
   return z.string().refine((value) => value === '' || isHttpUrl(value), message);
 }
 
-/**
- * 自引用递归 schema 的 lazy 包装：**内部实例必须缓存**。
- *
- * `z.lazy(() => z.object({...}))` 每次取值都会新建一个 schema 实例，
- * OpenAPI 生成器只能靠实例标识判断环路，拿到的永远是新对象 → 无限展开 →
- * `/api/openapi.json` 栈溢出返回 500（整个 Swagger 文档不可用）。
- * 缓存后自引用命中同一实例，生成器改为输出 `$ref`，递归即终止。
- */
+/** 缓存递归 schema 实例，让 OpenAPI 生成器识别自引用并输出 `$ref`，避免无限展开。 */
 export function lazyRecursive<T extends z.ZodType>(build: () => T) {
   let cached: T | undefined;
   return z.lazy(() => (cached ??= build()));
@@ -70,18 +63,10 @@ function stripDefaults(field: z.ZodType): z.ZodType {
 }
 
 /**
- * 深度剥离默认值：在 `stripDefaults` 的基础上继续递归进入 `z.object` 的每个字段与 `z.array` 的元素，
- * 得到「字段全部必填、任何层级都没有 `.default()` / `.prefault()`」的 schema。
- *
- * 用途：以「带默认值的读取 schema」为唯一真相、派生整体替换端点（PUT）的请求体——
- * 客户端必须回传完整文档，省略字段应得到 400，而不是被静默填入默认值
- * （契约层校验见 `app.contract.test.ts`：PUT / PATCH 请求体属性不得携带 `default`）。
- * `strictObjects: true` 时所有层级的对象改为 `z.strictObject`，未知键同样得到 400。
- *
- * 各层的 `.meta()` 说明（title / description / example）随派生结果保留，但 **`id` 不复制**：
- * zod 的全局注册表要求 `id` 唯一，派生出的新实例若沿用同一 `id` 会在注册时抛错；
- * 调用方按需给派生结果另起 `id`。对象 / 数组自身的校验（`.max()` 等）原样保留。
- * 派生结果不含默认值，输入类型与输出类型一致。
+ * 递归移除对象、数组及包装层的 `.default()` / `.prefault()`，用于派生整体替换请求体，
+ * 防止未提交字段被静默补值；其余包装与对象 / 数组校验保留，输入、输出类型一致。
+ * `strictObjects` 使各层对象拒绝未知键。元数据保留但不复制 `id`，避免 Zod 注册冲突；
+ * 调用方可为派生结果另设 `id`。契约约束见 `app.contract.test.ts`。
  */
 export function stripDefaultsDeep<T extends z.ZodType>(
   schema: T,

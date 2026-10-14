@@ -457,8 +457,7 @@ export async function deleteDashboard(id: number): Promise<void> {
 
 /**
  * 批量校验仪表盘引用的一类报表资源：存在性（租户范围内）与查看权限各一次查询，
- * 与逐个 `ensureXxxExists()` 语义一致（缺失 404、无权 403），但查询数不随引用数增长——
- * 此前 N 个引用就是 N 组并发的「行查询 + ACL 三路」，一次保存足以把共享连接池占满。
+ * 缺失返回 404、无权返回 403；查询数不随引用数增长，避免占满共享连接池。
  */
 async function loadReferencedReportResources<T extends { id: number; tenantId: number | null }>(
   resourceType: Parameters<typeof filterReportResourceRowsByAccess>[0],

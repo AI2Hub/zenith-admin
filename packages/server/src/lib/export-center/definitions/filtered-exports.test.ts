@@ -1,11 +1,8 @@
 /**
  * 导出中心「遵守页面筛选」回归测试。
  *
- * 此前 tenants / cron-jobs / departments / file-storage-configs / login-logs / processes / regions / short-links /
- * user-feedbacks 九个定义的 countRows / streamRows 都是无参箭头函数，页面透传的筛选被整体丢弃——用户筛选后导出得到全表。
- * 这里锁定两件事：
- *  1. 九个定义的 countRows / streamRows 都消费 query（源码扫描，防止回退成 `async () =>`）；
- *  2. 与列表共用的 where 构造器在带筛选时产出条件、无筛选时返回 undefined（不加 WHERE）。
+ * 扫描 countRows / streamRows 是否消费 query，并验证与列表共用的 where 构造器：
+ * 有筛选时生成条件，无筛选时返回 undefined。
  */
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it, vi } from 'vitest';

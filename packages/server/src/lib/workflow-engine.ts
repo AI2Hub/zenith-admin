@@ -1,27 +1,9 @@
 /**
- * 流程图（flowData）无状态工具库
- *
- * ⚠️ 本文件**不是**运行时推进引擎：实例推进的唯一权威是显式执行 Token 引擎
- * （lib/workflow-token-engine.ts 的 advanceTokens，由 services/workflow/instances/materialize.ts
- * 的 advanceAndMaterialize 调用并落库）。
- *
- * 本文件职责（纯函数，无副作用、不触库）：
- * - schema 兼容迁移：normalizeFlowData
- * - 图结构：buildAdjacency / getAncestorNodeKeys / findReturnPrevTarget
- * - 条件求值：evaluateCondition / evaluateConditionGroup(s) / edge 匹配（供 token 引擎与仿真器复用）
- * - 结构校验：validateFlowData（发布门禁 / 发起前校验）
- * - 会签模式解析：resolveRuntimeApproveMethod
- * - 共享类型：TaskAction / AdvanceResult（token 引擎产出与仿真器 dry-run 共用的任务描述结构）
- *
- * 节点类型语义速查（运行语义实现在 token 引擎与 instances/ 服务层）：
- * - start / end
- * - approve / handler   —— 人工节点，创建任务等待操作
- * - exclusiveGateway / routeGateway   —— 排他网关，根据条件走一条路径
- * - parallelGateway     —— 并行网关：fork 时创建多个任务，join 时等待全部完成
- * - inclusiveGateway    —— 包容网关：fork 时激活所有匹配条件的分支，join 等同 parallel join
- * - ccNode              —— 抄送节点，非阻塞
- * - delay / trigger     —— 自动节点，由统一作业账本（workflow-jobs）调度
- * - subProcess          —— 子实例发起 / 多实例展开 / 汇聚由 instances/subprocess.ts 接管
+ * flowData 的无状态工具：schema 兼容迁移、图遍历、条件求值、结构校验与会签模式解析，
+ * 供 Token 引擎和仿真器共用；不执行运行时推进、不访问数据库。
+ * 推进以 workflow-token-engine.ts 的 advanceTokens 为准，由
+ * services/workflow/instances/materialize.ts 的 advanceAndMaterialize 调用并落库。
+ * 自动节点由 workflow-jobs 调度，子实例展开与汇聚由 instances/subprocess.ts 负责。
  */
 import type { WorkflowFlowData, WorkflowNodeConfig, WorkflowEdge, WorkflowStarterContext, WorkflowApproveMethod, WorkflowResolvedApproveMethod, WorkflowFormField, WorkflowPredictedPathNode } from '@zenith/shared/workflow';
 import { WORKFLOW_SCHEMA_VERSION, evaluateWorkflowCondition, evaluateWorkflowConditionGroup, evaluateWorkflowConditionGroups, workflowEdgeHasCondition, workflowEdgeMatchesCondition, planWorkflowPath } from '@zenith/shared/workflow';

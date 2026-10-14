@@ -178,14 +178,10 @@ function ChannelPickerModal({ siteId, visible, onCancel, onSelect, excludeId }: 
 }
 
 /**
- * 链接字段的「内部链接」选择能力。
- *
- * 刻意做成 hook 而非独立受控组件：链接字段本身仍由 `Form.Input` 承载，
- * 校验、脏值追踪、表单重置全部交给 Semi Form，这里只补三块 UI ——
- * 输入框右侧的选择器、下方的目标回显、以及两个选择弹窗。
- *
- * 存储值遵循 `packages/shared/src/cms-link.ts` 的协议：
- * `entity:channel@news`（栏目，优先）/ `entity:content/123` / `internal:/path` / `https://…`
+ * 内部链接选择 hook：Form.Input 保留 Semi 的校验、脏值追踪和重置；
+ * 这里只提供输入框右侧选择器、目标回显及两个选择弹窗。
+ * 存储协议见 packages/shared/src/cms-link.ts：entity:channel@news（栏目，优先）、
+ * entity:content/123、internal:/path、https://…。
  */
 export function useCmsLinkPicker({
   siteId, value, onPick, disabled, excludeContentId, excludeChannelId,

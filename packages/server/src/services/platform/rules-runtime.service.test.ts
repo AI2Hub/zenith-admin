@@ -1,17 +1,6 @@
 /**
- * 统一求值门面 decide() 单测（规则中心业务消费唯一入口，行为关键）。
- *
- * 覆盖要点：
- *  1. table：发布快照命中 → 信封含 outputs/version，留痕带 refKind/caller；
- *     不可用时 optional 降级 not_found（不留痕）、required 抛 400；
- *     底层异常时 optional 降级 reason=error 不上抛
- *  2. list：命中 → matched + 留痕（matchedRowIds=命中值）；未命中 → 不留痕；
- *     名单不存在 → not_found
- *  3. scorecard：发布快照求值 → outputs {totalScore/grade/decision}，留痕
- *  4. flow：publishedSteps 逐步执行 → 输出合并；每步 + 流级各留痕一条
- *
- * Mock 策略：rules.service / rules-lists / rules-executions / db 全 mock，
- * 缓存模块用真实实现（每用例前 invalidate 防跨用例污染）。
+ * decide() 求值、降级与留痕回归：规则服务、名单、执行记录及 DB 使用 mock。
+ * 缓存保持真实实现，每用例前 invalidate 防止跨用例污染。
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { HTTPException } from 'hono/http-exception';

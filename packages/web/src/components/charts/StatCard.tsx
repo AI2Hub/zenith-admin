@@ -2,20 +2,10 @@ import type { CSSProperties, ReactNode } from 'react';
 import './stat-card.css';
 
 /**
- * 统计卡片栅格（报表式分栏细线）。
- *
- * 列数由容器可用宽度决定（`auto-fit` + `minmax`），窄屏自动降列，无需媒体查询。
- * **禁止**在页面里内联写死 `gridTemplateColumns: 'repeat(4, 1fr)'` 这类固定列数——
- * 内联样式无法被媒体查询覆盖，窄屏会把卡片压到内容竖排。
- *
- * ## 为什么要包一层 wrap
- *
- * 同级指标之间用 1px 竖线分隔，**每行第一项不能有竖线**，否则行首会悬着一条线。
- * `auto-fit` 的列数是布局时算出来的，CSS 选择器无法识别「第几项是行首」
- * （`:nth-child(4n+1)` 只在列数固定时成立），因此改用几何裁切：
- * 内层栅格左右各外扩一个 padding（负 margin），行首那一项的竖线正好落在
- * wrap 之外，被 `overflow: hidden` 裁掉；其余竖线都在可视区内。
- * 这样无论 auto-fit 排成几列、换几行，行首竖线都自动消失。
+ * 统计栅格用 auto-fit + minmax 随容器宽度调整列数。
+ * 禁止内联固定 gridTemplateColumns：媒体查询无法覆盖，窄屏会将内容压成竖排。
+ * 指标间以 1px 竖线分隔，但动态列数无法用 nth-child 识别行首：
+ * 内层栅格左右各以负 margin 外扩一个 padding，由 wrap 的 overflow: hidden 裁掉行首竖线。
  */
 export function StatGrid({
   children,

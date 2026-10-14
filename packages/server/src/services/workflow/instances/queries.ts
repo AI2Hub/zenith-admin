@@ -185,7 +185,7 @@ export async function listPendingMine(query: QueryOutputOf<typeof workflowInstan
   );
   const [[{ total }], rows] = await Promise.all([
     db
-      // 待办总数按任务行计数：同一实例的多条并行待办各占一行（与列表行一致，此前按实例去重会出现「显示 2 条/共 1 条」）。
+      // 待办总数按任务行计数，与列表一致；同一实例的并行待办不能去重。
       // keyword 条件引用 workflowDefinitions.name，计数查询须同样联表
       .select({ total: count() })
       .from(workflowTasks)
@@ -241,7 +241,7 @@ export async function listMyCc(query: QueryOutputOf<typeof workflowInstanceContr
       currentNodeKeys: activeNodeKeys.get(r.inst.id),
       ccTaskId: r.task.id,
       ccReadAt: r.task.ccReadAt,
-      // 抄送送达时间 = CC 任务创建时间（此前前端误用实例发起时间，运行中补抄送会显示错误时间）
+      // 按 CC 任务创建时间表示送达时间，以涵盖运行中补抄送。
       ccDeliveredAt: r.task.createdAt,
     })),
     total,

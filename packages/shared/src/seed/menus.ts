@@ -27,18 +27,9 @@ import { SEED_MENUS_DRIVE } from './menus/drive';
 export { SEED_DATE };
 
 /**
- * 菜单种子数据 —— 按一级目录 ID 段分片维护（见 ./menus/）。
- *
- * 分片文件只写 directory / menu 节点；button 节点（权限码）由各域 `permissions.ts` 注册表生成
- * （`expandPermissionButtons`），权限码在整个仓库只声明一次。
- *
- * 新增模块时只改对应段的分片文件，不要在本文件堆积条目：
- *   系统管理 1000 / 系统设置 2000 / 智能助手 3000 / 工作流 4000 / 会话中心 5000 /
- *   规则中心 6000 / 数据分析 7000 / 支付中心 8000 / 会员中心 9000 / 公众号 10000 /
- *   业务示例 11000 / 报表中心 12000 / 开放平台 13000 / CMS 14000 / 告警中心 15000 /
- *   知识中心 16000 / 运营中心 17000 / IoT 18000 / 企业网盘 19000
- *
- * 数组顺序即菜单落库顺序，调整分片顺序会影响 SEED_MENUS 的相对次序。
+ * 菜单按一级目录 ID 段维护于 ./menus/；新增条目写入对应分片，只声明 directory / menu。
+ * button 由各域 permissions.ts 经 expandPermissionButtons 生成，权限码只声明一次。
+ * 数组顺序决定菜单落库顺序。
  */
 export const SEED_MENUS: Menu[] = applyMenuFeatureKeys(expandPermissionButtons([
   ...SEED_MENUS_COMMON,

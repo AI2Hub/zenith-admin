@@ -1,13 +1,7 @@
 /**
- * 权限码注册表的类型基座。
- *
- * 每个业务域在 `shared/src/{域}/permissions.ts` 用 `definePermissions()` 声明自己的权限码，
- * `@zenith/shared/permissions` 把各域注册表聚合成 `PERMISSION_REGISTRY_BY_DOMAIN`；这里只以 **type-only** 方式引用该聚合，
- * 从中推导 `Permission` 字面量联合——运行时没有 core → 业务域的依赖，而任何引用了 `Permission` 的编译单元
- * 都必然带上全部域的注册表（不依赖调用方是否恰好 import 了某个域）。
- *
- * 权限码是唯一真相：种子 button 节点由注册表生成，契约操作的 `access`、服务端 `hasPermission()`、
- * 前端 `hasPermission()` / `permission=` 属性都以 `Permission` 类型约束——拼错的码在编译期报错，而不是在生产静默放行 / 拒绝。
+ * 各域 `permissions.ts` 经 `definePermissions()` 声明权限，聚合于 `@zenith/shared/permissions`。
+ * 此处仅导入聚合表类型，推导完整的 `Permission` 联合，不引入 core → 业务域的运行时依赖。
+ * 注册表生成种子 button，并以 `Permission` 约束契约 access 及前后端权限检查。
  */
 import type { PERMISSION_REGISTRY_BY_DOMAIN } from '../permissions';
 

@@ -33,18 +33,8 @@ export function toQueryString(params: object): string {
 export type CompactParams<T> = { [K in keyof T]?: Exclude<T[K], null | undefined | ''> };
 
 /**
- * 已提交筛选 → 契约查询参数：丢弃 `undefined` / `null` / 空串，保留 `0` / `false`，并**保留键的类型**，
- * 结果可直接展开进 `QueryOf<typeof xxxContract.list>`。页面内经 `useFilterQuery` 使用（同内容同引用）；
- * 列表查询、导出条件、深链都从同一份映射派生，不再为列表写一份 `x || undefined`、为导出再写一份 `compactQuery({...})`。
- *
- * @example
- * const filterQuery = useFilterQuery({
- *   keyword: submittedParams.keyword,
- *   status: enumValueOf(XXX_STATUSES, submittedParams.status),
- *   ...formatDateTimeRangeForApi(submittedParams.timeRange),
- * });
- * const listQuery = useXxxList({ page, pageSize, ...filterQuery });
- * <ExportButton entity="system.xxxs" query={filterQuery} permission="system:xxx:export" />
+ * 丢弃 `undefined` / `null` / 空串，保留 `0` / `false` 与键类型，结果可展开进契约 query。
+ * 页面内用 `useFilterQuery` 保持同内容同引用，列表、导出和深链共用同一份映射；示例见该 hook。
  */
 export function compactParams<T extends Record<string, unknown>>(params: T): CompactParams<T> {
   const result: Record<string, unknown> = {};

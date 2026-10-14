@@ -1,9 +1,7 @@
 /**
  * 监控告警指标的静态一致性校验。
  *
- * 指标此前在 4 处各写一份（pgEnum / Zod / 服务端标签表 / 前端标签表），
- * 任何一处漏改都不会报错，只会表现为「下拉里没有这个指标」或「告警消息显示成裸英文 key」。
- * 收敛到 MONITOR_METRICS 后，把「所有派生物必须覆盖全集」这条约定固化成可执行断言。
+ * pgEnum、Zod 及前后端标签须覆盖 MONITOR_METRICS 全集，避免缺少选项或显示裸 key。
  */
 import { describe, it, expect } from 'vitest';
 import {

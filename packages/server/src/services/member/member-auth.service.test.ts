@@ -1,21 +1,6 @@
 /**
- * 会员认证服务单测（前台用户体系，认证安全关键）。
- *
- * 覆盖要点：
- *  1. loginMember 密码模式：账号不存在/无密码/密码错误 → 400（统一模糊报错防枚举），
- *     封禁 403、未激活 403、成功签发双 token + 注册会话 + 更新最后登录
- *  2. loginMember 短信模式：参数缺失/验证码错误/手机号未注册 → 400，成功登录
- *  3. refreshMemberToken：非法/类型不符（access 当 refresh 用）401、会员不存在 401、
- *     非 active 403、成功签发新 access token（type='member'）
- *  4. registerMember：无密码且无验证码 400、验证码错误 400、标识占用 400、
- *     成功注册（密码 bcrypt 落库 + 事务内初始化积分/钱包账户）、唯一约束冲突映射 400、
- *     服务端权威事件 member.registered（仅成功后触发，属性脱敏）
- *  5. changeMyMemberPassword / resetMemberPassword / logoutMember 关键分支
- *  6. updateMyMemberProfile：服务端权威事件 member.profile.updated（仅传变更字段名，
- *     无变更/失败时不触发）
- *
- * Mock 策略：db / config / member-session-manager / member-sms / ip-location /
- * member-context / analytics-server-events.service mock；bcrypt 与 lib/jwt 用真实实现（验证密码哈希与 token payload）。
+ * 会员认证服务回归，覆盖身份校验、密码 / 令牌流程及成功后的事件发布。
+ * 数据库、会话、短信、上下文及埋点依赖使用 mock；bcrypt 与 lib/jwt 保持真实实现，验证哈希与 token payload。
  */
 import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
 import bcrypt from 'bcryptjs';

@@ -6,29 +6,14 @@ import { ApiError } from '@/lib/query';
 import { showRequestErrorToast } from '@/utils/request-toast';
 
 /**
- * 新增/编辑弹窗的状态与提交编排。
+ * 新增/编辑弹窗的状态与提交编排，统一保证：
+ * 1. 校验失败必须 `throw`：Semi Modal 不因 `onOk` resolve 自动关闭，且由其 Promise
+ *    驱动按钮 loading；抛出可结束 loading 并保持弹窗打开。
+ * 2. 成功提示默认区分新增/编辑。
+ * 3. 保存后关闭并清空 editing，避免下次新增带入旧记录。
+ * 4. 按记录和异步详情重挂载表单：Semi 的 `initValues` 只在挂载时读取，必须配合 `formKey`。
  *
- * ## 为什么需要它
- * 全站 169 个「保存型」提交处理函数在手抄同一段编排，其中四项是**可以被静默漏掉的契约**：
- *
- * 1. **校验失败必须 `throw`**。Semi 的 Modal 不会因 `onOk` resolve 而自动关闭，
- *    但会用 `onOk` 返回的 Promise 状态驱动确定按钮的 loading。校验失败时若不抛出，
- *    按钮会一直转圈且弹窗停在原地，用户以为卡死。
- * 2. **Toast 文案区分新增/编辑**。98% 的调用点写 `editing ? '更新成功' : '创建成功'`，
- *    抄漏就变成新增也提示「更新成功」。
- * 3. **保存后必须关闭并清空 editing**。只关闭不清空，下次点「新增」会带出上次编辑的记录。
- * 4. **表单必须按记录重挂载**。Semi 的 `initValues` 只在挂载时读取一次。
- *    弹窗打开后异步详情才到达时（`useXxxDetail`），若没有 `key` 强制重挂载，
- *    详情数据**永远进不了表单**。目前 `TenantsPage` / `TenantPackagesPage` 正处于这个状态——
- *    只因列表与详情恰好返回同一组字段而没有暴露；一旦详情新增一个列表没有的字段，
- *    编辑就会静默把它提交为空。
- *
- * 这四条都不会报错、不会让测试变红，只能靠人工 review 逐个页面盯。焊进 hook 后，
- * 调用方无从漏写。
- *
- * ## 一个页面有多个编辑单元时
- * 直接调用多次即可——hook 只持有自己的局部状态。全站 39 个页面存在 ≥2 个编辑单元
- * （如 `FriendLinksPage` 的友链 + 分组），这也是本方案做成 hook 而非页面级模板组件的原因。
+ * 每个实例仅持有局部状态，一页多个编辑单元可分别调用。
  *
  * @example
  * ```tsx
@@ -38,15 +23,9 @@ import { showRequestErrorToast } from '@/utils/request-toast';
  *   useDetail: useTenantPackageDetail,
  *   defaults: { status: 'enabled' },
  * });
- *
  * <CreateButton onClick={modal.openCreate} />
  * // 列操作：onClick: () => modal.openEdit(record)
- *
- * <AppModal {...modal.modalProps} width={520}>
- *   <Spin spinning={modal.detailLoading}>
- *     <Form {...modal.formProps}>…字段…</Form>
- *   </Spin>
- * </AppModal>
+ * <EditFormModal modal={modal} width={520}>…字段…</EditFormModal>
  * ```
  */
 

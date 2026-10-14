@@ -121,7 +121,7 @@ async function buildChannelRank(): Promise<ChannelDashboardChannelRank[]> {
     .from(channels).where(eq(channels.type, 'business'));
   if (bizChannels.length === 0) return [];
 
-  // 两条 GROUP BY 聚合一次取齐全部频道计数（此前每频道各发 2 条 COUNT，查询数随频道数线性增长）
+  // 两条 GROUP BY 聚合取齐频道计数，避免按频道逐个查询。
   const [msgRows, subRows] = await Promise.all([
     db.select({ channelId: channelMessages.channelId, count: sql<number>`count(*)::int` })
       .from(channelMessages)

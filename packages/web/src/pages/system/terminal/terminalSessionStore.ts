@@ -1,13 +1,8 @@
 /**
- * 终端 Session 存储
- *
- * 将 xterm.js 实例与 WebSocket 连接的生命周期从 React 组件树中解耦：
- * - 组件 mount → attach（将已有 session 的 DOM 移入 React 容器）
- * - 组件 unmount → detach（将 DOM 移回隐藏根，保持 WebSocket 不断线）
- * - 明确关闭面板 → markForDestruction → detach 时销毁
- *
- * 这样，分屏/合并时 TerminalTab 组件虽然重新挂载，
- * 但底层 xterm + WebSocket 实例依然存活，用户不会断线。
+ * 独立于 React 组件树持有 xterm / WebSocket，确保分屏、合并导致的重挂载不会断线。
+ * - mount → attach：将已有 session 的 DOM 移入 React 容器。
+ * - unmount → detach：DOM 移回隐藏根，连接保持。
+ * - 明确关闭面板 → markForDestruction：在 detach 时销毁。
  */
 
 import { Terminal, type ITerminalOptions } from '@xterm/xterm';

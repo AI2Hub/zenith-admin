@@ -1,10 +1,8 @@
 /**
  * CMS 内容 / 发布产物导出与列表共用 where 的回归测试。
  *
- * 此前导出定义自行拼装 13 条内容筛选条件，且栏目可见性用「未授权任何栏目时不加限制」的宽松实现，
- * 与列表的 getAccessibleChannelIds()（空集 → 不返回任何行）不一致：同一用户在列表里看不到内容却能导出全站。
- * 这里锁定：导出定义只经 service 的 buildCmsContentListWhere / buildCmsPublishArtifactsWhere 取 where，
- * 且非管理员无授权栏目时 where 里出现 `false`（inArray 空集）。
+ * 导出必须复用 service 的 buildCmsContentListWhere / buildCmsPublishArtifactsWhere；
+ * 非管理员无授权栏目时条件为 false（inArray 空集），不能以无限制查询代替。
  */
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it, vi } from 'vitest';

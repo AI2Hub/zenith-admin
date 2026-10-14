@@ -1,24 +1,12 @@
 /**
- * 列表页搜索工具栏的标准筛选控件。
- *
- * 与 `toolbar-controls.tsx`（查询/重置/新增按钮）配套：那边收敛的是动作按钮，
- * 这边收敛的是筛选输入。二者都只把**装饰性 props**（图标、尺寸、showClear、
- * 默认宽度）收进默认值，业务 props（items/placeholder）仍由页面显式传入，
- * value/onChange 由 `useListSearch` 的 `bind` / `bindKeyword` 整体展开——
- * 否则组件会退化成难以定制的黑盒。
+ * 标准筛选输入，与 `toolbar-controls.tsx` 的动作按钮配套。
+ * 图标、尺寸、showClear 和宽度提供默认值；items/placeholder 由页面传入，
+ * value/onChange 用 `useListSearch` 的 `bind` / `bindKeyword` 整体绑定。
  *
  * @example
- * <ListSearchToolbar
- *   keyword={<KeywordInput placeholder="搜索名称/编码" {...bindKeyword('keyword')} />}
- *   filters={(
- *     <>
- *       <StatusSelect items={statusItems} {...bind('status')} />
- *       <FilterSelect placeholder="全部渠道" items={PAYMENT_CHANNEL_OPTIONS} {...bind('channel')} />
- *     </>
- *   )}
- *   onSearch={handleSearch}
- *   onReset={handleReset}
- * />
+ * <KeywordInput placeholder="搜索名称/编码" {...bindKeyword('keyword')} />
+ * <StatusSelect items={statusItems} {...bind('status')} />
+ * <FilterSelect placeholder="全部渠道" items={PAYMENT_CHANNEL_OPTIONS} {...bind('channel')} />
  */
 import { memo, type ReactNode } from 'react';
 import { DatePicker, Input, InputNumber, Select } from '@douyinfe/semi-ui';
@@ -167,11 +155,8 @@ export function NumberFilter({ value, onChange, width = 130, style, ...rest }: N
 }
 
 /**
- * 区间选择器的默认宽度，也是不截断内容的最小宽度：Semi 把两个输入框均分剩余宽度
- * （总宽减去分隔符、图标、边框约 48px，每侧再扣 26px 内边距），`YYYY-MM-DD HH:mm:ss`
- * 在 14px Inter 下宽约 138px，360px 时每侧只剩 131px，末位秒数会被截掉；`YYYY-MM-DD` 约 78px，
- * 260px 时只剩 3px 余量。400 / 280 分别留出约 13px，回退到更宽的中文字体也装得下。
- * 报表筛选条等自定义宽度的场景也应以此为下限。
+ * 默认宽度也是自定义宽度的下限：400 / 280px 分别容纳完整日期时间 / 日期，
+ * 并为 Semi 的分隔符、图标、内边距及中文字体回退留余量，避免输入值被截断。
  */
 export const DATE_TIME_RANGE_FILTER_WIDTH = 400;
 export const DATE_RANGE_FILTER_WIDTH = 280;

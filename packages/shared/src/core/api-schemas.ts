@@ -22,14 +22,7 @@ export const idParam = z.object({
   id: z.coerce.number().int().positive().meta({ description: '主键 ID', example: 1 }),
 });
 
-/**
- * 查询串里的可选关联 ID 筛选（`?channelId=3`）：正整数，缺省不过滤。
- * 与路径参数 `idParam` 对称；列表查询里的 `xxxId` 一律用它，不再逐个写 `z.coerce.number().int().positive().optional()`。
- */
-/**
- * 查询串里的可选关联 ID 筛选（`?channelId=3`）：正整数，缺省不过滤。
- * 与路径参数 `idParam` 对称；列表查询里的 `xxxId` 一律用它，不再逐个写 `z.coerce.number().int().positive().optional()`。
- */
+/** 查询串的可选关联 ID 筛选（如 `?channelId=3`）：正整数，缺省不过滤。 */
 export function idQuery(description?: string) {
   return z.coerce.number().int().positive().optional().meta({ ...(description ? { description } : {}), ...filterMeta({ kind: 'id' }) });
 }

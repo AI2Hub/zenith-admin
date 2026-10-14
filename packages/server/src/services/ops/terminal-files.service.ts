@@ -441,8 +441,7 @@ function probeDrive(letter: string): Promise<string | null> {
 }
 
 /**
- * 并行异步探测 A:–Z:。此前逐字母 `existsSync`：一个断连的网络映射盘就把事件循环卡住数秒，
- * 且每次请求都重来。`fs.access` 在 libuv 线程池执行，26 个字母一起发出，慢盘只拖慢自己并受超时封顶。
+ * 用 fs.access 并行探测 A:–Z:，每个盘符独立超时，避免断连网络盘阻塞事件循环。
  */
 function detectWindowsDrives(): Promise<string[]> {
   const now = Date.now();
@@ -535,8 +534,7 @@ export class ArchiveCancelledError extends Error {
 /**
  * 将多个文件/目录压缩为 ZIP。
  *
- * 目录用 `archive.directory()` 递归加入——此前一律走 `archive.file()`，
- * 而该 API 只接受单个文件，选中目录压缩会得到一个缺内容的包。
+ * 目录须用 archive.directory() 递归加入；archive.file() 只接受单个文件。
  *
  * @param paths 要压缩的绝对路径列表
  * @param destPath 输出 ZIP 文件的绝对路径（含 .zip 扩展名）
@@ -732,7 +730,7 @@ export interface FileSearchResult {
  * 递归搜索文件名（广度优先）。
  *
  * 三个上限（结果数 / 访问节点数 / 时间预算）任一触顶即停止，并通过 `truncated`
- * 明确告知调用方。此前只是静默停在 200 条，用户无从判断「没有更多」还是「没搜完」。
+ * 告知调用方搜索尚未完成。
  */
 export async function searchFiles(dir: string, keyword: string, maxResults = 200): Promise<FileSearchResult> {
   const root = path.resolve(dir);

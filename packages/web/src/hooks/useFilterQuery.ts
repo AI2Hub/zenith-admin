@@ -2,15 +2,9 @@ import { useMemo } from 'react';
 import { compactParams, type CompactParams } from '@/lib/query';
 
 /**
- * 已提交筛选 → 契约查询参数。
- *
- * `compactParams` 丢弃 `undefined` / `null` / 空串、保留 `0` / `false`，随后按**内容**缓存引用：
- * 同一组值在多次渲染间返回同一对象，可直接展开进 `useXxxList({ page, pageSize, ...filterQuery })`、
- * 传给 `<ExportButton query={filterQuery} />` 或进入 query key。
- *
- * 取代页面里的 `useMemo(() => compactParams({ … }), [submittedParams])`：不再手写依赖数组，
- * 映射里引用的任何外部值（当前站点、勾选开关…）变化都会自然反映到结果，没有过期闭包；
- * 查询参数只含 JSON 标量 / 数组，按序列化比较的成本可忽略。
+ * 已提交筛选 → 契约查询参数：丢弃 `undefined` / `null` / 空串，保留 `0` / `false`。
+ * 按内容保持引用稳定，供列表、导出与 query key 共用；无需依赖数组，外部值变化也会参与比较。
+ * 参数只含 JSON 标量 / 数组，序列化比较成本低。
  *
  * @example
  * const filterQuery = useFilterQuery({

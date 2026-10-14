@@ -67,7 +67,7 @@ describe('ensureDashboardReferences 批量校验', () => {
 
     await ensureDashboardReferences(widgets, [], null, 999, null);
 
-    // 此前 5 + 3 + 2 = 10 组「行查询 + ACL 三路」并发打出；现在每类各一条 IN 查询
+    // 引用按资源类型批量查询，与每类引用数量无关。
     expect(runtime.selectedTables).toHaveLength(3);
     expect(new Set(runtime.selectedTables)).toEqual(new Set([reportDatasets, reportMetrics, reportDashboards]));
     expect(filterReportResourceRowsByAccess).toHaveBeenCalledTimes(3);

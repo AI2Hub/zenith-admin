@@ -1,19 +1,8 @@
 /**
- * Web 终端会话注册表（进程内单例）
- *
- * 维护所有活动终端会话（本地 PTY / SSH / Docker exec）的运行态，供三方消费：
- *  - ws-terminal 路由：注册 / 附接 I/O、断线保活、销毁
- *  - ws-terminal-monitor 路由：管理员实时旁观（observer）与接管输入
- *  - terminal-sessions 服务：列出活动会话、强制终止、落库结算
- *
- * 授权模型：会话句柄**只能**通过 `registerSession`（新建）或
- * `acquireOwnedSession`（校验归属）取得。历史实现导出过按任意 ID 取会话的
- * `getSession`，于是每个新增 handler 都必须自行记得比对 userId，漏一个即越权。
- * 现在「拿到别人的会话」在 API 层面无法表达；监控路径确需绕过归属校验时，
- * 必须显式走 `findSessionForAuthorizedCaller`，其命名与文档要求调用方先完成租户判定。
- *
- * 进程只存活在本 Node 实例内存中；`NODE_ID` 让持久化记录能定位承载实例，
- * 并在实例重启后结算残留记录。
+ * 进程内终端会话注册表（本地 PTY / SSH / Docker exec），供终端连接、管理员监控与会话管理使用。
+ * 普通调用方只能经 registerSession 新建或 acquireOwnedSession 校验归属后取得句柄；
+ * 监控路径使用 findSessionForAuthorizedCaller 前，必须完成授权与租户判定。
+ * NODE_ID 将持久化记录关联到承载进程，供实例重启后结算残留记录。
  */
 
 import os from 'node:os';

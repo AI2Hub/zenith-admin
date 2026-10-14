@@ -1,21 +1,12 @@
 /**
- * 服务器文件管理器（/system/file-manager，菜单归属「系统运维」）。
- *
- * 操作对象是**宿主机磁盘上的真实文件系统**：目录浏览、复制/剪切、重命名、压缩解压、
- * chmod、校验和、递归搜索、文本文件在线编辑。数据来自 `terminalFileContract`
- * （`services/ops/terminal-files.service.ts`），DB 中没有任何记录，`FsEntry`
- * 携带的是 permissions / uid / gid 这类 POSIX 元数据。
- *
- * 权限码为 `system:file:use`；Web 终端内部文件树持有 terminal:execute 时仍可复用本机接口。
- * 二期新增 HostSelector：本机维持完整功能，远端 Linux 通过平台主机 SFTP 提供核心文件操作。
- *
- * ⚠️ 勿与 `pages/system/files/FilesPage.tsx` 混淆：那是应用内的**托管文件库**
- * （业务附件），走文件中心 `fileContract` + 存储抽象层（local/OSS/S3/COS），每个文件在
- * DB 有 `ManagedFile` 记录。两者数据源、后端域、权限码完全不同，没有重叠。
- *
- * 本文件是装配层：状态编排 + 子组件/特性 hooks 组合。
- * 拆分结构：fs-utils.ts（纯函数）、types.ts、entry-actions.ts（动作契约）、
- * hooks/（导航/选择/上传/预览/下载/快捷键/收藏）、components/（视图与弹层）。
+ * 服务器文件管理器（/system/file-manager，归属「系统运维」），编排状态、特性 hooks 与子组件。
+ * 本机操作真实文件系统，经 terminalFileContract / services/ops/terminal-files.service.ts 访问，
+ * 无 DB 文件记录；FsEntry 携带 permissions / uid / gid 等 POSIX 元数据。
+ * 权限为 system:file:use；终端内文件树持 terminal:execute 也可复用本机接口。
+ * HostSelector 保留本机完整功能，远端 Linux 经平台主机 SFTP 提供核心文件操作。
+ * 勿与 system/files/FilesPage 混淆：后者是业务附件托管库，经 fileContract / 存储抽象层访问，
+ * DB 中有 ManagedFile 记录；数据源、后端域与权限均独立。
+ * fs-utils.ts 放纯函数，types.ts 放类型，entry-actions.ts 定义动作；hooks/ 与 components/ 承载特性和视图。
  */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';

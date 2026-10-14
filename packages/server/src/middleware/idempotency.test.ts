@@ -230,8 +230,7 @@ describe('idempotencyGuard - 自动指纹模式', () => {
     const keyB = placeholderKey();
 
     expect(resA.status).toBe(200);
-    // 此前这里只断言状态码，而 IP 分支其实是死代码（currentUser() 抛异常而非返回假值），
-    // 所有匿名请求共用 '0.0.0.0'，测试却一直是绿的。
+    // 必须验证缓存 key 按 IP 隔离；仅检查状态码无法发现匿名请求共用缓存。
     expect(keyA).not.toBe(keyB);
   });
 
@@ -284,11 +283,8 @@ describe('idempotencyGuard - 并发与容错', () => {
 
 describe('idempotencyGuard - 调用方身份隔离（缓存回放安全关键）', () => {
   /**
-   * 回归：会员身份此前完全丢失。
-   * memberAuthMiddleware 写的是 c.set('member')，而中间件只试 currentUser()（读 c.get('user')），
-   * 必然抛异常 → catch → 所有会员共用固定身份 '0.0.0.0'。
-   * 后果：签到（无请求体，指纹必然相同）、同额充值等接口在 TTL 内跨会员互相回放响应——
-   * 后到的会员操作被静默跳过，并拿到前一位会员的完整响应体（充值响应含 orderNo/payUrl）。
+   * 会员身份取自 c.get('member')，不能仅用读取管理员身份的 currentUser()。
+   * 同指纹请求须按会员隔离，避免签到、充值等操作被跳过并跨会员泄漏缓存响应。
    */
   it('不同会员的同一请求指纹必须不同', async () => {
     asMember(101);

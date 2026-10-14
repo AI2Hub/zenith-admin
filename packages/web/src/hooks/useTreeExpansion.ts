@@ -68,9 +68,8 @@ export interface UseTreeExpansionReturn {
  * 统一维护受控 `expandedRowKeys`、递归收集全部节点 key、`isAllExpanded` 判定，
  * 以及 `onExpandedRowsChange` 的行→key 映射。
  *
- * ## 传入的必须是**表格实际渲染的数据**
- * 传未筛选的原始树会让 `isAllExpanded` 跟可见行数对不上：筛选后所有可见节点已展开，
- * 但计数仍拿总节点数比较，按钮显示「全部展开」，点击后可见区域毫无变化——即一个死按钮。
+ * 必须传表格实际渲染的数据；未筛选的原始树会使 `isAllExpanded` 与可见行数不符，
+ * 导致「全部展开」按钮状态错误、点击无变化。
  *
  * @example
  * const { expandedRowKeys, isAllExpanded, toggleExpandAll, onExpandedRowsChange }

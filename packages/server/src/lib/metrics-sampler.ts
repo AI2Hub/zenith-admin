@@ -239,7 +239,7 @@ class MetricsSampler {
   private extPending = false;
   private latestExt: ExtMetrics | null = null;
 
-  // 类型随 @types/node 推断（26.x 起为 ELDHistogram，此前为 IntervalHistogram），不按名字引用
+  // 跟随 @types/node 推断类型，避免绑定具体 Histogram 类型名。
   private readonly elDelay = monitorEventLoopDelay({ resolution: 20 });
   private gcObserver: PerformanceObserver | null = null;
   private readonly gcAcc: GcStats = { totalCount: 0, totalDurationMs: 0, byKind: {} };

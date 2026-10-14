@@ -1,21 +1,12 @@
 import type { ColumnProps, Data, TableProps } from '@douyinfe/semi-ui/lib/es/table';
 
 /**
- * 表格弹性列解析。
- *
- * Semi Table 只要有任一列 `fixed` / `ellipsis`（或设置了 `scroll.y`），就会切换到
- * `table-layout: fixed` 并给 `<table>` 加 `min-width: 100%`。此时若所有列都给了固定 `width`
- * 且总和小于容器宽度，浏览器会把多余空间按比例分给每一列——`fixed: 'right'` 的操作列会被拉宽
- * 到配置值的一到三倍。
- *
- * 约定：每个表格有且只有一个**弹性主列**（通常是名称 / 标题 / 描述列）不设 `width`，改用 `minWidth`
- * 声明最小宽度；其余列照常写 `width`；页面不写 `scroll.x`。本模块负责：
- * - 把各列 `width` 与弹性列 `minWidth`（以及 Semi 自动追加的勾选列 / 展开列）求和写入 `scroll.x`，
- *   保证容器过窄时弹性列不会被压到 0，而是出现横向滚动；页面传入的 `scroll.x` 被忽略；
- * - 剥离 `minWidth`（Semi 不认识该属性）；
- * - 页面未声明弹性列时按启发式挑一列兜底，并把该列标记出来供开发期告警。
- *
- * 表格宽度最终 = max(scroll.x, 容器宽度)：容器更宽时弹性列吸收全部剩余空间，其余列保持配置宽度。
+ * Semi 的 fixed / ellipsis 列或 scroll.y 会启用 table-layout: fixed 与 min-width: 100%；
+ * 若所有列都有 width，剩余空间会按比例分配，导致操作列被拉宽。
+ * 每表只设一个弹性主列，用 minWidth 代替 width；其余列固定 width，页面不设 scroll.x。
+ * 本模块汇总 width / minWidth 及勾选、展开列宽作为 scroll.x，忽略页面传入值，窄容器改为横向滚动。
+ * 传给 Semi 前剥离其不支持的 minWidth；缺少弹性列时启发式选一列并标记，供开发期告警。
+ * 最终表宽为 max(scroll.x, 容器宽度)：弹性列吸收剩余空间，其余列保持配置宽度。
  */
 
 export const FLEX_COLUMN_DEFAULT_MIN_WIDTH = 120;
