@@ -37,7 +37,6 @@ export const oauthHandlers = [
     return ok(null, '绑定成功（演示）');
   }),
 
-  // 解绑
   mock(oauthContract.unbind, ({ ok }) => {
     return ok(null, '已解绑（演示）');
   }),

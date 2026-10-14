@@ -70,7 +70,6 @@ export const aiProvidersHandlers = [
     return ok(models);
   }),
 
-  // 列表
   mock(aiProviderContract.list, ({ ok }) => ok(store)),
   ...mockResource(aiProviderContract, {
     store: store,
@@ -127,7 +126,6 @@ export const aiProvidersHandlers = [
     return ok(store[idx], '修改成功');
   }),
 
-  // 设为默认
   mock(aiProviderContract.setDefault, ({ params, ok }) => {
     const item = requireItem(store, params.id, '服务商不存在', { status: 404 });
     store.forEach((p) => { p.isDefault = p.id === params.id; });

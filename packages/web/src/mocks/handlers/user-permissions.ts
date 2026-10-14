@@ -63,13 +63,11 @@ export const userPermissionsHandlers = [
     return ok({ directMenuIds, roleMenuIds: [...roleMenuIdSet] });
   }),
 
-  // 分配用户菜单权限
   mock(userContract.assignMenus, ({ params, body, ok }) => {
     userMenuMap[params.id] = body.menuIds;
     return ok(null, '保存成功');
   }),
 
-  // 用户数据权限
   mock(userContract.dataPermission, ({ params, ok }) => {
     const userId = params.id;
     const user = requireItem(mockUsers, userId, '用户不存在', { status: 404 });
@@ -92,14 +90,12 @@ export const userPermissionsHandlers = [
     });
   }),
 
-  // 设置用户数据权限
   mock(userContract.updateDataPermission, ({ params, body, ok }) => {
     userDataScopeMap[params.id] = body.dataScope;
     userDeptScopeMap[params.id] = body.dataScope === 'custom' ? body.deptScopeIds : [];
     return ok(null, '保存成功');
   }),
 
-  // 最终有效权限
   mock(userContract.effectivePermissions, ({ params, ok }) => {
     const userId = params.id;
     const user = requireItem(mockUsers, userId, '用户不存在', { status: 404 });

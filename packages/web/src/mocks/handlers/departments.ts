@@ -55,7 +55,6 @@ export const departmentsHandlers = [
     return ok(mockDepartments.map(withLeaderName));
   }),
 
-  // 部门树
   mock(departmentContract.tree, ({ query, ok }) => {
     return ok(buildDeptTree(filterDepartments(mockDepartments, query.keyword, query.status)));
   }),

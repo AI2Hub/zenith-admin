@@ -198,7 +198,6 @@ export const filesHandlers = [
     return ok(uploadedFiles, `成功上传 ${uploadedFiles.length} 个文件`);
   }),
 
-  // 上传单个文件
   mock(fileContract.uploadOne, ({ body, ok }) => {
     const file = body.get('file');
     if (!(file instanceof File)) return badRequest('请选择要上传的文件');

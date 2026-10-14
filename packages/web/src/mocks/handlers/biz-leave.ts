@@ -68,7 +68,6 @@ export const bizLeaveHandlers = [
     return ok(leave, '已转为草稿');
   }),
 
-  // 详情
   mock(bizLeaveContract.detail, ({ params, ok }) => {
     const leave = requireItem(mockBizLeaves, params.id, '请假单不存在');
     return ok(leave);

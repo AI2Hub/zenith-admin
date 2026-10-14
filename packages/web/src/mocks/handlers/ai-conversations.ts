@@ -153,7 +153,6 @@ export const aiConversationsHandlers = [
   // 进行中的生成任务（Demo：无后台生成，恒为 null）
   mock(aiConversationContract.activeGeneration, ({ ok }) => ok({ genId: null })),
 
-  // 重命名对话
   mock(aiConversationContract.rename, ({ params, body, ok }) => {
     const conv = requireItem(convStore, params.id, '对话不存在', { status: 404 });
     conv.title = body.title.trim().slice(0, 200) || '新对话';

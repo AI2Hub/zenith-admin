@@ -88,7 +88,6 @@ function buildSearchSnippet(msg: ChatMessage): string {
 }
 
 export const chatHandlers = [
-  // 链接预览
   mock(chatContract.linkPreview, ({ query, ok }) => {
     const parsed = new URL(query.url);
     const isImageUrl = /\.(png|jpe?g|gif|webp|bmp|svg)(\?.*)?$/i.test(parsed.pathname);
@@ -129,7 +128,6 @@ export const chatHandlers = [
     });
   }),
 
-  // 会话列表
   mock(chatContract.conversations, ({ ok }) => {
     const data = [...mockChatConversations].sort((a, b) => {
       if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
@@ -143,7 +141,6 @@ export const chatHandlers = [
     return ok(paginate(all));
   }),
 
-  // 全局消息搜索
   mock(chatContract.globalSearch, ({ query, ok, paginate }) => {
     const keyword = query.keyword.toLowerCase();
     const all = mockChatMessages.filter((m) => {
@@ -205,7 +202,6 @@ export const chatHandlers = [
     return ok({ list: batch, hasMore });
   }),
 
-  // 发送消息
   mock(chatContract.sendMessage, ({ params, body, ok }) => {
     const newMsg: ChatMessage = {
       id: getNextMsgId(),
@@ -235,7 +231,6 @@ export const chatHandlers = [
     return ok(newMsg);
   }),
 
-  // 撤回消息
   mock(chatContract.recallMessage, ({ params, ok }) => {
     const msg = requireItem(mockChatMessages, params.id, '消息不存在', { status: 404 });
     if (msg.senderId !== CURRENT_USER_ID) {
@@ -260,7 +255,6 @@ export const chatHandlers = [
     return ok(msg);
   }),
 
-  // 投票
   mock(chatContract.vote, ({ params, body, ok }) => {
     const msg = requireItem(mockChatMessages, params.id, '消息不存在', { status: 404 });
     if (msg.type !== 'vote') return badRequest('该消息不是投票类型', { status: 400 });
@@ -300,7 +294,6 @@ export const chatHandlers = [
     return ok(paginate(all));
   }),
 
-  // 标记已读
   mock(chatContract.markRead, ({ params, ok }) => {
     const conv = mockChatConversations.find((c) => c.id === params.id);
     if (conv) {
@@ -375,7 +368,6 @@ export const chatHandlers = [
     return ok(newConv);
   }),
 
-  // 群成员列表
   mock(chatContract.groupMembers, ({ params, ok }) => {
     const members = [...(mockGroupMembers[params.id] ?? [])].sort((a, b) => {
       const rank = (m: ChatGroupMember) => {
@@ -417,7 +409,6 @@ export const chatHandlers = [
     return ok(null);
   }),
 
-  // 全员禁言开关
   mock(chatContract.setMuteAll, ({ params, body, ok }) => {
     const conv = requireItem(mockChatConversations, params.id, '会话不存在', { status: 404 });
     conv.muteAll = body.muteAll;
@@ -622,7 +613,6 @@ export const chatHandlers = [
     return ok(null);
   }),
 
-  // 添加群成员
   mock(chatContract.addGroupMember, ({ params, body, ok }) => {
     const user = requireItem(mockChatUsers, body.userId, '用户不存在', { status: 404 });
     if (!mockGroupMembers[params.id]) mockGroupMembers[params.id] = [];
@@ -633,7 +623,6 @@ export const chatHandlers = [
     return ok(null);
   }),
 
-  // 移除群成员
   mock(chatContract.removeGroupMember, ({ params, ok }) => {
     if (!mockGroupMembers[params.id]) return notFound('群聊不存在', { status: 404 });
     const item = requireItem(mockGroupMembers[params.id], params.userId, '该用户不在群聊中', { status: 404 });

@@ -375,7 +375,6 @@ export const channelsHandlers = [
     return ok(paginate(all));
   }),
 
-  // 标记频道已读
   mock(channelContract.markRead, ({ params, ok }) => {
     mockChannelMessages.forEach((m) => {
       if (m.channelId === params.id) m.isRead = true;
@@ -624,7 +623,6 @@ export const channelsHandlers = [
     return ok(msg, okMsg);
   }),
 
-  // 群发受众预估
   mock(channelMessageContract.audienceEstimate, ({ body, ok }) => {
     const a = body.audience;
     let count = 88;
@@ -634,7 +632,6 @@ export const channelsHandlers = [
     return ok({ count });
   }),
 
-  // 频道数据看板
   mock(channelDashboardContract.dashboard, ({ ok }) => ok(buildDashboard())),
 
   // ── 订阅（运营号） ────────────────────────────────────────

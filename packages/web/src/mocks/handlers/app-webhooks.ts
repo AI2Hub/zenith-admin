@@ -47,7 +47,6 @@ function createAppWebhookHandlers(contract: AppWebhookContract, paymentScope = f
   return [
     mock(contract.events, ({ ok }) => ok(scopedEvents.map((code) => ({ code, label: OPEN_WEBHOOK_EVENT_LABELS[code] ?? code })))),
 
-    // 投递日志
     mock(contract.deliveries, ({ query, ok, paginate }) => {
       const scopedIds = new Set(subs.filter(inScope).map((subscription) => subscription.id));
       let filtered = deliveries.filter((delivery) => scopedIds.has(delivery.subscriptionId)).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));

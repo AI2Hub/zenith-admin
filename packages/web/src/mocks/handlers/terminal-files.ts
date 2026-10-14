@@ -41,7 +41,6 @@ export const terminalFilesHandlers = [
   // 获取根目录信息 — 页面初始化时调用
   mock(terminalFileContract.rootInfo, ({ ok }) => ok({ home: DEMO_HOME, isWindows: false, drives: [] })),
 
-  // 列目录
   mock(terminalFileContract.list, ({ query, ok }) => {
     const reqPath = (query.path ?? '/').replace(/\/+$/, '') || '/';
 
@@ -68,8 +67,6 @@ export const terminalFilesHandlers = [
   mock(terminalFileContract.copy, demoErr),
   mock(terminalFileContract.compress, demoErr),
   mock(terminalFileContract.chmod, demoErr),
-
-  // 上传
   mock(terminalFileContract.upload, demoErr),
 
   // ── 终端录屏（演示模式返回空列表）─────────────────────────────────────────

@@ -60,7 +60,6 @@ export const dictsHandlers = [
     return ok(mockDictItems.filter((item) => item.dictId === dict.id));
   }),
 
-  // 字典条目详情
   mock(dictContract.itemDetail, ({ params, ok }) => {
     const item = mockDictItems.find((i) => i.id === params.itemId && i.dictId === params.id);
     if (!item) return notFound('字典条目不存在');

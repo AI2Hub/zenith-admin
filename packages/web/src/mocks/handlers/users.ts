@@ -120,7 +120,6 @@ export const usersHandlers = [
     return ok(null, `已删除 ${removed} 个用户`);
   }),
 
-  // 批量修改用户状态
   mock(userContract.batchStatus, ({ body, ok }) => {
     const ids = new Set(body.ids);
     mockUsers.forEach((u) => {
@@ -132,7 +131,6 @@ export const usersHandlers = [
     return ok(null, '状态更新成功');
   }),
 
-  // 批量重置密码
   mock(userContract.batchResetPassword, ({ body, ok }) => {
     const ids = new Set(body.ids);
     mockUsers.forEach((u) => {
@@ -141,14 +139,12 @@ export const usersHandlers = [
     return ok(null, '密码重置成功');
   }),
 
-  // 重置密码
   mock(userContract.resetPassword, ({ params, ok }) => {
     const user = requireItem(mockUsers, params.id, '用户不存在', { status: 404 });
     user.password = DEMO_INITIAL_CREDENTIAL;
     return ok(null, '密码修改成功');
   }),
 
-  // 解锁账号
   mock(userContract.unlock, ({ ok }) => {
     return ok(null, 'success');
   }),
@@ -184,7 +180,6 @@ export const usersHandlers = [
     return ok(null, '删除成功');
   }),
 
-  // 分配用户角色
   mock(userContract.assignRoles, ({ params, body, ok }) => {
     const user = requireItem(mockUsers, params.id, '用户不存在', { status: 404 });
     user.roles = resolveRoles(body.roleIds);

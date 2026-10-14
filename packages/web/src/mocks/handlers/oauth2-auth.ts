@@ -32,7 +32,6 @@ export const oauth2AuthHandlers = [
     });
   }),
 
-  // 用户确认授权
   mock(oauth2AuthContract.authorize, ({ body, ok }) => {
     const code = `mock_code_${Date.now()}`;
     // mock 不需要真正存储 code，直接返回跳转 URL
@@ -58,7 +57,6 @@ export const oauth2AuthHandlers = [
     return HttpResponse.json({ error: 'unsupported_grant_type' }, { status: 400 });
   }),
 
-  // 令牌撤销
   http.post(`${BASE}/token/revoke`, async ({ request: req }) => {
     if (req.headers.has('content-type') || req.headers.has('content-length')) {
       await readFormOrJsonBody(req);
@@ -66,7 +64,6 @@ export const oauth2AuthHandlers = [
     return ok(null, '已撤销');
   }),
 
-  // 令牌自省
   http.post(`${BASE}/token/introspect`, async ({ request: req }) => {
     const body = await readFormOrJsonBody(req);
     const token = body.token ?? '';
@@ -84,7 +81,6 @@ export const oauth2AuthHandlers = [
     });
   }),
 
-  // UserInfo
   http.get(`${BASE}/userinfo`, () => {
     return HttpResponse.json({
       sub: '1',

@@ -12,7 +12,6 @@ function validateLevelHierarchy(level: Region['level'], parentCode: string | nul
 }
 
 export const regionsHandlers = [
-  // 树形数据
   mock(regionContract.tree, ({ query, ok }) => {
     const keyword = query.keyword ?? '';
     const status = query.status ?? '';
@@ -22,10 +21,8 @@ export const regionsHandlers = [
     return ok(data);
   }),
 
-  // 平铺列表
   mock(regionContract.flat, ({ ok }) => ok(mockRegions)),
 
-  // 地区详情
   mock(regionContract.detail, ({ params, ok }) => {
     const region = requireItem(mockRegions, params.id, '地区不存在', { status: 404 });
     return ok(region);

@@ -1715,7 +1715,6 @@ export const workflowHandlers = [
     return ok(null);
   }),
 
-  // 流程定义历史版本列表
   mock(workflowDefinitionContract.versions, ({ params, ok, paginate }) => {
     if (!mockWorkflowDefinitions.some(d => d.id === params.id)) return notFound('流程定义不存在');
     const all = mockWorkflowDefinitionVersions
@@ -1802,7 +1801,6 @@ export const workflowHandlers = [
       .map(({ id, name, status, formType }) => ({ id, name, status, formType })));
   }),
 
-  // 待我审批列表
   mock(workflowInstanceContract.pendingMine, ({ query, ok, paginate, request }) => {
     const actorId = currentMockSession(request)?.user.id ?? 1;
     const keyword = query.keyword ?? '';

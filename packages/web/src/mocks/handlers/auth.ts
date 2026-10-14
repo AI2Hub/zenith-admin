@@ -155,7 +155,6 @@ export const authHandlers = [
     return ok(null, '已退出登录');
   }),
 
-  // 退出登录
   mock(authContract.logout, ({ ok }) => {
     const user = mockUsers[0];
     mockLoginLogs.unshift({

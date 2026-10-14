@@ -12,7 +12,6 @@ import { createNumberedMockPaymentOrder } from '@/mocks/utils/payment-numbering'
 import { recordMockPaymentSucceeded } from './payment-ext';
 
 export const bizPayDemoHandlers = [
-  // 列表
   mock(bizPayDemoContract.list, ({ query, ok, paginate }) => {
     const keyword = (query.keyword ?? '').trim().toLowerCase();
     let list = [...mockBizPayDemos].sort((a, b) => b.id - a.id);
@@ -21,13 +20,11 @@ export const bizPayDemoHandlers = [
     return ok(paginate(list));
   }),
 
-  // 详情
   mock(bizPayDemoContract.detail, ({ params, ok }) => {
     const demo = requireItem(mockBizPayDemos, params.id, '示例单不存在');
     return ok(demo);
   }),
 
-  // 新建
   mock(bizPayDemoContract.create, ({ body, ok }) => {
     const now = mockDateTime();
     const demo: BizPayDemo = {

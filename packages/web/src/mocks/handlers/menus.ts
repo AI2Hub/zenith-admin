@@ -15,7 +15,6 @@ export const menusHandlers = [
     return ok(buildMenuTree(mockMenus.filter((m) => m.status === 'enabled' && m.type !== 'button')));
   }),
 
-  // 平铺菜单列表
   mock(menuContract.flat, ({ ok }) => {
     return ok(mockMenus);
   }),

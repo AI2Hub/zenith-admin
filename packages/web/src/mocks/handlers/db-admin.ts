@@ -327,7 +327,6 @@ export const dbAdminHandlers = [
   mock(dbAdminContract.terminalAvailability, ({ ok }) =>
     ok({ available: false, version: null, reason: 'Demo 模式不支持数据库终端（psql 会话需真实服务端）' })),
 
-  // 表列表
   mock(dbAdminContract.tables, ({ ok }) => {
     return ok(tables.map((t) => {
       const size = tableSize(t);
@@ -338,7 +337,6 @@ export const dbAdminHandlers = [
     }), 'success');
   }),
 
-  // 总览
   mock(dbAdminContract.overview, ({ ok }) => {
     const tableDefs = tables.filter((t) => t.kind === 'table');
     const viewDefs = tables.filter((t) => t.kind !== 'table');
@@ -366,7 +364,6 @@ export const dbAdminHandlers = [
     }, 'success');
   }),
 
-  // 表结构
   mock(dbAdminContract.tableStructure, ({ params, ok }) => {
     const t = findTable(params.schema, params.name);
     if (!t) return notFound('表不存在', { status: 404 });
@@ -378,7 +375,6 @@ export const dbAdminHandlers = [
     }, 'success');
   }),
 
-  // 表数据
   mock(dbAdminContract.tableRows, ({ params, query, ok }) => {
     const t = findTable(params.schema, params.name);
     if (!t) return notFound('表不存在', { status: 404 });
@@ -394,7 +390,6 @@ export const dbAdminHandlers = [
     return ok({ list: filtered.slice(start, start + pageSize), total: filtered.length, page, pageSize }, 'success');
   }),
 
-  // 插入行
   mock(dbAdminContract.insertRow, ({ params, body, ok }) => {
     const t = findTable(params.schema, params.name);
     if (!t) return notFound('表不存在', { status: 404 });
@@ -465,7 +460,6 @@ export const dbAdminHandlers = [
     return ok(null, '已删除');
   }),
 
-  // 截断表
   mock(dbAdminContract.truncateTable, ({ params, ok }) => {
     const t = findTable(params.schema, params.name);
     if (!t) return notFound('表不存在', { status: 404 });
@@ -500,7 +494,6 @@ export const dbAdminHandlers = [
   // 取消查询（Demo 模式下查询瞬时返回，恒为已结束）
   mock(dbAdminContract.cancelQuery, ({ ok }) => ok({ ok: false }, 'success')),
 
-  // 批量导入
   mock(dbAdminContract.importRows, ({ params, body, ok }) => {
     const t = findTable(params.schema, params.name);
     if (!t) return notFound('表不存在', { status: 404 });
@@ -514,7 +507,6 @@ export const dbAdminHandlers = [
     return ok({ inserted: body.rows.length }, 'success');
   }),
 
-  // EXPLAIN
   mock(dbAdminContract.explain, ({ body, ok }) => {
     const analyze = Boolean(body.analyze);
     const plan = {
