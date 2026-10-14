@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button, Checkbox, Dropdown, Toast, Typography } from '@douyinfe/semi-ui';
-import { Download, FileText, ListChecks, RefreshCw, Trash2 } from 'lucide-react';
+import { Download, FileArchive, FileText, ListChecks, RefreshCw, Trash2 } from 'lucide-react';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
 import { NavListPanel, NavListItem, NavListItemActions } from '@/components/NavListPanel';
 import { LogWorkbench } from '@/components/log-workbench/LogWorkbench';
@@ -298,23 +298,14 @@ export default function LogFilesPage() {
                     onChange: (checked) => toggleChecked(file.name, checked),
                     'aria-label': `选择 ${file.name}`,
                   } : undefined}
-                  icon={<FileText size={13} style={{ color: 'var(--semi-color-primary)', flexShrink: 0 }} />}
+                  icon={file.isGzip
+                    ? <FileArchive size={13} style={{ color: 'var(--semi-color-text-2)', flexShrink: 0 }} />
+                    : <FileText size={13} style={{ color: 'var(--semi-color-primary)', flexShrink: 0 }} />}
                   primary={file.name}
                   meta={
                     <>
-                      <span style={{
-                        fontSize: 10,
-                        fontWeight: 600,
-                        padding: '1px 4px',
-                        borderRadius: 'var(--semi-border-radius-small)',
-                        lineHeight: '14px',
-                        background: file.isGzip ? 'var(--semi-color-fill-2)' : 'var(--semi-color-primary-light-default)',
-                        color: file.isGzip ? 'var(--semi-color-text-2)' : 'var(--semi-color-primary)',
-                      }}>
-                        {file.isGzip ? 'gz' : 'log'}
-                      </span>
                       <span>{formatBytes(file.size)}</span>
-                      <span><DateTimeText value={file.modifiedAt} /></span>
+                      <span title={file.modifiedAt}><DateTimeText value={file.modifiedAt} /></span>
                     </>
                   }
                   extra={
