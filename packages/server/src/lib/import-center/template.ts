@@ -39,7 +39,6 @@ export async function buildImportTemplate(title: string, columns: ImportColumnMe
     }
   });
 
-  // 示例行
   const exampleRow = sheet.getRow(2);
   columns.forEach((col, i) => {
     if (col.example) exampleRow.getCell(i + 1).value = col.example;

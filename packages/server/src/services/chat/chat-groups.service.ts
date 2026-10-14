@@ -90,7 +90,6 @@ export async function addGroupMember(conversationId: number, targetUserId: numbe
   const memberCount = await db.$count(chatConversationMembers, eq(chatConversationMembers.conversationId, conversationId));
   if (memberCount >= 20) throw new HTTPException(400, { message: '群成员已达上限（20人）' });
 
-  // 目标用户存在校验
   const target = await fetchUserBrief(targetUserId);
   const targetUser = requireRow(target, '用户不存在');
 

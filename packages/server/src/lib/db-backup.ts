@@ -127,11 +127,9 @@ export async function createDrizzleExportBackup(backupId: number, tables?: strin
     const filename = `drizzle-export-${timestamp}.json`;
     const filePath = path.join(BACKUP_DIR, filename);
 
-    // 导出所有表数据为 JSON
     const { sql } = await import('drizzle-orm');
     const tableList = tables ? tables.split(',').map((t) => t.trim()) : null;
 
-    // 获取所有表名
     const allTables = await db.execute(
       sql`SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE'`,
     );

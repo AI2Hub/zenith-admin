@@ -754,7 +754,6 @@ async function seedRest() {
     // 初始化积分账户（赠送 100 积分）+ 流水
     await db.insert(memberPointAccounts).values({ memberId: demoMember.id, balance: 100, totalEarned: 100 });
     await db.insert(memberPointTransactions).values({ memberId: demoMember.id, type: 'earn', amount: 100, balanceAfter: 100, bizType: 'register', remark: '注册赠送积分' });
-    // 初始化钱包
     await db.insert(memberWallets).values({ memberId: demoMember.id, balance: 0 });
     // 发放一张优惠券
     const [firstCoupon] = await db.select({ id: coupons.id, validDays: coupons.validDays }).from(coupons).limit(1);

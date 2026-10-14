@@ -33,7 +33,6 @@ function fmtNumber(v: number, decimals?: number, prefix?: string, unit?: string)
   return `${prefix ?? ''}${s}${unit ?? ''}`;
 }
 
-/** 排序 + TopN */
 function sortAndLimit(rows: Record<string, unknown>[], o: ReportWidgetOptions): Record<string, unknown>[] {
   let out = rows;
   if (o.sortField) {

@@ -208,7 +208,6 @@ function MasterDetailLayoutImpl(props: Readonly<MasterDetailLayoutProps>) {
   const [internalCollapsed, setInternalCollapsed] = useState(false);
   // 最终折叠状态：collapsedProp 优先（受控），否则用内部状态
   const collapsed = collapsedProp ?? internalCollapsed;
-  // 切换折叠状态
   const handleCollapseToggle = useCallback((next: boolean) => {
     if (onCollapseChange) {
       onCollapseChange(next);

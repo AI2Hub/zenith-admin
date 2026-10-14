@@ -136,7 +136,6 @@ export const storageBrowseQuery = z.object({
   path: z.string().optional().meta({ description: '相对存储根路径的目录，空表示根目录' }),
 });
 
-/** 批量删除的文件 ID 列表 */
 export const fileIdsBody = z.object({
   ids: z.array(z.uuid()).min(1),
 });

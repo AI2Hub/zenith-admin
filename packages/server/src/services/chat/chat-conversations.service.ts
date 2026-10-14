@@ -204,7 +204,6 @@ export async function getOrCreateDirectConversation(targetUserId: number): Promi
     throw new HTTPException(400, { message: '不能与自己创建会话' });
   }
 
-  // 检查对方用户是否存在
   const targetUserRow = await db.query.users.findFirst({
     where: eq(users.id, targetUserId),
     columns: { id: true, nickname: true, avatar: true, phone: true, email: true, departmentId: true },
@@ -245,14 +244,12 @@ export async function getOrCreateDirectConversation(targetUserId: number): Promi
       .limit(1);
 
     if (existing) {
-      // 会话已存在，走 listConversations 并返回对应的
       const all = await listConversations();
       const found = all.find((c) => c.id === existing.conversationId);
       if (found) return found;
     }
   }
 
-  // 创建新会话
   const [conv] = await db.insert(chatConversations).values({
     type: 'direct',
     tenantId: me.tenantId,

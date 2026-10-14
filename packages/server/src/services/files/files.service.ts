@@ -577,7 +577,6 @@ export async function getFileStats() {
     }
   }
 
-  // 上传人用户名映射
   const userMap = await resolveUserNames(uploaderRows.map((r) => r.userId));
 
   const s = summary[0] ?? { totalFiles: 0, totalSize: 0, imageCount: 0, docCount: 0, videoCount: 0, audioCount: 0, todayCount: 0, thisMonthCount: 0 };

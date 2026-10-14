@@ -35,14 +35,12 @@ export function useAiMemoryProfile(enabled = true) {
   return useApiQuery(aiSettingsContract.memoryProfile, { enabled });
 }
 
-/** AI 记忆画像：编辑保存 */
 export function useSaveAiMemoryProfile() {
   return useApiMutation(aiSettingsContract.saveMemoryProfile, {
     invalidate: (qc) => void qc.invalidateQueries({ queryKey: aiSettingsKeys.memoryProfile }),
   });
 }
 
-/** AI 记忆画像：清空 */
 export function useClearAiMemoryProfile() {
   return useApiMutation(aiSettingsContract.clearMemoryProfile, {
     invalidate: (qc) => void qc.invalidateQueries({ queryKey: aiSettingsKeys.memoryProfile }),
@@ -184,7 +182,6 @@ export function getActiveGeneration(convId: number) {
   return api(aiConversationContract.activeGeneration, { params: { id: convId } }, { silent: true });
 }
 
-/** 停止生成 */
 export function cancelGeneration(genId: string) {
   return api(aiGenerationContract.cancel, { params: { genId } }, { silent: true });
 }

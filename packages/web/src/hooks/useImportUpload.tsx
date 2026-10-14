@@ -13,7 +13,6 @@ export interface ImportSubmitTarget {
 export interface UseImportUploadOptions {
   /** 文件选定后决定提交目标；返回 null 表示取消（未选实体 / 前置校验不通过） */
   resolveTarget: () => ImportSubmitTarget | null;
-  /** 导入任务提交成功 */
   onSubmitted: (task: AsyncTask, dryRun: boolean) => void;
 }
 

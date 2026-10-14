@@ -279,7 +279,6 @@ export default function OAuth2AppsPage() {
         {...tableProps}
       />
 
-      {/* 新增 / 编辑抽屉 */}
       <EditFormSheet modal={appModal} width={800}>
         {/* 必填：应用名称（全宽） */}
         <Row gutter={16}>

@@ -221,7 +221,6 @@ export const cacheHandlers = [
     return ok({ count }, `已删除 ${count} 条缓存`);
   }),
 
-  // 删除指定分类下的所有 key
   mock(cacheContract.removeByCategory, ({ body, ok }) => {
     if (!body.segment) {
       return badRequest('参数错误：缺少 segment', { status: 400 });
@@ -230,7 +229,6 @@ export const cacheHandlers = [
     return ok({ count }, `已删除 ${count} 条缓存`);
   }),
 
-  // 删除单个 key
   mock(cacheContract.removeKey, ({ body, ok }) => {
     if (!body.key) {
       return badRequest('参数错误：缺少 key', { status: 400 });
@@ -243,7 +241,6 @@ export const cacheHandlers = [
     return ok(null, '删除成功');
   }),
 
-  // 清空所有缓存
   mock(cacheContract.removeAll, ({ ok }) => {
     const count = mockCacheItems.length;
     mockCacheItems.splice(0, mockCacheItems.length);

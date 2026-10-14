@@ -71,7 +71,6 @@ export const memberLoginSchema = z
     message: '登录参数不完整',
   });
 
-/** 发送短信验证码 */
 export const memberSmsCodeSchema = z.object({
   phone: memberPhoneSchema,
   scene: z.enum(MEMBER_SMS_SCENES).default('login'),

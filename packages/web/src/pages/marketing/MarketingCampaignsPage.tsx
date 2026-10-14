@@ -176,7 +176,6 @@ export default function MarketingCampaignsPage() {
         {...tableProps}
       />
 
-      {/* 新增 / 编辑 */}
       <EditFormModal modal={modal} width={660}>
         <Form.Input field="name" label="活动名称" placeholder="如：新春抽奖 · 天天有礼"
           rules={[{ required: true, message: '活动名称不能为空' }]} />

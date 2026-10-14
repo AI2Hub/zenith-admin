@@ -611,5 +611,4 @@ function readDiskSnapshot(): { at: number; readBytes: number; writeBytes: number
   }
 }
 
-// 单例
 export const metricsSampler = new MetricsSampler();

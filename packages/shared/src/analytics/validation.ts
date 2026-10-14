@@ -491,7 +491,6 @@ export const funnelQuerySchema = z.object({
 /** 漏斗查询（客户端形态：带默认值的字段可省略） */
 export type FunnelQuery = z.input<typeof funnelQuerySchema>;
 
-/** 保存的分析报表配置 */
 export const createAnalyticsSavedReportSchema = z.object({
   name: z.string().min(1).max(128),
   reportType: z.enum(ANALYTICS_SAVED_REPORT_TYPES).default('funnel'),

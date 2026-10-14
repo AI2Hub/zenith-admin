@@ -47,7 +47,6 @@ export const userEvents = pgTable('user_events', {
   clickY: real(),
   scrollDepth: smallint(),
   durationMs: integer(),
-  // 自定义属性袋
   properties: jsonb().$type<Record<string, unknown>>(),
   // 来源
   referrer: varchar({ length: 512 }),

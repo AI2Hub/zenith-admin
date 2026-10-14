@@ -70,7 +70,6 @@ export async function saveBusinessFiles(
   categories?: Record<string, string | null>,
 ) {
   const user = currentUser();
-  // 删除旧关联
   await executor
     .delete(businessFiles)
     .where(
@@ -98,7 +97,6 @@ export async function saveBusinessFiles(
     throw new HTTPException(400, { message: '部分文件不存在或无权关联' });
   }
 
-  // 插入新关联
   await executor.insert(businessFiles).values(
     fileIds.map((fileId, index) => ({
       businessType,

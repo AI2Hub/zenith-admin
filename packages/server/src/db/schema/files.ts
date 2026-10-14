@@ -29,7 +29,6 @@ export const fileStorageConfigs = pgTable('file_storage_configs', {
   basePath: varchar({ length: 256 }),
   // 上传对象的读写权限，仅 oss/s3/cos/obs/bos 生效
   objectAcl: fileObjectAclEnum().notNull().default('default'),
-  // 文件访问 URL 策略
   urlStrategy: fileUrlStrategyEnum().notNull().default('proxy'),
   // 自定义访问域名（CDN/加速域名），public 策略优先使用
   publicBaseUrl: varchar({ length: 512 }),

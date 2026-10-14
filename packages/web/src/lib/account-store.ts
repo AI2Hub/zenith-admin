@@ -75,7 +75,6 @@ export function takeParkedAccount(userId: number): StoredAccount | null {
   return found;
 }
 
-/** 移除指定停靠账号 */
 export function removeParkedAccount(userId: number): void {
   const all = readAll();
   const next = all.filter((a) => a.userId !== userId);

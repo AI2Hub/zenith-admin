@@ -16,7 +16,6 @@ export default function SiteMoveModal({ site, onClose }: Readonly<SiteMoveModalP
   const { data: allSites } = useAllCmsSites();
   const moveSiteMutation = useMoveCmsSite();
 
-  // 打开时以当前父级为初值
   useEffect(() => {
     setParentId(site?.parentId ?? null);
   }, [site]);

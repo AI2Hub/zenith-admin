@@ -36,7 +36,6 @@ export function SettingRow({ title, description, control, overridden, extra, sty
   );
 }
 
-/** 设置分组标题 */
 export function SettingSection({ title, description, children }: { readonly title: ReactNode; readonly description?: ReactNode; readonly children: ReactNode }) {
   return (
     <section>

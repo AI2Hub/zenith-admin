@@ -12,7 +12,6 @@ export type ChannelSubscribersParams = NonNullable<QueryOf<typeof channelContrac
 /** 群发 / 编辑草稿共用的请求体（`publishChannelSchema`） */
 export type ChannelPublishValues = NonNullable<BodyOf<typeof channelMessageContract.publish>>;
 
-/** 新建自动回复的请求体 */
 export type ChannelAutoReplyCreateValues = NonNullable<BodyOf<typeof channelContract.createAutoReply>>;
 
 /** 编辑自动回复的请求体（省略 matchType） */

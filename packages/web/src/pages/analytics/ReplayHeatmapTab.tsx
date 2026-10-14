@@ -102,7 +102,6 @@ export default function ReplayHeatmapTab() {
   const baseReplayQuery = useReplayList({ page: 1, pageSize: 1, pagePath });
   const baseReplay = pagePath && !baseFailed && showBase ? (baseReplayQuery.data?.list[0] ?? null) : null;
 
-  // 切换页面时重置底图失败标记
   useEffect(() => { setBaseFailed(false); }, [pagePath]);
 
   const maxCount = useMemo(

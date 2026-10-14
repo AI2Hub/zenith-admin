@@ -112,7 +112,6 @@ describe('ensurePem', () => {
   });
 
   it('裸 base64 应被规整为正确 PEM 格式（PRIVATE KEY）', () => {
-    // 生成一段 base64 字符串（不含 PEM 头）
     const raw = Buffer.from('fake-private-key-bytes'.repeat(5)).toString('base64');
     const result = ensurePem(raw, 'PRIVATE KEY');
     expect(result).toMatch(/^-----BEGIN PRIVATE KEY-----/);

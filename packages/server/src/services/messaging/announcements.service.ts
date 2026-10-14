@@ -381,7 +381,6 @@ export async function createAnnouncement(data: CreateAnnouncementInput) {
     }).returning();
     const recipientList = data.targetType === 'specific' ? (data.recipients ?? []) : [];
     await saveRecipients(tx, inserted.id, recipientList);
-    // 保存附件关联
     if (data.fileIds && data.fileIds.length > 0) {
       await saveAnnouncementAttachments(tx, inserted.id, data.fileIds);
     }
@@ -448,7 +447,6 @@ export async function updateAnnouncement(id: number, data: Partial<CreateAnnounc
       const recipientList = newTargetType === 'specific' ? (data.recipients ?? []) : [];
       await saveRecipients(tx, id, recipientList);
     }
-    // 更新附件关联
     if (data.fileIds !== undefined) {
       await saveAnnouncementAttachments(tx, id, data.fileIds);
     }

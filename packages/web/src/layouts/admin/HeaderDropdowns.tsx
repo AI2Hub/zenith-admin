@@ -6,7 +6,6 @@ import type { ThemeMode } from '@/hooks/useTheme';
 import { usePreferences } from '@/hooks/usePreferences';
 import { themeLabelMap } from './constants';
 
-// 颜色模式切换下拉
 export function ThemeModeDropdown({
   mode,
   handleThemeModeChange,

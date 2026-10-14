@@ -198,12 +198,10 @@ export default function FileAttachment({
     }
   }, []);
 
-  /** 从 FileItem 恢复 AttachmentItem */
   const toAttachmentItem = useCallback((fileItem: FileItem): AttachmentItem => {
     return fileItem as unknown as AttachmentItem;
   }, []);
 
-  /** 下载文件 */
   const downloadFile = useCallback(async (item: AttachmentItem) => {
     try {
       const blob = await fetchManagedFileBlob(item.file.url);
@@ -218,7 +216,6 @@ export default function FileAttachment({
     }
   }, []);
 
-  /** 预览文件 */
   const handlePreviewFile = useCallback(
     async (item: AttachmentItem) => {
       const mimeType = resolveFileMimeType(item.file.mimeType, item.file.originalName);
@@ -421,7 +418,6 @@ export default function FileAttachment({
     [toAttachmentItem, handlePreviewFile, downloadFile, isEditMode],
   );
 
-  /** 上传成功 */
   const handleSuccess = useCallback(
     (res: unknown, _file: File, nextFileList: FileItem[]) => {
       const r = res as {
@@ -478,7 +474,6 @@ export default function FileAttachment({
     [],
   );
 
-  /** 上传前校验 */
   const handleBeforeUpload = useCallback(
     ({ file }: { file: FileItem }) => {
       const fileSize = file.fileInstance?.size ?? Number(file.size);
@@ -496,7 +491,6 @@ export default function FileAttachment({
     [maxSizeMB, limit, fileList.length],
   );
 
-  /** 上传进度 */
   const handleProgress = useCallback(
     (_percent: number, _file: File, nextFileList: FileItem[]) => {
       setFileList(nextFileList);
@@ -504,7 +498,6 @@ export default function FileAttachment({
     [],
   );
 
-  /** 上传失败 */
   const handleError = useCallback(
     (_error: unknown, _file: File, nextFileList: FileItem[]) => {
       setFileList(nextFileList);
@@ -513,7 +506,6 @@ export default function FileAttachment({
     [finishUpload],
   );
 
-  /** 超出上传数量限制 */
   const handleExceed = useCallback(() => {
     if (limit > 0) {
       Toast.warning(`最多上传 ${limit} 个文件`);

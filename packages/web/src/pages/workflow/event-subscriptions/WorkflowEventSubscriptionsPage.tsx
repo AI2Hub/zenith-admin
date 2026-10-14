@@ -80,7 +80,6 @@ export default function WorkflowEventSubscriptionsPage() {
     value: cn.id, label: `${cn.name}（${cn.type}${cn.status === 'disabled' ? '，已停用' : ''}）`,
   }));
 
-  // 编辑弹窗
   const saveMutation = useSaveWorkflowEventSubscription();
   const toggleMutation = useToggleWorkflowEventSubscription();
   const testMutation = useTestWorkflowEventSubscription();

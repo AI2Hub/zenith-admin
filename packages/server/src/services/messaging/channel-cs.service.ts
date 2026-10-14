@@ -410,7 +410,6 @@ export async function listChannelConversations(channelId: number, filter: Conver
   const userMap = new Map(userRows.map((u) => [u.id, u]));
   const convMap = new Map(convRows.map((c) => [c.userId, c]));
 
-  // 收集所有指派客服名
   const assigneeIds = [...new Set(convRows.map((c) => c.assigneeId).filter((x): x is number => x != null))];
   const assigneeNameMap = await getUserNames(assigneeIds);
 
@@ -444,7 +443,6 @@ export async function listChannelConversations(channelId: number, filter: Conver
     };
   });
 
-  // 筛选
   if (filter.status) convos = convos.filter((c) => c.status === filter.status);
   if (filter.assignee === 'mine') convos = convos.filter((c) => c.assigneeId === me);
   else if (filter.assignee === 'unassigned') convos = convos.filter((c) => c.assigneeId == null);

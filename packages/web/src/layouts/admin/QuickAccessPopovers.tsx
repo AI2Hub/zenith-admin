@@ -3,7 +3,6 @@ import { Star, X } from 'lucide-react';
 import type { NavigateFunction } from 'react-router-dom';
 import type { FlatMenuItem } from '@/components/MenuSearchInput';
 
-// 收藏菜单快捷入口
 export function FavoritesPopover({
   favorites,
   flatMenus,

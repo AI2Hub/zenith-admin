@@ -649,7 +649,6 @@ class TerminalSessionStore {
 
   // ── 右键菜单操作 ──────────────────────────────────────────────────────────
 
-  /** 获取当前选中文本 */
   getSelection(sessionId: string): string {
     return this.sessions.get(sessionId)?.term.getSelection() ?? '';
   }
@@ -671,7 +670,6 @@ class TerminalSessionStore {
     session.term.focus();
   }
 
-  /** 全选终端缓冲区 */
   selectAll(sessionId: string): void {
     const session = this.sessions.get(sessionId);
     if (!session) return;
@@ -687,7 +685,6 @@ class TerminalSessionStore {
     session.term.focus();
   }
 
-  /** 聚焦终端 */
   focus(sessionId: string): void {
     this.sessions.get(sessionId)?.term.focus();
   }

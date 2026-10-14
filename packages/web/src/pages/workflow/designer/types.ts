@@ -78,7 +78,6 @@ export type RejectStrategy =
 /** 审批意见要求；签名策略由 signaturePolicy 独立定义。 */
 export type OperationPermission = 'opinionRequired';
 
-/** 表单字段权限 */
 export type FieldPermission = 'read' | 'edit' | 'hidden';
 
 /** 审批操作按钮 key */

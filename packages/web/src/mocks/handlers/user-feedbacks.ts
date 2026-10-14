@@ -7,7 +7,6 @@ import { removeByIds } from '@/mocks/utils/crud';
 import { filterByKeyword } from '@/mocks/utils/filter';
 
 export const userFeedbacksHandlers = [
-  // 分页列表 + 筛选
   mock(userFeedbackContract.list, ({ query, ok, paginate }) => {
     const { keyword, category, status, startTime, endTime } = query;
     let list = [...mockUserFeedbacks].sort((a, b) => b.id - a.id);
@@ -19,7 +18,6 @@ export const userFeedbacksHandlers = [
     return ok(paginate(list));
   }),
 
-  // 提交反馈
   mock(userFeedbackContract.submit, ({ body, ok }) => {
     const now = mockDateTime();
     const newFeedback: UserFeedback = {
@@ -43,7 +41,6 @@ export const userFeedbacksHandlers = [
     return ok(newFeedback, '感谢您的反馈');
   }),
 
-  // 处理反馈
   mock(userFeedbackContract.handle, ({ params, body, ok }) => {
     const feedback = mockUserFeedbacks.find((f) => f.id === params.id);
     if (!feedback) {

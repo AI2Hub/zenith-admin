@@ -359,7 +359,6 @@ export const filesHandlers = [
     return ok(null, '删除成功');
   }),
 
-  // 设置默认存储
   mock(fileStorageConfigContract.setDefault, ({ params, ok }) => {
     const target = requireItem(mockFileStorageConfigs, params.id, '存储配置不存在');
     mockFileStorageConfigs.forEach((c) => { c.isDefault = c.id === params.id; });

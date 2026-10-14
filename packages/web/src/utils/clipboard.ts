@@ -60,7 +60,6 @@ export interface CopyFeedback {
   error?: string;
 }
 
-/** 复制文本并用 Toast 反馈结果 */
 export async function copyTextWithToast(text: string, feedback: CopyFeedback = {}): Promise<boolean> {
   const ok = await copyText(text);
   if (ok) Toast.success(feedback.success ?? '已复制');

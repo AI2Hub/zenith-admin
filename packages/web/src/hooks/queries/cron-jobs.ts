@@ -140,7 +140,6 @@ export function useClearCronJobLogs() {
   return useApiMutation(cronJobContract.clearLogs, { invalidate: invalidateAfterLogsCleared });
 }
 
-/** 清除单个任务的执行日志 */
 export function useClearCronJobLogsOfJob() {
   return useApiMutation(cronJobContract.clearJobLogs, { invalidate: invalidateAfterLogsCleared });
 }

@@ -38,7 +38,6 @@ export function useMyInAppMessages() {
   });
 }
 
-/** 我的站内信未读数 */
 export function useMyInAppMessageUnreadCount() {
   return useApiQuery(inAppMessageContract.unreadCount, {
     requestOptions: silent,

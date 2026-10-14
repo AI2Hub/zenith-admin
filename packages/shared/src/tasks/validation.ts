@@ -13,7 +13,6 @@ export const createExportJobSchema = z.object({
 
 export type CreateExportJobInput = z.infer<typeof createExportJobSchema>;
 
-/** 提交数据导入任务 */
 export const submitImportJobSchema = z.object({
   entity: z.string().min(1).max(64),
   /** 文件中心 fileId（先经 `fileContract.upload` 上传） */
@@ -26,7 +25,6 @@ export const submitImportJobSchema = z.object({
 
 export type SubmitImportJobInput = z.infer<typeof submitImportJobSchema>;
 
-/** 更新任务类型运行时策略 */
 export const updateAsyncTaskTypePolicySchema = z.object({
   enabled: z.boolean(),
   allowConcurrent: z.boolean(),
@@ -37,7 +35,6 @@ export const updateAsyncTaskTypePolicySchema = z.object({
 
 export type UpdateAsyncTaskTypePolicyInput = z.infer<typeof updateAsyncTaskTypePolicySchema>;
 
-/** 提交演示异步任务 */
 export const submitTaskDemoSchema = z.object({
   taskType: z.enum(TASK_DEMO_TYPES),
   totalItems: z.number().int().min(1).max(10000).optional(),

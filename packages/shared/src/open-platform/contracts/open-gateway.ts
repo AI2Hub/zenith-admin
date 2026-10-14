@@ -18,7 +18,6 @@ export const openGatewayPingSchema = z.object({
 
 export type OpenGatewayPing = z.infer<typeof openGatewayPingSchema>;
 
-/** 查询参数回显 */
 export const openGatewayQueryEchoSchema = z.object({
   query: z.record(z.string(), z.string()),
 }).meta({ id: 'OpenGatewayQueryEcho' });

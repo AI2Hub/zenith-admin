@@ -251,7 +251,6 @@ export async function registerMember(input: MemberRegisterServiceInput): Promise
       rethrowPgUniqueViolation(err, '用户名、手机号或邮箱已被注册');
       throw err;
     }
-    // 初始化积分账户 + 钱包账户
     await tx.insert(memberPointAccounts).values({ memberId: created.id });
     await tx.insert(memberWallets).values({ memberId: created.id });
     return created;

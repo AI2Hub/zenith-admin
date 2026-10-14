@@ -350,7 +350,6 @@ function buildFocusDiagnosis(diagnostics: WorkflowRuntimeDiagnostics, diagNodes:
   };
 }
 
-/** 状态统计卡片 */
 export default function WorkflowMonitorPage() {
   const [activeTab, setActiveTab] = useUrlTabState(['list', 'tasks', 'analytics', 'engine', 'jobs', 'compensations'] as const, 'list');
   const [initialJobStatus, setInitialJobStatus] = useState<WorkflowJobStatus | undefined>();

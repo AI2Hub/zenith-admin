@@ -87,7 +87,6 @@ function applyBatchToFields(fields: WorkflowFormField[], patch: Partial<Workflow
 export interface WorkflowFormInlineEditorProps {
   /** 表单 id；null 表示新建 */
   formId: number | null;
-  /** 保存成功回调，返回最新表单实体 */
   onSaved: (form: WorkflowForm) => void;
   onBack?: () => void;
   /** 返回按钮文案，默认「返回」 */

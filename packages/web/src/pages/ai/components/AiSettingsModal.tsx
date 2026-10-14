@@ -36,7 +36,6 @@ export default function AiSettingsModal({ visible, initialTab = 'instructions', 
     if (visible && settingsQuery.data) setFormKey((k) => k + 1);
   }, [visible, settingsQuery.data]);
 
-  // 打开时定位到调用方指定的 Tab
   useEffect(() => {
     if (visible) setActiveTab(initialTab);
   }, [visible, initialTab]);

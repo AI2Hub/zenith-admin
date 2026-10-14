@@ -29,7 +29,6 @@ import CmsFeedbackList, { useCmsHandlingPolicyEditor } from './CmsFeedbackList';
 
 const FIELD_TYPE_OPTIONS = CMS_FORM_FIELD_TYPES.map((t) => ({ value: t, label: CMS_FORM_FIELD_TYPE_LABELS[t] }));
 
-/** 提交数据抽屉 */
 function SubmissionsSheet({ form, onClose }: Readonly<{ form: CmsForm | null; onClose: () => void }>) {
   const { hasPermission } = usePermission();
   const { page, pageSize, buildPagination } = usePagination(10);

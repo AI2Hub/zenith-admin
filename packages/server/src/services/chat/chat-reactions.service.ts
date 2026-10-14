@@ -90,7 +90,6 @@ export async function submitVote(messageId: number, optionIds: string[]): Promis
   if (sanitized.length === 0) throw new HTTPException(400, { message: '请选择有效选项' });
   if (!voteData.isMultiple && sanitized.length > 1) throw new HTTPException(400, { message: '单选投票只能选择一个选项' });
 
-  // 获取当前用户昵称
   const currentUserRow = await db.query.users.findFirst({
     where: eq(users.id, me.userId),
     columns: { nickname: true },

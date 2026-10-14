@@ -238,7 +238,6 @@ const channelRichReplyExtraSchema = z.object({
   bodyHtml: z.string().max(200000).nullable().optional(),
 });
 
-/** 新建频道自动回复规则 */
 export const createChannelAutoReplySchema = z
   .object({
     matchType: z.enum(CHANNEL_AUTO_REPLY_MATCH_TYPES),
@@ -269,7 +268,6 @@ export const createChannelAutoReplySchema = z
 
 export type CreateChannelAutoReplyInput = z.infer<typeof createChannelAutoReplySchema>;
 
-/** 更新频道自动回复规则 */
 export const updateChannelAutoReplySchema = z
   .object({
     keyword: z.string().max(100).nullable().optional(),
@@ -293,12 +291,10 @@ export const createChannelQuickReplySchema = z.object({
 
 export type CreateChannelQuickReplyInput = z.infer<typeof createChannelQuickReplySchema>;
 
-/** 更新客服快捷回复 */
 export const updateChannelQuickReplySchema = partialForUpdate(createChannelQuickReplySchema);
 
 export type UpdateChannelQuickReplyInput = z.infer<typeof updateChannelQuickReplySchema>;
 
-/** 新建群发消息模板 */
 export const createChannelTemplateSchema = z.object({
   name: z.string().min(1, '模板名称不能为空').max(100),
   type: z.enum(['text', 'image', 'news']).default('text'),
@@ -309,7 +305,6 @@ export const createChannelTemplateSchema = z.object({
 
 export type CreateChannelTemplateInput = z.infer<typeof createChannelTemplateSchema>;
 
-/** 更新群发消息模板 */
 export const updateChannelTemplateSchema = partialForUpdate(createChannelTemplateSchema);
 
 export type UpdateChannelTemplateInput = z.infer<typeof updateChannelTemplateSchema>;

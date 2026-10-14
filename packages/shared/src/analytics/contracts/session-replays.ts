@@ -160,7 +160,6 @@ export const replayAccessLogListQuery = paginationQuery.extend({
   keyword: keywordQuery(),
 });
 
-/** 批量删除的回放会话 ID 列表 */
 export const replayIdsBody = z.object({
   ids: z.array(z.uuid()).min(1).max(100),
 });

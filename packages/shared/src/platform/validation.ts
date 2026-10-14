@@ -377,7 +377,6 @@ export const setMonitorAlertRuleEnabledSchema = z.object({
   enabled: z.boolean(),
 });
 
-/** 批量操作的告警规则 ID 列表 */
 export const monitorAlertRuleIdsBody = z.object({
   ids: z.array(z.number().int().positive()).min(1, '请至少选择一条规则').max(200),
 });

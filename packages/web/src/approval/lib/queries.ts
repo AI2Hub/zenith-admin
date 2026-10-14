@@ -131,7 +131,6 @@ export function useUrgeInstance() {
   });
 }
 
-/** 抄送已读标记 */
 export function useMarkCcRead() {
   const qc = useQueryClient();
   return useMutation({

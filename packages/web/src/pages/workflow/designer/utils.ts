@@ -7,7 +7,6 @@ import { DEFAULT_BRANCH_COUNT } from './constants';
 
 let idCounter = 0;
 
-/** 生成唯一节点 ID */
 export function genId(prefix = 'node'): string {
   idCounter += 1;
   return `${prefix}_${Date.now()}_${idCounter}`;
@@ -26,7 +25,6 @@ export function createDefaultProcess(): FlowProcess {
   };
 }
 
-/** 创建一个简单节点 */
 export function createNode(type: FlowNode['type'], name?: string): FlowNode {
   const node: FlowNode = {
     id: genId(type),
@@ -68,7 +66,6 @@ export function createNode(type: FlowNode['type'], name?: string): FlowNode {
   return node;
 }
 
-/** 创建一个分支 */
 export function createBranch(parentType: BranchNodeType, index: number): FlowBranch {
   let name: string;
   if (parentType === 'conditionBranch') name = `条件${index}`;
@@ -222,7 +219,6 @@ function removeNodeRecursive(node: FlowNode, targetId: string): void {
   }
 }
 
-/** 更新指定节点的属性 */
 export function updateNode(
   process: FlowProcess,
   nodeId: string,
@@ -241,7 +237,6 @@ export function updateNode(
   return cloned;
 }
 
-/** 更新指定分支 */
 export function updateBranch(
   process: FlowProcess,
   branchId: string,
@@ -274,7 +269,6 @@ export function resetRouteCaseValues(process: FlowProcess, routeNodeId: string):
   return cloned;
 }
 
-/** 添加分支到分支节点 */
 export function addBranch(process: FlowProcess, branchNodeId: string, newBranch: FlowBranch): FlowProcess {
   const cloned = deepClone(process);
   const node = findNodeById(cloned.initiator, branchNodeId);
@@ -324,7 +318,6 @@ export function moveBranch(
   return cloned;
 }
 
-/** 删除分支 */
 export function removeBranch(process: FlowProcess, branchNodeId: string, branchId: string): FlowProcess {
   const cloned = deepClone(process);
   const node = findNodeById(cloned.initiator, branchNodeId);

@@ -54,7 +54,6 @@ function createWindow() {
     backgroundColor: '#ffffff',
   });
 
-  // 加载前端
   if (isDev) {
     // 开发模式：连接 Vite dev server
     mainWindow.loadURL(DEV_SERVER_ORIGIN).catch(console.error);
@@ -64,7 +63,6 @@ function createWindow() {
     mainWindow.loadFile(resolveWebIndexPath()).catch(console.error);
   }
 
-  // 加载完毕后显示窗口
   mainWindow.once('ready-to-show', () => {
     mainWindow?.show();
     mainWindow?.focus();
