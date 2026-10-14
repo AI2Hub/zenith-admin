@@ -106,7 +106,7 @@ describe('路由装配', () => {
   });
 
   it('OpenAPI 文档暴露了预期规模的操作', () => {
-    // 下界防止「路由域整体没挂上」这类静默失败——曾经的 fallback 挂载顺序问题
+    // 下界防止「路由域整体没挂上」这类静默失败（如 fallback 挂载顺序问题）
     // 就属于这一类：CMS SSR 挂在 '/' 会吞掉一切未匹配路径。
     expect(operations.length).toBeGreaterThan(1500);
   });

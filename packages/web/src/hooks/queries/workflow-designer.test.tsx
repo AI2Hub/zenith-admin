@@ -1,7 +1,7 @@
 /**
  * 设计器 lookup 归属所有者域：连接器下拉的 key 由 workflowConnectorContract.list 派生，
- * 连接器管理页保存后随 lists 前缀一起回源。曾经它藏在 ['workflow','designer','connectors','options'] 下，
- * 只有 ['workflow'] 全域广播才碰得到，连接器改名后设计器里最长 5 分钟显示旧名。
+ * 连接器管理页保存后随 lists 前缀一起回源（不另存 ['workflow','designer','connectors','options']，
+ * 否则连接器改名后设计器里最长 5 分钟显示旧名）。
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';

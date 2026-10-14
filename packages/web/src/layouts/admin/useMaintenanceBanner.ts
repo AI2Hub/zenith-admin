@@ -14,7 +14,7 @@ export function useMaintenanceBanner(isSuperAdmin: boolean) {
   const updateMutation = useUpdateMaintenanceStatus();
 
   // http-client 在 React 树之外拦截 503，只能靠事件通知；这里把事件降级为纯失效触发器，
-  // 状态本身仍由查询缓存唯一持有（此前是各自 setState，导致多处状态可能不一致）。
+  // 状态本身仍由查询缓存唯一持有（不各自 setState，避免多处状态不一致）。
   useEffect(() => {
     if (!isSuperAdmin) return;
     const handler = () => void queryClient.invalidateQueries({ queryKey: maintenanceKeys.publicStatus });

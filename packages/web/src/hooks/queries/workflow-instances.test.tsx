@@ -1,7 +1,6 @@
 /**
- * 实例侧 mutation 的失效范围：曾经全部 invalidateQueries(['workflow']) 广播，
- * 契约 key 下改为按真实副作用逐项失效 —— 撤回牵动申请 / 已办 / 待办，草稿编辑只动申请列表与详情，
- * 标记抄送已读只动抄送列表与未读数。
+ * 实例侧 mutation 的失效范围：按真实副作用逐项失效 —— 撤回牵动申请 / 已办 / 待办，草稿编辑只动申请列表与详情，
+ * 标记抄送已读只动抄送列表与未读数（不用 invalidateQueries(['workflow']) 全域广播）。
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';

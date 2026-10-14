@@ -11,8 +11,7 @@
  * - task.transferred                 → 通知新处理人
  * - instance.approved/rejected/withdrawn/returned → 通知发起人
  *
- * 站内信此前是直接 insert 到 in_app_messages 的，绕过了幂等与派发留痕；
- * 收口到 `notify()` 之后这两件事自动具备。
+ * 站内信走 `notify()` 统一派发，幂等与派发留痕自动具备（不直写 in_app_messages）。
  */
 import { eq } from 'drizzle-orm';
 import type {

@@ -48,7 +48,7 @@ type MemberJwtCheck =
 // ─── 主体权威行的进程内副本 ──────────────────────────────────────────────────
 /**
  * 与管理员侧 `middleware/auth.ts` 的 `subjectRows` 同构：会员每个已认证请求（含 CMS 前台带会员 token 的页面请求）
- * 都要重读会员 / 所属租户权威行，此前是会员请求链上唯一未缓存的每请求 PG 查询。
+ * 都要重读会员 / 所属租户权威行（进程内缓存，避免会员请求链上每请求一次 PG 查询）。
  *
  * - 失效以 `members` / `tenants` 表触发器经 `cache_invalidate` 总线广播为准
  *   （`0001_extensions.sql` 的 members 触发器），TTL 只是 NOTIFY 不可用时的兜底；

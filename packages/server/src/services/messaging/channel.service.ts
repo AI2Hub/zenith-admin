@@ -190,9 +190,8 @@ async function loadSubscriptionMap(userId: number, executor: DbExecutor = db): P
 }
 
 /**
- * 批量装配频道视图：未读数与最后一条消息按频道集合一次聚合，查询数与频道数无关（固定 3 条）。
- * 曾经逐频道 `findFirst` + 两次 `$count` + 取尾消息（每频道 4 次、`Promise.all` 一次打满连接池），
- * 频道列表与「发现频道」搜索每次都要为全部可见频道付这笔账。
+ * 批量装配频道视图：未读数与最后一条消息按频道集合一次聚合，查询数与频道数无关（固定 3 条），
+ * 不逐频道 `findFirst` + 两次 `$count` + 取尾消息（后者每频道 4 次、`Promise.all` 一次打满连接池）。
  *
  * - 广播未读：与该用户的订阅行 LEFT JOIN，`created_at > last_read_at`（无订阅 / 未读过 → 全部计入），与旧语义一致；
  * - 定向未读：`channel_message_targets` 本人未读 ⋈ 频道为 `targeted` 的已发送未撤回消息；

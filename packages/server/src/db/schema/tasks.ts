@@ -99,8 +99,8 @@ export const asyncTasks = pgTable('async_tasks', {
    * 幂等键：相同 key 的重复提交返回已存在任务。
    *
    * 作用域是 (tenant_id, created_by, task_type, idempotency_key)，见下方唯一索引——
-   * 此前是单列全局唯一，任意租户的任意用户只要撞上 key 就能拿回别人的任务行
-   * （含 payload / result）。
+   * 不用单列全局唯一（否则任意租户的任意用户撞上 key 就能拿回别人的任务行
+   * （含 payload / result））。
    */
   idempotencyKey: varchar({ length: 128 }),
   /** 执行心跳（progress 更新时刷新），兜底扫描据此回收卡死任务 */

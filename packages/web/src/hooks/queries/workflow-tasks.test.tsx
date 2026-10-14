@@ -1,7 +1,7 @@
 /**
  * 任务动作的失效范围：批量审批 / 面板动作后，待办列表即时移除成功行并回源，
  * 监控列表（同屏挂载时）回源；已发布定义下拉等编辑态 / lookup 查询不受波及。
- * 曾经这里是 invalidateQueries(['workflow']) 全域广播，契约 key 下该前缀什么也匹配不到。
+ * 不用 invalidateQueries(['workflow']) 全域广播（契约 key 下该前缀什么也匹配不到）。
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
