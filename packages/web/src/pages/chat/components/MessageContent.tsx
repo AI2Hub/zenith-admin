@@ -4,6 +4,7 @@ import { getMessageExtra, renderTextWithMentions } from '../utils';
 import type { ChatMessage, ChatMessageExtra, ChatCardAction } from '@zenith/shared/chat';
 import { VoiceMessage } from './VoiceMessage';
 import { VideoMessage } from './VideoMessage';
+import { ChatImageMessage } from './ChatImageMessage';
 import { CardMessage } from './CardMessage';
 import { DataBar } from '@/components/data-viz/DataBar';
 import { safeHttpUrl, safeLinkUrl } from '@/utils/safe-url';
@@ -104,17 +105,13 @@ export function MessageContent({
 
   if (msg.type === 'image') {
     return (
-      <button
-        type="button"
-        onClick={() => onOpenImage?.(msg)}
-        style={{ background: 'transparent', padding: 0, border: 'none', borderRadius: 0, cursor: 'zoom-in' }}
-      >
-        <img
-          src={safeLinkUrl(asset?.thumbnailUrl ?? msg.content)}
-          alt={asset?.name ?? '图片'}
-          style={{ maxWidth: 240, maxHeight: 200, borderRadius: 0, display: 'block', cursor: 'zoom-in', border: 'none', boxShadow: 'none' }}
-        />
-      </button>
+      <ChatImageMessage
+        src={asset?.thumbnailUrl ?? msg.content}
+        name={asset?.name}
+        width={asset?.width}
+        height={asset?.height}
+        onOpen={() => onOpenImage?.(msg)}
+      />
     );
   }
 

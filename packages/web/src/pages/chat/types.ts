@@ -32,6 +32,9 @@ export interface PendingImage {
   id: string;
   file: File;
   previewUrl: string;
+  /** 选图时异步解析的本地尺寸，用于上传占位与最终消息等高 */
+  width?: number | null;
+  height?: number | null;
 }
 
 export interface PendingFile {
@@ -47,6 +50,9 @@ export interface UploadingItem {
   size: number;
   /** 仅 image 类型有效：本地 object URL 用于即时预览 */
   previewUrl?: string;
+  /** 图片本地尺寸（有值时上传占位与最终消息等比等大，消除发送完成时的跳动） */
+  width?: number | null;
+  height?: number | null;
   mimeType?: string | null;
   convId: number;
   /** 上传进度 0-100，未开始时为 undefined */

@@ -12,6 +12,29 @@ import { getFileExtension, getImageDimensions } from '../utils';
 import type { Setter } from '../types';
 import { useVoiceRecorder } from '../useVoiceRecorder';
 
+/** 预热远端图片到浏览器缓存：发送落库前完成解码，消息进列表时直接命中缓存、不闪白 */
+function preloadRemoteImage(url: string, timeoutMs = 4000): Promise<void> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
+    const timer = setTimeout(finish, timeoutMs);
+    try {
+      const img = new Image();
+      img.decoding = 'async';
+      img.onload = () => { clearTimeout(timer); finish(); };
+      img.onerror = () => { clearTimeout(timer); finish(); };
+      img.src = url;
+    } catch {
+      clearTimeout(timer);
+      finish();
+    }
+  });
+}
+
 /** 文件/图片/贴纸/语音发送、正在输入节流、链接预览抓取（自 ChatPage 原样搬移） */
 export function useSendMedia({
   activeConvId, currentUserId, currentUserNickname, appendMessageOnce, addEmojiMutation,
@@ -105,6 +128,8 @@ export function useSendMedia({
       return false;
     }
     const { url, originalName, size } = uploadRes.data;
+    // 先预热远端图片再落库：上传占位仍在，消息进列表时图片已在缓存中，直接显示不闪烁
+    await preloadRemoteImage(url);
     const asset: ChatAssetMeta = {
       kind: 'image',
       name: originalName,

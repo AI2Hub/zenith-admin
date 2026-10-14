@@ -4,6 +4,32 @@ import { escapeRegExp } from '@zenith/shared/core';
 
 export const MESSAGE_TIME_GROUP_GAP_MS = 5 * 60 * 1000;
 
+/** 图片消息展示上限（与历史渲染的 maxWidth/maxHeight 对齐） */
+export const CHAT_IMAGE_MAX_WIDTH = 240;
+export const CHAT_IMAGE_MAX_HEIGHT = 200;
+
+/**
+ * 按素材宽高比折算展示盒尺寸（等比、不放大）。
+ * 有宽高时返回精确盒，消息渲染与上传占位共用，保证发送完成时两者等高、无跳动；
+ * 缺宽高（老数据）时返回默认 4:3 占位，加载完成后再以自然尺寸为准。
+ */
+export function resolveChatImageBox(
+  width?: number | null,
+  height?: number | null,
+  maxWidth: number = CHAT_IMAGE_MAX_WIDTH,
+  maxHeight: number = CHAT_IMAGE_MAX_HEIGHT,
+): { width: number; height: number; hasRatio: boolean } {
+  if (width && height && width > 0 && height > 0) {
+    const scale = Math.min(1, maxWidth / width, maxHeight / height);
+    return {
+      width: Math.max(1, Math.round(width * scale)),
+      height: Math.max(1, Math.round(height * scale)),
+      hasRatio: true,
+    };
+  }
+  return { width: maxWidth, height: Math.round((maxWidth * 3) / 4), hasRatio: false };
+}
+
 export const URL_REGEX = /(https?:\/\/[^\s]+)/ig;
 
 function getMessageTimestamp(value: string): number {

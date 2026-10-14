@@ -4,7 +4,7 @@ import type { VirtuosoHandle } from 'react-virtuoso';
 import { chatContract } from '@zenith/shared/chat';
 import type { ChatConversation, ChatLinkPreview, ChatMessage, ChatMessageContext, ChatMessageExtra, ChatGroupMember, SendChatMessageInput } from '@zenith/shared/chat';
 import { api } from '@/lib/contract-query';
-import { extractFirstUrl } from '../utils';
+import { extractFirstUrl, getImageDimensions } from '../utils';
 import { VIRTUOSO_FIRST_INDEX_BUFFER, makeProgressHandler, removeUploadingItemById } from '../utils-state';
 import type { FailedMessage, PendingFile, PendingImage, Setter, UploadingItem } from '../types';
 
@@ -108,6 +108,8 @@ export function useComposerActions({
           size: item.file.size,
           previewUrl: item.previewUrl,
           mimeType: item.file.type || null,
+          width: item.width ?? null,
+          height: item.height ?? null,
           convId: activeConvId,
         })),
         ...filesToSend.map((item) => ({
@@ -151,14 +153,20 @@ export function useComposerActions({
     const validFiles = files.filter((file) => file.type.startsWith('image/'));
     if (validFiles.length === 0) return;
 
-    const added = validFiles.map((file) => ({
+    const added: PendingImage[] = validFiles.map((file) => ({
       id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
       file,
       previewUrl: URL.createObjectURL(file),
     }));
 
     setPendingImages((prev) => [...prev, ...added]);
-  }, []);
+    // 异步回填本地尺寸（不阻塞选择即时预览）：发送时上传占位可与最终消息等高
+    void Promise.all(added.map(async (item) => {
+      const dims = await getImageDimensions(item.file).catch(() => null);
+      if (!dims) return;
+      setPendingImages((prev) => prev.map((p) => (p.id === item.id ? { ...p, width: dims.width, height: dims.height } : p)));
+    }));
+  }, [setPendingImages]);
 
   const handleSelectFile = useCallback((files: File[]) => {
     const nonImageFiles = files.filter((file) => !file.type.startsWith('image/'));
