@@ -144,7 +144,7 @@ export default defineConfig(({ command, mode }) => {
         // 即走直链 Worker；放 public/file-viewer 下会被 .gitignore 忽略）。
         // 两处都不进 copyAssets，避免与上述产物重复分发；
         // `libarchive.js` 升级后记得同步重拷那两个文件。
-        formats: ['word', 'spreadsheet', 'ofd', 'email', 'xmind', 'mermaid', 'drawio', 'dio', 'excalidraw', 'plantuml', 'puml', 'data', 'geo'],
+        formats: ['word', 'spreadsheet', 'ofd', 'email', 'xmind', 'mermaid', 'drawio', 'dio', 'excalidraw', 'plantuml', 'puml', 'data', 'geo', 'text'],
         inject: false,
         copyAssets: { baseDir: 'file-viewer', mode: 'both' },
         chunkStrategy: 'none',
