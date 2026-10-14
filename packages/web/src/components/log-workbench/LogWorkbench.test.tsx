@@ -17,6 +17,7 @@ const FILENAME = 'app.2026-10-12.1.log';
 const KEYWORD = 'trace-abc-12345';
 
 beforeEach(() => {
+  localStorage.removeItem('logWorkbench.palette');
   recorder.reset();
   vi.mocked(useLogTail).mockReturnValue({
     tailing: false, paused: false, reconnecting: false, lines: [], pendingCount: 0, capped: false,
@@ -85,5 +86,19 @@ describe('精确链路定位', () => {
     expect(await screen.findByText('1/1')).toBeInTheDocument();
     expect(screen.getByText(`链路定位：${KEYWORD}`)).toBeInTheDocument();
     expect(recorder.countOf('GET', `/api/log-files/${FILENAME}/content`)).toBe(1);
+  });
+});
+
+describe('日志配色偏好', () => {
+  it('选择配色即时生效并在重新挂载后保留，不重新请求日志', async () => {
+    const view = renderWorkbench();
+    await waitFor(() => expect(view.container.querySelector('.log-content-view')).toHaveAttribute('data-palette', 'github'));
+    fireEvent.click(screen.getByRole('combobox', { name: '日志配色' }));
+    fireEvent.click(await screen.findByText('Nord'));
+    expect(view.container.querySelector('.log-content-view')).toHaveAttribute('data-palette', 'nord');
+    expect(recorder.countOf('GET', `/api/log-files/${FILENAME}/content`)).toBe(1);
+    view.unmount();
+    const reopened = renderWorkbench();
+    await waitFor(() => expect(reopened.container.querySelector('.log-content-view')).toHaveAttribute('data-palette', 'nord'));
   });
 });

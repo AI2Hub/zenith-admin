@@ -1,208 +1,113 @@
-/**
- * 日志行内语法着色：NDJSON 行的 key / string / number / 字面量，
- * 以及 pretty 文本行（pino-pretty 输出）的行首时间戳 / kv 键 / 引号串。
- *
- * 设计约束（见 LogContentView）：
- * - 只做行内切分，不改变文本：token 文本拼接必须恒等于原行，
- *   搜索 `<mark>` 区间按整行偏移映射到 token 上（与 ansi.ts 同一模型）。
- * - 单遍线性扫描，不用回溯型正则；超长行直接跳过（返回 null 走纯文本）。
- * - 按行内容缓存：虚拟列表滚动会反复重渲染可见行，不能每次重扫。
- */
+/** 行内语义分词，不改变原文；颜色由日志查看器的局部配色决定。 */
+export type LogTokenKind = 'plain' | 'key' | 'string' | 'number' | 'literal' | 'punct' | 'dim';
 
 export interface LogToken {
   text: string;
-  /** 文本颜色（CSS 颜色）；缺省用普通正文色 */
-  color?: string;
+  kind: LogTokenKind;
 }
 
-const TOKEN_PLAIN = 'var(--logtok-plain)';
-const TOKEN_KEY = 'var(--logtok-key)';
-const TOKEN_STRING = 'var(--logtok-string)';
-const TOKEN_NUMBER = 'var(--logtok-number)';
-const TOKEN_LITERAL = 'var(--logtok-literal)';
-const TOKEN_PUNCT = 'var(--logtok-punct)';
-const TOKEN_DIM = 'var(--logtok-dim)';
-
-/** 超过该长度的行跳过着色（SQL 长行），直接纯文本渲染，避免几千个 span */
 const MAX_HIGHLIGHT_CHARS = 20_000;
-/** 单行 token 上限：超出后剩余部分合并为一个纯文本 token */
 const MAX_TOKENS = 500;
-/** 行缓存上限：FIFO 淘汰最早写入的行 */
 const CACHE_LIMIT = 2000;
-
-const cache = new Map<string, LogToken[] | null>();
+// 按文本长度与 token 开销同时约束缓存，避免持续追踪把长日志常驻内存。
+const CACHE_BUDGET = 2_000_000;
+const cache = new Map<string, { tokens: LogToken[]; cost: number }>();
+let cacheCost = 0;
 
 function isJsonLine(line: string): boolean {
-  if (!line.trimStart().startsWith('{')) return false;
-  try {
-    JSON.parse(line);
-    return true;
-  } catch {
-    return false;
-  }
+  if (!/^\s*[[{]/.test(line)) return false;
+  try { JSON.parse(line); return true; } catch { return false; }
 }
 
-/** token 数超限时只保留前 N-1 个，剩余原文合并为一个纯文本 token */
-function capTokens(line: string, tokens: LogToken[]): LogToken[] {
-  if (tokens.length <= MAX_TOKENS) return tokens;
-  const kept = tokens.slice(0, MAX_TOKENS - 1);
-  const used = kept.reduce((n, t) => n + t.text.length, 0);
-  kept.push({ text: line.slice(used), color: TOKEN_PLAIN });
-  return kept;
-}
+const isSpace = (ch: string) => ch === ' ' || ch === '\t' || ch === '\r' || ch === '\n';
+const isKeyStart = (ch: string) => /[A-Za-z_$]/.test(ch);
+const isKeyChar = (ch: string) => /[\w$.-]/.test(ch);
+const JSON_NUMBER = /-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/y;
+// 方括号必须以日期 / 时间开头，不能把 [ERROR]、[WARN] 当时间戳。
+const PRETTY_TIMESTAMP = /^(?:\[(?:\d{4}-\d{2}-\d{2}[T ]|\d{2}:\d{2}:)[^\]\n]{1,48}\]|\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)/;
 
-/** NDJSON 单行扫描：字符串（含 key 判定）/ 数字 / 字面量 / 标点，其余原样 */
-function tokenizeJson(line: string): LogToken[] {
-  const tokens: LogToken[] = [];
-  let chunk = '';
-  let chunkColor: string | undefined;
-  const push = (text: string, color: string | undefined) => {
-    if (color === chunkColor) {
-      chunk += text;
-      return;
-    }
-    if (chunk) tokens.push({ text: chunk, color: chunkColor });
-    chunk = text;
-    chunkColor = color;
-  };
-  const flush = () => {
-    if (chunk) tokens.push({ text: chunk, color: chunkColor });
-    chunk = '';
-    chunkColor = undefined;
-  };
-
-  let i = 0;
-  const n = line.length;
-  while (i < n) {
-    const ch = line[i];
-    // 空白：合并为普通文本
-    if (ch === ' ' || ch === '\t' || ch === '\r' || ch === '\n') {
-      let j = i + 1;
-      while (j < n && (line[j] === ' ' || line[j] === '\t' || line[j] === '\r' || line[j] === '\n')) j++;
-      push(line.slice(i, j), TOKEN_PLAIN);
-      i = j;
-      continue;
-    }
-    // 标点
-    if (ch === '{' || ch === '}' || ch === '[' || ch === ']' || ch === ',' || ch === ':') {
-      push(ch, TOKEN_PUNCT);
-      i++;
-      continue;
-    }
-    // 字符串：处理转义；其后（隔空白）是冒号即为 key
-    if (ch === '"') {
-      let j = i + 1;
-      while (j < n) {
-        if (line[j] === '\\') { j += 2; continue; }
-        if (line[j] === '"') break;
-        j++;
-      }
-      const end = j < n ? j + 1 : n;
-      let k = end;
-      while (k < n && line[k] === ' ') k++;
-      push(line.slice(i, end), line[k] === ':' ? TOKEN_KEY : TOKEN_STRING);
-      i = end;
-      continue;
-    }
-    // 数字（含负号 / 小数 / 指数）
-    if ((ch >= '0' && ch <= '9') || (ch === '-' && i + 1 < n && line[i + 1] >= '0' && line[i + 1] <= '9')) {
-      const rest = line.slice(i);
-      const num = /^-?\d+(\.\d+)?([eE][+-]?\d+)?/.exec(rest);
-      if (num) {
-        push(num[0], TOKEN_NUMBER);
-        i += num[0].length;
-        continue;
-      }
-    }
-    // 字面量：true / false / null（后跟分隔符才算，避免把不合法输入误染）
-    if (line.startsWith('true', i) || line.startsWith('null', i)) {
-      const word = line.startsWith('true', i) ? 'true' : 'null';
-      const after = line[i + word.length];
-      if (after === undefined || /[\s,{}\]:]/.test(after)) {
-        push(word, TOKEN_LITERAL);
-        i += word.length;
-        continue;
-      }
-    }
-    if (line.startsWith('false', i)) {
-      const after = line[i + 5];
-      if (after === undefined || /[\s,{}\]:]/.test(after)) {
-        push('false', TOKEN_LITERAL);
-        i += 5;
-        continue;
-      }
-    }
-    // 兜底：非法 JSON 内容逐字原样保留（拼接恒等是搜索偏移的前提）
-    push(ch, TOKEN_PLAIN);
+function quotedEnd(line: string, start: number): number {
+  let i = start + 1;
+  while (i < line.length) {
+    if (line[i] === '\\') { i += 2; continue; }
+    if (line[i] === '"') return i + 1;
     i++;
   }
-  flush();
-  return capTokens(line, tokens);
+  return line.length;
 }
 
-/** 行首时间戳：`[2026-10-14 10:59:07.478 +08:00]` 或 `2026-10-14T10:59:07…`，只认行首 */
-const PRETTY_TS_RE = /^(?:\[[^\]\n]{1,64}\]|\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2}(?::?\d{2})?)?)/;
-/**
- * `"key":` / `k=` 的键名 + 独立引号串。单遍 g 匹配、无嵌套量词；
- * 未命中部分原样保留为普通文本。
- */
-const PRETTY_KV_RE = /"((?:[^"\\\n]|\\.)*)"\s*:|([A-Za-z_$][\w$.-]*)=|"((?:[^"\\\n]|\\.)*)"/g;
-
-/** pretty 文本行：时间戳变灰、kv 键与引号串着色 */
-function tokenizePretty(line: string): LogToken[] {
+/** 单向游标扫描，达到 token 上限立即保留剩余原文，不先分词再截断。 */
+function tokenize(line: string): LogToken[] {
+  const json = isJsonLine(line);
   const tokens: LogToken[] = [];
-  let pos = 0;
-  const ts = PRETTY_TS_RE.exec(line);
-  if (ts) {
-    tokens.push({ text: ts[0], color: TOKEN_DIM });
-    pos = ts[0].length;
+  const push = (start: number, end: number, kind: LogTokenKind) => {
+    const text = line.slice(start, end);
+    const prev = tokens.at(-1);
+    if (prev?.kind === kind) prev.text += text;
+    else tokens.push({ text, kind });
+  };
+  let i = 0;
+  if (!json) {
+    const timestamp = PRETTY_TIMESTAMP.exec(line);
+    if (timestamp) { i = timestamp[0].length; push(0, i, 'dim'); }
   }
-  PRETTY_KV_RE.lastIndex = pos;
-  for (;;) {
-    const m = PRETTY_KV_RE.exec(line);
-    if (!m || m.index < pos) break;
-    if (m.index > pos) tokens.push({ text: line.slice(pos, m.index), color: TOKEN_PLAIN });
-    if (m[1] !== undefined) {
-      // `"key":`：键名着色，冒号及空白作标点
-      const keyEnd = m.index + 1 + m[1].length + 1;
-      tokens.push({ text: line.slice(m.index, keyEnd), color: TOKEN_KEY });
-      if (keyEnd < m.index + m[0].length) tokens.push({ text: line.slice(keyEnd, m.index + m[0].length), color: TOKEN_PUNCT });
-    } else if (m[2] !== undefined) {
-      // `k=`：键名着色，`=` 作标点
-      tokens.push({ text: m[2], color: TOKEN_KEY });
-      tokens.push({ text: '=', color: TOKEN_PUNCT });
+  while (i < line.length) {
+    if (tokens.length >= MAX_TOKENS - 2) { push(i, line.length, 'plain'); break; }
+    const start = i;
+    const ch = line[i];
+    if (ch === '"') {
+      i = quotedEnd(line, i);
+      let next = i;
+      while (next < line.length && isSpace(line[next])) next++;
+      push(start, i, line[next] === ':' ? 'key' : 'string');
+    } else if (json && '{}[],:'.includes(ch)) {
+      i++;
+      push(start, i, 'punct');
+    } else if (json && (ch === '-' || (ch >= '0' && ch <= '9'))) {
+      JSON_NUMBER.lastIndex = i;
+      const number = JSON_NUMBER.exec(line);
+      i += number?.[0].length ?? 1;
+      push(start, i, number ? 'number' : 'plain');
+    } else if (json && (ch === 't' || ch === 'f' || ch === 'n')) {
+      const word = ch === 't' ? 'true' : ch === 'f' ? 'false' : 'null';
+      i += word.length; // JSON.parse 已保证合法
+      push(start, i, 'literal');
+    } else if (!json && isKeyStart(ch)) {
+      // 一次跳过整个候选键；无等号时不在后续每个字符上重试长正则。
+      while (i < line.length && isKeyChar(line[i])) i++;
+      const isKey = line[i] === '=';
+      push(start, i, isKey ? 'key' : 'plain');
+      if (isKey) { push(i, i + 1, 'punct'); i++; }
     } else {
-      tokens.push({ text: m[0], color: TOKEN_STRING });
+      i++;
+      push(start, i, 'plain');
     }
-    pos = m.index + m[0].length;
-    // 零宽保护：该正则恒消费至少一个字符，理论上不会空转
-    if (m[0].length === 0) { pos++; PRETTY_KV_RE.lastIndex = pos; }
   }
-  if (pos < line.length) tokens.push({ text: line.slice(pos), color: TOKEN_PLAIN });
-  if (tokens.length === 0) tokens.push({ text: line, color: TOKEN_PLAIN });
-  return capTokens(line, tokens);
+  return tokens.length ? tokens : [{ text: line, kind: 'plain' }];
 }
 
-/**
- * 切分一行用于着色。返回 null 表示跳过着色（超长行），调用方走纯文本渲染。
- * 结果按行内容缓存；token 文本拼接恒等于原行。
- */
+/** 超长行直接跳过且不缓存；LRU 结果与主题无关，切换配色无需重新分词。 */
 export function tokenizeLogLine(line: string): LogToken[] | null {
+  if (line.length > MAX_HIGHLIGHT_CHARS) return null;
   const hit = cache.get(line);
-  if (hit !== undefined || cache.has(line)) return hit ?? null;
-  let tokens: LogToken[] | null = null;
-  if (line.length <= MAX_HIGHLIGHT_CHARS) {
-    tokens = isJsonLine(line) ? tokenizeJson(line) : tokenizePretty(line);
+  if (hit) {
+    cache.delete(line);
+    cache.set(line, hit);
+    return hit.tokens;
   }
-  if (cache.size >= CACHE_LIMIT) {
-    const oldest = cache.keys().next();
-    if (!oldest.done) cache.delete(oldest.value);
+  const tokens = tokenize(line);
+  const cost = line.length + tokens.length * 64;
+  while (cache.size && (cache.size >= CACHE_LIMIT || cacheCost + cost > CACHE_BUDGET)) {
+    const oldest = cache.entries().next().value!;
+    cacheCost -= oldest[1].cost;
+    cache.delete(oldest[0]);
   }
-  cache.set(line, tokens);
+  cache.set(line, { tokens, cost });
+  cacheCost += cost;
   return tokens;
 }
 
-/** 测试与调试用：清空行缓存 */
 export function clearLogHighlightCache(): void {
   cache.clear();
+  cacheCost = 0;
 }

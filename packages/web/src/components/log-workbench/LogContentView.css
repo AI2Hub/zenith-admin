@@ -1,0 +1,62 @@
+.log-content-view {
+  --log-background: var(--log-light-background);
+  --logtok-plain: var(--log-light-plain);
+  --logtok-key: var(--log-light-key);
+  --logtok-string: var(--log-light-string);
+  --logtok-number: var(--log-light-number);
+  --logtok-literal: var(--log-light-literal);
+  --logtok-punct: var(--log-light-muted);
+  --logtok-dim: var(--log-light-muted);
+}
+
+:where(body[theme-mode='dark'], .semi-always-dark) .log-content-view {
+  --log-background: var(--log-dark-background);
+  --logtok-plain: var(--log-dark-plain);
+  --logtok-key: var(--log-dark-key);
+  --logtok-string: var(--log-dark-string);
+  --logtok-number: var(--log-dark-number);
+  --logtok-literal: var(--log-dark-literal);
+  --logtok-punct: var(--log-dark-muted);
+  --logtok-dim: var(--log-dark-muted);
+}
+
+.log-content-row {
+  --log-row-background: var(--log-background);
+  --log-row-indicator: transparent;
+
+  background: var(--log-row-background);
+}
+
+.log-content-row[data-level='error'] {
+  --log-row-background: color-mix(in srgb, var(--semi-color-danger) 7%, var(--log-background));
+  --log-row-indicator: var(--semi-color-danger);
+}
+
+.log-content-row[data-level='warn'] {
+  --log-row-background: color-mix(in srgb, var(--semi-color-warning) 7%, var(--log-background));
+  --log-row-indicator: var(--semi-color-warning);
+}
+
+.log-content-row[data-active='true'] {
+  --log-row-background: color-mix(in srgb, var(--logtok-key) 8%, var(--log-background));
+  --log-row-indicator: var(--logtok-key);
+}
+
+.log-token-key { color: var(--logtok-key); }
+.log-token-string { color: var(--logtok-string); }
+.log-token-number { color: var(--logtok-number); }
+.log-token-literal { color: var(--logtok-literal); }
+.log-token-punct { color: var(--logtok-punct); }
+.log-token-dim { color: var(--logtok-dim); }
+
+.log-content-mark {
+  background: color-mix(in srgb, var(--logtok-number) 18%, var(--log-background));
+  color: var(--logtok-plain);
+  border-radius: var(--semi-border-radius-small);
+  font-weight: 600;
+}
+
+.log-content-mark[data-active='true'] {
+  background: var(--logtok-key);
+  color: var(--log-background);
+}

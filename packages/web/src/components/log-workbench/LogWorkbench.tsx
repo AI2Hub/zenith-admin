@@ -1,11 +1,11 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useId, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode, SetStateAction } from 'react';
 import { useDebouncedValue } from '@tanstack/react-pacer';
 import { matchesLogTraceId } from '@zenith/shared/ops';
 import { Button, Dropdown, Input, InputNumber, Modal, Select, Spin, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import {
   Activity, AlertTriangle, ArrowDown, ArrowUp, CaseSensitive, Copy, FileDown, FileText, Hash,
-  ListFilter, ListOrdered, MoreHorizontal, Pause, Play, RefreshCw, Regex, Search, StopCircle, WrapText,
+  ListFilter, ListOrdered, MoreHorizontal, Palette, Pause, Play, RefreshCw, Regex, Search, StopCircle, WrapText,
 } from 'lucide-react';
 import { FilterSelect } from '@/components/search-filters';
 import { copyTextWithToast } from '@/utils/clipboard';
@@ -14,6 +14,7 @@ import { hasAnsi, stripAnsi } from './ansi';
 import { buildSearchIndex, compileSearchPattern, computeEffectiveLevels, type LogLevel, type MatchRange, type SearchMatch } from './log-search';
 import { LogContentView, type LogContentViewHandle } from './LogContentView';
 import { MAX_TAIL_LINES, useLogTail } from './useLogTail';
+import { DEFAULT_LOG_PALETTE, LOG_PALETTES, resolveLogPalette } from './log-palettes';
 
 const EMPTY_LINES: string[] = [];
 
@@ -96,6 +97,9 @@ export function LogWorkbench({ source, title, canTail = true, initialLevel, init
   const [wrap, setWrap] = usePersistentState('wrap', true);
   const [lineCount, setLineCount] = usePersistentState('lineCount', 5000);
   const [serverContext, setServerContext] = usePersistentState('context', 0);
+  const [palettePreference, setPalettePreference] = usePersistentState<string>('palette', DEFAULT_LOG_PALETTE);
+  const palette = resolveLogPalette(palettePreference);
+  const paletteLabelId = useId();
 
   // 跳到行号
   const contentViewRef = useRef<LogContentViewHandle | null>(null);
@@ -494,6 +498,17 @@ export function LogWorkbench({ source, title, canTail = true, initialLevel, init
               />
             </Tooltip>
           )}
+          <Tooltip content="日志配色随明暗模式自动切换">
+            <Select
+              aria-labelledby={paletteLabelId}
+              prefix={<span id={paletteLabelId} aria-label="日志配色"><Palette size={13} /></span>}
+              size="small"
+              value={palette.id}
+              onChange={(value) => setPalettePreference(resolveLogPalette(value).id)}
+              optionList={LOG_PALETTES.map(({ id, name }) => ({ value: id, label: name }))}
+              style={{ width: 142 }}
+            />
+          </Tooltip>
           <Dropdown
             trigger="click"
             position="bottomRight"
@@ -561,6 +576,7 @@ export function LogWorkbench({ source, title, canTail = true, initialLevel, init
       ) : (
         <LogContentView
           ref={contentViewRef}
+          palette={palette.id}
           lines={rawLines}
           visibleIndexes={displayIndexes}
           levels={levels}

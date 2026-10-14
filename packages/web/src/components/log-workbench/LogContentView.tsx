@@ -1,118 +1,11 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
-import type { CSSProperties, ReactNode } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Button, Tooltip, Typography } from '@douyinfe/semi-ui';
 import { ChevronsDown, ChevronsUp } from 'lucide-react';
 import type { LogLevel, MatchRange, SearchMatch } from './log-search';
-import { tokenizeLogLine } from './log-highlight';
-import { hasAnsi, parseAnsi, type AnsiSpan } from './ansi';
-
-const LEVEL_COLORS: Partial<Record<LogLevel, string>> = {
-  error: 'var(--semi-color-danger)',
-  warn: 'var(--semi-color-warning)',
-  debug: 'var(--semi-color-text-2)',
-};
-
-/**
- * 方案 A 的 error / warn 强调：token 着色优先，正文不再整行染红，
- * 级别改由行底色 + 左侧指示条承载（info / debug 行无底色、无指示条）。
- */
-const LEVEL_ROW_BG: Partial<Record<LogLevel, string>> = {
-  error: 'var(--semi-color-danger-light-default)',
-  warn: 'var(--semi-color-warning-light-default)',
-};
-
-const LEVEL_BAR: Partial<Record<LogLevel, string>> = {
-  error: 'var(--semi-color-danger)',
-  warn: 'var(--semi-color-warning)',
-};
-
-const markStyle: CSSProperties = {
-  backgroundColor: 'var(--semi-color-warning-light-default)',
-  color: 'inherit',
-  borderRadius: 'var(--semi-border-radius-small)',
-  padding: '0 1px',
-  fontWeight: 600,
-};
-
-const activeMarkStyle: CSSProperties = {
-  ...markStyle,
-  backgroundColor: 'var(--semi-color-warning)',
-  color: 'var(--semi-color-text-0)',
-};
-
-/** sticky 行号列需要不透明底色遮住横向滚过的正文：卡片底色打底，再叠加与滚动容器一致的半透明填充 */
-const GUTTER_FILL_LAYER = 'linear-gradient(var(--semi-color-fill-0), var(--semi-color-fill-0))';
-const GUTTER_ACTIVE_LAYER = 'linear-gradient(var(--semi-color-primary-light-default), var(--semi-color-primary-light-default))';
-
-/**
- * 渲染一段文本并标出落在其中的匹配区间。`base` 是该段在整行（去色文本）中的起始偏移，
- * 匹配区间以整行偏移表示，跨片段的匹配会在两段各标一半。
- */
-function renderHighlightedSegment(text: string, ranges: MatchRange[] | undefined, activeStart: number | null, base = 0): ReactNode {
-  if (!ranges || ranges.length === 0) return text;
-
-  const parts: ReactNode[] = [];
-  let cursor = 0;
-  ranges.forEach((range, index) => {
-    const start = Math.max(range.start - base, 0);
-    const end = Math.min(range.end - base, text.length);
-    if (end <= 0 || start >= text.length || start >= end) return;
-    if (start > cursor) parts.push(text.slice(cursor, start));
-    parts.push(
-      <mark key={`${index}-${range.start}`} style={range.start === activeStart ? activeMarkStyle : markStyle}>
-        {text.slice(start, end)}
-      </mark>,
-    );
-    cursor = end;
-  });
-  if (parts.length === 0) return text;
-  if (cursor < text.length) parts.push(text.slice(cursor));
-  return parts;
-}
-
-function ansiSpanStyle(span: AnsiSpan): CSSProperties | undefined {
-  if (!span.color && !span.bg && !span.bold && !span.italic && !span.dim) return undefined;
-  return {
-    color: span.color,
-    backgroundColor: span.bg,
-    fontWeight: span.bold ? 'bold' : undefined,
-    fontStyle: span.italic ? 'italic' : undefined,
-    opacity: span.dim ? 0.6 : undefined,
-  };
-}
-
-/** 渲染整行：带 ANSI 颜色的行按片段着色，匹配高亮映射到去色文本的偏移上 */
-function renderLine(raw: string, ranges: MatchRange[] | undefined, activeStart: number | null): ReactNode {
-  if (!hasAnsi(raw)) {
-    // 无 ANSI 的行（NDJSON / pretty 文本）先做语法切分，token 拼接恒等于原行，
-    // 搜索区间按同一偏移系映射；超长行 tokenize 返回 null，退回纯文本。
-    const tokens = tokenizeLogLine(raw);
-    if (tokens) {
-      let offset = 0;
-      return tokens.map((token, index) => {
-        const base = offset;
-        offset += token.text.length;
-        return (
-          <span key={index} style={token.color ? { color: token.color } : undefined}>
-            {renderHighlightedSegment(token.text, ranges, activeStart, base)}
-          </span>
-        );
-      });
-    }
-    return renderHighlightedSegment(raw, ranges, activeStart);
-  }
-  let offset = 0;
-  return parseAnsi(raw).map((span, index) => {
-    const base = offset;
-    offset += span.text.length;
-    return (
-      <span key={index} style={ansiSpanStyle(span)}>
-        {renderHighlightedSegment(span.text, ranges, activeStart, base)}
-      </span>
-    );
-  });
-}
+import { LogLineText } from './LogLineText';
+import { DEFAULT_LOG_PALETTE, LOG_PALETTE_STYLES, type LogPaletteId } from './log-palettes';
+import './LogContentView.css';
 
 export interface LogContentViewProps {
   /** 原始行（静态内容或 tail 缓冲；可含 ANSI 颜色序列，渲染时按片段着色） */
@@ -125,6 +18,7 @@ export interface LogContentViewProps {
   lineRanges: Map<number, MatchRange[]>;
   /** 当前激活匹配（lineIndex 为展示行下标） */
   activeMatch: SearchMatch | null;
+  palette?: LogPaletteId;
   showLineNumbers: boolean;
   wrap: boolean;
   /** 实时追踪中：新行到达时若已在底部则跟随；禁用匹配自动定位 */
@@ -142,7 +36,7 @@ export interface LogContentViewHandle {
 
 export const LogContentView = forwardRef<LogContentViewHandle, LogContentViewProps>(function LogContentView({
   lines, visibleIndexes, levels, lineRanges, activeMatch,
-  showLineNumbers, wrap, following, resetKey, emptyText,
+  showLineNumbers, wrap, following, resetKey, emptyText, palette = DEFAULT_LOG_PALETTE,
 }, ref) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [atBottom, setAtBottom] = useState(true);
@@ -265,7 +159,7 @@ export const LogContentView = forwardRef<LogContentViewHandle, LogContentViewPro
   const items = virtualizer.getVirtualItems();
 
   return (
-    <div style={{ flex: 1, minHeight: 0, position: 'relative', display: 'flex' }}>
+    <div className="log-content-view" data-palette={palette} style={{ ...LOG_PALETTE_STYLES.get(palette), flex: 1, minHeight: 0, position: 'relative', display: 'flex' }}>
       <div
         ref={scrollRef}
         onScroll={updateAtBottom}
@@ -275,16 +169,16 @@ export const LogContentView = forwardRef<LogContentViewHandle, LogContentViewPro
         style={{
           flex: 1,
           overflow: 'auto',
-          backgroundColor: 'var(--semi-color-fill-0)',
+          backgroundColor: 'var(--log-background)',
           fontFamily: '"Fira Code", "Cascadia Code", Consolas, monospace',
           fontSize: 12,
           lineHeight: 1.6,
-          color: 'var(--semi-color-text-1)',
+          color: 'var(--logtok-plain)',
         }}
       >
         {count === 0 ? (
           <div style={{ padding: '12px 16px' }}>
-            <Typography.Text type="tertiary" style={{ fontFamily: 'inherit', fontSize: 12 }}>
+            <Typography.Text type="tertiary" style={{ fontFamily: 'inherit', fontSize: 12, color: 'var(--logtok-dim)' }}>
               {emptyText}
             </Typography.Text>
           </div>
@@ -296,14 +190,13 @@ export const LogContentView = forwardRef<LogContentViewHandle, LogContentViewPro
               const level = levels[originalIndex];
               const ranges = lineRanges.get(item.index);
               const isActiveLine = item.index === activeLine;
-              // 激活行（搜索定位）> 级别条 > 无：error / warn 行常驻红色 / 橙色指示条
-              const barColor = isActiveLine
-                ? 'var(--semi-color-primary)'
-                : level ? (LEVEL_BAR[level] ?? 'transparent') : 'transparent';
-              const indicator = `3px solid ${barColor}`;
+              const indicator = '3px solid var(--log-row-indicator)';
               return (
                 <div
                   key={item.key}
+                  className="log-content-row"
+                  data-level={level ?? undefined}
+                  data-active={isActiveLine}
                   data-index={item.index}
                   ref={virtualizer.measureElement}
                   style={{
@@ -319,10 +212,6 @@ export const LogContentView = forwardRef<LogContentViewHandle, LogContentViewPro
                     // 显示行号时，左缩进与激活指示条挂在 sticky 行号列上，随列一起固定
                     padding: showLineNumbers ? '0 16px 0 0' : '0 16px 0 13px',
                     borderLeft: showLineNumbers ? undefined : indicator,
-                    // 激活行盖住级别底色；error / warn 行着淡底色（替代原来的整行染红）
-                    background: isActiveLine
-                      ? 'var(--semi-color-primary-light-default)'
-                      : level ? LEVEL_ROW_BG[level] : undefined,
                   }}
                 >
                   {showLineNumbers && (
@@ -338,11 +227,10 @@ export const LogContentView = forwardRef<LogContentViewHandle, LogContentViewPro
                         padding: '0 12px 0 13px',
                         borderLeft: indicator,
                         textAlign: 'right',
-                        color: 'var(--semi-color-text-2)',
+                        color: 'var(--logtok-dim)',
                         userSelect: 'none',
                         whiteSpace: 'pre',
-                        backgroundColor: 'var(--surface-card)',
-                        backgroundImage: isActiveLine ? `${GUTTER_ACTIVE_LAYER}, ${GUTTER_FILL_LAYER}` : GUTTER_FILL_LAYER,
+                        backgroundColor: 'var(--log-row-background)',
                       }}
                     >
                       {originalIndex + 1}
@@ -354,10 +242,9 @@ export const LogContentView = forwardRef<LogContentViewHandle, LogContentViewPro
                       minWidth: 0,
                       whiteSpace: wrap ? 'pre-wrap' : 'pre',
                       wordBreak: wrap ? 'break-all' : undefined,
-                      color: level ? LEVEL_COLORS[level] : undefined,
                     }}
                   >
-                    {renderLine(text, ranges, isActiveLine ? (activeMatch?.start ?? null) : null)}
+                    <LogLineText raw={text} ranges={ranges} activeStart={isActiveLine ? (activeMatch?.start ?? null) : null} />
                   </span>
                 </div>
               );

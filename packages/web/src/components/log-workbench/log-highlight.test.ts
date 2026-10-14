@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { clearLogHighlightCache, tokenizeLogLine } from './log-highlight';
 
-const PRIMARY = 'var(--logtok-key)';
-const SUCCESS = 'var(--logtok-string)';
-const WARNING = 'var(--logtok-number)';
-const INFO = 'var(--logtok-literal)';
-const PLAIN = 'var(--logtok-plain)';
-const PUNCT = 'var(--logtok-punct)';
+const PRIMARY = 'key';
+const SUCCESS = 'string';
+const WARNING = 'number';
+const INFO = 'literal';
+const PLAIN = 'plain';
+const PUNCT = 'punct';
 
 /** token 文本拼接必须恒等于原行：搜索区间按整行偏移映射的前提 */
 function expectRoundTrip(line: string) {
@@ -22,7 +22,7 @@ describe('tokenizeLogLine', () => {
     const tokens = tokenizeLogLine(line);
     expect(tokens).not.toBeNull();
     expectRoundTrip(line);
-    const byText = new Map(tokens!.map((t) => [t.text, t.color]));
+    const byText = new Map(tokens!.map((t) => [t.text, t.kind]));
     expect(byText.get('"level"')).toBe(PRIMARY);
     expect(byText.get('50')).toBe(WARNING);
     expect(byText.get('"2026-10-14T10:59:07.478+08:00"')).toBe(SUCCESS);
@@ -38,7 +38,7 @@ describe('tokenizeLogLine', () => {
     const line = '{"msg" : "a\\"b", "n" : -12.5e+3}';
     const tokens = tokenizeLogLine(line)!;
     expect(tokens.map((t) => t.text).join('')).toBe(line);
-    const byText = new Map(tokens.map((t) => [t.text, t.color]));
+    const byText = new Map(tokens.map((t) => [t.text, t.kind]));
     expect(byText.get('"msg"')).toBe(PRIMARY);
     expect(byText.get('"a\\"b"')).toBe(SUCCESS);
     expect(byText.get('-12.5e+3')).toBe(WARNING);
@@ -54,8 +54,8 @@ describe('tokenizeLogLine', () => {
     const tokens = tokenizeLogLine(line)!;
     expect(tokens.map((t) => t.text).join('')).toBe(line);
     expect(tokens[0]).toMatchObject({ text: '[2026-10-14 10:59:07.478 +08:00]' });
-    expect(tokens[0].color).toBe('var(--logtok-dim)');
-    const byText = new Map(tokens.map((t) => [t.text, t.color]));
+    expect(tokens[0].kind).toBe('dim');
+    const byText = new Map(tokens.map((t) => [t.text, t.kind]));
     expect(byText.get('pid')).toBe(PRIMARY);
     expect(byText.get('"hello"')).toBe(SUCCESS);
     expect(byText.get('err')).toBe(PRIMARY);
@@ -65,9 +65,9 @@ describe('tokenizeLogLine', () => {
     const line = '2026-10-14T10:59:07.478+08:00 INFO ok at 2026-10-14T10:59:07.478+08:00';
     const tokens = tokenizeLogLine(line)!;
     expect(tokens.map((t) => t.text).join('')).toBe(line);
-    expect(tokens[0]).toMatchObject({ text: '2026-10-14T10:59:07.478+08:00', color: 'var(--logtok-dim)' });
+    expect(tokens[0]).toMatchObject({ text: '2026-10-14T10:59:07.478+08:00', kind: 'dim' });
     // 行中第二个时间戳是普通文本（与前面正文合并为一个 plain token）
-    expect(tokens[tokens.length - 1]).toMatchObject({ text: ' INFO ok at 2026-10-14T10:59:07.478+08:00', color: PLAIN });
+    expect(tokens[tokens.length - 1]).toMatchObject({ text: ' INFO ok at 2026-10-14T10:59:07.478+08:00', kind: PLAIN });
   });
 
   it('超长行跳过着色返回 null', () => {
@@ -83,7 +83,7 @@ describe('tokenizeLogLine', () => {
     const tokens = tokenizeLogLine(line)!;
     expect(tokens.length).toBeLessThanOrEqual(500);
     expect(tokens.map((t) => t.text).join('')).toBe(line);
-    expect(tokens[tokens.length - 1].color).toBe(PLAIN);
+    expect(tokens[tokens.length - 1].kind).toBe(PLAIN);
   });
 
   it('同行二次调用命中缓存（同一引用）', () => {
@@ -93,5 +93,29 @@ describe('tokenizeLogLine', () => {
 
   it('空行不抛错', () => {
     expect(tokenizeLogLine('')!.map((t) => t.text).join('')).toBe('');
+  });
+});
+
+
+describe('日志着色边界回归', () => {
+  it.each(['[ERROR] failed', '[WARN] retry', '[worker] started'])('不把级别 / 来源标记当时间戳：%s', (line) => {
+    expect(tokenizeLogLine(line)).toEqual([{ text: line, kind: 'plain' }]);
+  });
+
+  it('JSON 键名允许 Tab 分隔，数组内也能着色', () => {
+    const tokens = tokenizeLogLine('[{"message"\t: "ok", "n": 3}]')!;
+    expect(tokens.find((token) => token.text === '"message"')?.kind).toBe('key');
+    expect(tokens.find((token) => token.text === '3')?.kind).toBe('number');
+  });
+
+  it('密集的 pretty 键值也在扫描期间限额且保留全部原文', () => {
+    const line = 'k=v '.repeat(1200);
+    const tokens = tokenizeLogLine(line)!;
+    expect(tokens.length).toBeLessThanOrEqual(500);
+    expect(tokens.map((token) => token.text).join('')).toBe(line);
+  });
+
+  it.each(['a'.repeat(19000), ' '.repeat(19000), '"' + '\\'.repeat(15000)])('长的未结构化输入保持完整', (line) => {
+    expectRoundTrip(line);
   });
 });
