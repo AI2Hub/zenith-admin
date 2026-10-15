@@ -1,6 +1,7 @@
 import { Button, Empty, Input, Select, Tag, Typography, List as SemiList } from '@douyinfe/semi-ui';
 import { MessageSquare, Search } from 'lucide-react';
 import { AppModal } from '@/components/AppModal';
+import { MasterDetailLayout } from '@/components/MasterDetailLayout';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { formatConvTime } from '@/utils/date';
 import type { ChatMessage, ChatMessageSearchItem } from '@zenith/shared/chat';
@@ -55,77 +56,86 @@ export function MessageSearchModal({
         width={900}
         bodyStyle={{ padding: 0, maxHeight: '80vh' }}
       >
-        <div style={{ display: 'flex', flexDirection: 'row', height: '100%', maxHeight: '80vh' }}>
-          {/* 左列：搜索条件 */}
-          <div style={{ width: 280, flexShrink: 0, borderRight: '1px solid var(--semi-color-border)', padding: 12, display: 'flex', flexDirection: 'column', gap: 10, overflowY: 'auto' }}>
-            <Input
-              size="small"
-              prefix={<Search size={13} />}
-              placeholder="搜索消息内容 / 文件名 / 发送人"
-              value={msgSearch}
-              onChange={setMsgSearch}
-              onEnterPress={() => { void executeSearch(1); }}
-              showClear
-            />
-
-            <Select
-              multiple
-              showClear
-              style={{ width: '100%' }}
-              placeholder="消息类别（可多选）"
-              value={searchTypeFilters}
-              onChange={(val) => setSearchTypeFilters(((val as ChatMessage['type'][]) ?? []))}
-              optionList={CHAT_MESSAGE_TYPE_OPTIONS}
-              maxTagCount={2}
-            />
-
-            <FilterSelect
-              placeholder="全部发送人"
-              items={senderOptions}
-              value={searchSenderId}
-              onChange={setSearchSenderId}
-              width="100%"
-              filter
-            />
-
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {[
-                { value: 'today', label: '今天' },
-                { value: '7d', label: '近7天' },
-                { value: '30d', label: '近30天' },
-              ].map((item) => (
-                <Button
-                  key={item.value}
+        <MasterDetailLayout
+          style={{ height: '100%', maxHeight: '80vh' }}
+          defaultSize={280}
+          minSize={220}
+          maxSize={420}
+          persistKey="chat-history-search"
+          sideSwitchable={false}
+          responsiveBreakpoint={0}
+          master={
+            <MasterDetailLayout.Body padding={12}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <Input
                   size="small"
-                  theme={searchDatePreset === item.value ? 'solid' : 'borderless'}
-                  type={searchDatePreset === item.value ? 'primary' : 'tertiary'}
-                  onClick={() => applyDatePreset(item.value as SearchDatePreset)}
-                >
-                  {item.label}
-                </Button>
-              ))}
-              {searchTimeRange && (
-                <Button size="small" theme="borderless" type="tertiary" onClick={() => applyDatePreset('')}>清空时间</Button>
-              )}
-            </div>
+                  prefix={<Search size={13} />}
+                  placeholder="搜索消息内容 / 文件名 / 发送人"
+                  value={msgSearch}
+                  onChange={setMsgSearch}
+                  onEnterPress={() => { void executeSearch(1); }}
+                  showClear
+                />
 
-            <DateRangeFilter
-              value={searchTimeRange}
-              onChange={(range) => {
-                setSearchDatePreset('');
-                setSearchTimeRange(range);
-              }}
-              width="100%"
-            />
+                <Select
+                  multiple
+                  showClear
+                  style={{ width: '100%' }}
+                  placeholder="消息类别（可多选）"
+                  value={searchTypeFilters}
+                  onChange={(val) => setSearchTypeFilters(((val as ChatMessage['type'][]) ?? []))}
+                  optionList={CHAT_MESSAGE_TYPE_OPTIONS}
+                  maxTagCount={2}
+                />
 
-            <div style={{ display: 'flex', gap: 8 }}>
-              <SearchButton onClick={() => { void executeSearch(1); }} loading={searchLoading} />
-              <ResetButton onClick={resetSearchFilters} />
-            </div>
-          </div>
+                <FilterSelect
+                  placeholder="全部发送人"
+                  items={senderOptions}
+                  value={searchSenderId}
+                  onChange={setSearchSenderId}
+                  width="100%"
+                  filter
+                />
 
-          {/* 右列：搜索结果 */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: 12, minHeight: 0 }}>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {[
+                    { value: 'today', label: '今天' },
+                    { value: '7d', label: '近7天' },
+                    { value: '30d', label: '近30天' },
+                  ].map((item) => (
+                    <Button
+                      key={item.value}
+                      size="small"
+                      theme={searchDatePreset === item.value ? 'solid' : 'borderless'}
+                      type={searchDatePreset === item.value ? 'primary' : 'tertiary'}
+                      onClick={() => applyDatePreset(item.value as SearchDatePreset)}
+                    >
+                      {item.label}
+                    </Button>
+                  ))}
+                  {searchTimeRange && (
+                    <Button size="small" theme="borderless" type="tertiary" onClick={() => applyDatePreset('')}>清空时间</Button>
+                  )}
+                </div>
+
+                <DateRangeFilter
+                  value={searchTimeRange}
+                  onChange={(range) => {
+                    setSearchDatePreset('');
+                    setSearchTimeRange(range);
+                  }}
+                  width="100%"
+                />
+
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <SearchButton onClick={() => { void executeSearch(1); }} loading={searchLoading} />
+                  <ResetButton onClick={resetSearchFilters} />
+                </div>
+              </div>
+            </MasterDetailLayout.Body>
+          }
+          detail={
+            <MasterDetailLayout.Body padding={12}>
             {!searchHasSearched && (
               <Empty description="输入关键词或设置筛选条件后开始搜索" style={{ paddingTop: 48 }} imageStyle={{ width: 72 }} />
             )}
@@ -186,8 +196,9 @@ export function MessageSearchModal({
                 </Button>
               </div>
             )}
-          </div>
-        </div>
+            </MasterDetailLayout.Body>
+          }
+        />
       </AppModal>
   );
 }
