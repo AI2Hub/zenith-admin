@@ -49,7 +49,7 @@ const metadata: Record<PreferencePath, Entry> = {
   showFullscreen: { label: '显示全屏按钮', group: 'navigation' },
   showBackTop: { label: '显示回到顶部', group: 'navigation' },
   showQuickChat: { label: '显示快捷聊天', group: 'navigation', description: '还需开启系统“快捷聊天按钮”功能。' },
-  sidebarWidth: { label: '侧边栏宽度', group: 'sidebar', min: 160, max: 320, step: 1, unit: 'px', applicableWhen: sidebar },
+  sidebarWidth: { label: '侧边栏宽度', group: 'sidebar', min: C.SIDEBAR_WIDTH_MIN, max: C.SIDEBAR_WIDTH_MAX, step: 1, unit: 'px', applicableWhen: sidebar },
   sidebarToggleIconPosition: { label: '子菜单箭头位置', group: 'sidebar', options: options(C.SIDEBAR_TOGGLE_ICON_POSITIONS, ['左侧', '右侧']), applicableWhen: sidebar },
   sidebarStickyScroll: { label: '固定侧边栏分组标题', group: 'sidebar', applicableWhen: sidebar },
   sidebarAccordion: { label: '侧边栏手风琴展开', group: 'sidebar', applicableWhen: sidebar },

@@ -88,7 +88,7 @@ export const preferenceValuesSchema = z.strictObject({
   grayscale: z.boolean().default(false),
   colorBlind: z.boolean().default(false),
   contentWidth: z.enum(C.CONTENT_WIDTHS).default('fluid'),
-  sidebarWidth: z.int().min(160).max(320).default(216),
+  sidebarWidth: z.int().min(C.SIDEBAR_WIDTH_MIN).max(C.SIDEBAR_WIDTH_MAX).default(C.DEFAULT_SIDEBAR_WIDTH),
   borderRadius: z.enum(C.BORDER_RADII).default('medium'),
   showBackTop: z.boolean().default(true),
   showProgressBar: z.boolean().default(true),

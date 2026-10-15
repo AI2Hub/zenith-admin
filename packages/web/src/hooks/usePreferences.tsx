@@ -5,6 +5,7 @@ export {
   UI_SCALES, UI_SCALE_OPTIONS, FONT_FAMILIES, FONT_FAMILY_OPTIONS, TIME_DISPLAYS, WEEK_STARTS,
   DARK_SURFACE_TONES, DARK_SURFACE_TONE_OPTIONS, TOPBAR_CLOCK_MODES, SCHEDULED_DARK_MODES,
   isScheduleTime, isScheduledDarkNow, msUntilScheduleBoundary,
+  DEFAULT_SIDEBAR_WIDTH, SIDEBAR_WIDTH_MIN, SIDEBAR_WIDTH_MAX,
 } from '@zenith/shared/preferences';
 export type {
   NavLayout, TabAnimation, TabStyle, TabSize, TabType, TabsPosition, TableSizePreference, RouteAnimation,

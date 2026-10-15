@@ -20,6 +20,10 @@ export type SidebarToggleIconPosition = (typeof SIDEBAR_TOGGLE_ICON_POSITIONS)[n
 /** 双列布局首列形态：仅图标 / 图标 + 文字 */
 export const DOUBLE_RAIL_STYLES = ['icon', 'icon-text'] as const;
 export type DoubleRailStyle = (typeof DOUBLE_RAIL_STYLES)[number];
+/** 侧边栏宽度（px）：默认值与上下限的唯一来源；schema 默认、CSS 变量与前端回退都以它为准 */
+export const DEFAULT_SIDEBAR_WIDTH = 214;
+export const SIDEBAR_WIDTH_MIN = 160;
+export const SIDEBAR_WIDTH_MAX = 320;
 export const BORDER_RADII = ['none', 'small', 'medium', 'large'] as const;
 export type BorderRadiusPreference = (typeof BORDER_RADII)[number];
 export const THEME_MODES = ['light', 'dark', 'system'] as const;

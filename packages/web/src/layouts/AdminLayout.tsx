@@ -9,7 +9,7 @@ import MenuSearchInput, { type FlatMenuItem } from '@/components/MenuSearchInput
 import { TopbarClock } from '@/components/TopbarClock';
 import type { User, Menu } from '@zenith/shared/identity';
 import type { ThemeMode } from '@/hooks/useTheme';
-import { usePreferences, useRouteAnimation, type NavLayout } from '@/hooks/usePreferences';
+import { usePreferences, useRouteAnimation, type NavLayout, DEFAULT_SIDEBAR_WIDTH } from '@/hooks/usePreferences';
 import { getThemeColorVars } from '@/lib/theme-color';
 import { applyBorderRadius } from '@/lib/border-radius';
 import { applyFontFamily, applyUiScale } from '@/lib/typography';
@@ -944,7 +944,7 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
       className={layoutClassName}
       style={{
         ...(sectionDarkVars as CSSProperties),
-        ...(preferences.sidebarWidth && preferences.sidebarWidth !== 216
+        ...(preferences.sidebarWidth && preferences.sidebarWidth !== DEFAULT_SIDEBAR_WIDTH
           ? { '--sidebar-width': `${preferences.sidebarWidth}px` } as CSSProperties
           : {}),
       }}

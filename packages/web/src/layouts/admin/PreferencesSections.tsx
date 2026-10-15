@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Button, Dropdown, Input, InputNumber, Popover, Radio, RadioGroup, Select, SplitButtonGroup, Switch, Tooltip } from '@douyinfe/semi-ui';
 import { ChevronDown, ChevronLeft, ChevronRight, ClipboardPaste, Copy, Download, Info } from 'lucide-react';
-import { LOADING_STYLE_OPTIONS, DARK_SURFACE_TONE_OPTIONS, UI_SCALE_OPTIONS, FONT_FAMILY_OPTIONS } from '@/hooks/usePreferences';
+import { LOADING_STYLE_OPTIONS, DARK_SURFACE_TONE_OPTIONS, UI_SCALE_OPTIONS, FONT_FAMILY_OPTIONS, DEFAULT_SIDEBAR_WIDTH, SIDEBAR_WIDTH_MIN, SIDEBAR_WIDTH_MAX } from '@/hooks/usePreferences';
 import { clearAllListFilterSnapshots } from '@/lib/list-filter-memory';
 import type { NavLayout, TableSizePreference, RouteAnimation, BorderRadiusPreference, ScheduledDarkMode, TabStyle, TabSize, TabType, TabsPosition, DarkSurfaceTone, TopbarClockMode, UserPreferences, UiScale, FontFamilyPreference, WeekStart, TimeDisplay, DoubleRailStyle } from '@/hooks/usePreferences';
 import { isScheduleTime } from '@/hooks/usePreferences';
@@ -759,12 +759,12 @@ export function PrefsSidebarSection({
         <InputNumber
           style={{ width: 110 }}
           size="small"
-          min={160}
-          max={320}
+          min={SIDEBAR_WIDTH_MIN}
+          max={SIDEBAR_WIDTH_MAX}
           step={4}
           suffix="px"
-          value={preferences.sidebarWidth ?? 216}
-          onChange={(v) => setPreferences({ sidebarWidth: Number(v) || 216 })}
+          value={preferences.sidebarWidth ?? DEFAULT_SIDEBAR_WIDTH}
+          onChange={(v) => setPreferences({ sidebarWidth: Number(v) || DEFAULT_SIDEBAR_WIDTH })}
         />
       </div>
       </PreferenceControl>

@@ -6,7 +6,8 @@
 }
 
 :root {
-  --sidebar-width: 216px;
+  /* 与 @zenith/shared/preferences 的 DEFAULT_SIDEBAR_WIDTH 保持一致（CSS 无法引用 TS 常量，改默认值时两处同步） */
+  --sidebar-width: 214px;
   --sidebar-collapsed-width: 40px;
   /* 双列布局：首列（图标 + 文字）+ 右栏子导航；仅图标时首列改用 --sidebar-collapsed-width */
   --sidebar-double-rail-width: 64px;
