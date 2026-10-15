@@ -92,7 +92,6 @@ export async function publishScheduledCmsContents(): Promise<string> {
       }
     }
 
-    // 过期下线
     const expired = await offlineExpiredCmsContents(now);
     const expiryDeliveries = await scheduleCmsExpiredDelivery(now);
 

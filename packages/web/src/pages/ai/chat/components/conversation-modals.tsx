@@ -5,7 +5,6 @@ import type { AiPromptTemplate } from '@zenith/shared/ai';
 import AppModal from '@/components/AppModal';
 import { extractPromptVariables } from '../chat-utils';
 
-/** 重命名会话 */
 export function RenameConversationModal({ visible, value, onChange, onOk, onCancel }: Readonly<{
   visible: boolean; value: string; onChange: (v: string) => void; onOk: () => void; onCancel: () => void;
 }>) {

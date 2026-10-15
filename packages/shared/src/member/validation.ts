@@ -78,7 +78,6 @@ export const memberSmsCodeSchema = z.object({
 
 export const memberRefreshTokenSchema = z.object({ refreshToken: z.string().min(1) });
 
-/** 会员修改资料 */
 export const memberUpdateProfileSchema = z.object({
   nickname: z.string().min(1).max(32).optional(),
   avatar: z.string().max(256).nullish(),

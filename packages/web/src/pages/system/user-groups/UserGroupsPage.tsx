@@ -64,14 +64,12 @@ export default function UserGroupsPage() {
   }));
   const departments = useMemo(() => departmentsQuery.data ?? [], [departmentsQuery.data]);
 
-  // 成员管理
   const [memberSheetVisible, setMemberSheetVisible] = useState(false);
   const [memberGroup, setMemberGroup] = useState<UserGroup | null>(null);
   const [memberIds, setMemberIds] = useState<number[]>([]);
   const membersQuery = useUserGroupMembers(memberGroup?.id, memberSheetVisible);
   // 动态组规则预览
   const [rulePreview, setRulePreview] = useState<UserGroupRulePreview | null>(null);
-  // 角色分配
   const [roleModalVisible, setRoleModalVisible] = useState(false);
   const [roleGroup, setRoleGroup] = useState<UserGroup | null>(null);
   const [roleIds, setRoleIds] = useState<number[]>([]);

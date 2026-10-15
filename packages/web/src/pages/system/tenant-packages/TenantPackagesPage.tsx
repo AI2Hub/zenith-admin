@@ -47,7 +47,6 @@ export default function TenantPackagesPage() {
     labelWidth: 90,
   });
 
-  // 分配功能弹窗
   const [featureModalVisible, setFeatureModalVisible] = useState(false);
   const [featurePackage, setFeaturePackage] = useState<TenantPackage | null>(null);
   const [checkedFeatures, setCheckedFeatures] = useState<LicenseFeatureKey[]>([]);

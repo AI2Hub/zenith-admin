@@ -105,7 +105,6 @@ export const reportWidgetParamBindingSchema = z.object({
 
 export type ReportWidgetParamBinding = z.infer<typeof reportWidgetParamBindingSchema>;
 
-/** 点击联动配置 */
 export const reportWidgetInteractionSchema = z.object({
   enabled: z.boolean().optional(),
   setFilterId: z.string().optional(),
@@ -125,7 +124,6 @@ export const reportWidgetDrilldownSchema = z.object({
 
 export type ReportWidgetDrilldown = z.infer<typeof reportWidgetDrilldownSchema>;
 
-/** 组件样式 */
 export const reportWidgetStyleSchema = z.object({
   background: z.string().optional(),
   showHeader: z.boolean().optional(),

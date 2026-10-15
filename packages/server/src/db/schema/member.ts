@@ -247,7 +247,6 @@ export const coupons = pgTable('coupons', {
   /** 发行总量，0=不限量 */
   totalQuantity: integer().notNull().default(0),
   issuedQuantity: integer().notNull().default(0),
-  /** 每人限领数量 */
   perLimit: integer().notNull().default(1),
   /** 有效期类型：fixed=固定起止日期，relative=领取后 N 天 */
   validType: couponValidTypeEnum().notNull().default('fixed'),

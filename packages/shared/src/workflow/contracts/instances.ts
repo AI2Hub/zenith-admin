@@ -28,7 +28,6 @@ import { WORKFLOW_TASK_KINDS, WORKFLOW_TASK_WAIT_REASONS } from '../constants';
 export const workflowSignatureEvidenceSchema = signatureSnapshotSchema.omit({ dataUrl: true }).meta({ id: 'WorkflowSignatureEvidence' });
 export type WorkflowSignatureEvidence = z.infer<typeof workflowSignatureEvidenceSchema>;
 
-/** 审批动作附件 */
 export const workflowTaskAttachmentRefSchema = workflowAttachmentSchema;
 
 export type WorkflowTaskAttachmentRef = z.infer<typeof workflowTaskAttachmentRefSchema>;

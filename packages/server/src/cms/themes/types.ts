@@ -124,7 +124,6 @@ export interface CmsModelFieldValue {
   displayValue: string;
   /** 详情分组标题（如「文件信息」）；空 = 默认分组 */
   group: string | null;
-  /** 组内排序 */
   sort: number;
 }
 
@@ -171,7 +170,6 @@ export interface CmsPagination {
   pages: { page: number; url: string; current: boolean }[];
 }
 
-/** 广告条目 */
 export interface CmsAdItem {
   id: number;
   name: string;

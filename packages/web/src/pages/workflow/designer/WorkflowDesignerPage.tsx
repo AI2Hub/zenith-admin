@@ -119,7 +119,6 @@ export default function WorkflowDesignerPage({
   const [conditionEditorVisible, setConditionEditorVisible] = useState(false);
   const [routeEditorVisible, setRouteEditorVisible] = useState(false);
 
-  // 缩放
   const [zoom, setZoom] = useState(100);
 
   // 步骤导航：① 基础信息 → ② 表单设计 → ③ 流程设计 → ④ 更多设置
@@ -144,14 +143,12 @@ export default function WorkflowDesignerPage({
   // 预览
   const [previewVisible, setPreviewVisible] = useState(false);
 
-  // 仿真
   const [simulationVisible, setSimulationVisible] = useState(false);
   // 发布前体检
   const [healthVisible, setHealthVisible] = useState(false);
   // 历史版本
   const [historyModalVisible, setHistoryModalVisible] = useState(false);
 
-  // 更多设置
   const [advancedSettings, setAdvancedSettings] = useState<AdvancedSettingsData>(DEFAULT_ADVANCED_SETTINGS);
   const loadGraph = (fd: WorkflowFlowData | null | undefined) => {
     if (!fd) { setGraphOnly(null); history.reset(createDefaultProcess()); return; }

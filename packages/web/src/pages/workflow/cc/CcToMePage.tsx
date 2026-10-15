@@ -32,7 +32,6 @@ export default function CcToMePage() {
     useListSearch<SearchParams>({ defaults: { keyword: '' }, listKey: workflowInstanceKeys.ccLists });
   const [detailVisible, setDetailVisible] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  // 转发抄送
   const [forwardTarget, setForwardTarget] = useState<WorkflowInstance | null>(null);
   const [forwardUserIds, setForwardUserIds] = useState<number[]>([]);
   const [forwardNote, setForwardNote] = useState('');

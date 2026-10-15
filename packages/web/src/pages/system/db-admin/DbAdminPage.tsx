@@ -229,7 +229,6 @@ export default function DbAdminPage() {
   const [rowsWhere, setRowsWhere] = useState('');
   const [rowsWhereInput, setRowsWhereInput] = useState('');
   const [selectedRowIndexes, setSelectedRowIndexes] = useState<Set<number>>(new Set());
-  // 数据网格
   const gridRef = useRef<DataGridHandle | null>(null);
   const [gridMenu, setGridMenu] = useState<GridMenuState | null>(null);
   const [detailState, setDetailState] = useState<{ rowIndex: number; columnName: string | null } | null>(null);

@@ -248,7 +248,6 @@ async function paginateShares(where: SQL | undefined, page: number, pageSize: nu
   });
 }
 
-/** 我创建的外链 */
 export async function listMyShareLinks(q: QueryOutputOf<typeof driveShareLinkContract.list>) {
   const { page, pageSize } = q;
   return paginateShares(await buildShareWhere({ ...q, createdBy: currentUserId() }), page, pageSize);

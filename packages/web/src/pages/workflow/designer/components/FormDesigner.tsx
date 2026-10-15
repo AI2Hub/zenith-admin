@@ -269,7 +269,6 @@ export default function FormDesigner({ fields, onChange, settings, onSettingsCha
   // 内部剪贴板：跨容器复制/粘贴字段配置（含子字段，粘贴时重新生成 key）
   const clipboardRef = useRef<WorkflowFormField | null>(null);
   const [hasClipboard, setHasClipboard] = useState(false);
-  // 画布右键菜单
   const [menu, setMenu] = useState<{ x: number; y: number; key: string } | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   // 表单级设置以 ref 跟踪最新值，供字段 commit 写入同一历史快照

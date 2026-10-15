@@ -82,7 +82,6 @@ export const memberBenefitsSchema = z.object({
 
 export type MemberBenefits = z.infer<typeof memberBenefitsSchema>;
 
-/** 会员邀请汇总 */
 export const memberInviteSummarySchema = z.object({
   inviteCode: z.string(),
   invitedCount: z.int(),

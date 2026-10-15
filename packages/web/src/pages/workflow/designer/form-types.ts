@@ -138,7 +138,6 @@ export const FORM_FIELD_TYPE_GROUPS: FormFieldTypeGroup[] = (() => {
   return Array.from(map.entries()).map(([label, types]) => ({ label, types }));
 })();
 
-// 币种选项
 export const CURRENCY_OPTIONS = [
   { value: 'CNY', label: '人民币 (¥)' },
   { value: 'USD', label: '美元 ($)' },

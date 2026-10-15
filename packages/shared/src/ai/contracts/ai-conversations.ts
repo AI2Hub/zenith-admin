@@ -41,7 +41,6 @@ export const aiConversationSchema = z.object({
 
 export type AiConversation = z.infer<typeof aiConversationSchema>;
 
-/** 对话分享信息 */
 export const aiConversationShareSchema = z.object({
   token: z.string().meta({ description: '分享 token' }),
   url: z.string().meta({ description: '分享页相对路径' }),

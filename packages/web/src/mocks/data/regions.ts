@@ -30,7 +30,6 @@ function makeRegion(
   };
 }
 
-// 构建扁平列表
 const provinceList: Region[] = (provincesJson as ProvinceItem[]).map((p, i) =>
   makeRegion(p.code, p.name, 'province', null, i),
 );

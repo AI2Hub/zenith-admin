@@ -24,7 +24,6 @@ export const openGatewayQueryEchoSchema = z.object({
 
 export type OpenGatewayQueryEcho = z.infer<typeof openGatewayQueryEchoSchema>;
 
-/** 请求体回显 */
 export const openGatewayBodyEchoSchema = z.object({
   body: z.unknown().meta({ description: '原样回显的 JSON 请求体' }),
 }).meta({ id: 'OpenGatewayBodyEcho' });

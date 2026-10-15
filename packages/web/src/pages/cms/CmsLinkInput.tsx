@@ -133,7 +133,6 @@ function ContentPickerModal({ siteId, visible, onCancel, onSelect, excludeId }: 
   );
 }
 
-/** 栏目选择弹窗 */
 function ChannelPickerModal({ siteId, visible, onCancel, onSelect, excludeId }: Readonly<{
   siteId: number | undefined;
   visible: boolean;

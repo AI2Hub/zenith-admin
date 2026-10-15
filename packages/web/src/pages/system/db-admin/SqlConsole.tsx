@@ -115,7 +115,6 @@ export const SqlConsole = forwardRef<SqlConsoleHandle, SqlConsoleProps>(function
   const [explainAnalyzed, setExplainAnalyzed] = useState(false);
   const [explainDuration, setExplainDuration] = useState(0);
 
-  // 收藏夹
   const [favOpen, setFavOpen] = useState(false);
   const editorRef = useRef<MonacoEditor.IStandaloneCodeEditor | null>(null);
   const runQueryRef = useRef<() => void>(() => undefined);

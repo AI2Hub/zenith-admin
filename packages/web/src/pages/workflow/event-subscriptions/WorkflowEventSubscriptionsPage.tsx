@@ -111,7 +111,6 @@ export default function WorkflowEventSubscriptionsPage() {
   const deleteMutation = useDeleteWorkflowEventSubscriptions();
   const secretMutation = useWorkflowEventSubscriptionSecret();
 
-  // 投递抽屉
   const [deliveryVisible, setDeliveryVisible] = useState(false);
   const [deliverySubId, setDeliverySubId] = useState<number | null>(null);
   const [deliveryStatus, setDeliveryStatus] = useState<WorkflowEventDeliveryStatus>();
@@ -283,7 +282,6 @@ export default function WorkflowEventSubscriptionsPage() {
     operationColumn,
   ];
 
-  // 投递详情
   const [selectedDelivery, setDeliveryDetail] = useState<WorkflowEventDelivery | null>(null);
   const deliveryDetail = selectedDelivery ? deliveriesQuery.data?.list.find((row) => row.id === selectedDelivery.id) ?? selectedDelivery : null;
 

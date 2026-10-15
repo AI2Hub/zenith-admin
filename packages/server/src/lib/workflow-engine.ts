@@ -73,7 +73,6 @@ export interface FlowNode {
   data: WorkflowNodeConfig;
 }
 
-/** 构建邻接表 */
 export function buildAdjacency(flowData: WorkflowFlowData) {
   const nodeMap = new Map<string, FlowNode>();
   for (const n of flowData.nodes) {

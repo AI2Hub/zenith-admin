@@ -156,7 +156,6 @@ export type CreateMpAccountInput = z.infer<typeof createMpAccountSchema>;
 export type UpdateMpAccountInput = z.infer<typeof updateMpAccountSchema>;
 
 
-// 公众号标签
 export const createMpTagSchema = z.object({
   accountId: z.number().int().positive(),
   name: z.string().min(1, '标签名称不能为空').max(30),
@@ -325,7 +324,6 @@ export type BlacklistMpFansInput = z.infer<typeof blacklistMpFansSchema>;
 export type CheckMpContentInput = z.infer<typeof checkMpContentSchema>;
 
 
-// 公众号素材
 export const createMpMaterialSchema = z.object({
   accountId: z.number().int().positive(),
   type: z.enum(MP_MATERIAL_TYPES).default('image'),

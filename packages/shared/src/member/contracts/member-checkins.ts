@@ -5,7 +5,6 @@ import { CHECKIN_MILESTONE_REWARD_TYPES } from '../constants';
 
 // ─── 实体 ────────────────────────────────────────────────────────────────────
 
-/** 签到记录 */
 export const memberCheckinSchema = z.object({
   id: z.int(),
   memberId: z.int(),

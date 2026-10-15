@@ -146,7 +146,6 @@ export const chatJoinResultSchema = z.object({
 
 export type ChatJoinResult = z.infer<typeof chatJoinResultSchema>;
 
-/** 入群申请 */
 export const chatGroupJoinRequestSchema = z.object({
   id: z.int(),
   conversationId: z.int(),

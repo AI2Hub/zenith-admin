@@ -43,7 +43,6 @@ export function useConversationActions({
   // useEditModal 例外：提示词模板变量填充表单，提交结果注入对话输入而非保存实体
   const varFormApi = useRef<FormApi | null>(null);
   const [shareConvId, setShareConvId] = useState<number | null>(null);
-  /** 标签编辑 */
   const [tagsConvId, setTagsConvId] = useState<number | null>(null);
   const [tagsDraft, setTagsDraft] = useState<string[]>([]);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -194,7 +193,6 @@ export function useConversationActions({
     setTagsConvId(conv.id);
   };
 
-  /** 标签编辑保存 */
   const handleSaveTags = async () => {
     if (!tagsConvId) return;
     try {

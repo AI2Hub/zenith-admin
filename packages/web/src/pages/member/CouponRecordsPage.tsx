@@ -35,7 +35,6 @@ export default function CouponRecordsPage() {
     couponId: Number(p.couponId) || undefined,
   }));
   const revokeMutation = useRevokeCouponRecord();
-  // 核销
   const [redeemVisible, setRedeemVisible] = useState(false);
   const [redeemCode, setRedeemCode] = useState('');
   const [redeemRemark, setRedeemRemark] = useState('');

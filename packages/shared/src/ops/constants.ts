@@ -306,7 +306,6 @@ export const APP_KIND_LABELS: Record<AppKind, string> = {
 export const APP_KIND_OPTIONS: Array<{ value: AppKind; label: string }> =
   createLabelOptions(APP_KINDS, APP_KIND_LABELS);
 
-/** 发布渠道 */
 export const APP_RELEASE_CHANNELS = ['stable', 'beta', 'internal'] as const;
 export type AppReleaseChannel = (typeof APP_RELEASE_CHANNELS)[number];
 
@@ -542,7 +541,6 @@ export const DEPLOY_RELEASE_NAME_RE = /^\d{14}-[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/
 /** shared/ 下跨版本持久化的相对路径：不含 `..`、不以 / 开头 */
 export const DEPLOY_SHARED_PATH_RE = /^(?!\.\.(\/|$))(?!.*\/\.\.(\/|$))[A-Za-z0-9._][A-Za-z0-9._/-]{0,127}$/;
 
-/** 环境变量名 */
 export const DEPLOY_ENV_NAME_RE = /^[A-Z_][A-Z0-9_]{0,63}$/;
 
 /** 部署根目录禁止落在这些系统目录之内（或等于它们） */

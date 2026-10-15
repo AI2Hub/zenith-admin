@@ -109,7 +109,6 @@ const otaFirmwareRoute = defineContractRoute(iotIngestContract.otaFirmware, {
   },
 });
 
-/** 指令执行回执 */
 const commandAckRoute = defineContractRoute(iotIngestContract.commandAck, {
   middleware: [iotDeviceHeaderAuth],
   handler: async (c) => {

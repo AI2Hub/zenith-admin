@@ -247,7 +247,6 @@ export const analyticsContract = defineContract('/api/analytics', {
   quality: op.get('/quality', { access: { permission: 'analytics:manage' }, query: analyticsQualityQuery, response: analyticsQualityQueryResultSchema, summary: '埋点质量看板' }),
   debugEvents: op.get('/debug/events', { access: { permission: 'analytics:manage' }, query: analyticsDebugEventsQuery, response: paginated(analyticsDebugEventSchema), summary: '事件调试查询' }),
 
-  // 每日聚合
   rollup: op.get('/rollup', { access: { permission: 'analytics:manage' }, query: analyticsRollupQuery, response: analyticsRollupSummarySchema, summary: '每日聚合数据' }),
   rebuildRollup: op.post('/rollup/rebuild', { access: { permission: 'analytics:manage' }, audit: '提交重建每日聚合任务', query: analyticsRollupQuery, response: asyncTaskSchema, summary: '重建每日聚合（异步任务）' }),
 

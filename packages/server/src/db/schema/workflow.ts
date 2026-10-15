@@ -118,7 +118,6 @@ export type WorkflowFormRow = typeof workflowForms.$inferSelect;
 
 export type NewWorkflowForm = typeof workflowForms.$inferInsert;
 
-// 流程定义
 export const workflowDefinitions = pgTable('workflow_definitions', {
   id: idColumn(),
   name: varchar({ length: 64 }).notNull(),
@@ -403,7 +402,6 @@ export type WorkflowCompensationRow = typeof workflowCompensations.$inferSelect;
 
 export type NewWorkflowCompensation = typeof workflowCompensations.$inferInsert;
 
-// 流程实例
 export const workflowInstances = pgTable('workflow_instances', {
   id: idColumn(),
   definitionId: integer().notNull().references(() => workflowDefinitions.id, { onDelete: 'restrict' }),
@@ -464,7 +462,6 @@ export type WorkflowInstanceRow = typeof workflowInstances.$inferSelect;
 
 export type NewWorkflowInstance = typeof workflowInstances.$inferInsert;
 
-// 审批任务
 export const workflowTasks = pgTable('workflow_tasks', {
   id: idColumn(),
   instanceId: integer().notNull().references(() => workflowInstances.id, { onDelete: 'cascade' }),

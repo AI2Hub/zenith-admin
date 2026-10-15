@@ -41,7 +41,6 @@ export async function assertAssigneesNotActiveOnNode(
   throw new HTTPException(409, { message: `${names || '所选人员'} 已是本节点待办处理人，无需重复指派` });
 }
 
-/** 转办明细落库 */
 export async function recordTaskTransfer(
   executor: DbExecutor,
   input: {

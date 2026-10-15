@@ -18,7 +18,6 @@ export const createPaymentChannelConfigSchema = z.object({
   wechatPrivateKey: z.string().optional(),
   wechatSerialNo: z.string().max(128).optional(),
   wechatPlatformCert: z.string().optional(),
-  // 支付宝
   alipayAppId: z.string().max(64).optional(),
   alipaySellerId: z.string().max(64).optional(),
   alipayPrivateKey: z.string().optional(),
@@ -52,7 +51,6 @@ export const createPaymentSchema = z.object({
   expireMinutes: z.number().int().positive().max(1440).default(30),
 });
 
-/** 发起退款 */
 export const createRefundSchema = z.object({
   orderNo: z.string().min(1).max(64),
   refundAmount: z.number().int().positive('退款金额必须大于 0'), // 分
@@ -167,7 +165,6 @@ export const createPaymentFeeRuleSchema = z.object({
 
 export const updatePaymentFeeRuleSchema = partialForUpdate(createPaymentFeeRuleSchema);
 
-/** 分账接收方 */
 export const createPaymentSharingReceiverSchema = z.object({
   name: z.string().min(1).max(64),
   receiverType: z.enum(['merchant', 'personal']).default('merchant'),
@@ -196,7 +193,6 @@ export const dispatchPaymentSharingSchema = z.object({
 
 export type DispatchPaymentSharingInput = z.infer<typeof dispatchPaymentSharingSchema>;
 
-/** 对账差异处理 */
 export const handlePaymentReconItemSchema = z.object({
   action: z.enum(['adjusted', 'suspended', 'ignored']),
   remark: z.string().trim().min(1, '处理原因不能为空').max(256),
@@ -282,7 +278,6 @@ export const createPaymentRiskRuleSchema = z.object({
 
 export const updatePaymentRiskRuleSchema = partialForUpdate(createPaymentRiskRuleSchema);
 
-/** 人工审核处理 */
 export const handlePaymentRiskReviewSchema = z.object({
   remark: z.string().trim().min(1, '审核意见不能为空').max(256),
 });
@@ -322,7 +317,6 @@ export const updatePaymentMethodConfigSchema = z.object({
 });
 
 // ─── 签约代扣（周期扣款/订阅）─────────────────────────────────────────────────
-/** 扣款计划 */
 export const createPaymentDeductPlanSchema = z.object({
   name: z.string().min(1, '计划名称不能为空').max(64),
   period: z.enum(['daily', 'weekly', 'monthly', 'custom']).default('monthly'),
@@ -366,12 +360,10 @@ export type UpdatePaymentDeductPlanInput = z.infer<typeof updatePaymentDeductPla
 export type CreatePaymentContractInput = z.infer<typeof createPaymentContractSchema>;
 
 // ─── 交易投诉/争议 ────────────────────────────────────────────────────────────
-/** 商户回复投诉 */
 export const replyPaymentDisputeSchema = z.object({
   content: z.string().min(1, '回复内容不能为空').max(1000),
 });
 
-/** 完结投诉 */
 export const resolvePaymentDisputeSchema = z.object({
   remark: z.string().max(500).optional(),
 });

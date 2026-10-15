@@ -1,6 +1,5 @@
 import type * as React from 'react';
 
-/** 网格列定义 */
 export interface DataGridColumn {
   /** 列名（唯一，同时作为取值 key） */
   name: string;

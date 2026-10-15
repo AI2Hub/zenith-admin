@@ -214,7 +214,6 @@ export const aiArenaVotes = pgTable('ai_arena_votes', {
   createdAt: timestamptz().defaultNow().notNull(),
 }, (t) => [index('ai_arena_votes_user_idx').on(t.userId)]);
 
-/** 知识库 */
 export const aiKnowledgeBases = pgTable('ai_knowledge_bases', {
   id: idColumn(),
   name: varchar({ length: 100 }).notNull(),
@@ -227,7 +226,6 @@ export const aiKnowledgeBases = pgTable('ai_knowledge_bases', {
 
 export type AiKnowledgeBaseRow = typeof aiKnowledgeBases.$inferSelect;
 
-/** 知识库文档 */
 export const aiKbDocuments = pgTable('ai_kb_documents', {
   id: idColumn(),
   kbId: integer().notNull().references(() => aiKnowledgeBases.id, { onDelete: 'cascade' }),

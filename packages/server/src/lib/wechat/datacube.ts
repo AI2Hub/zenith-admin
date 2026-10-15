@@ -24,7 +24,6 @@ export async function getUserSummary(account: MpCredential, beginDate: string, e
   return [...map.entries()].map(([refDate, v]) => ({ refDate, ...v })).sort((a, b) => a.refDate.localeCompare(b.refDate));
 }
 
-/** 累计用户 */
 export async function getUserCumulate(account: MpCredential, beginDate: string, endDate: string): Promise<{ refDate: string; cumulateUser: number }[]> {
   const data = await wechatApiPost<ListResponse<UserCumulateRow>>(account, '/datacube/getusercumulate', { begin_date: beginDate, end_date: endDate });
   return (data.list ?? []).map((r) => ({ refDate: r.ref_date, cumulateUser: r.cumulate_user ?? 0 })).sort((a, b) => a.refDate.localeCompare(b.refDate));

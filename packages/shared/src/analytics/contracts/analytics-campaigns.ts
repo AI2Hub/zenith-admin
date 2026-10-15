@@ -7,7 +7,6 @@ import { createAnalyticsCampaignSchema, updateAnalyticsCampaignSchema } from '..
 
 // ─── 实体 ────────────────────────────────────────────────────────────────────
 
-/** 分群触达活动 */
 export const analyticsSegmentCampaignSchema = z.object({
   id: z.int(),
   tenantId: z.int().nullable(),

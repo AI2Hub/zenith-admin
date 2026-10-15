@@ -657,7 +657,6 @@ export interface WorkflowFormCascaderNode {
   children?: WorkflowFormCascaderNode[];
 }
 
-// 表单字段配置
 export interface WorkflowFormField {
   /** 签名字段的签署策略，默认 reusable */
   signaturePolicy?: SignaturePolicy;
@@ -758,7 +757,6 @@ export interface WorkflowFormField {
 
 // ─── 表单库 ─────────────────────────────────────────────────────────────────
 
-/** 表单级设置 */
 export interface WorkflowFormSettings {
   description?: string;                 // 表单顶部说明
   submitButtonText?: string;            // 提交按钮文案
@@ -894,7 +892,6 @@ export interface WorkflowSimulationDecision {
   formPatch?: Record<string, unknown>;
 }
 
-/** 流程仿真选项 */
 export interface WorkflowSimulationOptions {
   maxSteps?: number;
   mockDelay?: boolean;

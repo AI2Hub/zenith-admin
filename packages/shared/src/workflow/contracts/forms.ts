@@ -6,7 +6,6 @@ import { workflowFormSchemaShape } from './flow-data';
 
 // ─── 实体 ────────────────────────────────────────────────────────────────────
 
-/** 表单库实体 */
 export const workflowFormSchema = z.object({
   id: z.int(),
   name: z.string().meta({ example: '请假申请表' }),

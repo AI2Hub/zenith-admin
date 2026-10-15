@@ -35,7 +35,6 @@ export const AI_REASONING_LEVELS = ['provider-default', 'none', 'minimal', 'low'
 
 export type AiReasoningLevel = (typeof AI_REASONING_LEVELS)[number];
 
-/** 对话消息角色 */
 export const AI_MESSAGE_ROLES = ['system', 'user', 'assistant'] as const;
 
 export type AiMessageRole = (typeof AI_MESSAGE_ROLES)[number];

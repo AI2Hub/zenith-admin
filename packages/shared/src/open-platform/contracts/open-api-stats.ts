@@ -28,7 +28,6 @@ export const openApiCallLogSchema = z.object({
 
 export type OpenApiCallLog = z.infer<typeof openApiCallLogSchema>;
 
-/** 调用统计总览 */
 export const openApiStatsOverviewSchema = z.object({
   totalCalls: z.int(),
   successCalls: z.int(),
