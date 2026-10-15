@@ -1,13 +1,18 @@
 /**
  * ANSI SGR 转义序列解析：主机日志（nginx / systemd / 容器输出）可能带终端颜色，
  * 搜索与级别识别在去色文本上进行，渲染时再按片段着色。
+ * 只解析 16 色（含亮色）；256 色与 truecolor（`38;5;n` / `38;2;r;g;b`）不识别，按默认色渲染。
  */
 
 // eslint-disable-next-line no-control-regex
 const ANSI_SGR_RE = /\x1b\[[0-9;]*m/g;
 
-const ANSI_FG = ['#3c3c3c', '#c0392b', '#27ae60', '#d4ac0d', '#2980b9', '#8e44ad', '#17a589', '#bdc3c7'];
-const ANSI_FG_BRIGHT = ['#7f8c8d', '#e74c3c', '#2ecc71', '#f1c40f', '#3498db', '#9b59b6', '#1abc9c', '#ecf0f1'];
+// 只给出变量名：色值随明暗切换，由查看器的 --logansi-* 提供（见 LogContentView.css）。
+const refs = (prefix: string) => Array.from({ length: 8 }, (_, index) => `var(--logansi-${prefix}-${index})`);
+const ANSI_FG = refs('fg');
+const ANSI_FG_BRIGHT = refs('bright');
+const ANSI_BG = refs('bg');
+const ANSI_BG_BRIGHT = refs('bg-bright');
 
 export interface AnsiSpan {
   text: string;
@@ -51,7 +56,8 @@ export function parseAnsi(raw: string): AnsiSpan[] {
         else if (code === 49) bg = undefined;
         else if (code >= 30 && code <= 37) color = ANSI_FG[code - 30];
         else if (code >= 90 && code <= 97) color = ANSI_FG_BRIGHT[code - 90];
-        else if (code >= 40 && code <= 47) bg = ANSI_FG[code - 40];
+        else if (code >= 40 && code <= 47) bg = ANSI_BG[code - 40];
+        else if (code >= 100 && code <= 107) bg = ANSI_BG_BRIGHT[code - 100];
       }
     } else if (seg) {
       result.push({ text: seg, color, bg, bold: bold || undefined, italic: italic || undefined, dim: dim || undefined });

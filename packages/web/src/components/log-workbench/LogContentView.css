@@ -7,6 +7,16 @@
   --logtok-literal: var(--log-light-literal);
   --logtok-punct: var(--log-light-muted);
   --logtok-dim: var(--log-light-muted);
+
+  /* 终端 ANSI 色（SGR 30–37 / 90–97 / 40–47 / 100–107）：日志里的颜色由打印它的程序决定，
+     与语法配色相互独立，因此不随配色方案变化，只跟随明暗。两档都按「前景对全部内置配色的
+     背景 ≥4.5:1、色块对背景可辨」校核，未指定前景色的色块由 --logansi-on-bg 保证文字可读
+     （见 LogContentView.css.test.ts，改色值必须重跑）；程序显式指定的前景 + 底色组合按原样渲染。 */
+  --logansi-on-bg: #1f2328;
+  --logansi-fg-0: #333333; --logansi-fg-1: #bb2d2d; --logansi-fg-2: #007300; --logansi-fg-3: #656700; --logansi-fg-4: #0451a5; --logansi-fg-5: #b105b1; --logansi-fg-6: #046c85; --logansi-fg-7: #555555;
+  --logansi-bright-0: #636363; --logansi-bright-1: #b23831; --logansi-bright-2: #007400; --logansi-bright-3: #656700; --logansi-bright-4: #0a61c0; --logansi-bright-5: #a231a2; --logansi-bright-6: #046c86; --logansi-bright-7: #636363;
+  --logansi-bg-0: #a5a5a5; --logansi-bg-1: #e2a5a5; --logansi-bg-2: #8fc18f; --logansi-bg-3: #b7b887; --logansi-bg-4: #98b8da; --logansi-bg-5: #e19de1; --logansi-bg-6: #8ebdc8; --logansi-bg-7: #bbbbbb;
+  --logansi-bg-bright-0: #c6c6c6; --logansi-bg-bright-1: #e9baba; --logansi-bg-bright-2: #a8cfa8; --logansi-bg-bright-3: #c8c8a3; --logansi-bg-bright-4: #afc7e2; --logansi-bg-bright-5: #e8b4e8; --logansi-bg-bright-6: #a7ccd4; --logansi-bg-bright-7: #c5c5c5;
 }
 
 :where(body[theme-mode='dark'], .semi-always-dark) .log-content-view {
@@ -18,6 +28,12 @@
   --logtok-literal: var(--log-dark-literal);
   --logtok-punct: var(--log-dark-muted);
   --logtok-dim: var(--log-dark-muted);
+
+  --logansi-on-bg: #e6edf3;
+  --logansi-fg-0: #989ea6; --logansi-fg-1: #ff7b72; --logansi-fg-2: #7ee787; --logansi-fg-3: #e3b341; --logansi-fg-4: #79c0ff; --logansi-fg-5: #d2a8ff; --logansi-fg-6: #56d4dd; --logansi-fg-7: #e6edf3;
+  --logansi-bright-0: #b9c0c8; --logansi-bright-1: #ffa198; --logansi-bright-2: #a5f3a5; --logansi-bright-3: #f2cd7a; --logansi-bright-4: #a5d6ff; --logansi-bright-5: #e2cbff; --logansi-bright-6: #8beef5; --logansi-bright-7: #ffffff;
+  --logansi-bg-0: #434649; --logansi-bg-1: #823f3a; --logansi-bg-2: #325c36; --logansi-bg-3: #644f1d; --logansi-bg-4: #365673; --logansi-bg-5: #5c4a70; --logansi-bg-6: #24595d; --logansi-bg-7: #535557;
+  --logansi-bg-bright-0: #5d6065; --logansi-bg-bright-1: #964943; --logansi-bg-bright-2: #3a6a3e; --logansi-bg-bright-3: #745b21; --logansi-bg-bright-4: #3e6282; --logansi-bg-bright-5: #6b5682; --logansi-bg-bright-6: #2a686c; --logansi-bg-bright-7: #5c5f61;
 }
 
 .log-content-row {

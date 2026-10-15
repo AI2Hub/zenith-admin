@@ -16,7 +16,14 @@ describe('LogLineText', () => {
     const { container } = render(<LogLineText raw={'\x1b[31mfail\x1b[0m next'} ranges={[{ start: 2, end: 7 }]} activeStart={null} />);
     expect(container.textContent).toBe('fail next');
     expect([...container.querySelectorAll('mark')].map((mark) => mark.textContent).join('')).toBe('il ne');
-    expect(container.firstElementChild).toHaveStyle({ color: '#c0392b' });
+    expect(container.firstElementChild).toHaveStyle({ color: 'var(--logansi-fg-1)' });
+  });
+
+  it('只有底色的片段用色块专用文字色，未设底色时不额外指定颜色', () => {
+    const { container } = render(<LogLineText raw={'\x1b[41mhot\x1b[0m plain'} activeStart={null} />);
+    const [highlight, plain] = [...container.children];
+    expect(highlight).toHaveStyle({ backgroundColor: 'var(--logansi-bg-1)', color: 'var(--logansi-on-bg)' });
+    expect(plain.getAttribute('style')).toBeNull();
   });
 
   it('超长行仍可搜索，正文不因回退到纯文本改变', () => {

@@ -41,7 +41,9 @@ function renderHighlightedSegment(text: string, ranges: MatchRange[] | undefined
 function ansiSpanStyle(span: AnsiSpan): CSSProperties | undefined {
   if (!span.color && !span.bg && !span.bold && !span.italic && !span.dim) return undefined;
   return {
-    color: span.color,
+    // 只有底色没有前景色时（终端里最常见的高亮块）用色块专用文字色，
+    // 否则会继承普通正文色，在深色档的色块上会糊掉
+    color: span.color ?? (span.bg ? 'var(--logansi-on-bg)' : undefined),
     backgroundColor: span.bg,
     fontWeight: span.bold ? 'bold' : undefined,
     fontStyle: span.italic ? 'italic' : undefined,
