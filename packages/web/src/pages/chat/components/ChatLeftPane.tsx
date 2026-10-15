@@ -136,8 +136,8 @@ export function ChatLeftPane({
       </div>
 
       <div style={{ padding: '0 12px 8px', display: 'flex', gap: 8 }}>
-        {/* 「会话」页签显示全部会话的未读总数 */}
-        <Badge count={totalUnread} overflowCount={99}>
+        {/* 「会话」页签显示全部会话的未读总数；为 0 时不显示数量徽标 */}
+        <Badge count={totalUnread > 0 ? totalUnread : undefined} overflowCount={99}>
           <Button
             size="small"
             theme={leftPaneMode === 'conversations' ? 'solid' : 'borderless'}
