@@ -6,6 +6,9 @@ vi.mock('@/hooks/usePreferences', () => ({
   usePreferences: () => ({ preferences: { tablePageSize: 10 }, updatePreferences: vi.fn() }),
   useOptionalPreferences: () => ({ preferences: { tablePageSize: 10 }, updatePreferences: vi.fn() }),
   defaultPreferences: { tablePageSize: 10 },
+}));
+vi.mock('@/components/ConfigurableTable', () => ({
+  default: ({ dataSource, rowKey, pagination, onRefresh }: { dataSource: Array<MonitorWsMessage & { pingCount?: number }>; rowKey: (row: MonitorWsMessage) => string; pagination: { pageSize: number }; onRefresh: () => void }) => (
     <div data-testid="samples" data-page-size={pagination.pageSize}>
       {dataSource.map((row) => <div key={rowKey(row)}>{row.type ?? `心跳 ${row.connId} ${row.pingCount}`}</div>)}
       <button onClick={onRefresh}>刷新表格</button>

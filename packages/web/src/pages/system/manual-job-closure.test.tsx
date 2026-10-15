@@ -15,6 +15,9 @@ vi.mock('@/hooks/usePreferences', () => ({
   usePreferences: () => ({ preferences: { tablePageSize: 10 }, updatePreferences: vi.fn() }),
   useOptionalPreferences: () => ({ preferences: { tablePageSize: 10 }, updatePreferences: vi.fn() }),
   defaultPreferences: { tablePageSize: 10 },
+}));
+vi.mock('@/hooks/usePermission', () => ({ usePermission: () => ({ hasPermission: (permission: string) => permission === 'system:dirsync-log:detail' || state.canRetry }) }));
+vi.mock('@/hooks/useEditModal', () => ({ useEditModal: () => ({ openCreate: vi.fn() }) }));
 vi.mock('@/components/EditFormModal', () => ({ EditFormModal: () => null }));
 vi.mock('@/components/toolbar-controls', () => ({ CreateButton: () => null }));
 vi.mock('@/components/list-page', () => ({ ListSearchToolbar: () => null, listTableProps: (query: { data?: { list: unknown[] } }) => ({ dataSource: query.data?.list ?? [] }), deleteAction: () => ({ key: 'delete', hidden: true }) }));

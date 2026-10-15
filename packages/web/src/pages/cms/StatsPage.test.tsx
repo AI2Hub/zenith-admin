@@ -21,6 +21,9 @@ vi.mock('@/hooks/usePreferences', () => ({
   usePreferences: () => ({ preferences: { tablePageSize: 10 }, updatePreferences: vi.fn() }),
   useOptionalPreferences: () => ({ preferences: { tablePageSize: 10 }, updatePreferences: vi.fn() }),
   defaultPreferences: { tablePageSize: 10 },
+}));
+vi.mock('@/components/ConfigurableTable', () => ({ default: () => null }));
+vi.mock('./CmsSiteSelect', () => ({ CmsSiteSelect: ({ onChange }: { onChange: (id: number) => void }) => <button onClick={() => onChange(1)}>选择测试站点</button> }));
 vi.mock('./stats/CmsTelemetrySettings', () => ({ useCmsTelemetrySettings: () => ({ editor: null, open: vi.fn() }) }));
 vi.mock('./stats/CmsTelemetryDeliveries', () => ({ default: () => null }));
 vi.mock('./stats/CmsStatsNameFilter', () => ({ default: () => null }));
