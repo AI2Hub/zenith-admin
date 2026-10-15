@@ -2,9 +2,10 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { MonitorWsMessage, MonitorWsMetrics } from '@zenith/shared/platform';
 
-vi.mock('@/hooks/usePreferences', () => ({ usePreferences: () => ({ preferences: {} }) }));
-vi.mock('@/components/ConfigurableTable', () => ({
-  default: ({ dataSource, rowKey, pagination, onRefresh }: { dataSource: Array<MonitorWsMessage & { pingCount?: number }>; rowKey: (row: MonitorWsMessage) => string; pagination: { pageSize: number }; onRefresh: () => void }) => (
+vi.mock('@/hooks/usePreferences', () => ({
+  usePreferences: () => ({ preferences: { tablePageSize: 10 }, updatePreferences: vi.fn() }),
+  useOptionalPreferences: () => ({ preferences: { tablePageSize: 10 }, updatePreferences: vi.fn() }),
+  defaultPreferences: { tablePageSize: 10 },
     <div data-testid="samples" data-page-size={pagination.pageSize}>
       {dataSource.map((row) => <div key={rowKey(row)}>{row.type ?? `心跳 ${row.connId} ${row.pingCount}`}</div>)}
       <button onClick={onRefresh}>刷新表格</button>

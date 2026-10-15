@@ -14,8 +14,9 @@ vi.mock('@/hooks/usePermission', () => ({
   usePermission: () => ({ hasPermission: () => false, hasAnyPermission: () => false }),
 }));
 vi.mock('@/hooks/usePreferences', () => ({
-  usePreferences: () => ({ preferences: defaultPreferences }),
-  useOptionalPreferences: () => null,
+  usePreferences: () => ({ preferences: { tablePageSize: 10 }, updatePreferences: vi.fn() }),
+  useOptionalPreferences: () => ({ preferences: { tablePageSize: 10 }, updatePreferences: vi.fn() }),
+  defaultPreferences: { tablePageSize: 10 },
 }));
 vi.mock('@/lib/contract-query', async (importOriginal) => ({
   ...await importOriginal<typeof import('@/lib/contract-query')>(),

@@ -5,9 +5,10 @@ import type { CmsStatsReportQuery } from '@/hooks/queries/cms-stats';
 import CmsStatsNameFilter from './CmsStatsNameFilter';
 
 const queries = vi.hoisted(() => [] as { query: CmsStatsReportQuery; enabled: boolean }[]);
-vi.mock('@/hooks/usePreferences', () => ({ usePreferences: () => ({ preferences: { tablePageSize: 10 } }) }));
-vi.mock('@/hooks/queries/cms-stats', () => ({ useCmsStatsReport: (query: CmsStatsReportQuery, enabled: boolean) => {
-  queries.push({ query, enabled });
+vi.mock('@/hooks/usePreferences', () => ({
+  usePreferences: () => ({ preferences: { tablePageSize: 10 }, updatePreferences: vi.fn() }),
+  useOptionalPreferences: () => ({ preferences: { tablePageSize: 10 }, updatePreferences: vi.fn() }),
+  defaultPreferences: { tablePageSize: 10 },
   return { isFetching: false, data: enabled ? { total: 260, list: query.keyword === '第250篇' ? [{ key: '250', label: '第250篇文化观察' }] : [{ key: String(query.page), label: `第${query.page}页` }] } : undefined };
 } }));
 vi.mock('@/components/search-filters', () => ({ FilterSelect: ({ onSearch, onDropdownVisibleChange, onChange, items, outerBottomSlot }: { onSearch: (value: string) => void; onDropdownVisibleChange: (value: boolean) => void; onChange: (value: number) => void; items: { label: string; value: number }[]; outerBottomSlot: ReactNode }) => <div><button onClick={() => onDropdownVisibleChange(true)}>打开名称筛选</button><input aria-label="搜索名称" onChange={(event) => onSearch(event.target.value)} />{items.map((item) => <button key={item.value} onClick={() => onChange(item.value)}>{item.label}</button>)}{outerBottomSlot}</div> }));

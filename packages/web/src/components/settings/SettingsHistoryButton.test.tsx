@@ -7,8 +7,9 @@ import { SettingsHistoryButton } from './SettingsHistoryButton';
 const recorder = new ApiRecorder();
 vi.mock('@/utils/request', () => ({ request: createRequestMock(() => recorder) }));
 vi.mock('@/hooks/usePreferences', () => ({
-  usePreferences: () => ({ preferences: { tablePageSize: 10 } }),
-  useOptionalPreferences: () => null,
+  usePreferences: () => ({ preferences: { tablePageSize: 10 }, updatePreferences: vi.fn() }),
+  useOptionalPreferences: () => ({ preferences: { tablePageSize: 10 }, updatePreferences: vi.fn() }),
+  defaultPreferences: { tablePageSize: 10 },
 }));
 
 beforeEach(() => recorder.reset());

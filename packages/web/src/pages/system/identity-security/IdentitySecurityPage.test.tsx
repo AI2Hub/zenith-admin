@@ -7,8 +7,9 @@ import { createTestQueryClient, createWrapper } from '@/test-utils/query-harness
 
 const state = vi.hoisted(() => ({ policy: vi.fn(), risk: vi.fn() }));
 vi.mock('@/hooks/usePreferences', () => ({
-  usePreferences: () => ({ preferences: { tablePageSize: 10 } }),
-  useOptionalPreferences: () => null,
+  usePreferences: () => ({ preferences: { tablePageSize: 10 }, updatePreferences: vi.fn() }),
+  useOptionalPreferences: () => ({ preferences: { tablePageSize: 10 }, updatePreferences: vi.fn() }),
+  defaultPreferences: { tablePageSize: 10 },
 }));
 vi.mock('@/hooks/queries/settings', () => ({
   useSettings: (...args: unknown[]) => { state.policy(...args); return { data: undefined, refetch: vi.fn(), isFetching: false }; },

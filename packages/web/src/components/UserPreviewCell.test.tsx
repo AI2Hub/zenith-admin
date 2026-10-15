@@ -21,6 +21,8 @@ const api = new ApiRecorder();
 vi.mock('@/utils/request', () => ({ request: createRequestMock(() => api) }));
 vi.mock('@/hooks/usePreferences', () => ({
   usePreferences: () => ({ preferences: { tablePageSize: 10 }, updatePreferences: vi.fn() }),
+  useOptionalPreferences: () => ({ preferences: { tablePageSize: 10 }, updatePreferences: vi.fn() }),
+  defaultPreferences: { tablePageSize: 10 },
 }));
 
 import { UserPreviewCell, type UserPreviewScope } from './UserPreviewCell';

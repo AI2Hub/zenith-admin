@@ -17,9 +17,10 @@ vi.mock('@/hooks/queries/cms-stats', () => ({
 }));
 vi.mock('@/hooks/queries/cms-sites', () => ({ useCmsSiteDetail: () => ({ data: { id: 1, name: '测试站', settings: { telemetry: { enabled: true, timeZone: 'Asia/Shanghai' } } }, isLoading: false }) }));
 vi.mock('@/hooks/usePermission', () => ({ usePermission: () => ({ hasPermission: () => false }) }));
-vi.mock('@/hooks/usePreferences', () => ({ useOptionalPreferences: () => undefined, usePreferences: () => ({ preferences: { tablePageSize: 10 } }) }));
-vi.mock('@/components/ConfigurableTable', () => ({ default: () => null }));
-vi.mock('./CmsSiteSelect', () => ({ CmsSiteSelect: ({ onChange }: { onChange: (id: number) => void }) => <button onClick={() => onChange(1)}>选择测试站点</button> }));
+vi.mock('@/hooks/usePreferences', () => ({
+  usePreferences: () => ({ preferences: { tablePageSize: 10 }, updatePreferences: vi.fn() }),
+  useOptionalPreferences: () => ({ preferences: { tablePageSize: 10 }, updatePreferences: vi.fn() }),
+  defaultPreferences: { tablePageSize: 10 },
 vi.mock('./stats/CmsTelemetrySettings', () => ({ useCmsTelemetrySettings: () => ({ editor: null, open: vi.fn() }) }));
 vi.mock('./stats/CmsTelemetryDeliveries', () => ({ default: () => null }));
 vi.mock('./stats/CmsStatsNameFilter', () => ({ default: () => null }));
