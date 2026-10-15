@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PaginationProps } from '@douyinfe/semi-ui/lib/es/pagination';
-import { usePreferences } from '@/hooks/usePreferences';
+import { defaultPreferences, useOptionalPreferences } from '@/hooks/usePreferences';
 
 export const TABLE_PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 
@@ -89,7 +89,7 @@ function sameResetKey(a: unknown, b: unknown): boolean {
  */
 export function usePagination(options?: number | UsePaginationOptions): UsePaginationReturn {
   const { pageSize: overrideDefaultPageSize, pageSizeOpts, resetKey, initialPage, initialPageSize } = typeof options === 'number' ? { pageSize: options } : (options ?? {});
-  const { preferences } = usePreferences();
+  const preferences = useOptionalPreferences()?.preferences ?? defaultPreferences;
   const defaultPageSize = overrideDefaultPageSize ?? preferences.tablePageSize ?? 10;
   const [page, setPage] = useState(initialPage ?? 1);
   // 未在本页选择过条数时持续继承默认值，覆盖策略冷加载及在线变更；临时选择后保持本页选择。

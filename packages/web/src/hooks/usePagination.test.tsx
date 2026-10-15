@@ -23,6 +23,12 @@ function setup(options: UsePaginationOptions = {}) {
 }
 
 describe('usePagination preference defaults', () => {
+  it('没有 PreferencesProvider 时使用共享默认分页大小', () => {
+    const hook = renderHook(() => usePagination());
+
+    expect(hook.result.current.pageSize).toBe(10);
+  });
+
   it('策略异步加载及后续更新时，未选择过条数的列表跟随新默认并回到首页', () => {
     const hook = setup();
     expect(hook.result.current.pageSize).toBe(10);
