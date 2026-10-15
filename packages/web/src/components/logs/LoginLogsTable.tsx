@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Button, Descriptions, Tag } from '@douyinfe/semi-ui';
-import AppModal from '@/components/AppModal';
+import { Button, Tag } from '@douyinfe/semi-ui';
+import { LoginLogDetailModal } from '@/components/logs/LoginLogDetailModal';
 import type { ColumnProps, TableProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { TagColor } from '@douyinfe/semi-ui/lib/es/tag';
 import { LOGIN_EVENT_TYPE_LABELS, type LoginEventType, type LoginLog } from '@zenith/shared/identity';
@@ -107,44 +107,33 @@ export function LoginLogsTable({
         columnSettingsKey={columnSettingsKey}
       />
 
-      <AppModal
+      <LoginLogDetailModal
         title="登录日志详情"
         visible={detailLog !== null}
         onCancel={() => setDetailLog(null)}
-        footer={null}
-        width={560}
-        style={{ top: 40 }}
-      >
-        {detailLog && (
-          <Descriptions
-            data={[
-              { key: 'ID', value: String(detailLog.id) },
-              {
-                key: '状态',
-                value: <LoginStatusTag status={detailLog.status} size="small" />,
-              },
-              { key: '用户', value: formatUserLabel(detailLog.username, detailLog.nickname), span: 2 },
-              { key: '事件', value: <LoginEventTypeTag eventType={detailLog.eventType} size="small" /> },
-              { key: '事件信息', value: detailLog.message ?? '-' },
-              { key: 'IP 地址', value: detailLog.ip ?? '-' },
-              { key: '地点', value: detailLog.location ?? '-' },
-              { key: '浏览器', value: detailLog.browser ?? '-' },
-              { key: '操作系统', value: detailLog.os ?? '-' },
-              { key: '操作时间', value: formatDateTime(detailLog.createdAt), span: 2 },
-              { key: 'User-Agent', value: detailLog.userAgent ?? '-', span: 2 },
-              ...(detailLog.screenWidth && detailLog.screenHeight ? [
-                { key: '屏幕分辨率', value: [detailLog.screenWidth, ' × ', detailLog.screenHeight, detailLog.devicePixelRatio && detailLog.devicePixelRatio !== '1' ? ` (${detailLog.devicePixelRatio}x)` : ''].join(''), span: 2 },
-              ] : []),
-              ...(detailLog.gpu ? [{ key: 'GPU', value: detailLog.gpu, span: 2 }] : []),
-              ...(detailLog.cpuCores ? [{ key: 'CPU 核心数', value: String(detailLog.cpuCores) }] : []),
-              ...(detailLog.memoryGb ? [{ key: '内存', value: `${detailLog.memoryGb} GB` }] : []),
-            ]}
-            column={2}
-            layout="horizontal"
-            align="left"
-          />
-        )}
-      </AppModal>
+        items={detailLog ? [
+          { key: 'ID', value: String(detailLog.id) },
+          {
+            key: '状态',
+            value: <LoginStatusTag status={detailLog.status} size="small" />,
+          },
+          { key: '用户', value: formatUserLabel(detailLog.username, detailLog.nickname), span: 2 },
+          { key: '事件', value: <LoginEventTypeTag eventType={detailLog.eventType} size="small" /> },
+          { key: '事件信息', value: detailLog.message ?? '-' },
+          { key: 'IP 地址', value: detailLog.ip ?? '-' },
+          { key: '地点', value: detailLog.location ?? '-' },
+          { key: '浏览器', value: detailLog.browser ?? '-' },
+          { key: '操作系统', value: detailLog.os ?? '-' },
+          { key: '操作时间', value: formatDateTime(detailLog.createdAt), span: 2 },
+          { key: 'User-Agent', value: detailLog.userAgent ?? '-', span: 2 },
+          ...(detailLog.screenWidth && detailLog.screenHeight ? [
+            { key: '屏幕分辨率', value: [detailLog.screenWidth, ' × ', detailLog.screenHeight, detailLog.devicePixelRatio && detailLog.devicePixelRatio !== '1' ? ` (${detailLog.devicePixelRatio}x)` : ''].join(''), span: 2 },
+          ] : []),
+          ...(detailLog.gpu ? [{ key: 'GPU', value: detailLog.gpu, span: 2 }] : []),
+          ...(detailLog.cpuCores ? [{ key: 'CPU 核心数', value: String(detailLog.cpuCores) }] : []),
+          ...(detailLog.memoryGb ? [{ key: '内存', value: `${detailLog.memoryGb} GB` }] : []),
+        ] : []}
+      />
     </>
   );
 }

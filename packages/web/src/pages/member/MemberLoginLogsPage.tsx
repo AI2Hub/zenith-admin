@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Tag } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { MemberLoginLog } from '@zenith/shared/member';
@@ -5,11 +6,13 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { ListSearchToolbar } from '@/components/list-page';
 import ExportButton from '@/components/ExportButton';
 import { dateTimeColumn, renderEllipsis } from '../../utils/table-columns';
-import { formatDateRangeValuesForApi } from '@/utils/date';
+import { formatDateRangeValuesForApi, formatDateTime } from '@/utils/date';
 import { memberAdminKeys, useMemberLoginLogList } from '@/hooks/queries/member-admin';
 import { DateRangeFilter, KeywordInput, StatusSelect } from '@/components/search-filters';
-import { memberCellColumn, useMemberKeywordDeepLink } from './member-admin-display';
+import { memberCellColumn, renderMemberName, useMemberKeywordDeepLink } from './member-admin-display';
 import { useListPage } from '@/hooks/useListPage';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
+import { LoginLogDetailModal } from '@/components/logs/LoginLogDetailModal';
 
 interface SearchParams {
   keyword?: string;
@@ -25,6 +28,7 @@ const statusOptions = [
 ];
 
 export default function MemberLoginLogsPage() {
+  const [detailLog, setDetailLog] = useState<MemberLoginLog | null>(null);
   const {
     bind,
     bindKeyword,
@@ -52,8 +56,14 @@ export default function MemberLoginLogsPage() {
     { title: '浏览器', dataIndex: 'browser', width: 130, render: (v: string | null) => renderEllipsis(v ?? '—') },
     { title: '操作系统', dataIndex: 'os', width: 130, render: (v: string | null) => renderEllipsis(v ?? '—') },
     { title: '说明', dataIndex: 'message', render: (v: string | null) => renderEllipsis(v ?? '—') },
-    { title: '状态', dataIndex: 'status', width: 90, fixed: 'right', render: (v: 'success' | 'fail') => <Tag color={v === 'success' ? 'green' : 'red'}>{v === 'success' ? '成功' : '失败'}</Tag> },
     dateTimeColumn('登录时间', 'createdAt', { fixed: 'right' }),
+    { title: '状态', dataIndex: 'status', width: 90, fixed: 'right', render: (v: 'success' | 'fail') => <Tag color={v === 'success' ? 'green' : 'red'}>{v === 'success' ? '成功' : '失败'}</Tag> },
+    createOperationColumn<MemberLoginLog>({
+      width: 80,
+      actions: (record) => [
+        { key: 'detail', label: '详情', onClick: () => setDetailLog(record) },
+      ],
+    }),
   ];
 
   return (
@@ -78,6 +88,23 @@ export default function MemberLoginLogsPage() {
       <ConfigurableTable<MemberLoginLog>
         columns={columns}
         {...tableProps}
+      />
+      <LoginLogDetailModal
+        title="会员登录日志详情"
+        visible={detailLog !== null}
+        onCancel={() => setDetailLog(null)}
+        items={detailLog ? [
+          { key: 'ID', value: String(detailLog.id) },
+          { key: '状态', value: <Tag color={detailLog.status === 'success' ? 'green' : 'red'}>{detailLog.status === 'success' ? '成功' : '失败'}</Tag> },
+          { key: '会员', value: renderMemberName({ nickname: detailLog.memberNickname, memberId: detailLog.memberId }), span: 2 },
+          { key: 'IP 地址', value: detailLog.ip ?? '—' },
+          { key: '地点', value: detailLog.location ?? '—' },
+          { key: '浏览器', value: detailLog.browser ?? '—' },
+          { key: '操作系统', value: detailLog.os ?? '—' },
+          { key: '说明', value: detailLog.message ?? '—', span: 2 },
+          { key: '登录时间', value: formatDateTime(detailLog.createdAt), span: 2 },
+          { key: 'User-Agent', value: detailLog.userAgent ?? '—', span: 2 },
+        ] : []}
       />
     </div>
   );
