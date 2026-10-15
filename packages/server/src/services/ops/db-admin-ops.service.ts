@@ -473,7 +473,6 @@ function canonicalType(raw: string): string {
   let isArray = false;
   if (t.endsWith('[]')) { isArray = true; t = t.slice(0, -2).trim(); }
   if (t.startsWith('_')) { isArray = true; t = t.slice(1); }
-  // 提取长度
   const lenMatch = /\(([0-9, ]+)\)/.exec(t);
   const len = lenMatch ? lenMatch[1].replace(/\s/g, '') : '';
   let base = t.replace(/\([^)]*\)/, '').replace(/\s+/g, ' ').trim();

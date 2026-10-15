@@ -51,7 +51,6 @@ export const {
   update: updateMpTag,
 } = mpTagCrud;
 
-/** 审计前快照 */
 export const getMpTagBeforeAudit = mpTagCrud.get;
 
 export async function deleteMpTag(id: number) {

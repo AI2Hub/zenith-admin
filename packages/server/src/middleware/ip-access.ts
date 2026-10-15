@@ -22,7 +22,6 @@ const EXEMPT_PATHS = new Set([
 export const ipAccessMiddleware = createMiddleware(async (c, next) => {
   const path = c.req.path;
 
-  // 免检路径
   if (EXEMPT_PATHS.has(path) || path.startsWith('/api/oauth/') || path.startsWith('/api/auth/oauth/')) {
     return next();
   }
@@ -45,7 +44,6 @@ export const ipAccessMiddleware = createMiddleware(async (c, next) => {
     }
   }
 
-  // 白名单检查
   if (cfg.whitelistEnabled && cfg.whitelist.length > 0) {
     const allowed = ipRangeCheck(ip, cfg.whitelist);
     if (!allowed) {

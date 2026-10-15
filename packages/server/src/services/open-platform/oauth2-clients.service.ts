@@ -372,7 +372,6 @@ export async function deleteOAuth2Client(
     await tx.delete(oauth2AuthorizationCodes).where(eq(oauth2AuthorizationCodes.clientId, existing.clientId));
     await tx.delete(oauth2UserGrants).where(eq(oauth2UserGrants.clientId, existing.clientId));
 
-    // 配额告警队列
     await tx.delete(openQuotaAlerts).where(eq(openQuotaAlerts.clientId, existing.clientId));
   });
 }

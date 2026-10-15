@@ -10,7 +10,6 @@ import { managedFiles } from './files';
 /** 空间类型：personal=个人空间（每人一个）；department=部门空间（按部门绑定）；team=协作空间 */
 export const driveSpaceTypeEnum = pgEnum('drive_space_type', ['personal', 'department', 'team']);
 
-/** 授权主体类型 */
 export const driveSubjectTypeEnum = pgEnum('drive_subject_type', ['user', 'department', 'role', 'user_group']);
 
 /** 网盘角色：viewer 仅预览 < downloader 可下载 < editor 可写 < manager 可管理权限 */

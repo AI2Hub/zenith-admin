@@ -247,7 +247,6 @@ export async function evaluateRisk(input: RiskCheckInput): Promise<RiskDecision>
       const hit = hitsByKey.get(blockKey)![0];
       return { action: rule.action, ruleId: rule.id, ruleName: rule.name, dimension: 'blocklist', dimensionValue: `${hit.value}@${blockKey}`, message: `命中名单「${blockKey}」（${rule.name}）` };
     }
-    // 单笔上限
     if (rule.singleLimit != null && input.amount > rule.singleLimit) {
       return { action: rule.action, ruleId: rule.id, ruleName: rule.name, dimension: 'single_limit', dimensionValue: `${input.amount} > ${rule.singleLimit}`, message: `单笔金额超过限额（${rule.name}）` };
     }

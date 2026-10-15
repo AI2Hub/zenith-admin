@@ -189,7 +189,6 @@ export const aiUserSettings = pgTable('ai_user_settings', {
 
 export type AiUserSettingsRow = typeof aiUserSettings.$inferSelect;
 
-/** 对话分享链接 */
 export const aiSharedConversations = pgTable('ai_shared_conversations', {
   id: idColumn(),
   token: varchar({ length: 64 }).notNull(),

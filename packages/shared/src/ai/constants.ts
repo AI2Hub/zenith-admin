@@ -84,7 +84,6 @@ export const AI_HTTP_TOOL_PARAM_TYPES = ['string', 'number', 'boolean'] as const
 /** query = URL 查询参数 / body = JSON body 字段 / path = URL 路径占位符 {name} */
 export const AI_HTTP_TOOL_PARAM_LOCATIONS = ['query', 'body', 'path'] as const;
 
-/** 评测实验状态 */
 export const AI_EVAL_EXPERIMENT_STATUSES = ['pending', 'running', 'completed', 'failed'] as const;
 
 export type AiEvalExperimentStatus = (typeof AI_EVAL_EXPERIMENT_STATUSES)[number];

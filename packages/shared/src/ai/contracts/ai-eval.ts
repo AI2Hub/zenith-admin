@@ -43,7 +43,6 @@ export const aiEvalExperimentSchema = z.object({
 
 export type AiEvalExperiment = z.infer<typeof aiEvalExperimentSchema>;
 
-/** 实验单条结果 */
 export const aiEvalExperimentResultSchema = z.object({
   itemId: z.string(),
   input: z.string(),

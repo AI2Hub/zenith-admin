@@ -46,7 +46,6 @@ async function buildTrend(): Promise<ChannelDashboardTrendPoint[]> {
   return [...buckets.entries()].map(([date, v]) => ({ date, inbound: v.inbound, outbound: v.outbound }));
 }
 
-/** 会话状态分布 */
 async function buildStatusDist(): Promise<ChannelDashboardStatusDist> {
   const rows = await db.select({ status: channelConversations.status, count: sql<number>`count(*)::int` })
     .from(channelConversations)

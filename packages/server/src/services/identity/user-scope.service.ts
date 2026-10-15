@@ -27,7 +27,6 @@ import {
 import { buildWhere, keywordCondition, withPagination } from '../../lib/where-helpers';
 import { exactTenantCondition, tenantScope } from '../../lib/tenant';
 
-/** 成员归属范围 */
 export type UserScopeType = 'department' | 'role' | 'position' | 'userGroup';
 export const USER_PREVIEW_LIMIT = 5;
 

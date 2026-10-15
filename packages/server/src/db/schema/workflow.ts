@@ -81,7 +81,6 @@ export const workflowNodeTypeEnum = pgEnum('workflow_node_type', [
 // 显式执行 Token 状态
 export const workflowTokenStatusEnum = pgEnum('workflow_token_status', ['active', 'consumed', 'dead']);
 
-// 流程分类
 export const workflowCategories = pgTable('workflow_categories', {
   id: idColumn(),
   name: varchar({ length: 64 }).notNull(),

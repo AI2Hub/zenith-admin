@@ -534,7 +534,6 @@ export async function getFileStats() {
       .orderBy(localFormat(managedFiles.createdAt, 'YYYY-MM')),
   ]);
 
-  // 文件类型分布
   const typeMap: Record<string, { label: string; count: number; size: number }> = {
     image: { label: '图片', count: 0, size: 0 },
     video: { label: '视频', count: 0, size: 0 },
@@ -552,7 +551,6 @@ export async function getFileStats() {
     else { typeMap.other.count++; typeMap.other.size += s; }
   }
 
-  // 存储类型分布
   const providerMap: Record<string, { count: number; size: number }> = {};
   for (const f of allFiles) {
     const p = f.provider;

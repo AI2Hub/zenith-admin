@@ -1356,7 +1356,6 @@ function toSqlLiteral(value: unknown, dataType: string): string {
     return typeof value === 'number' ? String(value) : JSON.stringify(value);
   }
 
-  // 布尔型
   if (typeof value === 'boolean' || dt === 'boolean' || dt === 'bool') {
     return value ? 'TRUE' : 'FALSE';
   }
@@ -1404,7 +1403,6 @@ function buildTableDdl(schema: string, name: string, structure: TableStructure):
     }
   }
 
-  // 外键
   for (const fk of structure.foreignKeys) {
     const cols = fk.columns.map(quoteIdent).join(', ');
     const refCols = fk.referencedColumns.map(quoteIdent).join(', ');

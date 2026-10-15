@@ -197,7 +197,6 @@ async function applyNodeFailurePolicy(input: {
       newTasks: materialized.createdTasks,
     });
 
-    // 终止
     if (policy.action === 'terminate') {
       await recordCompensation(tx, { instanceId: lockedInst.id, nodeKey: input.nodeKey, nodeName: input.nodeName, errorMessage: input.errorMessage, action: 'terminate', status: 'terminated', tenantId: lockedInst.tenantId });
       const row = await markInstanceRejected(tx, { instanceId: lockedInst.id, comment: errorComment, killTokens: true, actorId: input.actor.userId });
@@ -212,7 +211,6 @@ async function applyNodeFailurePolicy(input: {
       return { ...settled, affectedTasks, repairTask: null };
     }
 
-    // 跳转备用节点
     if (policy.action === 'fallback' && policy.fallbackNodeKey) {
       const target = flowData.nodes.find((n) => n.data.key === policy.fallbackNodeKey);
       if (target) {

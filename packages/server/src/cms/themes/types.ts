@@ -22,7 +22,6 @@ export interface CmsRenderSite {
   themeConfig: Record<string, unknown>;
 }
 
-/** 前台导航节点 */
 export interface CmsNavItem {
   id: number;
   name: string;

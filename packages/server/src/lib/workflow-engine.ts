@@ -126,7 +126,6 @@ export interface TaskAction {
   autoStatus?: 'approved' | 'rejected';
 }
 
-/** 引擎推进结果 */
 export interface AdvanceResult {
   finished: boolean;
   /** 流程是否被自动拒绝 */

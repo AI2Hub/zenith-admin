@@ -56,7 +56,6 @@ export async function bindFanToMember(fanId: number, memberId: number) {
   return mapMpFan(f);
 }
 
-/** 解绑会员。 */
 export async function unbindFanMember(fanId: number) {
   await getFanScoped(fanId);
   const [f] = await db.update(mpFans).set({ memberId: null }).where(eq(mpFans.id, fanId)).returning();

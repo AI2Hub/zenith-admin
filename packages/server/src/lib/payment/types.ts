@@ -329,7 +329,6 @@ export interface PaymentChannelAdapter {
   /** 主动查询支付状态（回调兜底） */
   queryPayment(ctx: AdapterContext, order: PaymentOrderRow): Promise<PaymentQueryResult>;
   closePayment(ctx: AdapterContext, order: PaymentOrderRow): Promise<void>;
-  /** 申请退款 */
   refund(ctx: AdapterContext, order: PaymentOrderRow, refund: PaymentRefundRow): Promise<RefundResult>;
   queryRefund(ctx: AdapterContext, refund: PaymentRefundRow, order: PaymentOrderRow): Promise<RefundQueryResult>;
   /** 验签 + 解析异步回调 */

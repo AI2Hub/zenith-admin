@@ -308,7 +308,6 @@ export type ReportDashboardRow = typeof reportDashboards.$inferSelect;
 
 export type NewReportDashboard = typeof reportDashboards.$inferInsert;
 
-/** 仪表盘分类 */
 export const reportDashboardCategories = pgTable('report_dashboard_categories', {
   id: idColumn(),
   tenantId: tenantIdColumn(),
@@ -339,7 +338,6 @@ export type ReportDashboardVersionRow = typeof reportDashboardVersions.$inferSel
 
 export type NewReportDashboardVersion = typeof reportDashboardVersions.$inferInsert;
 
-/** 公开分享链接 */
 export const reportDashboardShares = pgTable('report_dashboard_shares', {
   id: idColumn(),
   dashboardId: integer().notNull().references(() => reportDashboards.id, { onDelete: 'cascade' }),

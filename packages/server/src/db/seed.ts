@@ -1379,7 +1379,6 @@ async function seedRest() {
   ).onConflictDoNothing({ target: iotProducts.id });
   await db.execute(sql`SELECT setval('iot_products_id_seq', GREATEST((SELECT MAX(id) FROM iot_products), 1))`);
 
-  // 物模型三元组
   await db.insert(iotProductProperties).overridingSystemValue().values(
     SEED_IOT_PRODUCT_PROPERTIES.map(({ id, productId, identifier, name, dataType, accessMode, unit, minValue, maxValue, enumOptions, featured, anomalyEnabled, sort, description }) => ({
       id, productId, identifier, name, dataType, accessMode, unit, minValue, maxValue, enumOptions, featured, anomalyEnabled, sort, description,
@@ -1455,7 +1454,6 @@ async function seedRest() {
   ).onConflictDoNothing({ target: iotAlarms.id });
   await db.execute(sql`SELECT setval('iot_alarms_id_seq', GREATEST((SELECT MAX(id) FROM iot_alarms), 1))`);
 
-  // 设备事件流
   await db.insert(iotDeviceEvents).overridingSystemValue().values(
     SEED_IOT_DEVICE_EVENTS.map(({ id, deviceId, kind, identifier, name, level, payload, reportedAt }) => ({
       id, deviceId, kind, identifier, name, level, payload, reportedAt: new Date(reportedAt),

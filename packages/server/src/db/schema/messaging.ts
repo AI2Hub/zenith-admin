@@ -39,7 +39,6 @@ export type EmailConfigRow = typeof emailConfigs.$inferSelect;
 export type NewEmailConfig = typeof emailConfigs.$inferInsert;
 
 // ─── 通知模块：邮件 / 短信 / 站内信 ────────────────────────────────────────────
-// 通用枚举
 export const smsProviderEnum = pgEnum('sms_provider', ['aliyun', 'tencent']);
 
 export const sendStatusEnum = pgEnum('send_status', ['pending', 'success', 'failed']);
