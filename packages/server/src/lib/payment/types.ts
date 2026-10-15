@@ -328,11 +328,9 @@ export interface PaymentChannelAdapter {
   createPayment(ctx: AdapterContext, order: PaymentOrderRow): Promise<CreatePaymentResult>;
   /** 主动查询支付状态（回调兜底） */
   queryPayment(ctx: AdapterContext, order: PaymentOrderRow): Promise<PaymentQueryResult>;
-  /** 关闭订单 */
   closePayment(ctx: AdapterContext, order: PaymentOrderRow): Promise<void>;
   /** 申请退款 */
   refund(ctx: AdapterContext, order: PaymentOrderRow, refund: PaymentRefundRow): Promise<RefundResult>;
-  /** 查询退款状态 */
   queryRefund(ctx: AdapterContext, refund: PaymentRefundRow, order: PaymentOrderRow): Promise<RefundQueryResult>;
   /** 验签 + 解析异步回调 */
   verifyNotify(ctx: AdapterContext, rawBody: string, headers: Headers): Promise<NotifyResult>;

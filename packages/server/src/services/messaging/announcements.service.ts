@@ -320,7 +320,6 @@ export async function getAnnouncementDetail(id: number) {
     listAnnouncementAttachments(id),
   ]);
 
-  // 处理收件人
   const userIds = recipientRows.filter((r) => r.recipientType === 'user').map((r) => r.recipientId);
   const roleIds = recipientRows.filter((r) => r.recipientType === 'role').map((r) => r.recipientId);
   const deptIds = recipientRows.filter((r) => r.recipientType === 'dept').map((r) => r.recipientId);

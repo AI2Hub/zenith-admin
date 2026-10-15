@@ -71,7 +71,6 @@ const recordingBaseColumns = {
   updatedAt: terminalRecordings.updatedAt,
 };
 
-/** 创建录屏记录。 */
 export async function createRecording(userId: number, tenantId: number | null, input: CreateRecordingInput) {
   const [row] = await db
     .insert(terminalRecordings)

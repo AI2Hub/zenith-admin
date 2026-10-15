@@ -195,7 +195,6 @@ export async function runTableMaintenance(
   }
 }
 
-/** 刷新物化视图 */
 export async function refreshMatview(schemaName: string, name: string): Promise<void> {
   assertIdent(schemaName, 'schema');
   assertIdent(name, 'matview');

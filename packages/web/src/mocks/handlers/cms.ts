@@ -1857,7 +1857,6 @@ export const cmsP3Handlers = [
     return ok(null, '删除成功（当前站点词典已重建）');
   }),
 
-  // 搜索热词
   mock(cmsSearchContract.hotwordGroups, ({ query, ok }) => ok(mockCmsHotwordGroups.filter((group) => group.siteId === query.siteId))),
   mock(cmsSearchContract.hotwordGroupCreate, ({ body, ok }) => {
     const row = { id: getNextCmsHotwordGroupId(), siteId: body.siteId, name: body.name, sort: body.sort, status: body.status, createdAt: mockDateTime(), updatedAt: mockDateTime() };

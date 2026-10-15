@@ -1682,7 +1682,6 @@ export const workflowHandlers = [
     return ok(resolveWorkflowDefinition(mockWorkflowDefinitions[idx]));
   }),
 
-  // 禁用流程定义
   mock(workflowDefinitionContract.disable, ({ params, ok }) => {
     const idx = mockWorkflowDefinitions.findIndex(d => d.id === params.id);
     if (idx === -1) return notFound('流程定义不存在');
@@ -1694,7 +1693,6 @@ export const workflowHandlers = [
     return ok(resolveWorkflowDefinition(mockWorkflowDefinitions[idx]));
   }),
 
-  // 启用流程定义
   mock(workflowDefinitionContract.enable, ({ params, ok }) => {
     const idx = mockWorkflowDefinitions.findIndex(d => d.id === params.id);
     if (idx === -1) return notFound('流程定义不存在');

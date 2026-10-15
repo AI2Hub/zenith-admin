@@ -642,7 +642,6 @@ export async function getChannelQuickReplyBeforeAudit(id: number): Promise<Chann
   return mapQuickReply(row, row.channel?.name ?? null);
 }
 
-/** 新建快捷回复 */
 export async function createChannelQuickReply(input: CreateChannelQuickReplyInput): Promise<ChannelQuickReply> {
   if (input.channelId != null) await ensureBusinessChannel(input.channelId);
   const [row] = await db.insert(channelQuickReplies).values({
@@ -654,7 +653,6 @@ export async function createChannelQuickReply(input: CreateChannelQuickReplyInpu
   return mapQuickReply(row);
 }
 
-/** 更新快捷回复 */
 export async function updateChannelQuickReply(id: number, input: UpdateChannelQuickReplyInput): Promise<ChannelQuickReply> {
   requireRow(await db.query.channelQuickReplies.findFirst({ where: eq(channelQuickReplies.id, id) }), '快捷回复不存在');
   if (input.channelId != null) await ensureBusinessChannel(input.channelId);
@@ -667,7 +665,6 @@ export async function updateChannelQuickReply(id: number, input: UpdateChannelQu
   return mapQuickReply(row);
 }
 
-/** 删除快捷回复 */
 export async function deleteChannelQuickReply(id: number): Promise<void> {
   requireRow(await db.query.channelQuickReplies.findFirst({ where: eq(channelQuickReplies.id, id) }), '快捷回复不存在');
   await db.delete(channelQuickReplies).where(eq(channelQuickReplies.id, id));

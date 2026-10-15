@@ -392,7 +392,6 @@ class TerminalSessionStore {
     };
 
     ws.onclose = (evt) => {
-      // 保存录屏片段
       const rec = session.recording;
       if (rec && rec.events.length > 0) {
         const duration = (Date.now() - rec.startTime) / 1000;

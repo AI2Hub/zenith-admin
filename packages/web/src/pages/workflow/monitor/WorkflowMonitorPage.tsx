@@ -393,7 +393,6 @@ export default function WorkflowMonitorPage() {
   const detailDef = detailDefinitionQuery.data ?? null;
   const detailLoading = detailQuery.isFetching || detailDefinitionQuery.isFetching;
 
-  // 详情弹窗
   const [diagnosticsVisible, setDiagnosticsVisible] = useState(false);
   const [diagnosticsId, setDiagnosticsId] = useState<number | undefined>();
   const diagnosticsQuery = useWorkflowRuntimeDiagnostics(diagnosticsId, diagnosticsVisible);

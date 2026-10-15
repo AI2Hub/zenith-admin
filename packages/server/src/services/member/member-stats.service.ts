@@ -146,12 +146,10 @@ export async function getMemberCharts() {
       .where(gte(memberWalletTransactions.createdAt, days30Ago))
       .groupBy(localDate(memberWalletTransactions.createdAt))
       .orderBy(localDate(memberWalletTransactions.createdAt)),
-    // 注册来源分布
     db.select({ source: members.registerSource, count: count() })
       .from(members)
       .where(isNull(members.deletedAt))
       .groupBy(members.registerSource),
-    // 卡券状态分布
     db.select({ status: memberCoupons.status, count: count() })
       .from(memberCoupons)
       .groupBy(memberCoupons.status),

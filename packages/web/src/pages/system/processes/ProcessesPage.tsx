@@ -321,9 +321,6 @@ export default function ProcessesPage() {
 
   const sseIndicator = SSE_STATUS_META[sseStatus];
 
-  // ════════════════════════════════════════════════════════════════════════
-  // 渲染
-  // ════════════════════════════════════════════════════════════════════════
   return (
     <div className="page-container">
       <style>{processesTableStyle}</style>

@@ -328,8 +328,9 @@
 
 .admin-sidebar__nav .semi-navigation-footer {
   border-top: 1px solid var(--color-border);
-  padding: 8px 14px !important;
-  height: 48px !important;
+  padding: 0 8px !important;
+  height: var(--header-height) !important;
+  min-height: var(--header-height) !important;
   display: flex;
   align-items: center;
   flex-shrink: 0;
@@ -337,7 +338,7 @@
 
 .admin-sidebar__nav .semi-navigation-footer .semi-button {
   justify-content: flex-start;
-  height: 32px !important;
+  height: 28px !important;
   padding: 0 8px !important;
 }
 

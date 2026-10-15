@@ -87,7 +87,6 @@ export default function TerminalTab({ sessionId, active, focused, shell, label, 
   const initCfgRef = useRef(initCfg);
   initCfgRef.current = initCfg;
 
-  // 搜索操作
   const doSearch = useCallback((text: string, direction: 'next' | 'prev') => {
     if (!text) return;
     const opts = { caseSensitive: searchCaseSensitive };

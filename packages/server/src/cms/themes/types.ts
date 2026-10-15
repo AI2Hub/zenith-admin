@@ -65,7 +65,6 @@ export interface CmsSeo {
   jsonLd: Record<string, unknown> | null;
 }
 
-/** 列表条目 */
 export interface CmsContentItem {
   id: number;
   modelId?: number | null;
@@ -138,7 +137,6 @@ export interface CmsBodyPagination {
   nextUrl: string | null;
 }
 
-/** 详情数据 */
 export interface CmsContentDetail extends CmsContentItem {
   body: string;
   /** 正文多页分页（含分页符时非 null，body 为当前页片段） */

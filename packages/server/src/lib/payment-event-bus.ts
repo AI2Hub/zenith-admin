@@ -64,7 +64,6 @@ class PaymentEventBus {
     this.emitter.on(type, handler);
   }
 
-  /** 订阅所有事件 */
   onAny(handler: PaymentEventHandler): void {
     this.emitter.on(ANY_CHANNEL, handler);
   }

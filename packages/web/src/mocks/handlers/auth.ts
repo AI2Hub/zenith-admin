@@ -253,7 +253,6 @@ export const authHandlers = [
     return ok({ count }, `已退出其他 ${count} 台设备`);
   }),
 
-  // 退出指定设备
   mock(authContract.deleteSession, ({ params, ok }) => {
     const idx = mockMySessionStore.findIndex((s) => s.tokenId === params.tokenId);
     if (idx === -1) return notFound('会话不存在', { status: 404 });

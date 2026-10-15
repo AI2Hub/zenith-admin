@@ -34,7 +34,6 @@ export async function batchGetWechatMaterials(
   return { total: data.total_count ?? 0, items: data.item ?? [] };
 }
 
-/** 删除永久素材 */
 export async function deleteWechatMaterial(account: MpCredential, mediaId: string): Promise<void> {
   await wechatApiPost<{ errcode?: number; errmsg?: string }>(account, '/cgi-bin/material/del_material', { media_id: mediaId });
 }

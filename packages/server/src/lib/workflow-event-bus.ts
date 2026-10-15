@@ -50,7 +50,6 @@ class WorkflowEventBus {
     this.emitter.on(type, handler as EventHandler);
   }
 
-  /** 订阅所有事件 */
   onAny(handler: EventHandler): void {
     this.emitter.on(ANY_CHANNEL, handler);
   }

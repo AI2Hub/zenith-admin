@@ -32,7 +32,6 @@ export async function updateWechatKfAccount(account: MpCredential, kfAccount: st
   await wechatApiPost<{ errcode?: number; errmsg?: string }>(account, '/customservice/kfaccount/update', { kf_account: kfAccount, nickname });
 }
 
-/** 删除客服账号 */
 export async function delWechatKfAccount(account: MpCredential, kfAccount: string): Promise<void> {
   await wechatApiGet<{ errcode?: number; errmsg?: string }>(account, '/customservice/kfaccount/del', { kf_account: kfAccount });
 }

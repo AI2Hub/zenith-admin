@@ -215,7 +215,6 @@ export function createRedisSessionStore<T extends BaseSessionInfo>(options: Redi
     await revoke(tokenId, reason);
   }
 
-  /** 获取单个会话 */
   async function get(tokenId: string): Promise<T | null> {
     const raw = await redis.get(sessionKey(tokenId));
     if (!raw) return null;

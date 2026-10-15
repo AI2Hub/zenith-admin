@@ -47,7 +47,6 @@ export async function getConversationShare(conversationId: number) {
   return row ? mapShare(row) : null;
 }
 
-/** 取消对话分享 */
 export async function revokeConversationShare(conversationId: number) {
   await ensureConversationOwner(conversationId);
   await db.delete(aiSharedConversations).where(eq(aiSharedConversations.conversationId, conversationId));
