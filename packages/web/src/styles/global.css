@@ -912,11 +912,10 @@ body[theme-mode='dark'] .semi-json-viewer-view-line {
 
 /* ===== 页面 Loading ===== */
 
-/* Semi Spin 的根节点宽高被写死为 spinner 尺寸（small 14 / middle 20 / large 32px），
-   而 .semi-spin-wrapper 是 position:absolute + width:100%，tip 文案因此被挤在
-   这个宽度里逐字换行（中文可任意断行，实测「加载预览组件...」被拆成 4 行）。
-   带 children 的 Spin 由 Semi 自己加 .semi-spin-block 设为 width:auto，不受影响，
-   故只放开「无 children 的独立 Spin」，让 tip 按内容宽度居中于图标之上。 */
+/* Semi Spin 根节点宽高写死为 spinner 尺寸（small 14 / middle 20 / large 32px），而
+   .semi-spin-wrapper 是 position:absolute + width:100%，tip 文案被挤在这个宽度里逐字换行；
+   带 children 的 Spin 由 Semi 自行加 .semi-spin-block 设 width:auto，故只放开无 children 的
+   独立 Spin，让 tip 按内容宽度居中于图标之上。 */
 .semi-spin:not(.semi-spin-block) > .semi-spin-wrapper {
   left: 50%;
   width: max-content;

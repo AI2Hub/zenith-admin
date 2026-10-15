@@ -28,15 +28,13 @@ export function csvEscapeCell(value: unknown): string {
   return str;
 }
 
-// Tracks how many data rows (excluding header) each streamed export wrote. Populated
-// by streamToExcel / streamToCsv as the stream is consumed; read via getStreamRowCount
-// once the stream has been fully drained. Uses a WeakMap so counts never leak the stream.
+// 每个流式导出已写的数据行数（不含表头）：由 streamToExcel / streamToCsv 边消费边累加，
+// 排空后经 getStreamRowCount 读取；WeakMap 持有计数，不阻止流被回收。
 const streamRowCounts = new WeakMap<ReadableStream, { value: number }>();
 
 /**
- * Returns the number of data rows written to a stream produced by `streamToExcel` /
- * `streamToCsv`. Only meaningful after the stream has been fully consumed. Returns
- * `undefined` for streams not created by those helpers.
+ * Data rows written to a stream from `streamToExcel` / `streamToCsv`; only meaningful
+ * after full consumption. `undefined` for streams not created by those helpers.
  */
 export function getStreamRowCount(stream: ReadableStream): number | undefined {
   return streamRowCounts.get(stream)?.value;
@@ -167,13 +165,10 @@ export async function* batchIterable<T>(
 
 /** Generate a streaming Excel ReadableStream from column definitions and data rows.
  *
- * The returned ReadableStream is available immediately; data is written asynchronously
- * to avoid backpressure deadlock (workbook.commit() would hang waiting for a consumer
- * that hasn't started yet if we awaited it before returning the stream).
- *
- * `data` accepts both plain arrays and async iterables (e.g. `batchIterable(...)`).
- * Rows are written in object mode so ExcelJS maps values to cells by column key
- * rather than by positional array index.
+ * Returning before any write avoids backpressure deadlock: awaiting workbook.commit()
+ * here would hang waiting for a consumer that has not started yet. `data` accepts plain
+ * arrays and async iterables (e.g. `batchIterable(...)`); rows are written in object mode
+ * so ExcelJS maps values to cells by column key, not array position.
  */
 export function streamToExcel(
   columns: ExcelColumn[],
@@ -183,8 +178,7 @@ export function streamToExcel(
   return new Promise((resolve, reject) => {
     import('node:stream').then(({ PassThrough, Readable }) => {
       const passThrough = new PassThrough();
-      // Return the Web ReadableStream immediately so the HTTP response can start
-      // consuming it while ExcelJS writes data asynchronously.
+      // 立即返回 Web ReadableStream：HTTP 响应边消费边由 ExcelJS 异步写入
       const webStream = Readable.toWeb(passThrough) as ReadableStream;
       const counter = { value: 0 };
       streamRowCounts.set(webStream, counter);

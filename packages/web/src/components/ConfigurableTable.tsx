@@ -235,9 +235,9 @@ export function ConfigurableTable<RecordType extends TableRecord = TableRecord>(
   } = tableProps;
   const rootRef = useRef<HTMLDivElement>(null);
 
-  // 虚拟化表格：Semi 把 scroll.x 直接写成 wrapper 宽度（不是最小宽度），要铺满容器就必须量出容器宽度；
-  // body 行宽等于各列之和、纵向滚动条又占在 body 内部，所以各列之和要按 body 的可视宽度（clientWidth）给。
-  // 记「容器宽 − body 可视宽」为 chrome（边框 + 滚动条），容器变化时直接用它推算可视宽，一次渲染到位；
+  // 虚拟化表格：Semi 把 scroll.x 写成 wrapper 宽度（非最小宽度），铺满容器必须量出容器宽度；
+  // 各列之和要按 body 可视宽度（clientWidth）给——行宽等于各列之和，纵向滚动条又占在 body 内部。
+  // 记「容器宽 − body 可视宽」为 chrome（边框 + 滚动条），容器变化时用它一次渲染到位；
   // body 观察器只在滚动条出现 / 消失时校正 chrome。
   const [virtualizedWrapperWidth, setVirtualizedWrapperWidth] = useState(0);
   const [virtualizedChrome, setVirtualizedChrome] = useState(0);

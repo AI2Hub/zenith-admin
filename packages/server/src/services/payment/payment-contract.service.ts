@@ -787,10 +787,8 @@ export async function executeDeduction(input: PaymentContractRow): Promise<Deduc
     });
     if (res.status === 'success') {
       await markOrderPaid(order, { channelTradeNo: res.channelTradeNo, paidAmount: plan.amount, paidAt: new Date() });
-      // The outbox subscriber is intentionally asynchronous for crash
-      // resilience. Advance the contract in this request as well so a
-      // successful first deduction is reflected in the returned DTO; the
-      // subscriber remains idempotent and safely replays the same transition.
+      // outbox 订阅者是异步兜底（崩溃韧性），这里同步推进一次，让首次扣款成功体现
+      // 在返回的 DTO 上；订阅者幂等，会安全重放同一转换。
       try {
         await advanceContractOnPaid({ orderNo, bizType: claimedContract.bizType, bizId: claimedContract.bizId });
       } catch (err) {
@@ -860,10 +858,8 @@ export async function advanceContractOnPaid(event: { orderNo: string; bizType: s
     .from(paymentOrders)
     .where(eq(paymentOrders.orderNo, event.orderNo))
     .limit(1);
-  // A success event may be replayed after the order has entered refunding or
-  // refunded. The paid timestamp remains the authoritative deduction fact;
-  // accepting those terminal follow-up states lets recovery finish the
-  // contract schedule without issuing another charge.
+  // 成功事件可能在订单进入 refunding / refunded 后重放：paid 时间戳才是扣款事实，
+  // 接受这些后续终态，恢复流程才能推进排期而不重复扣款。
   const paidAt = order?.paidAt;
   if (!order || !['success', 'refunding', 'refunded'].includes(order.status) || !paidAt) return;
   // 仅代扣单推进排期（同业务的普通支付单，如手动购买，不影响协议周期）

@@ -91,10 +91,8 @@ export async function isCmsStaticArtifactCurrent(siteId: number, siteCode: strin
     ))
     .orderBy(sql`coalesce(${cmsPublishArtifacts.generatedAt}, ${cmsPublishArtifacts.updatedAt}) desc`, desc(cmsPublishArtifacts.id))
     .limit(1);
-  // A full-site artifact represents the whole public snapshot, so its
-  // revision must match exactly. Path-scoped content artifacts are checked
-  // against their owner timestamps below; a global equality check here would
-  // incorrectly invalidate unrelated pages after every content publish.
+  // 全站产物代表整个公开快照，revision 必须精确匹配；路径级内容产物改由下面的
+  // 归属时间戳判定——此处做全局相等校验会在每次内容发布后误判无关页面失效。
   if (artifact && (artifact.status !== 'generated'
     || (artifact.targetType === 'site' && artifact.publicRevision !== siteRevision.publicRevision))) return false;
   const aggregateRoute = pathKey === ''

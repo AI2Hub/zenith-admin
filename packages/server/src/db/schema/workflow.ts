@@ -672,9 +672,8 @@ export type NewWorkflowEventSubscription = typeof workflowEventSubscriptions.$in
 
 // ─── 工作流统一作业账本 ────────────────────────────────────────────────────────
 // 所有"系统级异步动作"（delay 唤醒 / 审批超时 / 触发器派发 / 外部审批派发 /
-// 子流程发起·汇聚 / 事件派发 / Webhook 投递）统一落到本表，由统一 Worker 消费。
-// 统一作业账本：延时唤醒、超时、触发器派发、外部审批派发、子流程、事件派发、Webhook 投递与补偿动作
-// 以及 workflow_tasks 上的 trigger*/external*/wakeAt/timeout* 调度列。
+// 子流程发起·汇聚 / 事件派发 / Webhook 投递与补偿动作）统一落到本表，由统一 Worker 消费；
+// workflow_tasks 上的 trigger*/external*/wakeAt/timeout* 调度列与此表配套。
 export const workflowJobs = pgTable('workflow_jobs', {
   id: idColumn(),
   /** 作业类型，决定派发到哪个 handler */

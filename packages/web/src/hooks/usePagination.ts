@@ -112,11 +112,9 @@ export function usePagination(options?: number | UsePaginationOptions): UsePagin
   // 渲染期由 buildPagination 收集最近一次的数据总数，用于页码越界钳制
   const lastTotalRef = useRef<number | null>(null);
 
-  // 页码越界自动回退：删除（单条/批量）或搜索导致总数收缩后，当前页可能超出最大页数
-  // （表现为停留在空页）。每次渲染后做一次 O(1) 检查，越界则钳制到最后一页。
-  // total 为 0 时跳过：可能是查询加载中的占位值（data?.total ?? 0），此时钳页会误跳第 1 页；
-  // 真正删空时列表本就显示空态，待有新数据（total > 0）后会自动钳回有效页。
-  // 注意：有意不传依赖数组——total 经 ref 在渲染期更新（无法作为依赖），须每次渲染后检查。
+  // 页码越界自动回退：删除或搜索使总数收缩后当前页可能超出最大页（停在空页），
+  // 每次渲染后 O(1) 钳到最后一页。total 为 0 时跳过——查询加载中的占位值（total ?? 0）
+  // 会误跳第 1 页，真正删空时列表本就是空态。有意不传依赖数组：total 经 ref 在渲染期更新。
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const total = lastTotalRef.current;

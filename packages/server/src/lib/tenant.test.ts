@@ -17,10 +17,9 @@ vi.mock('drizzle-orm', () => ({
   relations: vi.fn(() => ({})),
 }));
 
-// tenant.ts 在 line 64 `import { currentUser } from './context'`，而 context.ts 运行时
-// `import { db } from '../db'` + `import { users, departments } from '../db/schema'`，
-// 会触发 db/index 真实连接（config.database.*）与 schema relations。mock context 切断该链；
-// 本单测仅验证显式传参版函数（tenantCondition(table, user) 等），不依赖 currentUser。
+// tenant.ts 会经 './context' → '../db' 触发 db/index 真实连接（config.database.*）与
+// schema relations，mock context 切断该链。本单测只验证显式传参版函数
+// （tenantCondition(table, user) 等），不依赖 currentUser。
 vi.mock('./context', () => ({ currentUser: vi.fn() }));
 
 describe('tenant utility', () => {

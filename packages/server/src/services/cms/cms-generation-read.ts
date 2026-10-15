@@ -13,10 +13,9 @@ export class CmsGenerationReadUnavailable extends HTTPException {
 export async function pinCmsGenerationRead(tx: DbTransaction, generationId: number): Promise<void> {
   if (!Number.isSafeInteger(generationId) || generationId <= 0) throw new CmsGenerationReadUnavailable();
   await tx.execute(sql`select pg_advisory_xact_lock_shared(hashtext('cms-generation-build'),${generationId})`);
-  // A repeatable-read snapshot can retain stale catalog data after a concurrent DROP.
-  // Resolve and lock the actual relation before setting search_path, so a missing generation
-  // cannot silently fall back to public working tables. A failed lock aborts this snapshot;
-  // the caller retries the entire transaction with a fresh generation pointer.
+  // 可重复读快照可能在并发 DROP 后保留过期目录数据：先解析并锁住真实 relation 再设
+  // search_path，缺失的 generation 不得静默回落到 public 工作表；加锁失败即中止本次快照，
+  // 由调用方带新指针重试整个事务。
   try {
     await tx.execute(sql`lock table ${sql.identifier(`cms_generation_${generationId}`)}.cms_site_projection in access share mode`);
   } catch (error) {

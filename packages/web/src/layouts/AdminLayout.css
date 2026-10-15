@@ -2586,13 +2586,12 @@
 }
 
 /* ===== 分区深色模式（浅色主题下单独启用的深色区域） =====
-   走 Semi 官方的局部暗色：侧边栏 / 顶栏 / 头部根元素挂 .semi-always-dark（见 AdminLayout.tsx），
-   整套 --semi-color-* 由 Semi 深色色盘提供，布局自有的 --color-* 由 global.css 的
-   `body .semi-always-dark` 统一映射（与全局深色共用同一套）。
-   这里只补品牌主色——.semi-always-dark 会把 --semi-color-primary 复位成 Semi 默认蓝，
-   盖掉 applyThemeColor 挂在 body 上的主题色。
-   弹层挂载点用 .admin-dark-popup-root.semi-always-dark 抬高特异性，确保压过 Semi 自身的
-   `body .semi-always-dark` 规则（同为 0,1,1 时依赖打包顺序，不可靠）。 */
+   侧边栏 / 顶栏 / 头部根元素挂 .semi-always-dark（见 AdminLayout.tsx）走 Semi 官方局部暗色：
+   --semi-color-* 来自 Semi 深色色盘，布局自有的 --color-* 由 global.css 的
+   `body .semi-always-dark` 统一映射（与全局深色共用）。此处只补品牌主色：该规则会把
+   --semi-color-primary 复位成 Semi 默认蓝，盖掉 applyThemeColor 挂在 body 上的主题色；
+   弹层挂载点靠 .admin-dark-popup-root.semi-always-dark 抬高特异性，压过 Semi 自身的
+   `body .semi-always-dark`（同为 0,1,1 时依赖打包顺序，不可靠）。 */
 .admin-layout--sidebar-dark .admin-sidebar,
 .admin-layout--header-dark .admin-topbar,
 .admin-layout--header-dark .admin-header,
@@ -2619,11 +2618,10 @@
 }
 
 /* ===== 深色底色档位（偏好设置：标准 bg-1 / 更深 bg-0，三区各自独立） =====
-   浅色下 bg-0 与 bg-1 同为白色，因此类名无需按明暗切换：只在深色表面上产生差异，
-   全局深色与分区深色一并生效。
-   侧边栏与顶部除根元素外还要各自列出区域元素——分区深色会把同名变量声明在这些元素上
-   （global.css 的 `body .semi-always-dark`，0,1,1），继承值压不过它，需靠 0,2,0 的后代选择器。
-   主区域不参与分区深色，声明在根元素即可，同时让卡片风格页签的激活项跟着一起变。 */
+   浅色下 bg-0 与 bg-1 同为白色，类名无需按明暗切换，只在深色表面上生效。
+   侧边栏与顶部除根元素外还要各自列出区域元素：分区深色会把同名变量声明在这些元素上
+   （global.css 的 `body .semi-always-dark`，0,1,1），继承值压不过，需靠 0,2,0 的后代选择器。
+   主区域不参与分区深色，声明在根元素即可，同时让卡片风格页签的激活项跟着变。 */
 .admin-layout--dark-sidebar-deep,
 .admin-layout--dark-sidebar-deep .admin-sidebar {
   --color-sidebar-bg: var(--semi-color-bg-0);
@@ -2740,10 +2738,9 @@
 }
 
 /* =========================================================
-   锁屏遮罩
-   跟随亮 / 暗主题，与登录页共用同一套底色与「主色光晕」语言：
-   文字走 Semi 语义色 token 自动翻转；底色、玻璃输入框与头像描边按主题各给一套。
-   背景两层：底色渐变 → ::after 两团主色光晕缓慢漂移，不加纹理，保持干净。
+   锁屏遮罩：与登录页共用底色与「主色光晕」语言，跟随亮 / 暗主题——
+   文字走 Semi 语义 token 自动翻转，底色 / 玻璃输入框 / 头像描边按主题各一套；
+   背景两层：底色渐变 → ::after 两团主色光晕缓慢漂移，不加纹理。
    ========================================================= */
 .lock-screen {
   position: fixed;

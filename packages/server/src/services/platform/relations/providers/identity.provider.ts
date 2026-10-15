@@ -57,9 +57,8 @@ async function listPayments(anchor: VisibleEntityAnchor, { cursor, limit, access
     const id = parseId(anchor.ref.key);
     if (id == null) return emptyPage();
     const beforeId = decodeRelationCursor(cursor);
-    // An admin user and a member with the same integer ID are distinct identities.
-    // A member relationship requires an explicit settled business record carrying
-    // the payment intention number; pending orders without that evidence are omitted.
+    // 后台用户与会员即使整数 ID 相同也是不同身份：会员关系要求存在携带支付意向编号的
+    // 已结清业务记录，缺少该证据的挂起订单不计入。
     const ownership = anchor.ref.type === 'identity.user'
       ? and(eq(paymentOrders.userId, id), notInArray(paymentOrders.bizType, MEMBER_PAYMENT_BIZ_TYPES))
       : or(

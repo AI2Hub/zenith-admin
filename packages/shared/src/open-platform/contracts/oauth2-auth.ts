@@ -30,9 +30,9 @@ export const oauth2AuthorizeResponseSchema = z.object({
 
 export type OAuth2AuthorizeResponse = z.infer<typeof oauth2AuthorizeResponseSchema>;
 
-// ─── RFC 协议端点的响应形状（顶层格式，无业务信封） ───────────────────────────
-// /token、/token/revoke、/token/introspect、/userinfo 以 application/x-www-form-urlencoded
-// 入参并按 RFC 返回顶层 JSON，不经契约 DSL；这里只固定其响应 schema 供服务端文档引用。
+// ─── RFC 协议端点的响应形状（顶层 JSON，无业务信封） ─────────────────────────
+// /token、/token/revoke、/token/introspect、/userinfo 以 form-urlencoded 入参、不经契约 DSL，
+// 这里只固定响应 schema 供服务端文档引用。
 
 /** 令牌端点响应（RFC 6749） */
 export const oauth2TokenResponseSchema = z.object({

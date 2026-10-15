@@ -34,7 +34,7 @@ export const initTelemetry = async (): Promise<boolean> => {
       // 出站 HTTP（Node 全局 fetch / undici）span：基于 diagnostics_channel 订阅，
       // 不做模块补丁，因此对模块加载顺序不敏感，可在此处安全启用。
       //
-      // 有意未插桩的层（评估于 2026-08，复查时先确认上游支持范围）：
+      // 有意未插桩的层（升级或复查前先确认上游支持范围）：
       //  - ioredis：官方 instrumentation-ioredis 仅支持 >=2 <6，本项目为 ioredis 6，挂载会被静默拒绝；
       //    若未来升级支持 v6，需注意其基于 require 补丁，必须让 SDK 先于 ioredis 模块加载
       //    （届时需把 initTelemetry 拆到独立入口、动态 import 其余启动逻辑）
