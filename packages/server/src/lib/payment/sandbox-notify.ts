@@ -6,7 +6,7 @@ import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import { formatDateTime, parseDateTimeInput } from '../datetime';
 import type { AdapterContext, NotifyResult } from './types';
 
-/** @deprecated 仅保留名称避免并发改造期间编译中断；验证逻辑不再信任该请求头。 */
+/** @deprecated 兼容旧引用保留；沙箱回调不再信任该请求头。 */
 export const SANDBOX_NOTIFY_HEADER = 'X-Sandbox-Notify';
 export const SANDBOX_NOTIFY_TIMESTAMP_HEADER = 'X-Zenith-Sandbox-Timestamp';
 export const SANDBOX_NOTIFY_SIGNATURE_HEADER = 'X-Zenith-Sandbox-Signature';

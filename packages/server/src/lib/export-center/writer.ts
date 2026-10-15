@@ -171,7 +171,7 @@ async function writeTableSheetStreaming(
   for (const row of headRows) row.commit();
 
   // 数据区：逐行 addRow + commit，行 XML 增量序列化，CPU 随分页取数循环摊开，
-  // 不再有 writeBuffer() 对整本 workbook 的终局连续序列化段
+  // 不存在对整本 workbook 的终局连续序列化段
   const bodyStyles = leaves.map((column) => mergeStyle(styles.body, column.style));
   let rowIndex = filterHeaderRow;
   let written = 0;

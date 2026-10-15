@@ -1,4 +1,4 @@
-// chat 域 facade：实现已按内聚拆分到同级 chat-*.service.ts / chat-shared.ts，
+// chat 域 facade：实现位于同级 chat-*.service.ts / chat-shared.ts，
 // 此处仅统一 re-export，对外导入路径与导出符号集保持不变。
 export { mapChatMessage } from './chat-shared';
 export {

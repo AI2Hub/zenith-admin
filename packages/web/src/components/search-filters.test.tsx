@@ -159,7 +159,7 @@ describe('NumberFilter', () => {
 const stripMaxWidth = (html: string) => html.replace(/\s*max-width:\s*100%;?/g, '').replace(/;\s*"/g, ';"');
 
 describe('与原生写法的渲染等价性', () => {
-  // 收敛的前提是「改写后渲染结果不变」。这里把原来散在各页面的手写形态与组件
+  // 收敛的前提是「改写后渲染结果不变」。这里把页面里的手写形态与组件
   // 并排渲染做结构对比，唯一有意的差异是组件补上了 maxWidth: '100%'——
   // 固定宽度在窄屏容器里会横向溢出，参考页（RolesPage 等）本就带这条。
   const legacyKeyword = (

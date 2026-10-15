@@ -160,8 +160,8 @@ export function registerCmsWebhookTaskHandler(): void {
 /**
  * 把站点设置里的 `webhookUrl` / `webhookSecret` 同步为一条 `internal` 订阅。
  *
- * 站点管理页的 Webhook 配置界面不变，但底层换成了统一投递管线，
- * 因此站点级 Webhook 也有了重试、投递日志、连续失败自动禁用与手工重投。
+ * 站点级 Webhook 复用统一投递管线：站点管理页的配置界面照旧，
+ * 重试、投递日志、连续失败自动禁用与手工重投都随之适用。
  */
 export async function syncCmsSiteWebhookSubscription(siteId: number): Promise<void> {
   const site = await resolveEffectiveCmsSiteRow(siteId).catch(() => null);

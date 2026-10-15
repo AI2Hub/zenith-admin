@@ -112,7 +112,7 @@ export function StatCard({
         className={classes}
         onClick={onClick}
         aria-pressed={active}
-        // 选中态不再靠边框（已无边框），改用底部 2px 强调条
+        // 选中态：底部 2px 强调条
         style={active && accent ? { boxShadow: `inset 0 -2px 0 ${accent}` } : undefined}
       >
         {body}

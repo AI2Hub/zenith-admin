@@ -23,7 +23,7 @@ if (process.platform === 'win32') {
   delete env.VSCODE_INSPECTOR_OPTIONS;
 }
 
-/** 顺序执行（相当于原来的 `&&` 链中的一步），失败则退出。 */
+/** 顺序执行，失败即退出。 */
 function runSync(command) {
   const result = spawnSync(command, { stdio: 'inherit', env, shell: true });
   if (result.status !== 0) process.exit(result.status ?? 1);

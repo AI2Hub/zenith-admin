@@ -510,8 +510,8 @@ export async function getOpenCmsContent(site: CmsSiteRow, idOrSlug: string, quer
  * - `delete`：不再公开（下线/回收/归档）或已被彻底删除（墓碑表）
  *
  * **两路数据合并为同一个游标流**：内容按 `(updated_at, id)`、墓碑按 `(deleted_at, content_id)`，
- * 两者用同一把 `(时间, id)` 尺子排序并合并后统一截断。早期实现给墓碑单独加 limit、
- * 且不参与 `hasMore` 与 `nextCursor`，一旦某个区间的硬删除超过一页就会被永久丢弃，
+ * 两者用同一把 `(时间, id)` 尺子排序并合并后统一截断：墓碑若单独加 limit、
+ * 且不参与 `hasMore` 与 `nextCursor`，某个区间的硬删除一旦超过一页就会被永久丢弃，
  * 客户端缓存里的已删内容再也清不掉。
  */
 export async function syncOpenCmsContents(

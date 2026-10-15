@@ -385,7 +385,7 @@ export default function WebSocketMonitorPage() {
         <span>{record.nickname || record.username || EMPTY_PLACEHOLDER} <Text type="tertiary" size="small">#{record.userId}</Text></span>
       ),
     },
-    // 端形态 / IP / 最近消息：服务端一直在采集，之前只在详情面板与拓扑里可见，列表里补齐
+    // 端形态 / IP / 最近消息：服务端已采集，此处补进列表列
     {
       title: '客户端',
       dataIndex: 'userAgent',

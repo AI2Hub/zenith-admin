@@ -9,9 +9,9 @@ afterEach(() => vi.mocked(tenantScope).mockReturnValue(undefined));
 
 const dialect = new PgDialect({ casing: 'snake_case' });
 
-// 回归锚点：撤回的「后续节点」判定曾用 JS 侧 gt(createdAt, entered.createdAt)——
-// 微秒精度的 timestamp 经 JS Date 往返只剩毫秒，回传参数被截断，本 activation 自身恒被
-// 算进 later → 任何已办任务撤回必然 400「后续节点已被处理」。
+// 回归锚点：撤回的「后续节点」判定必须在 SQL 侧同列比较——微秒精度的 timestamp 经
+// JS Date 往返只剩毫秒，参数被截断，本 activation 自身恒被算进 later，
+// 任何已办任务撤回必然 400「后续节点已被处理」。
 describe('laterActivationsWhere', () => {
   it('与本 activation 的 created_at 做 SQL 侧同列比较，参数中不含 Date', () => {
     const condition = laterActivationsWhere(304, 'd7dcec8c-b93b-46f6-8dd7-b226e9a4e2d5');

@@ -421,7 +421,7 @@ async function dispatchSystemTaskAlert(
   const now = formatDateTime(new Date());
   const html = `<h3>系统调度告警</h3><p><b>任务：</b>${task.title} (${task.name})</p><p><b>模块：</b>${task.module}</p><p><b>运行日志：</b>#${runId}</p><p><b>详情：</b>${alertMessage}</p><p><b>发生时间：</b>${now}</p>`;
 
-  // 策略里的 inapp 历史上投递的是系统号聊天卡片而非站内信，此处保持不变；
+  // 策略里的 inapp 投递系统号聊天卡片而非站内信；
   // 返回值仍用策略侧的 inapp 命名，避免调度详情页的渠道标签发生漂移
   const dispatchChannels: string[] = [];
   if (channels.includes('inapp')) dispatchChannels.push('chat');
