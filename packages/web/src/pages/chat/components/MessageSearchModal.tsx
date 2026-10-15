@@ -140,14 +140,9 @@ export function MessageSearchModal({
                 return (
                   <SemiList.Item
                     key={item.message.id}
-                    style={{ padding: 0, marginBottom: 10, border: 'none' }}
+                    style={{ padding: '10px 4px', marginBottom: 0, border: 'none', borderBottom: '1px solid var(--semi-color-border)' }}
                   >
-                    <div
-                      style={{
-                        width: '100%', textAlign: 'left', border: '1px solid var(--semi-color-border)', background: 'var(--surface-card)', borderRadius: 'var(--semi-border-radius-medium)',
-                        padding: '10px 12px',
-                      }}
-                    >
+                    <div style={{ width: '100%', textAlign: 'left' }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
                           <Tag size="small" color="light-blue">{typeLabel}</Tag>
