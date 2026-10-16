@@ -179,6 +179,18 @@ function LaunchFormContent() {
   const [title, setTitle] = useState<string | null>(null);
   const [priority, setPriority] = useState<WorkflowInstancePriority>('normal');
   const [ccUserIds, setCcUserIds] = useState<number[]>([]);
+  const [online, setOnline] = useState(() => navigator.onLine);
+  const [autosaveState, setAutosaveState] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
+
+  useEffect(() => {
+    const setOnlineState = () => setOnline(navigator.onLine);
+    window.addEventListener('online', setOnlineState);
+    window.addEventListener('offline', setOnlineState);
+    return () => {
+      window.removeEventListener('online', setOnlineState);
+      window.removeEventListener('offline', setOnlineState);
+    };
+  }, []);
 
   useEffect(() => {
     if (!draftQuery.data) return;
@@ -193,6 +205,17 @@ function LaunchFormContent() {
   }, [def]);
 
   const canSubmit = def != null && canLaunchOnMobile(def);
+
+  const scheduleDraftAutosave = useDebouncedCallback(() => {
+    if (!isEditingDraft || draftInstanceId == null || !draftQuery.data || !online
+      || launchMutation.isPending || draftMutation.isPending || submitDraftMutation.isPending || updateDraftMutation.isPending) return;
+    const formData = (formApi.current?.getValues() ?? {}) as Record<string, unknown>;
+    const effectiveTitle = (title ?? draftQuery.data.title ?? defaultTitle).trim() || defaultTitle;
+    setAutosaveState('saving');
+    void updateDraftMutation.mutateAsync({ id: draftInstanceId, body: { title: effectiveTitle, formData, priority } })
+      .then(() => setAutosaveState('saved'))
+      .catch(() => setAutosaveState('failed'));
+  }, { wait: 1200 });
 
   // 审批链路预测：表单变更防抖 500ms 重新预测（条件分支可能随表单值变化）
   const [chainReloadKey, setChainReloadKey] = useState(0);
@@ -290,7 +313,7 @@ function LaunchFormContent() {
     return (
       <>
         <div className="ap-section-title">申请标题</div>
-        <Input value={title ?? draftQuery.data?.title ?? defaultTitle} onChange={setTitle} showClear placeholder="请输入申请标题" />
+        <Input value={title ?? draftQuery.data?.title ?? defaultTitle} onChange={(value) => { setTitle(value); scheduleDraftAutosave(); }} showClear placeholder="请输入申请标题" />
         <div className="ap-section-title">申请设置</div>
         <div className="ap-launch-settings">
           <div className="ap-launch-settings__field">
@@ -298,7 +321,7 @@ function LaunchFormContent() {
             <Select
               value={priority}
               optionList={WORKFLOW_PRIORITY_OPTIONS}
-              onChange={(value) => setPriority(value as WorkflowInstancePriority)}
+              onChange={(value) => { setPriority(value as WorkflowInstancePriority); scheduleDraftAutosave(); }}
               style={{ width: '100%' }}
             />
           </div>
@@ -330,7 +353,7 @@ function LaunchFormContent() {
               fileCapture="environment"
               initValues={(draftQuery.data?.formData ?? undefined) as Record<string, unknown> | undefined}
               getFormApi={(api) => { formApi.current = api; }}
-              onValueChange={scheduleChainReload}
+              onValueChange={() => { scheduleChainReload(); scheduleDraftAutosave(); }}
             />
           )}
         <div className="ap-section-title">审批流程</div>
@@ -365,8 +388,12 @@ function LaunchFormContent() {
         ) : null}
       </div>
       <div className={`ap-body${canSubmit ? ' ap-body--with-footer' : ''}`}>{renderBody()}</div>
+      {!online && <Banner className="ap-offline-banner" type="warning" closeIcon={null} description="当前处于离线状态，草稿会在网络恢复后继续保存。" />}
       {canSubmit && (
         <div className="ap-footer-bar">
+          {isEditingDraft && <Typography.Text className="ap-autosave-status" type={autosaveState === 'failed' ? 'danger' : 'tertiary'}>
+            {autosaveState === 'saving' ? '自动保存中…' : autosaveState === 'saved' ? '已自动保存' : autosaveState === 'failed' ? '自动保存失败' : ''}
+          </Typography.Text>}
           <Button
             theme="light"
             loading={isEditingDraft ? updateDraftMutation.isPending : draftMutation.isPending}

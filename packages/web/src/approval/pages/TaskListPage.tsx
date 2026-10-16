@@ -1,6 +1,6 @@
-import { lazy, Suspense, useCallback, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Checkbox, Modal, Select, SideSheet, Spin, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
+import { Banner, Button, Checkbox, Modal, Select, SideSheet, Spin, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
 import { Bell, Check, CheckCheck, CircleCheckBig, ClipboardCheck, FilePlus2, ListChecks, LogOut, Plus, Send, UserRoundCog, type LucideIcon } from 'lucide-react';
 import { TOKEN_KEY, REFRESH_TOKEN_KEY, type SignatureInput } from '@zenith/shared/core';
 import type { WorkflowBatchActionResponse, WorkflowInstancePriority } from '@zenith/shared/workflow';
@@ -96,8 +96,9 @@ function TaskCard({ item, tab, onOpen, onQuickApprove, quickApproving, batchMode
       className={`ap-card${checked ? ' ap-card--checked' : ''}${dim ? ' ap-card--dim' : ''}`}
       role="button"
       tabIndex={0}
+      aria-label={`${item.title}${item.pendingDelegatedFromName ? `，代${item.pendingDelegatedFromName}审批` : ''}`}
       onClick={onOpen}
-      onKeyDown={(e) => { if (e.key === 'Enter') onOpen(); }}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); } }}
     >
       <div className="ap-card__title-row">
         {batchMode && batchable && <Checkbox checked={checked} className="ap-card__check" aria-label="选择" />}
@@ -180,6 +181,7 @@ function TaskListContent() {
   const [delegationsVisible, setDelegationsVisible] = useState(false);
   const [delegationTarget, setDelegationTarget] = useState<number | undefined>();
   const [delegationMode, setDelegationMode] = useState<'full' | 'suggest'>('full');
+  const [online, setOnline] = useState(() => navigator.onLine);
   const notificationsQuery = useApprovalNotifications(notificationsVisible);
   const notificationUnreadQuery = useApprovalNotificationUnreadCount();
   const markNotificationRead = useMarkApprovalNotificationRead();
@@ -187,6 +189,16 @@ function TaskListContent() {
   const delegationUsersQuery = useApprovalUsers(delegationsVisible);
   const createDelegation = useCreateApprovalDelegation();
   const deleteDelegation = useDeleteApprovalDelegation();
+
+  useEffect(() => {
+    const setOnlineState = () => setOnline(navigator.onLine);
+    window.addEventListener('online', setOnlineState);
+    window.addEventListener('offline', setOnlineState);
+    return () => {
+      window.removeEventListener('online', setOnlineState);
+      window.removeEventListener('offline', setOnlineState);
+    };
+  }, []);
 
   const data = listQuery.data;
   const list = useMemo(() => data?.list ?? [], [data?.list]);
@@ -381,6 +393,7 @@ function TaskListContent() {
         />
         <Button theme="borderless" icon={<LogOut size={16} />} onClick={logout} aria-label="退出" />
       </div>
+      {!online && <Banner className="ap-offline-banner" type="warning" closeIcon={null} description="当前处于离线状态，网络恢复后可重试未完成操作。" />}
       <div className="ap-workbench" aria-label="审批工作台概览">
         <button type="button" className="ap-workbench__item" onClick={() => switchTab('pending')}>
           <span>待办</span><strong>{countsQuery.data?.pending ?? '—'}</strong>
@@ -417,7 +430,12 @@ function TaskListContent() {
             {refreshing ? <Spin size="small" /> : <span>{pull >= 56 ? '松开刷新' : '下拉刷新'}</span>}
           </div>
         )}
-        {filteredList.map((item) => (
+        {listQuery.isError ? (
+          <div className="ap-error" role="alert">
+            <Typography.Text type="danger">审批列表加载失败，请检查网络后重试。</Typography.Text>
+            <Button size="small" onClick={() => void refetch()}>重试</Button>
+          </div>
+        ) : filteredList.map((item) => (
           <TaskCard
             key={`${item.id}-${item.handledTask?.id ?? item.pendingTaskId ?? item.ccTaskId ?? 0}`}
             item={item}
@@ -429,7 +447,7 @@ function TaskListContent() {
             checked={item.pendingTaskId != null && checkedIds.has(item.pendingTaskId)}
           />
         ))}
-        {!listQuery.isFetching && filteredList.length === 0 && (
+        {!listQuery.isError && !listQuery.isFetching && filteredList.length === 0 && (
           <div className="ap-empty">{keyword || filtersActive ? '没有匹配的结果' : EMPTY_TEXT[tab]}</div>
         )}
         {hasMore && (

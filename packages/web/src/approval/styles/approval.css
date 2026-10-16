@@ -33,6 +33,11 @@
   white-space: nowrap;
 }
 
+.ap-header .semi-button {
+  min-width: 44px;
+  min-height: 44px;
+}
+
 .ap-header__notification {
   position: relative;
 }
@@ -50,6 +55,11 @@
   font-size: 9px;
   line-height: 14px;
   text-align: center;
+}
+
+.ap-offline-banner {
+  flex-shrink: 0;
+  border-radius: 0;
 }
 
 .ap-body {
@@ -235,6 +245,7 @@
   color: var(--semi-color-text-2);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+  min-height: 52px;
 }
 
 .ap-tabbar__item:active {
@@ -359,6 +370,7 @@
 
 .ap-search > .semi-button {
   flex-shrink: 0;
+  min-height: 44px;
 }
 
 .ap-dot {
@@ -596,6 +608,25 @@
 .ap-notification__meta {
   color: var(--semi-color-text-3);
   font-size: 11px;
+}
+
+.ap-error {
+  display: flex;
+  min-height: 160px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-direction: column;
+  padding: 24px 12px;
+  text-align: center;
+}
+
+.ap-autosave-status {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ap-delegations {

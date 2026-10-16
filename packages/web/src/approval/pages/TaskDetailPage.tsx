@@ -438,7 +438,14 @@ function TaskDetailContent() {
   if (!detail) {
     return (
       <PageShell title="申请详情">
-        <div className="ap-body"><Empty description="流程不存在或无权查看" style={{ paddingTop: 60 }} /></div>
+        <div className="ap-body">
+          {detailQuery.isError ? (
+            <div className="ap-error" role="alert">
+              <Typography.Text type="danger">详情加载失败，请检查网络后重试。</Typography.Text>
+              <Button size="small" onClick={() => void detailQuery.refetch()}>重试</Button>
+            </div>
+          ) : <Empty description="流程不存在或无权查看" style={{ paddingTop: 60 }} />}
+        </div>
       </PageShell>
     );
   }
