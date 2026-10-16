@@ -174,7 +174,8 @@ export default function RateLimitPage() {
         windowMs: windowValue * WINDOW_UNIT_MS[windowUnit],
       };
     },
-    labelWidth: 130,
+    // label 右侧有 16px 内边距：最长标签「拦截提示文案」6 字占 84px，列宽至少 100 才不换行
+    labelWidth: 112,
   });
 
   const statusToggle = useStatusToggle<RateLimitRule>({
