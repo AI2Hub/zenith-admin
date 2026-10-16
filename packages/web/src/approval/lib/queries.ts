@@ -180,6 +180,38 @@ export function useLaunchInstance() {
   });
 }
 
+export function useUpdateApprovalDraft() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id: number; body: BodyOf<typeof workflowInstanceContract.updateDraft> }) =>
+      api(workflowInstanceContract.updateDraft, { params: { id }, body }, client),
+    onSuccess: (_saved, vars) => {
+      void qc.invalidateQueries({ queryKey: approvalKeys.all });
+      void qc.invalidateQueries({ queryKey: approvalKeys.detail(vars.id) });
+    },
+  });
+}
+
+export function useSubmitApprovalDraft() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, selectedInitiatorApprovers }: { id: number; selectedInitiatorApprovers?: BodyOf<typeof workflowInstanceContract.submitDraft>['selectedInitiatorApprovers'] }) =>
+      api(workflowInstanceContract.submitDraft, { params: { id }, body: { selectedInitiatorApprovers } }, client),
+    onSuccess: () => qc.invalidateQueries({ queryKey: approvalKeys.all }),
+  });
+}
+
+export function useDeleteApprovalInstance() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api(workflowInstanceContract.remove, { params: { id } }, client),
+    onSuccess: (_removed, id) => {
+      qc.removeQueries({ queryKey: approvalKeys.detail(id) });
+      void qc.invalidateQueries({ queryKey: approvalKeys.all });
+    },
+  });
+}
+
 /** 提交前审批链路预测（含发起人自选节点候选人），表单变更经防抖 reloadKey 重新预测 */
 export function useApprovalChainPreview(
   definitionId: number | null,

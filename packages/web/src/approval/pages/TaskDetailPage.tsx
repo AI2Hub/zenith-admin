@@ -33,7 +33,7 @@ import {
   fetchApprovalPrintPdf,
   fetchNextPendingTask,
   useAddApprovalComment, useApprovalDetail, useApprovalMe, useApprovalQuickPhrases, useApprovalUsers,
-  useSelectableNextApprovers, useTaskAction, useUrgeInstance, useWithdrawInstance,
+  useDeleteApprovalInstance, useSelectableNextApprovers, useTaskAction, useUrgeInstance, useWithdrawInstance,
   type ApprovalTaskActionVariables,
 } from '../lib/queries';
 import { INSTANCE_STATUS_MAP as STATUS_MAP } from '@/components/workflow/workflow-runtime';
@@ -103,6 +103,7 @@ function TaskDetailContent() {
   const meQuery = useApprovalMe();
   const actionMutation = useTaskAction();
   const withdrawMutation = useWithdrawInstance();
+  const deleteMutation = useDeleteApprovalInstance();
   const urgeMutation = useUrgeInstance();
   const commentMutation = useAddApprovalComment();
   const detail = detailQuery.data ?? null;
@@ -282,6 +283,15 @@ function TaskDetailContent() {
     } catch { /* request 层已 Toast */ }
   };
 
+  const deleteDraft = async () => {
+    if (!detail || !draftActionable) return;
+    try {
+      await deleteMutation.mutateAsync(detail.id);
+      Toast.success('草稿已删除');
+      navigate('/', { replace: true });
+    } catch { /* request 层已 Toast */ }
+  };
+
   const urge = async () => {
     if (!detail) return;
     try {
@@ -358,7 +368,8 @@ function TaskDetailContent() {
     );
   }
 
-  const hasFooter = actionable || initiatorActionable;
+  const draftActionable = detail.status === 'draft' && isInitiator;
+  const hasFooter = actionable || initiatorActionable || draftActionable;
   const sheetTitle = action === 'approve' ? approveLabel
     : action === 'reject' ? (btnReject.displayName ?? '拒绝')
     : (btnTransfer.displayName ?? '转办');
@@ -478,6 +489,20 @@ function TaskDetailContent() {
           )}
         </div>
       </div>
+
+      {/* 底部操作条：草稿 */}
+      {draftActionable && (
+        <div className="ap-footer-bar">
+          <Button theme="light" onClick={() => navigate(`/draft/${detail.id}`)}>
+            编辑
+          </Button>
+          <Popconfirm title="删除这份草稿？" content="删除后无法恢复。" onConfirm={() => void deleteDraft()}>
+            <Button theme="solid" type="danger" loading={deleteMutation.isPending}>
+              删除草稿
+            </Button>
+          </Popconfirm>
+        </div>
+      )}
 
       {/* 底部操作条：审批人 */}
       {actionable && (

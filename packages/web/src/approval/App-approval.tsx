@@ -39,6 +39,7 @@ export default function ApprovalApp() {
               <Route path="/detail/:instanceId/:taskId" element={<TaskDetailPage />} />
               <Route path="/launch" element={<LaunchListPage />} />
               <Route path="/launch/:definitionId" element={<LaunchFormPage />} />
+              <Route path="/draft/:instanceId" element={<LaunchFormPage />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

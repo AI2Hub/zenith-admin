@@ -352,7 +352,7 @@ export async function cancelInstance(id: number) {
 export async function deleteInstance(id: number) {
   const user = currentUser();
   const inst = await requireVisibleInstance(id);
-  if (inst.status === 'running' || inst.status === 'draft') {
+  if (inst.status === 'running') {
     throw new HTTPException(400, { message: '请先取消进行中的流程再删除' });
   }
   await db.transaction(async (tx) => {

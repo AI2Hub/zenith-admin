@@ -1,11 +1,11 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useDebouncedCallback } from '@tanstack/react-pacer';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Banner, Button, Empty, Input, Select, Skeleton, Spin, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { ChevronLeft, Clock, GitBranch, Mail, Send, UserPlus, type LucideIcon } from 'lucide-react';
 import dayjs from 'dayjs';
-import type { WorkflowApproverPreviewNode, WorkflowInstancePriority } from '@zenith/shared/workflow';
+import type { WorkflowApproverPreviewNode, WorkflowDefinition, WorkflowInstancePriority } from '@zenith/shared/workflow';
 import { applyFieldPermissionsToFields, WORKFLOW_APPROVE_METHOD_LABELS as METHOD_LABEL } from '@zenith/shared/workflow';
 import WorkflowFormRenderer from '@/pages/workflow/designer/components/WorkflowFormRenderer';
 import { SignatureClientProvider } from '@/components/signature/SignatureClientContext';
@@ -22,7 +22,10 @@ import ApproverPickerField from '../components/ApproverPicker';
 import { canLaunchOnMobile } from '../lib/launch';
 import MobileWorkflowGraph from '../components/MobileWorkflowGraph';
 import { recordRecentDefinition } from '../lib/recent';
-import { useApprovalChainPreview, useApprovalMe, useApprovalUsers, useLaunchInstance, usePublishedDefinitions } from '../lib/queries';
+import {
+  useApprovalChainPreview, useApprovalDetail, useApprovalMe, useApprovalUsers, useLaunchInstance,
+  usePublishedDefinitions, useSubmitApprovalDraft, useUpdateApprovalDraft,
+} from '../lib/queries';
 
 const CHAIN_ICON: Record<string, LucideIcon> = {
   approve: Clock, handler: Clock, ccNode: Mail, subProcess: GitBranch,
@@ -148,17 +151,25 @@ export default function LaunchFormPage() {
 
 function LaunchFormContent() {
   const navigate = useNavigate();
-  const { definitionId } = useParams<{ definitionId: string }>();
+  const { definitionId, instanceId: draftInstanceIdParam } = useParams<{ definitionId?: string; instanceId?: string }>();
+  const draftInstanceId = draftInstanceIdParam ? Number(draftInstanceIdParam) : null;
   const defsQuery = usePublishedDefinitions();
+  const draftQuery = useApprovalDetail(Number.isFinite(draftInstanceId) ? draftInstanceId : null);
   const meQuery = useApprovalMe();
   const launchMutation = useLaunchInstance();
   const draftMutation = useLaunchInstance();
+  const updateDraftMutation = useUpdateApprovalDraft();
+  const submitDraftMutation = useSubmitApprovalDraft();
   const usersQuery = useApprovalUsers(true);
   const formApi = useRef<FormApi | null>(null);
 
+  const isEditingDraft = draftInstanceId != null;
   const def = useMemo(
-    () => (defsQuery.data ?? []).find((d) => d.id === Number(definitionId)) ?? null,
-    [defsQuery.data, definitionId],
+    () => {
+      if (draftQuery.data?.definitionSnapshot) return draftQuery.data.definitionSnapshot as unknown as WorkflowDefinition;
+      return (defsQuery.data ?? []).find((d) => d.id === Number(definitionId)) ?? null;
+    },
+    [defsQuery.data, definitionId, draftQuery.data],
   );
 
   const defaultTitle = useMemo(() => {
@@ -168,6 +179,12 @@ function LaunchFormContent() {
   const [title, setTitle] = useState<string | null>(null);
   const [priority, setPriority] = useState<WorkflowInstancePriority>('normal');
   const [ccUserIds, setCcUserIds] = useState<number[]>([]);
+
+  useEffect(() => {
+    if (!draftQuery.data) return;
+    setTitle(draftQuery.data.title);
+    setPriority(draftQuery.data.priority ?? 'normal');
+  }, [draftQuery.data]);
 
   const launchFields = useMemo(() => {
     if (!def) return [];
@@ -222,7 +239,7 @@ function LaunchFormContent() {
   };
 
   const submit = async (asDraft = false) => {
-    if (!def || launchMutation.isPending || draftMutation.isPending) return;
+    if (!def || launchMutation.isPending || draftMutation.isPending || updateDraftMutation.isPending || submitDraftMutation.isPending) return;
     try {
       const formData = (asDraft
         ? formApi.current?.getValues() ?? {}
@@ -233,14 +250,28 @@ function LaunchFormContent() {
         Toast.error(`请为「${missing.nodeName}」选择审批人`);
         return;
       }
+      const effectiveTitle = (title ?? draftQuery.data?.title ?? defaultTitle).trim() || defaultTitle;
+      const selected = compactSelectedInitiatorApprovers(selectedApprovers, selectNodes);
+      if (isEditingDraft && draftInstanceId != null) {
+        await updateDraftMutation.mutateAsync({
+          id: draftInstanceId,
+          body: { title: effectiveTitle, formData, priority },
+        });
+        if (!asDraft) {
+          await submitDraftMutation.mutateAsync({ id: draftInstanceId, selectedInitiatorApprovers: selected });
+        }
+        Toast.success(asDraft ? '草稿已保存' : '提交成功');
+        navigate(asDraft ? `/detail/${draftInstanceId}` : '/', { replace: true });
+        return;
+      }
       const mutation = asDraft ? draftMutation : launchMutation;
       await mutation.mutateAsync({
         definitionId: def.id,
-        title: (title ?? defaultTitle).trim() || defaultTitle,
+        title: effectiveTitle,
         formData,
         priority,
         ccUserIds: ccUserIds.length > 0 ? ccUserIds : undefined,
-        selectedInitiatorApprovers: compactSelectedInitiatorApprovers(selectedApprovers, selectNodes),
+        selectedInitiatorApprovers: selected,
         ...(asDraft ? { asDraft: true } : {}),
       });
       recordRecentDefinition(def.id);
@@ -250,7 +281,8 @@ function LaunchFormContent() {
   };
 
   const renderBody = () => {
-    if (defsQuery.isLoading) return <Skeleton placeholder={<Skeleton.Paragraph rows={5} />} loading active />;
+    if (defsQuery.isLoading || (isEditingDraft && draftQuery.isLoading)) return <Skeleton placeholder={<Skeleton.Paragraph rows={5} />} loading active />;
+    if (isEditingDraft && !draftQuery.data) return <Empty description="草稿不存在或无权编辑" style={{ paddingTop: 60 }} />;
     if (!def) return <Empty description="流程不存在或未发布" style={{ paddingTop: 60 }} />;
     if (!canLaunchOnMobile(def)) {
       return <Banner type="warning" closeIcon={null} description="该流程使用业务自定义表单，请到桌面端发起。" />;
@@ -258,7 +290,7 @@ function LaunchFormContent() {
     return (
       <>
         <div className="ap-section-title">申请标题</div>
-        <Input value={title ?? defaultTitle} onChange={setTitle} showClear placeholder="请输入申请标题" />
+        <Input value={title ?? draftQuery.data?.title ?? defaultTitle} onChange={setTitle} showClear placeholder="请输入申请标题" />
         <div className="ap-section-title">申请设置</div>
         <div className="ap-launch-settings">
           <div className="ap-launch-settings__field">
@@ -270,20 +302,22 @@ function LaunchFormContent() {
               style={{ width: '100%' }}
             />
           </div>
-          <div className="ap-launch-settings__field">
-            <Typography.Text type="tertiary" size="small">抄送人</Typography.Text>
-            <Select
-              multiple
-              filter
-              showClear
-              value={ccUserIds}
-              loading={usersQuery.isLoading}
-              optionList={(usersQuery.data ?? []).map((user) => ({ value: user.id, label: user.nickname || user.username }))}
-              placeholder="可选，提交后立即抄送"
-              onChange={(value) => setCcUserIds((value as number[]) ?? [])}
-              style={{ width: '100%' }}
-            />
-          </div>
+          {!isEditingDraft && (
+            <div className="ap-launch-settings__field">
+              <Typography.Text type="tertiary" size="small">抄送人</Typography.Text>
+              <Select
+                multiple
+                filter
+                showClear
+                value={ccUserIds}
+                loading={usersQuery.isLoading}
+                optionList={(usersQuery.data ?? []).map((user) => ({ value: user.id, label: user.nickname || user.username }))}
+                placeholder="可选，提交后立即抄送"
+                onChange={(value) => setCcUserIds((value as number[]) ?? [])}
+                style={{ width: '100%' }}
+              />
+            </div>
+          )}
         </div>
         <div className="ap-section-title">表单信息</div>
         {launchFields.length === 0
@@ -292,6 +326,7 @@ function LaunchFormContent() {
             <WorkflowFormRenderer
               key={`launch-${def.id}`}
               fields={launchFields}
+              initValues={(draftQuery.data?.formData ?? undefined) as Record<string, unknown> | undefined}
               getFormApi={(api) => { formApi.current = api; }}
               onValueChange={scheduleChainReload}
             />
@@ -330,11 +365,22 @@ function LaunchFormContent() {
       <div className={`ap-body${canSubmit ? ' ap-body--with-footer' : ''}`}>{renderBody()}</div>
       {canSubmit && (
         <div className="ap-footer-bar">
-          <Button theme="light" loading={draftMutation.isPending} onClick={() => void submit(true)}>
-            保存草稿
+          <Button
+            theme="light"
+            loading={isEditingDraft ? updateDraftMutation.isPending : draftMutation.isPending}
+            disabled={submitDraftMutation.isPending || launchMutation.isPending}
+            onClick={() => void submit(true)}
+          >
+            {isEditingDraft ? '保存' : '保存草稿'}
           </Button>
-          <Button theme="solid" type="primary" loading={launchMutation.isPending} onClick={() => void submit()}>
-            提交申请
+          <Button
+            theme="solid"
+            type="primary"
+            loading={isEditingDraft ? submitDraftMutation.isPending : launchMutation.isPending}
+            disabled={isEditingDraft ? updateDraftMutation.isPending : draftMutation.isPending}
+            onClick={() => void submit()}
+          >
+            {isEditingDraft ? '保存并提交' : '提交申请'}
           </Button>
         </div>
       )}
