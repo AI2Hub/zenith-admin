@@ -1,11 +1,11 @@
 import { useMemo, useRef, useState } from 'react';
 import { useDebouncedCallback } from '@tanstack/react-pacer';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Banner, Button, Empty, Input, Skeleton, Spin, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Banner, Button, Empty, Input, Select, Skeleton, Spin, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { ChevronLeft, Clock, GitBranch, Mail, Send, UserPlus, type LucideIcon } from 'lucide-react';
 import dayjs from 'dayjs';
-import type { WorkflowApproverPreviewNode } from '@zenith/shared/workflow';
+import type { WorkflowApproverPreviewNode, WorkflowInstancePriority } from '@zenith/shared/workflow';
 import { applyFieldPermissionsToFields, WORKFLOW_APPROVE_METHOD_LABELS as METHOD_LABEL } from '@zenith/shared/workflow';
 import WorkflowFormRenderer from '@/pages/workflow/designer/components/WorkflowFormRenderer';
 import { SignatureClientProvider } from '@/components/signature/SignatureClientContext';
@@ -17,11 +17,12 @@ import {
   type SelectedInitiatorApprovers,
 } from '@/components/workflow/WorkflowApprovalChainPanel';
 import { UserAvatar } from '@/components/UserAvatar';
+import { WORKFLOW_PRIORITY_OPTIONS } from '@/components/workflow/WorkflowPriorityTag';
 import ApproverPickerField from '../components/ApproverPicker';
 import { canLaunchOnMobile } from '../lib/launch';
 import MobileWorkflowGraph from '../components/MobileWorkflowGraph';
 import { recordRecentDefinition } from '../lib/recent';
-import { useApprovalChainPreview, useApprovalMe, useLaunchInstance, usePublishedDefinitions } from '../lib/queries';
+import { useApprovalChainPreview, useApprovalMe, useApprovalUsers, useLaunchInstance, usePublishedDefinitions } from '../lib/queries';
 
 const CHAIN_ICON: Record<string, LucideIcon> = {
   approve: Clock, handler: Clock, ccNode: Mail, subProcess: GitBranch,
@@ -151,6 +152,8 @@ function LaunchFormContent() {
   const defsQuery = usePublishedDefinitions();
   const meQuery = useApprovalMe();
   const launchMutation = useLaunchInstance();
+  const draftMutation = useLaunchInstance();
+  const usersQuery = useApprovalUsers(true);
   const formApi = useRef<FormApi | null>(null);
 
   const def = useMemo(
@@ -163,6 +166,8 @@ function LaunchFormContent() {
     return def ? `${def.name} - ${who} - ${dayjs().format('MM-DD HH:mm')}` : '';
   }, [def, meQuery.data]);
   const [title, setTitle] = useState<string | null>(null);
+  const [priority, setPriority] = useState<WorkflowInstancePriority>('normal');
+  const [ccUserIds, setCcUserIds] = useState<number[]>([]);
 
   const launchFields = useMemo(() => {
     if (!def) return [];
@@ -203,25 +208,30 @@ function LaunchFormContent() {
     if (ids.length > 0) setHighlightMissing(false);
   };
 
-  const submit = async () => {
-    if (!def || launchMutation.isPending) return;
+  const submit = async (asDraft = false) => {
+    if (!def || launchMutation.isPending || draftMutation.isPending) return;
     try {
-      const formData = (await formApi.current?.validate() ?? {}) as Record<string, unknown>;
-      const missing = firstMissingInitiatorApproverNode(selectedApprovers, selectNodes);
+      const formData = (asDraft
+        ? formApi.current?.getValues() ?? {}
+        : await formApi.current?.validate() ?? {}) as Record<string, unknown>;
+      const missing = asDraft ? null : firstMissingInitiatorApproverNode(selectedApprovers, selectNodes);
       if (missing) {
         setHighlightMissing(true);
         Toast.error(`请为「${missing.nodeName}」选择审批人`);
         return;
       }
-      await launchMutation.mutateAsync({
+      const mutation = asDraft ? draftMutation : launchMutation;
+      await mutation.mutateAsync({
         definitionId: def.id,
         title: (title ?? defaultTitle).trim() || defaultTitle,
         formData,
-        priority: 'normal',
+        priority,
+        ccUserIds: ccUserIds.length > 0 ? ccUserIds : undefined,
         selectedInitiatorApprovers: compactSelectedInitiatorApprovers(selectedApprovers, selectNodes),
+        ...(asDraft ? { asDraft: true } : {}),
       });
       recordRecentDefinition(def.id);
-      Toast.success('提交成功');
+      Toast.success(asDraft ? '草稿已保存' : '提交成功');
       navigate('/', { replace: true });
     } catch { /* 校验或请求失败（request 层已 Toast） */ }
   };
@@ -236,6 +246,32 @@ function LaunchFormContent() {
       <>
         <div className="ap-section-title">申请标题</div>
         <Input value={title ?? defaultTitle} onChange={setTitle} showClear placeholder="请输入申请标题" />
+        <div className="ap-section-title">申请设置</div>
+        <div className="ap-launch-settings">
+          <div className="ap-launch-settings__field">
+            <Typography.Text type="tertiary" size="small">优先级</Typography.Text>
+            <Select
+              value={priority}
+              optionList={WORKFLOW_PRIORITY_OPTIONS}
+              onChange={(value) => setPriority(value as WorkflowInstancePriority)}
+              style={{ width: '100%' }}
+            />
+          </div>
+          <div className="ap-launch-settings__field">
+            <Typography.Text type="tertiary" size="small">抄送人</Typography.Text>
+            <Select
+              multiple
+              filter
+              showClear
+              value={ccUserIds}
+              loading={usersQuery.isLoading}
+              optionList={(usersQuery.data ?? []).map((user) => ({ value: user.id, label: user.nickname || user.username }))}
+              placeholder="可选，提交后立即抄送"
+              onChange={(value) => setCcUserIds((value as number[]) ?? [])}
+              style={{ width: '100%' }}
+            />
+          </div>
+        </div>
         <div className="ap-section-title">表单信息</div>
         {launchFields.length === 0
           ? <Typography.Text type="tertiary">该流程无需填写表单，直接提交即可</Typography.Text>
@@ -273,6 +309,9 @@ function LaunchFormContent() {
       <div className={`ap-body${canSubmit ? ' ap-body--with-footer' : ''}`}>{renderBody()}</div>
       {canSubmit && (
         <div className="ap-footer-bar">
+          <Button theme="light" loading={draftMutation.isPending} onClick={() => void submit(true)}>
+            保存草稿
+          </Button>
           <Button theme="solid" type="primary" loading={launchMutation.isPending} onClick={() => void submit()}>
             提交申请
           </Button>

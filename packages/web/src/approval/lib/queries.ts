@@ -6,7 +6,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { BodyOf } from '@zenith/shared/core';
 import { workflowDefinitionContract, workflowInstanceContract, workflowQuickPhraseContract, workflowTaskContract, type WorkflowInstanceListItem, type WorkflowHandledInstanceItem } from '@zenith/shared/workflow';
-import { authContract, userContract } from '@zenith/shared/identity';
+import { authContract } from '@zenith/shared/identity';
 import { api, urlOf } from '@/lib/contract-query';
 import { runWorkflowBatchApprove, runWorkflowTaskAction, type WorkflowTaskDecisionVariables } from '@/hooks/queries/workflow-tasks';
 import { approvalRequest } from './approval-request';
@@ -221,7 +221,7 @@ export function useSelectableNextApprovers(taskId: number | null, enabled: boole
 export function useApprovalUsers(enabled: boolean) {
   return useQuery({
     queryKey: approvalKeys.users,
-    queryFn: () => api(userContract.all, silentClient),
+    queryFn: () => api(workflowInstanceContract.selectableUsers, silentClient),
     enabled,
     staleTime: 5 * 60_000,
   });

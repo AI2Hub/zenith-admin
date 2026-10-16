@@ -483,6 +483,25 @@
   margin: 14px 2px 8px;
 }
 
+.ap-launch-settings {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: 10px;
+}
+
+.ap-launch-settings__field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+@media (max-width: 420px) {
+  .ap-launch-settings {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* 人员选择：触发字段（chips/placeholder + 右箭头） */
 .ap-picker-field {
   display: flex;
