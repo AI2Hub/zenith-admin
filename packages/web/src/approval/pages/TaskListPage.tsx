@@ -76,7 +76,7 @@ function isBatchable(item: ApprovalListItem): boolean {
   return !item.requiresIndividual && item.pendingSignaturePolicy !== 'handwritten' && item.pendingTaskId != null;
 }
 
-/** 极速同意没有签名确认步骤，只适用于无需签名的节点。 */
+/** 列表快捷同意没有签名确认步骤，只适用于无需签名的节点。 */
 function isQuickable(item: ApprovalListItem): boolean {
   return isBatchable(item) && (item.pendingSignaturePolicy ?? 'none') === 'none';
 }
@@ -87,7 +87,7 @@ function TaskCard({ item, tab, onOpen, onQuickApprove, quickApproving, batchMode
   const ccUnread = tab === 'cc' && item.ccTaskId != null && !item.ccReadAt;
   const quickable = tab === 'pending' && isQuickable(item);
   const batchable = tab === 'pending' && isBatchable(item);
-  // 极速同意：无需签名/加签选人时展示（意见必填等由服务端校验兜底，失败引导进详情）
+  // 列表快捷同意：无需签名/加签选人时展示（意见必填等由服务端校验兜底，失败引导进详情）
   const canQuick = quickable && onQuickApprove != null && !batchMode;
   const dim = batchMode && !batchable;
   // SLA 未配置时不占位；footer 只有在有实质内容（代办/时限/签名/快捷操作）时才渲染，避免空分割线。
@@ -148,7 +148,7 @@ function TaskCard({ item, tab, onOpen, onQuickApprove, quickApproving, batchMode
               loading={quickApproving}
               onClick={(e) => { e.stopPropagation(); onQuickApprove(); }}
             >
-              极速同意
+              同意
             </Button>
           )}
         </div>
@@ -278,7 +278,7 @@ function TaskListContent() {
     const pendingTaskId = item.pendingTaskId;
     if (!pendingTaskId) return;
     Modal.confirm({
-      title: '极速同意',
+      title: '同意',
       content: `确认同意「${item.title}」？`,
       okText: '同意',
       onOk: async () => {

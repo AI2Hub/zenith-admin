@@ -1824,7 +1824,7 @@ export const workflowHandlers = [
       const settings = inst.definitionSnapshot?.flowData?.settings ?? def?.flowData?.settings;
       const snapFields = inst.formSnapshot?.fields ?? [];
       const summary = buildWorkflowSummaryItems(snapFields, inst.formData ?? {}, settings?.summaryFields);
-      // 与服务端一致：下游紧邻节点含 approverSelect 时需逐条选人，不可极速同意
+      // 与服务端一致：下游紧邻节点含 approverSelect 时需逐条选人，不可列表快捷同意
       const task = mockWorkflowTasks.find(t => t.id === taskId);
       const flowForNext = inst.definitionSnapshot?.flowData ?? def?.flowData;
       const node = flowForNext?.nodes.find((item) => item.data.key === task?.nodeKey)?.data;
