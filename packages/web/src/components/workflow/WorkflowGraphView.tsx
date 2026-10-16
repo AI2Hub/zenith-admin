@@ -189,6 +189,9 @@ export default function WorkflowGraphView({ flowData, tasks, consults, height = 
           <style>{css}</style>
         </>
       )}
+      {/* block 布局而非 flex 居中：fit-content 收缩包裹 + margin auto，内容窄时居中、
+          内容宽时左对齐，左右两端在任何缩放下都可滚动到达（flex 居中在溢出时会把
+          起始边裁出可视区且滚不回来，zoom 参与时 auto 边距也不再可靠坍缩）。 */}
       <div
         className={scopeClass}
         style={{
@@ -198,14 +201,14 @@ export default function WorkflowGraphView({ flowData, tasks, consults, height = 
           overflow: 'auto',
           padding: 16,
           boxSizing: 'border-box',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
           background: 'var(--semi-color-fill-0)',
           borderRadius: 'var(--semi-border-radius-medium)',
         }}
       >
-        <div style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: 'center center', transition: 'transform 160ms ease' }}>
+        {/* 缩放走 layout 生效的 zoom（而非 transform scale）：缩放后的尺寸计入滚动区，
+            滚轮才能到达顶部/底部；translate 会被 zoom 等比放大，渲染时除回 zoom
+            以保持拖拽 1:1 跟手（pan 始终按屏幕像素维护）。 */}
+        <div style={{ width: 'fit-content', margin: '0 auto', zoom, transform: `translate(${pan.x / zoom}px, ${pan.y / zoom}px)`, transition: 'transform 160ms ease' }}>
           <FlowRenderer process={process} readOnly nodeRuntime={runtimeMap} dimmedBranchIds={dimmedBranches} instanceStatus={instanceStatus} formFields={formFields} />
         </div>
       </div>
