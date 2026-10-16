@@ -7,7 +7,8 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import type { BodyOf } from '@zenith/shared/core';
 import { workflowDefinitionContract, workflowInstanceContract, workflowQuickPhraseContract, workflowTaskContract, type WorkflowInstanceListItem, type WorkflowHandledInstanceItem } from '@zenith/shared/workflow';
 import { authContract } from '@zenith/shared/identity';
-import { api, urlOf } from '@/lib/contract-query';
+import { inAppMessageContract, type InAppMessage } from '@zenith/shared/messaging';
+import { api, contractKey, urlOf } from '@/lib/contract-query';
 import { runWorkflowBatchApprove, runWorkflowTaskAction, type WorkflowTaskActionVariables } from '@/hooks/queries/workflow-tasks';
 import { approvalRequest } from './approval-request';
 
@@ -33,6 +34,8 @@ export const approvalKeys = {
   nextApprovers: (taskId: number | null, search?: { nodeKey: string; keyword: string }) =>
     ['approval', 'next-approvers', taskId, search ?? null] as const,
   users: ['approval', 'users'] as const,
+  notifications: contractKey(inAppMessageContract.list),
+  notificationUnread: contractKey(inAppMessageContract.unreadCount),
 };
 
 /** 累积加载：固定 page=1、递增 pageSize（移动端"加载更多"语义，缓存 key 稳定） */
@@ -74,6 +77,36 @@ export function useApprovalCounts() {
     },
     refetchInterval: 30_000,
     retry: false,
+  });
+}
+
+export function useApprovalNotifications(enabled: boolean) {
+  return useQuery<{ list: InAppMessage[]; total: number }>({
+    queryKey: approvalKeys.notifications,
+    queryFn: () => api(inAppMessageContract.list, { query: { page: 1, pageSize: 20 } }, silentClient),
+    enabled,
+    staleTime: 15_000,
+    refetchInterval: enabled ? 30_000 : false,
+  });
+}
+
+export function useApprovalNotificationUnreadCount() {
+  return useQuery({
+    queryKey: approvalKeys.notificationUnread,
+    queryFn: () => api(inAppMessageContract.unreadCount, silentClient),
+    refetchInterval: 30_000,
+    retry: false,
+  });
+}
+
+export function useMarkApprovalNotificationRead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api(inAppMessageContract.markRead, { params: { id } }, silentClient),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: approvalKeys.notifications });
+      void qc.invalidateQueries({ queryKey: approvalKeys.notificationUnread });
+    },
   });
 }
 

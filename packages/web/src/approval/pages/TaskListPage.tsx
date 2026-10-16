@@ -1,9 +1,10 @@
 import { lazy, Suspense, useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Checkbox, Modal, Select, SideSheet, Spin, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
-import { Check, CheckCheck, CircleCheckBig, ClipboardCheck, FilePlus2, ListChecks, LogOut, Plus, Send, type LucideIcon } from 'lucide-react';
+import { Bell, Check, CheckCheck, CircleCheckBig, ClipboardCheck, FilePlus2, ListChecks, LogOut, Plus, Send, type LucideIcon } from 'lucide-react';
 import { TOKEN_KEY, REFRESH_TOKEN_KEY, type SignatureInput } from '@zenith/shared/core';
 import type { WorkflowBatchActionResponse, WorkflowInstancePriority } from '@zenith/shared/workflow';
+import type { InAppMessage } from '@zenith/shared/messaging';
 import { SignatureClientProvider } from '@/components/signature/SignatureClientContext';
 import WorkflowBatchResults from '@/components/workflow/WorkflowBatchResults';
 import { approvalRequest } from '../lib/approval-request';
@@ -14,7 +15,7 @@ import WorkflowSLATag from '@/components/workflow/WorkflowSLATag';
 import WorkflowPriorityTag from '@/components/workflow/WorkflowPriorityTag';
 import WorkflowHandledTaskTag from '@/components/workflow/WorkflowHandledTaskTag';
 import {
-  useApprovalCounts, useApprovalList, useBatchApprove, useMarkCcRead, useTaskAction,
+  useApprovalCounts, useApprovalList, useApprovalNotificationUnreadCount, useApprovalNotifications, useBatchApprove, useMarkApprovalNotificationRead, useMarkCcRead, useTaskAction,
   type ApprovalListItem, type ApprovalTab,
 } from '../lib/queries';
 import { useInfiniteSentinel, usePullRefresh } from '../lib/usePullRefresh';
@@ -37,6 +38,20 @@ type ApprovalFilters = {
 };
 
 const EMPTY_FILTERS: ApprovalFilters = { definitionId: null, priority: null, overdue: false };
+
+/** 将管理后台工作流通知深链转换为移动审批路由；其它业务通知留在通知面板中。 */
+function mobileApprovalLink(link: string | null): string | null {
+  if (!link) return null;
+  const [path, query = ''] = link.split('?', 2);
+  if (!['/workflow/applications', '/workflow/pending', '/workflow/cc'].includes(path)) return null;
+  const params = new URLSearchParams(query);
+  const instanceId = Number(params.get('instanceId'));
+  if (!Number.isFinite(instanceId) || instanceId <= 0) return null;
+  const taskId = Number(params.get('taskId'));
+  return path === '/workflow/pending' && Number.isFinite(taskId) && taskId > 0
+    ? `/detail/${instanceId}/${taskId}`
+    : `/detail/${instanceId}`;
+}
 
 /** 底部标签栏（主流 App TabBar）：图标 + 文字 + 角标，中间为凸起「发起」按钮 */
 const TAB_ITEMS: { key: ApprovalTab; label: string; icon: LucideIcon }[] = [
@@ -156,6 +171,10 @@ function TaskListContent() {
   const [ccReadingAll, setCcReadingAll] = useState(false);
   const [filters, setFilters] = useState<ApprovalFilters>(EMPTY_FILTERS);
   const [filtersVisible, setFiltersVisible] = useState(false);
+  const [notificationsVisible, setNotificationsVisible] = useState(false);
+  const notificationsQuery = useApprovalNotifications(notificationsVisible);
+  const notificationUnreadQuery = useApprovalNotificationUnreadCount();
+  const markNotificationRead = useMarkApprovalNotificationRead();
 
   const data = listQuery.data;
   const list = useMemo(() => data?.list ?? [], [data?.list]);
@@ -302,10 +321,34 @@ function TaskListContent() {
     Toast.success('已全部标记为已读');
   };
 
+  const openNotification = async (item: InAppMessage) => {
+    if (!item.isRead) await markNotificationRead.mutateAsync(item.id);
+    setNotificationsVisible(false);
+    const target = mobileApprovalLink(item.link);
+    if (target) {
+      navigate(target);
+      return;
+    }
+    Toast.info(item.link ? '请在管理后台打开该通知' : item.title);
+  };
+
   return (
     <div className="ap-page">
       <div className="ap-header">
         <span className="ap-header__title">移动审批</span>
+        <Button
+          theme="borderless"
+          className="ap-header__notification"
+          icon={<Bell size={17} />}
+          onClick={() => setNotificationsVisible(true)}
+          aria-label={`通知${(notificationUnreadQuery.data?.count ?? 0) > 0 ? `，${notificationUnreadQuery.data?.count} 条未读` : ''}`}
+        >
+          {(notificationUnreadQuery.data?.count ?? 0) > 0 && (
+            <span className="ap-header__notification-badge" aria-hidden="true">
+              {(notificationUnreadQuery.data?.count ?? 0) > 99 ? '99+' : notificationUnreadQuery.data?.count}
+            </span>
+          )}
+        </Button>
         <Button theme="borderless" icon={<LogOut size={16} />} onClick={logout} aria-label="退出" />
       </div>
       <div className="ap-workbench" aria-label="审批工作台概览">
@@ -455,6 +498,37 @@ function TaskListContent() {
             <Button block theme="light" onClick={() => setFilters(EMPTY_FILTERS)}>清除筛选</Button>
             <Button block theme="solid" type="primary" onClick={() => setFiltersVisible(false)}>完成</Button>
           </div>
+        </div>
+      </SideSheet>
+      <SideSheet
+        placement="bottom"
+        height="75%"
+        title={`通知${(notificationUnreadQuery.data?.count ?? 0) > 0 ? ` · ${notificationUnreadQuery.data?.count} 条未读` : ''}`}
+        visible={notificationsVisible}
+        onCancel={() => setNotificationsVisible(false)}
+        className="ap-sheet"
+      >
+        <div className="ap-sheet__body ap-notifications">
+          {notificationsQuery.isFetching && <Spin size="small" />}
+          {!notificationsQuery.isFetching && (notificationsQuery.data?.list ?? []).length === 0 && (
+            <div className="ap-empty">暂无通知</div>
+          )}
+          {(notificationsQuery.data?.list ?? []).map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={`ap-notification${item.isRead ? '' : ' ap-notification--unread'}`}
+              onClick={() => void openNotification(item)}
+            >
+              <span className="ap-notification__title-row">
+                {!item.isRead && <span className="ap-dot" aria-label="未读" />}
+                <span className="ap-notification__title">{item.title}</span>
+                {mobileApprovalLink(item.link) && <Tag size="small" color="blue">前往处理</Tag>}
+              </span>
+              <span className="ap-notification__content">{item.content}</span>
+              <span className="ap-notification__meta">{item.senderName ?? '系统'} · {formatDateTime(item.createdAt)}</span>
+            </button>
+          ))}
         </div>
       </SideSheet>
       <SideSheet placement="bottom" height="auto" title={batchConfirm === 'signedApprove' ? '使用我的签名并批量同意' : '批量同意'}
