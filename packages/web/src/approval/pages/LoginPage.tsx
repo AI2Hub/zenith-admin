@@ -58,8 +58,8 @@ export default function LoginPage() {
           field="username"
           noLabel
           size="large"
-          placeholder="用户名"
-          rules={[{ required: true, message: '请输入用户名' }]}
+          placeholder="用户名/手机号"
+          rules={[{ required: true, message: '请输入用户名/手机号' }]}
         />
         <FormPasswordInput
           field="password"
