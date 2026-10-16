@@ -560,7 +560,6 @@
 .ap-notifications {
   display: flex;
   flex-direction: column;
-  gap: 8px;
 }
 
 .ap-notification {
@@ -568,24 +567,25 @@
   width: 100%;
   flex-direction: column;
   gap: 5px;
-  padding: 11px 12px;
-  border: 1px solid var(--semi-color-border);
-  border-radius: 8px;
-  background: var(--semi-color-bg-1);
+  padding: 12px 2px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--semi-color-border);
   color: var(--semi-color-text-0);
   font: inherit;
   text-align: left;
   cursor: pointer;
 }
 
+.ap-notification:last-child {
+  border-bottom: none;
+}
+
 .ap-notification:active {
   background: var(--semi-color-fill-0);
 }
 
-.ap-notification--unread {
-  border-color: var(--semi-color-primary-light-default);
-  background: var(--semi-color-primary-light-default);
-}
+/* 未读只靠标题行小红点区分，不再整卡染色，与其他扁平列表一致 */
 
 .ap-notification__title-row {
   display: flex;
