@@ -675,3 +675,63 @@
   font-size: 12px;
   color: var(--semi-color-danger);
 }
+
+/* 移动端流程图抽屉：画布填满剩余空间，节点与工具栏保持清晰可操作 */
+.ap-mobile-graph {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--semi-color-fill-0);
+}
+
+.ap-mobile-graph__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-shrink: 0;
+  min-height: 40px;
+  padding: 4px 10px 4px 14px;
+  background: var(--semi-color-bg-1);
+  border-bottom: 1px solid var(--semi-color-border);
+}
+
+.ap-mobile-graph__toolbar-label {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--semi-color-text-2);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ap-mobile-graph__zoom-controls {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 2px;
+}
+
+.ap-mobile-graph__zoom-value {
+  min-width: 42px;
+  color: var(--semi-color-text-1);
+  font-size: 12px;
+  text-align: center;
+}
+
+.ap-mobile-graph__viewport {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.ap-mobile-graph__viewport > div {
+  height: 100%;
+  max-height: none;
+  border-radius: 0 !important;
+}
+
+.ap-mobile-graph__viewport .fd-flow-wrap {
+  min-width: 0;
+}

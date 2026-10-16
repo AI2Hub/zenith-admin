@@ -28,6 +28,7 @@ import {
   resolveWorkflowFormType,
 } from '@/utils/workflow-snapshot';
 import ApproverPickerField from '../components/ApproverPicker';
+import MobileWorkflowGraph from '../components/MobileWorkflowGraph';
 import {
   fetchApprovalPrintPdf,
   fetchNextPendingTask,
@@ -368,7 +369,18 @@ function TaskDetailContent() {
     <PageShell
       title={detail.title}
       tag={status && <Tag color={status.color}>{status.text}</Tag>}
-      actions={canPrint ? <SharePrintButton instanceId={detail.id} title={detail.title} /> : null}
+      actions={(
+        <>
+          <MobileWorkflowGraph
+            flowData={flowData}
+            tasks={detail.tasks ?? []}
+            consults={detail.consults ?? []}
+            instanceStatus={detail.status}
+            formFields={formFields}
+          />
+          {canPrint ? <SharePrintButton instanceId={detail.id} title={detail.title} /> : null}
+        </>
+      )}
     >
       <div className={`ap-body${hasFooter ? ' ap-body--with-footer' : ''}`}>
         {detail.status === 'suspended' && (

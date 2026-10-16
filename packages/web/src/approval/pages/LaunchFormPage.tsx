@@ -19,6 +19,7 @@ import {
 import { UserAvatar } from '@/components/UserAvatar';
 import ApproverPickerField from '../components/ApproverPicker';
 import { canLaunchOnMobile } from '../lib/launch';
+import MobileWorkflowGraph from '../components/MobileWorkflowGraph';
 import { recordRecentDefinition } from '../lib/recent';
 import { useApprovalChainPreview, useApprovalMe, useLaunchInstance, usePublishedDefinitions } from '../lib/queries';
 
@@ -265,6 +266,9 @@ function LaunchFormContent() {
       <div className="ap-header">
         <Button theme="borderless" icon={<ChevronLeft size={18} />} onClick={() => navigate(-1)} aria-label="返回" />
         <span className="ap-header__title">{def?.name ?? '发起申请'}</span>
+        {def && canSubmit ? (
+          <MobileWorkflowGraph flowData={def.flowData} formFields={def.formFields ?? undefined} />
+        ) : null}
       </div>
       <div className={`ap-body${canSubmit ? ' ap-body--with-footer' : ''}`}>{renderBody()}</div>
       {canSubmit && (

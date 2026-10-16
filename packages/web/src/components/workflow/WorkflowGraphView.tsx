@@ -26,6 +26,8 @@ interface Props {
   instanceStatus?: string;
   /** 表单字段（用于路由分支等把字段 key 渲染为业务标签） */
   formFields?: ReadonlyArray<{ key: string; label: string; type?: string }>;
+  /** 只读树形流程图的缩放比例，移动端抽屉使用 */
+  zoom?: number;
 }
 
 interface ReturnTrack {
@@ -101,7 +103,7 @@ function computeDimmedBranches(process: FlowProcess, taskNodeKeys: Set<string>):
   return dimmed;
 }
 
-export default function WorkflowGraphView({ flowData, tasks, consults, height = 480, instanceStatus, formFields }: Readonly<Props>) {
+export default function WorkflowGraphView({ flowData, tasks, consults, height = 480, instanceStatus, formFields, zoom = 1 }: Readonly<Props>) {
   const scopeId = useId().replaceAll(':', '');
   const scopeClass = `fd-graph-scope-${scopeId}`;
   const projection = useMemo(() => (flowData?.nodes.length ? projectWorkflowGraph(flowData) : null), [flowData]);
@@ -188,14 +190,22 @@ export default function WorkflowGraphView({ flowData, tasks, consults, height = 
       <div
         className={scopeClass}
         style={{
+          height: typeof height === 'number' ? `${height}px` : height,
           maxHeight: typeof height === 'number' ? `${height}px` : height,
+          minHeight: 0,
           overflow: 'auto',
           padding: 16,
+          boxSizing: 'border-box',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
           background: 'var(--semi-color-fill-0)',
           borderRadius: 'var(--semi-border-radius-medium)',
         }}
       >
-        <FlowRenderer process={process} readOnly nodeRuntime={runtimeMap} dimmedBranchIds={dimmedBranches} instanceStatus={instanceStatus} formFields={formFields} />
+        <div style={{ transform: `scale(${zoom})`, transformOrigin: 'center center', transition: 'transform 160ms ease' }}>
+          <FlowRenderer process={process} readOnly nodeRuntime={runtimeMap} dimmedBranchIds={dimmedBranches} instanceStatus={instanceStatus} formFields={formFields} />
+        </div>
       </div>
     </div>
   );
