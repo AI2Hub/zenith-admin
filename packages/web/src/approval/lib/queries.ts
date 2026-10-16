@@ -213,7 +213,8 @@ export function useDeleteApprovalInstance() {
     mutationFn: (id: number) => api(workflowInstanceContract.remove, { params: { id } }, client),
     onSuccess: (_removed, id) => {
       qc.removeQueries({ queryKey: approvalKeys.detail(id) });
-      void qc.invalidateQueries({ queryKey: approvalKeys.all });
+      void qc.invalidateQueries({ queryKey: approvalKeys.lists });
+      void qc.invalidateQueries({ queryKey: approvalKeys.counts });
     },
   });
 }
