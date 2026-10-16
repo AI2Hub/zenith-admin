@@ -1,12 +1,12 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-  Avatar, Banner, Button, Empty, Form, Popconfirm, SideSheet, Skeleton, Spin, Tag, TextArea, Toast, Typography,
+  Avatar, Banner, Button, Dropdown, Empty, Form, Popconfirm, SideSheet, Skeleton, Spin, Tag, TextArea, Toast, Typography,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { BellRing, ChevronLeft, RotateCcw, Send, Share2 } from 'lucide-react';
+import { BellRing, ChevronLeft, MoreHorizontal, RotateCcw, Send, Share2 } from 'lucide-react';
 import type { WorkflowActionButtonConfig, WorkflowActionButtonKey, WorkflowFieldPermission, WorkflowTask } from '@zenith/shared/workflow';
-import { applyFieldPermissionsToFields, hasEditableFieldPermission, resolveWorkflowActionButton } from '@zenith/shared/workflow';
+import { applyFieldPermissionsToFields, hasEditableFieldPermission, resolveWorkflowActionButton, WORKFLOW_RETURN_TO_INITIATOR_KEY } from '@zenith/shared/workflow';
 import { formatDateTime } from '@/utils/date';
 import { downloadBlob } from '@/utils/download';
 import ApprovalTimeline from '@/components/ApprovalTimeline';
@@ -38,13 +38,13 @@ import {
 } from '../lib/queries';
 import { INSTANCE_STATUS_MAP as STATUS_MAP } from '@/components/workflow/workflow-runtime';
 
-type ActionKind = 'approve' | 'reject' | 'transfer' | null;
+type ActionKind = 'approve' | 'reject' | 'transfer' | 'delegate' | 'addSign' | 'return' | null;
 const SignatureField = lazy(() => import('@/components/signature/SignatureField'));
 
 /** 移动审批端按钮默认值同样取 shared 唯一事实源（与审批面板 / 设计器 / 服务端一致） */
 function resolveBtn(
   cfg: Partial<Record<string, WorkflowActionButtonConfig>> | null | undefined,
-  key: 'approve' | 'reject' | 'transfer',
+  key: 'approve' | 'reject' | 'transfer' | 'delegate' | 'addSign' | 'return',
 ): WorkflowActionButtonConfig {
   return resolveWorkflowActionButton(cfg as Partial<Record<WorkflowActionButtonKey, WorkflowActionButtonConfig>>, key);
 }
@@ -116,6 +116,8 @@ function TaskDetailContent() {
   const [selectedNext, setSelectedNext] = useState<Record<string, number[]>>({});
   const [highlightNextMissing, setHighlightNextMissing] = useState(false);
   const [transferTarget, setTransferTarget] = useState<number[]>([]);
+  const [delegateTarget, setDelegateTarget] = useState<number[]>([]);
+  const [addSignTargets, setAddSignTargets] = useState<number[]>([]);
   const actionFormApi = useRef<FormApi | null>(null);
   const detailFormApi = useRef<FormApi | null>(null);
 
@@ -127,6 +129,8 @@ function TaskDetailContent() {
     setSelectedNext({});
     setHighlightNextMissing(false);
     setTransferTarget([]);
+    setDelegateTarget([]);
+    setAddSignTargets([]);
   }, [instanceId, taskId]);
 
   const phrasesQuery = useApprovalQuickPhrases(action === 'approve' || action === 'reject');
@@ -154,7 +158,7 @@ function TaskDetailContent() {
   const searchedCandidates = (nodeKey: string) => (nextSearch?.nodeKey === nodeKey
     ? nextSearchQuery.data?.find((g) => g.nodeKey === nodeKey)?.selectableApprovers ?? []
     : null);
-  const usersQuery = useApprovalUsers(action === 'transfer');
+  const usersQuery = useApprovalUsers(action === 'transfer' || action === 'delegate' || action === 'addSign');
   const transferCandidates = useMemo(
     () => (usersQuery.data ?? [])
       .filter((u) => u.id !== me?.id)
@@ -183,10 +187,14 @@ function TaskDetailContent() {
   const btnApprove = resolveBtn(currentTask?.actionButtons ?? null, 'approve');
   const btnReject = resolveBtn(currentTask?.actionButtons ?? null, 'reject');
   const btnTransfer = resolveBtn(currentTask?.actionButtons ?? null, 'transfer');
+  const btnDelegate = resolveBtn(currentTask?.actionButtons ?? null, 'delegate');
+  const btnAddSign = resolveBtn(currentTask?.actionButtons ?? null, 'addSign');
+  const btnReturn = resolveBtn(currentTask?.actionButtons ?? null, 'return');
   const signaturePolicy = currentTask?.signaturePolicy ?? 'none';
   const needSignature = signaturePolicy !== 'none';
   const approveLabel = needSignature ? `签名并${btnApprove.displayName ?? '同意'}` : btnApprove.displayName ?? '同意';
   const opinionRequired = nodeCfg?.operations?.includes('opinionRequired') ?? false;
+  const canAddSign = currentTask?.taskKind === 'approval';
 
   const status = detail ? STATUS_MAP[detail.status] : null;
   const comments = detail?.comments ?? [];
@@ -248,17 +256,44 @@ function TaskDetailContent() {
         };
       } else if (action === 'reject') {
         vars = { taskId, action, body: { comment: values.comment ?? '' } };
-      } else {
+      } else if (action === 'transfer') {
         if (transferTarget.length === 0) {
           Toast.error('请选择接收人');
           return;
         }
         vars = { taskId, action, body: { targetUserId: transferTarget[0], comment: values.comment } };
+      } else if (action === 'delegate') {
+        if (delegateTarget.length === 0) {
+          Toast.error('请选择委派人');
+          return;
+        }
+        vars = { taskId, action, body: { targetUserId: delegateTarget[0], comment: values.comment } };
+      } else if (action === 'addSign') {
+        if (addSignTargets.length === 0) {
+          Toast.error('请选择加签人');
+          return;
+        }
+        vars = {
+          taskId,
+          action: 'add-sign',
+          body: { targetUserIds: addSignTargets, position: 'parallel', signMode: 'and', comment: values.comment },
+        };
+      } else {
+        vars = {
+          taskId,
+          action: 'return',
+          body: { targetNodeKeys: [WORKFLOW_RETURN_TO_INITIATOR_KEY], comment: values.comment ?? '' },
+        };
       }
       await actionMutation.mutateAsync(vars);
       setAction(null);
       // 连续审批（对标钉钉）：处理完自动进入下一条待办，清零后回列表
-      const doneLabel = action === 'approve' ? '已同意' : action === 'reject' ? '已驳回' : '已转办';
+      const doneLabel = action === 'approve' ? '已同意'
+        : action === 'reject' ? '已驳回'
+          : action === 'transfer' ? '已转办'
+            : action === 'delegate' ? '已委派'
+              : action === 'addSign' ? '已加签'
+                : '已退回';
       try {
         const { next, remaining } = await fetchNextPendingTask(instanceId);
         if (next) {
@@ -373,7 +408,10 @@ function TaskDetailContent() {
   const hasFooter = actionable || initiatorActionable || draftActionable;
   const sheetTitle = action === 'approve' ? approveLabel
     : action === 'reject' ? (btnReject.displayName ?? '拒绝')
-    : (btnTransfer.displayName ?? '转办');
+      : action === 'transfer' ? (btnTransfer.displayName ?? '转办')
+        : action === 'delegate' ? (btnDelegate.displayName ?? '委派')
+          : action === 'addSign' ? (btnAddSign.displayName ?? '加签')
+            : (btnReturn.displayName ?? '退回');
 
   const canPrint = detail.status !== 'draft' && (me?.permissions?.includes('*') || me?.permissions?.includes('workflow:instance:print'));
 
@@ -511,6 +549,21 @@ function TaskDetailContent() {
           {btnTransfer.enabled && (
             <Button theme="light" onClick={() => openAction('transfer')}>{btnTransfer.displayName ?? '转办'}</Button>
           )}
+          {(btnDelegate.enabled || (btnAddSign.enabled && canAddSign) || btnReturn.enabled) && (
+            <Dropdown
+              trigger="click"
+              position="topRight"
+              render={(
+                <Dropdown.Menu>
+                  {btnDelegate.enabled && <Dropdown.Item onClick={() => openAction('delegate')}>{btnDelegate.displayName ?? '委派'}</Dropdown.Item>}
+                  {btnAddSign.enabled && canAddSign && <Dropdown.Item onClick={() => openAction('addSign')}>{btnAddSign.displayName ?? '加签'}</Dropdown.Item>}
+                  {btnReturn.enabled && <Dropdown.Item onClick={() => openAction('return')}>{btnReturn.displayName ?? '退回'}</Dropdown.Item>}
+                </Dropdown.Menu>
+              )}
+            >
+              <Button theme="light" icon={<MoreHorizontal size={15} />}>更多</Button>
+            </Dropdown>
+          )}
           {btnReject.enabled && (
             <Button theme="light" type="danger" onClick={() => openAction('reject')}>{btnReject.displayName ?? '拒绝'}</Button>
           )}
@@ -548,16 +601,18 @@ function TaskDetailContent() {
         className="ap-sheet"
       >
         <div className="ap-sheet__body">
-          {action === 'transfer' && (
+          {(action === 'transfer' || action === 'delegate' || action === 'addSign') && (
             <div style={{ marginBottom: 12 }}>
-              <Typography.Text type="secondary" size="small" style={{ display: 'block', marginBottom: 6 }}>转办给</Typography.Text>
+              <Typography.Text type="secondary" size="small" style={{ display: 'block', marginBottom: 6 }}>
+                {action === 'transfer' ? '转办给' : action === 'delegate' ? '委派给' : '加签人'}
+              </Typography.Text>
               <ApproverPickerField
-                title="转办给"
+                title={action === 'transfer' ? '转办给' : action === 'delegate' ? '委派给' : '加签人'}
                 candidates={transferCandidates}
-                value={transferTarget}
-                onChange={setTransferTarget}
-                multiple={false}
-                placeholder="选择接收人"
+                value={action === 'transfer' ? transferTarget : action === 'delegate' ? delegateTarget : addSignTargets}
+                onChange={action === 'transfer' ? setTransferTarget : action === 'delegate' ? setDelegateTarget : setAddSignTargets}
+                multiple={action === 'addSign'}
+                placeholder={action === 'addSign' ? '选择一名或多名加签人' : '选择接收人'}
                 loading={usersQuery.isLoading}
               />
             </div>
@@ -593,10 +648,15 @@ function TaskDetailContent() {
           <Form getFormApi={(api) => { actionFormApi.current = api; }}>
             <Form.TextArea
               field="comment"
-              label={action === 'approve' ? (btnApprove.opinionName ?? '审批意见') : action === 'reject' ? (btnReject.opinionName ?? '拒绝原因') : (btnTransfer.opinionName ?? '转办说明')}
+              label={action === 'approve' ? (btnApprove.opinionName ?? '审批意见')
+                : action === 'reject' ? (btnReject.opinionName ?? '拒绝原因')
+                  : action === 'transfer' ? (btnTransfer.opinionName ?? '转办说明')
+                    : action === 'delegate' ? (btnDelegate.opinionName ?? '委派说明')
+                      : action === 'addSign' ? (btnAddSign.opinionName ?? '加签说明')
+                        : (btnReturn.opinionName ?? '退回原因')}
               rows={3}
-              placeholder={action === 'reject' || (action === 'approve' && opinionRequired) ? '必填' : '选填'}
-              rules={action === 'reject' || (action === 'approve' && opinionRequired)
+              placeholder={action === 'reject' || action === 'return' || (action === 'approve' && opinionRequired) ? '必填' : '选填'}
+              rules={action === 'reject' || action === 'return' || (action === 'approve' && opinionRequired)
                 ? [{ required: true, message: '请填写意见' }]
                 : undefined}
             />
@@ -624,7 +684,7 @@ function TaskDetailContent() {
             <Button
               block
               theme="solid"
-              type={action === 'reject' ? 'danger' : 'primary'}
+              type={action === 'reject' || action === 'return' ? 'danger' : 'primary'}
               loading={actionMutation.isPending}
               disabled={action === 'approve' && needSignature && !signature}
               onClick={() => void submitAction()}
