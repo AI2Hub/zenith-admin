@@ -724,6 +724,13 @@
   flex: 1;
   min-height: 0;
   overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.ap-mobile-graph__viewport:active {
+  cursor: grabbing;
 }
 
 .ap-mobile-graph__viewport > div {

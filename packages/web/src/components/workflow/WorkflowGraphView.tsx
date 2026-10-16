@@ -28,6 +28,8 @@ interface Props {
   formFields?: ReadonlyArray<{ key: string; label: string; type?: string }>;
   /** 只读树形流程图的缩放比例，移动端抽屉使用 */
   zoom?: number;
+  /** 只读树形流程图的平移偏移，移动端拖动画布使用 */
+  pan?: { x: number; y: number };
 }
 
 interface ReturnTrack {
@@ -103,7 +105,7 @@ function computeDimmedBranches(process: FlowProcess, taskNodeKeys: Set<string>):
   return dimmed;
 }
 
-export default function WorkflowGraphView({ flowData, tasks, consults, height = 480, instanceStatus, formFields, zoom = 1 }: Readonly<Props>) {
+export default function WorkflowGraphView({ flowData, tasks, consults, height = 480, instanceStatus, formFields, zoom = 1, pan = { x: 0, y: 0 } }: Readonly<Props>) {
   const scopeId = useId().replaceAll(':', '');
   const scopeClass = `fd-graph-scope-${scopeId}`;
   const projection = useMemo(() => (flowData?.nodes.length ? projectWorkflowGraph(flowData) : null), [flowData]);
@@ -203,7 +205,7 @@ export default function WorkflowGraphView({ flowData, tasks, consults, height = 
           borderRadius: 'var(--semi-border-radius-medium)',
         }}
       >
-        <div style={{ transform: `scale(${zoom})`, transformOrigin: 'center center', transition: 'transform 160ms ease' }}>
+        <div style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: 'center center', transition: 'transform 160ms ease' }}>
           <FlowRenderer process={process} readOnly nodeRuntime={runtimeMap} dimmedBranchIds={dimmedBranches} instanceStatus={instanceStatus} formFields={formFields} />
         </div>
       </div>
