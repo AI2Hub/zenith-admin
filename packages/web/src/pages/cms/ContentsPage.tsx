@@ -282,7 +282,7 @@ export default function ContentsPage() {
 
   async function runAction(id: number, action: 'submit' | 'publish' | 'offline', successMsg: string) {
     await actionMutation.mutateAsync({ id, action, expectedVersion: list.find((record) => record.id === id)!.version });
-    Toast.success(action === 'publish' ? '已提交发布任务，请在发布中心查看生效结果' : successMsg);
+    Toast.success(successMsg);
   }
 
   function handleReject(record: CmsContentListItem) {
@@ -609,8 +609,14 @@ export default function ContentsPage() {
             }] : []),
             ...(hasPermission('cms:content:publish') && (record.hasUnpublishedChanges || record.status !== 'published') ? [{
               key: 'publish',
-              label: '发布',
-              onClick: () => void runAction(record.id, 'publish', '发布成功'),
+              label: record.editorialStatus === 'pending' ? '审核并发布' : '发布',
+              onClick: () => void runAction(
+                record.id,
+                'publish',
+                record.editorialStatus === 'pending'
+                  ? '已提交审核并发布任务，请在发布中心查看生效结果'
+                  : '已提交发布任务，请在发布中心查看生效结果',
+              ),
             }] : []),
             ...(hasPermission('cms:content:audit') && record.editorialStatus === 'pending' ? [{
               key: 'reject',
