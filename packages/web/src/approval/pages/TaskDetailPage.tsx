@@ -124,8 +124,19 @@ function TaskDetailContent() {
   const [transferTarget, setTransferTarget] = useState<number[]>([]);
   const [delegateTarget, setDelegateTarget] = useState<number[]>([]);
   const [addSignTargets, setAddSignTargets] = useState<number[]>([]);
+  const [online, setOnline] = useState(() => navigator.onLine);
   const actionFormApi = useRef<FormApi | null>(null);
   const detailFormApi = useRef<FormApi | null>(null);
+
+  useEffect(() => {
+    const updateOnline = () => setOnline(navigator.onLine);
+    window.addEventListener('online', updateOnline);
+    window.addEventListener('offline', updateOnline);
+    return () => {
+      window.removeEventListener('online', updateOnline);
+      window.removeEventListener('offline', updateOnline);
+    };
+  }, []);
 
   // 连续审批跳转到下一条时复用组件实例，需重置操作状态
   useEffect(() => {
@@ -492,6 +503,7 @@ function TaskDetailContent() {
             style={{ marginBottom: 12 }}
           />
         )}
+        {!online && <Banner type="warning" closeIcon={null} description="当前处于离线状态，审批操作已暂时禁用；网络恢复后可继续处理。" style={{ marginBottom: 12 }} />}
 
         {/* 基本信息 + 当前进度 */}
         <div className="ap-section">
@@ -614,7 +626,7 @@ function TaskDetailContent() {
                   type="primary"
                   icon={<Send size={14} />}
                   loading={commentMutation.isPending}
-                  disabled={!commentDraft.trim()}
+                  disabled={!commentDraft.trim() || !online}
                   onClick={() => void sendComment()}
                   aria-label="发送评论"
                 >
@@ -644,7 +656,7 @@ function TaskDetailContent() {
       {actionable && (
         <div className="ap-footer-bar">
           {btnTransfer.enabled && (
-            <Button theme="light" onClick={() => openAction('transfer')}>{btnTransfer.displayName ?? '转办'}</Button>
+            <Button theme="light" disabled={!online} onClick={() => openAction('transfer')}>{btnTransfer.displayName ?? '转办'}</Button>
           )}
           {(btnDelegate.enabled || (btnAddSign.enabled && canAddSign) || btnReturn.enabled) && (
             <Dropdown
@@ -658,14 +670,14 @@ function TaskDetailContent() {
                 </Dropdown.Menu>
               )}
             >
-              <Button theme="light" icon={<MoreHorizontal size={15} />}>更多</Button>
+              <Button theme="light" disabled={!online} icon={<MoreHorizontal size={15} />}>更多</Button>
             </Dropdown>
           )}
           {btnReject.enabled && (
-            <Button theme="light" type="danger" onClick={() => openAction('reject')}>{btnReject.displayName ?? '拒绝'}</Button>
+            <Button theme="light" type="danger" disabled={!online} onClick={() => openAction('reject')}>{btnReject.displayName ?? '拒绝'}</Button>
           )}
           {btnApprove.enabled && (
-            <Button theme="solid" type="primary" onClick={() => openAction('approve')}>{approveLabel}</Button>
+            <Button theme="solid" type="primary" disabled={!online} onClick={() => openAction('approve')}>{approveLabel}</Button>
           )}
         </div>
       )}
@@ -674,13 +686,14 @@ function TaskDetailContent() {
       {initiatorActionable && (
         <div className="ap-footer-bar">
           <Popconfirm title="确定撤回该申请？" content="撤回后流程终止，可重新发起" onConfirm={() => void withdraw()}>
-            <Button theme="light" type="danger" icon={<RotateCcw size={14} />} loading={withdrawMutation.isPending}>撤回</Button>
+            <Button theme="light" type="danger" disabled={!online} icon={<RotateCcw size={14} />} loading={withdrawMutation.isPending}>撤回</Button>
           </Popconfirm>
           <Button
             theme="solid"
             type="primary"
             icon={<BellRing size={14} />}
             loading={urgeMutation.isPending}
+            disabled={!online}
             onClick={() => void urge()}
           >
             催办
