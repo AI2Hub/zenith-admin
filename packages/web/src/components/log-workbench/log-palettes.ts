@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react';
+import { useState } from 'react';
 
 interface LogPaletteColors {
   background: string;
@@ -83,6 +84,21 @@ export const LOG_PALETTES = [
 
 export type LogPaletteId = typeof LOG_PALETTES[number]['id'];
 export const DEFAULT_LOG_PALETTE: LogPaletteId = 'github';
+
+/** 日志配色偏好的 localStorage 键（与 LogWorkbench 内 usePersistentState('palette') 同一份，只读共用）。 */
+export const LOG_PALETTE_STORAGE_KEY = 'logWorkbench.palette';
+
+/** 读取用户在日志文件页选择的配色（日志文件页之外只读复用，不提供切换入口）。 */
+export function useLogPalette(): LogPaletteId {
+  const [palette] = useState<LogPaletteId>(() => {
+    try {
+      return resolveLogPalette(JSON.parse(localStorage.getItem(LOG_PALETTE_STORAGE_KEY) ?? 'null')).id;
+    } catch {
+      return DEFAULT_LOG_PALETTE;
+    }
+  });
+  return palette;
+}
 
 export function resolveLogPalette(value: unknown): typeof LOG_PALETTES[number] {
   return LOG_PALETTES.find((palette) => palette.id === value) ?? LOG_PALETTES[0];

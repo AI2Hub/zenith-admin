@@ -84,6 +84,10 @@ describe('链路追踪默认视图', () => {
   });
 });
 
+/** 日志行经语法分词渲染为多个 span：按行容器定位（容器 textContent 同样恒等于整行，需排除）。 */
+const byLogLine = (line: string) => (_content: string, el: Element | null): boolean =>
+  el?.textContent === line && (el?.classList.contains('log-content-row') ?? false);
+
 /** 跳转断言用的日志文件页替身：原样回显深链参数 */
 function LogFilesStub() {
   const [params] = useSearchParams();
@@ -142,7 +146,12 @@ describe('链路追踪 → 日志文件跳转', () => {
       expect(params.get('traceId')).toBe(recentEntry.traceId);
       expect(params.has('keyword')).toBe(false);
     });
-    expect(await screen.findByText(logLine)).toBeInTheDocument();
+    // 日志行经语法分词渲染为多个 span，整行文本只在行容器的 textContent 里完整出现。
+    expect(await screen.findByText(byLogLine(logLine))).toBeInTheDocument();
+    // 复用日志文件页配色：行挂载语法 token，容器挂载所选调色板变量
+    const logView = document.querySelector('.log-content-view');
+    expect(logView).toHaveAttribute('data-palette', 'github');
+    expect(logView?.querySelector('.log-token-key')).not.toBeNull();
 
     fireEvent.click(await screen.findByRole('button', { name: '在日志文件中查看' }));
     expect(await screen.findByText(`file=${traceFile}&traceId=${recentEntry.traceId}&keyword=null`)).toBeInTheDocument();
@@ -162,7 +171,7 @@ describe('链路追踪 → 日志文件跳转', () => {
 
     renderWithRoutes(`/system/trace?traceId=${recentEntry.traceId}`);
 
-    expect(await screen.findByText(logLine)).toBeInTheDocument();
+    expect(await screen.findByText(byLogLine(logLine))).toBeInTheDocument();
     expect(recorder.countOf('GET', `/api/log-files/${historyFile}/content`)).toBe(1);
     expect(recorder.countOf('GET', `/api/log-files/${traceFile}/content`)).toBe(0);
   });

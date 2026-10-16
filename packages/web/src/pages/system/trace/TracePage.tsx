@@ -14,6 +14,10 @@ import { usePermission } from '@/hooks/usePermission';
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import { useRecentTraceFailures, useRecentTraces, useTraceTimeline } from '@/hooks/queries/trace';
 import { useLogFiles, useLogFileContent } from '@/hooks/queries/log-files';
+import { LogLineText } from '@/components/log-workbench/LogLineText';
+import { computeEffectiveLevels } from '@/components/log-workbench/log-search';
+import { LOG_PALETTE_STYLES, useLogPalette } from '@/components/log-workbench/log-palettes';
+import '@/components/log-workbench/LogContentView.css';
 import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { FilterSelect } from '@/components/search-filters';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
@@ -64,7 +68,10 @@ function TraceLogsPanel({ traceId, nodes }: { traceId: string; nodes: TraceTimel
     ? selectedFile
     : appFiles[0]?.name;
   const contentQuery = useLogFileContent(activeFile, { lines: 5000, traceId }, Boolean(activeFile));
-  const lines = contentQuery.data?.lines ?? [];
+  const lines = useMemo(() => contentQuery.data?.lines ?? [], [contentQuery.data]);
+  // 与日志文件页同一套行配色：语法分词 + 行级别底色 + 用户所选调色板。
+  const palette = useLogPalette();
+  const levels = useMemo(() => computeEffectiveLevels(lines), [lines]);
 
   /** 日志文件页按链路精确定位并保留周围日志，避免把查询 URL 当作匹配目标。 */
   const handleViewInLogFiles = () => {
@@ -92,12 +99,21 @@ function TraceLogsPanel({ traceId, nodes }: { traceId: string; nodes: TraceTimel
       {lines.length === 0 ? (
         <Empty description="所选日志文件中未检索到该链路的记录" style={{ padding: '16px 0' }} />
       ) : (
-        <div style={{
-          fontFamily: 'var(--zx-font-mono, monospace)', fontSize: 12, lineHeight: '20px',
-          maxHeight: 360, overflow: 'auto', background: 'var(--semi-color-fill-0)',
-          borderRadius: 'var(--semi-border-radius-medium)', padding: '8px 12px', wordBreak: 'break-all',
-        }}>
-          {lines.map((line, i) => <div key={i}>{line}</div>)}
+        <div
+          className="log-content-view"
+          data-palette={palette}
+          style={{
+            ...LOG_PALETTE_STYLES.get(palette),
+            fontFamily: 'var(--zx-font-mono, monospace)', fontSize: 12, lineHeight: '20px',
+            maxHeight: 360, overflow: 'auto', background: 'var(--log-background)',
+            borderRadius: 'var(--semi-border-radius-medium)', padding: '8px 12px', wordBreak: 'break-all',
+          }}
+        >
+          {lines.map((line, i) => (
+            <div key={i} className="log-content-row" data-level={levels[i] ?? undefined}>
+              <LogLineText raw={line} activeStart={null} />
+            </div>
+          ))}
         </div>
       )}
       {activeFile && (
