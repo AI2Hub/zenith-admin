@@ -187,6 +187,19 @@ function LaunchFormContent() {
     () => (formApi.current?.getValues() ?? {}) as Record<string, unknown>,
   );
   const chainNodes = useMemo(() => previewQuery.data ?? [], [previewQuery.data]);
+  const sameInitiatorAutoSkip = useMemo(() => {
+    const initiatorId = meQuery.data?.id;
+    if (!initiatorId || !def?.flowData) return [] as string[];
+    const autoSkipNodeKeys = new Set(
+      def.flowData.nodes
+        .filter((node) => node.data.type === 'approve' && node.data.sameInitiatorStrategy !== 'selfApprove')
+        .map((node) => node.data.key),
+    );
+    return chainNodes
+      .filter((node) => node.nodeType === 'approve' && node.status !== 'excluded' && autoSkipNodeKeys.has(node.nodeKey))
+      .filter((node) => node.approvers.some((approver) => approver.id === initiatorId))
+      .map((node) => node.nodeName);
+  }, [chainNodes, def, meQuery.data?.id]);
 
   // 发起人自选审批人：nodeKey -> userIds
   const [selectedApprovers, setSelectedApprovers] = useState<SelectedInitiatorApprovers>({});
@@ -284,6 +297,14 @@ function LaunchFormContent() {
             />
           )}
         <div className="ap-section-title">审批流程</div>
+        {sameInitiatorAutoSkip.length > 0 && (
+          <Banner
+            type="warning"
+            closeIcon={null}
+            description={`节点「${sameInitiatorAutoSkip.join('、')}」的审批人是当前发起人，提交后将按流程规则自动跳过。需要本人审批时，请在流程设计中将「与提交人同一人」设置为「由发起人自己审批」。`}
+            style={{ marginBottom: 10 }}
+          />
+        )}
         <ChainSection
           nodes={chainNodes}
           isLoading={previewQuery.isLoading}
