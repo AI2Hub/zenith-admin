@@ -28,6 +28,10 @@ export default function WalletPage() {
   const wallet = useMemberWallet().data ?? null;
   const paymentOptionsQuery = useMemberPaymentOptions();
   const paymentOptions = useMemo(() => paymentOptionsQuery.data ?? [], [paymentOptionsQuery.data]);
+  const availableApplications = useMemo(
+    () => paymentOptions.filter((option) => option.cashierMethods.length > 0),
+    [paymentOptions],
+  );
   const [applicationId, setApplicationId] = useState<number | undefined>(undefined);
   const rechargeMutation = useCreateRechargeOrder();
   const [modalOpen, setModalOpen] = useState(false);
@@ -48,7 +52,7 @@ export default function WalletPage() {
   const availableMethods = useMemo(() => selectedApplication?.cashierMethods ?? [], [selectedApplication]);
   useEffect(() => {
     if (applicationId == null) {
-      const first = paymentOptions.find((option) => option.cashierMethods.length > 0);
+      const first = availableApplications[0];
       if (first) {
         setApplicationId(first.id);
         setPayMethod(first.cashierMethods[0].method);
@@ -56,43 +60,48 @@ export default function WalletPage() {
     } else if (availableMethods.length > 0 && !availableMethods.some((method) => method.method === payMethod)) {
       setPayMethod(availableMethods[0].method);
     }
-  }, [applicationId, availableMethods, payMethod, paymentOptions]);
+  }, [applicationId, availableApplications, availableMethods, payMethod]);
   const discount = selectedCoupon ? couponDiscount(selectedCoupon, amountCents) : 0;
   const payableCents = Math.max(1, amountCents - discount);
+  const canRecharge = !paymentOptionsQuery.isFetching && applicationId != null && availableMethods.some((method) => method.method === payMethod);
 
   const handleRecharge = async () => {
     if (!amount || amount <= 0) {
       Toast.warning('请输入充值金额');
       return;
     }
-    if (applicationId == null || !availableMethods.some((method) => method.method === payMethod)) {
-      Toast.warning('请选择当前应用支持的支付方式');
+    if (!canRecharge) {
+      Toast.warning('当前暂无可用支付方式，请联系管理员');
       return;
     }
-    const r = await rechargeMutation.mutateAsync({
-      body: {
-        applicationId,
-        amount: amountCents,
-        payMethod,
-        memberCouponId: selectedCoupon?.id,
-      },
-    });
-    setModalOpen(false);
-    setCouponId(null);
-    if (r.payUrl) {
-      globalThis.location.href = r.payUrl;
-      return;
+    try {
+      const r = await rechargeMutation.mutateAsync({
+        body: {
+          applicationId: applicationId!,
+          amount: amountCents,
+          payMethod,
+          memberCouponId: selectedCoupon?.id,
+        },
+      });
+      setModalOpen(false);
+      setCouponId(null);
+      if (r.payUrl) {
+        globalThis.location.href = r.payUrl;
+        return;
+      }
+      if (r.formHtml) {
+        globalThis.document.open();
+        globalThis.document.write(r.formHtml);
+        globalThis.document.close();
+        return;
+      }
+      Modal.info({
+        title: '充值订单已创建',
+        content: `订单号：${r.orderNo}，支付完成后余额将自动到账${discount > 0 ? `（充值满减已抵扣 ${formatYuan(discount)}）` : ''}。`,
+      });
+    } catch {
+      // memberRequest 已展示服务端错误，页面只需收住 rejected promise。
     }
-    if (r.formHtml) {
-      globalThis.document.open();
-      globalThis.document.write(r.formHtml);
-      globalThis.document.close();
-      return;
-    }
-    Modal.info({
-      title: '充值订单已创建',
-      content: `订单号：${r.orderNo}，支付完成后余额将自动到账${discount > 0 ? `（充值满减已抵扣 ${formatYuan(discount)}）` : ''}。`,
-    });
   };
 
   const handleRefresh = () => {
@@ -154,7 +163,7 @@ export default function WalletPage() {
         visible={modalOpen}
         onCancel={() => setModalOpen(false)}
         footer={
-          <Button theme="solid" loading={rechargeMutation.isPending} onClick={handleRecharge} style={{ background: 'var(--m-primary)' }}>
+          <Button theme="solid" disabled={!canRecharge} loading={rechargeMutation.isPending} onClick={handleRecharge} style={{ background: 'var(--m-primary)' }}>
             确认充值 · 实付 {formatYuan(discount > 0 ? payableCents : amountCents)}
           </Button>
         }
@@ -207,11 +216,16 @@ export default function WalletPage() {
             value={applicationId}
             placeholder="请选择支付应用"
             loading={paymentOptionsQuery.isFetching}
-            optionList={paymentOptions.filter((option) => option.cashierMethods.length > 0).map((option) => ({ value: option.id, label: option.name }))}
+            optionList={availableApplications.map((option) => ({ value: option.id, label: option.name }))}
             onChange={(value) => setApplicationId(value as number)}
             style={{ flex: 1 }}
           />
         </div>
+        {!paymentOptionsQuery.isFetching && availableApplications.length === 0 && (
+          <div style={{ color: 'var(--m-text-secondary)', fontSize: 13, marginBottom: 14 }}>
+            暂未配置可用支付应用，请联系管理员。
+          </div>
+        )}
         <RadioGroup value={payMethod} onChange={(e) => setPayMethod(e.target.value as PaymentCashierMethod)} type="button">
           {availableMethods.map((p) => (
             <Radio key={p.method} value={p.method}>
