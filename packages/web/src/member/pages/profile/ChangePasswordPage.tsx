@@ -29,14 +29,18 @@ export default function ChangePasswordPage() {
       Toast.warning('两次输入的密码不一致');
       return;
     }
-    await changePasswordMutation.mutateAsync({
-      body: {
-        oldPassword: needOld ? oldPassword : undefined,
-        newPassword,
-      },
-    });
-    Toast.success('密码已修改');
-    navigate(-1);
+    try {
+      await changePasswordMutation.mutateAsync({
+        body: {
+          oldPassword: needOld ? oldPassword : undefined,
+          newPassword,
+        },
+      });
+      Toast.success('密码已修改');
+      navigate(-1);
+    } catch {
+      // memberRequest 已展示服务端错误，页面只需收住 rejected promise。
+    }
   };
 
   return (
