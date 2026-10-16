@@ -146,8 +146,13 @@ export function useMarkCcRead() {
 export function useAddApprovalComment() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ instanceId, content }: { instanceId: number; content: string }) =>
-      api(workflowInstanceContract.addComment, { params: { id: instanceId }, body: { content, mentions: [], attachments: [], parentId: null } }, client),
+    mutationFn: ({ instanceId, content, mentions = [], attachments = [], parentId = null }: {
+      instanceId: number;
+      content: string;
+      mentions?: number[];
+      attachments?: Array<{ fileId: string }>;
+      parentId?: number | null;
+    }) => api(workflowInstanceContract.addComment, { params: { id: instanceId }, body: { content, mentions, attachments, parentId } }, client),
     onSuccess: (_data, vars) => qc.invalidateQueries({ queryKey: approvalKeys.detail(vars.instanceId) }),
   });
 }

@@ -426,6 +426,38 @@
   flex: 1;
 }
 
+.ap-comment-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.ap-comment-replying {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--semi-color-fill-0);
+  color: var(--semi-color-text-2);
+  font-size: 12px;
+}
+
+.ap-comment-replying span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ap-comment-composer__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 /* 底部抽屉宽屏居中：inner 为 absolute 定位，需 left/right 归零 + margin auto；
    !important 用于抵消 global.css 窄屏 SideSheet 的 95vw/100vw !important 规则 */
 .semi-sidesheet.ap-sheet .semi-sidesheet-inner {

@@ -1,16 +1,17 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-  Avatar, Banner, Button, Dropdown, Empty, Form, Popconfirm, SideSheet, Skeleton, Spin, Tag, TextArea, Toast, Typography,
+  Avatar, Banner, Button, Dropdown, Empty, Form, Popconfirm, Select, SideSheet, Skeleton, Spin, Tag, TextArea, Toast, Typography,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { BellRing, ChevronLeft, MoreHorizontal, RotateCcw, Send, Share2 } from 'lucide-react';
+import { BellRing, ChevronLeft, MoreHorizontal, Reply, RotateCcw, Send, Share2, X } from 'lucide-react';
 import type { WorkflowActionButtonConfig, WorkflowActionButtonKey, WorkflowFieldPermission, WorkflowTask } from '@zenith/shared/workflow';
-import { applyFieldPermissionsToFields, hasEditableFieldPermission, resolveWorkflowActionButton, WORKFLOW_RETURN_TO_INITIATOR_KEY } from '@zenith/shared/workflow';
+import { applyFieldPermissionsToFields, hasEditableFieldPermission, resolveWorkflowActionButton, WORKFLOW_RETURN_TO_INITIATOR_KEY, workflowAttachmentContract } from '@zenith/shared/workflow';
 import { formatDateTime } from '@/utils/date';
 import { downloadBlob } from '@/utils/download';
+import { urlOf } from '@/lib/contract-query';
 import ApprovalTimeline from '@/components/ApprovalTimeline';
-import FileAttachment from '@/components/FileAttachment';
+import FileAttachment, { type AttachmentItem } from '@/components/FileAttachment';
 import { workflowFileToAttachment } from '@/components/FileAttachment/utils';
 import type { SignatureInput } from '@zenith/shared/core';
 import { SignatureClientProvider } from '@/components/signature/SignatureClientContext';
@@ -112,6 +113,9 @@ function TaskDetailContent() {
   const [action, setAction] = useState<ActionKind>(null);
   const [signature, setSignature] = useState<SignatureInput | null>(null);
   const [commentDraft, setCommentDraft] = useState('');
+  const [replyTo, setReplyTo] = useState<{ id: number; userName?: string | null; content: string } | null>(null);
+  const [commentMentions, setCommentMentions] = useState<number[]>([]);
+  const [commentAttachments, setCommentAttachments] = useState<AttachmentItem[]>([]);
   // 下一节点自选审批人：nodeKey -> userIds；转办接收人（单选）
   const [selectedNext, setSelectedNext] = useState<Record<string, number[]>>({});
   const [highlightNextMissing, setHighlightNextMissing] = useState(false);
@@ -126,6 +130,9 @@ function TaskDetailContent() {
     setAction(null);
     setSignature(null);
     setCommentDraft('');
+    setReplyTo(null);
+    setCommentMentions([]);
+    setCommentAttachments([]);
     setSelectedNext({});
     setHighlightNextMissing(false);
     setTransferTarget([]);
@@ -198,6 +205,15 @@ function TaskDetailContent() {
 
   const status = detail ? STATUS_MAP[detail.status] : null;
   const comments = detail?.comments ?? [];
+  const mentionOptions = useMemo(() => {
+    if (!detail) return [] as Array<{ value: number; label: string }>;
+    const users = new Map<number, string>();
+    if (detail.initiatorId) users.set(detail.initiatorId, detail.initiatorName ?? `用户#${detail.initiatorId}`);
+    for (const task of detail.tasks ?? []) {
+      if (task.assigneeId) users.set(task.assigneeId, task.assigneeName ?? `用户#${task.assigneeId}`);
+    }
+    return [...users.entries()].map(([value, label]) => ({ value, label }));
+  }, [detail]);
 
   const collectFormUpdates = async (): Promise<Record<string, unknown> | undefined> => {
     if (!formEditable || !viewerPerms || !detailFormApi.current) return undefined;
@@ -339,8 +355,17 @@ function TaskDetailContent() {
     const text = commentDraft.trim();
     if (!detail || !text) return;
     try {
-      await commentMutation.mutateAsync({ instanceId: detail.id, content: text });
+      await commentMutation.mutateAsync({
+        instanceId: detail.id,
+        content: text,
+        mentions: commentMentions,
+        attachments: commentAttachments.map((item) => ({ fileId: item.fileId })),
+        parentId: replyTo?.id ?? null,
+      });
       setCommentDraft('');
+      setReplyTo(null);
+      setCommentMentions([]);
+      setCommentAttachments([]);
       Toast.success('评论已发送');
     } catch { /* request 层已 Toast */ }
   };
@@ -495,6 +520,16 @@ function TaskDetailContent() {
                 <div className="ap-comment__head">
                   <span className="ap-comment__name">{c.userName ?? `用户#${c.userId}`}</span>
                   <span className="ap-comment__time">{formatDateTime(c.createdAt)}</span>
+                  {detail.allowComment !== false && (
+                    <Button
+                      theme="borderless"
+                      size="small"
+                      icon={<Reply size={12} />}
+                      onClick={() => setReplyTo({ id: c.id, userName: c.userName, content: c.content })}
+                    >
+                      回复
+                    </Button>
+                  )}
                 </div>
                 {c.parentSummary && (
                   <div className="ap-comment__quote">{c.parentSummary.userName ?? '—'}：{c.parentSummary.content}</div>
@@ -507,23 +542,54 @@ function TaskDetailContent() {
             </div>
           ))}
           {detail.allowComment !== false && (
-            <div className="ap-comment-input">
+            <div className="ap-comment-composer">
+              {replyTo && (
+                <div className="ap-comment-replying">
+                  <span>回复 {replyTo.userName ?? '评论'}：{replyTo.content}</span>
+                  <Button theme="borderless" size="small" icon={<X size={13} />} onClick={() => setReplyTo(null)} aria-label="取消回复" />
+                </div>
+              )}
               <TextArea
                 value={commentDraft}
                 onChange={setCommentDraft}
-                placeholder="发表评论，与流程相关人员沟通…"
-                autosize={{ minRows: 1, maxRows: 4 }}
+                placeholder={replyTo ? `回复 ${replyTo.userName ?? '评论'}…` : '发表评论，与流程相关人员沟通…'}
+                autosize={{ minRows: 2, maxRows: 5 }}
                 maxCount={2000}
               />
-              <Button
-                theme="solid"
-                type="primary"
-                icon={<Send size={14} />}
-                loading={commentMutation.isPending}
-                disabled={!commentDraft.trim()}
-                onClick={() => void sendComment()}
-                aria-label="发送评论"
+              <FileAttachment
+                mode="edit"
+                uploadPath={urlOf(workflowAttachmentContract.upload)}
+                uploadData={{ instanceId: detail.id }}
+                showTitle={false}
+                limit={5}
+                previewPresentation="fullscreen"
+                value={commentAttachments}
+                onChange={setCommentAttachments}
               />
+              <div className="ap-comment-composer__actions">
+                <Select
+                  multiple
+                  filter
+                  showClear
+                  value={commentMentions}
+                  optionList={mentionOptions}
+                  placeholder="提醒谁（@提及）"
+                  onChange={(value) => setCommentMentions((value as number[]) ?? [])}
+                  maxTagCount={2}
+                  style={{ flex: 1, minWidth: 0 }}
+                />
+                <Button
+                  theme="solid"
+                  type="primary"
+                  icon={<Send size={14} />}
+                  loading={commentMutation.isPending}
+                  disabled={!commentDraft.trim()}
+                  onClick={() => void sendComment()}
+                  aria-label="发送评论"
+                >
+                  发送
+                </Button>
+              </div>
             </div>
           )}
         </div>
