@@ -327,6 +327,7 @@ function LaunchFormContent() {
               key={`launch-${def.id}`}
               fields={launchFields}
               filePreviewPresentation="fullscreen"
+              fileCapture="environment"
               initValues={(draftQuery.data?.formData ?? undefined) as Record<string, unknown> | undefined}
               getFormApi={(api) => { formApi.current = api; }}
               onValueChange={scheduleChainReload}

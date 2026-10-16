@@ -11,7 +11,7 @@ import { Form, Row, Col } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import type { WorkflowFormField } from '@zenith/shared/workflow';
 import { isWorkflowFieldVisible as isFieldVisible } from '@zenith/shared/workflow';
-import { AttachmentInstanceContext, AttachmentModeContext, FilePreviewPresentationContext, InstanceSerialNoContext, ReadOnlyTextContext, SignatureModeContext, ValuesContext } from './form-renderer/contexts';
+import { AttachmentInstanceContext, AttachmentModeContext, FileCaptureContext, FilePreviewPresentationContext, InstanceSerialNoContext, ReadOnlyTextContext, SignatureModeContext, ValuesContext } from './form-renderer/contexts';
 import { colSpanOf, flattenFields } from './form-renderer/field-utils';
 import { FieldRenderer } from './form-renderer/FieldRenderer';
 import { useFormLinkage } from './form-renderer/use-form-linkage';
@@ -23,6 +23,7 @@ interface RendererProps {
   instanceSerialNo?: string | null;
   attachmentMode?: 'workflow' | 'public';
   filePreviewPresentation?: 'modal' | 'fullscreen';
+  fileCapture?: 'environment' | 'user';
   initValues?: Record<string, unknown>;
   getFormApi?: (api: FormApi) => void;
   onValueChange?: (values: Record<string, unknown>) => void;
@@ -40,7 +41,7 @@ interface RendererProps {
 }
 
 export default function WorkflowFormRenderer({
-  fields, attachmentInstanceId, instanceSerialNo, attachmentMode = 'workflow', filePreviewPresentation = 'modal', initValues, getFormApi, onValueChange, readOnly, readOnlyAsText, signatureMode = 'workflow', style, labelPosition = 'top', labelAlign, labelWidth,
+  fields, attachmentInstanceId, instanceSerialNo, attachmentMode = 'workflow', filePreviewPresentation = 'modal', fileCapture, initValues, getFormApi, onValueChange, readOnly, readOnlyAsText, signatureMode = 'workflow', style, labelPosition = 'top', labelAlign, labelWidth,
 }: Readonly<RendererProps>) {
   // useEditModal 例外：工作流运行时表单渲染器（字段由定义动态生成，提交由承载页负责）
   const formApiRef = useRef<FormApi | null>(null);
@@ -53,6 +54,7 @@ export default function WorkflowFormRenderer({
   return (
     <AttachmentModeContext.Provider value={attachmentMode}>
     <FilePreviewPresentationContext.Provider value={filePreviewPresentation}>
+    <FileCaptureContext.Provider value={fileCapture}>
     <InstanceSerialNoContext.Provider value={instanceSerialNo}>
     <AttachmentInstanceContext.Provider value={attachmentInstanceId}>
     <SignatureModeContext.Provider value={signatureMode}>
@@ -83,6 +85,7 @@ export default function WorkflowFormRenderer({
     </SignatureModeContext.Provider>
     </AttachmentInstanceContext.Provider>
     </InstanceSerialNoContext.Provider>
+    </FileCaptureContext.Provider>
     </FilePreviewPresentationContext.Provider>
     </AttachmentModeContext.Provider>
   );

@@ -77,6 +77,8 @@ interface FileAttachmentProps {
   uploadData?: Record<string, string | number>;
   /** File preview presentation; mobile approval uses a viewport-filling preview. */
   previewPresentation?: 'modal' | 'fullscreen';
+  /** Mobile capture hint for image uploads. */
+  capture?: 'environment' | 'user';
 }
 
 /** 将 AttachmentItem 转换为 Semi Upload FileItem */
@@ -147,6 +149,7 @@ export default function FileAttachment({
   uploadPath = urlOf(fileContract.uploadOne),
   uploadData,
   previewPresentation = 'modal',
+  capture,
 }: FileAttachmentProps = {}) {
   const isEditMode = mode === 'edit' && !disabled;
 
@@ -555,6 +558,7 @@ export default function FileAttachment({
         fileList={fileList}
         listType="list"
         accept={accept}
+        capture={capture}
         limit={limit > 0 ? limit : undefined}
         multiple={multiple}
         beforeUpload={isEditMode ? handleBeforeUpload : undefined}

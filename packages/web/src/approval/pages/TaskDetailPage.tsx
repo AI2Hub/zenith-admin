@@ -408,6 +408,7 @@ function TaskDetailContent() {
         readOnly={!formEditable}
         readOnlyAsText
         filePreviewPresentation="fullscreen"
+        fileCapture="environment"
         getFormApi={(api) => { detailFormApi.current = api; }}
       />
     );

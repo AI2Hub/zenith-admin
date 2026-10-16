@@ -15,3 +15,5 @@ export const AttachmentInstanceContext = createContext<number | undefined>(undef
 export const AttachmentModeContext = createContext<'workflow' | 'public'>('workflow');
 /** File preview presentation inherited by dynamic workflow form attachments. */
 export const FilePreviewPresentationContext = createContext<'modal' | 'fullscreen'>('modal');
+/** Mobile camera capture hint inherited by dynamic workflow form attachments. */
+export const FileCaptureContext = createContext<'environment' | 'user' | undefined>(undefined);
