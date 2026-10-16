@@ -65,10 +65,11 @@
 .ap-body {
   flex: 1;
   min-height: 0;
-  padding: 12px 12px calc(16px + env(safe-area-inset-bottom));
+  padding: 0 14px calc(16px + env(safe-area-inset-bottom));
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
+  background: var(--semi-color-bg-1);
 }
 
 /* 页面切换入场：导航状态反馈（150-250ms，ease-out） */
@@ -95,21 +96,25 @@
 }
 
 .ap-card {
-  background: var(--semi-color-bg-1);
-  border: 1px solid var(--semi-color-border);
-  border-radius: 10px;
-  padding: 12px;
-  margin-bottom: 10px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--semi-color-border);
+  border-radius: 0;
+  padding: 13px 0;
+  margin-bottom: 0;
   cursor: pointer;
+}
+
+.ap-card:last-of-type {
+  border-bottom: none;
 }
 
 .ap-card:active {
   background: var(--semi-color-fill-0);
 }
 
-/* 批量审批模式：勾选/不可选状态 */
+/* 批量审批模式：勾选/不可选状态（扁平列表下仅用底色区分，无边框） */
 .ap-card--checked {
-  border-color: var(--semi-color-primary);
   background: var(--semi-color-primary-light-default);
 }
 
@@ -383,8 +388,6 @@
 
 .ap-card__footer {
   margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid var(--semi-color-border);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -412,11 +415,16 @@
 }
 
 .ap-section {
-  background: var(--semi-color-bg-1);
-  border: 1px solid var(--semi-color-border);
-  border-radius: 10px;
-  padding: 12px;
-  margin-bottom: 10px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--semi-color-border);
+  border-radius: 0;
+  padding: 14px 0;
+  margin-bottom: 0;
+}
+
+.ap-section:last-child {
+  border-bottom: none;
 }
 
 .ap-section__title {

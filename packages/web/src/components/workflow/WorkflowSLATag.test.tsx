@@ -3,15 +3,14 @@ import { describe, expect, it } from 'vitest';
 import WorkflowSLATag from './WorkflowSLATag';
 
 describe('WorkflowSLATag', () => {
-  it('未配置 SLA 时写明「未设置」，不再输出与优先级列同形的破折号', () => {
-    render(<WorkflowSLATag />);
-    expect(screen.getByText('未设置')).toBeInTheDocument();
-    expect(screen.queryByText('—')).not.toBeInTheDocument();
+  it('未配置 SLA 时不渲染任何占位', () => {
+    const { container } = render(<WorkflowSLATag />);
+    expect(container).toBeEmptyDOMElement();
   });
 
-  it('level 为 none 或缺少剩余时长时同样按未设置展示', () => {
-    render(<WorkflowSLATag level="none" overdueSec={3600} />);
-    expect(screen.getByText('未设置')).toBeInTheDocument();
+  it('level 为 none 或缺少剩余时长时同样不渲染', () => {
+    const { container } = render(<WorkflowSLATag level="none" overdueSec={3600} />);
+    expect(container).toBeEmptyDOMElement();
   });
 
   it('已超时按剩余时长给出人类可读文案', () => {

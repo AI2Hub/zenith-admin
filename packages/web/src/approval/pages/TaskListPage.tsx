@@ -90,6 +90,13 @@ function TaskCard({ item, tab, onOpen, onQuickApprove, quickApproving, batchMode
   // 极速同意：无需签名/加签选人时展示（意见必填等由服务端校验兜底，失败引导进详情）
   const canQuick = quickable && onQuickApprove != null && !batchMode;
   const dim = batchMode && !batchable;
+  // SLA 未配置时不占位；footer 只有在有实质内容（代办/时限/签名/快捷操作）时才渲染，避免空分割线。
+  const hasSla = item.slaLevel != null && item.slaLevel !== 'none' && item.slaOverdueSec != null;
+  const hasFooterContent = tab === 'pending' && (
+    item.pendingDelegatedFromName != null || hasSla
+    || item.pendingSignaturePolicy === 'reusable' || item.pendingSignaturePolicy === 'handwritten'
+    || canQuick
+  );
 
   return (
     <div
@@ -121,7 +128,7 @@ function TaskCard({ item, tab, onOpen, onQuickApprove, quickApproving, batchMode
         <span>·</span>
         <span>{tab === 'handled' && item.myActionAt ? formatDateTime(item.myActionAt) : formatDateTime(item.createdAt)}</span>
       </div>
-      {tab === 'pending' && (
+      {hasFooterContent && (
         <div className="ap-card__footer">
           {item.pendingDelegatedFromName && (
             <Tag size="small" color={item.pendingDelegationMode === 'suggest' ? 'orange' : 'violet'}>

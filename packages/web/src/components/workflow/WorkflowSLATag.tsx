@@ -15,12 +15,11 @@ function humanizeSec(sec: number): string {
   return `${Math.round(s / 86400)} 天`;
 }
 
-/** 待办 SLA 标签：未配置→灰「未设置」、充裕→绿、临近→橙、已超时→红 */
+/** 待办 SLA 标签：未配置则不渲染；充裕→绿、临近→橙、已超时→红 */
 export default function WorkflowSLATag({ level, overdueSec, deadline }: Props) {
-  // 未配置时写「未设置」而不是破折号：与相邻的优先级列（无标签同样是 —）并排会被读成两个空位，
-  // 分不清哪一列真的是空的。
+  // 未配置 SLA 时直接不占位，避免与“暂无时限”混淆。
   if (!level || level === 'none' || overdueSec == null) {
-    return <span style={{ color: 'var(--semi-color-text-2)' }}>未设置</span>;
+    return null;
   }
   const tip = deadline ? `截止 ${deadline}` : undefined;
   let color: 'green' | 'orange' | 'red';
