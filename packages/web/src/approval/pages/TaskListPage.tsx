@@ -1,9 +1,9 @@
-import { lazy, Suspense, useCallback, useState } from 'react';
+import { lazy, Suspense, useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Checkbox, Modal, SideSheet, Spin, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Checkbox, Modal, Select, SideSheet, Spin, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
 import { Check, CheckCheck, CircleCheckBig, ClipboardCheck, FilePlus2, ListChecks, LogOut, Plus, Send, type LucideIcon } from 'lucide-react';
 import { TOKEN_KEY, REFRESH_TOKEN_KEY, type SignatureInput } from '@zenith/shared/core';
-import type { WorkflowBatchActionResponse } from '@zenith/shared/workflow';
+import type { WorkflowBatchActionResponse, WorkflowInstancePriority } from '@zenith/shared/workflow';
 import { SignatureClientProvider } from '@/components/signature/SignatureClientContext';
 import WorkflowBatchResults from '@/components/workflow/WorkflowBatchResults';
 import { approvalRequest } from '../lib/approval-request';
@@ -29,6 +29,14 @@ const EMPTY_TEXT: Record<ApprovalTab, string> = {
   mine: '还没有发起过申请',
   cc: '暂无抄送',
 };
+
+type ApprovalFilters = {
+  definitionId: number | null;
+  priority: WorkflowInstancePriority | null;
+  overdue: boolean;
+};
+
+const EMPTY_FILTERS: ApprovalFilters = { definitionId: null, priority: null, overdue: false };
 
 /** 底部标签栏（主流 App TabBar）：图标 + 文字 + 角标，中间为凸起「发起」按钮 */
 const TAB_ITEMS: { key: ApprovalTab; label: string; icon: LucideIcon }[] = [
@@ -146,11 +154,26 @@ function TaskListContent() {
   const [batchSignature, setBatchSignature] = useState<SignatureInput | null>(null);
   const [batchResult, setBatchResult] = useState<{ result: WorkflowBatchActionResponse; titles: Record<number, string>; instances: Record<number, number> } | null>(null);
   const [ccReadingAll, setCcReadingAll] = useState(false);
+  const [filters, setFilters] = useState<ApprovalFilters>(EMPTY_FILTERS);
+  const [filtersVisible, setFiltersVisible] = useState(false);
 
   const data = listQuery.data;
-  const list = data?.list ?? [];
+  const list = useMemo(() => data?.list ?? [], [data?.list]);
   const total = data?.total ?? 0;
+  const filteredList = useMemo(() => list.filter((item) => {
+    if (filters.definitionId != null && item.definitionId !== filters.definitionId) return false;
+    if (filters.priority != null && item.priority !== filters.priority) return false;
+    if (filters.overdue && !(item.slaOverdueSec != null && item.slaOverdueSec > 0)) return false;
+    return true;
+  }), [filters, list]);
+  const filtersActive = filters.definitionId != null || filters.priority != null || filters.overdue;
+  const displayTotal = filtersActive ? filteredList.length : total;
   const hasMore = list.length < total;
+  const definitionOptions = useMemo(
+    () => [...new Map(list.filter((item) => item.definitionId != null).map((item) => [item.definitionId, item.definitionName ?? `流程 #${item.definitionId}`])).entries()]
+      .map(([value, label]) => ({ value, label })),
+    [list],
+  );
 
   const refetch = useCallback(async () => {
     await Promise.all([listQuery.refetch(), countsQuery.refetch()]);
@@ -163,6 +186,8 @@ function TaskListContent() {
     setSize(10);
     setKeywordDraft('');
     setKeyword('');
+    setFilters(EMPTY_FILTERS);
+    setFiltersVisible(false);
     setBatchMode(false);
     setCheckedIds(new Set());
   };
@@ -231,9 +256,9 @@ function TaskListContent() {
 
   // 批量审批：可勾选集合 / 全选 / 提交 / 退出
   const batchableIds = tab === 'pending'
-    ? list.filter(isBatchable).map((i) => i.pendingTaskId as number)
+    ? filteredList.filter(isBatchable).map((i) => i.pendingTaskId as number)
     : [];
-  const selectedSignatureCount = list.filter((item) => item.pendingTaskId != null && checkedIds.has(item.pendingTaskId) && item.pendingSignaturePolicy === 'reusable').length;
+  const selectedSignatureCount = filteredList.filter((item) => item.pendingTaskId != null && checkedIds.has(item.pendingTaskId) && item.pendingSignaturePolicy === 'reusable').length;
   const allChecked = batchableIds.length > 0 && batchableIds.every((id) => checkedIds.has(id));
   const toggleAll = () => {
     setCheckedIds(allChecked ? new Set() : new Set(batchableIds));
@@ -258,7 +283,7 @@ function TaskListContent() {
         taskIds: ids, comment: batchComment.trim() || undefined,
         signature: batchConfirm === 'signedApprove' && batchSignature?.source === 'saved' ? batchSignature : undefined,
       });
-      const selected = list.filter((item) => item.pendingTaskId != null && checkedIds.has(item.pendingTaskId));
+      const selected = filteredList.filter((item) => item.pendingTaskId != null && checkedIds.has(item.pendingTaskId));
       setBatchResult({ result,
         titles: Object.fromEntries(selected.map((item) => [item.pendingTaskId!, item.title])),
         instances: Object.fromEntries(selected.map((item) => [item.pendingTaskId!, item.id])),
@@ -269,7 +294,7 @@ function TaskListContent() {
 
   // 抄送一键已读：标记当前已加载列表中的未读项
   const markAllCcRead = async () => {
-    const unread = list.filter((i) => i.ccTaskId != null && !i.ccReadAt);
+    const unread = filteredList.filter((i) => i.ccTaskId != null && !i.ccReadAt);
     if (unread.length === 0) return;
     setCcReadingAll(true);
     await Promise.allSettled(unread.map((i) => markCcRead.mutateAsync(i.ccTaskId as number)));
@@ -292,6 +317,9 @@ function TaskListContent() {
           onSearch={() => { setKeyword(keywordDraft.trim()); setSize(10); }}
           onClear={() => { setKeywordDraft(''); setKeyword(''); setSize(10); }}
         />
+        <Button theme="borderless" onClick={() => setFiltersVisible(true)}>
+          筛选{filtersActive ? ' · 已选' : ''}
+        </Button>
         {tab === 'pending' && !batchMode && batchableIds.length > 0 && (
           <Button theme="borderless" icon={<ListChecks size={15} />} onClick={() => setBatchMode(true)}>批量</Button>
         )}
@@ -305,7 +333,7 @@ function TaskListContent() {
             {refreshing ? <Spin size="small" /> : <span>{pull >= 56 ? '松开刷新' : '下拉刷新'}</span>}
           </div>
         )}
-        {list.map((item) => (
+        {filteredList.map((item) => (
           <TaskCard
             key={`${item.id}-${item.handledTask?.id ?? item.pendingTaskId ?? item.ccTaskId ?? 0}`}
             item={item}
@@ -317,8 +345,8 @@ function TaskListContent() {
             checked={item.pendingTaskId != null && checkedIds.has(item.pendingTaskId)}
           />
         ))}
-        {!listQuery.isFetching && list.length === 0 && (
-          <div className="ap-empty">{keyword ? '没有匹配的结果' : EMPTY_TEXT[tab]}</div>
+        {!listQuery.isFetching && filteredList.length === 0 && (
+          <div className="ap-empty">{keyword || filtersActive ? '没有匹配的结果' : EMPTY_TEXT[tab]}</div>
         )}
         {hasMore && (
           <div ref={sentinelRef} className="ap-load-sentinel">
@@ -326,9 +354,9 @@ function TaskListContent() {
             <span>加载中…</span>
           </div>
         )}
-        {!hasMore && list.length > 0 && (
+        {!hasMore && filteredList.length > 0 && (
           <Typography.Text type="tertiary" size="small" style={{ display: 'block', textAlign: 'center', margin: '8px 0' }}>
-            共 {total} 条 · 已全部加载
+            共 {displayTotal} 条 · 已全部加载
           </Typography.Text>
         )}
       </div>
@@ -387,6 +415,37 @@ function TaskListContent() {
           })}
         </nav>
       )}
+      <SideSheet placement="bottom" height="auto" title="筛选" visible={filtersVisible} onCancel={() => setFiltersVisible(false)} className="ap-sheet">
+        <div className="ap-sheet__body">
+          <Typography.Text type="secondary" size="small">流程</Typography.Text>
+          <Select
+            style={{ width: '100%', marginTop: 6, marginBottom: 14 }}
+            placeholder="全部流程"
+            value={filters.definitionId ?? undefined}
+            showClear
+            optionList={definitionOptions}
+            onChange={(value) => setFilters((prev) => ({ ...prev, definitionId: typeof value === 'number' ? value : null }))}
+          />
+          <Typography.Text type="secondary" size="small">优先级</Typography.Text>
+          <Select
+            style={{ width: '100%', marginTop: 6, marginBottom: 14 }}
+            placeholder="全部优先级"
+            value={filters.priority ?? undefined}
+            showClear
+            optionList={[{ value: 'low', label: '低' }, { value: 'normal', label: '普通' }, { value: 'high', label: '高' }, { value: 'urgent', label: '加急' }]}
+            onChange={(value) => setFilters((prev) => ({ ...prev, priority: typeof value === 'string' ? value as WorkflowInstancePriority : null }))}
+          />
+          {tab === 'pending' && (
+            <Checkbox checked={filters.overdue} onChange={(event) => setFilters((prev) => ({ ...prev, overdue: Boolean(event.target?.checked) }))}>
+              只看逾期待办
+            </Checkbox>
+          )}
+          <div className="ap-sheet__actions">
+            <Button block theme="light" onClick={() => setFilters(EMPTY_FILTERS)}>清除筛选</Button>
+            <Button block theme="solid" type="primary" onClick={() => setFiltersVisible(false)}>完成</Button>
+          </div>
+        </div>
+      </SideSheet>
       <SideSheet placement="bottom" height="auto" title={batchConfirm === 'signedApprove' ? '使用我的签名并批量同意' : '批量同意'}
         visible={batchConfirm !== null} onCancel={() => { if (!batchSubmitting) setBatchConfirm(null); }} className="ap-sheet">
         <div className="ap-sheet__body">
