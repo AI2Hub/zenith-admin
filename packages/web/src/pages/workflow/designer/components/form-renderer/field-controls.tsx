@@ -1,5 +1,5 @@
 import { fileContract } from '@zenith/shared/platform';
-import { AttachmentInstanceContext, AttachmentModeContext } from './contexts';
+import { AttachmentInstanceContext, AttachmentModeContext, FilePreviewPresentationContext } from './contexts';
 /**
  * 接入 Semi Form 的自定义控件：关联审批单 / 远程数据源 / 手写签名 / 人员 / 富文本 / 附件上传，
  * 以及现成组件（地区 / 部门 / 字典 / 颜色 / 评分）的 withField 包装。
@@ -210,12 +210,13 @@ interface FileUploadInputProps {
 function FileUploadInput({ value, onChange, disabled, isImage, limit, accept, maxSizeMb }: Readonly<FileUploadInputProps>) {
   const instanceId = useContext(AttachmentInstanceContext);
   const attachmentMode = useContext(AttachmentModeContext);
+  const previewPresentation = useContext(FilePreviewPresentationContext);
   const files = Array.isArray(value) ? value : [];
   const attachments = files.map((f, i) => attachmentMode === 'workflow' ? workflowFileToAttachment(f, i) : uploadedFileToAttachment(f, i));
 
   if (disabled) {
     if (files.length === 0) return <Typography.Text type="tertiary">（无附件）</Typography.Text>;
-    return <FileAttachment mode="view" value={attachments} showTitle={false} />;
+    return <FileAttachment mode="view" value={attachments} showTitle={false} previewPresentation={previewPresentation} />;
   }
 
   return (
@@ -230,6 +231,7 @@ function FileUploadInput({ value, onChange, disabled, isImage, limit, accept, ma
       uploadTip={isImage ? '上传图片' : '上传文件'}
       uploadPath={urlOf(attachmentMode === 'workflow' ? workflowAttachmentContract.upload : fileContract.uploadOne)}
       uploadData={attachmentMode === 'workflow' && instanceId ? { instanceId } : undefined}
+      previewPresentation={previewPresentation}
       onChange={(items) => onChange?.(items.map((a) => ({
         fileId: a.fileId,
         name: a.file.originalName,

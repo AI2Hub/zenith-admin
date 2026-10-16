@@ -13,3 +13,5 @@ export const SignatureModeContext = createContext<'workflow' | 'image'>('workflo
 export const AttachmentInstanceContext = createContext<number | undefined>(undefined);
 
 export const AttachmentModeContext = createContext<'workflow' | 'public'>('workflow');
+/** File preview presentation inherited by dynamic workflow form attachments. */
+export const FilePreviewPresentationContext = createContext<'modal' | 'fullscreen'>('modal');

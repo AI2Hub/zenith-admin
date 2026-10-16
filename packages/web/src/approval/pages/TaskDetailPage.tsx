@@ -347,6 +347,7 @@ function TaskDetailContent() {
         initValues={(detail?.formData ?? {}) as Record<string, unknown>}
         readOnly={!formEditable}
         readOnlyAsText
+        filePreviewPresentation="fullscreen"
         getFormApi={(api) => { detailFormApi.current = api; }}
       />
     );
@@ -462,7 +463,7 @@ function TaskDetailContent() {
                 )}
                 <div className="ap-comment__content">{c.content}</div>
                 {c.attachments && c.attachments.length > 0 && (
-                  <FileAttachment mode="view" showTitle={false} value={c.attachments.map((a, i) => workflowFileToAttachment(a, i))} />
+                  <FileAttachment mode="view" showTitle={false} previewPresentation="fullscreen" value={c.attachments.map((a, i) => workflowFileToAttachment(a, i))} />
                 )}
               </div>
             </div>

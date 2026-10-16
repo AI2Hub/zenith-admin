@@ -326,6 +326,7 @@ function LaunchFormContent() {
             <WorkflowFormRenderer
               key={`launch-${def.id}`}
               fields={launchFields}
+              filePreviewPresentation="fullscreen"
               initValues={(draftQuery.data?.formData ?? undefined) as Record<string, unknown> | undefined}
               getFormApi={(api) => { formApi.current = api; }}
               onValueChange={scheduleChainReload}

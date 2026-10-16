@@ -32,6 +32,8 @@ interface FilePreviewModalProps {
   onClose: () => void;
   /** 遇到不支持预览的格式时触发，不传则组件内部静默关闭 */
   onFallback?: (fileUrl: string, fileName: string, mimeType: string) => void;
+  /** 展示壳：PC 居中弹窗；移动端可使用全屏预览 */
+  presentation?: 'modal' | 'fullscreen';
   style?: CSSProperties;
 }
 
@@ -55,11 +57,12 @@ function revokePreviewUrl(data: PreviewData | undefined) {
 }
 
 /** 懒加载预览面板的统一弹窗外壳：AppModal + Suspense 加载兜底（各分支仅宽高不同） */
-function PreviewModalShell({ title, onCancel, fullscreen, onToggleFullscreen, width, viewportHeight, children }: Readonly<{
+function PreviewModalShell({ title, onCancel, fullscreen, onToggleFullscreen, presentation = 'modal', width, viewportHeight, children }: Readonly<{
   title: ReactNode;
   onCancel: () => void;
   fullscreen: boolean;
   onToggleFullscreen: () => void;
+  presentation?: 'modal' | 'fullscreen';
   width: string;
   /** 非全屏时弹窗高度基准（如 '90vh'） */
   viewportHeight: string;
@@ -71,11 +74,12 @@ function PreviewModalShell({ title, onCancel, fullscreen, onToggleFullscreen, wi
       onCancel={onCancel}
       title={title}
       footer={null}
-      fullscreen={fullscreen}
+      fullscreen={presentation === 'fullscreen' || fullscreen}
+      fullscreenable={presentation !== 'fullscreen'}
       onToggleFullscreen={onToggleFullscreen}
       width={width}
       centered
-      bodyStyle={{ padding: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', height: fullscreen ? 'calc(100vh - 40px)' : `calc(${viewportHeight} - 40px)` }}
+      bodyStyle={{ padding: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', height: presentation === 'fullscreen' || fullscreen ? 'calc(100vh - 40px)' : `calc(${viewportHeight} - 40px)` }}
       keepDOM={false}
     >
       <Suspense
@@ -98,6 +102,7 @@ export default function FilePreviewModal({
   visible,
   onClose,
   onFallback,
+  presentation = 'modal',
 }: Readonly<FilePreviewModalProps>) {
   const [fullscreen, setFullscreen] = useState(false);
   const toggleFullscreen = useCallback(() => {
@@ -224,10 +229,11 @@ export default function FilePreviewModal({
         onCancel={handleClose}
         title={previewTitle}
         footer={null}
+        fullscreen={presentation === 'fullscreen'}
         fullscreenable={false}
         centered
         keepDOM={false}
-        bodyStyle={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40 }}
+        bodyStyle={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40, height: presentation === 'fullscreen' ? '100vh' : undefined }}
       >
         <Spin size="large" tip="加载中..." />
       </AppModal>
@@ -241,10 +247,10 @@ export default function FilePreviewModal({
         onCancel={handleClose}
         title={null}
         footer={null}
-        fullScreen={fullscreen}
-        width="min(1100px, 92vw)"
+        fullScreen={presentation === 'fullscreen' || fullscreen}
+        width={presentation === 'fullscreen' ? '100vw' : 'min(1100px, 92vw)'}
         centered
-        bodyStyle={{ padding: 0, display: 'flex', overflow: 'hidden', height: fullscreen ? '100vh' : '88vh' }}
+        bodyStyle={{ padding: 0, display: 'flex', overflow: 'hidden', height: presentation === 'fullscreen' || fullscreen ? '100vh' : '88vh' }}
         closable={false}
         keepDOM={false}
       >
@@ -271,7 +277,7 @@ export default function FilePreviewModal({
     const isPresentation = previewData.kind === 'presentation';
     const isWide = previewData.kind === 'spreadsheet' || previewData.kind === 'archive' || previewData.kind === 'email' || previewData.kind === 'mindmap' || previewData.kind === 'drawing' || previewData.kind === 'dataAsset' || previewData.kind === 'geo' || isPresentation;
     return (
-      <PreviewModalShell title={previewTitle} onCancel={handleClose} fullscreen={fullscreen} onToggleFullscreen={toggleFullscreen}
+      <PreviewModalShell title={previewTitle} onCancel={handleClose} fullscreen={fullscreen} onToggleFullscreen={toggleFullscreen} presentation={presentation}
         width={isWide ? 'min(1200px, 94vw)' : 'min(960px, 92vw)'} viewportHeight="90vh">
         <FileViewerPreviewPanel file={previewData.file} style={{ flex: 1 }} />
       </PreviewModalShell>
@@ -282,7 +288,7 @@ export default function FilePreviewModal({
     const isRawText = previewData.text.startsWith('\u0000PLAINTEXT\u0000');
     const displayContent = isRawText ? previewData.text.slice('\u0000PLAINTEXT\u0000'.length) : previewData.text;
     return (
-      <PreviewModalShell title={previewTitle} onCancel={handleClose} fullscreen={fullscreen} onToggleFullscreen={toggleFullscreen}
+      <PreviewModalShell title={previewTitle} onCancel={handleClose} fullscreen={fullscreen} onToggleFullscreen={toggleFullscreen} presentation={presentation}
         width="min(900px, 92vw)" viewportHeight="90vh">
         <MarkdownPreviewPanel
           content={displayContent}
@@ -295,7 +301,7 @@ export default function FilePreviewModal({
 
   if (previewData?.kind === 'json') {
     return (
-      <PreviewModalShell title={previewTitle} onCancel={handleClose} fullscreen={fullscreen} onToggleFullscreen={toggleFullscreen}
+      <PreviewModalShell title={previewTitle} onCancel={handleClose} fullscreen={fullscreen} onToggleFullscreen={toggleFullscreen} presentation={presentation}
         width="min(900px, 92vw)" viewportHeight="88vh">
         <JsonPreviewPanel content={previewData.text} style={{ flex: 1, minHeight: 0 }} />
       </PreviewModalShell>
@@ -304,7 +310,7 @@ export default function FilePreviewModal({
 
   if (previewData?.kind === 'code' || previewData?.kind === 'plainText') {
     return (
-      <PreviewModalShell title={previewTitle} onCancel={handleClose} fullscreen={fullscreen} onToggleFullscreen={toggleFullscreen}
+      <PreviewModalShell title={previewTitle} onCancel={handleClose} fullscreen={fullscreen} onToggleFullscreen={toggleFullscreen} presentation={presentation}
         width="min(1100px, 92vw)" viewportHeight="90vh">
         <MonacoPreviewPanel
           content={previewData.text}
@@ -322,9 +328,10 @@ export default function FilePreviewModal({
         onCancel={handleClose}
         title={previewTitle}
         footer={null}
-        fullscreen={fullscreen}
+        fullscreen={presentation === 'fullscreen' || fullscreen}
+        fullscreenable={presentation !== 'fullscreen'}
         onToggleFullscreen={toggleFullscreen}
-        width="min(900px, 92vw)"
+        width={presentation === 'fullscreen' ? '100vw' : 'min(900px, 92vw)'}
         centered
         bodyStyle={{
           padding: 16,
@@ -332,7 +339,7 @@ export default function FilePreviewModal({
           alignItems: 'center',
           justifyContent: 'center',
           overflow: 'auto',
-          height: fullscreen ? 'calc(100vh - 40px)' : 'calc(80vh - 40px)',
+          height: presentation === 'fullscreen' || fullscreen ? 'calc(100vh - 40px)' : 'calc(80vh - 40px)',
         }}
         keepDOM={false}
       >
@@ -380,8 +387,9 @@ export default function FilePreviewModal({
         onCancel={handleClose}
         title={previewTitle}
         footer={null}
+        fullscreen={presentation === 'fullscreen'}
         fullscreenable={false}
-        width="min(960px, 92vw)"
+        width={presentation === 'fullscreen' ? '100vw' : 'min(960px, 92vw)'}
         centered
         bodyStyle={{ padding: 0, overflow: 'hidden', borderRadius: 'var(--semi-border-radius-medium)' }}
         keepDOM={false}

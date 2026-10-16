@@ -75,6 +75,8 @@ interface FileAttachmentProps {
   uploadPath?: string;
   /** Owning business context sent together with the file. */
   uploadData?: Record<string, string | number>;
+  /** File preview presentation; mobile approval uses a viewport-filling preview. */
+  previewPresentation?: 'modal' | 'fullscreen';
 }
 
 /** 将 AttachmentItem 转换为 Semi Upload FileItem */
@@ -144,6 +146,7 @@ export default function FileAttachment({
   disabled = false,
   uploadPath = urlOf(fileContract.uploadOne),
   uploadData,
+  previewPresentation = 'modal',
 }: FileAttachmentProps = {}) {
   const isEditMode = mode === 'edit' && !disabled;
 
@@ -579,6 +582,7 @@ export default function FileAttachment({
           fileUrl={previewFile.url}
           fileName={previewFile.name}
           mimeType={previewFile.mimeType}
+          presentation={previewPresentation}
           onClose={() => {
             setPreviewVisible(false);
             setPreviewFile(null);
