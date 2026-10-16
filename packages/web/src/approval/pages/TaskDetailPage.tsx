@@ -167,13 +167,19 @@ function TaskDetailContent() {
   const searchedCandidates = (nodeKey: string) => (nextSearch?.nodeKey === nodeKey
     ? nextSearchQuery.data?.find((g) => g.nodeKey === nodeKey)?.selectableApprovers ?? []
     : null);
-  const usersQuery = useApprovalUsers(action === 'transfer' || action === 'delegate' || action === 'addSign');
+  const usersQuery = useApprovalUsers(action === 'transfer' || action === 'delegate' || action === 'addSign' || currentTask?.delegatedFromId != null);
   const transferCandidates = useMemo(
     () => (usersQuery.data ?? [])
       .filter((u) => u.id !== me?.id)
       .map((u) => ({ id: u.id, name: u.nickname || u.username })),
     [usersQuery.data, me],
   );
+  const delegatedFromName = useMemo(() => {
+    if (!currentTask?.delegatedFromId) return null;
+    return usersQuery.data?.find((u) => u.id === currentTask.delegatedFromId)?.nickname
+      ?? usersQuery.data?.find((u) => u.id === currentTask.delegatedFromId)?.username
+      ?? `用户#${currentTask.delegatedFromId}`;
+  }, [currentTask?.delegatedFromId, usersQuery.data]);
 
   // 当前进度：所有 pending 审批任务（节点 + 等待人）
   const pendingTasks = useMemo(
@@ -468,6 +474,16 @@ function TaskDetailContent() {
       <div className={`ap-body${hasFooter ? ' ap-body--with-footer' : ''}`}>
         {detail.status === 'suspended' && (
           <Banner type="warning" closeIcon={null} description={`流程已挂起${detail.suspendReason ? `：${detail.suspendReason}` : ''}，恢复前不可审批`} style={{ marginBottom: 12 }} />
+        )}
+        {currentTask?.delegatedFromId != null && (
+          <Banner
+            type="info"
+            closeIcon={null}
+            description={currentTask.delegationMode === 'suggest'
+              ? `当前为建议制代理：你正在为${delegatedFromName}提供审批建议，最终确认仍由委托人完成。`
+              : `当前为代理审批：你正在代${delegatedFromName}处理此任务，操作会保留代理留痕。`}
+            style={{ marginBottom: 12 }}
+          />
         )}
 
         {/* 基本信息 + 当前进度 */}

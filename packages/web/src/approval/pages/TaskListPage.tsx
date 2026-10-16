@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Checkbox, Modal, Select, SideSheet, Spin, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
-import { Bell, Check, CheckCheck, CircleCheckBig, ClipboardCheck, FilePlus2, ListChecks, LogOut, Plus, Send, type LucideIcon } from 'lucide-react';
+import { Bell, Check, CheckCheck, CircleCheckBig, ClipboardCheck, FilePlus2, ListChecks, LogOut, Plus, Send, UserRoundCog, type LucideIcon } from 'lucide-react';
 import { TOKEN_KEY, REFRESH_TOKEN_KEY, type SignatureInput } from '@zenith/shared/core';
 import type { WorkflowBatchActionResponse, WorkflowInstancePriority } from '@zenith/shared/workflow';
 import type { InAppMessage } from '@zenith/shared/messaging';
@@ -15,7 +15,7 @@ import WorkflowSLATag from '@/components/workflow/WorkflowSLATag';
 import WorkflowPriorityTag from '@/components/workflow/WorkflowPriorityTag';
 import WorkflowHandledTaskTag from '@/components/workflow/WorkflowHandledTaskTag';
 import {
-  useApprovalCounts, useApprovalList, useApprovalNotificationUnreadCount, useApprovalNotifications, useBatchApprove, useMarkApprovalNotificationRead, useMarkCcRead, useTaskAction,
+  useApprovalCounts, useApprovalDelegations, useApprovalList, useApprovalNotificationUnreadCount, useApprovalNotifications, useApprovalUsers, useBatchApprove, useCreateApprovalDelegation, useDeleteApprovalDelegation, useMarkApprovalNotificationRead, useMarkCcRead, useTaskAction,
   type ApprovalListItem, type ApprovalTab,
 } from '../lib/queries';
 import { useInfiniteSentinel, usePullRefresh } from '../lib/usePullRefresh';
@@ -122,6 +122,11 @@ function TaskCard({ item, tab, onOpen, onQuickApprove, quickApproving, batchMode
       </div>
       {tab === 'pending' && (
         <div className="ap-card__footer">
+          {item.pendingDelegatedFromName && (
+            <Tag size="small" color={item.pendingDelegationMode === 'suggest' ? 'orange' : 'violet'}>
+              {item.pendingDelegationMode === 'suggest' ? `建议代${item.pendingDelegatedFromName}审批` : `代${item.pendingDelegatedFromName}审批`}
+            </Tag>
+          )}
           <WorkflowSLATag level={item.slaLevel} overdueSec={item.slaOverdueSec} deadline={item.slaDeadline} />
           {item.pendingSignaturePolicy === 'reusable' && <Tag size="small" color="blue">需签名</Tag>}
           {item.pendingSignaturePolicy === 'handwritten' && <Tag size="small" color="amber">需现场手写</Tag>}
@@ -172,9 +177,16 @@ function TaskListContent() {
   const [filters, setFilters] = useState<ApprovalFilters>(EMPTY_FILTERS);
   const [filtersVisible, setFiltersVisible] = useState(false);
   const [notificationsVisible, setNotificationsVisible] = useState(false);
+  const [delegationsVisible, setDelegationsVisible] = useState(false);
+  const [delegationTarget, setDelegationTarget] = useState<number | undefined>();
+  const [delegationMode, setDelegationMode] = useState<'full' | 'suggest'>('full');
   const notificationsQuery = useApprovalNotifications(notificationsVisible);
   const notificationUnreadQuery = useApprovalNotificationUnreadCount();
   const markNotificationRead = useMarkApprovalNotificationRead();
+  const delegationsQuery = useApprovalDelegations(delegationsVisible);
+  const delegationUsersQuery = useApprovalUsers(delegationsVisible);
+  const createDelegation = useCreateApprovalDelegation();
+  const deleteDelegation = useDeleteApprovalDelegation();
 
   const data = listQuery.data;
   const list = useMemo(() => data?.list ?? [], [data?.list]);
@@ -332,6 +344,18 @@ function TaskListContent() {
     Toast.info(item.link ? '请在管理后台打开该通知' : item.title);
   };
 
+  const saveDelegation = async () => {
+    if (delegationTarget == null) {
+      Toast.warning('请选择代理人');
+      return;
+    }
+    try {
+      await createDelegation.mutateAsync({ delegateId: delegationTarget, mode: delegationMode, enabled: true, definitionId: null, startAt: null, endAt: null, reason: null });
+      setDelegationTarget(undefined);
+      Toast.success('审批代理已保存');
+    } catch { /* 请求层提示失败 */ }
+  };
+
   return (
     <div className="ap-page">
       <div className="ap-header">
@@ -349,6 +373,12 @@ function TaskListContent() {
             </span>
           )}
         </Button>
+        <Button
+          theme="borderless"
+          icon={<UserRoundCog size={17} />}
+          onClick={() => setDelegationsVisible(true)}
+          aria-label="审批代理"
+        />
         <Button theme="borderless" icon={<LogOut size={16} />} onClick={logout} aria-label="退出" />
       </div>
       <div className="ap-workbench" aria-label="审批工作台概览">
@@ -528,6 +558,48 @@ function TaskListContent() {
               <span className="ap-notification__content">{item.content}</span>
               <span className="ap-notification__meta">{item.senderName ?? '系统'} · {formatDateTime(item.createdAt)}</span>
             </button>
+          ))}
+        </div>
+      </SideSheet>
+      <SideSheet
+        placement="bottom"
+        height="75%"
+        title="审批代理"
+        visible={delegationsVisible}
+        onCancel={() => setDelegationsVisible(false)}
+        className="ap-sheet"
+      >
+        <div className="ap-sheet__body ap-delegations">
+          <Typography.Text type="secondary" size="small">离岗或临时授权时，代理人可代你处理新进入的审批任务。</Typography.Text>
+          <div className="ap-delegation-form">
+            <Select
+              placeholder="选择代理人"
+              filter
+              showClear
+              value={delegationTarget}
+              optionList={(delegationUsersQuery.data ?? []).map((u) => ({ value: u.id, label: u.nickname ?? u.username }))}
+              onChange={(value) => setDelegationTarget(typeof value === 'number' ? value : undefined)}
+              style={{ flex: 1, minWidth: 0 }}
+            />
+            <Select
+              value={delegationMode}
+              optionList={[{ value: 'full', label: '直接代批' }, { value: 'suggest', label: '建议制' }]}
+              onChange={(value) => setDelegationMode(value === 'suggest' ? 'suggest' : 'full')}
+              style={{ width: 112 }}
+            />
+          </div>
+          <Button theme="solid" type="primary" block loading={createDelegation.isPending} onClick={() => void saveDelegation()}>保存代理</Button>
+          <Typography.Text type="secondary" size="small" style={{ marginTop: 10 }}>当前规则</Typography.Text>
+          {delegationsQuery.isFetching && <Spin size="small" />}
+          {!delegationsQuery.isFetching && (delegationsQuery.data?.list ?? []).length === 0 && <div className="ap-empty">暂无审批代理</div>}
+          {(delegationsQuery.data?.list ?? []).map((item) => (
+            <div key={item.id} className="ap-delegation-row">
+              <div>
+                <Typography.Text strong>{item.delegateName ?? `用户#${item.delegateId}`}</Typography.Text>
+                <div className="ap-notification__meta">{item.mode === 'suggest' ? '建议制' : '直接代批'} · {item.active ? '生效中' : item.enabled ? '未生效' : '已停用'}</div>
+              </div>
+              <Button theme="borderless" type="danger" size="small" loading={deleteDelegation.isPending} onClick={() => void deleteDelegation.mutateAsync(item.id)}>删除</Button>
+            </div>
           ))}
         </div>
       </SideSheet>

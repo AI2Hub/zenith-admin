@@ -5,7 +5,7 @@
  */
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { BodyOf } from '@zenith/shared/core';
-import { workflowDefinitionContract, workflowInstanceContract, workflowQuickPhraseContract, workflowTaskContract, type WorkflowInstanceListItem, type WorkflowHandledInstanceItem } from '@zenith/shared/workflow';
+import { workflowDefinitionContract, workflowDelegationContract, workflowInstanceContract, workflowQuickPhraseContract, workflowTaskContract, type WorkflowDelegation, type WorkflowInstanceListItem, type WorkflowHandledInstanceItem } from '@zenith/shared/workflow';
 import { authContract } from '@zenith/shared/identity';
 import { inAppMessageContract, type InAppMessage } from '@zenith/shared/messaging';
 import { api, contractKey, urlOf } from '@/lib/contract-query';
@@ -36,6 +36,7 @@ export const approvalKeys = {
   users: ['approval', 'users'] as const,
   notifications: contractKey(inAppMessageContract.list),
   notificationUnread: contractKey(inAppMessageContract.unreadCount),
+  delegations: contractKey(workflowDelegationContract.list),
 };
 
 /** 累积加载：固定 page=1、递增 pageSize（移动端"加载更多"语义，缓存 key 稳定） */
@@ -298,6 +299,31 @@ export function useApprovalUsers(enabled: boolean) {
     queryFn: () => api(workflowInstanceContract.selectableUsers, silentClient),
     enabled,
     staleTime: 5 * 60_000,
+  });
+}
+
+export function useApprovalDelegations(enabled: boolean) {
+  return useQuery<{ list: WorkflowDelegation[]; total: number }>({
+    queryKey: approvalKeys.delegations,
+    queryFn: () => api(workflowDelegationContract.list, { query: { page: 1, pageSize: 50, scope: 'mine' } }, silentClient),
+    enabled,
+    staleTime: 15_000,
+  });
+}
+
+export function useCreateApprovalDelegation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: BodyOf<typeof workflowDelegationContract.create>) => api(workflowDelegationContract.create, { body }, client),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: approvalKeys.delegations }); },
+  });
+}
+
+export function useDeleteApprovalDelegation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api(workflowDelegationContract.remove, { params: { id } }, client),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: approvalKeys.delegations }); },
   });
 }
 
