@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   Avatar, Banner, Button, Dropdown, Empty, Form, Popconfirm, Select, SideSheet, Skeleton, Spin, Tag, TextArea, Toast, Typography,
 } from '@douyinfe/semi-ui';
@@ -32,7 +33,7 @@ import ApproverPickerField from '../components/ApproverPicker';
 import MobileWorkflowGraph from '../components/MobileWorkflowGraph';
 import {
   fetchApprovalPrintPdf,
-  fetchNextPendingTask,
+  fetchNextPendingTask, approvalKeys,
   useAddApprovalComment, useApprovalDetail, useApprovalMe, useApprovalQuickPhrases, useApprovalUsers,
   useDeleteApprovalInstance, useSelectableNextApprovers, useTaskAction, useUrgeInstance, useWithdrawInstance,
   type ApprovalTaskActionVariables,
@@ -99,6 +100,7 @@ function TaskDetailContent() {
   const params = useParams<{ instanceId: string; taskId?: string }>();
   const instanceId = Number(params.instanceId);
   const taskId = params.taskId ? Number(params.taskId) : null;
+  const queryClient = useQueryClient();
 
   const detailQuery = useApprovalDetail(Number.isFinite(instanceId) ? instanceId : null);
   const meQuery = useApprovalMe();
@@ -340,6 +342,11 @@ function TaskDetailContent() {
       await deleteMutation.mutateAsync(detail.id);
       Toast.success('草稿已删除');
       navigate('/', { replace: true });
+      // 先让详情观察者卸载，再清理已删除实例的缓存，避免 active query
+      // 在删除响应后立刻回源并弹出「流程实例不存在」。
+      window.setTimeout(() => {
+        queryClient.removeQueries({ queryKey: approvalKeys.detail(detail.id), exact: true });
+      }, 0);
     } catch { /* request 层已 Toast */ }
   };
 

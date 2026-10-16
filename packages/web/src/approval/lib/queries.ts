@@ -211,8 +211,10 @@ export function useDeleteApprovalInstance() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => api(workflowInstanceContract.remove, { params: { id } }, client),
-    onSuccess: (_removed, id) => {
-      qc.removeQueries({ queryKey: approvalKeys.detail(id) });
+    onSuccess: (_removed, _id) => {
+      // 详情页仍挂载时不能移除 active query：TanStack Query 会让观察者
+      // 重新创建该查询并回源，删除成功后随即得到「流程实例不存在」的 404。
+      // 删除页在 mutation 完成后负责先离开详情，再移除缓存。
       void qc.invalidateQueries({ queryKey: approvalKeys.lists });
       void qc.invalidateQueries({ queryKey: approvalKeys.counts });
     },
