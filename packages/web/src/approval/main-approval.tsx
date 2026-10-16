@@ -7,6 +7,7 @@ import '@douyinfe/semi-ui/react19-adapter';
 import '@douyinfe/semi-ui/lib/es/_base/base.css';
 import { createRoot } from 'react-dom/client';
 import ApprovalApp from './App-approval';
+import { ThemeProvider } from '@/providers/ThemeProvider';
 import '../styles/global.css';
 import './styles/approval.css';
 
@@ -16,7 +17,11 @@ async function bootstrap() {
     const { enableMocking } = await import('../mocks');
     await enableMocking();
   }
-  createRoot(document.getElementById('approval-root')!).render(<ApprovalApp />);
+  createRoot(document.getElementById('approval-root')!).render(
+    <ThemeProvider>
+      <ApprovalApp />
+    </ThemeProvider>,
+  );
 }
 
 bootstrap();
