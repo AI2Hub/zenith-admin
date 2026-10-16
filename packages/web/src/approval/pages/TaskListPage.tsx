@@ -308,6 +308,17 @@ function TaskListContent() {
         <span className="ap-header__title">移动审批</span>
         <Button theme="borderless" icon={<LogOut size={16} />} onClick={logout} aria-label="退出" />
       </div>
+      <div className="ap-workbench" aria-label="审批工作台概览">
+        <button type="button" className="ap-workbench__item" onClick={() => switchTab('pending')}>
+          <span>待办</span><strong>{countsQuery.data?.pending ?? '—'}</strong>
+        </button>
+        <button type="button" className="ap-workbench__item" onClick={() => switchTab('mine')}>
+          <span>草稿</span><strong>{countsQuery.data?.drafts ?? '—'}</strong>
+        </button>
+        <button type="button" className="ap-workbench__item" onClick={() => switchTab('cc')}>
+          <span>抄送未读</span><strong>{countsQuery.data?.ccUnread ?? '—'}</strong>
+        </button>
+      </div>
       <div className="ap-search">
         <KeywordInput
           placeholder="搜索标题 / 流程名称"

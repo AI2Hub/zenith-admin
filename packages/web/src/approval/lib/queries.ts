@@ -65,11 +65,12 @@ export function useApprovalCounts() {
   return useQuery({
     queryKey: approvalKeys.counts,
     queryFn: async () => {
-      const [pending, ccUnread] = await Promise.all([
+      const [pending, ccUnread, drafts] = await Promise.all([
         api(workflowInstanceContract.pendingMineCount, silentClient),
         api(workflowInstanceContract.ccUnreadCount, silentClient),
+        api(workflowInstanceContract.list, { query: { page: 1, pageSize: 1, status: 'draft' } }, silentClient),
       ]);
-      return { pending: pending.count, ccUnread: ccUnread.count };
+      return { pending: pending.count, ccUnread: ccUnread.count, drafts: drafts.total };
     },
     refetchInterval: 30_000,
     retry: false,
