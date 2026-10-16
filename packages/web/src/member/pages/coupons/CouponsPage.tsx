@@ -168,8 +168,12 @@ function ExchangeCoupons() {
       content: `将消耗 ${cost} 积分（当前余额 ${balance}）`,
       okText: '确认兑换',
       onOk: async () => {
-        await exchangeMutation.mutateAsync({ body: { couponId: coupon.id } });
-        Toast.success('兑换成功');
+        try {
+          await exchangeMutation.mutateAsync({ body: { couponId: coupon.id } });
+          Toast.success('兑换成功');
+        } catch {
+          // memberRequest 已展示服务端错误，页面只需收住 rejected promise。
+        }
       },
     });
   };
