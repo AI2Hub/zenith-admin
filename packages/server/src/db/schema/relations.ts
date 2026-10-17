@@ -11,6 +11,7 @@ import { domainEventSubjects, domainEvents, entityRelationEdges } from './entity
 import { businessFiles, fileStorageConfigs, managedFiles, uploadChunks, uploadSessions } from './files';
 import { asyncTaskItems, asyncTaskSubjects, asyncTasks, exportJobDownloads, exportJobs } from './tasks';
 import { cronJobLogs, cronJobs, userFeedbacks, systemSettings, systemSettingsRevisions } from './system';
+import { identityAccessGrantMenus, identityAccessGrants, identityAccessRequestItems, identityAccessRequests, identityAccessReviewCampaigns, identityAccessReviewItems, identityPermissionPolicies } from './identity-access';
 import { loginRiskEvents, passwordResetTokens, userApiTokens, userSignatures, userMfaFactors, userOauthAccounts, userTrustedDevices } from './auth';
 import { identityProviderSyncLogs, tenantIdentityProviders, userIdentityAccounts } from './identity-providers';
 import { directorySyncConflicts, directorySyncDeptLinks, directorySyncRunItems, directorySyncRuns, directorySyncSources, directorySyncUserLinks } from './directory-sync';
@@ -88,6 +89,53 @@ export const operationLogsRelations = relations(operationLogs, ({ many }) => ({
 
 export const operationLogSubjectsRelations = relations(operationLogSubjects, ({ one }) => ({
   operationLog: one(operationLogs, { fields: [operationLogSubjects.operationLogId], references: [operationLogs.id] }),
+}));
+
+export const identityPermissionPoliciesRelations = relations(identityPermissionPolicies, ({ one }) => ({
+  tenant: one(tenants, { fields: [identityPermissionPolicies.tenantId], references: [tenants.id] }),
+}));
+
+export const identityAccessRequestsRelations = relations(identityAccessRequests, ({ one, many }) => ({
+  tenant: one(tenants, { fields: [identityAccessRequests.tenantId], references: [tenants.id] }),
+  applicant: one(users, { fields: [identityAccessRequests.applicantUserId], references: [users.id], relationName: 'accessRequestApplicant' }),
+  target: one(users, { fields: [identityAccessRequests.targetUserId], references: [users.id], relationName: 'accessRequestTarget' }),
+  workflowInstance: one(workflowInstances, { fields: [identityAccessRequests.workflowInstanceId], references: [workflowInstances.id] }),
+  items: many(identityAccessRequestItems),
+  grants: many(identityAccessGrants),
+}));
+
+export const identityAccessRequestItemsRelations = relations(identityAccessRequestItems, ({ one }) => ({
+  request: one(identityAccessRequests, { fields: [identityAccessRequestItems.requestId], references: [identityAccessRequests.id] }),
+  role: one(roles, { fields: [identityAccessRequestItems.roleId], references: [roles.id] }),
+  menu: one(menus, { fields: [identityAccessRequestItems.menuId], references: [menus.id] }),
+}));
+
+export const identityAccessGrantsRelations = relations(identityAccessGrants, ({ one, many }) => ({
+  tenant: one(tenants, { fields: [identityAccessGrants.tenantId], references: [tenants.id] }),
+  user: one(users, { fields: [identityAccessGrants.userId], references: [users.id], relationName: 'accessGrantUser' }),
+  request: one(identityAccessRequests, { fields: [identityAccessGrants.requestId], references: [identityAccessRequests.id] }),
+  sourceRole: one(roles, { fields: [identityAccessGrants.sourceRoleId], references: [roles.id] }),
+  approver: one(users, { fields: [identityAccessGrants.approvedBy], references: [users.id], relationName: 'accessGrantApprover' }),
+  revoker: one(users, { fields: [identityAccessGrants.revokedBy], references: [users.id], relationName: 'accessGrantRevoker' }),
+  menus: many(identityAccessGrantMenus),
+}));
+
+export const identityAccessGrantMenusRelations = relations(identityAccessGrantMenus, ({ one }) => ({
+  grant: one(identityAccessGrants, { fields: [identityAccessGrantMenus.grantId], references: [identityAccessGrants.id] }),
+  menu: one(menus, { fields: [identityAccessGrantMenus.menuId], references: [menus.id] }),
+}));
+
+export const identityAccessReviewCampaignsRelations = relations(identityAccessReviewCampaigns, ({ one, many }) => ({
+  tenant: one(tenants, { fields: [identityAccessReviewCampaigns.tenantId], references: [tenants.id] }),
+  reviewer: one(users, { fields: [identityAccessReviewCampaigns.reviewerId], references: [users.id] }),
+  items: many(identityAccessReviewItems),
+}));
+
+export const identityAccessReviewItemsRelations = relations(identityAccessReviewItems, ({ one }) => ({
+  campaign: one(identityAccessReviewCampaigns, { fields: [identityAccessReviewItems.campaignId], references: [identityAccessReviewCampaigns.id] }),
+  tenant: one(tenants, { fields: [identityAccessReviewItems.tenantId], references: [tenants.id] }),
+  user: one(users, { fields: [identityAccessReviewItems.userId], references: [users.id], relationName: 'accessReviewUser' }),
+  decider: one(users, { fields: [identityAccessReviewItems.decidedBy], references: [users.id], relationName: 'accessReviewDecider' }),
 }));
 
 export const domainEventsRelations = relations(domainEvents, ({ many }) => ({

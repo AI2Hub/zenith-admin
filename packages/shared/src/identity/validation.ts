@@ -7,6 +7,11 @@ import {
   DATA_SCOPES,
   DEPARTMENT_CATEGORIES,
   DIRECTORY_SYNC_SOURCE_TYPES, DIRECTORY_SYNC_MATCH_KEYS,
+  ACCESS_APPROVAL_POLICIES,
+  ACCESS_REQUEST_ITEM_TYPES,
+  ACCESS_REQUEST_TYPES,
+  ACCESS_REVIEW_SCOPE_TYPES,
+  ACCESS_RISK_LEVELS,
   DIRECTORY_SYNC_CONFLICT_POLICIES, DIRECTORY_SYNC_RESOLUTIONS,
   OAUTH_PROVIDERS,
 } from './constants';
@@ -478,6 +483,62 @@ export const buildMpOAuthUrlSchema = z.object({
 
 export type BuildMpOAuthUrlInput = z.infer<typeof buildMpOAuthUrlSchema>;
 
+// ─── 权限治理 Schema ──────────────────────────────────────────────────────────
+export const accessRequestItemInputSchema = z.object({
+  itemType: z.enum(ACCESS_REQUEST_ITEM_TYPES),
+  roleId: z.number().int().positive().optional(),
+  menuId: z.number().int().positive().optional(),
+  dataScope: z.enum(DATA_SCOPES).optional(),
+  deptScopeIds: z.array(z.number().int().positive()).default([]),
+}).superRefine((value, ctx) => {
+  if (value.itemType === 'role' && !value.roleId) {
+    ctx.addIssue({ code: 'custom', path: ['roleId'], message: '角色权限项必须指定角色' });
+  }
+  if (value.itemType === 'menu' && !value.menuId) {
+    ctx.addIssue({ code: 'custom', path: ['menuId'], message: '菜单权限项必须指定菜单' });
+  }
+});
+
+export const createAccessRequestSchema = z.object({
+  targetUserId: z.number().int().positive(),
+  requestType: z.enum(ACCESS_REQUEST_TYPES).default('temporary'),
+  reason: z.string().trim().min(5, '申请原因至少 5 个字').max(1000),
+  businessReference: z.string().trim().max(128).optional(),
+  startsAt: dateTimeStringSchema,
+  expiresAt: dateTimeStringSchema,
+  items: z.array(accessRequestItemInputSchema).min(1, '至少申请一项权限').max(100),
+});
+
+export const revokeAccessGrantSchema = z.object({
+  reason: z.string().trim().min(2, '撤销原因不能为空').max(1000),
+});
+
+export const createAccessReviewCampaignSchema = z.object({
+  name: z.string().trim().min(1, '复核批次名称不能为空').max(128),
+  scopeType: z.enum(ACCESS_REVIEW_SCOPE_TYPES),
+  reviewerId: z.number().int().positive(),
+  dueAt: dateTimeStringSchema,
+});
+
+export const decideAccessReviewItemSchema = z.object({
+  decision: z.enum(['keep', 'revoke', 'extend', 'exception', 'escalate'] as const),
+  remark: z.string().trim().max(1000).optional(),
+});
+
+export const updatePermissionPolicySchema = z.object({
+  riskLevel: z.enum(ACCESS_RISK_LEVELS),
+  approvalPolicy: z.enum(ACCESS_APPROVAL_POLICIES),
+  maxDurationMinutes: z.number().int().positive().nullable().optional(),
+  reviewIntervalDays: z.number().int().min(0).max(3650).default(0),
+  mfaRequired: z.boolean().default(false),
+  enabled: z.boolean().default(true),
+});
+
+export type CreateAccessRequestInput = z.infer<typeof createAccessRequestSchema>;
+export type RevokeAccessGrantInput = z.infer<typeof revokeAccessGrantSchema>;
+export type CreateAccessReviewCampaignInput = z.infer<typeof createAccessReviewCampaignSchema>;
+export type DecideAccessReviewItemInput = z.infer<typeof decideAccessReviewItemSchema>;
+export type UpdatePermissionPolicyInput = z.infer<typeof updatePermissionPolicySchema>;
 
 // ─── 通讯录同步 Schema ────────────────────────────────────────────────────────
 export const directorySyncLifecycleSchema = z.object({

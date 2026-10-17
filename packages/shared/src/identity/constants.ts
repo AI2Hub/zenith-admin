@@ -312,3 +312,37 @@ export const DIRECTORY_SYNC_CONFLICT_STATUS_LABELS: Record<DirectorySyncConflict
 export const DIRECTORY_SYNC_RESOLUTIONS = ['source', 'local', 'manual'] as const;
 
 export type DirectorySyncResolution = (typeof DIRECTORY_SYNC_RESOLUTIONS)[number];
+
+// ─── 权限治理 ────────────────────────────────────────────────────────────────
+export const ACCESS_RISK_LEVELS = ['low', 'high', 'critical'] as const;
+export type AccessRiskLevel = (typeof ACCESS_RISK_LEVELS)[number];
+
+export const ACCESS_APPROVAL_POLICIES = ['none', 'manager', 'manager_security', 'two_person'] as const;
+export type AccessApprovalPolicy = (typeof ACCESS_APPROVAL_POLICIES)[number];
+
+export const ACCESS_REQUEST_TYPES = ['temporary', 'emergency'] as const;
+export type AccessRequestType = (typeof ACCESS_REQUEST_TYPES)[number];
+
+export const ACCESS_REQUEST_STATUSES = ['draft', 'pending', 'approved', 'rejected', 'cancelled', 'applied', 'failed'] as const;
+export type AccessRequestStatus = (typeof ACCESS_REQUEST_STATUSES)[number];
+
+export const ACCESS_REQUEST_ITEM_TYPES = ['role', 'menu'] as const;
+export type AccessRequestItemType = (typeof ACCESS_REQUEST_ITEM_TYPES)[number];
+
+export const ACCESS_GRANT_STATUSES = ['scheduled', 'active', 'expired', 'revoked'] as const;
+export type AccessGrantStatus = (typeof ACCESS_GRANT_STATUSES)[number];
+
+export const ACCESS_GRANT_SOURCES = ['request', 'emergency', 'admin'] as const;
+export type AccessGrantSource = (typeof ACCESS_GRANT_SOURCES)[number];
+
+export const ACCESS_REVIEW_SCOPE_TYPES = ['tenant', 'department', 'role', 'group', 'high_risk', 'temporary'] as const;
+export type AccessReviewScopeType = (typeof ACCESS_REVIEW_SCOPE_TYPES)[number];
+
+export const ACCESS_REVIEW_STATUSES = ['open', 'in_progress', 'completed', 'overdue'] as const;
+export type AccessReviewStatus = (typeof ACCESS_REVIEW_STATUSES)[number];
+
+export const ACCESS_REVIEW_DECISIONS = ['pending', 'keep', 'revoke', 'extend', 'exception', 'escalate'] as const;
+export type AccessReviewDecision = (typeof ACCESS_REVIEW_DECISIONS)[number];
+
+export const ACCESS_REVIEW_SOURCE_TYPES = ['role', 'group_role', 'direct_menu', 'temporary_grant'] as const;
+export type AccessReviewSourceType = (typeof ACCESS_REVIEW_SOURCE_TYPES)[number];

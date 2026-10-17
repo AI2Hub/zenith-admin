@@ -19,6 +19,14 @@ export interface PermissionMeta {
   readonly sort?: number | readonly (number | undefined)[];
   /** 服务端没有任何接口检查该码：纯前端门控，或待清理的死权限 */
   readonly uiOnly?: boolean;
+  /** 权限治理默认风险等级；未声明时按 low 处理 */
+  readonly riskLevel?: 'low' | 'high' | 'critical';
+  /** 权限治理默认审批策略；未声明时按 none 处理 */
+  readonly approvalPolicy?: 'none' | 'manager' | 'manager_security' | 'two_person';
+  /** 临时授权默认最大时长（分钟）；未声明时由运行时策略决定 */
+  readonly maxDurationMinutes?: number;
+  /** 定期复核间隔（天）；0 表示不自动纳入复核 */
+  readonly reviewIntervalDays?: number;
 }
 
 type DomainRegistry = (typeof PERMISSION_REGISTRY_BY_DOMAIN)[keyof typeof PERMISSION_REGISTRY_BY_DOMAIN];
