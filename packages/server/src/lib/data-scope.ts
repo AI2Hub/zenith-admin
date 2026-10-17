@@ -1,7 +1,7 @@
-import { eq, inArray, type SQL, type AnyColumn } from 'drizzle-orm';
+import { and, eq, gt, inArray, lte, type SQL, type AnyColumn } from 'drizzle-orm';
 import { db } from '../db';
 import type { DbExecutor } from '../db/types';
-import { users, departments } from '../db/schema';
+import { identityAccessGrants, users, departments } from '../db/schema';
 import { enabledGroupRolesWith, extractEnabledGroupRoles } from './user-group-access';
 
 export interface DataScopeOptions {
@@ -64,6 +64,16 @@ export async function getDataScopeCondition(options: DataScopeOptions): Promise<
       userDeptScopes: { columns: { deptId: true } },
     },
   });
+  const now = new Date();
+  const activeGrantScopes = await executor.select({ dataScope: identityAccessGrants.dataScope, deptScopeIds: identityAccessGrants.deptScopeIds })
+    .from(identityAccessGrants)
+    .where(and(
+      eq(identityAccessGrants.userId, currentUserId),
+      inArray(identityAccessGrants.status, ['scheduled', 'active']),
+      lte(identityAccessGrants.startsAt, now),
+      gt(identityAccessGrants.expiresAt, now),
+    ));
+
   // 禁用角色的数据权限不再生效（与功能权限解析同一口径）
   const directRoleList = (userData?.userRoles.map((ur) => ur.role) ?? []).filter((r) => r.status === 'enabled');
   const groupRoleList = extractEnabledGroupRoles(userData?.userGroupMembers).roles;
@@ -75,6 +85,9 @@ export async function getDataScopeCondition(options: DataScopeOptions): Promise<
   const isSuperAdmin = userRoleList.some((r) => r.code === 'super_admin' && r.tenantId === null);
   const scopeSet = new Set(userRoleList.map((r) => r.dataScope));
   if (userDirectScope !== null) scopeSet.add(userDirectScope);
+  for (const grant of activeGrantScopes) {
+    if (grant.dataScope !== null) scopeSet.add(grant.dataScope);
+  }
 
   if (isSuperAdmin || scopeSet.has('all')) {
     return undefined; // 全量访问，不追加条件
@@ -102,7 +115,10 @@ export async function getDataScopeCondition(options: DataScopeOptions): Promise<
     const userScopedDeptIds = userDirectScope === 'custom'
       ? (userData?.userDeptScopes?.map((ds) => ds.deptId) ?? [])
       : [];
-    const uniqueDeptIds = [...new Set([...roleScopedDeptIds, ...userScopedDeptIds])];
+    const grantScopedDeptIds = activeGrantScopes
+      .filter((grant) => grant.dataScope === 'custom')
+      .flatMap((grant) => grant.deptScopeIds ?? []);
+    const uniqueDeptIds = [...new Set([...roleScopedDeptIds, ...userScopedDeptIds, ...grantScopedDeptIds])];
     if (uniqueDeptIds.length > 0) {
       return inArray(deptColumn, uniqueDeptIds);
     }

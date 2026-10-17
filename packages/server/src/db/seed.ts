@@ -5,7 +5,7 @@ import { captureCmsModelVersion } from '../services/cms/cms-design-versions.serv
 import { initializeCmsContentWorkingCopy, freezeCmsContentRevision, approveCmsRevision } from '../services/cms/cms-content-revisions.service';
 import { cmsContentWorkingCopies } from './schema/cms-revisions';
 import { db } from './index';
-import { wikiSpaces, wikiSpaceMembers, wikiTags, wikiTemplates, wikiDocs, wikiDocVersions, wikiDocTags, wikiComments, wikiSearchLogs, users, menus, roles, roleMenus, userRoles, dicts, dictItems, fileStorageConfigs, departments, positions, userPositions, cronJobs, rateLimitRules, regions, tenants, tenantPackages, tenantPackageFeatures, emailTemplates, smsConfigs, smsTemplates, inAppTemplates, tags, dataMaskPolicies, monitorAlertRules, clientApps, memberLevels, memberTags, members, memberPointAccounts, memberPointTransactions, memberWallets, coupons, memberCoupons, checkinRules, checkinSettings, checkinMilestones, workflowCategories, workflowForms, workflowDataSources, workflowConnectors, workflowTemplates, workflowDefinitions, aiPromptTemplates, paymentMethodConfigs, paymentDeductPlans, mpAccounts, mpTags, mpFans, mpMessages, mpAutoReplies, mpMenus, mpMaterials, mpDrafts, mpMessageTemplates, mpBroadcasts, mpQrcodes, mpKfAccounts, mpKfSessions, mpKfSessionEvents, mpKfRoutingConfigs, mpConditionalMenus, channels, channelQuickReplies, reportDatasources, reportDatasets, reportDashboards, apiScopes, ratePlans, reportPrintTemplates, ruleDecisionTables, ruleDecisionFlows, ruleLists, ruleListItems, ruleScorecards, reportFolders, reportEnvironments, reportMetrics, reportDqRules, reportQueryQuotas, reportSlaRules, reportAssetTemplates, reportFillTemplates, analyticsEventMeta, analyticsSites, asyncTaskItems, asyncTasks, cmsSites, cmsSiteInheritances, cmsModels, cmsModelFields, cmsChannels, cmsDistributionRules, cmsContents, cmsTags, cmsContentTags, cmsContentChannels, cmsContentRelations, cmsContentVersions, cmsFriendLinkGroups, cmsFriendLinks, cmsAdSlots, cmsAds, cmsAdEvents, cmsForms, cmsSensitiveWords, cmsErrorProneWords, cmsLinkWords, cmsComments, cmsSiteUsers, cmsChannelUsers, cmsInteractions, cmsInteractionQuestions, cmsInteractionResponses, cmsInteractionAnswers, cmsMemberSubscriptions, cmsResources, cmsResourceFolders, cmsResourceRefs, cmsSearchWords, cmsHotwordGroups, cmsHotwords, cmsCollectRules, cmsCollectItems, cmsWidgets, cmsWidgetRefs, cmsWidgetSourceRefs, cmsPages, cmsPageBlockAcls, cmsPublishArtifacts } from './schema';
+import { wikiSpaces, wikiSpaceMembers, wikiTags, wikiTemplates, wikiDocs, wikiDocVersions, wikiDocTags, wikiComments, wikiSearchLogs, users, menus, roles, roleMenus, userRoles, dicts, dictItems, fileStorageConfigs, departments, positions, userPositions, cronJobs, rateLimitRules, regions, tenants, tenantPackages, tenantPackageFeatures, emailTemplates, smsConfigs, smsTemplates, inAppTemplates, tags, dataMaskPolicies, monitorAlertRules, clientApps, memberLevels, memberTags, members, memberPointAccounts, memberPointTransactions, memberWallets, coupons, memberCoupons, checkinRules, checkinSettings, checkinMilestones, workflowCategories, workflowForms, workflowDataSources, workflowConnectors, workflowTemplates, workflowDefinitions, aiPromptTemplates, identityPermissionPolicies, paymentMethodConfigs, paymentDeductPlans, mpAccounts, mpTags, mpFans, mpMessages, mpAutoReplies, mpMenus, mpMaterials, mpDrafts, mpMessageTemplates, mpBroadcasts, mpQrcodes, mpKfAccounts, mpKfSessions, mpKfSessionEvents, mpKfRoutingConfigs, mpConditionalMenus, channels, channelQuickReplies, reportDatasources, reportDatasets, reportDashboards, apiScopes, ratePlans, reportPrintTemplates, ruleDecisionTables, ruleDecisionFlows, ruleLists, ruleListItems, ruleScorecards, reportFolders, reportEnvironments, reportMetrics, reportDqRules, reportQueryQuotas, reportSlaRules, reportAssetTemplates, reportFillTemplates, analyticsEventMeta, analyticsSites, asyncTaskItems, asyncTasks, cmsSites, cmsSiteInheritances, cmsModels, cmsModelFields, cmsChannels, cmsDistributionRules, cmsContents, cmsTags, cmsContentTags, cmsContentChannels, cmsContentRelations, cmsContentVersions, cmsFriendLinkGroups, cmsFriendLinks, cmsAdSlots, cmsAds, cmsAdEvents, cmsForms, cmsSensitiveWords, cmsErrorProneWords, cmsLinkWords, cmsComments, cmsSiteUsers, cmsChannelUsers, cmsInteractions, cmsInteractionQuestions, cmsInteractionResponses, cmsInteractionAnswers, cmsMemberSubscriptions, cmsResources, cmsResourceFolders, cmsResourceRefs, cmsSearchWords, cmsHotwordGroups, cmsHotwords, cmsCollectRules, cmsCollectItems, cmsWidgets, cmsWidgetRefs, cmsWidgetSourceRefs, cmsPages, cmsPageBlockAcls, cmsPublishArtifacts } from './schema';
 import { hashPassword } from '../lib/password';
 import { and, eq, isNull, inArray, sql } from 'drizzle-orm';
 import { createRequire } from 'node:module';
@@ -16,6 +16,7 @@ import type { PaymentChannel, PaymentMethod } from '@zenith/shared/payment';
 import { SEED_PAYMENT_DEDUCT_PLANS, SEED_CMS_EDITOR_USER, SEED_CMS_SITES, SEED_CMS_SITE_INHERITANCES, SEED_CMS_MODELS, SEED_CMS_CHANNELS, SEED_CMS_DISTRIBUTION_RULES, SEED_CMS_CONTENTS, SEED_CMS_CONTENT_CHANNELS, SEED_CMS_CONTENT_RELATIONS, SEED_CMS_CONTENT_VERSIONS, SEED_CMS_TAGS, SEED_CMS_FRIEND_LINK_GROUPS, SEED_CMS_FRIEND_LINKS, SEED_CMS_AD_SLOTS, SEED_CMS_ADS, SEED_CMS_AD_EVENTS, SEED_CMS_FORMS, SEED_CMS_SENSITIVE_WORDS, SEED_CMS_ERROR_PRONE_WORDS, SEED_CMS_LINK_WORDS, SEED_CMS_COMMENTS, SEED_CMS_INTERACTIONS, SEED_CMS_INTERACTION_RESPONSES, SEED_CMS_INTERACTION_ANSWERS, SEED_CMS_SUBSCRIPTIONS, SEED_CMS_RESOURCES, SEED_CMS_RESOURCE_FOLDERS, SEED_CMS_SEARCH_WORDS, SEED_CMS_HOTWORD_GROUPS, SEED_CMS_HOTWORDS, SEED_CMS_COLLECT_RULES, SEED_CMS_COLLECT_ITEMS, SEED_CMS_WIDGETS, SEED_CMS_WIDGET_REFS, SEED_CMS_WIDGET_SOURCE_REFS, SEED_CMS_PAGES, SEED_CMS_PAGE_BLOCK_ACLS, SEED_CMS_PUBLISH_TASKS, SEED_CMS_PUBLISH_ARTIFACTS, SEED_CMS_DISTRIBUTION_TASKS, SEED_CMS_DISTRIBUTION_TASK_ITEMS } from '@zenith/shared/seed';
 import { SEED_WIKI_SPACES, SEED_WIKI_SPACE_MEMBERS, SEED_WIKI_TAGS, SEED_WIKI_TEMPLATES, SEED_WIKI_DOCS, SEED_WIKI_COMMENTS, SEED_WIKI_SEARCH_LOGS } from '@zenith/shared/seed';
 import { SEED_SHORT_LINKS } from '@zenith/shared/seed';
+import { ALL_PERMISSIONS } from '@zenith/shared/permissions';
 import { shortLinks } from './schema';
 import { SEED_MARKETING_CAMPAIGNS, SEED_MARKETING_PRIZES } from '@zenith/shared/seed';
 import { marketingCampaigns, marketingPrizes } from './schema';
@@ -171,6 +172,22 @@ async function seedRest() {
     }
   }
   logger.info('  ✔ Role-menu bindings seeded');
+
+  // 权限治理默认策略：从共享权限注册表派生，平台级策略只补不覆盖管理员调整过的配置。
+  const permissionPolicyRows = Object.entries(ALL_PERMISSIONS).map(([permissionCode, meta]) => ({
+    permissionCode,
+    riskLevel: meta.riskLevel ?? 'low',
+    approvalPolicy: meta.approvalPolicy ?? 'none',
+    maxDurationMinutes: meta.maxDurationMinutes ?? null,
+    reviewIntervalDays: meta.reviewIntervalDays ?? 0,
+    mfaRequired: meta.riskLevel === 'critical',
+    enabled: true,
+    tenantId: null,
+  }));
+  if (permissionPolicyRows.length > 0) {
+    await db.insert(identityPermissionPolicies).values(permissionPolicyRows).onConflictDoNothing();
+  }
+  logger.info(`  ✔ Permission governance policies seeded — ${permissionPolicyRows.length} definitions`);
 
   // ─── 4. 部门数据（数据来源：@zenith/shared SEED_DEPARTMENTS）──────────────
   // 只插入不存在的部门，不覆盖用户修改的数据

@@ -1,4 +1,5 @@
 import {
+  accessGovernanceContract,
   apiCatalogContract,
   apiTokenContract,
   authContract,
@@ -23,6 +24,7 @@ import {
   userGroupContract,
 } from '@zenith/shared/identity';
 import { defineRouteDomain } from '../_kit';
+import accessGovernanceRoutes from './access-governance';
 import apiCatalogRoutes from './api-catalog';
 import apiTokensRoutes from './api-tokens';
 import authRoutes from './auth';
@@ -51,6 +53,7 @@ export default defineRouteDomain({
   name: 'identity',
   licensing: { core: '身份、组织与权限管理是基础能力' },
   mounts: () => [
+    [accessGovernanceContract.basePath, accessGovernanceRoutes],
     [authContract.basePath, authRoutes],
     [userContract.basePath, usersRoutes],
     [departmentContract.basePath, departmentsRoutes],

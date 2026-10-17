@@ -1,9 +1,9 @@
-import { eq } from 'drizzle-orm';
+import { and, eq, gt, inArray } from 'drizzle-orm';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { DbExecutor } from '../db/types';
 import { SUPER_ADMIN_CODE } from '@zenith/shared/identity';
 import { db } from '../db';
-import { users } from '../db/schema';
+import { identityAccessGrantMenus, identityAccessGrants, menus, users } from '../db/schema';
 import { getTenantPackageFeatureSet } from './tenant-package';
 import { enabledGroupRolesWith, extractEnabledGroupRoles } from './user-group-access';
 import { config } from '../config';
@@ -18,6 +18,8 @@ interface CacheEntry {
   permissions: string[];
   menuIds: number[];
   timestamp: number;
+  /** 下一个临时授权时间边界；到达后不能继续使用旧缓存 */
+  nextPermissionBoundaryAt: number | null;
 }
 
 // 进程内缓存：仅作为 Redis 不可用时的降级数据源（单实例语义）。
@@ -31,13 +33,19 @@ export async function runWithFreshUserPermissions<T>(userId: number, work: () =>
   return freshPermissionStore.run({ userId, permissions }, work);
 }
 
+function isCacheEntryValid(entry: CacheEntry | null | undefined): entry is CacheEntry {
+  if (!entry || Date.now() - entry.timestamp >= CACHE_TTL) return false;
+  return entry.nextPermissionBoundaryAt === null || Date.now() < entry.nextPermissionBoundaryAt;
+}
+
 async function readCacheEntry(userId: number): Promise<CacheEntry | null> {
   try {
     const raw = await redis.get(`${PERM_CACHE_PREFIX}${userId}`);
-    return raw ? (JSON.parse(raw) as CacheEntry) : null;
+    const entry = raw ? (JSON.parse(raw) as CacheEntry) : null;
+    return isCacheEntryValid(entry) ? entry : null;
   } catch {
     const entry = localCache.get(userId);
-    return entry && Date.now() - entry.timestamp < CACHE_TTL ? entry : null;
+    return isCacheEntryValid(entry) ? entry : null;
   }
 }
 
@@ -78,8 +86,8 @@ export async function getUserPermissions(userId: number): Promise<string[]> {
   const entry = await readCacheEntry(userId);
   if (entry) return entry.permissions;
 
-  const { permissions, menuIds } = await fetchUserPermissionData(userId);
-  await writeCacheEntry(userId, { permissions, menuIds, timestamp: Date.now() });
+  const { permissions, menuIds, nextPermissionBoundaryAt } = await fetchUserPermissionData(userId);
+  await writeCacheEntry(userId, { permissions, menuIds, timestamp: Date.now(), nextPermissionBoundaryAt });
   return permissions;
 }
 
@@ -87,12 +95,12 @@ export async function getUserMenuIds(userId: number): Promise<number[]> {
   const entry = await readCacheEntry(userId);
   if (entry) return entry.menuIds;
 
-  const { permissions, menuIds } = await fetchUserPermissionData(userId);
-  await writeCacheEntry(userId, { permissions, menuIds, timestamp: Date.now() });
+  const { permissions, menuIds, nextPermissionBoundaryAt } = await fetchUserPermissionData(userId);
+  await writeCacheEntry(userId, { permissions, menuIds, timestamp: Date.now(), nextPermissionBoundaryAt });
   return menuIds;
 }
 
-async function fetchUserPermissionData(userId: number, executor: DbExecutor = db, fresh = false): Promise<{ permissions: string[]; menuIds: number[] }> {
+async function fetchUserPermissionData(userId: number, executor: DbExecutor = db, fresh = false): Promise<{ permissions: string[]; menuIds: number[]; nextPermissionBoundaryAt: number | null }> {
   const menuColumns = { id: true, permission: true, visible: true, status: true, featureKey: true } as const;
   const user = await executor.query.users.findFirst({
     where: eq(users.id, userId),
@@ -130,8 +138,33 @@ async function fetchUserPermissionData(userId: number, executor: DbExecutor = db
   });
 
   if (!user) {
-    return { permissions: [], menuIds: [] };
+    return { permissions: [], menuIds: [], nextPermissionBoundaryAt: null };
   }
+
+  const now = new Date();
+  const grantRows = await executor.select({
+    startsAt: identityAccessGrants.startsAt,
+    expiresAt: identityAccessGrants.expiresAt,
+    menuId: menus.id,
+    permission: menus.permission,
+    visible: menus.visible,
+    status: menus.status,
+    featureKey: menus.featureKey,
+  }).from(identityAccessGrants)
+    .innerJoin(identityAccessGrantMenus, eq(identityAccessGrantMenus.grantId, identityAccessGrants.id))
+    .innerJoin(menus, eq(menus.id, identityAccessGrantMenus.menuId))
+    .where(and(
+      eq(identityAccessGrants.userId, userId),
+      inArray(identityAccessGrants.status, ['scheduled', 'active']),
+      gt(identityAccessGrants.expiresAt, now),
+    ));
+  const grantMenuRows = grantRows
+    .filter((grant) => grant.startsAt <= now && grant.expiresAt > now)
+    .map((grant) => ({ id: grant.menuId, permission: grant.permission, visible: grant.visible, status: grant.status, featureKey: grant.featureKey }));
+  const nextPermissionBoundaryAt = grantRows
+    .flatMap((grant) => [grant.startsAt, grant.expiresAt])
+    .filter((value) => value.getTime() > now.getTime())
+    .reduce<number | null>((next, value) => next === null || value.getTime() < next ? value.getTime() : next, null);
 
   // 禁用角色不再授权（与用户组 status 过滤同一口径）；禁用菜单在下方统一剔除
   const roleMenuRows = user.userRoles
@@ -140,7 +173,7 @@ async function fetchUserPermissionData(userId: number, executor: DbExecutor = db
   const directMenuRows = user.userMenus.map(({ menu }) => menu);
   const groupMenuRows = extractEnabledGroupRoles(user.userGroupMembers)
     .roles.flatMap((role) => role.roleMenus.map(({ menu }) => menu));
-  let allMenuRows = [...roleMenuRows, ...directMenuRows, ...groupMenuRows]
+  let allMenuRows = [...roleMenuRows, ...directMenuRows, ...groupMenuRows, ...grantMenuRows]
     .filter((menu) => menu.status === 'enabled');
 
   // 多租户：按租户套餐的功能集过滤——featureKey 为空的菜单是核心能力永远保留；
@@ -160,7 +193,7 @@ async function fetchUserPermissionData(userId: number, executor: DbExecutor = db
     ),
   ];
 
-  return { permissions, menuIds };
+  return { permissions, menuIds, nextPermissionBoundaryAt };
 }
 
 /**
