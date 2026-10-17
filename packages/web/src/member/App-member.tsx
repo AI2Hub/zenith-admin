@@ -61,9 +61,11 @@ function RequireMember({ children }: Readonly<{ children: ReactNode }>) {
 
 function AppRoutes() {
   const { member } = useMemberAuth();
+  const location = useLocation();
   return (
-    <Suspense fallback={routeFallback}>
-    <Routes>
+    <>
+      <Suspense fallback={routeFallback}>
+      <Routes>
       {/* Public routes under shared top-nav layout */}
       <Route element={<PublicLayout />}>
         <Route path="/" element={<LandingPage />} />
@@ -110,8 +112,10 @@ function AppRoutes() {
       </Route>
 
       <Route path="*" element={<Navigate to={member ? '/home' : '/'} replace />} />
-    </Routes>
-    </Suspense>
+      </Routes>
+      </Suspense>
+      {location.pathname !== '/profile' ? <AnalyticsConsentBanner /> : null}
+    </>
   );
 }
 
@@ -123,7 +127,6 @@ export default function MemberApp() {
           {/* 埋点桥接：路由级 PV/PL 采集 + 登录身份关联，覆盖公开与受保护路由，全局挂载一次 */}
           <MemberAnalyticsBridge />
           <AppRoutes />
-          <AnalyticsConsentBanner />
         </HashRouter>
       </MemberAuthProvider>
     </QueryClientProvider>

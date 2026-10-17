@@ -6,6 +6,7 @@ import { Crown, LogOut, Palette, UserX } from 'lucide-react';
 import { useMemberAuth } from '../../hooks/useMemberAuth';
 import { MemberPage } from '../../components/MemberPage';
 import { ThemeColorPicker } from '../../components/ThemeColorPicker';
+import { AnalyticsConsentSettings } from '../../components/AnalyticsConsentBanner';
 import { useDeactivateAccount } from '../../hooks/queries';
 
 export default function ProfilePage() {
@@ -90,6 +91,8 @@ export default function ProfilePage() {
         <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 10, color: 'var(--m-text)' }}>主题颜色</div>
         <ThemeColorPicker />
       </div>
+
+      <AnalyticsConsentSettings />
 
       <Button
         type="danger"

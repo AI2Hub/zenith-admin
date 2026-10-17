@@ -11,7 +11,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MEMBER_ANALYTICS_CONSENT_KEY, MEMBER_ANALYTICS_CONSENT_VERSION } from '@zenith/shared/member';
-import { AnalyticsConsentBanner } from './AnalyticsConsentBanner';
+import { AnalyticsConsentBanner, AnalyticsConsentSettings } from './AnalyticsConsentBanner';
 import { hasMemberAnalyticsConsent } from '../hooks/useAnalyticsConsent';
 
 beforeEach(() => {
@@ -50,7 +50,7 @@ describe('未表态时', () => {
 });
 
 describe('已表态时', () => {
-  it('已有同意记录时不展示提示条', () => {
+  it('已有同意记录时不展示提示条或全局设置按钮', () => {
     localStorage.setItem(
       MEMBER_ANALYTICS_CONSENT_KEY,
       JSON.stringify({ status: 'accepted', version: MEMBER_ANALYTICS_CONSENT_VERSION, updatedAt: '2024-01-01 00:00:00' }),
@@ -59,16 +59,16 @@ describe('已表态时', () => {
     render(<AnalyticsConsentBanner />);
 
     expect(screen.queryByRole('region', { name: '体验分析同意提示' })).toBeNull();
-    expect(screen.getByRole('button', { name: '修改体验分析设置' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: '修改体验分析设置' })).toBeNull();
   });
 
-  it('允许已同意用户重新打开设置并撤回同意', async () => {
+  it('已同意用户可在个人设置中撤回同意', async () => {
     localStorage.setItem(
       MEMBER_ANALYTICS_CONSENT_KEY,
       JSON.stringify({ status: 'accepted', version: MEMBER_ANALYTICS_CONSENT_VERSION, updatedAt: '2024-01-01 00:00:00' }),
     );
     const user = userEvent.setup();
-    render(<AnalyticsConsentBanner />);
+    render(<AnalyticsConsentSettings />);
 
     await user.click(screen.getByRole('button', { name: '修改体验分析设置' }));
     await user.click(screen.getByRole('button', { name: '拒绝体验分析采集' }));
