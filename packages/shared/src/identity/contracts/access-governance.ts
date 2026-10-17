@@ -105,6 +105,13 @@ export const accessReviewCampaignSchema = z.object({
 
 export type AccessReviewCampaign = z.infer<typeof accessReviewCampaignSchema>;
 
+export const accessCatalogSchema = z.object({
+  roles: z.array(z.object({ id: z.int(), name: z.string(), code: z.string(), description: z.string().nullable().optional(), dataScope: z.enum(DATA_SCOPES), menuCount: z.int() })),
+  menus: z.array(z.object({ id: z.int(), parentId: z.int(), title: z.string(), name: z.string().nullable().optional(), type: z.enum(['directory', 'menu', 'button']), permission: z.string().nullable().optional(), permissionLabel: z.string().nullable().optional(), riskLevel: z.enum(ACCESS_RISK_LEVELS) })),
+}).meta({ id: 'IdentityAccessCatalog' });
+
+export type AccessCatalog = z.infer<typeof accessCatalogSchema>;
+
 export const accessReviewItemSchema = z.object({
   id: z.int(),
   campaignId: z.int(),
@@ -150,6 +157,7 @@ const reviewListQuery = paginationQuery.extend({
 });
 
 export const accessGovernanceContract = defineContract('/api/access-governance', {
+  catalog: op.get('/catalog', { access: 'authenticated', response: accessCatalogSchema, summary: '可申请权限目录' }),
   requestList: op.get('/requests', { access: { permission: 'system:access-governance:view' }, query: requestListQuery, response: paginated(accessRequestSchema), summary: '权限申请列表' }),
   requestMine: op.get('/requests/mine', { access: 'authenticated', query: requestListQuery, response: paginated(accessRequestSchema), summary: '我的权限申请' }),
   requestDetail: op.get('/requests/{id}', { access: 'authenticated', params: idParam, response: accessRequestSchema, summary: '权限申请详情' }),

@@ -229,6 +229,45 @@ export async function assertDirectHighRiskGrantAllowed(menuIds: number[] = [], r
   }
 }
 
+export async function getAccessCatalog() {
+  const user = currentUser();
+  const featureSet = await getTenantPackageFeatureSet(user.tenantId);
+  const [roleRows, menuRows] = await Promise.all([
+    db.query.roles.findMany({
+      where: and(eq(roles.status, 'enabled'), tenantCondition(roles, user)),
+      with: { roleMenus: { columns: {}, with: { menu: { columns: { id: true, status: true, featureKey: true } } } } },
+      orderBy: [asc(roles.name), asc(roles.id)],
+    }),
+    db.select({ id: menus.id, parentId: menus.parentId, title: menus.title, name: menus.name, type: menus.type, permission: menus.permission, status: menus.status, featureKey: menus.featureKey })
+      .from(menus)
+      .where(eq(menus.status, 'enabled'))
+      .orderBy(asc(menus.parentId), asc(menus.sort), asc(menus.id)),
+  ]);
+  return {
+    roles: roleRows.map((role) => ({
+      id: role.id,
+      name: role.name,
+      code: role.code,
+      description: role.description ?? null,
+      dataScope: role.dataScope,
+      menuCount: role.roleMenus.filter(({ menu }) => menu.status === 'enabled' && (!featureSet || !menu.featureKey || featureSet.has(menu.featureKey))).length,
+    })),
+    menus: menuRows
+      .filter((menu) => !featureSet || !menu.featureKey || featureSet.has(menu.featureKey))
+      .filter((menu) => menu.type === 'button' || menu.permission !== null)
+      .map((menu) => ({
+        id: menu.id,
+        parentId: menu.parentId,
+        title: menu.title,
+        name: menu.name ?? null,
+        type: menu.type,
+        permission: menu.permission ?? null,
+        permissionLabel: menu.permission ? ALL_PERMISSIONS[menu.permission]?.label ?? menu.title : null,
+        riskLevel: ALL_PERMISSIONS[menu.permission ?? '']?.riskLevel ?? 'low',
+      })),
+  };
+}
+
 export async function listAccessRequests(q: AccessRequestListQuery, mine = false) {
   const user = currentUser();
   const where = buildWhere(

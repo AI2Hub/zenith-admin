@@ -10,6 +10,7 @@ export type AccessReviewItemListQuery = NonNullable<QueryOf<typeof accessGoverna
 export type PermissionPolicyListQuery = NonNullable<QueryOf<typeof accessGovernanceContract.policyList>>;
 
 export const identityAccessGovernanceKeys = {
+  catalog: contractKey(accessGovernanceContract.catalog),
   all: ['identity-access-governance'] as const,
   requests: contractKey(accessGovernanceContract.requestList),
   grants: contractKey(accessGovernanceContract.grantList),
@@ -17,6 +18,18 @@ export const identityAccessGovernanceKeys = {
   reviewItems: contractKey(accessGovernanceContract.reviewItemList),
   policies: contractKey(accessGovernanceContract.policyList),
 };
+
+export function useAccessCatalog(enabled = true) {
+  return useApiQuery(accessGovernanceContract.catalog, undefined, { enabled, staleTime: 5 * 60 * 1000 });
+}
+
+export function useCreateAccessRequest() {
+  return useApiMutation(accessGovernanceContract.requestCreate);
+}
+
+export function useSubmitAccessRequest() {
+  return useApiMutation(accessGovernanceContract.requestSubmit);
+}
 
 export function useAccessRequestList(query: AccessRequestListQuery, enabled = true) {
   return useApiQuery(accessGovernanceContract.requestList, { query }, { enabled, placeholderData: keepPreviousData });

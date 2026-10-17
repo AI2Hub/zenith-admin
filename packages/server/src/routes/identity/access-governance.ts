@@ -5,6 +5,7 @@ import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
   cancelAccessRequest,
   createAccessRequest,
+  getAccessCatalog,
   createAccessReviewCampaign,
   decideReviewItem,
   getAccessRequest,
@@ -21,6 +22,9 @@ import {
 
 const accessGovernanceRouter = new OpenAPIHono({ defaultHook: validationHook });
 
+const catalogRoute = defineContractRoute(accessGovernanceContract.catalog, {
+  handler: async (c) => c.json(okBody(await getAccessCatalog()), 200),
+});
 const requestListRoute = defineContractRoute(accessGovernanceContract.requestList, {
   handler: async (c) => c.json(okBody(await listAccessRequests(c.req.valid('query'))), 200),
 });
@@ -68,6 +72,7 @@ const userOverviewRoute = defineContractRoute(accessGovernanceContract.userOverv
 });
 
 accessGovernanceRouter.openapiRoutes([
+  catalogRoute,
   requestListRoute,
   requestMineRoute,
   requestDetailRoute,
