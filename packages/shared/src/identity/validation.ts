@@ -529,9 +529,9 @@ export const updatePermissionPolicySchema = z.object({
   riskLevel: z.enum(ACCESS_RISK_LEVELS),
   approvalPolicy: z.enum(ACCESS_APPROVAL_POLICIES),
   maxDurationMinutes: z.number().int().positive().nullable().optional(),
-  reviewIntervalDays: z.number().int().min(0).max(3650).default(0),
-  mfaRequired: z.boolean().default(false),
-  enabled: z.boolean().default(true),
+  reviewIntervalDays: z.number().int().min(0).max(3650),
+  mfaRequired: z.boolean(),
+  enabled: z.boolean(),
 });
 
 export type CreateAccessRequestInput = z.infer<typeof createAccessRequestSchema>;

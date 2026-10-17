@@ -857,6 +857,48 @@ export const NOTIFICATION_EVENTS = defineNotificationEvents({
     title: '「{{nodeName}}」{{actionText}}',
     content: '{{operatorName}} 对「{{nodeName}}」{{actionText}}{{reason}}。',
   },
+  'identity.access.requested': {
+    group: 'identity', label: '权限申请已提交', severity: 'important',
+    defaultChannels: ['inapp'], availableChannels: ['inapp', 'email'],
+    vars: eventVars<{ requestId: number; applicantName: string; targetName: string; riskLevel: string }>(),
+    title: '收到权限申请', content: '{{applicantName}} 为 {{targetName}} 提交了 {{riskLevel}} 权限申请。',
+  },
+  'identity.access.approved': {
+    group: 'identity', label: '权限申请已通过', severity: 'important', inAppType: 'success',
+    defaultChannels: ['inapp'], availableChannels: ['inapp', 'email'],
+    vars: eventVars<{ requestId: number; targetName: string; expiresAt: string }>(),
+    title: '权限申请已通过', content: '{{targetName}} 的临时权限已生效或将在 {{expiresAt}} 生效。',
+  },
+  'identity.access.rejected': {
+    group: 'identity', label: '权限申请被驳回', severity: 'important', inAppType: 'warning',
+    defaultChannels: ['inapp'], availableChannels: ['inapp', 'email'],
+    vars: eventVars<{ requestId: number; targetName: string; reason: string }>(),
+    title: '权限申请被驳回', content: '{{targetName}} 的权限申请被驳回：{{reason}}',
+  },
+  'identity.access.expiring': {
+    group: 'identity', label: '临时权限即将到期', severity: 'important',
+    defaultChannels: ['inapp'], availableChannels: ['inapp', 'email'],
+    vars: eventVars<{ grantId: number; targetName: string; expiresAt: string }>(),
+    title: '临时权限即将到期', content: '{{targetName}} 的临时权限将于 {{expiresAt}} 到期。',
+  },
+  'identity.access.expired': {
+    group: 'identity', label: '临时权限已到期', severity: 'important',
+    defaultChannels: ['inapp'], availableChannels: ['inapp', 'email'],
+    vars: eventVars<{ grantId: number; targetName: string }>(),
+    title: '临时权限已到期', content: '{{targetName}} 的临时权限已自动失效。',
+  },
+  'identity.access.revoked': {
+    group: 'identity', label: '临时权限已撤销', severity: 'important',
+    defaultChannels: ['inapp'], availableChannels: ['inapp', 'email'],
+    vars: eventVars<{ grantId: number; targetName: string; reason: string }>(),
+    title: '临时权限已撤销', content: '{{targetName}} 的临时权限已被撤销：{{reason}}',
+  },
+  'identity.access.review_due': {
+    group: 'identity', label: '权限复核待处理', severity: 'important',
+    defaultChannels: ['inapp'], availableChannels: ['inapp', 'email'],
+    vars: eventVars<{ campaignId: number; campaignName: string; pendingCount: number; dueAt: string }>(),
+    title: '权限复核待处理', content: '复核批次「{{campaignName}}」还有 {{pendingCount}} 项待处理，截止 {{dueAt}}。',
+  },
 });
 
 export type NotificationEventKey = keyof typeof NOTIFICATION_EVENTS;

@@ -26,6 +26,7 @@ import { registerPaymentSubscribers } from '../services/payment/payment-subscrib
 import { registerPaymentOpenWebhookBridge } from '../services/payment/payment-open-webhook-bridge.service';
 import { registerWorkflowPrintArchiveSubscriber } from '../services/workflow/workflow-print-archive';
 import { registerDriveOwnershipSubscriber } from '../services/drive/drive-handoff.service';
+import { registerAccessGovernanceSubscribers } from '../services/identity/access-governance.service';
 
 export function registerEventSubscribers(): void {
   initNotificationAdapters();
@@ -49,5 +50,6 @@ export function registerEventSubscribers(): void {
   registerSharingSubscribers();
   registerAnalyticsServerEventSubscribers();
   registerDriveOwnershipSubscriber();
+  registerAccessGovernanceSubscribers();
   logger.info('Workflow event subscribers registered');
 }

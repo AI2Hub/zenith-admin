@@ -167,6 +167,28 @@ export async function registerSystemTasks(): Promise<void> {
     run: scanDueDirectorySyncSources,
   });
 
+  const { runAccessGrantLifecycle, reconcileAccessGovernance } = await import('../services/identity/access-governance.service');
+  await registerSystemRecurringJob({
+    name: 'identity-access-lifecycle',
+    title: '权限临时授权生命周期扫描',
+    module: '权限治理',
+    cronExpression: '* * * * *',
+    description: '每分钟激活到期临时授权、回收过期权限并发送到期提醒。',
+    allowManualRun: true,
+    manualSingleton: true,
+    run: runAccessGrantLifecycle,
+  });
+  await registerSystemRecurringJob({
+    name: 'identity-access-reconcile',
+    title: '权限审批与授权对账',
+    module: '权限治理',
+    cronExpression: '*/5 * * * *',
+    description: '对账权限申请的工作流状态与实际临时授权，修复进程中断造成的不一致。',
+    allowManualRun: true,
+    manualSingleton: true,
+    run: reconcileAccessGovernance,
+  });
+
   const { runWikiGovernanceTick } = await import('../services/wiki/governance.service');
   await registerSystemRecurringJob({
     name: 'wiki-governance-tick',

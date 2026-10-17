@@ -527,6 +527,61 @@ SEED_WORKFLOW_DEFINITIONS.push({
   ] }, status: 'published', version: 1, tenantId: null,
 });
 
+// 权限治理内置流程：业务申请记录由 identity 域保存，审批人通过表单变量动态解析，不能把固定用户 ID 写入流程定义。
+const ACCESS_REQUEST_VARIABLES: Array<{ key: string; label: string; type: 'number' | 'string' }> = [
+  { key: 'requestId', label: '权限申请', type: 'number' },
+  { key: 'targetUserId', label: '目标用户', type: 'number' },
+  { key: 'reason', label: '申请原因', type: 'string' },
+  { key: 'businessReference', label: '业务关联编号', type: 'string' },
+  { key: 'startsAt', label: '生效时间', type: 'string' },
+  { key: 'expiresAt', label: '失效时间', type: 'string' },
+  { key: 'riskLevel', label: '风险等级', type: 'string' },
+  { key: 'permissionSummary', label: '权限摘要', type: 'string' },
+  { key: 'managerId', label: '直属主管', type: 'number' },
+  { key: 'securityApproverId', label: '安全管理员', type: 'number' },
+  { key: 'secondSecurityApproverId', label: '第二安全审批人', type: 'number' },
+];
+
+SEED_WORKFLOW_DEFINITIONS.push(
+  {
+    id: 5,
+    name: '权限申请（普通）',
+    description: '普通临时权限由目标用户直属主管审批。',
+    initiatorScopeType: 'all',
+    flowData: buildLinearFlow([{ key: 'approve_manager', name: '直属主管审批', props: { assigneeType: 'formUser', formUserField: 'managerId', emptyStrategy: 'reject', sameInitiatorStrategy: 'toDirectManager' } }], { ...TEMPLATE_SETTINGS, allowResubmit: false, summaryFields: ['targetUserId', 'riskLevel', 'expiresAt'] }),
+    formType: 'external',
+    customForm: { createComponent: '', viewComponent: 'biz/access/AccessRequestApprovalView', icon: 'ShieldCheck', variables: ACCESS_REQUEST_VARIABLES },
+    status: 'published', version: 1, tenantId: null,
+  },
+  {
+    id: 6,
+    name: '权限申请（高危）',
+    description: '高危临时权限由直属主管和安全管理员双重审批。',
+    initiatorScopeType: 'all',
+    flowData: buildLinearFlow([
+      { key: 'approve_manager', name: '直属主管审批', props: { assigneeType: 'formUser', formUserField: 'managerId', emptyStrategy: 'reject', sameInitiatorStrategy: 'toDirectManager' } },
+      { key: 'approve_security', name: '安全管理员审批', props: { assigneeType: 'formUser', formUserField: 'securityApproverId', emptyStrategy: 'reject', sameInitiatorStrategy: 'toDirectManager' } },
+    ], { ...TEMPLATE_SETTINGS, allowResubmit: false, summaryFields: ['targetUserId', 'riskLevel', 'expiresAt'] }),
+    formType: 'external',
+    customForm: { createComponent: '', viewComponent: 'biz/access/AccessRequestApprovalView', icon: 'ShieldAlert', variables: ACCESS_REQUEST_VARIABLES },
+    status: 'published', version: 1, tenantId: null,
+  },
+  {
+    id: 7,
+    name: '权限申请（极高危）',
+    description: '极高危临时权限要求直属主管和两名独立安全审批人共同确认。',
+    initiatorScopeType: 'all',
+    flowData: buildLinearFlow([
+      { key: 'approve_manager', name: '直属主管审批', props: { assigneeType: 'formUser', formUserField: 'managerId', emptyStrategy: 'reject', sameInitiatorStrategy: 'toDirectManager' } },
+      { key: 'approve_security', name: '安全管理员审批', props: { assigneeType: 'formUser', formUserField: 'securityApproverId', emptyStrategy: 'reject', sameInitiatorStrategy: 'toDirectManager' } },
+      { key: 'approve_second_security', name: '第二安全审批人审批', props: { assigneeType: 'formUser', formUserField: 'secondSecurityApproverId', emptyStrategy: 'reject', sameInitiatorStrategy: 'toDirectManager' } },
+    ], { ...TEMPLATE_SETTINGS, allowResubmit: false, summaryFields: ['targetUserId', 'riskLevel', 'expiresAt'] }),
+    formType: 'external',
+    customForm: { createComponent: '', viewComponent: 'biz/access/AccessRequestApprovalView', icon: 'ShieldAlert', variables: ACCESS_REQUEST_VARIABLES },
+    status: 'published', version: 1, tenantId: null,
+  },
+);
+
 // ─── 工作流分类 ─────────────────────────────────────────────────────────────────
 
 export const SEED_WORKFLOW_CATEGORIES: WorkflowCategory[] = [

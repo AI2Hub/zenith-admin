@@ -17,6 +17,7 @@ import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { formatTimestamps } from '../../lib/datetime';
 import { getScopeMemberSummaries, validateScopeUserIds } from './user-scope.service';
 import { RESERVED_ROLE_CODES } from './role-grant';
+import { assertDirectHighRiskGrantAllowed } from './access-governance.service';
 
 export function mapRole(row: typeof roles.$inferSelect, menuIds?: number[], deptScopeIds?: number[]) {
   return {
@@ -170,6 +171,7 @@ async function ensureRoleBelongsToTenant(id: number): Promise<{ tenantId: number
 }
 
 export async function assignRoleMenus(id: number, menuIds: number[]) {
+  await assertDirectHighRiskGrantAllowed(menuIds);
   const { tenantId: roleTenantId } = await ensureRoleBelongsToTenant(id);
   // 多租户：角色所属租户绑定套餐时，分配的菜单必须落在套餐功能范围内。
   const featureSet = await getTenantPackageFeatureSet(roleTenantId);

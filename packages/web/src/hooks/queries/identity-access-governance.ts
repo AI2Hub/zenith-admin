@@ -21,6 +21,10 @@ export function useAccessRequestList(query: AccessRequestListQuery, enabled = tr
   return useApiQuery(accessGovernanceContract.requestList, { query }, { enabled, placeholderData: keepPreviousData });
 }
 
+export function useAccessRequestDetail(id: number | undefined, enabled = true) {
+  return useApiQuery(accessGovernanceContract.requestDetail, { params: { id: id ?? 0 } }, { enabled: enabled && id != null });
+}
+
 export function useMyAccessRequestList(query: AccessRequestListQuery, enabled = true) {
   return useApiQuery(accessGovernanceContract.requestMine, { query }, { enabled, placeholderData: keepPreviousData });
 }

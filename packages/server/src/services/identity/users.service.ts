@@ -31,6 +31,7 @@ import logger from '../../lib/logger';
 import { userHasPlatformSuperRole } from './role-grant';
 import { emitIdentityRemoval } from '../../lib/identity-lifecycle';
 import { releaseIdentitySignatures } from './user-signature-lifecycle';
+import { assertDirectHighRiskGrantAllowed } from './access-governance.service';
 
 // ─── 关联查询配置 ─────────────────────────────────────────────────────────────
 
@@ -645,6 +646,7 @@ export async function getUserMenuPermissionsBeforeAudit(userId: number) {
 export async function assignUserMenus(userId: number, menuIds: number[]) {
   const target = await ensureUserManageable(userId);
   const uniqueMenuIds = Array.from(new Set(menuIds));
+  await assertDirectHighRiskGrantAllowed(uniqueMenuIds);
   // 多租户：直授菜单必须落在目标用户所属租户的套餐功能范围内（与角色分配菜单同一口径）
   const featureSet = await getTenantPackageFeatureSet(target.tenantId);
   if (featureSet && uniqueMenuIds.length > 0) {
@@ -665,6 +667,7 @@ export async function assignUserMenus(userId: number, menuIds: number[]) {
 export async function assignRolesToUser(userId: number, roleIds: number[]) {
   await ensureUserManageable(userId);
   const uniqueRoleIds = Array.from(new Set(roleIds));
+  await assertDirectHighRiskGrantAllowed([], uniqueRoleIds);
   // 角色必须存在且落在当前操作者可见租户内，防止绑定跨租户/平台角色
   await ensureRoleIdsExist(uniqueRoleIds, currentUser());
   // 变更前是否绑定平台超管角色：失去绑定时须撤销会话（JWT roles 2h 内不随 DB 变化）
