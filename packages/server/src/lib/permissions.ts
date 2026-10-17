@@ -1,9 +1,9 @@
-import { and, eq, gt, inArray } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { DbExecutor } from '../db/types';
 import { SUPER_ADMIN_CODE } from '@zenith/shared/identity';
 import { db } from '../db';
-import { identityAccessGrantMenus, identityAccessGrants, menus, users } from '../db/schema';
+import { users } from '../db/schema';
 import { getTenantPackageFeatureSet } from './tenant-package';
 import { enabledGroupRolesWith, extractEnabledGroupRoles } from './user-group-access';
 import { config } from '../config';
@@ -134,6 +134,10 @@ async function fetchUserPermissionData(userId: number, executor: DbExecutor = db
           },
         },
       }),
+      accessGrants: {
+        columns: { status: true, startsAt: true, expiresAt: true },
+        with: { menus: { columns: {}, with: { menu: { columns: menuColumns } } } },
+      },
     },
   });
 
@@ -142,25 +146,10 @@ async function fetchUserPermissionData(userId: number, executor: DbExecutor = db
   }
 
   const now = new Date();
-  const grantRows = await executor.select({
-    startsAt: identityAccessGrants.startsAt,
-    expiresAt: identityAccessGrants.expiresAt,
-    menuId: menus.id,
-    permission: menus.permission,
-    visible: menus.visible,
-    status: menus.status,
-    featureKey: menus.featureKey,
-  }).from(identityAccessGrants)
-    .innerJoin(identityAccessGrantMenus, eq(identityAccessGrantMenus.grantId, identityAccessGrants.id))
-    .innerJoin(menus, eq(menus.id, identityAccessGrantMenus.menuId))
-    .where(and(
-      eq(identityAccessGrants.userId, userId),
-      inArray(identityAccessGrants.status, ['scheduled', 'active']),
-      gt(identityAccessGrants.expiresAt, now),
-    ));
+  const grantRows = (user.accessGrants ?? []).filter((grant) => grant.status === 'scheduled' || grant.status === 'active');
   const grantMenuRows = grantRows
     .filter((grant) => grant.startsAt <= now && grant.expiresAt > now)
-    .map((grant) => ({ id: grant.menuId, permission: grant.permission, visible: grant.visible, status: grant.status, featureKey: grant.featureKey }));
+    .flatMap((grant) => grant.menus.filter(({ menu }) => menu.status === 'enabled').map(({ menu }) => menu));
   const nextPermissionBoundaryAt = grantRows
     .flatMap((grant) => [grant.startsAt, grant.expiresAt])
     .filter((value) => value.getTime() > now.getTime())

@@ -1,7 +1,7 @@
-import { and, eq, gt, inArray, lte, type SQL, type AnyColumn } from 'drizzle-orm';
+import { eq, inArray, type SQL, type AnyColumn } from 'drizzle-orm';
 import { db } from '../db';
 import type { DbExecutor } from '../db/types';
-import { identityAccessGrants, users, departments } from '../db/schema';
+import { departments, users } from '../db/schema';
 import { enabledGroupRolesWith, extractEnabledGroupRoles } from './user-group-access';
 
 export interface DataScopeOptions {
@@ -62,17 +62,13 @@ export async function getDataScopeCondition(options: DataScopeOptions): Promise<
         with: { deptScopes: { columns: { deptId: true } } },
       }),
       userDeptScopes: { columns: { deptId: true } },
+      accessGrants: { columns: { dataScope: true, deptScopeIds: true, status: true, startsAt: true, expiresAt: true } },
     },
   });
   const now = new Date();
-  const activeGrantScopes = await executor.select({ dataScope: identityAccessGrants.dataScope, deptScopeIds: identityAccessGrants.deptScopeIds })
-    .from(identityAccessGrants)
-    .where(and(
-      eq(identityAccessGrants.userId, currentUserId),
-      inArray(identityAccessGrants.status, ['scheduled', 'active']),
-      lte(identityAccessGrants.startsAt, now),
-      gt(identityAccessGrants.expiresAt, now),
-    ));
+  const activeGrantScopes = (userData?.accessGrants ?? []).filter((grant) =>
+    ['scheduled', 'active'].includes(grant.status) && grant.startsAt <= now && grant.expiresAt > now,
+  );
 
   // 禁用角色的数据权限不再生效（与功能权限解析同一口径）
   const directRoleList = (userData?.userRoles.map((ur) => ur.role) ?? []).filter((r) => r.status === 'enabled');

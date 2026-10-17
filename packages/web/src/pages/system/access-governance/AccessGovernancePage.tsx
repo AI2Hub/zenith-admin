@@ -1,8 +1,7 @@
-import { useState } from 'react';
 import { Form, TabPane, Tabs, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { AccessGrant, AccessRequest, AccessReviewItem, PermissionPolicy, UpdatePermissionPolicyInput } from '@zenith/shared/identity';
-import { accessGovernanceContract, ACCESS_APPROVAL_POLICIES, ACCESS_RISK_LEVELS } from '@zenith/shared/identity';
+import { accessGovernanceContract, ACCESS_RISK_LEVELS } from '@zenith/shared/identity';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { EditFormModal } from '@/components/EditFormModal';
 import { ListSearchToolbar } from '@/components/list-page';
@@ -86,7 +85,7 @@ function ReviewsTab() {
 }
 
 function PoliciesTab() {
-  const { data: policies = [], isLoading, isFetching, refetch } = usePermissionPolicyList();
+  const page = useListPage({ op: accessGovernanceContract.policyList, useList: usePermissionPolicyList, table: { rowKey: 'id', empty: '暂无权限策略' } });
   const save = useSavePermissionPolicy();
   const modal = useEditModal<PermissionPolicy, UpdatePermissionPolicyInput & { permissionCode: string }>({
     entityName: '权限策略',
@@ -94,15 +93,15 @@ function PoliciesTab() {
     toValues: (record) => ({ permissionCode: record.permissionCode, riskLevel: record.riskLevel, approvalPolicy: record.approvalPolicy, maxDurationMinutes: record.maxDurationMinutes ?? null, reviewIntervalDays: record.reviewIntervalDays, mfaRequired: record.mfaRequired, enabled: record.enabled }),
   });
   const columns: ColumnProps<PermissionPolicy>[] = [
-    { title: '权限码', dataIndex: 'permissionCode', minWidth: 260, ellipsis: true },
+    { title: '权限码', dataIndex: 'permissionCode', minWidth: 260, ellipsis: { showTitle: true } },
     { title: '风险等级', dataIndex: 'riskLevel', width: 100, render: (value: PermissionPolicy['riskLevel']) => <RiskTag value={value} /> },
-    { title: '审批策略', dataIndex: 'approvalPolicy', width: 170, render: (value: UpdatePermissionPolicyInput['approvalPolicy']) => APPROVAL_LABELS[value] },
+    { title: '审批策略', dataIndex: 'approvalPolicy', width: 170, ellipsis: { showTitle: true }, render: (value: UpdatePermissionPolicyInput['approvalPolicy']) => APPROVAL_LABELS[value] },
     { title: '最大时长', dataIndex: 'maxDurationMinutes', width: 110, render: (value) => value ? `${value} 分钟` : '不限制' },
-    { title: '复核周期', dataIndex: 'reviewIntervalDays', width: 100, render: (value) => value ? `${value} 天` : '不自动复核' },
+    { title: '复核周期', dataIndex: 'reviewIntervalDays', width: 140, ellipsis: { showTitle: true }, render: (value) => value ? `${value} 天` : '不自动复核' },
     { title: '状态', dataIndex: 'enabled', width: 80, render: (value) => value ? <Tag color="green">启用</Tag> : <Tag color="grey">停用</Tag> },
     createOperationColumn<PermissionPolicy>({ width: 100, actions: (row) => [{ key: 'edit', label: '编辑策略', onClick: () => modal.openEdit(row) }] }),
   ];
-  return <><div style={{ marginBottom: 12 }}><Text type="tertiary">权限策略由共享权限目录生成，租户管理员可以调整审批方式、最长时长和复核周期。</Text></div><ConfigurableTable columns={columns} dataSource={policies} rowKey="id" loading={isLoading} onRefresh={() => void refetch()} refreshLoading={isFetching} pagination={false} /><EditFormModal modal={modal} width={560}><Form.Input field="permissionCode" label="权限码" disabled /><Form.Select field="riskLevel" label="风险等级" optionList={ACCESS_RISK_LEVELS.map((value) => ({ value, label: RISK_LABELS[value] }))} /><Form.Select field="approvalPolicy" label="审批策略" optionList={Object.entries(APPROVAL_LABELS).map(([value, label]) => ({ value, label }))} /><Form.InputNumber field="maxDurationMinutes" label="最长时长" min={1} max={43200} suffix="分钟" /><Form.InputNumber field="reviewIntervalDays" label="复核周期" min={0} max={3650} suffix="天" /><Form.Switch field="mfaRequired" label="审批时要求 MFA" /><Form.Switch field="enabled" label="启用策略" /></EditFormModal></>;
+  return <><div style={{ marginBottom: 12 }}><Text type="tertiary">权限策略由共享权限目录生成，租户管理员可以调整审批方式、最长时长和复核周期。</Text></div><ListSearchToolbar page={page} filters={['keyword', 'riskLevel', 'approvalPolicy']} actions={<RefreshButton onClick={() => void page.listQuery.refetch()} loading={page.listQuery.isFetching} />} /><ConfigurableTable columns={columns} {...page.tableProps} /><EditFormModal modal={modal} width={560}><Form.Input field="permissionCode" label="权限码" disabled /><Form.Select field="riskLevel" label="风险等级" optionList={ACCESS_RISK_LEVELS.map((value) => ({ value, label: RISK_LABELS[value] }))} /><Form.Select field="approvalPolicy" label="审批策略" optionList={Object.entries(APPROVAL_LABELS).map(([value, label]) => ({ value, label }))} /><Form.InputNumber field="maxDurationMinutes" label="最长时长" min={1} max={43200} suffix="分钟" /><Form.InputNumber field="reviewIntervalDays" label="复核周期" min={0} max={3650} suffix="天" /><Form.Switch field="mfaRequired" label="审批时要求 MFA" /><Form.Switch field="enabled" label="启用策略" /></EditFormModal></>;
 }
 
 export default function AccessGovernancePage() {

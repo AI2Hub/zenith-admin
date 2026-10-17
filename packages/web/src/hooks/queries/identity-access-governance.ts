@@ -7,6 +7,7 @@ export type AccessRequestListQuery = NonNullable<QueryOf<typeof accessGovernance
 export type AccessGrantListQuery = NonNullable<QueryOf<typeof accessGovernanceContract.grantList>>;
 export type AccessReviewCampaignListQuery = NonNullable<QueryOf<typeof accessGovernanceContract.reviewCampaignList>>;
 export type AccessReviewItemListQuery = NonNullable<QueryOf<typeof accessGovernanceContract.reviewItemList>>;
+export type PermissionPolicyListQuery = NonNullable<QueryOf<typeof accessGovernanceContract.policyList>>;
 
 export const identityAccessGovernanceKeys = {
   all: ['identity-access-governance'] as const,
@@ -41,8 +42,8 @@ export function useAccessReviewItemList(query: AccessReviewItemListQuery, enable
   return useApiQuery(accessGovernanceContract.reviewItemList, { query }, { enabled, placeholderData: keepPreviousData });
 }
 
-export function usePermissionPolicyList(enabled = true) {
-  return useApiQuery(accessGovernanceContract.policyList, undefined, { enabled });
+export function usePermissionPolicyList(query: PermissionPolicyListQuery, enabled = true) {
+  return useApiQuery(accessGovernanceContract.policyList, { query }, { enabled, placeholderData: keepPreviousData });
 }
 
 export function useRevokeAccessGrant() {

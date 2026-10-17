@@ -558,6 +558,7 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   trustedDevices: many(userTrustedDevices),
   loginRiskEvents: many(loginRiskEvents),
   identityAccounts: many(userIdentityAccounts),
+  accessGrants: many(identityAccessGrants, { relationName: 'accessGrantUser' }),
 }));
 
 export const rolesRelations = relations(roles, ({ one, many }) => ({

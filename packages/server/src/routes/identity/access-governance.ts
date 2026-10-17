@@ -58,7 +58,7 @@ const reviewItemDecideRoute = defineContractRoute(accessGovernanceContract.revie
   handler: async (c) => c.json(okBody(await decideReviewItem(c.req.valid('param').id, c.req.valid('json'))), 200),
 });
 const policyListRoute = defineContractRoute(accessGovernanceContract.policyList, {
-  handler: async (c) => c.json(okBody(await listPermissionPolicies()), 200),
+  handler: async (c) => c.json(okBody(await listPermissionPolicies(c.req.valid('query'))), 200),
 });
 const policyUpdateRoute = defineContractRoute(accessGovernanceContract.policyUpdate, {
   handler: async (c) => c.json(okBody(await updatePermissionPolicy(c.req.valid('param').permissionCode, c.req.valid('json'))), 200),

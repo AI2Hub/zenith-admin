@@ -16,7 +16,6 @@ import { buildListResult } from '../../lib/list-query';
 import { pageOffset } from '../../lib/pagination';
 import { getTenantPackageFeatureSet } from '../../lib/tenant-package';
 import { clearUserPermissionCache, isSuperAdmin } from '../../lib/permissions';
-import { onWorkflowResult, resolveBizDefinitionId, startWorkflowForBiz } from '../../lib/workflow-biz-bridge';
 import { notify } from '../messaging/notification-outbox.service';
 import { type AccessRiskLevel, type DataScope } from '@zenith/shared/identity';
 import type { CreateAccessRequestInput, CreateAccessReviewCampaignInput, DecideAccessReviewItemInput, RevokeAccessGrantInput, UpdatePermissionPolicyInput } from '@zenith/shared/identity';
@@ -304,14 +303,14 @@ export async function createAccessRequest(input: CreateAccessRequestInput): Prom
   return getAccessRequest(created.id);
 }
 
-async function resolveAccessApprovers(targetUserId: number, applicantUserId: number): Promise<{ managerId: number; securityApproverId: number; secondSecurityApproverId: number }> {
+async function resolveAccessApprovers(targetUserId: number, applicantUserId: number, tenantId: number | null): Promise<{ managerId: number; securityApproverId: number; secondSecurityApproverId: number }> {
   const target = await db.query.users.findFirst({
-    where: eq(users.id, targetUserId),
+    where: and(eq(users.id, targetUserId), exactTenantCondition(users.tenantId, tenantId)),
     columns: { departmentId: true, tenantId: true },
   });
   if (!target) throw new HTTPException(400, { message: '目标用户不存在' });
   const manager = target.departmentId
-    ? await db.query.departments.findFirst({ where: eq(departments.id, target.departmentId), columns: { leaderId: true } })
+    ? await db.query.departments.findFirst({ where: and(eq(departments.id, target.departmentId), exactTenantCondition(departments.tenantId, tenantId)), columns: { leaderId: true } })
     : null;
   const candidates = await db.select({ id: users.id })
     .from(users)
@@ -319,6 +318,7 @@ async function resolveAccessApprovers(targetUserId: number, applicantUserId: num
     .innerJoin(roles, eq(roles.id, userRoles.roleId))
     .where(and(
       eq(users.status, 'enabled'),
+      exactTenantCondition(users.tenantId, tenantId),
       or(
         and(eq(roles.code, 'tenant_admin'), exactTenantCondition(roles.tenantId, target.tenantId)),
         and(eq(roles.code, 'security_admin'), exactTenantCondition(roles.tenantId, target.tenantId)),
@@ -337,13 +337,14 @@ async function resolveAccessApprovers(targetUserId: number, applicantUserId: num
   return { managerId, securityApproverId, secondSecurityApproverId };
 }
 
-async function startAccessRequestWorkflow(requestId: number) {
+async function startAccessRequestWorkflow(requestId: number, tenantId: number | null) {
   const request = await db.query.identityAccessRequests.findFirst({
-    where: eq(identityAccessRequests.id, requestId),
+    where: and(eq(identityAccessRequests.id, requestId), exactTenantCondition(identityAccessRequests.tenantId, tenantId)),
     with: { target: true, applicant: true, items: true },
   });
   if (!request) throw new HTTPException(404, { message: '权限申请不存在' });
-  const approvers = await resolveAccessApprovers(request.targetUserId, request.applicantUserId);
+  const { resolveBizDefinitionId, startWorkflowForBiz } = await import('../../lib/workflow-biz-bridge');
+  const approvers = await resolveAccessApprovers(request.targetUserId, request.applicantUserId, request.tenantId);
   const definitionName = request.riskLevel === 'critical' ? '权限申请（极高危）' : request.riskLevel === 'high' ? '权限申请（高危）' : '权限申请（普通）';
   const definitionId = await resolveBizDefinitionId({ name: definitionName, formType: 'external' });
   const instance = await startWorkflowForBiz({
@@ -364,7 +365,7 @@ async function startAccessRequestWorkflow(requestId: number) {
     },
     caller: { userId: request.applicantUserId, username: request.applicant.username, tenantId: request.tenantId, roles: [] },
   });
-  await db.update(identityAccessRequests).set({ workflowInstanceId: instance.id, status: 'pending' }).where(eq(identityAccessRequests.id, requestId));
+  await db.update(identityAccessRequests).set({ workflowInstanceId: instance.id, status: 'pending' }).where(and(eq(identityAccessRequests.id, requestId), exactTenantCondition(identityAccessRequests.tenantId, request.tenantId)));
   const approverIds = [...new Set([approvers.managerId, approvers.securityApproverId, approvers.secondSecurityApproverId])];
   await notify('identity.access.requested', {
     recipients: approverIds.map((id) => ({ type: 'user' as const, id })),
@@ -425,7 +426,8 @@ export async function applyApprovedAccessRequest(requestId: number): Promise<Acc
   return result;
 }
 
-export function registerAccessGovernanceSubscribers() {
+export async function registerAccessGovernanceSubscribers() {
+  const { onWorkflowResult } = await import('../../lib/workflow-biz-bridge');
   onWorkflowResult('identity_access_request', {
     onApproved: async (instance) => { if (instance.bizId) await applyApprovedAccessRequest(Number(instance.bizId)); },
     onRejected: async (instance) => { if (instance.bizId) await db.update(identityAccessRequests).set({ status: 'rejected', rejectedAt: new Date() }).where(and(eq(identityAccessRequests.id, Number(instance.bizId)), eq(identityAccessRequests.status, 'pending'))); },
@@ -437,14 +439,14 @@ export async function submitAccessRequest(id: number): Promise<AccessRequest> {
   const user = currentUser();
   const request = await db.query.identityAccessRequests.findFirst({
     where: and(eq(identityAccessRequests.id, id), tenantCondition(identityAccessRequests, user)),
-    columns: { id: true, applicantUserId: true, status: true, startsAt: true, expiresAt: true },
+    columns: { id: true, tenantId: true, applicantUserId: true, status: true, startsAt: true, expiresAt: true },
   });
   const requestRow = requireRow(request, '权限申请不存在');
   if (requestRow.applicantUserId !== user.userId) throw new HTTPException(403, { message: '只能提交自己的权限申请' });
   if (requestRow.status !== 'draft') throw new HTTPException(400, { message: '当前申请状态不能提交' });
   if (requestRow.expiresAt <= requestRow.startsAt || requestRow.expiresAt <= new Date()) throw new HTTPException(400, { message: '申请有效期已失效' });
   try {
-    await startAccessRequestWorkflow(id);
+    await startAccessRequestWorkflow(id, requestRow.tenantId);
   } catch (error) {
     const message = error instanceof Error ? error.message : '启动权限审批流程失败';
     await db.update(identityAccessRequests).set({ status: 'failed', failureReason: message }).where(eq(identityAccessRequests.id, id));
@@ -511,9 +513,26 @@ export async function revokeAccessGrant(id: number, input: RevokeAccessGrantInpu
   return getAccessGrant(id);
 }
 
-export async function listPermissionPolicies(): Promise<PermissionPolicy[]> {
-  const rows = await db.query.identityPermissionPolicies.findMany({ where: tenantCondition(identityPermissionPolicies, currentUser()), orderBy: [asc(identityPermissionPolicies.permissionCode)] });
-  return rows.map((row) => ({ ...row, ...formatTimestamps(row) }));
+export async function listPermissionPolicies(q: QueryOutputOf<typeof accessGovernanceContract.policyList>) {
+  const user = currentUser();
+  const where = buildWhere(
+    tenantCondition(identityPermissionPolicies, user),
+    keywordCondition(q.keyword, [identityPermissionPolicies.permissionCode]),
+    q.riskLevel ? eq(identityPermissionPolicies.riskLevel, q.riskLevel) : undefined,
+    q.approvalPolicy ? eq(identityPermissionPolicies.approvalPolicy, q.approvalPolicy) : undefined,
+  );
+  return buildListResult({
+    page: q.page,
+    pageSize: q.pageSize,
+    count: () => db.$count(identityPermissionPolicies, where),
+    rows: async () => db.query.identityPermissionPolicies.findMany({
+      where,
+      orderBy: [asc(identityPermissionPolicies.permissionCode)],
+      limit: q.pageSize,
+      offset: pageOffset(q.page, q.pageSize),
+    }),
+    map: (row) => ({ ...row, ...formatTimestamps(row) }),
+  });
 }
 
 export async function updatePermissionPolicy(permissionCode: string, input: UpdatePermissionPolicyInput): Promise<PermissionPolicy> {
