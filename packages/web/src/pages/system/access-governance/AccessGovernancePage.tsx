@@ -11,6 +11,8 @@ import { ListSearchToolbar } from '@/components/list-page';
 import { DATA_SCOPE_OPTIONS } from '@/components/permissions/DataScopePanel';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { RefreshButton } from '@/components/toolbar-controls';
+import WorkflowInstanceCell from '@/components/workflow/WorkflowInstanceCell';
+import WorkflowInstanceDetailSheet from '@/components/workflow/WorkflowInstanceDetailSheet';
 import { useEditModal } from '@/hooks/useEditModal';
 import { useListPage } from '@/hooks/useListPage';
 import { usePermission } from '@/hooks/usePermission';
@@ -60,6 +62,10 @@ function DetailSheet({ title, visible, onClose, width, children }: { readonly ti
 }
 
 function RequestDetailSheet({ record, onClose }: { readonly record: AccessRequest | null; readonly onClose: () => void }) {
+  const { hasAnyPermission } = usePermission();
+  // 流程实例详情与治理页权限码不同源，缺流程查看权限时降级为只读展示
+  const canViewWorkflow = hasAnyPermission('workflow:instance:list', 'workflow:task:handle', 'workflow:instance:monitor');
+  const [workflowId, setWorkflowId] = useState<number | null>(null);
   const itemColumns: ColumnProps<AccessRequest['items'][number]>[] = [
     { title: '类型', dataIndex: 'itemType', width: 80, render: (value: AccessRequest['items'][number]['itemType']) => ITEM_TYPE_LABELS[value] },
     {
@@ -75,7 +81,7 @@ function RequestDetailSheet({ record, onClose }: { readonly record: AccessReques
     { title: '数据范围', dataIndex: 'dataScope', width: 150, render: (value: string | null) => dataScopeLabel(value) },
     { title: '部门范围', dataIndex: 'deptScopeIds', width: 100, render: (value: number[]) => deptScopeText(value) },
   ];
-  return (
+  return <>
     <DetailSheet title={record ? `权限申请详情 #${record.id}` : '权限申请详情'} visible={record !== null} onClose={onClose} width={760}>
       {record && <>
         {record.status === 'failed' && record.failureReason && <Banner type="danger" closeIcon={null} description={record.failureReason} style={{ marginBottom: 12 }} />}
@@ -94,7 +100,7 @@ function RequestDetailSheet({ record, onClose }: { readonly record: AccessReques
             { key: '生效时间', value: <DateTimeText value={record.startsAt} mode="absolute" /> },
             { key: '失效时间', value: <DateTimeText value={record.expiresAt} mode="absolute" /> },
             { key: '业务编号', value: record.businessReference ?? EMPTY_PLACEHOLDER },
-            { key: '工作流实例', value: record.workflowInstanceId != null ? `#${record.workflowInstanceId}` : EMPTY_PLACEHOLDER },
+            { key: '工作流实例', value: record.workflowInstanceId != null ? <WorkflowInstanceCell instanceId={record.workflowInstanceId} showSub={false} onOpen={canViewWorkflow ? setWorkflowId : undefined} /> : EMPTY_PLACEHOLDER },
             { key: '申请时间', value: <DateTimeText value={record.createdAt} mode="absolute" /> },
             { key: '更新时间', value: <DateTimeText value={record.updatedAt} mode="absolute" /> },
             { key: '通过时间', value: <DateTimeText value={record.approvedAt} mode="absolute" /> },
@@ -106,7 +112,9 @@ function RequestDetailSheet({ record, onClose }: { readonly record: AccessReques
         <Table columns={itemColumns} dataSource={record.items} rowKey="id" size="small" pagination={false} empty="暂无权限项" />
       </>}
     </DetailSheet>
-  );
+    {/* 流程实例不跳转流程中心，直接在治理页内以抽屉展开，保留审批上下文 */}
+    <WorkflowInstanceDetailSheet instanceId={workflowId} visible={record !== null && workflowId !== null} onClose={() => setWorkflowId(null)} title="权限申请流程详情" />
+  </>;
 }
 
 function GrantDetailSheet({ record, onClose }: { readonly record: AccessGrant | null; readonly onClose: () => void }) {
