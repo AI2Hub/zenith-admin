@@ -16,6 +16,7 @@ import { textMatches } from '@/utils/pinyin';
 import { usePermission } from '@/hooks/usePermission';
 import { useLaunchWorkflowInstance } from '@/hooks/queries/workflow-launch';
 import { usePublishedWorkflowDefinitions } from '@/hooks/queries/workflow-definitions';
+import { ApiError } from '@/lib/query';
 import { workflowDefinitionKeys } from '@/hooks/queries/workflow-definitions';
 
 const UNCATEGORIZED = -1;
@@ -108,17 +109,22 @@ export default function WorkflowLaunchpadPage() {
     if (!result) return;
     const { values, formData } = result;
     const mutation = asDraft ? draftMutation : launchMutation;
-    await mutation.mutateAsync({
-      body: {
-        definitionId: selectedDef.id,
-        title: values.title,
-        formData,
-        priority: values.priority ?? 'normal',
-        ccUserIds: Array.isArray(values.ccUserIds) ? values.ccUserIds : undefined,
-        selectedInitiatorApprovers: result.selectedInitiatorApprovers,
-        ...(asDraft ? { asDraft: true } : {}),
-      },
-    });
+    try {
+      await mutation.mutateAsync({
+        body: {
+          definitionId: selectedDef.id,
+          title: values.title,
+          formData,
+          priority: values.priority ?? 'normal',
+          ccUserIds: Array.isArray(values.ccUserIds) ? values.ccUserIds : undefined,
+          selectedInitiatorApprovers: result.selectedInitiatorApprovers,
+          ...(asDraft ? { asDraft: true } : {}),
+        },
+      });
+    } catch (error) {
+      if (error instanceof ApiError) return;
+      throw error;
+    }
     Toast.success(asDraft ? '草稿已保存' : '申请已提交');
     closeApply();
   };

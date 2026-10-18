@@ -1,8 +1,8 @@
 /** 提交前只读预览：与发起校验共用路径规划，不执行节点副作用或随机选人。 */
 import { eq } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import { planWorkflowPath } from '@zenith/shared/workflow';
-import type { WorkflowFlowData, WorkflowApproverPreviewNode, WorkflowFormField, WorkflowPredictedPathNode } from '@zenith/shared/workflow';
+import { getWorkflowNumberingFields, planWorkflowPath } from '@zenith/shared/workflow';
+import type { WorkflowCustomFormConfig, WorkflowFlowData, WorkflowApproverPreviewNode, WorkflowFormField, WorkflowPredictedPathNode } from '@zenith/shared/workflow';
 import { db } from '../../db';
 import { workflowDefinitions } from '../../db/schema';
 import { tenantCondition } from '../../lib/tenant';
@@ -31,7 +31,14 @@ export async function previewFlow(
   const flowData = def.flowData as WorkflowFlowData | null;
   if (!flowData?.nodes?.length) throw new HTTPException(400, { message: '流程未配置，无法预览' });
   const snapshot = def.formType === 'designer' ? await resolveFormSnapshot(def.formId) : null;
-  return previewFlowData(flowData, formData, snapshot?.fields);
+  const customForm = def.customForm as WorkflowCustomFormConfig | null;
+  const formFields = getWorkflowNumberingFields(def.formType, snapshot?.fields ?? [], customForm);
+  let previewData = formData ?? {};
+  if (customForm?.createComponent === 'biz/access/AccessRequestWorkflowForm') {
+    const { previewAccessWorkflowFormData } = await import('../identity/access-governance.service');
+    previewData = await previewAccessWorkflowFormData(previewData, user);
+  }
+  return previewFlowData(flowData, previewData, formFields);
 }
 
 /** 业务调用方先授权已发布定义；业务变量无表单快照时不推算派生字段。 */

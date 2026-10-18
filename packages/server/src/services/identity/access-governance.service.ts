@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, inArray, isNull, lte, or } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, isNull, lt, lte, or } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { type AccessRequest, type AccessGrant, type AccessReviewCampaign, type AccessReviewItem, type PermissionPolicy, accessGovernanceContract, type AccessRequestListQuery, type AccessGrantListQuery, type AccessReviewItemListQuery } from '@zenith/shared/identity';
 import { ALL_PERMISSIONS } from '@zenith/shared/permissions';
@@ -143,6 +143,17 @@ type AccessRequestItemInput = {
   deptScopeIds?: number[];
 };
 
+type ResolvedAccessRequestItem = {
+  itemType: 'role' | 'menu';
+  roleId: number | null;
+  menuId: number | null;
+  permissionCode: string | null;
+  permissionLabel: string | null;
+  dataScope: DataScope | null;
+  deptScopeIds: number[];
+  snapshot: Record<string, unknown>;
+};
+
 async function resolveRequestItems(itemsInput: AccessRequestItemInput[], tenantId: number | null, executor: DbExecutor = db) {
   const featureSet = await getTenantPackageFeatureSet(tenantId, executor);
   const roleIds = itemsInput.filter((item) => item.itemType === 'role').map((item) => item.roleId!).filter(Boolean);
@@ -160,16 +171,7 @@ async function resolveRequestItems(itemsInput: AccessRequestItemInput[], tenantI
   if (menuRows.length !== new Set(menuIds).size) throw new HTTPException(400, { message: '存在无效的菜单权限' });
   const menuById = new Map(menuRows.map((menu) => [menu.id, menu]));
   const roleById = new Map(roleRows.map((role) => [role.id, role]));
-  const items: Array<{
-    itemType: 'role' | 'menu';
-    roleId: number | null;
-    menuId: number | null;
-    permissionCode: string | null;
-    permissionLabel: string | null;
-    dataScope: DataScope | null;
-    deptScopeIds: number[];
-    snapshot: Record<string, unknown>;
-  }> = [];
+  const items: ResolvedAccessRequestItem[] = [];
   let riskLevel: AccessRiskLevel = 'low';
   for (const requested of itemsInput) {
     if (requested.itemType === 'role') {
@@ -345,14 +347,14 @@ async function resolveAccessApprovers(targetUserId: number, applicantUserId: num
   return { managerId, ...(securityApproverId ? { securityApproverId } : {}), ...(secondSecurityApproverId ? { secondSecurityApproverId } : {}) };
 }
 
-export async function normalizeAccessWorkflowFormData(raw: Record<string, unknown>, caller: { userId: number; username: string; tenantId: number | null; roles?: string[] }) {
-  const parsed = accessWorkflowInputSchema.safeParse(raw);
-  if (!parsed.success) throw new HTTPException(400, { message: parsed.error.issues[0]?.message ?? '权限申请表单不完整' });
-  const input = parsed.data;
-  const startsAt = parseRequiredDate(input.startsAt, '生效时间');
-  const expiresAt = parseRequiredDate(input.expiresAt, '失效时间');
-  if (expiresAt <= startsAt) throw new HTTPException(400, { message: '失效时间必须晚于生效时间' });
-  if (input.requestType === 'emergency' && expiresAt.getTime() - startsAt.getTime() > 60 * 60 * 1000) throw new HTTPException(400, { message: '紧急授权最长 60 分钟' });
+type AccessWorkflowCaller = { userId: number; username: string; tenantId: number | null; roles?: string[] };
+
+function positiveIntArray(value: unknown): number[] {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.filter((item): item is number => typeof item === 'number' && Number.isInteger(item) && item > 0))];
+}
+
+async function enrichAccessWorkflowFormData<T extends Record<string, unknown> & { roleIds: number[]; menuIds: number[] }>(input: T, caller: AccessWorkflowCaller) {
   const resolved = await resolveRequestItems([
     ...input.roleIds.map((roleId) => ({ itemType: 'role' as const, roleId })),
     ...input.menuIds.map((menuId) => ({ itemType: 'menu' as const, menuId })),
@@ -362,12 +364,82 @@ export async function normalizeAccessWorkflowFormData(raw: Record<string, unknow
   return {
     ...input,
     targetUserId: caller.userId,
-    startsAt: formatDateTime(startsAt),
-    expiresAt: formatDateTime(expiresAt),
     riskLevel: resolved.riskLevel,
     permissionItems: resolved.items,
     permissionSummary: resolved.items.map((item) => item.permissionCode || item.snapshot.menuTitle || item.snapshot.roleName || '').filter(Boolean).join(', '),
     ...approvers,
+  };
+}
+
+export async function previewAccessWorkflowFormData(raw: Record<string, unknown>, caller: AccessWorkflowCaller) {
+  const roleIds = positiveIntArray(raw.roleIds);
+  const menuIds = positiveIntArray(raw.menuIds);
+  if (roleIds.length === 0 && menuIds.length === 0) return raw;
+  return enrichAccessWorkflowFormData({ ...raw, roleIds, menuIds }, caller);
+}
+
+export async function assertNoOverlappingAccessRequest(input: {
+  targetUserId: number;
+  tenantId: number | null;
+  startsAt: Date;
+  expiresAt: Date;
+  items: ResolvedAccessRequestItem[];
+}, executor: DbExecutor = db): Promise<void> {
+  const requestedMenuIds = [...new Set(input.items.map((item) => item.menuId).filter((id): id is number => id !== null))];
+  if (requestedMenuIds.length === 0) return;
+  const [grants, requests] = await Promise.all([
+    executor.query.identityAccessGrants.findMany({
+      where: and(
+        eq(identityAccessGrants.userId, input.targetUserId),
+        exactTenantCondition(identityAccessGrants.tenantId, input.tenantId),
+        inArray(identityAccessGrants.status, ['scheduled', 'active']),
+        lt(identityAccessGrants.startsAt, input.expiresAt),
+        gt(identityAccessGrants.expiresAt, input.startsAt),
+      ),
+      with: { menus: true },
+    }),
+    executor.query.identityAccessRequests.findMany({
+      where: and(
+        eq(identityAccessRequests.targetUserId, input.targetUserId),
+        exactTenantCondition(identityAccessRequests.tenantId, input.tenantId),
+        inArray(identityAccessRequests.status, ['pending', 'approved']),
+        lt(identityAccessRequests.startsAt, input.expiresAt),
+        gt(identityAccessRequests.expiresAt, input.startsAt),
+      ),
+      with: { items: true },
+    }),
+  ]);
+  const requested = new Set(requestedMenuIds);
+  const labels = new Map(input.items.filter((item) => item.menuId !== null).map((item) => [item.menuId!, item.permissionLabel || item.permissionCode || `菜单#${item.menuId}`]));
+  const conflicts = new Set<number>();
+  for (const grant of grants) for (const item of grant.menus) if (requested.has(item.menuId)) conflicts.add(item.menuId);
+  for (const request of requests) for (const item of request.items) if (item.menuId !== null && requested.has(item.menuId)) conflicts.add(item.menuId);
+  if (conflicts.size > 0) {
+    const names = [...conflicts].map((menuId) => labels.get(menuId) ?? `菜单#${menuId}`);
+    throw new HTTPException(409, { message: `以下权限已有有效授权或待处理申请，请勿重复申请：${names.join('、')}` });
+  }
+}
+
+export async function normalizeAccessWorkflowFormData(raw: Record<string, unknown>, caller: AccessWorkflowCaller) {
+  const parsed = accessWorkflowInputSchema.safeParse(raw);
+  if (!parsed.success) throw new HTTPException(400, { message: parsed.error.issues[0]?.message ?? '权限申请表单不完整' });
+  const input = parsed.data;
+  const startsAt = parseRequiredDate(input.startsAt, '生效时间');
+  const expiresAt = parseRequiredDate(input.expiresAt, '失效时间');
+  if (expiresAt <= startsAt) throw new HTTPException(400, { message: '失效时间必须晚于生效时间' });
+  if (input.requestType === 'emergency' && expiresAt.getTime() - startsAt.getTime() > 60 * 60 * 1000) throw new HTTPException(400, { message: '紧急授权最长 60 分钟' });
+  const enriched = await enrichAccessWorkflowFormData(input, caller);
+  await assertNoOverlappingAccessRequest({
+    targetUserId: caller.userId,
+    tenantId: caller.tenantId,
+    startsAt,
+    expiresAt,
+    items: enriched.permissionItems,
+  });
+  return {
+    ...enriched,
+    startsAt: formatDateTime(startsAt),
+    expiresAt: formatDateTime(expiresAt),
   };
 }
 

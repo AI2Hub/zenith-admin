@@ -13,6 +13,7 @@ import { useLaunchLeaveGuard } from '@/components/workflow/useLaunchLeaveGuard';
 import { useTabMeta, TabsMetaContext } from '@/hooks/useTabMeta';
 import { usePublishedWorkflowDefinitions } from '@/hooks/queries/workflow-definitions';
 import { useLaunchWorkflowInstance } from '@/hooks/queries/workflow-launch';
+import { ApiError } from '@/lib/query';
 
 export default function WorkflowLaunchPage() {
   const { definitionId } = useParams<{ definitionId: string }>();
@@ -58,18 +59,24 @@ export default function WorkflowLaunchPage() {
     if (!result) return;
     const { values, formData } = result;
     if (!asDraft && !submitNonceRef.current) submitNonceRef.current = crypto.randomUUID();
-    const res = await (asDraft ? saveDraftMutation : submitMutation).mutateAsync({
-      body: {
-        definitionId: def.id,
-        title: values.title,
-        formData,
-        priority: values.priority ?? 'normal',
-        ccUserIds: Array.isArray(values.ccUserIds) ? values.ccUserIds : undefined,
-        selectedInitiatorApprovers: result.selectedInitiatorApprovers,
-        ...(asDraft ? { asDraft: true } : {}),
-      },
-      idempotencyKey: asDraft ? undefined : `workflow-launch-${submitNonceRef.current}`,
-    });
+    let res: Awaited<ReturnType<typeof submitMutation.mutateAsync>>;
+    try {
+      res = await (asDraft ? saveDraftMutation : submitMutation).mutateAsync({
+        body: {
+          definitionId: def.id,
+          title: values.title,
+          formData,
+          priority: values.priority ?? 'normal',
+          ccUserIds: Array.isArray(values.ccUserIds) ? values.ccUserIds : undefined,
+          selectedInitiatorApprovers: result.selectedInitiatorApprovers,
+          ...(asDraft ? { asDraft: true } : {}),
+        },
+        idempotencyKey: asDraft ? undefined : `workflow-launch-${submitNonceRef.current}`,
+      });
+    } catch (error) {
+      if (error instanceof ApiError) return;
+      throw error;
+    }
     if (!asDraft) submitNonceRef.current = '';
     Toast.success(asDraft ? '草稿已保存' : '申请已提交');
     const newId = res.id;

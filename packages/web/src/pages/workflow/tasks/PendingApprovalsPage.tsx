@@ -373,6 +373,7 @@ export default function PendingApprovalsPage() {
       <AppModal
         title="邀请协办"
         visible={!!consult}
+        closeOnEsc={false}
         onCancel={() => setConsult(null)}
         onOk={() => void submitConsult()}
         okButtonProps={{ loading: submitting, type: 'primary' }}
