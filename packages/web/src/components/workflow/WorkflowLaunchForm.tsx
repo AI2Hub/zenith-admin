@@ -11,7 +11,7 @@ import { RefreshCw } from 'lucide-react';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import dayjs from 'dayjs';
 import type { WorkflowDefinition, WorkflowInstancePriority } from '@zenith/shared/workflow';
-import { applyFieldPermissionsToFields, initializeWorkflowFormValues } from '@zenith/shared/workflow';
+import { applyFieldPermissionsToFields, getWorkflowNumberingFields, initializeWorkflowFormValues } from '@zenith/shared/workflow';
 import { sameLaunchValues, type WorkflowLaunchSnapshot } from './launch-snapshot';
 import { useAuth } from '@/hooks/useAuth';
 import { useWorkflowUserOptions } from '@/hooks/queries/workflow-shared';
@@ -205,6 +205,11 @@ const WorkflowLaunchForm = forwardRef<WorkflowLaunchFormHandle, WorkflowLaunchFo
         : {}
     ), [def.formFields, user]);
 
+    const graphFields = useMemo(
+      () => getWorkflowNumberingFields(def.formType, def.formFields ?? [], def.customForm),
+      [def.customForm, def.formFields, def.formType],
+    );
+
     // 发起节点字段权限：hidden 不渲染、read 只读（与服务端 sanitizeFormByStartPerms 白名单一致）
     const launchFields = useMemo(() => {
       const startPerms = def.flowData?.nodes.find((n) => n.data.type === 'start')?.data.fieldPermissions;
@@ -336,7 +341,7 @@ const WorkflowLaunchForm = forwardRef<WorkflowLaunchFormHandle, WorkflowLaunchFo
             reloadKey={chainReloadKey}
           />
         )}
-        graph={<WorkflowGraphView flowData={def.flowData} formFields={def.formFields ?? undefined} height="calc(100vh - 160px)" />}
+        graph={<WorkflowGraphView flowData={def.flowData} formFields={graphFields} height="calc(100vh - 160px)" />}
       />
     );
   },

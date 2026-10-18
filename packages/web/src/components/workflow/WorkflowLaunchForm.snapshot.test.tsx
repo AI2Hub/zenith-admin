@@ -7,8 +7,18 @@ import WorkflowLaunchForm, { type WorkflowLaunchFormHandle } from './WorkflowLau
 const dynamic = vi.hoisted(() => ({ validate: vi.fn(), getValues: vi.fn() }));
 vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 1, nickname: '申请人' } }) }));
 vi.mock('@/hooks/queries/workflow-shared', () => ({ useWorkflowUserOptions: () => ({ userOptions: [{ value: 3, label: '财务' }] }) }));
-vi.mock('@/components/workflow/WorkflowProcessLayout', () => ({ default: ({ left, chain }: { left: ReactNode; chain: ReactNode }) => <>{left}{chain}</> }));
-vi.mock('@/components/workflow/WorkflowGraphView', () => ({ default: () => null }));
+vi.mock('@/components/workflow/WorkflowProcessLayout', () => ({ default: ({ left, chain, graph }: { left: ReactNode; chain: ReactNode; graph: ReactNode }) => <>{left}{chain}{graph}</> }));
+vi.mock('@/components/workflow/WorkflowGraphView', () => ({
+  default: ({ formFields }: { formFields?: Array<{ key: string; label: string }> }) => (
+    <output data-testid="graph-fields">{JSON.stringify(formFields ?? [])}</output>
+  ),
+}));
+vi.mock('@/components/workflow/BusinessFormHost', () => ({
+  default: ({ getFormApi }: { getFormApi: (api: unknown) => void }) => {
+    getFormApi({ getValues: () => ({}), validate: async () => ({}) });
+    return null;
+  },
+}));
 vi.mock('@/pages/workflow/designer/components/WorkflowFormRenderer', () => ({
   default: ({ getFormApi }: { getFormApi: (api: unknown) => void }) => { getFormApi(dynamic); return null; },
 }));
@@ -41,5 +51,22 @@ describe('non-validating launch snapshot', () => {
     render(<WorkflowLaunchForm ref={ref} def={def} container="sheet" />);
     await waitFor(() => expect((screen.getByPlaceholderText('自动生成，可手动修改') as HTMLInputElement).value).toContain('设备采购 - 申请人'));
     expect(ref.current?.hasUnsavedChanges()).toBe(false);
+  });
+
+  it('passes custom-form variables to the workflow graph as condition labels', () => {
+    const customDef = {
+      id: 5,
+      name: '权限申请',
+      formType: 'custom',
+      formFields: [],
+      customForm: {
+        createComponent: 'biz/access/AccessRequestWorkflowForm',
+        variables: [{ key: 'riskLevel', label: '风险等级', type: 'string' }],
+      },
+    } as WorkflowDefinition;
+
+    render(<WorkflowLaunchForm def={customDef} container="sheet" />);
+
+    expect(screen.getByTestId('graph-fields')).toHaveTextContent('"key":"riskLevel","label":"风险等级"');
   });
 });
