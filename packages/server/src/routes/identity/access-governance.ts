@@ -3,9 +3,7 @@ import { accessGovernanceContract } from '@zenith/shared/identity';
 import { defineContractRoute } from '../../lib/contract-route';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
-  cancelAccessRequest,
-  createAccessRequest,
-  getAccessCatalog,
+  getAccessWorkflowOptions,
   createAccessReviewCampaign,
   decideReviewItem,
   getAccessRequest,
@@ -16,32 +14,19 @@ import {
   listReviewCampaigns,
   listReviewItems,
   revokeAccessGrant,
-  submitAccessRequest,
   updatePermissionPolicy,
 } from '../../services/identity/access-governance.service';
 
 const accessGovernanceRouter = new OpenAPIHono({ defaultHook: validationHook });
 
-const catalogRoute = defineContractRoute(accessGovernanceContract.catalog, {
-  handler: async (c) => c.json(okBody(await getAccessCatalog()), 200),
+const workflowOptionsRoute = defineContractRoute(accessGovernanceContract.workflowOptions, {
+  handler: async (c) => c.json(okBody(await getAccessWorkflowOptions()), 200),
 });
 const requestListRoute = defineContractRoute(accessGovernanceContract.requestList, {
   handler: async (c) => c.json(okBody(await listAccessRequests(c.req.valid('query'))), 200),
 });
-const requestMineRoute = defineContractRoute(accessGovernanceContract.requestMine, {
-  handler: async (c) => c.json(okBody(await listAccessRequests(c.req.valid('query'), true)), 200),
-});
 const requestDetailRoute = defineContractRoute(accessGovernanceContract.requestDetail, {
   handler: async (c) => c.json(okBody(await getAccessRequest(c.req.valid('param').id)), 200),
-});
-const requestCreateRoute = defineContractRoute(accessGovernanceContract.requestCreate, {
-  handler: async (c) => c.json(okBody(await createAccessRequest(c.req.valid('json'))), 200),
-});
-const requestSubmitRoute = defineContractRoute(accessGovernanceContract.requestSubmit, {
-  handler: async (c) => c.json(okBody(await submitAccessRequest(c.req.valid('param').id)), 200),
-});
-const requestCancelRoute = defineContractRoute(accessGovernanceContract.requestCancel, {
-  handler: async (c) => c.json(okBody(await cancelAccessRequest(c.req.valid('param').id)), 200),
 });
 const grantListRoute = defineContractRoute(accessGovernanceContract.grantList, {
   handler: async (c) => c.json(okBody(await listAccessGrants(c.req.valid('query'))), 200),
@@ -72,13 +57,9 @@ const userOverviewRoute = defineContractRoute(accessGovernanceContract.userOverv
 });
 
 accessGovernanceRouter.openapiRoutes([
-  catalogRoute,
+  workflowOptionsRoute,
   requestListRoute,
-  requestMineRoute,
   requestDetailRoute,
-  requestCreateRoute,
-  requestSubmitRoute,
-  requestCancelRoute,
   grantListRoute,
   grantRevokeRoute,
   reviewCampaignListRoute,

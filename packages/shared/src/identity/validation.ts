@@ -8,7 +8,6 @@ import {
   DEPARTMENT_CATEGORIES,
   DIRECTORY_SYNC_SOURCE_TYPES, DIRECTORY_SYNC_MATCH_KEYS,
   ACCESS_APPROVAL_POLICIES,
-  ACCESS_REQUEST_ITEM_TYPES,
   ACCESS_REQUEST_TYPES,
   ACCESS_REVIEW_SCOPE_TYPES,
   ACCESS_RISK_LEVELS,
@@ -484,29 +483,18 @@ export const buildMpOAuthUrlSchema = z.object({
 export type BuildMpOAuthUrlInput = z.infer<typeof buildMpOAuthUrlSchema>;
 
 // ─── 权限治理 Schema ──────────────────────────────────────────────────────────
-export const accessRequestItemInputSchema = z.object({
-  itemType: z.enum(ACCESS_REQUEST_ITEM_TYPES),
-  roleId: z.number().int().positive().optional(),
-  menuId: z.number().int().positive().optional(),
-  dataScope: z.enum(DATA_SCOPES).optional(),
-  deptScopeIds: z.array(z.number().int().positive()).default([]),
-}).superRefine((value, ctx) => {
-  if (value.itemType === 'role' && !value.roleId) {
-    ctx.addIssue({ code: 'custom', path: ['roleId'], message: '角色权限项必须指定角色' });
-  }
-  if (value.itemType === 'menu' && !value.menuId) {
-    ctx.addIssue({ code: 'custom', path: ['menuId'], message: '菜单权限项必须指定菜单' });
-  }
-});
-
-export const createAccessRequestSchema = z.object({
-  targetUserId: z.number().int().positive(),
+export const accessWorkflowInputSchema = z.object({
   requestType: z.enum(ACCESS_REQUEST_TYPES).default('temporary'),
+  roleIds: z.array(z.number().int().positive()).default([]),
+  menuIds: z.array(z.number().int().positive()).default([]),
   reason: z.string().trim().min(5, '申请原因至少 5 个字').max(1000),
   businessReference: z.string().trim().max(128).optional(),
   startsAt: dateTimeStringSchema,
   expiresAt: dateTimeStringSchema,
-  items: z.array(accessRequestItemInputSchema).min(1, '至少申请一项权限').max(100),
+}).superRefine((value, ctx) => {
+  if (value.roleIds.length === 0 && value.menuIds.length === 0) {
+    ctx.addIssue({ code: 'custom', path: ['roleIds'], message: '至少申请一项角色或菜单权限' });
+  }
 });
 
 export const revokeAccessGrantSchema = z.object({
@@ -534,7 +522,7 @@ export const updatePermissionPolicySchema = z.object({
   enabled: z.boolean(),
 });
 
-export type CreateAccessRequestInput = z.infer<typeof createAccessRequestSchema>;
+export type AccessWorkflowInput = z.infer<typeof accessWorkflowInputSchema>;
 export type RevokeAccessGrantInput = z.infer<typeof revokeAccessGrantSchema>;
 export type CreateAccessReviewCampaignInput = z.infer<typeof createAccessReviewCampaignSchema>;
 export type DecideAccessReviewItemInput = z.infer<typeof decideAccessReviewItemSchema>;

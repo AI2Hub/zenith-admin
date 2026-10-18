@@ -135,11 +135,20 @@ describe('graph editing projection', () => {
     expect(projectWorkflowGraph(graph)).toEqual({ kind: 'graph', reason: expect.stringContaining('未包含') });
   });
 
-  it('rejects a projection with shared branch interiors without changing the graph', () => {
-    const graph = flow([node('s', 'start'), node('outer', 'parallelGateway'), node('a', 'approve'), node('inner', 'parallelGateway'), node('shared', 'approve'), node('b', 'approve'), node('end', 'end')],
-      [['s', 'outer'], ['outer', 'a'], ['outer', 'inner'], ['a', 'shared'], ['inner', 'shared'], ['inner', 'b'], ['shared', 'end'], ['b', 'end']]);
+  it('projects nodes shared by two branch regions as references and merges them back on compile', () => {
+    // 两个条件网关的默认分支都指向同一个「配套失败」节点 —— 树投影显示两份引用，回编译按 id 合并且边保留。
+    const graph = flow([
+      node('s', 'start'), node('outer', 'exclusiveGateway'), node('a', 'approve'), node('inner', 'exclusiveGateway'),
+      node('b', 'approve'), node('bad', 'approve'), node('end', 'end'),
+    ], [
+      ['s', 'outer'], ['outer', 'a'], ['outer', 'bad'], ['a', 'inner'], ['inner', 'b'], ['inner', 'bad'], ['b', 'end'], ['bad', 'end'],
+    ]);
+    graph.edges[2] = { ...graph.edges[2], isDefault: true, label: 'outer-default' };
+    graph.edges[5] = { ...graph.edges[5], isDefault: true, label: 'inner-default' };
     const before = structuredClone(graph);
-    expect(projectWorkflowGraph(graph).kind).toBe('graph');
+    const process = projected(graph);
+    expect(process.sharedNodeIds).toEqual(['bad']);
+    expectSameGraph(compileWorkflowTree(process), graph);
     expect(graph).toEqual(before);
   });
 

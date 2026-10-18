@@ -2,7 +2,7 @@ import * as z from 'zod';
 import { auditFieldsSchema, dateRangeQuery, idParam, idQuery, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { DATA_SCOPES, ACCESS_APPROVAL_POLICIES, ACCESS_GRANT_STATUSES, ACCESS_REQUEST_ITEM_TYPES, ACCESS_REQUEST_STATUSES, ACCESS_REQUEST_TYPES, ACCESS_REVIEW_DECISIONS, ACCESS_REVIEW_SCOPE_TYPES, ACCESS_REVIEW_STATUSES, ACCESS_REVIEW_SOURCE_TYPES, ACCESS_RISK_LEVELS } from '../constants';
-import { createAccessRequestSchema, createAccessReviewCampaignSchema, decideAccessReviewItemSchema, revokeAccessGrantSchema, updatePermissionPolicySchema } from '../validation';
+import { createAccessReviewCampaignSchema, decideAccessReviewItemSchema, revokeAccessGrantSchema, updatePermissionPolicySchema } from '../validation';
 
 export const permissionPolicySchema = z.object({
   id: z.int(),
@@ -105,12 +105,12 @@ export const accessReviewCampaignSchema = z.object({
 
 export type AccessReviewCampaign = z.infer<typeof accessReviewCampaignSchema>;
 
-export const accessCatalogSchema = z.object({
+export const accessWorkflowOptionsSchema = z.object({
   roles: z.array(z.object({ id: z.int(), name: z.string(), code: z.string(), description: z.string().nullable().optional(), dataScope: z.enum(DATA_SCOPES), menuCount: z.int() })),
   menus: z.array(z.object({ id: z.int(), parentId: z.int(), title: z.string(), name: z.string().nullable().optional(), type: z.enum(['directory', 'menu', 'button']), permission: z.string().nullable().optional(), permissionLabel: z.string().nullable().optional(), riskLevel: z.enum(ACCESS_RISK_LEVELS) })),
-}).meta({ id: 'IdentityAccessCatalog' });
+}).meta({ id: 'IdentityAccessWorkflowOptions' });
 
-export type AccessCatalog = z.infer<typeof accessCatalogSchema>;
+export type AccessWorkflowOptions = z.infer<typeof accessWorkflowOptionsSchema>;
 
 export const accessReviewItemSchema = z.object({
   id: z.int(),
@@ -157,13 +157,9 @@ const reviewListQuery = paginationQuery.extend({
 });
 
 export const accessGovernanceContract = defineContract('/api/access-governance', {
-  catalog: op.get('/catalog', { access: 'authenticated', response: accessCatalogSchema, summary: '可申请权限目录' }),
+  workflowOptions: op.get('/workflow-options', { access: 'authenticated', response: accessWorkflowOptionsSchema, summary: '权限申请工作流选项' }),
   requestList: op.get('/requests', { access: { permission: 'system:access-governance:view' }, query: requestListQuery, response: paginated(accessRequestSchema), summary: '权限申请列表' }),
-  requestMine: op.get('/requests/mine', { access: 'authenticated', query: requestListQuery, response: paginated(accessRequestSchema), summary: '我的权限申请' }),
-  requestDetail: op.get('/requests/{id}', { access: 'authenticated', params: idParam, response: accessRequestSchema, summary: '权限申请详情' }),
-  requestCreate: op.post('/requests', { access: 'authenticated', body: createAccessRequestSchema, response: accessRequestSchema, summary: '创建权限申请', audit: '创建权限申请' }),
-  requestSubmit: op.post('/requests/{id}/submit', { access: 'authenticated', params: idParam, response: accessRequestSchema, summary: '提交权限申请', audit: '提交权限申请' }),
-  requestCancel: op.post('/requests/{id}/cancel', { access: 'authenticated', params: idParam, response: accessRequestSchema, summary: '取消权限申请', audit: '取消权限申请' }),
+  requestDetail: op.get('/requests/{id}', { access: { permission: 'system:access-governance:view' }, params: idParam, response: accessRequestSchema, summary: '权限申请详情' }),
   grantList: op.get('/grants', { access: { permission: 'system:access-governance:view' }, query: grantListQuery, response: paginated(accessGrantSchema), summary: '临时授权列表' }),
   grantRevoke: op.post('/grants/{id}/revoke', { access: { permission: 'system:access-governance:revoke' }, params: idParam, body: revokeAccessGrantSchema, response: accessGrantSchema, summary: '撤销临时授权', audit: '撤销临时授权' }),
   reviewCampaignList: op.get('/review-campaigns', { access: { permission: 'system:access-governance:review' }, query: paginationQuery, response: paginated(accessReviewCampaignSchema), summary: '权限复核批次列表' }),

@@ -527,9 +527,8 @@ SEED_WORKFLOW_DEFINITIONS.push({
   ] }, status: 'published', version: 1, tenantId: null,
 });
 
-// 权限治理内置流程：业务申请记录由 identity 域保存，审批人通过表单变量动态解析，不能把固定用户 ID 写入流程定义。
+// 权限治理内置流程：统一由工作流发起台承载，服务端归一化 riskLevel / 审批人后再进入条件分支。
 const ACCESS_REQUEST_VARIABLES: Array<{ key: string; label: string; type: 'number' | 'string' }> = [
-  { key: 'requestId', label: '权限申请', type: 'number' },
   { key: 'targetUserId', label: '目标用户', type: 'number' },
   { key: 'reason', label: '申请原因', type: 'string' },
   { key: 'businessReference', label: '业务关联编号', type: 'string' },
@@ -542,45 +541,53 @@ const ACCESS_REQUEST_VARIABLES: Array<{ key: string; label: string; type: 'numbe
   { key: 'secondSecurityApproverId', label: '第二安全审批人', type: 'number' },
 ];
 
-SEED_WORKFLOW_DEFINITIONS.push(
-  {
-    id: 5,
-    name: '权限申请（普通）',
-    description: '普通临时权限由目标用户直属主管审批。',
-    initiatorScopeType: 'all',
-    flowData: buildLinearFlow([{ key: 'approve_manager', name: '直属主管审批', props: { assigneeType: 'formUser', formUserField: 'managerId', emptyStrategy: 'reject', sameInitiatorStrategy: 'toDirectManager' } }], { ...TEMPLATE_SETTINGS, allowResubmit: false, summaryFields: ['targetUserId', 'riskLevel', 'expiresAt'] }),
-    formType: 'external',
-    customForm: { createComponent: '', viewComponent: 'biz/access/AccessRequestApprovalView', icon: 'ShieldCheck', variables: ACCESS_REQUEST_VARIABLES },
-    status: 'published', version: 1, tenantId: null,
-  },
-  {
-    id: 6,
-    name: '权限申请（高危）',
-    description: '高危临时权限由直属主管和安全管理员双重审批。',
-    initiatorScopeType: 'all',
-    flowData: buildLinearFlow([
-      { key: 'approve_manager', name: '直属主管审批', props: { assigneeType: 'formUser', formUserField: 'managerId', emptyStrategy: 'reject', sameInitiatorStrategy: 'toDirectManager' } },
-      { key: 'approve_security', name: '安全管理员审批', props: { assigneeType: 'formUser', formUserField: 'securityApproverId', emptyStrategy: 'reject', sameInitiatorStrategy: 'toDirectManager' } },
-    ], { ...TEMPLATE_SETTINGS, allowResubmit: false, summaryFields: ['targetUserId', 'riskLevel', 'expiresAt'] }),
-    formType: 'external',
-    customForm: { createComponent: '', viewComponent: 'biz/access/AccessRequestApprovalView', icon: 'ShieldAlert', variables: ACCESS_REQUEST_VARIABLES },
-    status: 'published', version: 1, tenantId: null,
-  },
-  {
-    id: 7,
-    name: '权限申请（极高危）',
-    description: '极高危临时权限要求直属主管和两名独立安全审批人共同确认。',
-    initiatorScopeType: 'all',
-    flowData: buildLinearFlow([
-      { key: 'approve_manager', name: '直属主管审批', props: { assigneeType: 'formUser', formUserField: 'managerId', emptyStrategy: 'reject', sameInitiatorStrategy: 'toDirectManager' } },
-      { key: 'approve_security', name: '安全管理员审批', props: { assigneeType: 'formUser', formUserField: 'securityApproverId', emptyStrategy: 'reject', sameInitiatorStrategy: 'toDirectManager' } },
-      { key: 'approve_second_security', name: '第二安全审批人审批', props: { assigneeType: 'formUser', formUserField: 'secondSecurityApproverId', emptyStrategy: 'reject', sameInitiatorStrategy: 'toDirectManager' } },
-    ], { ...TEMPLATE_SETTINGS, allowResubmit: false, summaryFields: ['targetUserId', 'riskLevel', 'expiresAt'] }),
-    formType: 'external',
-    customForm: { createComponent: '', viewComponent: 'biz/access/AccessRequestApprovalView', icon: 'ShieldAlert', variables: ACCESS_REQUEST_VARIABLES },
-    status: 'published', version: 1, tenantId: null,
-  },
-);
+const ACCESS_APPROVER_PROPS = {
+  approvalType: 'manual',
+  approveMethod: 'or',
+  emptyStrategy: 'reject',
+  sameInitiatorStrategy: 'toDirectManager',
+  fieldPermissions: {},
+  signaturePolicy: 'none',
+};
+
+const ACCESS_REQUEST_FLOW = {
+  nodes: [
+    { id: 'node-start', type: 'workflowNode', position: { x: 0, y: 0 }, data: { key: 'start', type: 'start', label: '发起' } },
+    { id: 'node-manager', type: 'workflowNode', position: { x: 180, y: 0 }, data: { key: 'approve_manager', type: 'approve', label: '直属主管审批', assigneeType: 'formUser', formUserField: 'managerId', ...ACCESS_APPROVER_PROPS } },
+    { id: 'node-risk', type: 'workflowNode', position: { x: 360, y: 0 }, data: { key: 'risk_gateway', type: 'exclusiveGateway', label: '风险等级分支' } },
+    { id: 'node-security', type: 'workflowNode', position: { x: 560, y: -100 }, data: { key: 'approve_security', type: 'approve', label: '安全管理员审批', assigneeType: 'formUser', formUserField: 'securityApproverId', ...ACCESS_APPROVER_PROPS } },
+    { id: 'node-critical', type: 'workflowNode', position: { x: 760, y: -100 }, data: { key: 'critical_gateway', type: 'exclusiveGateway', label: '极高危分支' } },
+    { id: 'node-second-security', type: 'workflowNode', position: { x: 960, y: -180 }, data: { key: 'approve_second_security', type: 'approve', label: '第二安全审批人审批', assigneeType: 'formUser', formUserField: 'secondSecurityApproverId', ...ACCESS_APPROVER_PROPS } },
+    { id: 'node-risk-invalid', type: 'workflowNode', position: { x: 560, y: 120 }, data: { key: 'risk_invalid', type: 'approve', label: '风险校验失败', approvalType: 'autoReject', approveMethod: 'or', emptyStrategy: 'reject' } },
+    { id: 'node-end', type: 'workflowNode', position: { x: 1160, y: 0 }, data: { key: 'end', type: 'end', label: '结束' } },
+  ],
+  edges: [
+    { id: 'e-start-manager', source: 'node-start', target: 'node-manager' },
+    { id: 'e-manager-risk', source: 'node-manager', target: 'node-risk' },
+    { id: 'e-risk-low-end', source: 'node-risk', target: 'node-end', condition: { field: 'riskLevel', operator: 'eq', value: 'low' } },
+    { id: 'e-risk-high-security', source: 'node-risk', target: 'node-security', condition: { field: 'riskLevel', operator: 'in', value: 'high,critical' } },
+    { id: 'e-security-critical', source: 'node-security', target: 'node-critical' },
+    { id: 'e-critical-second', source: 'node-critical', target: 'node-second-security', condition: { field: 'riskLevel', operator: 'eq', value: 'critical' } },
+    { id: 'e-critical-high-end', source: 'node-critical', target: 'node-end', condition: { field: 'riskLevel', operator: 'eq', value: 'high' } },
+    // 网关不变量：每个分支网关必须有一个默认分支；两个网关的兜底都指向共享的「风险校验失败」节点
+    { id: 'e-critical-invalid', source: 'node-critical', target: 'node-risk-invalid', isDefault: true },
+    { id: 'e-risk-invalid', source: 'node-risk', target: 'node-risk-invalid', isDefault: true },
+    { id: 'e-second-end', source: 'node-second-security', target: 'node-end' },
+    { id: 'e-risk-invalid-end', source: 'node-risk-invalid', target: 'node-end' },
+  ],
+  settings: { ...TEMPLATE_SETTINGS, allowResubmit: false, summaryFields: ['targetUserId', 'riskLevel', 'expiresAt'] },
+};
+
+SEED_WORKFLOW_DEFINITIONS.push({
+  id: 5,
+  name: '权限申请',
+  description: '统一权限申请流程：普通权限由直属主管审批，高危权限增加安全管理员审批，极高危权限增加第二名独立安全审批人。',
+  initiatorScopeType: 'all',
+  flowData: ACCESS_REQUEST_FLOW,
+  formType: 'custom',
+  customForm: { createComponent: 'biz/access/AccessRequestWorkflowForm', viewComponent: 'biz/access/AccessRequestWorkflowForm', icon: 'ShieldCheck', variables: ACCESS_REQUEST_VARIABLES },
+  status: 'published', version: 1, tenantId: null,
+});
 
 // ─── 工作流分类 ─────────────────────────────────────────────────────────────────
 

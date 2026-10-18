@@ -17,8 +17,9 @@ import { pageOffset } from '../../lib/pagination';
 import { getTenantPackageFeatureSet } from '../../lib/tenant-package';
 import { clearUserPermissionCache, isSuperAdmin } from '../../lib/permissions';
 import { notify } from '../messaging/notification-outbox.service';
-import { type AccessRiskLevel, type DataScope } from '@zenith/shared/identity';
-import type { CreateAccessRequestInput, CreateAccessReviewCampaignInput, DecideAccessReviewItemInput, RevokeAccessGrantInput, UpdatePermissionPolicyInput } from '@zenith/shared/identity';
+import { workflowEventBus } from '../../lib/workflow-event-bus';
+import { accessWorkflowInputSchema, type AccessRiskLevel, type DataScope } from '@zenith/shared/identity';
+import type { CreateAccessReviewCampaignInput, DecideAccessReviewItemInput, RevokeAccessGrantInput, UpdatePermissionPolicyInput } from '@zenith/shared/identity';
 
 const ACCESS_RISK_PRIORITY: Record<AccessRiskLevel, number> = { low: 1, high: 2, critical: 3 };
 
@@ -134,10 +135,18 @@ function formatReviewItem(row: any): AccessReviewItem {
   };
 }
 
-async function resolveRequestItems(input: CreateAccessRequestInput, tenantId: number | null, executor: DbExecutor = db) {
+type AccessRequestItemInput = {
+  itemType: 'role' | 'menu';
+  roleId?: number;
+  menuId?: number;
+  dataScope?: DataScope;
+  deptScopeIds?: number[];
+};
+
+async function resolveRequestItems(itemsInput: AccessRequestItemInput[], tenantId: number | null, executor: DbExecutor = db) {
   const featureSet = await getTenantPackageFeatureSet(tenantId, executor);
-  const roleIds = input.items.filter((item) => item.itemType === 'role').map((item) => item.roleId!).filter(Boolean);
-  const menuIds = input.items.filter((item) => item.itemType === 'menu').map((item) => item.menuId!).filter(Boolean);
+  const roleIds = itemsInput.filter((item) => item.itemType === 'role').map((item) => item.roleId!).filter(Boolean);
+  const menuIds = itemsInput.filter((item) => item.itemType === 'menu').map((item) => item.menuId!).filter(Boolean);
   const roleRows = roleIds.length > 0
     ? await executor.query.roles.findMany({
       where: and(inArray(roles.id, [...new Set(roleIds)]), tenantCondition(roles, currentUser())),
@@ -162,7 +171,7 @@ async function resolveRequestItems(input: CreateAccessRequestInput, tenantId: nu
     snapshot: Record<string, unknown>;
   }> = [];
   let riskLevel: AccessRiskLevel = 'low';
-  for (const requested of input.items) {
+  for (const requested of itemsInput) {
     if (requested.itemType === 'role') {
       const role = roleById.get(requested.roleId!);
       if (!role || role.status !== 'enabled') throw new HTTPException(400, { message: '只能申请启用中的角色' });
@@ -182,7 +191,7 @@ async function resolveRequestItems(input: CreateAccessRequestInput, tenantId: nu
           permissionCode,
           permissionLabel: permissionCode ? permissionMeta?.label ?? menu.title : null,
           dataScope: requested.dataScope ?? role.dataScope ?? null,
-          deptScopeIds: requested.deptScopeIds.length > 0 ? requested.deptScopeIds : role.deptScopes.map(({ deptId }) => deptId),
+          deptScopeIds: (requested.deptScopeIds ?? []).length > 0 ? requested.deptScopeIds! : role.deptScopes.map(({ deptId }) => deptId),
           snapshot: { roleId: role.id, roleCode: role.code, roleName: role.name, menuId: menu.id, menuTitle: menu.title, permissionCode },
         });
       }
@@ -201,7 +210,7 @@ async function resolveRequestItems(input: CreateAccessRequestInput, tenantId: nu
         permissionCode,
         permissionLabel: permissionCode ? permissionMeta?.label ?? menu.title : null,
         dataScope: requested.dataScope ?? null,
-        deptScopeIds: requested.deptScopeIds,
+        deptScopeIds: requested.deptScopeIds ?? [],
         snapshot: { menuId: menu.id, menuTitle: menu.title, permissionCode },
       });
     }
@@ -229,7 +238,7 @@ export async function assertDirectHighRiskGrantAllowed(menuIds: number[] = [], r
   }
 }
 
-export async function getAccessCatalog() {
+export async function getAccessWorkflowOptions() {
   const user = currentUser();
   const featureSet = await getTenantPackageFeatureSet(user.tenantId);
   const [roleRows, menuRows] = await Promise.all([
@@ -302,47 +311,7 @@ export async function getAccessRequest(id: number): Promise<AccessRequest> {
   return formatAccessRequest(requireRow(row, '权限申请不存在'));
 }
 
-export async function createAccessRequest(input: CreateAccessRequestInput): Promise<AccessRequest> {
-  const user = currentUser();
-  const tenantId = getCreateTenantId(user);
-  const target = await requireTenantUser(input.targetUserId, '目标用户不存在或已停用', { enabledOnly: true });
-  const startsAt = parseRequiredDate(input.startsAt, '生效时间');
-  const expiresAt = parseRequiredDate(input.expiresAt, '失效时间');
-  if (expiresAt <= startsAt) throw new HTTPException(400, { message: '失效时间必须晚于生效时间' });
-  if (input.requestType === 'emergency' && expiresAt.getTime() - startsAt.getTime() > 60 * 60 * 1000) {
-    throw new HTTPException(400, { message: '紧急授权最长 60 分钟' });
-  }
-  const resolved = await resolveRequestItems(input, tenantId);
-  const created = await db.transaction(async (tx) => {
-    const [request] = await tx.insert(identityAccessRequests).values({
-      tenantId,
-      applicantUserId: user.userId,
-      targetUserId: target.id,
-      requestType: input.requestType,
-      status: 'draft',
-      reason: input.reason,
-      businessReference: input.businessReference ?? null,
-      startsAt,
-      expiresAt,
-      riskLevel: resolved.riskLevel,
-    }).returning();
-    await tx.insert(identityAccessRequestItems).values(resolved.items.map((item) => ({
-      requestId: request.id,
-      itemType: item.itemType,
-      roleId: item.roleId,
-      menuId: item.menuId,
-      permissionCode: item.permissionCode,
-      permissionLabel: item.permissionLabel,
-      dataScope: item.dataScope,
-      deptScopeIds: item.deptScopeIds,
-      snapshot: item.snapshot,
-    })));
-    return request;
-  });
-  return getAccessRequest(created.id);
-}
-
-async function resolveAccessApprovers(targetUserId: number, applicantUserId: number, tenantId: number | null): Promise<{ managerId: number; securityApproverId: number; secondSecurityApproverId: number }> {
+async function resolveAccessApprovers(targetUserId: number, applicantUserId: number, tenantId: number | null, riskLevel: AccessRiskLevel): Promise<{ managerId: number; securityApproverId?: number; secondSecurityApproverId?: number }> {
   const target = await db.query.users.findFirst({
     where: and(eq(users.id, targetUserId), exactTenantCondition(users.tenantId, tenantId)),
     columns: { departmentId: true, tenantId: true },
@@ -370,52 +339,71 @@ async function resolveAccessApprovers(targetUserId: number, applicantUserId: num
     : securityIds[0];
   const securityApproverId = securityIds.find((candidateId) => candidateId !== managerId);
   const secondSecurityApproverId = securityIds.find((candidateId) => candidateId !== managerId && candidateId !== securityApproverId);
-  if (!managerId || !securityApproverId || !secondSecurityApproverId) {
-    throw new HTTPException(409, { message: '权限申请缺少满足安全策略的审批人，请先配置直属主管和安全管理员' });
-  }
-  return { managerId, securityApproverId, secondSecurityApproverId };
+  if (!managerId) throw new HTTPException(409, { message: '权限申请缺少直属主管或可用的租户管理员审批人' });
+  if (riskLevel !== 'low' && !securityApproverId) throw new HTTPException(409, { message: '高危权限申请缺少安全管理员审批人' });
+  if (riskLevel === 'critical' && !secondSecurityApproverId) throw new HTTPException(409, { message: '极高危权限申请缺少第二名独立安全审批人' });
+  return { managerId, ...(securityApproverId ? { securityApproverId } : {}), ...(secondSecurityApproverId ? { secondSecurityApproverId } : {}) };
 }
 
-async function startAccessRequestWorkflow(requestId: number, tenantId: number | null) {
-  const request = await db.query.identityAccessRequests.findFirst({
-    where: and(eq(identityAccessRequests.id, requestId), exactTenantCondition(identityAccessRequests.tenantId, tenantId)),
-    with: { target: true, applicant: true, items: true },
-  });
-  if (!request) throw new HTTPException(404, { message: '权限申请不存在' });
-  const { resolveBizDefinitionId, startWorkflowForBiz } = await import('../../lib/workflow-biz-bridge');
-  const approvers = await resolveAccessApprovers(request.targetUserId, request.applicantUserId, request.tenantId);
-  const definitionName = request.riskLevel === 'critical' ? '权限申请（极高危）' : request.riskLevel === 'high' ? '权限申请（高危）' : '权限申请（普通）';
-  const definitionId = await resolveBizDefinitionId({ name: definitionName, formType: 'external' });
-  const instance = await startWorkflowForBiz({
-    definitionId,
-    title: `权限申请 #${request.id} · ${request.target.nickname || request.target.username}`,
-    bizType: 'identity_access_request',
-    bizId: request.id,
-    variables: {
-      requestId: request.id,
-      targetUserId: request.targetUserId,
-      reason: request.reason,
-      businessReference: request.businessReference ?? '',
-      startsAt: formatDateTime(request.startsAt),
-      expiresAt: formatDateTime(request.expiresAt),
-      riskLevel: request.riskLevel,
-      permissionSummary: request.items.map((item) => item.permissionCode || item.snapshot?.menuTitle || item.snapshot?.roleName || '').filter(Boolean).join(', '),
-      ...approvers,
-    },
-    caller: { userId: request.applicantUserId, username: request.applicant.username, tenantId: request.tenantId, roles: [] },
-  });
-  await db.update(identityAccessRequests).set({ workflowInstanceId: instance.id, status: 'pending' }).where(and(eq(identityAccessRequests.id, requestId), exactTenantCondition(identityAccessRequests.tenantId, request.tenantId)));
-  const approverIds = [...new Set([approvers.managerId, approvers.securityApproverId, approvers.secondSecurityApproverId])];
-  await notify('identity.access.requested', {
-    recipients: approverIds.map((id) => ({ type: 'user' as const, id })),
-    vars: { requestId: request.id, applicantName: request.applicant.nickname || request.applicant.username, targetName: request.target.nickname || request.target.username, riskLevel: request.riskLevel },
-    tenantId: request.tenantId,
-    dedupeKey: `identity-access-requested:${request.id}`,
-  });
-  return instance;
+export async function normalizeAccessWorkflowFormData(raw: Record<string, unknown>, caller: { userId: number; username: string; tenantId: number | null; roles?: string[] }) {
+  const parsed = accessWorkflowInputSchema.safeParse(raw);
+  if (!parsed.success) throw new HTTPException(400, { message: parsed.error.issues[0]?.message ?? '权限申请表单不完整' });
+  const input = parsed.data;
+  const startsAt = parseRequiredDate(input.startsAt, '生效时间');
+  const expiresAt = parseRequiredDate(input.expiresAt, '失效时间');
+  if (expiresAt <= startsAt) throw new HTTPException(400, { message: '失效时间必须晚于生效时间' });
+  if (input.requestType === 'emergency' && expiresAt.getTime() - startsAt.getTime() > 60 * 60 * 1000) throw new HTTPException(400, { message: '紧急授权最长 60 分钟' });
+  const resolved = await resolveRequestItems([
+    ...input.roleIds.map((roleId) => ({ itemType: 'role' as const, roleId })),
+    ...input.menuIds.map((menuId) => ({ itemType: 'menu' as const, menuId })),
+  ], caller.tenantId);
+  if (resolved.items.length === 0) throw new HTTPException(400, { message: '至少申请一项有效权限' });
+  const approvers = await resolveAccessApprovers(caller.userId, caller.userId, caller.tenantId, resolved.riskLevel);
+  return {
+    ...input,
+    targetUserId: caller.userId,
+    startsAt: formatDateTime(startsAt),
+    expiresAt: formatDateTime(expiresAt),
+    riskLevel: resolved.riskLevel,
+    permissionItems: resolved.items,
+    permissionSummary: resolved.items.map((item) => item.permissionCode || item.snapshot.menuTitle || item.snapshot.roleName || '').filter(Boolean).join(', '),
+    ...approvers,
+  };
 }
 
-export async function applyApprovedAccessRequest(requestId: number): Promise<AccessGrant | null> {
+export async function createAccessRequestFromWorkflow(instance: { id: number; tenantId: number | null; initiatorId: number; formData: Record<string, unknown> }) {
+  const normalized = instance.formData as Awaited<ReturnType<typeof normalizeAccessWorkflowFormData>>;
+  const existing = await db.query.identityAccessRequests.findFirst({ where: eq(identityAccessRequests.workflowInstanceId, instance.id), with: { applicant: true, target: true, items: true } });
+  if (existing) return formatAccessRequest(existing);
+  const [request] = await db.transaction(async (tx) => {
+    const [created] = await tx.insert(identityAccessRequests).values({
+      tenantId: instance.tenantId,
+      applicantUserId: instance.initiatorId,
+      targetUserId: normalized.targetUserId,
+      requestType: normalized.requestType,
+      status: 'pending',
+      reason: normalized.reason,
+      businessReference: normalized.businessReference ?? null,
+      startsAt: parseRequiredDate(normalized.startsAt, '生效时间'),
+      expiresAt: parseRequiredDate(normalized.expiresAt, '失效时间'),
+      riskLevel: normalized.riskLevel,
+      workflowInstanceId: instance.id,
+    }).returning();
+    await tx.insert(identityAccessRequestItems).values(normalized.permissionItems.map((item) => ({ requestId: created.id, itemType: item.itemType, roleId: item.roleId, menuId: item.menuId, permissionCode: item.permissionCode, permissionLabel: item.permissionLabel, dataScope: item.dataScope, deptScopeIds: item.deptScopeIds, snapshot: item.snapshot })));
+    return [created] as const;
+  });
+  const row = await db.query.identityAccessRequests.findFirst({ where: eq(identityAccessRequests.id, request.id), with: { applicant: true, target: true, items: true } });
+  const applicantName = row?.applicant.nickname || row?.applicant.username || `用户 ${instance.initiatorId}`;
+  const targetName = row?.target.nickname || row?.target.username || `用户 ${normalized.targetUserId}`;
+  const approverIds = [normalized.managerId, normalized.securityApproverId, normalized.secondSecurityApproverId].filter((id): id is number => typeof id === 'number');
+  await notify('identity.access.requested', { recipients: [...new Set(approverIds)].map((id) => ({ type: 'user' as const, id })), vars: { requestId: request.id, applicantName, targetName, riskLevel: normalized.riskLevel }, tenantId: instance.tenantId, dedupeKey: `identity-access-requested:${request.id}` });
+  return formatAccessRequest(requireRow(row, '权限申请保存失败'));
+}
+
+function isAccessWorkflowInstance(instance: { definitionSnapshot?: { customForm?: { createComponent?: string } | null } | null }) {
+  return instance.definitionSnapshot?.customForm?.createComponent === 'biz/access/AccessRequestWorkflowForm';
+}
+export async function applyApprovedAccessRequest(requestId: number): Promise<AccessGrant | null> {
   const result = await db.transaction(async (tx) => {
     const request = await tx.query.identityAccessRequests.findFirst({ where: eq(identityAccessRequests.id, requestId), with: { items: true } });
     if (!request) return null;
@@ -465,46 +453,24 @@ export async function applyApprovedAccessRequest(requestId: number): Promise<Acc
   return result;
 }
 
-export async function registerAccessGovernanceSubscribers() {
-  const { onWorkflowResult } = await import('../../lib/workflow-biz-bridge');
-  onWorkflowResult('identity_access_request', {
-    onApproved: async (instance) => { if (instance.bizId) await applyApprovedAccessRequest(Number(instance.bizId)); },
-    onRejected: async (instance) => { if (instance.bizId) await db.update(identityAccessRequests).set({ status: 'rejected', rejectedAt: new Date() }).where(and(eq(identityAccessRequests.id, Number(instance.bizId)), eq(identityAccessRequests.status, 'pending'))); },
-    onWithdrawn: async (instance) => { if (instance.bizId) await db.update(identityAccessRequests).set({ status: 'cancelled' }).where(and(eq(identityAccessRequests.id, Number(instance.bizId)), eq(identityAccessRequests.status, 'pending'))); },
+export function registerAccessGovernanceSubscribers() {
+  workflowEventBus.on('instance.created', async ({ instance }) => {
+    if (!isAccessWorkflowInstance(instance)) return;
+    await createAccessRequestFromWorkflow({ id: instance.id, tenantId: instance.tenantId, initiatorId: instance.initiatorId, formData: instance.formData ?? {} });
   });
-}
-
-export async function submitAccessRequest(id: number): Promise<AccessRequest> {
-  const user = currentUser();
-  const request = await db.query.identityAccessRequests.findFirst({
-    where: and(eq(identityAccessRequests.id, id), tenantCondition(identityAccessRequests, user)),
-    columns: { id: true, tenantId: true, applicantUserId: true, status: true, startsAt: true, expiresAt: true },
+  workflowEventBus.on('instance.approved', async ({ instance }) => {
+    if (!isAccessWorkflowInstance(instance)) return;
+    const request = await db.query.identityAccessRequests.findFirst({ where: eq(identityAccessRequests.workflowInstanceId, instance.id), columns: { id: true } });
+    if (request) await applyApprovedAccessRequest(request.id);
   });
-  const requestRow = requireRow(request, '权限申请不存在');
-  if (requestRow.applicantUserId !== user.userId) throw new HTTPException(403, { message: '只能提交自己的权限申请' });
-  if (requestRow.status !== 'draft') throw new HTTPException(400, { message: '当前申请状态不能提交' });
-  if (requestRow.expiresAt <= requestRow.startsAt || requestRow.expiresAt <= new Date()) throw new HTTPException(400, { message: '申请有效期已失效' });
-  try {
-    await startAccessRequestWorkflow(id, requestRow.tenantId);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : '启动权限审批流程失败';
-    await db.update(identityAccessRequests).set({ status: 'failed', failureReason: message }).where(eq(identityAccessRequests.id, id));
-    throw error;
-  }
-  return getAccessRequest(id);
-}
-
-export async function cancelAccessRequest(id: number): Promise<AccessRequest> {
-  const user = currentUser();
-  const request = await db.query.identityAccessRequests.findFirst({
-    where: and(eq(identityAccessRequests.id, id), tenantCondition(identityAccessRequests, user)),
-    columns: { id: true, applicantUserId: true, status: true },
+  workflowEventBus.on('instance.rejected', async ({ instance }) => {
+    if (!isAccessWorkflowInstance(instance)) return;
+    await db.update(identityAccessRequests).set({ status: 'rejected', rejectedAt: new Date() }).where(and(eq(identityAccessRequests.workflowInstanceId, instance.id), eq(identityAccessRequests.status, 'pending')));
   });
-  const requestRow = requireRow(request, '权限申请不存在');
-  if (requestRow.applicantUserId !== user.userId) throw new HTTPException(403, { message: '只能取消自己的权限申请' });
-  if (!['draft', 'pending'].includes(requestRow.status)) throw new HTTPException(400, { message: '当前申请状态不能取消' });
-  await db.update(identityAccessRequests).set({ status: 'cancelled' }).where(eq(identityAccessRequests.id, id));
-  return getAccessRequest(id);
+  workflowEventBus.on('instance.withdrawn', async ({ instance }) => {
+    if (!isAccessWorkflowInstance(instance)) return;
+    await db.update(identityAccessRequests).set({ status: 'cancelled' }).where(and(eq(identityAccessRequests.workflowInstanceId, instance.id), eq(identityAccessRequests.status, 'pending')));
+  });
 }
 
 export async function listAccessGrants(q: AccessGrantListQuery) {

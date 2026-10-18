@@ -10,7 +10,7 @@ export type AccessReviewItemListQuery = NonNullable<QueryOf<typeof accessGoverna
 export type PermissionPolicyListQuery = NonNullable<QueryOf<typeof accessGovernanceContract.policyList>>;
 
 export const identityAccessGovernanceKeys = {
-  catalog: contractKey(accessGovernanceContract.catalog),
+  workflowOptions: contractKey(accessGovernanceContract.workflowOptions),
   all: ['identity-access-governance'] as const,
   requests: contractKey(accessGovernanceContract.requestList),
   grants: contractKey(accessGovernanceContract.grantList),
@@ -19,28 +19,12 @@ export const identityAccessGovernanceKeys = {
   policies: contractKey(accessGovernanceContract.policyList),
 };
 
-export function useAccessCatalog(enabled = true) {
-  return useApiQuery(accessGovernanceContract.catalog, undefined, { enabled, staleTime: 5 * 60 * 1000 });
-}
-
-export function useCreateAccessRequest() {
-  return useApiMutation(accessGovernanceContract.requestCreate);
-}
-
-export function useSubmitAccessRequest() {
-  return useApiMutation(accessGovernanceContract.requestSubmit);
+export function useAccessWorkflowOptions(enabled = true) {
+  return useApiQuery(accessGovernanceContract.workflowOptions, undefined, { enabled, staleTime: 5 * 60 * 1000 });
 }
 
 export function useAccessRequestList(query: AccessRequestListQuery, enabled = true) {
   return useApiQuery(accessGovernanceContract.requestList, { query }, { enabled, placeholderData: keepPreviousData });
-}
-
-export function useAccessRequestDetail(id: number | undefined, enabled = true) {
-  return useApiQuery(accessGovernanceContract.requestDetail, { params: { id: id ?? 0 } }, { enabled: enabled && id != null });
-}
-
-export function useMyAccessRequestList(query: AccessRequestListQuery, enabled = true) {
-  return useApiQuery(accessGovernanceContract.requestMine, { query }, { enabled, placeholderData: keepPreviousData });
 }
 
 export function useAccessGrantList(query: AccessGrantListQuery, enabled = true) {

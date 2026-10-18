@@ -61,6 +61,7 @@ export const identityAccessRequests = pgTable('identity_access_requests', {
   index('identity_access_requests_applicant_idx').on(t.applicantUserId, t.createdAt.desc()),
   index('identity_access_requests_target_idx').on(t.targetUserId, t.createdAt.desc()),
   index('identity_access_requests_status_idx').on(t.status, t.createdAt.desc()),
+  unique('identity_access_requests_workflow_unique').on(t.workflowInstanceId),
   index('identity_access_requests_workflow_idx').on(t.workflowInstanceId),
 ]);
 

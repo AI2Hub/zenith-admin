@@ -91,6 +91,11 @@ export async function createInstance(data: { definitionId: number; title: string
   const validation = validateFlowData(baseFlowData);
   if (!validation.valid) throw new HTTPException(400, { message: validation.errors[0] });
   let formData: Record<string, unknown> = sanitizeFormByStartPerms(baseFlowData, data.formData ?? {});
+  const customComponent = (def.customForm as { createComponent?: string } | null)?.createComponent;
+  if (customComponent === 'biz/access/AccessRequestWorkflowForm' && !data.asDraft) {
+    const { normalizeAccessWorkflowFormData } = await import('../../identity/access-governance.service');
+    formData = await normalizeAccessWorkflowFormData(formData, user);
+  }
   const resolvedFormSnapshot = await resolveFormSnapshot(def.formId);
   const formSnapshot = buildInstanceFormSnapshot(def, resolvedFormSnapshot);
 

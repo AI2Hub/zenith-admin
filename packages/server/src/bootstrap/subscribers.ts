@@ -50,6 +50,6 @@ export function registerEventSubscribers(): void {
   registerSharingSubscribers();
   registerAnalyticsServerEventSubscribers();
   registerDriveOwnershipSubscriber();
-  void registerAccessGovernanceSubscribers();
+  registerAccessGovernanceSubscribers();
   logger.info('Workflow event subscribers registered');
 }

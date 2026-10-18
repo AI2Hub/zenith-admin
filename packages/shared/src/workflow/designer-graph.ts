@@ -38,6 +38,11 @@ export interface WorkflowDesignerProcess {
   graphEdges?: WorkflowEdge[];
   graphNodeOrder?: string[];
   settings?: WorkflowFlowData['settings'];
+  /**
+   * Graph node ids projected more than once inside branch regions（共享汇聚节点引用）。
+   * 编辑器把同一图节点在每个分支区间各显示一份（带共享标识）；回编译时按 id 去重合并。
+   */
+  sharedNodeIds?: string[];
 }
 
 export type WorkflowGraphProjection =
@@ -122,13 +127,17 @@ export function projectWorkflowGraph(graph: WorkflowFlowData): WorkflowGraphProj
     }
     const orderIndex = new Map(order.map((id, index) => [id, index]));
     const consumed = new Set([start.id, end.id]);
+    /** Graph node ids that appear in more than one branch region. They are projected as shared references. */
+    const sharedIds = new Set<string>();
     const parseChain = (firstId: string, stopId: string): WorkflowDesignerNode | undefined => {
       let id = firstId;
       let head: WorkflowDesignerNode | undefined;
       let tail: WorkflowDesignerNode | undefined;
       while (id !== stopId) {
-        if (id === end.id || consumed.has(id)) throw new ProjectionUnavailable('分支存在交叉或共享内部节点，请使用图模式编辑');
+        if (id === end.id) throw new ProjectionUnavailable('分支直接指向结束节点，请使用图模式编辑');
+        const shared = consumed.has(id);
         consumed.add(id);
+        if (shared) sharedIds.add(id);
         const source = nodes.get(id)!;
         const edges = outgoing.get(id) ?? [];
         const projected = editorNode(source);
@@ -169,7 +178,9 @@ export function projectWorkflowGraph(graph: WorkflowFlowData): WorkflowGraphProj
           const join = nodes.get(joinId)!;
           const joinOuts = outgoing.get(joinId) ?? [];
           if (join.data.type === source.data.type && joinOuts.length === 1) {
-            if (consumed.has(joinId)) throw new ProjectionUnavailable('汇聚节点被多个分支区域共享');
+            if (!joinOuts[0] || joinOuts[0].target === end.id && joinId === end.id) throw new ProjectionUnavailable('汇聚节点结构需要图模式编辑');
+            const joinShared = consumed.has(joinId);
+            if (joinShared) sharedIds.add(joinId);
             consumed.add(joinId);
             projected.graphJoin = structuredClone(join);
             id = joinOuts[0].target;
@@ -194,6 +205,7 @@ export function projectWorkflowGraph(graph: WorkflowFlowData): WorkflowGraphProj
       graphEdges: structuredClone(graph.edges),
       graphNodeOrder: graph.nodes.map((node) => node.id),
       settings: graph.settings ? structuredClone(graph.settings) : undefined,
+      sharedNodeIds: [...sharedIds],
     } };
   } catch (error) {
     if (error instanceof ProjectionUnavailable) return { kind: 'graph', reason: error.message };
@@ -240,20 +252,48 @@ export function compileWorkflowTree(process: WorkflowDesignerProcess): WorkflowF
   const nodes: GraphNode[] = [];
   const edges: WorkflowEdge[] = [];
   const usedNodes = new Set<string>();
+  /** Shared graph ids already emitted once — later copies merge on id instead of duplicating the node. */
+  const sharedIds = new Set(process.sharedNodeIds ?? []);
+  const sharedNodesById = new Map<string, GraphNode>();
   const originalEdges = process.graphEdges ?? [];
   const idOf = (node: WorkflowDesignerNode) => node.graphNode?.id ?? (node.type === 'initiator' ? 'node-start' : `node-${node.id}`);
   const addNode = (node: WorkflowDesignerNode): string => {
     const id = idOf(node);
-    if (usedNodes.has(id)) throw new Error(`节点 ID「${id}」重复`);
-    usedNodes.add(id);
-    nodes.push({
+    if (sharedIds.has(id)) {
+      const prior = sharedNodesById.get(id);
+      if (prior) {
+        // Later occurrence: node already exists in the graph; only its edges are re-connected.
+        if (prior.data.label !== node.name) sharedNodesById.set(id, emitNode(node, id, prior));
+        return id;
+      }
+      // First occurrence: emit the graph node and register it for later merge turns.
+      sharedNodesById.set(id, emitNode(node, id));
+      return id;
+    }
+    emitNode(node, id);
+    return id;
+  };
+  const emitNode = (node: WorkflowDesignerNode, id: string, prior?: GraphNode): GraphNode => {
+    if (!prior) {
+      if (usedNodes.has(id)) throw new Error(`节点 ID「${id}」重复`);
+      usedNodes.add(id);
+    }
+    const emitted: GraphNode = {
       id, type: node.graphNode?.type ?? 'workflowNode', position: structuredClone(node.graphNode?.position ?? { x: 0, y: 0 }),
       data: { ...compileProps(node), key: node.key ?? node.id, type: EDITOR_TO_GRAPH[node.type], label: node.name } as WorkflowNodeConfig,
-    });
-    return id;
+    };
+    if (prior) {
+      const index = nodes.findIndex((existing) => existing.id === id);
+      if (index >= 0) nodes[index] = emitted;
+    } else {
+      nodes.push(emitted);
+    }
+    return emitted;
   };
   const connect = (source: string, target: string, branch?: WorkflowDesignerBranch, parent?: WorkflowDesignerNode): void => {
     const previous = branch?.graphEdge ?? originalEdges.find((edge) => edge.source === source && edge.target === target);
+    // 共享节点会被两条路径再次收尾连接（如共享节点回归结束点）；同 id 边只发一次。
+    if (previous && edges.some((edge) => edge.id === previous.id)) return;
     const edge: WorkflowEdge = previous ? { ...structuredClone(previous), source, target } : { id: `e-${source}-${target}${branch ? `-${branch.id}` : ''}`, source, target };
     if (branch) {
       if (previous?.label !== undefined || branch.name !== branch.graphDisplayName) edge.label = branch.name;
@@ -280,7 +320,18 @@ export function compileWorkflowTree(process: WorkflowDesignerProcess): WorkflowF
     }
     edges.push(edge);
   };
-  const startId = addNode(process.initiator);
+  /** Emit a join region node, unless it is a shared graph node already emitted on an earlier branch pass. */
+  const addJoinNode = (join: GraphNode): void => {
+    if (sharedIds.has(join.id)) {
+      if (sharedNodesById.has(join.id)) return; // Second region: merge on stable graph id, edges connect separately.
+      sharedNodesById.set(join.id, join);
+    }
+    if (usedNodes.has(join.id)) throw new Error(`汇聚节点 ID「${join.id}」重复`);
+    usedNodes.add(join.id);
+    nodes.push(join);
+  };
+  const startId = idOf(process.initiator);
+  addNode(process.initiator);
   const end = process.graphEnd ? structuredClone(process.graphEnd) : {
     id: 'node-end', type: 'workflowNode', position: { x: 0, y: 0 }, data: { key: 'end', type: 'end' as const, label: '结束' },
   };
@@ -294,11 +345,7 @@ export function compileWorkflowTree(process: WorkflowDesignerProcess): WorkflowF
         data: { key: `join-${node.id}`, type: EDITOR_TO_GRAPH[node.type], label: `${node.name}（汇聚）` },
       };
       const joinId = join?.id ?? (node.children ? idOf(node.children) : terminalId);
-      if (join) {
-        if (usedNodes.has(join.id)) throw new Error(`汇聚节点 ID「${join.id}」重复`);
-        usedNodes.add(join.id);
-        nodes.push(join);
-      }
+      if (join) addJoinNode(join);
       for (const childBranch of node.branches) {
         if (!childBranch.children) connect(id, joinId, childBranch, node);
         else {
