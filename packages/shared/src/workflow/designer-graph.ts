@@ -30,6 +30,8 @@ export interface WorkflowDesignerNode {
   graphNode?: GraphNode;
   /** null means that branches merge directly at children (or the end node). */
   graphJoin?: GraphNode | null;
+  /** Later visual occurrences of a shared graph node are read-only references. */
+  sharedReference?: boolean;
 }
 
 export interface WorkflowDesignerProcess {
@@ -60,6 +62,16 @@ const EDITOR_TO_GRAPH: Record<WorkflowDesignerNodeType, WorkflowNodeConfig['type
 const GATEWAYS = new Set(['exclusiveGateway', 'parallelGateway', 'inclusiveGateway', 'routeGateway']);
 
 class ProjectionUnavailable extends Error {}
+
+function markSharedReferences(node: WorkflowDesignerNode | undefined, sharedIds: ReadonlySet<string>, seen: Set<string>): void {
+  if (!node) return;
+  if (sharedIds.has(node.id)) {
+    node.sharedReference = seen.has(node.id);
+    seen.add(node.id);
+  }
+  for (const branch of node.branches ?? []) markSharedReferences(branch.children, sharedIds, seen);
+  markSharedReferences(node.children, sharedIds, seen);
+}
 
 function editorNode(node: GraphNode): WorkflowDesignerNode {
   const type = GRAPH_TO_EDITOR[node.data.type];
@@ -199,14 +211,16 @@ export function projectWorkflowGraph(graph: WorkflowFlowData): WorkflowGraphProj
     const initiator = editorNode(start);
     initiator.children = parseChain(outgoing.get(start.id)![0].target, end.id);
     if (consumed.size !== nodes.size) throw new ProjectionUnavailable('存在未包含在结构化流程中的节点');
-    return { kind: 'tree', process: {
+    const process: WorkflowDesignerProcess = {
       initiator,
       graphEnd: structuredClone(end),
       graphEdges: structuredClone(graph.edges),
       graphNodeOrder: graph.nodes.map((node) => node.id),
       settings: graph.settings ? structuredClone(graph.settings) : undefined,
       sharedNodeIds: [...sharedIds],
-    } };
+    };
+    markSharedReferences(process.initiator, sharedIds, new Set());
+    return { kind: 'tree', process };
   } catch (error) {
     if (error instanceof ProjectionUnavailable) return { kind: 'graph', reason: error.message };
     throw error;

@@ -5,8 +5,8 @@
  */
 import { Pencil, X, ChevronUp, ChevronDown } from 'lucide-react';
 import { Popconfirm } from '@douyinfe/semi-ui';
-import type { FlowNode, FlowBranch, FlowNodeType, BranchNodeType, NodeHealthInfo } from '../types';
-import { NODE_COLOR_MAP, BRANCH_ADD_LABEL } from '../constants';
+import type { FlowNode, FlowBranch, FlowNodeType, BranchNodeType, NodeHealthInfo, ConditionRule } from '../types';
+import { NODE_COLOR_MAP, BRANCH_ADD_LABEL, OPERATOR_LABELS, STARTER_CONDITION_FIELDS } from '../constants';
 import AddNodeButton from './AddNodeButton';
 import NodeHealthBadge from './NodeHealthBadge';
 
@@ -23,7 +23,7 @@ interface BranchContainerProps {
   onEditNode?: (node: FlowNode) => void;
   renderChildren: (childNode: FlowNode | undefined, parentId: string) => React.ReactNode;
   /** 可选：表单字段列表，用于路由分支展示「路由字段：XXX」提示 */
-  formFields?: ReadonlyArray<{ key: string; label: string; type?: string }>;
+  formFields?: ReadonlyArray<{ key: string; label: string; type?: string; options?: readonly string[] }>;
   /** 运行态：未被实际命中的分支 id（置灰展示） */
   dimmedBranchIds?: Set<string>;
   readOnly?: boolean;
@@ -45,7 +45,24 @@ function getBranchNameClass(type: BranchNodeType, isDefault?: boolean): string {
   }
 }
 
-function getBranchDesc(branch: FlowBranch, branchType: BranchNodeType): string {
+function formatConditionValue(value: ConditionRule['value']): string {
+  if (typeof value === 'string' && value.includes(',')) return value.split(',').map((item) => item.trim()).filter(Boolean).join('、');
+  return String(value);
+}
+
+function formatConditionRule(rule: ConditionRule, formFields?: ReadonlyArray<{ key: string; label: string; options?: readonly string[] }>): string {
+  const field = rule.source === 'starter'
+    ? STARTER_CONDITION_FIELDS.find((item) => item.value === rule.field)?.label
+    : formFields?.find((item) => item.key === rule.field)?.label;
+  const fieldLabel = (field ?? rule.field) || '未选择字段';
+  const operatorLabel = OPERATOR_LABELS[rule.operator] ?? rule.operator;
+  const aggregateLabel = rule.aggregate === 'sum' ? '合计' : rule.aggregate === 'count' ? '数量' : rule.aggregate === 'avg' ? '平均值' : '';
+  const aggregate = aggregateLabel ? `（${aggregateLabel}${rule.aggregateField ? `：${formFields?.find((item) => item.key === rule.aggregateField)?.label ?? rule.aggregateField}` : ''}）` : '';
+  if (rule.operator === 'isEmpty' || rule.operator === 'isNotEmpty') return `${fieldLabel}${aggregate} ${operatorLabel}`;
+  return `${fieldLabel}${aggregate} ${operatorLabel} ${formatConditionValue(rule.value)}`;
+}
+
+function getBranchDesc(branch: FlowBranch, branchType: BranchNodeType, formFields?: ReadonlyArray<{ key: string; label: string; options?: readonly string[] }>): string {
   if (branch.isDefault) return '未命中其它分支时，将进入此分支';
   if (branchType === 'parallelBranch') return '';
   if (branchType === 'routeBranch') {
@@ -53,13 +70,10 @@ function getBranchDesc(branch: FlowBranch, branchType: BranchNodeType): string {
     return v ? `匹配值：${v}` : '点击配置路由值';
   }
   if (branch.conditions?.length) {
-    const groups = branch.conditions;
-    const totalRules = groups.reduce((s, g) => s + g.rules.length, 0);
-    const logicLabel = (g: (typeof groups)[number]) => (g.type === 'and' ? '且' : '或');
-    // 单条件组不再重复计数（旧文案为「1 个条件：1条件(且)」）；多组时保留每组条数
-    if (groups.length === 1) return `共 ${totalRules} 条条件 · ${logicLabel(groups[0])}`;
-    const groupInfo = groups.map(g => `${g.rules.length} 条${logicLabel(g)}`).join(' + ');
-    return `共 ${totalRules} 条条件 · ${groupInfo}`;
+    const groups = branch.conditions
+      .map((group) => group.rules.filter((rule) => rule.field).map((rule) => formatConditionRule(rule, formFields)).join(group.type === 'and' ? ' 且 ' : ' 或 '))
+      .filter(Boolean);
+    if (groups.length) return `条件：${groups.length > 1 ? groups.map((group) => `（${group}）`).join(' 或 ') : groups[0]}`;
   }
   return '点击配置条件';
 }
@@ -158,8 +172,10 @@ export default function BranchContainer({
       )}
 
       <div className="fd-branch-box">
-        {branches.map((branch, index) => (
-          <div key={branch.id} className={`fd-branch-col${dimmedBranchIds?.has(branch.id) ? ' fd-branch-col--dimmed' : ''}`}>
+        {branches.map((branch, index) => {
+          const branchDesc = getBranchDesc(branch, branchType, formFields);
+          return (
+          <div key={branch.id} className={`fd-branch-col${dimmedBranchIds?.has(branch.id) ? ' fd-branch-col--dimmed' : ''}${branch.children?.sharedReference ? ' fd-branch-col--shared-reference' : ''}`}>
             <div className="fd-branch-col-top-line" />
 
             <button
@@ -203,9 +219,9 @@ export default function BranchContainer({
                   </span>
                 )}
               </div>
-              {getBranchDesc(branch, branchType) && (
-                <div className="fd-branch-title__desc">
-                  {getBranchDesc(branch, branchType)}
+              {branchDesc && (
+                <div className="fd-branch-title__desc" title={branchDesc}>
+                  {branchDesc}
                 </div>
               )}
 
@@ -228,18 +244,19 @@ export default function BranchContainer({
               )}
             </button>
 
-            {!readOnly && (
+            {!readOnly && !branch.children?.sharedReference && (
               <AddNodeButton
                 onAdd={(type) => onAddNodeInBranch(node.id, branch.id, type)}
               />
             )}
-            {readOnly && <AddNodeButton onAdd={() => { /* noop */ }} readOnly />}
+            {readOnly && !branch.children?.sharedReference && <AddNodeButton onAdd={() => { /* noop */ }} readOnly />}
 
             {renderChildren(branch.children, `branch-${branch.id}-${index}`)}
 
             <div className="fd-branch-col-bottom-line" />
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
     </>

@@ -148,6 +148,55 @@ body[theme-mode='dark'] .fd-node-card:hover {
   border-color: #ff943e;
 }
 
+/* 共享图节点的只读引用：保留每条路径的后续节点语义，但不重复显示可编辑卡片。 */
+.fd-shared-node-reference {
+  position: relative;
+  width: 220px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  box-sizing: border-box;
+  margin-top: 16px;
+  padding: 10px 12px;
+  border: 1px dashed var(--semi-color-border);
+  border-radius: var(--semi-border-radius-medium);
+  background: var(--semi-color-bg-2);
+  color: var(--semi-color-text-2);
+  font-size: 12px;
+  font-family: inherit;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.fd-shared-node-reference:hover:not(:disabled) {
+  border-color: var(--semi-color-primary);
+  color: var(--semi-color-primary);
+  background: var(--semi-color-primary-light-default);
+}
+
+.fd-shared-node-reference:disabled {
+  cursor: default;
+  opacity: 0.75;
+}
+
+.fd-shared-node-reference__hint {
+  font-size: 11px;
+  color: var(--semi-color-text-3);
+}
+
+.fd-shared-node-reference::before {
+  content: '';
+  position: absolute;
+  top: -16px;
+  left: 50%;
+  width: 2px;
+  height: 16px;
+  transform: translateX(-50%);
+  background: var(--fd-line-color, #cacaca);
+}
+
 /* ─── Initiator 节点（发起人） ──────────────────────────────────────── */
 
 .fd-initiator-node {
@@ -159,9 +208,22 @@ body[theme-mode='dark'] .fd-node-card:hover {
 /* ─── 结束节点 ─────────────────────────────────────────────────────── */
 
 .fd-end-node {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
+  margin-top: 16px;
+}
+
+.fd-end-node::before {
+  content: '';
+  position: absolute;
+  top: -16px;
+  left: 50%;
+  width: 2px;
+  height: 16px;
+  transform: translateX(-50%);
+  background: var(--fd-line-color, #cacaca);
 }
 
 .fd-end-node__circle {
@@ -315,6 +377,16 @@ body[theme-mode='dark'] .fd-node-card:hover {
 .fd-branch-box {
   display: flex;
   position: relative;
+}
+
+/* 嵌套网关占用父列的剩余高度，使内外层分支在同一条汇聚基线上收束。 */
+.fd-branch-col > .fd-branch-wrap {
+  flex: 1 0 auto;
+  margin-bottom: -20px;
+}
+
+.fd-branch-col > .fd-branch-wrap > .fd-branch-box {
+  flex: 1 0 auto;
 }
 
 /* 添加条件/分支按钮（位于 fd-branch-wrap 内，fd-branch-box 之前） */
@@ -1284,14 +1356,22 @@ body[theme-mode='dark'] .fd-simulation-graph__canvas {
   filter: grayscale(0.6);
 }
 
+/* 共享节点已由另一条路径绘制，避免重复画出一条底部汇聚线。 */
+.fd-branch-col--shared-reference::after,
+.fd-branch-col--shared-reference .fd-branch-col-bottom-line {
+  display: none;
+}
+
 /* 每条分支列 */
 .fd-branch-col {
   display: flex;
   flex-direction: column;
   align-items: center;
   position: relative;
-  min-width: 260px;
-  padding: 0 20px;
+  flex: 0 0 236px;
+  width: 236px;
+  min-width: 236px;
+  padding: 0 8px;
 }
 
 /* 分支顶部连接线 */
@@ -1356,6 +1436,7 @@ body[theme-mode='dark'] .fd-simulation-graph__canvas {
 .fd-branch-title {
   width: 220px;
   padding: 12px;
+  text-align: left;
   background: var(--semi-color-bg-2);
   border-radius: var(--semi-border-radius-medium);
   border: 1px solid var(--semi-color-border);
@@ -1502,7 +1583,13 @@ body[theme-mode='dark'] .fd-branch-banner--inclusive {
   color: var(--semi-color-text-2);
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 18px;
+  max-height: 36px;
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  word-break: break-word;
 }
 
 .fd-branch-title__close {

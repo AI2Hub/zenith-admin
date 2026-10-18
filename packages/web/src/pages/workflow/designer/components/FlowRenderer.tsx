@@ -20,7 +20,7 @@ interface FlowRendererProps {
   onRemoveBranch?: (branchNodeId: string, branchId: string) => void;
   onEditBranch?: (branch: FlowBranch, branchNodeId: string) => void;
   onMoveBranch?: (branchNodeId: string, branchId: string, direction: 'up' | 'down') => void;
-  formFields?: ReadonlyArray<{ key: string; label: string; type?: string }>;
+  formFields?: ReadonlyArray<{ key: string; label: string; type?: string; options?: readonly string[] }>;
   readOnly?: boolean;
   /** 只读但允许点击节点查看其配置（只读设计器场景） */
   readOnlyInteractive?: boolean;
@@ -84,6 +84,22 @@ export default function FlowRenderer({
   function renderNodeChain(node: FlowNode | undefined, _parentId: string): React.ReactNode {
     if (!node) return null;
 
+    if (node.sharedReference) {
+      const interactive = !readOnly || readOnlyInteractive;
+      return (
+        <button
+          type="button"
+          className="fd-shared-node-reference"
+          disabled={!interactive}
+          onClick={interactive ? () => editNode(node) : undefined}
+          title={interactive ? '点击编辑共享节点，修改将同步到所有引用路径' : undefined}
+        >
+          <span>共享节点：{node.name}</span>
+          {interactive && <span className="fd-shared-node-reference__hint">点击查看配置</span>}
+        </button>
+      );
+    }
+
     return (
       <>
         {isBranchNode(node.type) ? (
@@ -121,8 +137,8 @@ export default function FlowRenderer({
           />
         )}
 
-        {!readOnly && <AddNodeButton onAdd={(type) => addAfter(node.id, type)} />}
-        {readOnly && <AddNodeButton onAdd={noop} readOnly />}
+        {(!isBranchNode(node.type) || node.children) && !readOnly && <AddNodeButton onAdd={(type) => addAfter(node.id, type)} />}
+        {(!isBranchNode(node.type) || node.children) && readOnly && <AddNodeButton onAdd={noop} readOnly />}
 
         {node.children && renderNodeChain(node.children, node.id)}
       </>

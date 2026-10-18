@@ -148,6 +148,15 @@ describe('graph editing projection', () => {
     const before = structuredClone(graph);
     const process = projected(graph);
     expect(process.sharedNodeIds).toEqual(['bad']);
+    const sharedOccurrences: boolean[] = [];
+    const collect = (current: typeof process.initiator | undefined): void => {
+      if (!current) return;
+      if (current.id === 'bad') sharedOccurrences.push(current.sharedReference ?? false);
+      for (const branch of current.branches ?? []) collect(branch.children);
+      collect(current.children);
+    };
+    collect(process.initiator);
+    expect(sharedOccurrences).toEqual([false, true]);
     expectSameGraph(compileWorkflowTree(process), graph);
     expect(graph).toEqual(before);
   });
