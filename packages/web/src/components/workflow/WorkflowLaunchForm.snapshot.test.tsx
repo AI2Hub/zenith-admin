@@ -63,7 +63,7 @@ describe('non-validating launch snapshot', () => {
         createComponent: 'biz/access/AccessRequestWorkflowForm',
         variables: [{ key: 'riskLevel', label: '风险等级', type: 'string' }],
       },
-    } as WorkflowDefinition;
+    } as unknown as WorkflowDefinition;
 
     render(<WorkflowLaunchForm def={customDef} container="sheet" />);
 

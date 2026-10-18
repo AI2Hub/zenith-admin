@@ -78,8 +78,8 @@ describe('business workflow integration in Demo', () => {
     expect((await call(workflowInstanceContract.pendingDefinitionOptions)).body.data).toEqual([]);
   });
 
-  it('derives both external definitions from shared seed and previews without saving', async () => {
-    for (const seed of SEED_WORKFLOW_DEFINITIONS) {
+  it('derives external definitions from shared seed and previews without saving', async () => {
+    for (const seed of SEED_WORKFLOW_DEFINITIONS.filter((item) => item.formType === 'external')) {
       const definition = mockWorkflowDefinitions.find((item) => item.name === seed.name && item.formType === 'external');
       expect(definition?.flowData).toMatchObject(seed.flowData);
       expect(definition?.flowData?.settings?.numbering?.versionId).toBeGreaterThan(0);
