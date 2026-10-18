@@ -6,6 +6,7 @@ import {
   getAccessWorkflowOptions,
   createAccessReviewCampaign,
   decideReviewItem,
+  getAccessGrant,
   getAccessRequest,
   getUserAccessOverview,
   listAccessGrants,
@@ -30,6 +31,9 @@ const requestDetailRoute = defineContractRoute(accessGovernanceContract.requestD
 });
 const grantListRoute = defineContractRoute(accessGovernanceContract.grantList, {
   handler: async (c) => c.json(okBody(await listAccessGrants(c.req.valid('query'))), 200),
+});
+const grantDetailRoute = defineContractRoute(accessGovernanceContract.grantDetail, {
+  handler: async (c) => c.json(okBody(await getAccessGrant(c.req.valid('param').id)), 200),
 });
 const grantRevokeRoute = defineContractRoute(accessGovernanceContract.grantRevoke, {
   handler: async (c) => c.json(okBody(await revokeAccessGrant(c.req.valid('param').id, c.req.valid('json'))), 200),
@@ -61,6 +65,7 @@ accessGovernanceRouter.openapiRoutes([
   requestListRoute,
   requestDetailRoute,
   grantListRoute,
+  grantDetailRoute,
   grantRevokeRoute,
   reviewCampaignListRoute,
   reviewCampaignCreateRoute,

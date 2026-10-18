@@ -17,6 +17,10 @@ export const identityAccessGovernanceKeys = {
   reviewCampaigns: contractKey(accessGovernanceContract.reviewCampaignList),
   reviewItems: contractKey(accessGovernanceContract.reviewItemList),
   policies: contractKey(accessGovernanceContract.policyList),
+  // 详情按 id 缓存：治理页的"关联申请 / 来源授权 / 用户概览"跳转复用同一份记录
+  requestDetail: (id: number | null | undefined) => contractKey(accessGovernanceContract.requestDetail, { params: { id: id ?? 0 } }),
+  grantDetail: (id: number | null | undefined) => contractKey(accessGovernanceContract.grantDetail, { params: { id: id ?? 0 } }),
+  userOverview: (id: number | null | undefined) => contractKey(accessGovernanceContract.userOverview, { params: { id: id ?? 0 } }),
 };
 
 export function useAccessWorkflowOptions(enabled = true) {
@@ -41,6 +45,21 @@ export function useAccessReviewItemList(query: AccessReviewItemListQuery, enable
 
 export function usePermissionPolicyList(query: PermissionPolicyListQuery, enabled = true) {
   return useApiQuery(accessGovernanceContract.policyList, { query }, { enabled, placeholderData: keepPreviousData });
+}
+
+/** 单条申请详情（临时授权详情里的「关联申请」按 id 拉取） */
+export function useAccessRequestDetail(id: number | null | undefined, enabled = true) {
+  return useApiQuery(accessGovernanceContract.requestDetail, { params: { id: id ?? 0 } }, { enabled: enabled && id != null });
+}
+
+/** 单条临时授权详情（权限复核详情里的「来源授权」按 id 拉取） */
+export function useAccessGrantDetail(id: number | null | undefined, enabled = true) {
+  return useApiQuery(accessGovernanceContract.grantDetail, { params: { id: id ?? 0 } }, { enabled: enabled && id != null });
+}
+
+/** 用户权限治理概览（该用户的临时授权与复核项） */
+export function useAccessUserOverview(id: number | null | undefined, enabled = true) {
+  return useApiQuery(accessGovernanceContract.userOverview, { params: { id: id ?? 0 } }, { enabled: enabled && id != null });
 }
 
 export function useRevokeAccessGrant() {
