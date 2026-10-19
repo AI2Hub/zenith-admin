@@ -3,7 +3,7 @@ import { lockUnchangedWorkflowDraft } from './signature-concurrency';
 import { clearWorkflowFormSignatures, resolveWorkflowFormSignatures } from './signatures';
 // ─── 实例生命周期：创建/撤回/取消/删除/草稿/重新提交（拆分自 workflow-instances.service.ts）───
 import { uniquePositiveInts } from '@zenith/shared/core';
-import { ACCESS_REQUEST_BIZ_TYPE, buildAccessApprovalFlow, type AccessApprovalPlan } from '@zenith/shared/identity';
+import { getWorkflowBusinessAdapter, getWorkflowDefinitionBusinessAdapter } from '../../../lib/workflow-business';
 import { eq, and, desc, inArray } from 'drizzle-orm';
 import { db } from '../../../db';
 import { releaseManagedFiles } from '../../files/file-gc.service';
@@ -92,11 +92,11 @@ export async function createInstance(data: { definitionId: number; title: string
   const validation = validateFlowData(baseFlowData);
   if (!validation.valid) throw new HTTPException(400, { message: validation.errors[0] });
   let formData: Record<string, unknown> = sanitizeFormByStartPerms(baseFlowData, data.formData ?? {});
-  const isAccessRequest = (def.customForm as { businessType?: string } | null)?.businessType === ACCESS_REQUEST_BIZ_TYPE;
-  if (isAccessRequest && !data.asDraft) {
-    const { normalizeAccessWorkflowFormData } = await import('../../identity/access-governance.service');
-    formData = await normalizeAccessWorkflowFormData(formData, user);
-    baseFlowData = buildAccessApprovalFlow(formData.approvalPlan as AccessApprovalPlan, baseFlowData.settings);
+  const businessAdapter = getWorkflowDefinitionBusinessAdapter(toDefinitionSnapshot(def));
+  if (businessAdapter?.prepare && !data.asDraft) {
+    const prepared = await businessAdapter.prepare({ mode: 'submit', definition: toDefinitionSnapshot(def), formData, flowData: baseFlowData, actor: user });
+    formData = prepared.formData;
+    baseFlowData = prepared.flowData;
   }
   const resolvedFormSnapshot = await resolveFormSnapshot(def.formId);
   const formSnapshot = buildInstanceFormSnapshot(def, resolvedFormSnapshot);
@@ -169,10 +169,7 @@ export async function createInstance(data: { definitionId: number; title: string
       const serialNo = await allocateWorkflowInstanceNumber(tx, { instanceId: createdInstance.id, definitionId: def.id, tenantId: createdInstance.tenantId, initiatorId: user.userId, flowData, formData, formSnapshot });
       formData = await bindWorkflowFormAttachments(tx, createdInstance, formSnapshot, formData, user.userId, copyAttachmentSourceIds);
       await tx.update(workflowInstances).set({ formData, serialNo }).where(eq(workflowInstances.id, createdInstance.id));
-      if (isAccessRequest) {
-        const { attachAccessRequestToWorkflow } = await import('../../identity/access-workflow.service');
-        await attachAccessRequestToWorkflow(tx, { ...createdInstance, formData });
-      }
+      await businessAdapter?.attachInTransaction?.(tx, { ...createdInstance, formData });
       const materialized = await advanceAndMaterialize({ kind: 'seed' }, {
         instanceId: createdInstance.id,
         initiatorId: user.userId,
@@ -350,10 +347,7 @@ export async function cancelInstance(id: number) {
       outcome: 'cancelled',
       actorId: user.userId,
     });
-    if (row.bizType === ACCESS_REQUEST_BIZ_TYPE) {
-      const { bridgeAccessWorkflowOutcome } = await import('../../identity/access-workflow.service');
-      await bridgeAccessWorkflowOutcome(tx, mapInstance(row), user.userId);
-    }
+    await getWorkflowBusinessAdapter(row.bizType)?.onOutcomeInTransaction?.(tx, mapInstance(row), user.userId);
     // 事务性 outbox：取消事件与状态变更原子提交
     const actor = { userId: user.userId, name: user.username };
     for (const t of cancelled) {
@@ -367,7 +361,7 @@ export async function cancelInstance(id: number) {
 export async function deleteInstance(id: number) {
   const user = currentUser();
   const inst = await requireVisibleInstance(id);
-  if (inst.bizType === ACCESS_REQUEST_BIZ_TYPE) throw new HTTPException(409, { message: '权限申请流程是授权审计依据，不支持直接删除；请通过授权撤销与归档管理' });
+  await getWorkflowBusinessAdapter(inst.bizType)?.assertDeletable?.(inst);
   if (inst.status === 'running') {
     throw new HTTPException(400, { message: '请先取消进行中的流程再删除' });
   }
@@ -429,11 +423,11 @@ export async function submitDraftInstance(id: number, input: { selectedInitiator
   const validation = validateFlowData(baseFlowData);
   if (!validation.valid) throw new HTTPException(400, { message: validation.errors[0] });
   let formData = sanitizeFormByStartPerms(baseFlowData, (inst.formData ?? {}) as Record<string, unknown>);
-  const isAccessRequest = (def.customForm as { businessType?: string } | null)?.businessType === ACCESS_REQUEST_BIZ_TYPE;
-  if (isAccessRequest) {
-    const { normalizeAccessWorkflowFormData } = await import('../../identity/access-governance.service');
-    formData = await normalizeAccessWorkflowFormData(formData, user);
-    baseFlowData = buildAccessApprovalFlow(formData.approvalPlan as AccessApprovalPlan, baseFlowData.settings);
+  const businessAdapter = getWorkflowDefinitionBusinessAdapter(toDefinitionSnapshot(def));
+  if (businessAdapter?.prepare) {
+    const prepared = await businessAdapter.prepare({ mode: 'submit', definition: toDefinitionSnapshot(def), formData, flowData: baseFlowData, actor: user });
+    formData = prepared.formData;
+    baseFlowData = prepared.flowData;
   }
   assertLaunchMatchesFormType(def, { bizType: inst.bizType, bizId: inst.bizId, formData: (inst.formData ?? {}) as Record<string, unknown> });
   const resolvedFormSnapshot = await resolveFormSnapshot(def.formId);
@@ -466,10 +460,7 @@ export async function submitDraftInstance(id: number, input: { selectedInitiator
       status: 'running',
       currentNodeKey: null,
     }).where(eq(workflowInstances.id, id));
-    if (isAccessRequest) {
-      const { attachAccessRequestToWorkflow } = await import('../../identity/access-workflow.service');
-      await attachAccessRequestToWorkflow(tx, { ...inst, formData });
-    }
+    await businessAdapter?.attachInTransaction?.(tx, { ...inst, formData });
     // 防御性清场：退回重提复用同一实例；若上一轮仍残留活动任务 / token / 推进作业（历史缺陷或并发产物），
     // 先作废再重新物化，保证新一轮任务是唯一活动轮次，杜绝新旧任务并存与 token 缺口
     if (isResubmitAfterReturn) {

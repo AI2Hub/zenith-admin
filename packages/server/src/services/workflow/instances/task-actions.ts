@@ -35,8 +35,8 @@ import { bridgeReportFillWorkflowOutcome } from '../../report/report-fill-workfl
 import { submitReportFillSyncForWorkflowInstance } from '../../report/report-fill-task.service';
 import type { DbExecutor } from '../../../db/types';
 import { requireRow } from '../../../lib/db-assert';
-import { ACCESS_REQUEST_BIZ_TYPE } from '@zenith/shared/identity';
-import type { AccessMfaEvidence } from '../../identity/access-approval.service';
+import { getWorkflowInstanceBusinessAdapter } from '../../../lib/workflow-business';
+import type { PreparedWorkflowBusinessApproval } from '../../../lib/workflow-business-types';
 
 export type WorkflowTaskAttachment = WorkflowAttachmentInput;
 
@@ -134,15 +134,15 @@ export async function listTaskSelectableNextApprovers(
   }));
 }
 
-export async function approveTask(taskId: number, comment?: string, attachments?: WorkflowTaskAttachment[], selectedNextApprovers?: Record<string, number[]>, signature?: SignatureInput, formUpdates?: Record<string, unknown>, mfaCode?: string): Promise<ApproveResult> {
-  return approveUserTask(taskId, comment, attachments, selectedNextApprovers, signature, formUpdates, false, mfaCode);
+export async function approveTask(taskId: number, comment?: string, attachments?: WorkflowTaskAttachment[], selectedNextApprovers?: Record<string, number[]>, signature?: SignatureInput, formUpdates?: Record<string, unknown>, businessInput?: Record<string, unknown>): Promise<ApproveResult> {
+  return approveUserTask(taskId, comment, attachments, selectedNextApprovers, signature, formUpdates, false, businessInput);
 }
 
 export async function approveTaskInBatch(taskId: number, comment?: string, signature?: Extract<SignatureInput, { source: 'saved' }>): Promise<ApproveResult> {
   return approveUserTask(taskId, comment, undefined, undefined, signature, undefined, true);
 }
 
-async function approveUserTask(taskId: number, comment: string | undefined, attachments: WorkflowTaskAttachment[] | undefined, selectedNextApprovers: Record<string, number[]> | undefined, signature: SignatureInput | undefined, formUpdates: Record<string, unknown> | undefined, batch: boolean, mfaCode?: string): Promise<ApproveResult> {
+async function approveUserTask(taskId: number, comment: string | undefined, attachments: WorkflowTaskAttachment[] | undefined, selectedNextApprovers: Record<string, number[]> | undefined, signature: SignatureInput | undefined, formUpdates: Record<string, unknown> | undefined, batch: boolean, businessInput?: Record<string, unknown>): Promise<ApproveResult> {
   const { task, inst, actor } = await getOwnPendingTask(taskId);
   assertIndependentReconApproval(inst.bizType, inst.initiatorId, actor.userId);
   // 校验"操作按钮设置"：通过按钮须启用 + 附件必填（uploadMode === 'required'）
@@ -156,11 +156,7 @@ async function approveUserTask(taskId: number, comment: string | undefined, atta
   if (nodeCfg?.operations?.includes('opinionRequired') && !comment?.trim()) {
     throw new HTTPException(400, { message: '请填写审批意见后再提交' });
   }
-  let mfaEvidence: AccessMfaEvidence | undefined;
-  if (inst.bizType === ACCESS_REQUEST_BIZ_TYPE) {
-    const { verifyAccessApprovalMfa } = await import('../../identity/access-approval.service');
-    mfaEvidence = await verifyAccessApprovalMfa(inst, taskId, actor.userId, mfaCode);
-  }
+  const businessApproval = await getWorkflowInstanceBusinessAdapter(inst)?.prepareApproval?.({ instance: inst, task, actor, input: businessInput, formUpdates });
   const signatureSnapshot = await resolveWorkflowTaskSignature(nodeCfg, signature, batch);
   const signedFormUpdates = await resolveWorkflowFormSignatures(inst.formSnapshot,
     sanitizeFormUpdatesByNodePerms(resolveNodeFieldPermissions(flowData, task.nodeKey), formUpdates),
@@ -172,9 +168,9 @@ async function approveUserTask(taskId: number, comment: string | undefined, atta
     }
     const principalName = await findUserDisplayName(task.delegatedFromId);
     const decorated = `[代 ${principalName} 审批] ${comment ?? ''}`.trim();
-    return approveTaskCore(task, inst, decorated, actor, { selectedNextApprovers, signature: signatureSnapshot, attachments, formUpdates: signedFormUpdates, mfaEvidence });
+    return approveTaskCore(task, inst, decorated, actor, { selectedNextApprovers, signature: signatureSnapshot, attachments, formUpdates: signedFormUpdates, businessApproval });
   }
-  return approveTaskCore(task, inst, comment, actor, { selectedNextApprovers, signature: signatureSnapshot, attachments, formUpdates: signedFormUpdates, mfaEvidence });
+  return approveTaskCore(task, inst, comment, actor, { selectedNextApprovers, signature: signatureSnapshot, attachments, formUpdates: signedFormUpdates, businessApproval });
 }
 
 /** 外部审批回调：根据 callbackId 找到 waiting 任务并审批通过 */
@@ -257,7 +253,7 @@ export async function approveTaskCore(
   inst: typeof workflowInstances.$inferSelect,
   comment: string | undefined,
   actor: WorkflowEventActor,
-  options?: { selectedNextApprovers?: Record<string, number[]>; signature?: SignatureSnapshot; attachments?: WorkflowTaskAttachment[]; formUpdates?: Record<string, unknown>; mfaEvidence?: AccessMfaEvidence },
+  options?: { selectedNextApprovers?: Record<string, number[]>; signature?: SignatureSnapshot; attachments?: WorkflowTaskAttachment[]; formUpdates?: Record<string, unknown>; businessApproval?: PreparedWorkflowBusinessApproval },
 ): Promise<ApproveResult> {
   assertIndependentReconApproval(inst.bizType, inst.initiatorId, actor.userId);
   const activationId = requireRow(task.activationId, '任务缺少显式节点轮次', 409);
@@ -265,6 +261,7 @@ export async function approveTaskCore(
   const snapshot = inst.definitionSnapshot;
   const flowData = snapshot?.flowData;
   if (!flowData) throw new HTTPException(500, { message: '流程快照数据异常' });
+  const businessApproval = options?.businessApproval ?? await getWorkflowInstanceBusinessAdapter(inst)?.prepareApproval?.({ instance: inst, task, actor, formUpdates: options?.formUpdates });
 
   const updated = await workflowTransaction(async (tx) => {
     const res = await (async () => {
@@ -275,11 +272,7 @@ export async function approveTaskCore(
       throw new HTTPException(409, { message: '流程实例状态已变化，请刷新后重试' });
     }
     assertWorkflowFormUpdatesCurrent((inst.formData ?? {}) as Record<string, unknown>, (lockedInst.formData ?? {}) as Record<string, unknown>, options?.formUpdates ?? {});
-    if (inst.bizType === ACCESS_REQUEST_BIZ_TYPE) {
-      if (Object.keys(options?.formUpdates ?? {}).length) throw new HTTPException(403, { message: '权限申请审批时不能修改已经冻结的申请内容' });
-      const { assertAccessApprovalInTransaction } = await import('../../identity/access-approval.service');
-      await assertAccessApprovalInTransaction(tx, inst, task, actor.userId, options?.mfaEvidence);
-    }
+    await businessApproval?.assertInTransaction(tx);
     // 乐观并发保护：仅当任务仍处于读取时的状态才能推进，防止并发重复审批导致流程重复前进
     const [approvedTask] = await tx.update(workflowTasks).set({
       status: 'approved',

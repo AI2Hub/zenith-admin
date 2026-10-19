@@ -21,8 +21,8 @@ export async function attachAccessRequestToWorkflow(executor: DbExecutor, instan
     throw new HTTPException(409, { message: '权限申请缺少有效的服务端审批快照' });
   }
   const startsAt = parseDateTimeInput(form.startsAt);
-  const expiresAt = parseDateTimeInput(form.expiresAt);
-  if (!startsAt || !expiresAt) throw new HTTPException(400, { message: '权限申请有效期无效' });
+  const expiresAt = form.expiresAt === null ? null : parseDateTimeInput(form.expiresAt);
+  if (!startsAt || (form.validityMode === 'limited' && !expiresAt)) throw new HTTPException(400, { message: '权限申请有效期无效' });
   await executor.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`identity-access:${instance.tenantId ?? 'platform'}:${instance.initiatorId}`}, 0))`);
   const existing = await executor.query.identityAccessRequests.findFirst({
     where: and(eq(identityAccessRequests.workflowInstanceId, instance.id), exactTenantCondition(identityAccessRequests.tenantId, instance.tenantId)),
@@ -37,7 +37,6 @@ export async function attachAccessRequestToWorkflow(executor: DbExecutor, instan
     requestType: form.requestType,
     status: 'pending',
     reason: form.reason,
-    businessReference: form.businessReference ?? null,
     startsAt,
     expiresAt,
     riskLevel: form.riskLevel,

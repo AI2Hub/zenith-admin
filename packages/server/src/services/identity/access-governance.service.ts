@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, exists, gt, inArray, lte, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, exists, gt, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { type AccessRequest, type AccessGrant, type PermissionPolicy, accessGovernanceContract } from '@zenith/shared/identity';
 import { ALL_PERMISSIONS } from '@zenith/shared/permissions';
@@ -113,7 +113,7 @@ async function resolveRequestItems(itemsInput: AccessRequestItemInput[], tenantI
         menuId: menu.id,
         permissionCode,
         permissionLabel: permissionCode ? permissionMeta?.label ?? menu.title : null,
-        dataScope: requested.dataScope ?? null,
+        dataScope: requested.dataScope ?? 'self',
         deptScopeIds: requested.deptScopeIds ?? [],
         snapshot: { menuId: menu.id, menuTitle: menu.title, permissionCode },
       });
@@ -163,15 +163,40 @@ export async function getAccessWorkflowOptions() {
     const codes = [...new Set(rows.flatMap(({ menu }) => menu.permission ? [menu.permission] : []))];
     const rolePolicies = codes.flatMap(code => { const policy = policies.get(code); return policy ? [policy] : []; });
     if (!rolePolicies.length || rolePolicies.length !== codes.length || rolePolicies.some(policy => !policy.enabled)) return [];
-    return [{ id: role.id, name: role.name, code: role.code, description: role.description ?? null, dataScope: role.dataScope, menuCount: rows.length, ...aggregateAccessPolicies(rolePolicies) }];
+    return [{ id: role.id, name: role.name, code: role.code, description: role.description ?? null, dataScope: role.dataScope, menuCount: codes.length, menuIds: rows.filter(({ menu }) => !!menu.permission).map(({ menu }) => menu.id), ...aggregateAccessPolicies(rolePolicies) }];
   });
+  const available = menuRows.filter(menu => !featureSet || !menu.featureKey || featureSet.has(menu.featureKey));
+  const menuIndex = new Map(available.map(menu => [menu.id, menu]));
+  const included = new Set<number>();
+  for (const menu of available) {
+    if (!menu.permission || !policies.get(menu.permission)?.enabled) continue;
+    let node: typeof menu | undefined = menu;
+    const visited = new Set<number>();
+    while (node && !visited.has(node.id)) {
+      visited.add(node.id);
+      included.add(node.id);
+      node = menuIndex.get(node.parentId);
+    }
+  }
   return {
     roles: roleOptions,
-    menus: menuRows.flatMap(menu => {
+    menus: available.filter(menu => included.has(menu.id)).map(menu => {
       const policy = menu.permission ? policies.get(menu.permission) : undefined;
-      if (!policy?.enabled || (featureSet && menu.featureKey && !featureSet.has(menu.featureKey))) return [];
-      return [{ id: menu.id, parentId: menu.parentId, title: menu.title, name: menu.name ?? null, type: menu.type, permission: menu.permission, permissionLabel: ALL_PERMISSIONS[policy.permissionCode].label,
-        riskLevel: policy.riskLevel, approvalPolicy: policy.approvalPolicy, maxDurationMinutes: policy.maxDurationMinutes, mfaRequired: policy.mfaRequired }];
+      const path = [menu.title];
+      let ancestor = menuIndex.get(menu.parentId);
+      const visited = new Set([menu.id]);
+      while (ancestor && !visited.has(ancestor.id)) {
+        visited.add(ancestor.id);
+        path.unshift(ancestor.title);
+        ancestor = menuIndex.get(ancestor.parentId);
+      }
+      return {
+        id: menu.id, parentId: menu.parentId, title: menu.title, name: menu.name ?? null, type: menu.type, permission: menu.permission,
+        permissionLabel: menu.permission ? ALL_PERMISSIONS[menu.permission]?.label ?? menu.title : null,
+        requestable: !!policy?.enabled, path,
+        riskLevel: policy?.riskLevel ?? 'low', approvalPolicy: policy?.approvalPolicy ?? 'none',
+        maxDurationMinutes: policy?.maxDurationMinutes ?? null, mfaRequired: policy?.mfaRequired ?? false,
+      };
     }),
   };
 }
@@ -181,7 +206,7 @@ export async function listAccessRequests(q: QueryOutputOf<typeof accessGovernanc
   const where = buildWhere(
     mine ? undefined : tenantCondition(identityAccessRequests, user),
     mine ? eq(identityAccessRequests.applicantUserId, user.userId) : undefined,
-    keywordCondition(q.keyword, [identityAccessRequests.reason, identityAccessRequests.businessReference]),
+    keywordCondition(q.keyword, [identityAccessRequests.reason]),
     q.status ? eq(identityAccessRequests.status, q.status) : undefined,
     q.provisionStatus ? eq(identityAccessRequests.provisionStatus, q.provisionStatus) : undefined,
     q.riskLevel ? eq(identityAccessRequests.riskLevel, q.riskLevel) : undefined,
@@ -265,13 +290,12 @@ export async function normalizeAccessWorkflowFormData(raw: Record<string, unknow
   const input = parsed.data;
   const now = new Date();
   const startsAt = input.startMode === 'immediate' ? now : parseRequiredDate(input.startsAt!, '生效时间');
-  const expiresAt = parseRequiredDate(input.expiresAt, '失效时间');
+  const expiresAt = input.validityMode === 'permanent' ? null : parseRequiredDate(input.expiresAt!, '失效时间');
   if (input.startMode === 'scheduled' && startsAt < now) throw new HTTPException(400, { message: '预约生效时间不能早于当前时间' });
-  if (expiresAt <= now) throw new HTTPException(400, { message: '失效时间必须晚于当前时间' });
-  if (expiresAt <= startsAt) throw new HTTPException(400, { message: '失效时间必须晚于生效时间' });
-  if (input.requestType === 'emergency' && expiresAt.getTime() - startsAt.getTime() > 60 * 60 * 1000) throw new HTTPException(400, { message: '紧急授权最长 60 分钟' });
+  if (expiresAt && expiresAt <= now) throw new HTTPException(400, { message: '失效时间必须晚于当前时间' });
+  if (expiresAt && expiresAt <= startsAt) throw new HTTPException(400, { message: '失效时间必须晚于生效时间' });
   const enriched = await enrichAccessWorkflowFormData(input, caller);
-  if (expiresAt.getTime() - startsAt.getTime() > enriched.maxDurationMinutes * 60_000) throw new HTTPException(400, { message: `所选权限最长授权 ${enriched.maxDurationMinutes} 分钟` });
+  if (expiresAt && enriched.maxDurationMinutes !== null && expiresAt.getTime() - startsAt.getTime() > enriched.maxDurationMinutes * 60_000) throw new HTTPException(400, { message: `限时申请超过策略配置的 ${enriched.maxDurationMinutes} 分钟，请调整截止时间或选择永久有效` });
   await assertNoOverlappingAccessRequest({
     targetUserId: caller.userId,
     tenantId: caller.tenantId,
@@ -282,7 +306,7 @@ export async function normalizeAccessWorkflowFormData(raw: Record<string, unknow
   return {
     ...enriched,
     startsAt: formatDateTime(startsAt),
-    expiresAt: formatDateTime(expiresAt),
+    expiresAt: expiresAt ? formatDateTime(expiresAt) : null,
   };
 }
 
@@ -332,7 +356,7 @@ export async function normalizeAccessWorkflowFormData(raw: Record<string, unknow
     });
     if (menuItems.length > 0) await tx.insert(identityAccessGrantMenus).values(menuItems).onConflictDoNothing();
     await tx.update(identityAccessRequests).set({ status: 'approved', provisionStatus: 'succeeded', approvedAt: request.approvedAt ?? now, appliedAt: now, failureReason: null }).where(eq(identityAccessRequests.id, request.id));
-    await notifyWithin(tx, 'identity.access.approved', { recipients: [{ type: 'user', id: target.id }], vars: { requestId: request.id, targetName: target.nickname || target.username, startsAt: formatDateTime(request.startsAt), expiresAt: formatDateTime(request.expiresAt) }, tenantId: request.tenantId, link: `/workflow/instance/${request.workflowInstanceId}`, dedupeKey: `identity-access-approved:${request.id}` });
+    await notifyWithin(tx, 'identity.access.approved', { recipients: [{ type: 'user', id: target.id }], vars: { requestId: request.id, targetName: target.nickname || target.username, startsAt: formatDateTime(request.startsAt), expiresAt: request.expiresAt ? formatDateTime(request.expiresAt) : '永久有效', validityText: request.expiresAt ? `${formatDateTime(request.startsAt)} 至 ${formatDateTime(request.expiresAt)}` : `自 ${formatDateTime(request.startsAt)} 起永久有效` }, tenantId: request.tenantId, link: `/workflow/instance/${request.workflowInstanceId}`, dedupeKey: `identity-access-approved:${request.id}` });
     const applied = await tx.query.identityAccessGrants.findFirst({ where: eq(identityAccessGrants.id, grant.id), with: { user: true, approver: true, revoker: true, menus: true } });
     return applied ? formatAccessGrant(applied) : null;
   });
@@ -347,8 +371,8 @@ export async function listAccessGrants(q: QueryOutputOf<typeof accessGovernanceC
   const live = inArray(identityAccessGrants.status, ['scheduled', 'active']);
   const statusWhere = q.status === 'revoked' ? eq(identityAccessGrants.status, 'revoked')
     : q.status === 'expired' ? or(eq(identityAccessGrants.status, 'expired'), and(live, lte(identityAccessGrants.expiresAt, now)))
-    : q.status === 'scheduled' ? and(live, gt(identityAccessGrants.startsAt, now), gt(identityAccessGrants.expiresAt, now))
-    : q.status === 'active' ? and(live, lte(identityAccessGrants.startsAt, now), gt(identityAccessGrants.expiresAt, now)) : undefined;
+    : q.status === 'scheduled' ? and(live, gt(identityAccessGrants.startsAt, now), or(isNull(identityAccessGrants.expiresAt), gt(identityAccessGrants.expiresAt, now)))
+    : q.status === 'active' ? and(live, lte(identityAccessGrants.startsAt, now), or(isNull(identityAccessGrants.expiresAt), gt(identityAccessGrants.expiresAt, now))) : undefined;
   const where = buildWhere(
     mine ? undefined : tenantCondition(identityAccessGrants, user),
     q.keyword ? or(exists(db.select({ id: users.id }).from(users).where(and(eq(users.id, identityAccessGrants.userId), keywordCondition(q.keyword, [users.username, users.nickname])))),

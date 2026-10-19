@@ -92,9 +92,9 @@ export async function collectAccessReviewSourceBatch(campaign: Pick<IdentityAcce
     if (!['role', 'group'].includes(campaign.scopeType)) for (const grant of user.accessGrants) {
       if (!['scheduled', 'active'].includes(grant.status)) continue;
       for (const item of grant.menus) {
-        if (!['scheduled', 'active'].includes(item.status) || item.expiresAt <= now) continue;
+        if (!['scheduled', 'active'].includes(item.status) || (item.expiresAt && item.expiresAt <= now)) continue;
         append({ userId: user.id, sourceType: 'temporary_grant', sourceId: item.id, sourceLabel: `临时授权 #${grant.id} · 授权项 #${item.id}`, permissionCode: item.permissionCode, permissionLabel: item.permissionLabel ?? undefined, codes: [item.permissionCode], sourceCreatedAt: item.startsAt,
-          snapshot: { grantId: grant.id, grantItemId: item.id, menuId: item.menuId, dataScope: item.dataScope, deptScopeIds: item.deptScopeIds, startsAt: formatDateTime(item.startsAt), expiresAt: formatDateTime(item.expiresAt) } });
+          snapshot: { grantId: grant.id, grantItemId: item.id, menuId: item.menuId, dataScope: item.dataScope, deptScopeIds: item.deptScopeIds, startsAt: formatDateTime(item.startsAt), expiresAt: item.expiresAt ? formatDateTime(item.expiresAt) : null } });
       }
     }
   }

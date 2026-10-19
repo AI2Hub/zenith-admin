@@ -71,8 +71,8 @@ export async function getDataScopeCondition(options: DataScopeOptions): Promise<
   });
   const now = new Date();
   const activeGrantScopes = (userData?.accessGrants ?? []).filter(grant =>
-    ['scheduled', 'active'].includes(grant.status) && grant.startsAt <= now && grant.expiresAt > now,
-  ).flatMap(grant => grant.menus.filter(item => ['scheduled', 'active'].includes(item.status) && item.startsAt <= now && item.expiresAt > now && item.menu.status === 'enabled' && item.menu.permission === item.permissionCode && permissionCodes.includes(item.permissionCode)));
+    ['scheduled', 'active'].includes(grant.status) && grant.startsAt <= now && (!grant.expiresAt || grant.expiresAt > now),
+  ).flatMap(grant => grant.menus.filter(item => ['scheduled', 'active'].includes(item.status) && item.startsAt <= now && (!item.expiresAt || item.expiresAt > now) && item.menu.status === 'enabled' && item.menu.permission === item.permissionCode && permissionCodes.includes(item.permissionCode)));
 
   // 禁用角色的数据权限不再生效（与功能权限解析同一口径）
   const directRoleList = (userData?.userRoles.map((ur) => ur.role) ?? []).filter((r) => r.status === 'enabled');

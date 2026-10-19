@@ -127,6 +127,7 @@ export type RefreshTokenResult = z.infer<typeof refreshTokenResultSchema>;
 
 export const userProfileSchema = userSchema.extend({
   permissions: z.array(z.string()).optional(),
+  permissionBoundaryAt: z.string().nullable().optional().meta({ description: '当前用户下一次临时权限生效或失效时刻' }),
 }).meta({ id: 'UserProfile' });
 
 export type UserProfile = z.infer<typeof userProfileSchema>;

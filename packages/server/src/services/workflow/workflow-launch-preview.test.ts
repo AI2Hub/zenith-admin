@@ -3,7 +3,7 @@ import type { WorkflowFlowData, WorkflowFormField, WorkflowNodeConfig } from '@z
 
 const mocks = vi.hoisted(() => ({
   resolve: vi.fn(), selectable: vi.fn(), selected: vi.fn(), starter: vi.fn(), names: vi.fn(),
-  normalizeAccess: vi.fn(), definition: null as Record<string, unknown> | null,
+  prepareBusiness: vi.fn(), definition: null as Record<string, unknown> | null,
 }));
 vi.mock('../../db', () => ({ db: {
   select: () => ({ from: () => ({ where: () => ({ limit: async () => mocks.definition ? [mocks.definition] : [] }) }) }),
@@ -14,7 +14,7 @@ vi.mock('../../lib/tenant', () => ({ tenantCondition: vi.fn() }));
 vi.mock('../../lib/user-nicknames', () => ({ resolveUserNames: mocks.names }));
 vi.mock('./workflow-forms.service', () => ({ resolveFormSnapshot: vi.fn() }));
 vi.mock('./workflow-launch-access', () => ({ assertWorkflowInitiatorScope: vi.fn() }));
-vi.mock('../identity/access-governance.service', () => ({ previewAccessWorkflowFormData: mocks.normalizeAccess }));
+vi.mock('../../lib/workflow-business', () => ({ getWorkflowDefinitionBusinessAdapter: (definition: { customForm?: { businessType?: string } }) => definition.customForm?.businessType === 'example.request' ? { prepare: mocks.prepareBusiness } : undefined }));
 vi.mock('./workflow-assignee-resolver.service', () => ({
   resolveAssigneeIds: mocks.resolve, listSelectableApprovers: mocks.selectable,
   filterSelectedApproverIds: mocks.selected, buildStarterContext: mocks.starter,
@@ -44,7 +44,7 @@ const branched = (extra: Partial<WorkflowNodeConfig> = {}): WorkflowFlowData => 
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.definition = null;
-  mocks.normalizeAccess.mockImplementation(async (value: Record<string, unknown>) => value);
+  mocks.prepareBusiness.mockImplementation(async ({ formData, flowData }: { formData: Record<string, unknown>; flowData: WorkflowFlowData }) => ({ formData, flowData }));
   mocks.starter.mockResolvedValue({ userId: 7, deptIds: [20], roleIds: [], postIds: [] });
   mocks.resolve.mockResolvedValue([8]);
   mocks.selectable.mockResolvedValue([{ id: 8, name: '李四' }]);
@@ -71,12 +71,12 @@ describe('launch preview and selection share the path planner', () => {
 
     const preview = await previewFlow(5, {});
 
-    expect(preview.find(item => item.nodeKey === 'low')).toMatchObject({ status: 'unknown' });
-    expect(preview.find(item => item.nodeKey === 'low')?.reason).toContain('风险等级');
-    expect(preview.find(item => item.nodeKey === 'low')?.reason).not.toContain('riskLevel');
+    expect(preview.nodes.find(item => item.nodeKey === 'low')).toMatchObject({ status: 'unknown' });
+    expect(preview.nodes.find(item => item.nodeKey === 'low')?.reason).toContain('风险等级');
+    expect(preview.nodes.find(item => item.nodeKey === 'low')?.reason).not.toContain('riskLevel');
   });
 
-  it('normalizes access-request risk before selecting preview branches', async () => {
+  it('uses a registered business adapter for both routing values and the returned execution graph', async () => {
     const flow: WorkflowFlowData = {
       nodes: [node('start', 'start'), node('gateway', 'exclusiveGateway'), node('manager', 'approve'), node('security', 'approve'), node('end', 'end')],
       edges: [
@@ -89,15 +89,17 @@ describe('launch preview and selection share the path planner', () => {
     };
     mocks.definition = {
       id: 5, status: 'published', formType: 'custom', formId: null, flowData: flow,
-      customForm: { businessType: 'identity.access_request', createComponent: 'biz/access/AccessRequestWorkflowForm', variables: [{ key: 'riskLevel', label: '风险等级', type: 'string' }] },
+      customForm: { businessType: 'example.request', createComponent: 'biz/example/Form', variables: [{ key: 'riskLevel', label: '风险等级', type: 'string' }] },
     };
-    mocks.normalizeAccess.mockResolvedValue({ roleIds: [], menuIds: [10], riskLevel: 'low' });
+    const preparedFlow = { ...flow, nodes: flow.nodes.map(item => item.data.key === 'manager' ? { ...item, data: { ...item.data, label: '实际审批节点' } } : item) };
+    mocks.prepareBusiness.mockResolvedValue({ formData: { amount: 10, riskLevel: 'low' }, flowData: preparedFlow });
 
-    const preview = await previewFlow(5, { menuIds: [10] });
+    const preview = await previewFlow(5, { amount: 10 });
 
-    expect(mocks.normalizeAccess).toHaveBeenCalledWith({ menuIds: [10] }, expect.objectContaining({ userId: 7 }));
-    expect(preview.find(item => item.nodeKey === 'manager')?.status).toBe('matched');
-    expect(preview.find(item => item.nodeKey === 'security')?.status).toBe('excluded');
+    expect(mocks.prepareBusiness).toHaveBeenCalledWith(expect.objectContaining({ mode: 'preview', formData: { amount: 10 }, actor: expect.objectContaining({ userId: 7 }) }));
+    expect(preview.flowData).toEqual(preparedFlow);
+    expect(preview.nodes.find(item => item.nodeKey === 'manager')?.status).toBe('matched');
+    expect(preview.nodes.find(item => item.nodeKey === 'security')?.status).toBe('excluded');
   });
 
   it('recomputes submitted formulas and requires only the matched branch', async () => {

@@ -9,9 +9,9 @@ type GrantRow = typeof identityAccessGrants.$inferSelect & { user?: DisplayUser;
 type CampaignRow = typeof identityAccessReviewCampaigns.$inferSelect & { reviewer?: DisplayUser; itemCount?: number; pendingCount?: number };
 type ReviewRow = typeof identityAccessReviewItems.$inferSelect & { user?: DisplayUser; reviewer?: DisplayUser };
 
-function effectiveStatus(row: { status: string; startsAt: Date; expiresAt: Date }) {
+function effectiveStatus(row: { status: string; startsAt: Date; expiresAt: Date | null }) {
   if (row.status === 'revoked') return 'revoked' as const;
-  if (row.expiresAt.getTime() <= Date.now()) return 'expired' as const;
+  if (row.expiresAt && row.expiresAt.getTime() <= Date.now()) return 'expired' as const;
   return row.startsAt.getTime() > Date.now() ? 'scheduled' as const : 'active' as const;
 }
 

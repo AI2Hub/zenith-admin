@@ -27,10 +27,12 @@ export async function refreshAccessGrantHeader(executor: DbExecutor, grantId: nu
     await executor.update(identityAccessGrants).set({ status: 'revoked', revokedAt: new Date(), revokedBy: actorId ?? null, revokeReason: reason ?? '全部授权项已撤销' }).where(where);
     return;
   }
-  const startsAt = new Date(Math.min(...remaining.map(item => item.startsAt.getTime())));
-  const expiresAt = new Date(Math.max(...remaining.map(item => item.expiresAt.getTime())));
-  const status = expiresAt.getTime() <= Date.now() ? 'expired' : startsAt.getTime() > Date.now() ? 'scheduled' : 'active';
-  await executor.update(identityAccessGrants).set({ status, startsAt, expiresAt, ...(expiresAt.getTime() !== grant.expiresAt.getTime() ? { expiringNotifiedAt: null } : {}) }).where(where);
+  const live = remaining.filter(item => item.expiresAt === null || item.expiresAt.getTime() > Date.now());
+  const bounds = live.length ? live : remaining;
+  const startsAt = new Date(Math.min(...bounds.map(item => item.startsAt.getTime())));
+  const expiresAt = bounds.some(item => item.expiresAt === null) ? null : new Date(Math.max(...bounds.map(item => item.expiresAt!.getTime())));
+  const status = live.length === 0 ? 'expired' : startsAt.getTime() > Date.now() ? 'scheduled' : 'active';
+  await executor.update(identityAccessGrants).set({ status, startsAt, expiresAt, ...(expiresAt?.getTime() !== grant.expiresAt?.getTime() ? { expiringNotifiedAt: null } : {}) }).where(where);
 }
 
 export async function revokeAccessGrantItemInTransaction(executor: DbExecutor, itemId: number, tenantId: number | null, actorId: number, reason: string) {
@@ -118,7 +120,7 @@ export async function runAccessGrantLifecycle(): Promise<string> {
     const itemIds = due.map(item => item.id);
     await db.transaction(async tx => {
       await tx.select({ id: identityAccessGrants.id }).from(identityAccessGrants).where(inArray(identityAccessGrants.id, grantIds)).orderBy(asc(identityAccessGrants.id)).for('update');
-      await tx.update(identityAccessGrantMenus).set({ status: 'active' }).where(and(inArray(identityAccessGrantMenus.id, itemIds), eq(identityAccessGrantMenus.status, 'scheduled'), lte(identityAccessGrantMenus.startsAt, now), gt(identityAccessGrantMenus.expiresAt, now)));
+      await tx.update(identityAccessGrantMenus).set({ status: 'active' }).where(and(inArray(identityAccessGrantMenus.id, itemIds), eq(identityAccessGrantMenus.status, 'scheduled'), lte(identityAccessGrantMenus.startsAt, now), or(isNull(identityAccessGrantMenus.expiresAt), gt(identityAccessGrantMenus.expiresAt, now))));
       await tx.update(identityAccessGrantMenus).set({ status: 'expired' }).where(and(inArray(identityAccessGrantMenus.id, itemIds), inArray(identityAccessGrantMenus.status, ['scheduled', 'active']), lte(identityAccessGrantMenus.expiresAt, now)));
       for (const grantId of grantIds) await refreshAccessGrantHeader(tx, grantId, due.find(item => item.grantId === grantId)!.tenantId);
     });
@@ -139,7 +141,7 @@ export async function runAccessGrantLifecycle(): Promise<string> {
   for (const grant of expiring) await db.transaction(async tx => {
     const where = and(eq(identityAccessGrants.id, grant.id), exactTenantCondition(identityAccessGrants.tenantId, grant.tenantId));
     const [current] = await tx.select().from(identityAccessGrants).where(where).for('update').limit(1);
-    if (!current || current.status !== 'active' || current.expiringNotifiedAt || current.expiresAt.getTime() !== grant.expiresAt.getTime()) return;
+    if (!current || current.status !== 'active' || current.expiringNotifiedAt || !current.expiresAt || !grant.expiresAt || current.expiresAt.getTime() !== grant.expiresAt.getTime()) return;
     await notifyWithin(tx, 'identity.access.expiring', { recipients: [{ type: 'user', id: grant.userId }], vars: { grantId: grant.id, targetName: names.get(grant.userId) ?? `用户 ${grant.userId}`, expiresAt: formatDateTime(grant.expiresAt) }, tenantId: grant.tenantId, link: '/workflow/launchpad', dedupeKey: `identity-access-expiring:${grant.id}:${formatDateTime(grant.expiresAt)}` });
     await tx.update(identityAccessGrants).set({ expiringNotifiedAt: now }).where(where);
   });

@@ -5,8 +5,8 @@ import { definePermissions } from '../core/permissions';
  * 种子 button 节点由此生成（@zenith/shared/seed），契约操作 / 路由门禁 / 前端按钮以 `Permission` 类型引用。
  * `uiOnly` = 服务端没有任何接口检查该码（纯前端门控或待清理）。
  */
-const WORKFLOW_CONTROL = { riskLevel: 'critical', approvalPolicy: 'two_person', maxDurationMinutes: 120, reviewIntervalDays: 30, selfRequestable: false } as const;
-const WORKFLOW_ADMIN = { riskLevel: 'high', approvalPolicy: 'manager_security', maxDurationMinutes: 480, reviewIntervalDays: 90, selfRequestable: false } as const;
+const WORKFLOW_CONTROL = { riskLevel: 'critical', approvalPolicy: 'two_person', reviewIntervalDays: 30, selfRequestable: false } as const;
+const WORKFLOW_ADMIN = { riskLevel: 'high', approvalPolicy: 'manager_security', reviewIntervalDays: 90, selfRequestable: false } as const;
 
 export const WORKFLOW_PERMISSIONS = definePermissions({
   'workflow:instance:create': { label: '发起申请', menu: ['WorkflowLaunchpad', 'MyApplications'], id: [undefined, 4072], sort: [undefined, 1] },

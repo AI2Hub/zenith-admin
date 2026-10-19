@@ -1,4 +1,5 @@
-import type { WorkflowCustomFormConfig } from '../workflow/types';
+import type { WorkflowCustomFormConfig, WorkflowCustomFormVariable } from '../workflow/types';
+import { buildAccessApprovalTemplate } from '../identity/access-policy';
 import type { WorkflowCategory, WorkflowDataSource, WorkflowDefinition, WorkflowForm } from '../workflow/contracts';
 import { SEED_DATE } from './_base';
 
@@ -171,7 +172,7 @@ function buildLinearFlow(steps: SeedFlowStep[], settings?: Record<string, unknow
   return flow;
 }
 
-const TEMPLATE_SETTINGS: Record<string, unknown> = { allowWithdraw: true, allowResubmit: true, notifyInitiator: true, allowComment: true };
+const TEMPLATE_SETTINGS = { allowWithdraw: true, allowResubmit: true, notifyInitiator: true, allowComment: true };
 
 // ─── 表单远程数据源 初始数据 ───────────────────────────────────────────────
 export const SEED_WORKFLOW_DATA_SOURCES: WorkflowDataSource[] = [
@@ -527,65 +528,33 @@ SEED_WORKFLOW_DEFINITIONS.push({
   ] }, status: 'published', version: 1, tenantId: null,
 });
 
-// 权限治理内置流程：统一由工作流发起台承载，服务端归一化 riskLevel / 审批人后再进入条件分支。
-const ACCESS_REQUEST_VARIABLES: Array<{ key: string; label: string; type: 'number' | 'string' }> = [
-  { key: 'targetUserId', label: '目标用户', type: 'number' },
+// 权限域提供策略说明模板，实际审批图由领域适配器按生效策略和独立人员计划生成。
+const ACCESS_REQUEST_VARIABLES: WorkflowCustomFormVariable[] = [
+  { key: 'targetUserId', label: '目标用户', type: 'user' },
   { key: 'reason', label: '申请原因', type: 'string' },
-  { key: 'businessReference', label: '业务关联编号', type: 'string' },
-  { key: 'startsAt', label: '生效时间', type: 'string' },
-  { key: 'expiresAt', label: '失效时间', type: 'string' },
+  { key: 'requestType', label: '申请类型', type: 'string' },
+  { key: 'validityMode', label: '有效期限', type: 'string' },
+  { key: 'approvalPolicy', label: '有效审批策略', type: 'string' },
+  { key: 'mfaRequired', label: '审批需要 MFA', type: 'boolean' },
+  { key: 'startsAt', label: '生效时间', type: 'date' },
+  { key: 'expiresAt', label: '失效时间', type: 'date' },
   { key: 'riskLevel', label: '风险等级', type: 'string' },
   { key: 'permissionSummary', label: '权限摘要', type: 'string' },
-  { key: 'managerId', label: '直属主管', type: 'number' },
-  { key: 'securityApproverId', label: '安全管理员', type: 'number' },
-  { key: 'secondSecurityApproverId', label: '第二安全审批人', type: 'number' },
+  { key: 'managerId', label: '直属主管', type: 'user' },
+  { key: 'securityApproverId', label: '安全管理员', type: 'user' },
+  { key: 'secondSecurityApproverId', label: '第二安全审批人', type: 'user' },
 ];
 
-const ACCESS_APPROVER_PROPS = {
-  approvalType: 'manual',
-  approveMethod: 'or',
-  emptyStrategy: 'reject',
-  sameInitiatorStrategy: 'toDirectManager',
-  fieldPermissions: {},
-  signaturePolicy: 'none',
-};
-
-const ACCESS_REQUEST_FLOW = {
-  nodes: [
-    { id: 'node-start', type: 'workflowNode', position: { x: 0, y: 0 }, data: { key: 'start', type: 'start', label: '发起' } },
-    { id: 'node-manager', type: 'workflowNode', position: { x: 180, y: 0 }, data: { key: 'approve_manager', type: 'approve', label: '直属主管审批', assigneeType: 'formUser', formUserField: 'managerId', ...ACCESS_APPROVER_PROPS } },
-    { id: 'node-risk', type: 'workflowNode', position: { x: 360, y: 0 }, data: { key: 'risk_gateway', type: 'exclusiveGateway', label: '风险等级分支' } },
-    { id: 'node-security', type: 'workflowNode', position: { x: 560, y: -100 }, data: { key: 'approve_security', type: 'approve', label: '安全管理员审批', assigneeType: 'formUser', formUserField: 'securityApproverId', ...ACCESS_APPROVER_PROPS } },
-    { id: 'node-critical', type: 'workflowNode', position: { x: 760, y: -100 }, data: { key: 'critical_gateway', type: 'exclusiveGateway', label: '极高危分支' } },
-    { id: 'node-second-security', type: 'workflowNode', position: { x: 960, y: -180 }, data: { key: 'approve_second_security', type: 'approve', label: '第二安全审批人审批', assigneeType: 'formUser', formUserField: 'secondSecurityApproverId', ...ACCESS_APPROVER_PROPS } },
-    { id: 'node-risk-invalid', type: 'workflowNode', position: { x: 560, y: 120 }, data: { key: 'risk_invalid', type: 'approve', label: '风险校验失败', approvalType: 'autoReject', approveMethod: 'or', emptyStrategy: 'reject' } },
-    { id: 'node-end', type: 'workflowNode', position: { x: 1160, y: 0 }, data: { key: 'end', type: 'end', label: '结束' } },
-  ],
-  edges: [
-    { id: 'e-start-manager', source: 'node-start', target: 'node-manager' },
-    { id: 'e-manager-risk', source: 'node-manager', target: 'node-risk' },
-    { id: 'e-risk-low-end', source: 'node-risk', target: 'node-end', condition: { field: 'riskLevel', operator: 'eq', value: 'low' } },
-    { id: 'e-risk-high-security', source: 'node-risk', target: 'node-security', condition: { field: 'riskLevel', operator: 'in', value: 'high,critical' } },
-    { id: 'e-security-critical', source: 'node-security', target: 'node-critical' },
-    { id: 'e-critical-second', source: 'node-critical', target: 'node-second-security', condition: { field: 'riskLevel', operator: 'eq', value: 'critical' } },
-    { id: 'e-critical-high-end', source: 'node-critical', target: 'node-end', condition: { field: 'riskLevel', operator: 'eq', value: 'high' } },
-    // 网关不变量：每个分支网关必须有一个默认分支；两个网关的兜底都指向共享的「风险校验失败」节点
-    { id: 'e-critical-invalid', source: 'node-critical', target: 'node-risk-invalid', isDefault: true },
-    { id: 'e-risk-invalid', source: 'node-risk', target: 'node-risk-invalid', isDefault: true },
-    { id: 'e-second-end', source: 'node-second-security', target: 'node-end' },
-    { id: 'e-risk-invalid-end', source: 'node-risk-invalid', target: 'node-end' },
-  ],
-  settings: { ...TEMPLATE_SETTINGS, allowResubmit: false, summaryFields: ['targetUserId', 'riskLevel', 'expiresAt'] },
-};
+const ACCESS_REQUEST_FLOW = buildAccessApprovalTemplate(TEMPLATE_SETTINGS);
 
 SEED_WORKFLOW_DEFINITIONS.push({
   id: 5,
   name: '权限申请',
-  description: '统一权限申请流程：普通权限由直属主管审批，高危权限增加安全管理员审批，极高危权限增加第二名独立安全审批人。',
+  description: '按有效权限策略生成独立审批计划，支持限时与永久授权；申请预览和实际流程使用同一审批图。',
   initiatorScopeType: 'all',
-  flowData: ACCESS_REQUEST_FLOW,
+  flowData: { ...ACCESS_REQUEST_FLOW },
   formType: 'custom',
-  customForm: { businessType: 'identity.access_request', createComponent: 'biz/access/AccessRequestWorkflowForm', viewComponent: 'biz/access/AccessRequestWorkflowForm', icon: 'ShieldCheck', variables: ACCESS_REQUEST_VARIABLES },
+  customForm: { businessType: 'identity.access_request', createComponent: 'biz/access/AccessRequestWorkflowForm', viewComponent: 'biz/access/AccessRequestWorkflowForm', actionComponent: 'biz/access/AccessRequestApprovalForm', icon: 'ShieldCheck', variables: ACCESS_REQUEST_VARIABLES },
   status: 'published', version: 1, tenantId: null,
 });
 

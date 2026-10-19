@@ -11,10 +11,10 @@ export const approveRoute = defineContractRoute(workflowTaskContract.approve, {
   middleware: [idempotencyGuard({ ttlSeconds: 10 })],
   handler: async (c) => {
     const { taskId } = c.req.valid('param');
-    const { comment, attachments, selectedNextApprovers, signature, formUpdates, mfaCode } = c.req.valid('json');
+    const { comment, attachments, selectedNextApprovers, signature, formUpdates, businessInput } = c.req.valid('json');
     const before = await getWorkflowTaskBeforeAudit(taskId);
     if (before) setAuditBeforeData(c, before);
-    const result = await approveTask(taskId, comment, attachments, selectedNextApprovers, signature, formUpdates, mfaCode);
+    const result = await approveTask(taskId, comment, attachments, selectedNextApprovers, signature, formUpdates, businessInput);
     setAuditAfterData(c, redactWorkflowSignatureImages(result.instance));
     return c.json(okBody(result.instance, result.message), 200);
   },

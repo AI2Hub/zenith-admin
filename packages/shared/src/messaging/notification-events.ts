@@ -866,8 +866,8 @@ export const NOTIFICATION_EVENTS = defineNotificationEvents({
   'identity.access.approved': {
     group: 'identity', label: '权限申请已通过', severity: 'important', inAppType: 'success',
     defaultChannels: ['inapp'], availableChannels: ['inapp', 'email'],
-    vars: eventVars<{ requestId: number; targetName: string; startsAt: string; expiresAt: string }>(),
-    title: '权限申请已通过', content: '{{targetName}} 的临时权限已发放，有效期为 {{startsAt}} 至 {{expiresAt}}。',
+    vars: eventVars<{ requestId: number; targetName: string; startsAt: string; expiresAt: string; validityText: string }>(),
+    title: '权限申请已通过', content: '{{targetName}} 的审批权限已发放：{{validityText}}。',
   },
   'identity.access.rejected': {
     group: 'identity', label: '权限申请被驳回', severity: 'important', inAppType: 'warning',

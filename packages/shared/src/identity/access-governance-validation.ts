@@ -4,6 +4,7 @@ import {
   ACCESS_APPROVAL_POLICIES,
   ACCESS_APPROVAL_NODE_KEYS,
   ACCESS_START_MODES,
+  ACCESS_VALIDITY_MODES,
   ACCESS_REQUEST_TYPES,
   ACCESS_REVIEW_SCOPE_TYPES,
   ACCESS_RISK_LEVELS,
@@ -18,11 +19,13 @@ export const accessWorkflowInputSchema = z.object({
   roleIds: z.array(z.number().int().positive()).default([]),
   menuIds: z.array(z.number().int().positive()).default([]),
   reason: z.string().trim().min(5, '申请原因至少 5 个字').max(1000),
-  businessReference: z.string().trim().max(128).optional(),
   startMode: z.enum(ACCESS_START_MODES).default('immediate'),
   startsAt: dateTimeStringSchema.optional(),
-  expiresAt: dateTimeStringSchema,
+  validityMode: z.enum(ACCESS_VALIDITY_MODES).default('limited'),
+  expiresAt: dateTimeStringSchema.nullable().default(null),
 }).superRefine((value, ctx) => {
+  if (value.validityMode === 'limited' && !value.expiresAt) ctx.addIssue({ code: 'custom', path: ['expiresAt'], message: '限时授权必须填写失效时间' });
+  if (value.validityMode === 'permanent' && value.expiresAt !== null) ctx.addIssue({ code: 'custom', path: ['expiresAt'], message: '永久授权不应填写失效时间' });
   if (value.startMode === 'scheduled' && !value.startsAt) ctx.addIssue({ code: 'custom', path: ['startsAt'], message: '预约生效必须填写生效时间' });
   if (value.roleIds.length === 0 && value.menuIds.length === 0) {
     ctx.addIssue({ code: 'custom', path: ['roleIds'], message: '至少申请一项角色或菜单权限' });
@@ -35,7 +38,7 @@ export const accessPolicySnapshotSchema = z.object({
   version: z.int(),
   riskLevel: z.enum(ACCESS_RISK_LEVELS),
   approvalPolicy: z.enum(ACCESS_APPROVAL_POLICIES),
-  maxDurationMinutes: z.int().positive(),
+  maxDurationMinutes: z.int().positive().nullable(),
   reviewIntervalDays: z.int(),
   mfaRequired: z.boolean(),
   enabled: z.boolean(),

@@ -1,4 +1,4 @@
-import { and, eq, gt, inArray } from 'drizzle-orm';
+import { and, eq, gt, inArray, isNull, or } from 'drizzle-orm';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { DbExecutor } from '../db/types';
 import { SUPER_ADMIN_CODE } from '@zenith/shared/identity';
@@ -146,9 +146,9 @@ async function fetchUserPermissionData(userId: number, executor: DbExecutor = db
         },
       }),
       accessGrants: {
-        where: and(inArray(identityAccessGrants.status, ['scheduled', 'active']), gt(identityAccessGrants.expiresAt, now)),
+        where: and(inArray(identityAccessGrants.status, ['scheduled', 'active']), or(isNull(identityAccessGrants.expiresAt), gt(identityAccessGrants.expiresAt, now))),
         columns: { status: true, startsAt: true, expiresAt: true },
-        with: { menus: { where: and(inArray(identityAccessGrantMenus.status, ['scheduled', 'active']), gt(identityAccessGrantMenus.expiresAt, now)), columns: { permissionCode: true, status: true, startsAt: true, expiresAt: true }, with: { menu: { columns: menuColumns } } } },
+        with: { menus: { where: and(inArray(identityAccessGrantMenus.status, ['scheduled', 'active']), or(isNull(identityAccessGrantMenus.expiresAt), gt(identityAccessGrantMenus.expiresAt, now))), columns: { permissionCode: true, status: true, startsAt: true, expiresAt: true }, with: { menu: { columns: menuColumns } } } },
       },
     },
   });
@@ -159,11 +159,11 @@ async function fetchUserPermissionData(userId: number, executor: DbExecutor = db
 
   const grantRows = (user.accessGrants ?? []).filter((grant) => grant.status === 'scheduled' || grant.status === 'active');
   const grantMenuRows = grantRows
-    .filter((grant) => grant.startsAt <= now && grant.expiresAt > now)
-    .flatMap(grant => grant.menus.filter(item => ['scheduled', 'active'].includes(item.status) && item.startsAt <= now && item.expiresAt > now && item.menu.status === 'enabled' && item.menu.permission === item.permissionCode).map(({ menu }) => menu));
+    .filter((grant) => grant.startsAt <= now && (!grant.expiresAt || grant.expiresAt > now))
+    .flatMap(grant => grant.menus.filter(item => ['scheduled', 'active'].includes(item.status) && item.startsAt <= now && (!item.expiresAt || item.expiresAt > now) && item.menu.status === 'enabled' && item.menu.permission === item.permissionCode).map(({ menu }) => menu));
   const nextPermissionBoundaryAt = grantRows
     .flatMap(grant => grant.menus.filter(item => ['scheduled', 'active'].includes(item.status)).flatMap(item => [item.startsAt, item.expiresAt]))
-    .filter((value) => value.getTime() > now.getTime())
+    .filter((value): value is Date => value !== null && value.getTime() > now.getTime())
     .reduce<number | null>((next, value) => next === null || value.getTime() < next ? value.getTime() : next, null);
 
   // 禁用角色不再授权（与用户组 status 过滤同一口径）；禁用菜单在下方统一剔除
@@ -202,7 +202,7 @@ async function fetchUserPermissionData(userId: number, executor: DbExecutor = db
  */
 export async function notifyUserPermissionsChanged(userId: number): Promise<void> {
   await clearUserPermissionCache(userId);
-  sendToUser(userId, { type: 'identity:permissions-changed', data: { userId } });
+  sendToUser(userId, { type: 'identity:permissions-changed', payload: { userId } });
 }
 
 function invalidateUserEntry(key?: string | null): void {

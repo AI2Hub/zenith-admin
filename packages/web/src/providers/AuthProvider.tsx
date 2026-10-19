@@ -43,6 +43,9 @@ import { getPreciseOs } from '@/utils/client-os';
 import { AUTH_INVALIDATED_REASON_KEY } from '@/utils/http-client';
 import { scopedStorageKey } from '@/utils/storage';
 import { LOCK_SCREEN_STORAGE_KEYS } from '@/hooks/useLockScreen';
+import { subscribeWsStatus, useWebSocket } from '@/hooks/useWebSocket';
+import { invalidateCurrentUserAccess } from '@/hooks/queries/menus';
+import { parseDateTimeParam } from '@/utils/date';
 
 const DEVICE_ID_KEY = 'zenith_device_id';
 const AUTH_PUBLIC_QUERY_ROOT = 'auth-public';
@@ -113,6 +116,26 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
     ...authSessionQueryOptions(),
     enabled: hasCredentials,
   });
+
+  useWebSocket(message => {
+    if (message.type === 'identity:permissions-changed' && message.payload.userId === sessionQuery.data?.user.id) invalidateCurrentUserAccess(queryClient);
+  }, hasCredentials);
+
+  useEffect(() => {
+    if (!hasCredentials) return;
+    return subscribeWsStatus(connected => { if (connected) invalidateCurrentUserAccess(queryClient); });
+  }, [hasCredentials, queryClient]);
+
+  useEffect(() => {
+    if (!hasCredentials) return;
+    const boundary = parseDateTimeParam(sessionQuery.data?.permissionBoundaryAt)?.getTime();
+    if (!boundary) return;
+    const refresh = () => invalidateCurrentUserAccess(queryClient);
+    const timer = setTimeout(refresh, Math.min(Math.max(0, boundary - Date.now() + 100), 2_147_000_000));
+    const onVisible = () => { if (document.visibilityState === 'visible' && Date.now() >= boundary) refresh(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { clearTimeout(timer); document.removeEventListener('visibilitychange', onVisible); };
+  }, [hasCredentials, sessionQuery.data?.permissionBoundaryAt, sessionQuery.dataUpdatedAt, queryClient]);
 
   const setCredentialPresence = useCallback((present: boolean) => {
     hasCredentialsRef.current = present;

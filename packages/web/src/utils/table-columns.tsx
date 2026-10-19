@@ -24,6 +24,17 @@ export const DATE_COLUMN_WIDTH = 120;
 /** 两个完整日期与区间分隔符，保证日期范围单行展示。 */
 export const DATE_RANGE_COLUMN_WIDTH = 260;
 
+export function singleLineColumns<RecordType extends Data>(columns: ColumnProps<RecordType>[]): ColumnProps<RecordType>[] {
+  return columns.map(column => ({
+    ...column,
+    ellipsis: { showTitle: true },
+    onCell: (record, index) => {
+      const cell = column.onCell?.(record, index) ?? {};
+      return { ...cell, style: { ...cell.style, whiteSpace: 'nowrap' } };
+    },
+  }));
+}
+
 /**
  * 带省略 tooltip 的文本 render，空值自动显示 '—'
  *

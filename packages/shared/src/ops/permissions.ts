@@ -5,8 +5,8 @@ import { definePermissions } from '../core/permissions';
  * 种子 button 节点由此生成（@zenith/shared/seed），契约操作 / 路由门禁 / 前端按钮以 `Permission` 类型引用。
  * `uiOnly` = 服务端没有任何接口检查该码（纯前端门控或待清理）。
  */
-const CRITICAL_ACCESS = { riskLevel: 'critical', approvalPolicy: 'two_person', maxDurationMinutes: 120, reviewIntervalDays: 30 } as const;
-const HIGH_ACCESS = { riskLevel: 'high', approvalPolicy: 'manager_security', maxDurationMinutes: 480, reviewIntervalDays: 90 } as const;
+const CRITICAL_ACCESS = { riskLevel: 'critical', approvalPolicy: 'two_person', reviewIntervalDays: 30 } as const;
+const HIGH_ACCESS = { riskLevel: 'high', approvalPolicy: 'manager_security', reviewIntervalDays: 90 } as const;
 
 export const OPS_PERMISSIONS = definePermissions({
   'system:log:files': { label: '查看日志', menu: 'SystemLogFiles', sort: 1 },

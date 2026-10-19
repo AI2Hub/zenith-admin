@@ -27,7 +27,7 @@ import type { SignatureInput } from '@zenith/shared/core';
 import FileAttachment from '@/components/FileAttachment';
 import { workflowFileToAttachment, type WorkflowUploadedFile } from '@/components/FileAttachment/utils';
 import WorkflowInstanceDetailPanel, { WorkflowDetailSkeleton } from '@/components/workflow/WorkflowInstanceDetailPanel';
-import type { WorkflowBusinessFormApi } from '@/components/workflow/BusinessFormHost';
+import BusinessFormHost, { type WorkflowBusinessFormApi } from '@/components/workflow/BusinessFormHost';
 import WorkflowSideSheet from '@/components/workflow/WorkflowSideSheet';
 import {
   useWorkflowInstanceWithDefinition,
@@ -96,6 +96,7 @@ export default function WorkflowApprovalDetailSheet({
 }: Readonly<Props>) {
   const queryClient = useQueryClient();
   const approveFormApi = useRef<FormApi | null>(null);
+  const businessActionFormApi = useRef<WorkflowBusinessFormApi | null>(null);
   const rejectFormApi = useRef<FormApi | null>(null);
   const transferFormApi = useRef<FormApi | null>(null);
   const delegateFormApi = useRef<FormApi | null>(null);
@@ -288,8 +289,10 @@ export default function WorkflowApprovalDetailSheet({
     () => currentDetailDefinition?.flowData?.nodes.find((n) => n.data.key === currentTask?.nodeKey)?.data ?? null,
     [currentDetailDefinition, currentTask],
   );
+  const hasBusinessActionForm = !!currentDetailDefinition?.customForm?.actionComponent;
   const approveNeedsModal =
-    btnApprove.uploadMode === 'required'
+    hasBusinessActionForm
+    || btnApprove.uploadMode === 'required'
     || (currentNodeConfig?.operations?.includes('opinionRequired') ?? false)
     || (currentTask?.signaturePolicy ?? 'none') !== 'none'
     || hasApproverSelectDownstream;
@@ -396,17 +399,21 @@ export default function WorkflowApprovalDetailSheet({
         }
       }
       const formUpdates = await collectFormUpdates();
+      if (hasBusinessActionForm && !businessActionFormApi.current) { Toast.warning('补充审批表单尚未就绪，请稍候重试'); return; }
+      const businessInput = await businessActionFormApi.current?.validate();
       await taskActionMutation.mutateAsync({
         taskId,
         action: 'approve',
         body: {
           comment: values?.comment ?? '',
+          businessInput,
           attachments: attachmentsPayload('approve'),
           signature: needSignature ? approveSignature ?? undefined : undefined,
           selectedNextApprovers: hasApproverSelectDownstream ? selectedNextApprovers : undefined,
           formUpdates,
         },
       });
+      businessActionFormApi.current?.onActionSuccess?.();
       Toast.success('审批通过');
       setApproveVisible(false);
       setAttachmentsFor('approve', []);
@@ -541,6 +548,7 @@ export default function WorkflowApprovalDetailSheet({
   };
 
   const openApproveModal = () => {
+    businessActionFormApi.current = null;
     setAttachmentsFor('approve', []);
     setApproveSignature(null);
     resetNextApprovers();
@@ -549,6 +557,7 @@ export default function WorkflowApprovalDetailSheet({
 
   const handleQuickApprove = async () => {
     if (taskId == null || submitting) return;
+    if (hasBusinessActionForm) { openApproveModal(); return; }
     try {
       const formUpdates = await collectFormUpdates();
       await taskActionMutation.mutateAsync({ taskId, action: 'approve', body: { comment: '', formUpdates } });
@@ -668,6 +677,7 @@ export default function WorkflowApprovalDetailSheet({
             rows={3}
           />
         </Form>
+        {approveVisible && hasBusinessActionForm && detail && <BusinessFormHost key={`action-${taskId}`} customForm={currentDetailDefinition?.customForm} mode="action" definitionId={detail.definitionId} instanceId={detail.id} value={detail.formData ?? {}} bizType={detail.bizType} bizId={detail.bizId} getFormApi={api => { businessActionFormApi.current = api; }} />}
         {renderPhraseBar((t) => appendPhrase(approveFormApi.current, t))}
         {renderAttachmentField(btnApprove, 'approve')}
         {approveVisible && signaturePolicy !== 'none' && (

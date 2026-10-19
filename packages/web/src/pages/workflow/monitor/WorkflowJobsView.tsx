@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Col, Descriptions, Empty, Form, JsonViewer, Modal, Popconfirm, Radio, RadioGroup, Row, SideSheet, Space, Tabs, TabPane, Tag, Timeline, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { ChevronsDownUp, ChevronsUpDown, Download } from 'lucide-react';
-import { workflowEngineContract, type WorkflowJob, type WorkflowJobClusterDimension, type WorkflowJobExecution, type WorkflowJobStatus, type WorkflowJobSummaryItem, type WorkflowJobType } from '@zenith/shared/workflow';
+import { WORKFLOW_JOB_TYPES, WORKFLOW_JOB_TYPE_LABELS, WORKFLOW_JOB_TYPE_OPTIONS, workflowEngineContract, type WorkflowJob, type WorkflowJobClusterDimension, type WorkflowJobExecution, type WorkflowJobStatus, type WorkflowJobSummaryItem, type WorkflowJobType } from '@zenith/shared/workflow';
 import { WORKFLOW_JOB_STATUS_META as JOB_STATUS_META } from './constants';
 import { api } from '@/lib/contract-query';
 import { downloadBlob } from '@/utils/download';
@@ -42,24 +42,14 @@ import { useFilterQuery } from '@/hooks/useFilterQuery';
 
 type TagColor = 'amber' | 'blue' | 'cyan' | 'green' | 'grey' | 'orange' | 'red' | 'violet';
 
-const JOB_TYPE_META: Record<WorkflowJobType, { text: string; color: TagColor }> = {
-  delay_wake: { text: '延时唤醒', color: 'cyan' },
-  task_timeout: { text: '任务超时', color: 'amber' },
-  trigger_dispatch: { text: '触发器调度', color: 'blue' },
-  external_dispatch: { text: '外部审批', color: 'violet' },
-  subprocess_spawn: { text: '子流程派生', color: 'green' },
-  subprocess_join: { text: '子流程汇聚', color: 'green' },
-  event_dispatch: { text: '事件派发', color: 'orange' },
-  automation_action: { text: '自动化动作', color: 'blue' },
-  schedule_launch: { text: '定时发起', color: 'cyan' },
-  webhook_delivery: { text: 'Webhook 投递', color: 'orange' },
-  compensation_action: { text: '补偿动作', color: 'red' },
-  access_grant_apply: { text: '权限授权发放', color: 'blue' },
-  access_review_build: { text: '权限复核准备', color: 'blue' },
+const JOB_TYPE_COLORS: Partial<Record<WorkflowJobType, TagColor>> = {
+  delay_wake: 'cyan', task_timeout: 'amber', trigger_dispatch: 'blue', external_dispatch: 'violet',
+  subprocess_spawn: 'green', subprocess_join: 'green', event_dispatch: 'orange', automation_action: 'blue',
+  schedule_launch: 'cyan', webhook_delivery: 'orange', compensation_action: 'red',
 };
-
-const JOB_TYPES = Object.keys(JOB_TYPE_META) as WorkflowJobType[];
-const JOB_TYPE_OPTIONS = JOB_TYPES.map((value) => ({ value, label: JOB_TYPE_META[value].text }));
+const JOB_TYPE_META = Object.fromEntries(WORKFLOW_JOB_TYPES.map(value => [value, { text: WORKFLOW_JOB_TYPE_LABELS[value], color: JOB_TYPE_COLORS[value] ?? 'blue' }])) as Record<WorkflowJobType, { text: string; color: TagColor }>;
+const JOB_TYPES = [...WORKFLOW_JOB_TYPES];
+const JOB_TYPE_OPTIONS = WORKFLOW_JOB_TYPE_OPTIONS;
 
 interface JobSearchParams {
   status: WorkflowJobStatus | undefined;

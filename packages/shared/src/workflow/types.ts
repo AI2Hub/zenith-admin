@@ -811,6 +811,8 @@ export interface WorkflowCustomFormConfig {
   createComponent: string;
   /** 查看页组件路径，缺省时复用 createComponent 以只读模式渲染 */
   viewComponent?: string | null;
+  /** 审批动作补充表单，临时输入独立于持久化业务资料。 */
+  actionComponent?: string | null;
   /** 多页签图标（lucide 图标名，预留给整页打开时使用） */
   icon?: string | null;
   /** 暴露给流程的变量声明 */

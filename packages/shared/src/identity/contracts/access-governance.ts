@@ -49,9 +49,8 @@ export const accessRequestSchema = z.object({
   status: z.enum(ACCESS_REQUEST_STATUSES),
   provisionStatus: z.enum(ACCESS_PROVISION_STATUSES),
   reason: z.string(),
-  businessReference: z.string().nullable().optional(),
   startsAt: z.string(),
-  expiresAt: z.string(),
+  expiresAt: z.string().nullable(),
   riskLevel: z.enum(ACCESS_RISK_LEVELS),
   workflowInstanceId: z.int().nullable().optional(),
   approvedAt: z.string().nullable().optional(),
@@ -71,7 +70,7 @@ export type AccessRequest = z.infer<typeof accessRequestSchema>;
 export const accessGrantItemSchema = z.object({
   id: z.int(), menuId: z.int(), permissionCode: z.string(), permissionLabel: z.string().nullable(),
   status: z.enum(ACCESS_GRANT_STATUSES), dataScope: z.enum(DATA_SCOPES), deptScopeIds: z.array(z.int()),
-  startsAt: z.string(), expiresAt: z.string(), nextReviewAt: z.string().nullable(),
+  startsAt: z.string(), expiresAt: z.string().nullable(), nextReviewAt: z.string().nullable(),
   revokedAt: z.string().nullable(), revokedBy: z.int().nullable(), revokeReason: z.string().nullable(),
   policySnapshot: accessPolicySnapshotSchema,
 }).meta({ id: 'IdentityAccessGrantItem' });
@@ -87,7 +86,7 @@ export const accessGrantSchema = z.object({
   status: z.enum(ACCESS_GRANT_STATUSES),
   riskLevel: z.enum(ACCESS_RISK_LEVELS),
   startsAt: z.string(),
-  expiresAt: z.string(),
+  expiresAt: z.string().nullable(),
   approvedBy: z.int().nullable().optional(),
   approvedByName: z.string().nullable().optional(),
   revokedBy: z.int().nullable().optional(),
@@ -123,10 +122,10 @@ export const accessReviewCampaignSchema = z.object({
 
 export type AccessReviewCampaign = z.infer<typeof accessReviewCampaignSchema>;
 
-const accessPolicySummaryFields = { riskLevel: z.enum(ACCESS_RISK_LEVELS), approvalPolicy: z.enum(ACCESS_APPROVAL_POLICIES), maxDurationMinutes: z.int().positive(), mfaRequired: z.boolean() };
+const accessPolicySummaryFields = { riskLevel: z.enum(ACCESS_RISK_LEVELS), approvalPolicy: z.enum(ACCESS_APPROVAL_POLICIES), maxDurationMinutes: z.int().positive().nullable(), mfaRequired: z.boolean() };
 export const accessWorkflowOptionsSchema = z.object({
-  roles: z.array(z.object({ id: z.int(), name: z.string(), code: z.string(), description: z.string().nullable().optional(), dataScope: z.enum(DATA_SCOPES), menuCount: z.int(), ...accessPolicySummaryFields })),
-  menus: z.array(z.object({ id: z.int(), parentId: z.int(), title: z.string(), name: z.string().nullable().optional(), type: z.enum(['directory', 'menu', 'button']), permission: z.string().nullable().optional(), permissionLabel: z.string().nullable().optional(), ...accessPolicySummaryFields })),
+  roles: z.array(z.object({ id: z.int(), name: z.string(), code: z.string(), description: z.string().nullable().optional(), dataScope: z.enum(DATA_SCOPES), menuCount: z.int(), menuIds: z.array(z.int()), ...accessPolicySummaryFields })),
+  menus: z.array(z.object({ id: z.int(), parentId: z.int(), title: z.string(), name: z.string().nullable().optional(), type: z.enum(['directory', 'menu', 'button']), permission: z.string().nullable().optional(), permissionLabel: z.string().nullable().optional(), requestable: z.boolean(), path: z.array(z.string()), ...accessPolicySummaryFields })),
 }).meta({ id: 'IdentityAccessWorkflowOptions' });
 
 export type AccessWorkflowOptions = z.infer<typeof accessWorkflowOptionsSchema>;
@@ -157,7 +156,7 @@ export const accessReviewItemSchema = z.object({
 export type AccessReviewItem = z.infer<typeof accessReviewItemSchema>;
 
 const requestListQuery = paginationQuery.extend({
-  keyword: keywordQuery('申请原因 / 业务编号'),
+  keyword: keywordQuery('申请原因'),
   status: queryEnum(ACCESS_REQUEST_STATUSES, { description: '审批状态' }),
   provisionStatus: queryEnum(ACCESS_PROVISION_STATUSES, { description: '发放状态' }),
   riskLevel: queryEnum(ACCESS_RISK_LEVELS, { description: '风险等级' }),

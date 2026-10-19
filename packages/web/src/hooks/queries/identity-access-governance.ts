@@ -1,7 +1,12 @@
-import { keepPreviousData } from '@tanstack/react-query';
+import { keepPreviousData, type QueryClient } from '@tanstack/react-query';
 import type { QueryOf } from '@zenith/shared/core';
-import { accessGovernanceContract } from '@zenith/shared/identity';
+import { accessGovernanceContract, type AccessReviewItem } from '@zenith/shared/identity';
 import { contractKey, useApiMutation, useApiQuery } from '@/lib/contract-query';
+import { invalidateCurrentUserAccess } from './menus';
+import { userKeys } from './users';
+import { roleKeys } from './roles';
+import { userGroupKeys } from './user-groups';
+import { scopeMemberKeys } from './scope-members';
 
 export type AccessRequestListQuery = NonNullable<QueryOf<typeof accessGovernanceContract.requestList>>;
 export type AccessGrantListQuery = NonNullable<QueryOf<typeof accessGovernanceContract.grantList>>;
@@ -12,6 +17,9 @@ export type PermissionPolicyListQuery = NonNullable<QueryOf<typeof accessGoverna
 export const identityAccessGovernanceKeys = {
   workflowOptions: contractKey(accessGovernanceContract.workflowOptions),
   all: ['identity-access-governance'] as const,
+  myRequests: contractKey(accessGovernanceContract.myRequests),
+  myGrants: contractKey(accessGovernanceContract.myGrants),
+  reviewOptions: contractKey(accessGovernanceContract.reviewOptions),
   requests: contractKey(accessGovernanceContract.requestList),
   grants: contractKey(accessGovernanceContract.grantList),
   reviewCampaigns: contractKey(accessGovernanceContract.reviewCampaignList),
@@ -24,11 +32,11 @@ export const identityAccessGovernanceKeys = {
 };
 
 export function useAccessWorkflowOptions(enabled = true) {
-  return useApiQuery(accessGovernanceContract.workflowOptions, undefined, { enabled, staleTime: 5 * 60 * 1000 });
+  return useApiQuery(accessGovernanceContract.workflowOptions, undefined, { enabled, staleTime: 0, refetchOnMount: 'always' });
 }
 
 export function useAccessRequestList(query: AccessRequestListQuery, enabled = true) {
-  return useApiQuery(accessGovernanceContract.requestList, { query }, { enabled, placeholderData: keepPreviousData });
+  return useApiQuery(accessGovernanceContract.requestList, { query }, { enabled, placeholderData: keepPreviousData, refetchInterval: state => state.state.data?.list.some(request => ['pending', 'running'].includes(request.provisionStatus)) ? 3000 : false });
 }
 
 export function useAccessGrantList(query: AccessGrantListQuery, enabled = true) {
@@ -36,7 +44,7 @@ export function useAccessGrantList(query: AccessGrantListQuery, enabled = true) 
 }
 
 export function useAccessReviewCampaignList(query: AccessReviewCampaignListQuery, enabled = true) {
-  return useApiQuery(accessGovernanceContract.reviewCampaignList, { query }, { enabled, placeholderData: keepPreviousData });
+  return useApiQuery(accessGovernanceContract.reviewCampaignList, { query }, { enabled, placeholderData: keepPreviousData, refetchInterval: state => state.state.data?.list.some(campaign => campaign.status === 'preparing') ? 2000 : false });
 }
 
 export function useAccessReviewItemList(query: AccessReviewItemListQuery, enabled = true) {
@@ -62,20 +70,63 @@ export function useAccessUserOverview(id: number | null | undefined, enabled = t
   return useApiQuery(accessGovernanceContract.userOverview, { params: { id: id ?? 0 } }, { enabled: enabled && id != null });
 }
 
+export function invalidateAccessRequests(qc: QueryClient): void {
+  for (const queryKey of [identityAccessGovernanceKeys.requests, identityAccessGovernanceKeys.myRequests, contractKey(accessGovernanceContract.requestDetail)]) void qc.invalidateQueries({ queryKey });
+}
+
+function invalidateAccessGrants(qc: QueryClient, userId: number): void {
+  for (const queryKey of [identityAccessGovernanceKeys.grants, identityAccessGovernanceKeys.myGrants, contractKey(accessGovernanceContract.grantDetail), identityAccessGovernanceKeys.userOverview(userId), userKeys.effectivePermissions(userId), userKeys.dataPermission(userId)]) void qc.invalidateQueries({ queryKey });
+  invalidateCurrentUserAccess(qc);
+}
+
 export function useRevokeAccessGrant() {
-  return useApiMutation(accessGovernanceContract.grantRevoke, {
-    invalidate: (queryClient) => {
-      void queryClient.invalidateQueries({ queryKey: identityAccessGovernanceKeys.all });
-    },
-  });
+  return useApiMutation(accessGovernanceContract.grantRevoke, { invalidate: (qc, grant) => invalidateAccessGrants(qc, grant.userId) });
+}
+
+export function useRevokeAccessGrantItem() {
+  return useApiMutation(accessGovernanceContract.grantItemRevoke, { invalidate: (qc, grant) => invalidateAccessGrants(qc, grant.userId) });
+}
+
+export function useRetryAccessProvision() {
+  return useApiMutation(accessGovernanceContract.requestRetry, { invalidate: (qc, request) => { invalidateAccessRequests(qc); invalidateAccessGrants(qc, request.targetUserId); } });
+}
+
+function invalidateAccessReview(qc: QueryClient, item: AccessReviewItem): void {
+  for (const queryKey of [identityAccessGovernanceKeys.reviewItems, identityAccessGovernanceKeys.reviewCampaigns, userKeys.detail(item.userId), userKeys.lists]) void qc.invalidateQueries({ queryKey });
+  invalidateAccessGrants(qc, item.userId);
+  if (item.sourceType === 'role' && item.sourceId) {
+    for (const queryKey of [roleKeys.users(item.sourceId), roleKeys.lists, scopeMemberKeys.of('role', item.sourceId)]) void qc.invalidateQueries({ queryKey });
+  }
+  if (item.sourceType === 'group_membership' && typeof item.snapshot.groupId === 'number') {
+    for (const queryKey of [userGroupKeys.members(item.snapshot.groupId), userGroupKeys.lists, scopeMemberKeys.of('group', item.snapshot.groupId)]) void qc.invalidateQueries({ queryKey });
+  }
 }
 
 export function useDecideAccessReviewItem() {
-  return useApiMutation(accessGovernanceContract.reviewItemDecide, {
-    invalidate: (queryClient) => {
-      void queryClient.invalidateQueries({ queryKey: identityAccessGovernanceKeys.all });
-    },
-  });
+  return useApiMutation(accessGovernanceContract.reviewItemDecide, { invalidate: invalidateAccessReview });
+}
+
+export function useMyAccessRequests(query: AccessRequestListQuery, enabled = true) {
+  return useApiQuery(accessGovernanceContract.myRequests, { query }, { enabled, placeholderData: keepPreviousData, refetchInterval: state => state.state.data?.list.some(request => ['pending', 'running'].includes(request.provisionStatus)) ? 3000 : false });
+}
+
+export function useMyAccessGrants(query: AccessGrantListQuery, enabled = true) {
+  return useApiQuery(accessGovernanceContract.myGrants, { query }, { enabled, placeholderData: keepPreviousData });
+}
+
+export function useAccessReviewOptions(enabled = true) {
+  return useApiQuery(accessGovernanceContract.reviewOptions, undefined, { enabled });
+}
+
+export function useAssignAccessReviewCampaign() {
+  return useApiMutation(accessGovernanceContract.reviewCampaignAssign, { invalidate: qc => {
+    void qc.invalidateQueries({ queryKey: identityAccessGovernanceKeys.reviewCampaigns });
+    void qc.invalidateQueries({ queryKey: identityAccessGovernanceKeys.reviewItems });
+  } });
+}
+
+export function useRetryAccessReviewCampaign() {
+  return useApiMutation(accessGovernanceContract.reviewCampaignRetry, { invalidate: qc => { void qc.invalidateQueries({ queryKey: identityAccessGovernanceKeys.reviewCampaigns }); } });
 }
 
 export function useCreateAccessReviewCampaign() {
@@ -91,6 +142,7 @@ export function useUpdatePermissionPolicy() {
   return useApiMutation(accessGovernanceContract.policyUpdate, {
     invalidate: (queryClient) => {
       void queryClient.invalidateQueries({ queryKey: identityAccessGovernanceKeys.policies });
+      void queryClient.invalidateQueries({ queryKey: identityAccessGovernanceKeys.workflowOptions });
     },
   });
 }

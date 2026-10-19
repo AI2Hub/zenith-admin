@@ -135,6 +135,13 @@ export default function CustomFormConfigPanel({ value, onChange, formType = 'cus
         </div>
       </div>
 
+      <div style={{ marginBottom: 16 }}>
+        <Typography.Text strong style={labelStyle}>审批动作补充表单（可选）</Typography.Text>
+        <Input value={config.actionComponent ?? ''} onChange={path => patch({ actionComponent: path || null })} placeholder="仅收集本次审批动作的临时输入，留空时无补充表单" showClear />
+        {config.actionComponent && <div style={{ marginTop: 4 }}><ComponentStatus path={config.actionComponent} /></div>}
+        <Typography.Text type="tertiary" size="small">在审批确认窗口中渲染，校验后的数据由业务适配器处理，不写入流程业务资料。</Typography.Text>
+      </div>
+
       <div style={{ marginBottom: 20 }}>
         <Typography.Text strong style={labelStyle}>页签图标</Typography.Text>
         <IconPicker value={config.icon ?? ''} onChange={(icon) => patch({ icon: icon || null })} style={{ maxWidth: 260 }} />

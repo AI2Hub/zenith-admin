@@ -311,6 +311,7 @@ export const workflowCustomFormConfigSchema = z.object({
   // 允许草稿期为空（便于先存草稿再补全）；发布时强制校验非空
   createComponent: z.string().max(256),
   viewComponent: z.string().max(256).nullable().optional(),
+  actionComponent: z.string().max(256).nullable().optional(),
   icon: z.string().max(64).nullable().optional(),
   variables: z.array(workflowCustomFormVariableSchema).optional(),
 });
@@ -520,7 +521,7 @@ export const workflowTaskAttachmentSchema = z.object({
 export const workflowTaskAttachmentsSchema = z.array(workflowTaskAttachmentSchema).max(20);
 
 export const approveWorkflowTaskSchema = z.object({
-  mfaCode: z.string().trim().regex(/^\d{6}$/, '请输入六位动态验证码').optional(),
+  businessInput: z.record(z.string(), z.unknown()).optional().meta({ description: '业务审批动作的临时输入，由领域适配器校验；不写入实例表单或审计请求体' }),
   comment: z.string().max(500).optional(),
   /** 手写签名（data URL，节点要求签名时必填） */
   signature: signatureInputSchema.optional(),

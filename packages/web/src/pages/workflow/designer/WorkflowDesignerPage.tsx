@@ -568,6 +568,8 @@ export default function WorkflowDesignerPage({
       if (!viewPath) return fail('请先在「表单」步骤配置审批查看页组件路径');
     }
     if (viewPath && !hasBusinessFormComponent(viewPath)) return fail(`未找到查看页组件「${viewPath}」，请确认已在 src/pages 下创建`);
+    const actionPath = customForm?.actionComponent?.trim();
+    if (actionPath && !hasBusinessFormComponent(actionPath)) return fail(`未找到审批补充表单组件「${actionPath}」，请确认已在 src/pages 下创建`);
     return true;
   };
 

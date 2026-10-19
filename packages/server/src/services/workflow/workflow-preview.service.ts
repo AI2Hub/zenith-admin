@@ -1,6 +1,6 @@
 /** 提交前只读预览：与发起校验共用路径规划，不执行节点副作用或随机选人。 */
 import { eq } from 'drizzle-orm';
-import { ACCESS_REQUEST_BIZ_TYPE, buildAccessApprovalFlow, type AccessApprovalPlan } from '@zenith/shared/identity';
+import { getWorkflowDefinitionBusinessAdapter } from '../../lib/workflow-business';
 import { HTTPException } from 'hono/http-exception';
 import { getWorkflowNumberingFields, planWorkflowPath } from '@zenith/shared/workflow';
 import type { WorkflowCustomFormConfig, WorkflowFlowData, WorkflowApproverPreviewNode, WorkflowFormField, WorkflowPredictedPathNode } from '@zenith/shared/workflow';
@@ -16,6 +16,7 @@ import { resolveFormSnapshot } from './workflow-forms.service';
 import { assertWorkflowInitiatorScope } from './workflow-launch-access';
 import { enrichPredictedApprovers } from './workflow-path-prediction';
 import { sanitizeFormByStartPerms } from './instances/initiator-select';
+import { toDefinitionSnapshot } from './instances/shared';
 
 const APPROVER_TYPES = new Set(['approve', 'handler']);
 const INITIATOR_SELECT_TYPES = new Set(['initiatorSelect', 'initiatorSelectScope']);
@@ -23,7 +24,7 @@ const INITIATOR_SELECT_TYPES = new Set(['initiatorSelect', 'initiatorSelectScope
 export async function previewFlow(
   definitionId: number,
   formData?: Record<string, unknown> | null,
-): Promise<WorkflowApproverPreviewNode[]> {
+): Promise<{ nodes: WorkflowApproverPreviewNode[]; flowData: WorkflowFlowData }> {
   const user = currentUser();
   const [def] = await db.select().from(workflowDefinitions)
     .where(buildWhere(eq(workflowDefinitions.id, definitionId), eq(workflowDefinitions.status, 'published'), tenantCondition(workflowDefinitions, user))).limit(1);
@@ -35,12 +36,13 @@ export async function previewFlow(
   const customForm = def.customForm as WorkflowCustomFormConfig | null;
   const formFields = getWorkflowNumberingFields(def.formType, snapshot?.fields ?? [], customForm);
   let previewData = formData ?? {};
-  if (customForm?.businessType === ACCESS_REQUEST_BIZ_TYPE) {
-    const { previewAccessWorkflowFormData } = await import('../identity/access-governance.service');
-    previewData = await previewAccessWorkflowFormData(previewData, user);
-    if (previewData.approvalPlan) flowData = buildAccessApprovalFlow(previewData.approvalPlan as AccessApprovalPlan, flowData.settings);
+  const businessAdapter = getWorkflowDefinitionBusinessAdapter(toDefinitionSnapshot(def));
+  if (businessAdapter?.prepare) {
+    const prepared = await businessAdapter.prepare({ mode: 'preview', definition: toDefinitionSnapshot(def, flowData), formData: previewData, flowData, actor: user });
+    previewData = prepared.formData;
+    flowData = prepared.flowData;
   }
-  return previewFlowData(flowData, previewData, formFields);
+  return { nodes: await previewFlowData(flowData, previewData, formFields), flowData };
 }
 
 /** 业务调用方先授权已发布定义；业务变量无表单快照时不推算派生字段。 */

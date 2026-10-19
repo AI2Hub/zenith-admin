@@ -98,7 +98,7 @@ export const userEffectivePermissionsSchema = z.object({
   groupMenuIds: z.array(z.int()).meta({ description: '用户组继承的菜单 ID 列表' }),
   effectiveMenuIds: z.array(z.int()),
   temporaryMenuIds: z.array(z.int()),
-  temporaryScopes: z.array(z.object({ grantId: z.int(), grantItemId: z.int(), menuId: z.int(), permissionCode: z.string(), dataScope: z.enum(DATA_SCOPES), deptScopeIds: z.array(z.int()), expiresAt: z.string() })),
+  temporaryScopes: z.array(z.object({ grantId: z.int(), grantItemId: z.int(), menuId: z.int(), permissionCode: z.string(), dataScope: z.enum(DATA_SCOPES), deptScopeIds: z.array(z.int()), expiresAt: z.string().nullable() })),
   userDataScope: z.enum(DATA_SCOPES).nullable(),
   roleDataScope: z.string().nullable(),
   groupDataScope: z.string().nullable(),

@@ -32,6 +32,10 @@ const DRIVE_PERSONAL_MENU_IDS: number[] = [
   }),
 ];
 
+const WORKFLOW_SELF_MENU_NAMES = new Set(['Workflow', 'WorkflowApprovalCenter', 'WorkflowLaunchpad', 'MyApplications', 'WorkflowCcToMe', 'MyAccess']);
+const WORKFLOW_SELF_PERMISSIONS = new Set(['workflow:instance:create', 'workflow:instance:list']);
+const WORKFLOW_SELF_MENU_IDS = SEED_MENUS.filter(menu => WORKFLOW_SELF_MENU_NAMES.has(menu.name ?? '') || (menu.type === 'button' && WORKFLOW_SELF_PERMISSIONS.has(menu.permission ?? ''))).map(menu => menu.id);
+
 // ─── 角色 ─────────────────────────────────────────────────────────────────────
 
 export const SEED_ROLES: Role[] = [
@@ -59,7 +63,7 @@ export const SEED_ROLES: Role[] = [
     // 5001 = 导出聊天记录，由 chat 注册表经 expandPermissionButtons 生成）
     // + 知识中心只读（查询按钮 + 页面；写权限由管理员显式分配，空间角色仍是服务端兜底）
     // + 企业网盘个人使用（个人空间完整可用；外链 / 彻底删除 / 协作空间由管理员显式分配）
-    menuIds: [1, 11, 12, 13, 4010, 5000, 5001, ...WIKI_READONLY_MENU_IDS, ...DRIVE_PERSONAL_MENU_IDS],
+    menuIds: [1, 11, 12, 13, 5000, 5001, ...WORKFLOW_SELF_MENU_IDS, ...WIKI_READONLY_MENU_IDS, ...DRIVE_PERSONAL_MENU_IDS],
   },
   {
     id: 3,

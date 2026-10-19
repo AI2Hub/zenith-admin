@@ -13,7 +13,7 @@ import type { WorkflowCustomFormConfig, WorkflowCustomFormVariable } from '@zeni
 import { lazyBusinessFormComponent } from '@/utils/business-form-registry';
 import { emptyIllustration } from '@/components/EmptyIllustration';
 
-export type WorkflowBusinessFormMode = 'create' | 'view' | 'approve';
+export type WorkflowBusinessFormMode = 'create' | 'view' | 'approve' | 'action';
 
 /** 业务页面向宿主暴露的命令式 API（创建/审批提交时由宿主调用） */
 export interface WorkflowBusinessFormApi {
@@ -21,11 +21,13 @@ export interface WorkflowBusinessFormApi {
   validate: () => Promise<Record<string, unknown>>;
   /** 直接取当前值（不校验），可选 */
   getValues?: () => Record<string, unknown>;
+  /** 动作成功后由业务组件刷新自身领域视图，公共流程层不依赖具体领域 hooks。 */
+  onActionSuccess?: () => void;
 }
 
 /** 自定义业务表单组件接收的 props 契约 */
 export interface WorkflowBusinessFormProps {
-  /** create=发起填写，view=只读查看，approve=审批办理 */
+  /** create=发起填写，view=只读查看，approve=审批办理，action=审批动作临时输入 */
   mode: WorkflowBusinessFormMode;
   /** 容器：sheet=嵌入抽屉（当前），tab=整页多页签（预留） */
   container: 'sheet' | 'tab';
@@ -43,6 +45,8 @@ export interface WorkflowBusinessFormProps {
   variables?: WorkflowCustomFormVariable[];
   /** 注册命令式 API（create/approve 必需，供宿主提交时取值校验） */
   getFormApi?: (api: WorkflowBusinessFormApi) => void;
+  /** 业务值变化后通知承载容器刷新审批预览。 */
+  onValuesChange?: () => void;
   /** 关闭/返回回调（整页模式可用） */
   onClose?: () => void;
 }
@@ -58,6 +62,7 @@ interface BusinessFormHostProps {
   bizType?: string | null;
   bizId?: string | null;
   getFormApi?: (api: WorkflowBusinessFormApi) => void;
+  onValuesChange?: () => void;
   onClose?: () => void;
 }
 
@@ -87,18 +92,20 @@ export default function BusinessFormHost({
   bizType = null,
   bizId = null,
   getFormApi,
+  onValuesChange,
   onClose,
 }: Readonly<BusinessFormHostProps>) {
   // 创建用 createComponent；查看/审批优先 viewComponent，缺省回退 createComponent（只读）
   const componentPath = useMemo(() => {
     if (!customForm) return null;
+    if (mode === 'action') return customForm.actionComponent || null;
     if (mode === 'create') return customForm.createComponent || null;
     return customForm.viewComponent || customForm.createComponent || null;
   }, [customForm, mode]);
 
   const Component = useMemo(() => lazyBusinessFormComponent(componentPath), [componentPath]);
 
-  if (!Component) return <MissingComponent path={componentPath} />;
+  if (!Component) return mode === 'action' && !componentPath ? null : <MissingComponent path={componentPath} />;
 
   const businessProps: WorkflowBusinessFormProps = {
     mode,
@@ -111,6 +118,7 @@ export default function BusinessFormHost({
     bizId,
     variables: customForm?.variables ?? [],
     getFormApi,
+    onValuesChange,
     onClose,
   };
 

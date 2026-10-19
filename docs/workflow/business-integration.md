@@ -18,6 +18,14 @@
 
 审批终态在同一事务内回写权限申请并入队 `access_grant_apply` 作业；该作业使用唯一业务键和租约保护发放授权，并维护可见的失败原因。通知与业务同事务写入 Outbox，再统一触达，不承担申请创建或授权发放。逐项授权、复核和后台任务见[权限治理](./access-governance.md)。
 
+## 自定义业务表单与公共容器边界
+
+`WorkflowLaunchForm`、公共审批窗口和流程页面不识别特定业务类型或字段。业务表单通过 `getFormApi` 提供 `getValues()` / `validate()`，通过 `onValuesChange` 通知容器重新计算预览。流程图始终可查看：信息不全时展示完整定义，信息齐全后使用同一次服务端预览返回的 `{ nodes, flowData }` 展示实际人员和执行图。
+
+业务需要额外审批输入时，在 `customForm.actionComponent` 配置独立组件。公共审批窗口以 `mode="action"` 挂载它，校验结果作为 `businessInput` 传给后端；这些临时值不混入实例 `formData`，审批契约关闭请求体审计。组件可通过 `onActionSuccess()` 刷新自身领域查询。权限申请的当次 MFA 输入位于权限业务组件中，公共审批窗口不读取 `mfaRequired` 或验证码字段。
+
+后端公共运行层仅调用 `lib/workflow-business-types.ts` 的领域适配器接口；`bootstrap/workflow-business-adapters.ts` 声明装配。领域模块负责预览与提交归一化、冻结执行计划、同事务业务关联、终态回写、审批前校验、事务内再次验证、改派约束与删除限制。不能通过移到普通异步事件订阅来替代必须同事务完成的授权规则。
+
 ## 后端桥接 API
 
 `packages/server/src/lib/workflow-biz-bridge.ts` 提供以下入口：

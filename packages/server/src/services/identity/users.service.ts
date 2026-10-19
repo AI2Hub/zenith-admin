@@ -819,7 +819,7 @@ export async function getUserEffectivePermissions(userId: number) {
     },
   }), '用户不存在');
   const activeRoles = user.userRoles.filter(binding => binding.role.status === 'enabled');
-  const activeItems = user.accessGrants.filter(grant => grant.startsAt <= now && grant.expiresAt > now).flatMap(grant => grant.menus.filter(item => ['scheduled', 'active'].includes(item.status) && item.startsAt <= now && item.expiresAt > now && item.menu.status === 'enabled' && item.menu.permission === item.permissionCode).map(item => ({ ...item, grantId: grant.id })));
+  const activeItems = user.accessGrants.filter(grant => grant.startsAt <= now && (!grant.expiresAt || grant.expiresAt > now)).flatMap(grant => grant.menus.filter(item => ['scheduled', 'active'].includes(item.status) && item.startsAt <= now && (!item.expiresAt || item.expiresAt > now) && item.menu.status === 'enabled' && item.menu.permission === item.permissionCode).map(item => ({ ...item, grantId: grant.id })));
 
   const { groupMenuIds, groupDataScope, groupDeptScopeIds, groups, inheritedRoles } = extractGroupInheritance(user.userGroupMembers ?? []);
 
@@ -828,7 +828,7 @@ export async function getUserEffectivePermissions(userId: number) {
   const effectiveMenuIds = await getUserMenuIds(userId);
   const effective = new Set(effectiveMenuIds);
   const temporaryMenuIds = [...new Set(activeItems.filter(item => effective.has(item.menuId)).map(item => item.menuId))];
-  const temporaryScopes = activeItems.filter(item => effective.has(item.menuId)).map(item => ({ grantId: item.grantId, grantItemId: item.id, menuId: item.menuId, permissionCode: item.permissionCode, dataScope: item.dataScope, deptScopeIds: item.deptScopeIds, expiresAt: formatDateTime(item.expiresAt) }));
+  const temporaryScopes = activeItems.filter(item => effective.has(item.menuId)).map(item => ({ grantId: item.grantId, grantItemId: item.id, menuId: item.menuId, permissionCode: item.permissionCode, dataScope: item.dataScope, deptScopeIds: item.deptScopeIds, expiresAt: item.expiresAt ? formatDateTime(item.expiresAt) : null }));
   const menuSources = new Map<number, Set<string>>();
   const addMenuSource = (menuId: number, source: string) => {
     const sources = menuSources.get(menuId) ?? new Set<string>();
@@ -839,7 +839,7 @@ export async function getUserEffectivePermissions(userId: number) {
   for (const userRole of activeRoles) {
     for (const roleMenu of userRole.role.roleMenus) addMenuSource(roleMenu.menuId, `角色：${userRole.role.name}`);
   }
-  for (const item of activeItems) if (effective.has(item.menuId)) addMenuSource(item.menuId, `临时授权 #${item.grantId} · ${item.dataScope} · 至 ${formatDateTime(item.expiresAt)}`);
+  for (const item of activeItems) if (effective.has(item.menuId)) addMenuSource(item.menuId, `审批授权 #${item.grantId} · ${item.dataScope} · ${item.expiresAt ? `至 ${formatDateTime(item.expiresAt)}` : '永久有效'}`);
   for (const membership of user.userGroupMembers ?? []) {
     if (membership.group.status !== 'enabled') continue;
     for (const groupRole of membership.group.groupRoles) {

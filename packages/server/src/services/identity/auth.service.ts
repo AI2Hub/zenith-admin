@@ -137,7 +137,7 @@ import { hashPassword, verifyPassword } from '../../lib/password';
 import { randomBytes } from 'node:crypto';
 import { config } from '../../config';
 import { sendMail } from '../../lib/email';
-import { isSuperAdmin, getUserPermissions } from '../../lib/permissions';
+import { isSuperAdmin, getUserPermissions, getUserPermissionBoundary } from '../../lib/permissions';
 import { verifyCaptcha } from '../../lib/captcha';
 import { issueLoginCaptchaChallenge } from '../../lib/login-captcha-challenge';
 import { isPlatformAdmin, isTenantActive, isTenantExpired } from '../../lib/tenant';
@@ -645,7 +645,7 @@ export async function getMyProfile() {
       userRoles: { columns: {}, with: { role: { columns: { id: true, name: true, code: true, description: true, status: true, createdAt: true, updatedAt: true } } } },
     },
   }), '用户不存在');
-  const userRoleList = user.userRoles.map(({ role: r }) => ({
+  const userRoleList = user.userRoles.filter(({ role }) => role.status === 'enabled').map(({ role: r }) => ({
     id: r.id, name: r.name, code: r.code, description: r.description, status: r.status,
     ...formatTimestamps(r),
   }));
@@ -656,7 +656,9 @@ export async function getMyProfile() {
       : Promise.resolve([] as { name: string }[]),
     authUser.impersonation ? getImpersonationState(authUser.impersonation.id) : Promise.resolve(null),
   ]);
-  const permissions = isSuperAdmin({ roles: userRoleList.map((r) => r.code), tenantId: user.tenantId }) ? ['*'] : await getUserPermissions(user.id);
+  const superAdmin = isSuperAdmin({ roles: userRoleList.map((r) => r.code), tenantId: user.tenantId });
+  const permissions = superAdmin ? ['*'] : await getUserPermissions(user.id);
+  const permissionBoundary = superAdmin ? null : await getUserPermissionBoundary(user.id);
   const tenantName = tenantRows[0]?.name ?? null;
   const { password: _pw, preferences: _prefs, department, userPositions: _up, userRoles: _ur, ...userInfo } = user;
 
@@ -686,6 +688,7 @@ export async function getMyProfile() {
     impersonation,
     roles: userRoleList,
     permissions,
+    permissionBoundaryAt: permissionBoundary ? formatDateTime(new Date(permissionBoundary)) : null,
     requirePasswordChange,
     ...formatTimestamps(user),
   };

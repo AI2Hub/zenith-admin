@@ -1,7 +1,7 @@
 import { and, inArray } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { ALL_PERMISSIONS } from '@zenith/shared/permissions';
-import { accessPolicyBaseline, effectiveAccessPolicy, ACCESS_RISK_ORDER, ACCESS_APPROVAL_ORDER, ACCESS_MINIMUM_APPROVAL, ACCESS_RISK_DURATION_LIMITS, type AccessPolicySnapshot, type UpdatePermissionPolicyInput } from '@zenith/shared/identity';
+import { accessPolicyBaseline, effectiveAccessPolicy, ACCESS_RISK_ORDER, ACCESS_APPROVAL_ORDER, ACCESS_MINIMUM_APPROVAL, type AccessPolicySnapshot, type UpdatePermissionPolicyInput } from '@zenith/shared/identity';
 import { db } from '../../db';
 import type { DbExecutor } from '../../db/types';
 import { identityPermissionPolicies } from '../../db/schema';
@@ -41,17 +41,17 @@ export function assertPermissionPolicyUpdate(permissionCode: string, input: Upda
   const baseline = accessPolicyBaseline(permissionCode, meta);
   if (ACCESS_RISK_ORDER[input.riskLevel] < ACCESS_RISK_ORDER[baseline.riskLevel]) throw new HTTPException(400, { message: '不能降低权限目录规定的最低风险等级' });
   if (ACCESS_APPROVAL_ORDER[input.approvalPolicy] < ACCESS_APPROVAL_ORDER[ACCESS_MINIMUM_APPROVAL[input.riskLevel]]) throw new HTTPException(400, { message: '审批策略不满足风险等级的最低要求' });
-  const limit = Math.min(meta.maxDurationMinutes ?? ACCESS_RISK_DURATION_LIMITS[input.riskLevel], ACCESS_RISK_DURATION_LIMITS[input.riskLevel]);
-  if (input.maxDurationMinutes != null && input.maxDurationMinutes > limit) throw new HTTPException(400, { message: `该权限最长有效期不能超过 ${limit} 分钟` });
   if (input.riskLevel !== 'low' && (input.reviewIntervalDays <= 0 || input.reviewIntervalDays > (input.riskLevel === 'critical' ? 30 : 90))) throw new HTTPException(400, { message: '高危权限复核周期不得超过 90 天，极高危不得超过 30 天，且不能关闭复核' });
   if (input.riskLevel === 'critical' && !input.mfaRequired) throw new HTTPException(400, { message: '极高危权限必须启用审批 MFA' });
   if (input.approvalPolicy === 'none' && input.mfaRequired) throw new HTTPException(400, { message: '需要审批 MFA 时必须配置人工审批' });
   if (input.enabled && !baseline.enabled) throw new HTTPException(400, { message: '该能力不允许通过本人临时权限申请获取' });
 }
 
-export async function assertAccessSnapshotDuration(snapshot: readonly AccessPolicySnapshot[], startsAt: Date, expiresAt: Date, tenantId: number | null, executor: DbExecutor): Promise<void> {
+export async function assertAccessSnapshotDuration(snapshot: readonly AccessPolicySnapshot[], startsAt: Date, expiresAt: Date | null, tenantId: number | null, executor: DbExecutor): Promise<void> {
   await assertAccessPolicySnapshotCurrent(snapshot, tenantId, executor);
+  if (expiresAt === null) return;
   if (expiresAt.getTime() <= Date.now()) throw new HTTPException(409, { message: '申请有效期已经结束，不能继续审批或发放' });
-  const limit = Math.min(...snapshot.map(policy => policy.maxDurationMinutes));
-  if (expiresAt.getTime() - startsAt.getTime() > limit * 60_000) throw new HTTPException(409, { message: `申请时长超过当前策略允许的 ${limit} 分钟` });
+  const limits = snapshot.flatMap(policy => policy.maxDurationMinutes === null ? [] : [policy.maxDurationMinutes]);
+  const limit = limits.length ? Math.min(...limits) : null;
+  if (limit !== null && expiresAt.getTime() - startsAt.getTime() > limit * 60_000) throw new HTTPException(409, { message: `限时申请时长超过当前策略配置的 ${limit} 分钟` });
 }

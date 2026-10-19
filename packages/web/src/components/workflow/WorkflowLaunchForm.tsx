@@ -10,7 +10,7 @@ import { Banner, Button, Col, Form, Row, Toast, Typography } from '@douyinfe/sem
 import { RefreshCw } from 'lucide-react';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import dayjs from 'dayjs';
-import type { WorkflowDefinition, WorkflowInstancePriority } from '@zenith/shared/workflow';
+import type { WorkflowDefinition, WorkflowFlowData, WorkflowInstancePriority } from '@zenith/shared/workflow';
 import { applyFieldPermissionsToFields, getWorkflowNumberingFields, initializeWorkflowFormValues } from '@zenith/shared/workflow';
 import { sameLaunchValues, type WorkflowLaunchSnapshot } from './launch-snapshot';
 import { useAuth } from '@/hooks/useAuth';
@@ -85,6 +85,7 @@ const WorkflowLaunchForm = forwardRef<WorkflowLaunchFormHandle, WorkflowLaunchFo
     const [highlightMissing, setHighlightMissing] = useState(false);
     // 审批链路预测刷新信号：表单变更防抖触发，发起人也可手动「刷新」
     const [chainReloadKey, setChainReloadKey] = useState(0);
+    const [previewFlowData, setPreviewFlowData] = useState<WorkflowFlowData | null>(null);
     const scheduleChainReload = useDebouncedCallback(() => setChainReloadKey((k) => k + 1), { wait: 500 });
 
     useEffect(() => {
@@ -249,10 +250,12 @@ const WorkflowLaunchForm = forwardRef<WorkflowLaunchFormHandle, WorkflowLaunchFo
             container={container}
             definitionId={def.id}
             value={initialFormData}
+            onValuesChange={scheduleChainReload}
             getFormApi={(api) => {
               businessFormApi.current = api;
               if (businessBaseline.current?.definitionId !== def.id && api.getValues) {
                 businessBaseline.current = { definitionId: def.id, values: structuredClone(api.getValues()) };
+                scheduleChainReload();
               }
             }}
           />
@@ -339,9 +342,10 @@ const WorkflowLaunchForm = forwardRef<WorkflowLaunchFormHandle, WorkflowLaunchFo
             onNodesChange={setInitiatorSelectNodes}
             highlightMissing={highlightMissing}
             reloadKey={chainReloadKey}
+            onPreviewFlowChange={setPreviewFlowData}
           />
         )}
-        graph={<WorkflowGraphView flowData={def.flowData} formFields={graphFields} height="calc(100vh - 160px)" />}
+        graph={<WorkflowGraphView flowData={previewFlowData ?? def.flowData} formFields={graphFields} height="calc(100vh - 160px)" />}
       />
     );
   },

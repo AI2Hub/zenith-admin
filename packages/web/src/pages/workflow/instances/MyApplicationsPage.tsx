@@ -603,7 +603,7 @@ export default function MyApplicationsPage() {
           onClick: () => {
             confirmDanger({
               title: '确定要撤回该申请吗？',
-              content: '撤回后流程终止，需要继续处理时可在本页「重新提交」。',
+              content: record.allowResubmit === false ? '撤回后流程终止。如仍需权限，请回到发起工作台重新申请。' : '撤回后流程终止，需要继续处理时可在本页「重新提交」。',
               okText: '确认撤回',
               onOk: () => handleWithdraw(record.id),
             });

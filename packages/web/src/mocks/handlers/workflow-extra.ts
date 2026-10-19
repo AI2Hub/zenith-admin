@@ -580,7 +580,7 @@ export const workflowExtraHandlers = [
   // ── 提交前审批链路预览 ──
   mock(workflowDefinitionContract.preview, ({ params, body, request, ok }) => {
     const definition = requireItem(mockWorkflowDefinitions, params.id, '流程定义不存在');
-    return ok(configuredApproverPreview(definition, currentMockSession(request)?.user.id ?? 1, body.formData ?? {}));
+    return ok({ nodes: configuredApproverPreview(definition, currentMockSession(request)?.user.id ?? 1, body.formData ?? {}), flowData: definition.flowData! });
   }),
 
   // ── 主动抄送 / 转发 ──

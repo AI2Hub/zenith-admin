@@ -12,7 +12,7 @@ import { buildWhere } from '../../lib/where-helpers';
  * 平台保留角色编码：超管判定按 code + 平台归属执行。
  * 禁止经 API 创建 / 改名为保留编码（roles.service），也禁止由任何自动建号路径授予（本文件）。
  */
-export const RESERVED_ROLE_CODES: ReadonlySet<string> = new Set<string>([SUPER_ADMIN_CODE]);
+export const RESERVED_ROLE_CODES: ReadonlySet<string> = new Set<string>([SUPER_ADMIN_CODE, 'tenant_admin', 'security_admin']);
 
 function roleTenantCondition(tenantId: number | null) {
   return exactTenantCondition(roles.tenantId, tenantId);

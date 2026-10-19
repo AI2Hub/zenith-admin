@@ -6,6 +6,7 @@ import { ApiError, LOOKUP_STALE_TIME } from '@/lib/query';
 export interface AuthSession {
   user: User;
   permissions: string[];
+  permissionBoundaryAt?: string | null;
 }
 
 export class AuthRejectedError extends ApiError {
@@ -25,8 +26,8 @@ export function authSessionQueryOptions() {
     queryKey: authKeys.me,
     queryFn: async ({ signal }): Promise<AuthSession> => {
       try {
-        const { permissions, ...user } = await api(authContract.me, { silent: true, signal });
-        return { user, permissions: permissions ?? [] };
+        const { permissions, permissionBoundaryAt, ...user } = await api(authContract.me, { silent: true, signal });
+        return { user, permissions: permissions ?? [], permissionBoundaryAt };
       } catch (err) {
         // 401 单独成类：消费方据此区分「登录态失效」与其它接口错误
         if (err instanceof ApiError && err.code === 401) throw new AuthRejectedError(err.message);

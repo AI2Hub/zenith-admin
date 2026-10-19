@@ -178,7 +178,7 @@ export function subscribeWsStatus(listener: StatusListener): () => void {
  * Generic WebSocket hook with auto-reconnect and exponential backoff.
  * Reuses one shared connection per page and fans out messages to subscribers.
  */
-export function useWebSocket(onMessage: MessageHandler) {
+export function useWebSocket(onMessage: MessageHandler, enabled = true) {
   const onMessageRef = useRef(onMessage);
 
   useEffect(() => {
@@ -194,6 +194,7 @@ export function useWebSocket(onMessage: MessageHandler) {
   }, []);
 
   useEffect(() => {
+    if (!enabled) return;
     listeners.add(listener);
     connectSharedSocket();
 
@@ -203,7 +204,7 @@ export function useWebSocket(onMessage: MessageHandler) {
         disconnectSharedSocket();
       }
     };
-  }, [listener]);
+  }, [listener, enabled]);
 
   return { disconnect };
 }
