@@ -1,11 +1,11 @@
-import { and, asc, desc, eq, gt, inArray, isNull, lt, lte, or } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, lt, lte, or, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { type AccessRequest, type AccessGrant, type AccessReviewCampaign, type AccessReviewItem, type PermissionPolicy, accessGovernanceContract, type AccessRequestListQuery, type AccessGrantListQuery, type AccessReviewItemListQuery } from '@zenith/shared/identity';
 import { ALL_PERMISSIONS } from '@zenith/shared/permissions';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { db } from '../../db';
 import type { DbExecutor } from '../../db/types';
-import { departments, identityAccessGrantMenus, identityAccessGrants, identityAccessRequests, identityAccessReviewCampaigns, identityAccessReviewItems, identityPermissionPolicies, menus, roleMenus, roles, userRoles, users, workflowInstances, workflowTasks } from '../../db/schema';
+import { identityAccessGrantMenus, identityAccessGrants, identityAccessRequests, identityAccessReviewCampaigns, identityAccessReviewItems, identityPermissionPolicies, menus, roleMenus, roles, users, workflowInstances, workflowTasks } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { exactTenantCondition, getCreateTenantId, tenantCondition } from '../../lib/tenant';
 import { requireRow } from '../../lib/db-assert';
@@ -14,19 +14,18 @@ import { parseDateTimeInput, formatDateTime, formatNullableDateTime, formatTimes
 import { buildWhere, dateRangeConditions, keywordCondition } from '../../lib/where-helpers';
 import { buildListResult } from '../../lib/list-query';
 import { pageOffset } from '../../lib/pagination';
+import { pickEntity } from '../../lib/entity-map';
+import { permissionPolicySchema, effectiveAccessPolicy } from '@zenith/shared/identity';
 import { getTenantPackageFeatureSet } from '../../lib/tenant-package';
 import { clearUserPermissionCache, isSuperAdmin } from '../../lib/permissions';
 import { notify } from '../messaging/notification-outbox.service';
 import { workflowEventBus } from '../../lib/workflow-event-bus';
 import { ACCESS_REQUEST_BIZ_TYPE, accessWorkflowInputSchema, type AccessRiskLevel, type DataScope } from '@zenith/shared/identity';
 import { workflowTransaction } from '../../lib/workflow-jobs/lease';
+import { aggregateAccessPolicies, accessPolicyBaseline, higherAccessRisk } from '@zenith/shared/identity';
+import { loadEffectiveAccessPolicies, readAccessPolicySet, assertPermissionPolicyUpdate, assertAccessSnapshotDuration } from './access-policy.service';
+import { resolveAccessApprovalPlan } from './access-approval.service';
 import type { CreateAccessReviewCampaignInput, DecideAccessReviewItemInput, RevokeAccessGrantInput, UpdatePermissionPolicyInput } from '@zenith/shared/identity';
-
-const ACCESS_RISK_PRIORITY: Record<AccessRiskLevel, number> = { low: 1, high: 2, critical: 3 };
-
-function maxRisk(current: AccessRiskLevel, next: AccessRiskLevel): AccessRiskLevel {
-  return ACCESS_RISK_PRIORITY[next] > ACCESS_RISK_PRIORITY[current] ? next : current;
-}
 
 function parseRequiredDate(value: string, label: string): Date {
   const parsed = parseDateTimeInput(value);
@@ -53,6 +52,9 @@ function formatAccessRequest(row: any): AccessRequest {
     approvedAt: formatNullableDateTime(row.approvedAt),
     appliedAt: formatNullableDateTime(row.appliedAt),
     failureReason: row.failureReason ?? null,
+    policySnapshot: row.policySnapshot,
+    approvalPlan: row.approvalPlan,
+    approvalEvidence: row.approvalEvidence,
     items: (row.items ?? []).map((item: any) => ({
       id: item.id,
       itemType: item.itemType,
@@ -161,7 +163,7 @@ async function resolveRequestItems(itemsInput: AccessRequestItemInput[], tenantI
   const menuIds = itemsInput.filter((item) => item.itemType === 'menu').map((item) => item.menuId!).filter(Boolean);
   const roleRows = roleIds.length > 0
     ? await executor.query.roles.findMany({
-      where: and(inArray(roles.id, [...new Set(roleIds)]), tenantCondition(roles, currentUser())),
+      where: and(inArray(roles.id, [...new Set(roleIds)]), exactTenantCondition(roles.tenantId, tenantId)),
       with: { roleMenus: { with: { menu: true } }, deptScopes: { columns: { deptId: true } } },
     })
     : [];
@@ -178,6 +180,7 @@ async function resolveRequestItems(itemsInput: AccessRequestItemInput[], tenantI
     if (requested.itemType === 'role') {
       const role = roleById.get(requested.roleId!);
       if (!role || role.status !== 'enabled') throw new HTTPException(400, { message: '只能申请启用中的角色' });
+      if (['super_admin', 'tenant_admin', 'security_admin'].includes(role.code)) throw new HTTPException(400, { message: '管理身份不能通过临时权限包申请获取，请申请具体操作权限' });
       const roleMenusRows = role.roleMenus.filter(({ menu }) => menu.status === 'enabled');
       if (featureSet && roleMenusRows.some(({ menu }) => menu.featureKey && !featureSet.has(menu.featureKey))) {
         throw new HTTPException(400, { message: '角色包含超出当前租户套餐的权限' });
@@ -186,7 +189,7 @@ async function resolveRequestItems(itemsInput: AccessRequestItemInput[], tenantI
         const permissionCode = menu.permission ?? null;
         const permissionMeta = permissionCode ? ALL_PERMISSIONS[permissionCode] : undefined;
         const itemRisk = permissionMeta?.riskLevel ?? 'low';
-        riskLevel = maxRisk(riskLevel, itemRisk);
+        riskLevel = higherAccessRisk(riskLevel, itemRisk);
         items.push({
           itemType: 'role',
           roleId: role.id,
@@ -205,7 +208,7 @@ async function resolveRequestItems(itemsInput: AccessRequestItemInput[], tenantI
       const permissionCode = menu.permission ?? null;
       const permissionMeta = permissionCode ? ALL_PERMISSIONS[permissionCode] : undefined;
       const itemRisk = permissionMeta?.riskLevel ?? 'low';
-      riskLevel = maxRisk(riskLevel, itemRisk);
+      riskLevel = higherAccessRisk(riskLevel, itemRisk);
       items.push({
         itemType: 'menu',
         roleId: null,
@@ -246,37 +249,32 @@ export async function getAccessWorkflowOptions() {
   const featureSet = await getTenantPackageFeatureSet(user.tenantId);
   const [roleRows, menuRows] = await Promise.all([
     db.query.roles.findMany({
-      where: and(eq(roles.status, 'enabled'), tenantCondition(roles, user)),
-      with: { roleMenus: { columns: {}, with: { menu: { columns: { id: true, status: true, featureKey: true } } } } },
+      where: and(eq(roles.status, 'enabled'), exactTenantCondition(roles.tenantId, user.tenantId)),
+      with: { roleMenus: { columns: {}, with: { menu: { columns: { id: true, permission: true, status: true, featureKey: true } } } } },
       orderBy: [asc(roles.name), asc(roles.id)],
     }),
     db.select({ id: menus.id, parentId: menus.parentId, title: menus.title, name: menus.name, type: menus.type, permission: menus.permission, status: menus.status, featureKey: menus.featureKey })
-      .from(menus)
-      .where(eq(menus.status, 'enabled'))
-      .orderBy(asc(menus.parentId), asc(menus.sort), asc(menus.id)),
+      .from(menus).where(eq(menus.status, 'enabled')).orderBy(asc(menus.parentId), asc(menus.sort), asc(menus.id)),
   ]);
+  const effective = await loadEffectiveAccessPolicies(menuRows.flatMap(menu => menu.permission && ALL_PERMISSIONS[menu.permission] ? [menu.permission] : []), user.tenantId);
+  const policies = new Map(effective.map(policy => [policy.permissionCode, policy]));
+  const roleOptions = roleRows.flatMap(role => {
+    if (['super_admin', 'tenant_admin', 'security_admin'].includes(role.code)) return [];
+    const rows = role.roleMenus.filter(({ menu }) => menu.status === 'enabled');
+    if (featureSet && rows.some(({ menu }) => menu.featureKey && !featureSet.has(menu.featureKey))) return [];
+    const codes = [...new Set(rows.flatMap(({ menu }) => menu.permission ? [menu.permission] : []))];
+    const rolePolicies = codes.flatMap(code => { const policy = policies.get(code); return policy ? [policy] : []; });
+    if (!rolePolicies.length || rolePolicies.length !== codes.length || rolePolicies.some(policy => !policy.enabled)) return [];
+    return [{ id: role.id, name: role.name, code: role.code, description: role.description ?? null, dataScope: role.dataScope, menuCount: rows.length, ...aggregateAccessPolicies(rolePolicies) }];
+  });
   return {
-    roles: roleRows.map((role) => ({
-      id: role.id,
-      name: role.name,
-      code: role.code,
-      description: role.description ?? null,
-      dataScope: role.dataScope,
-      menuCount: role.roleMenus.filter(({ menu }) => menu.status === 'enabled' && (!featureSet || !menu.featureKey || featureSet.has(menu.featureKey))).length,
-    })),
-    menus: menuRows
-      .filter((menu) => !featureSet || !menu.featureKey || featureSet.has(menu.featureKey))
-      .filter((menu) => menu.type === 'button' || menu.permission !== null)
-      .map((menu) => ({
-        id: menu.id,
-        parentId: menu.parentId,
-        title: menu.title,
-        name: menu.name ?? null,
-        type: menu.type,
-        permission: menu.permission ?? null,
-        permissionLabel: menu.permission ? ALL_PERMISSIONS[menu.permission]?.label ?? menu.title : null,
-        riskLevel: ALL_PERMISSIONS[menu.permission ?? '']?.riskLevel ?? 'low',
-      })),
+    roles: roleOptions,
+    menus: menuRows.flatMap(menu => {
+      const policy = menu.permission ? policies.get(menu.permission) : undefined;
+      if (!policy?.enabled || (featureSet && menu.featureKey && !featureSet.has(menu.featureKey))) return [];
+      return [{ id: menu.id, parentId: menu.parentId, title: menu.title, name: menu.name ?? null, type: menu.type, permission: menu.permission, permissionLabel: ALL_PERMISSIONS[policy.permissionCode].label,
+        riskLevel: policy.riskLevel, approvalPolicy: policy.approvalPolicy, maxDurationMinutes: policy.maxDurationMinutes, mfaRequired: policy.mfaRequired }];
+    }),
   };
 }
 
@@ -314,40 +312,6 @@ export async function getAccessRequest(id: number): Promise<AccessRequest> {
   return formatAccessRequest(requireRow(row, '权限申请不存在'));
 }
 
-async function resolveAccessApprovers(targetUserId: number, applicantUserId: number, tenantId: number | null, riskLevel: AccessRiskLevel): Promise<{ managerId: number; securityApproverId?: number; secondSecurityApproverId?: number }> {
-  const target = await db.query.users.findFirst({
-    where: and(eq(users.id, targetUserId), exactTenantCondition(users.tenantId, tenantId)),
-    columns: { departmentId: true, tenantId: true },
-  });
-  if (!target) throw new HTTPException(400, { message: '目标用户不存在' });
-  const manager = target.departmentId
-    ? await db.query.departments.findFirst({ where: and(eq(departments.id, target.departmentId), exactTenantCondition(departments.tenantId, tenantId)), columns: { leaderId: true } })
-    : null;
-  const candidates = await db.select({ id: users.id })
-    .from(users)
-    .innerJoin(userRoles, eq(userRoles.userId, users.id))
-    .innerJoin(roles, eq(roles.id, userRoles.roleId))
-    .where(and(
-      eq(users.status, 'enabled'),
-      exactTenantCondition(users.tenantId, tenantId),
-      or(
-        and(eq(roles.code, 'tenant_admin'), exactTenantCondition(roles.tenantId, target.tenantId)),
-        and(eq(roles.code, 'security_admin'), exactTenantCondition(roles.tenantId, target.tenantId)),
-        and(eq(roles.code, 'super_admin'), isNull(roles.tenantId)),
-      ),
-    ));
-  const securityIds = [...new Set(candidates.map((candidate) => candidate.id))].filter((candidateId) => candidateId !== applicantUserId && candidateId !== targetUserId);
-  const managerId = manager?.leaderId && manager.leaderId !== applicantUserId && manager.leaderId !== targetUserId
-    ? manager.leaderId
-    : securityIds[0];
-  const securityApproverId = securityIds.find((candidateId) => candidateId !== managerId);
-  const secondSecurityApproverId = securityIds.find((candidateId) => candidateId !== managerId && candidateId !== securityApproverId);
-  if (!managerId) throw new HTTPException(409, { message: '权限申请缺少直属主管或可用的租户管理员审批人' });
-  if (riskLevel !== 'low' && !securityApproverId) throw new HTTPException(409, { message: '高危权限申请缺少安全管理员审批人' });
-  if (riskLevel === 'critical' && !secondSecurityApproverId) throw new HTTPException(409, { message: '极高危权限申请缺少第二名独立安全审批人' });
-  return { managerId, ...(securityApproverId ? { securityApproverId } : {}), ...(secondSecurityApproverId ? { secondSecurityApproverId } : {}) };
-}
-
 type AccessWorkflowCaller = { userId: number; username: string; tenantId: number | null; roles?: string[] };
 
 function positiveIntArray(value: unknown): number[] {
@@ -361,14 +325,30 @@ async function enrichAccessWorkflowFormData<T extends Record<string, unknown> & 
     ...input.menuIds.map((menuId) => ({ itemType: 'menu' as const, menuId })),
   ], caller.tenantId);
   if (resolved.items.length === 0) throw new HTTPException(400, { message: '至少申请一项有效权限' });
-  const approvers = await resolveAccessApprovers(caller.userId, caller.userId, caller.tenantId, resolved.riskLevel);
+  const permissionCodes = resolved.items.flatMap(item => item.permissionCode ? [item.permissionCode] : []);
+  if (!permissionCodes.length) throw new HTTPException(400, { message: '请选择至少一项实际操作权限' });
+  const policySnapshot = await loadEffectiveAccessPolicies(permissionCodes, caller.tenantId);
+  const forbidden = policySnapshot.find(policy => !policy.enabled);
+  if (forbidden) throw new HTTPException(400, { message: `权限 ${forbidden.permissionCode} 不允许自助申请或已被策略停用` });
+  const effective = aggregateAccessPolicies(policySnapshot);
+  const approvalPlan = await resolveAccessApprovalPlan(caller.userId, caller.tenantId, effective.approvalPolicy, effective.mfaRequired);
+  const names = await resolveUserNames([caller.userId]);
   return {
     ...input,
     targetUserId: caller.userId,
-    riskLevel: resolved.riskLevel,
+    targetUserName: names.get(caller.userId) ?? caller.username,
+    riskLevel: effective.riskLevel,
+    riskLabel: ({ low: '普通', high: '高危', critical: '极高危' } as const)[effective.riskLevel],
+    approvalPolicy: effective.approvalPolicy,
+    mfaRequired: effective.mfaRequired,
+    maxDurationMinutes: effective.maxDurationMinutes,
+    policySnapshot,
+    approvalPlan,
     permissionItems: resolved.items,
-    permissionSummary: resolved.items.map((item) => item.permissionCode || item.snapshot.menuTitle || item.snapshot.roleName || '').filter(Boolean).join(', '),
-    ...approvers,
+    permissionSummary: resolved.items.map(item => item.permissionCode ? `${item.permissionLabel ?? item.permissionCode}（${item.permissionCode}）` : String(item.snapshot.menuTitle ?? '')).filter(Boolean).join('、'),
+    managerId: approvalPlan.steps.find(step => step.nodeKey === 'approve_manager')?.userId,
+    securityApproverId: approvalPlan.steps.find(step => step.nodeKey === 'approve_security')?.userId,
+    secondSecurityApproverId: approvalPlan.steps.find(step => step.nodeKey === 'approve_second_security')?.userId,
   };
 }
 
@@ -425,11 +405,15 @@ export async function normalizeAccessWorkflowFormData(raw: Record<string, unknow
   const parsed = accessWorkflowInputSchema.safeParse(raw);
   if (!parsed.success) throw new HTTPException(400, { message: parsed.error.issues[0]?.message ?? '权限申请表单不完整' });
   const input = parsed.data;
-  const startsAt = parseRequiredDate(input.startsAt, '生效时间');
+  const now = new Date();
+  const startsAt = input.startMode === 'immediate' ? now : parseRequiredDate(input.startsAt!, '生效时间');
   const expiresAt = parseRequiredDate(input.expiresAt, '失效时间');
+  if (input.startMode === 'scheduled' && startsAt < now) throw new HTTPException(400, { message: '预约生效时间不能早于当前时间' });
+  if (expiresAt <= now) throw new HTTPException(400, { message: '失效时间必须晚于当前时间' });
   if (expiresAt <= startsAt) throw new HTTPException(400, { message: '失效时间必须晚于生效时间' });
   if (input.requestType === 'emergency' && expiresAt.getTime() - startsAt.getTime() > 60 * 60 * 1000) throw new HTTPException(400, { message: '紧急授权最长 60 分钟' });
   const enriched = await enrichAccessWorkflowFormData(input, caller);
+  if (expiresAt.getTime() - startsAt.getTime() > enriched.maxDurationMinutes * 60_000) throw new HTTPException(400, { message: `所选权限最长授权 ${enriched.maxDurationMinutes} 分钟` });
   await assertNoOverlappingAccessRequest({
     targetUserId: caller.userId,
     tenantId: caller.tenantId,
@@ -459,6 +443,11 @@ export async function normalizeAccessWorkflowFormData(raw: Record<string, unknow
     if (!request.workflowInstanceId || (expected && expected.workflowInstanceId !== request.workflowInstanceId)) throw new Error('权限申请流程关联无效');
     const workflow = await tx.query.workflowInstances.findFirst({ where: and(eq(workflowInstances.id, request.workflowInstanceId), exactTenantCondition(workflowInstances.tenantId, request.tenantId)), columns: { status: true, bizType: true, bizId: true } });
     if (workflow?.status !== 'approved' || workflow.bizType !== ACCESS_REQUEST_BIZ_TYPE || workflow.bizId !== String(request.id)) throw new Error('权限申请尚未获得有效的流程批准');
+    await assertAccessSnapshotDuration(request.policySnapshot, request.startsAt, request.expiresAt, request.tenantId, tx);
+    const approvers = new Set(request.approvalEvidence.map(evidence => evidence.actorId));
+    if (approvers.has(request.targetUserId) || approvers.size !== request.approvalEvidence.length || request.approvalPlan.steps.some(step => !request.approvalEvidence.some(evidence => evidence.nodeKey === step.nodeKey && (!request.approvalPlan.mfaRequired || evidence.mfaVerifiedAt !== null)))) throw new Error('权限审批计划尚未完整履行');
+    const target = await tx.query.users.findFirst({ where: and(eq(users.id, request.targetUserId), exactTenantCondition(users.tenantId, request.tenantId), eq(users.status, 'enabled')), columns: { id: true } });
+    if (!target) throw new Error('权限申请受益用户已经停用');
     const now = new Date();
     const status = request.startsAt > now ? 'scheduled' : 'active';
     const [grant] = await tx.insert(identityAccessGrants).values({
@@ -562,37 +551,27 @@ export async function revokeAccessGrant(id: number, input: RevokeAccessGrantInpu
 }
 
 export async function listPermissionPolicies(q: QueryOutputOf<typeof accessGovernanceContract.policyList>) {
-  const user = currentUser();
-  const where = buildWhere(
-    tenantCondition(identityPermissionPolicies, user),
-    keywordCondition(q.keyword, [identityPermissionPolicies.permissionCode]),
-    q.riskLevel ? eq(identityPermissionPolicies.riskLevel, q.riskLevel) : undefined,
-    q.approvalPolicy ? eq(identityPermissionPolicies.approvalPolicy, q.approvalPolicy) : undefined,
-  );
-  return buildListResult({
-    page: q.page,
-    pageSize: q.pageSize,
-    count: () => db.$count(identityPermissionPolicies, where),
-    rows: async () => db.query.identityPermissionPolicies.findMany({
-      where,
-      orderBy: [asc(identityPermissionPolicies.permissionCode)],
-      limit: q.pageSize,
-      offset: pageOffset(q.page, q.pageSize),
-    }),
-    map: (row) => ({ ...row, ...formatTimestamps(row) }),
-  });
+  const tenantId = currentUser().tenantId;
+  const entries = await readAccessPolicySet(Object.keys(ALL_PERMISSIONS), tenantId);
+  const keyword = q.keyword?.toLowerCase();
+  // 该视图由有界的代码目录与租户覆盖组合，筛选必须针对最终生效值。
+  const rows = entries.map(({ policy, record }) => pickEntity(permissionPolicySchema, {
+    ...record, ...policy, id: record?.id ?? 0, tenantId,
+    createdAt: record?.createdAt ?? null, updatedAt: record?.updatedAt ?? null, createdBy: record?.createdBy ?? null, updatedBy: record?.updatedBy ?? null,
+    inherited: record?.tenantId !== tenantId || !record,
+    minimumRiskLevel: ALL_PERMISSIONS[policy.permissionCode].riskLevel ?? 'low',
+    selfRequestable: accessPolicyBaseline(policy.permissionCode, ALL_PERMISSIONS[policy.permissionCode]).enabled,
+  })).filter(row => (!keyword || row.permissionCode.toLowerCase().includes(keyword)) && (!q.riskLevel || row.riskLevel === q.riskLevel) && (!q.approvalPolicy || row.approvalPolicy === q.approvalPolicy));
+  return buildListResult({ page: q.page, pageSize: q.pageSize, count: async () => rows.length, rows: async () => rows.slice(pageOffset(q.page, q.pageSize), pageOffset(q.page, q.pageSize) + q.pageSize) });
 }
 
 export async function updatePermissionPolicy(permissionCode: string, input: UpdatePermissionPolicyInput): Promise<PermissionPolicy> {
-  const user = currentUser();
-  const tenantId = getCreateTenantId(user);
-  const existing = await db.query.identityPermissionPolicies.findFirst({
-    where: and(eq(identityPermissionPolicies.permissionCode, permissionCode), tenantCondition(identityPermissionPolicies, user)),
-  });
-  const row = existing
-    ? (await db.update(identityPermissionPolicies).set(input).where(eq(identityPermissionPolicies.id, existing.id)).returning())[0]
-    : (await db.insert(identityPermissionPolicies).values({ permissionCode, tenantId, ...input }).returning())[0];
-  return { ...row, ...formatTimestamps(row) };
+  assertPermissionPolicyUpdate(permissionCode, input);
+  const tenantId = getCreateTenantId(currentUser());
+  const [row] = await db.insert(identityPermissionPolicies).values({ permissionCode, tenantId, ...input })
+    .onConflictDoUpdate({ target: [identityPermissionPolicies.permissionCode, identityPermissionPolicies.tenantId], set: { ...input, version: sql`${identityPermissionPolicies.version} + 1`, updatedAt: new Date() } }).returning();
+  const baseline = accessPolicyBaseline(permissionCode, ALL_PERMISSIONS[permissionCode]);
+  return pickEntity(permissionPolicySchema, { ...row, ...effectiveAccessPolicy(baseline, row), inherited: false, minimumRiskLevel: baseline.riskLevel, selfRequestable: baseline.enabled });
 }
 
 export async function createAccessReviewCampaign(input: CreateAccessReviewCampaignInput): Promise<AccessReviewCampaign> {

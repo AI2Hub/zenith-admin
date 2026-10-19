@@ -206,11 +206,11 @@ export async function clearMfaChallenge(challengeId: string): Promise<void> {
   await redis.del(`${MFA_CHALLENGE_PREFIX}${challengeId}`);
 }
 
-export async function verifyLoginTotp(challenge: MfaChallengePayload, code: string) {
+export async function verifyUserTotp(userId: number, code: string): Promise<number> {
   const rows = await db
     .select()
     .from(userMfaFactors)
-    .where(and(eq(userMfaFactors.userId, challenge.userId), eq(userMfaFactors.type, 'totp'), eq(userMfaFactors.status, 'enabled')));
+    .where(and(eq(userMfaFactors.userId, userId), eq(userMfaFactors.type, 'totp'), eq(userMfaFactors.status, 'enabled')));
   let unreadable = 0;
   for (const factor of rows) {
     if (!factor.secretEncrypted) continue;
@@ -224,17 +224,7 @@ export async function verifyLoginTotp(challenge: MfaChallengePayload, code: stri
     }
     if (verifyTotp(code, secret)) {
       await db.update(userMfaFactors).set({ lastUsedAt: new Date() }).where(eq(userMfaFactors.id, factor.id));
-      if (challenge.rememberDevice && challenge.deviceId) {
-        const policy = await getIdentitySecurityPolicy(challenge.tenantId);
-        await trustDevice({
-          userId: challenge.userId,
-          deviceId: challenge.deviceId,
-          ip: challenge.ip,
-          ua: challenge.ua,
-          days: policy.mfa.rememberDeviceDays,
-        });
-      }
-      return;
+      return factor.id;
     }
   }
   // 全部因子都解不开 → 不是验证码错误，而是密钥变更后的存量数据，提示走管理员重置路径
@@ -242,6 +232,14 @@ export async function verifyLoginTotp(challenge: MfaChallengePayload, code: stri
     throw new HTTPException(400, { message: MFA_SECRET_UNREADABLE_MESSAGE });
   }
   throw new HTTPException(400, { message: '动态验证码错误' });
+}
+
+export async function verifyLoginTotp(challenge: MfaChallengePayload, code: string): Promise<void> {
+  await verifyUserTotp(challenge.userId, code);
+  if (challenge.rememberDevice && challenge.deviceId) {
+    const policy = await getIdentitySecurityPolicy(challenge.tenantId);
+    await trustDevice({ userId: challenge.userId, deviceId: challenge.deviceId, ip: challenge.ip, ua: challenge.ua, days: policy.mfa.rememberDeviceDays });
+  }
 }
 
 export async function listMyTrustedDevices() {

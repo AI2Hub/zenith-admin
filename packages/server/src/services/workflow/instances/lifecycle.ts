@@ -3,7 +3,7 @@ import { lockUnchangedWorkflowDraft } from './signature-concurrency';
 import { clearWorkflowFormSignatures, resolveWorkflowFormSignatures } from './signatures';
 // ─── 实例生命周期：创建/撤回/取消/删除/草稿/重新提交（拆分自 workflow-instances.service.ts）───
 import { uniquePositiveInts } from '@zenith/shared/core';
-import { ACCESS_REQUEST_BIZ_TYPE } from '@zenith/shared/identity';
+import { ACCESS_REQUEST_BIZ_TYPE, buildAccessApprovalFlow, type AccessApprovalPlan } from '@zenith/shared/identity';
 import { eq, and, desc, inArray } from 'drizzle-orm';
 import { db } from '../../../db';
 import { releaseManagedFiles } from '../../files/file-gc.service';
@@ -87,7 +87,7 @@ export async function createInstance(data: { definitionId: number; title: string
   const launchData = { ...data, bizType: normalizedBizType, bizId: normalizedBizId };
   assertLaunchMatchesFormType(def, launchData);
   if (!skipScopeCheck) await assertWorkflowInitiatorScope(def, user);
-  const baseFlowData = def.flowData as WorkflowFlowData;
+  let baseFlowData = def.flowData as WorkflowFlowData;
   if (!baseFlowData?.nodes?.length) throw new HTTPException(400, { message: '流程定义无效' });
   const validation = validateFlowData(baseFlowData);
   if (!validation.valid) throw new HTTPException(400, { message: validation.errors[0] });
@@ -96,6 +96,7 @@ export async function createInstance(data: { definitionId: number; title: string
   if (isAccessRequest && !data.asDraft) {
     const { normalizeAccessWorkflowFormData } = await import('../../identity/access-governance.service');
     formData = await normalizeAccessWorkflowFormData(formData, user);
+    baseFlowData = buildAccessApprovalFlow(formData.approvalPlan as AccessApprovalPlan, baseFlowData.settings);
   }
   const resolvedFormSnapshot = await resolveFormSnapshot(def.formId);
   const formSnapshot = buildInstanceFormSnapshot(def, resolvedFormSnapshot);
@@ -422,7 +423,7 @@ export async function submitDraftInstance(id: number, input: { selectedInitiator
   const [def] = await db.select().from(workflowDefinitions)
     .where(and(eq(workflowDefinitions.id, inst.definitionId), eq(workflowDefinitions.status, 'published'))).limit(1);
   requireRow(def, '流程定义不存在或已停用，无法提交', 400);
-  const baseFlowData = def.flowData as WorkflowFlowData;
+  let baseFlowData = def.flowData as WorkflowFlowData;
   if (!baseFlowData?.nodes?.length) throw new HTTPException(400, { message: '流程定义无效' });
   const validation = validateFlowData(baseFlowData);
   if (!validation.valid) throw new HTTPException(400, { message: validation.errors[0] });
@@ -431,6 +432,7 @@ export async function submitDraftInstance(id: number, input: { selectedInitiator
   if (isAccessRequest) {
     const { normalizeAccessWorkflowFormData } = await import('../../identity/access-governance.service');
     formData = await normalizeAccessWorkflowFormData(formData, user);
+    baseFlowData = buildAccessApprovalFlow(formData.approvalPlan as AccessApprovalPlan, baseFlowData.settings);
   }
   assertLaunchMatchesFormType(def, { bizType: inst.bizType, bizId: inst.bizId, formData: (inst.formData ?? {}) as Record<string, unknown> });
   const resolvedFormSnapshot = await resolveFormSnapshot(def.formId);

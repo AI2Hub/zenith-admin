@@ -92,6 +92,13 @@
       "when": 1792379479234,
       "tag": "0012_new_enchantress",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1792381498295,
+      "tag": "0013_skinny_sunset_bain",
+      "breakpoints": true
     }
   ]
 }

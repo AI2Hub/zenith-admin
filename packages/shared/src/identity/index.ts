@@ -11,4 +11,5 @@ export * from './data-scope';
 export * from './types';
 export * from './validation';
 export * from './access-governance-validation';
+export * from './access-policy';
 export * from './permissions';

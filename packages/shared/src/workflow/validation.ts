@@ -520,6 +520,7 @@ export const workflowTaskAttachmentSchema = z.object({
 export const workflowTaskAttachmentsSchema = z.array(workflowTaskAttachmentSchema).max(20);
 
 export const approveWorkflowTaskSchema = z.object({
+  mfaCode: z.string().trim().regex(/^\d{6}$/, '请输入六位动态验证码').optional(),
   comment: z.string().max(500).optional(),
   /** 手写签名（data URL，节点要求签名时必填） */
   signature: signatureInputSchema.optional(),

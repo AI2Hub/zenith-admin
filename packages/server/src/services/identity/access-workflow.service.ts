@@ -38,6 +38,8 @@ export async function attachAccessRequestToWorkflow(executor: DbExecutor, instan
     startsAt,
     expiresAt,
     riskLevel: form.riskLevel,
+    policySnapshot: form.policySnapshot,
+    approvalPlan: form.approvalPlan,
     workflowInstanceId: instance.id,
   }).returning({ id: identityAccessRequests.id });
   await executor.insert(identityAccessRequestItems).values(form.permissionItems.map((item) => ({ requestId: request.id, ...item })));

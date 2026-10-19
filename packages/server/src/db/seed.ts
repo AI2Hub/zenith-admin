@@ -17,6 +17,7 @@ import { SEED_PAYMENT_DEDUCT_PLANS, SEED_CMS_EDITOR_USER, SEED_CMS_SITES, SEED_C
 import { SEED_WIKI_SPACES, SEED_WIKI_SPACE_MEMBERS, SEED_WIKI_TAGS, SEED_WIKI_TEMPLATES, SEED_WIKI_DOCS, SEED_WIKI_COMMENTS, SEED_WIKI_SEARCH_LOGS } from '@zenith/shared/seed';
 import { SEED_SHORT_LINKS } from '@zenith/shared/seed';
 import { ALL_PERMISSIONS } from '@zenith/shared/permissions';
+import { accessPolicyBaseline } from '@zenith/shared/identity';
 import { shortLinks } from './schema';
 import { SEED_MARKETING_CAMPAIGNS, SEED_MARKETING_PRIZES } from '@zenith/shared/seed';
 import { marketingCampaigns, marketingPrizes } from './schema';
@@ -174,16 +175,10 @@ async function seedRest() {
   logger.info('  ✔ Role-menu bindings seeded');
 
   // 权限治理默认策略：从共享权限注册表派生，平台级策略只补不覆盖管理员调整过的配置。
-  const permissionPolicyRows = Object.entries(ALL_PERMISSIONS).map(([permissionCode, meta]) => ({
-    permissionCode,
-    riskLevel: meta.riskLevel ?? 'low',
-    approvalPolicy: meta.approvalPolicy ?? 'none',
-    maxDurationMinutes: meta.maxDurationMinutes ?? null,
-    reviewIntervalDays: meta.reviewIntervalDays ?? 0,
-    mfaRequired: meta.riskLevel === 'critical',
-    enabled: true,
-    tenantId: null,
-  }));
+  const permissionPolicyRows = Object.entries(ALL_PERMISSIONS).map(([permissionCode, meta]) => {
+    const { policyId: _policyId, version: _version, ...baseline } = accessPolicyBaseline(permissionCode, meta);
+    return { ...baseline, tenantId: null };
+  });
   if (permissionPolicyRows.length > 0) {
     await db.insert(identityPermissionPolicies).values(permissionPolicyRows).onConflictDoNothing();
   }

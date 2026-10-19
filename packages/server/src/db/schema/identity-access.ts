@@ -3,6 +3,7 @@ import { ACCESS_APPROVAL_POLICIES, ACCESS_GRANT_SOURCES, ACCESS_GRANT_STATUSES, 
 import { auditColumns, dataScopeEnum, menus, roles, tenantIdColumn, users } from './core';
 import { idColumn, timestamptz, timestampColumns } from './common';
 import { workflowInstances } from './workflow';
+import type { AccessPolicySnapshot, AccessApprovalPlan, AccessApprovalEvidence } from '@zenith/shared/identity';
 
 export const accessRiskLevelEnum = pgEnum('identity_access_risk_level', ACCESS_RISK_LEVELS);
 export const accessApprovalPolicyEnum = pgEnum('identity_access_approval_policy', ACCESS_APPROVAL_POLICIES);
@@ -19,6 +20,7 @@ export const accessReviewSourceTypeEnum = pgEnum('identity_access_review_source_
 export const identityPermissionPolicies = pgTable('identity_permission_policies', {
   id: idColumn(),
   permissionCode: varchar({ length: 128 }).notNull(),
+  version: integer().notNull().default(1),
   riskLevel: accessRiskLevelEnum().notNull().default('low'),
   approvalPolicy: accessApprovalPolicyEnum().notNull().default('none'),
   maxDurationMinutes: integer(),
@@ -54,6 +56,9 @@ export const identityAccessRequests = pgTable('identity_access_requests', {
   rejectedAt: timestamptz(),
   appliedAt: timestamptz(),
   failureReason: varchar({ length: 1000 }),
+  policySnapshot: jsonb().$type<AccessPolicySnapshot[]>().notNull().default([]),
+  approvalPlan: jsonb().$type<AccessApprovalPlan>().notNull().default({ approvalPolicy: 'none', mfaRequired: false, steps: [] }),
+  approvalEvidence: jsonb().$type<AccessApprovalEvidence[]>().notNull().default([]),
   ...auditColumns(),
   ...timestampColumns(),
 }, (t) => [

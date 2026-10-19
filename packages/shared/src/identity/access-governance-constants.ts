@@ -12,6 +12,12 @@ export type AccessRiskLevel = (typeof ACCESS_RISK_LEVELS)[number];
 export const ACCESS_APPROVAL_POLICIES = ['none', 'manager', 'manager_security', 'two_person'] as const;
 export type AccessApprovalPolicy = (typeof ACCESS_APPROVAL_POLICIES)[number];
 
+export const ACCESS_APPROVAL_POLICY_LABELS: Record<AccessApprovalPolicy, string> = {
+  none: '策略自动批准', manager: '部门负责人', manager_security: '部门负责人 + 安全审批', two_person: '部门负责人 + 两名独立安全审批',
+};
+export const ACCESS_APPROVAL_NODE_KEYS = ['approve_manager', 'approve_security', 'approve_second_security'] as const;
+export const ACCESS_START_MODES = ['immediate', 'scheduled'] as const;
+
 export const ACCESS_REQUEST_TYPES = ['temporary', 'emergency'] as const;
 export type AccessRequestType = (typeof ACCESS_REQUEST_TYPES)[number];
 
