@@ -1,6 +1,7 @@
 // ─── 工作流事件发射与流水号上下文（拆分自 workflow-instances.service.ts）───
 import { eq } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
+import { ACCESS_REQUEST_BIZ_TYPE } from '@zenith/shared/identity';
 import type { WorkflowTask as WorkflowTaskDto, WorkflowCustomFormConfig, WorkflowDefinitionSnapshot, WorkflowFlowData, WorkflowFormType } from '@zenith/shared/workflow';
 import { currentUser } from '../../../lib/context';
 import { db } from '../../../db';
@@ -83,12 +84,16 @@ export function toDefinitionSnapshot(
 }
 
 /** 发射实例生命周期事件的辅助函数（传 executor 时在事务内入队 outbox，需 await） */
-export function emitInstanceEvent(
+export async function emitInstanceEvent(
   type: 'instance.created' | 'instance.approved' | 'instance.rejected' | 'instance.withdrawn' | 'instance.returned',
   instance: ReturnType<typeof mapInstance>,
   actor: { userId: number; name?: string | null },
   executor?: DbExecutor,
-): void | Promise<unknown> {
+): Promise<unknown> {
+  if (executor && type !== 'instance.created' && instance.bizType === ACCESS_REQUEST_BIZ_TYPE) {
+    const { bridgeAccessWorkflowOutcome } = await import('../../identity/access-workflow.service');
+    await bridgeAccessWorkflowOutcome(executor, instance, actor.userId);
+  }
   const ev = {
     type,
     instanceId: instance.id,

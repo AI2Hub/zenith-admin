@@ -4,6 +4,8 @@
  * `@zenith/shared/member` 的 contracts/members.ts 会运行时引用 `./constants` 的 LOGIN_STATUSES，
  * 该模块被整体保留；治理枚举若与其同模块，就会一并进入 member 入口的关键路径。
  */
+export const ACCESS_REQUEST_BIZ_TYPE = 'identity.access_request' as const;
+
 export const ACCESS_RISK_LEVELS = ['low', 'high', 'critical'] as const;
 export type AccessRiskLevel = (typeof ACCESS_RISK_LEVELS)[number];
 

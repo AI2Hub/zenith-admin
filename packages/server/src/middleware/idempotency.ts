@@ -33,6 +33,7 @@
 import crypto from 'node:crypto';
 import type { Context } from 'hono';
 import { createMiddleware } from 'hono/factory';
+import { HTTPException } from 'hono/http-exception';
 import redis from '../lib/redis';
 import { config } from '../config';
 import { errBody } from '../lib/openapi-schemas';
@@ -68,10 +69,18 @@ export interface IdempotencyOptions {
 }
 
 interface CachedResponse {
+  fingerprint: string;
   status: number;
   contentType: string | null;
+  requestId: string | null;
   body: string;
 }
+
+const SETTLE_KEY = `
+if redis.call('GET', KEYS[1]) ~= ARGV[1] then return 0 end
+if ARGV[2] == '' then return redis.call('DEL', KEYS[1]) end
+return redis.call('SET', KEYS[1], ARGV[2], 'EX', ARGV[3])
+`;
 
 /**
  * 计算请求体的 SHA-256 指纹（hex 截断为 16 字符）。
@@ -79,13 +88,11 @@ interface CachedResponse {
  */
 async function hashBody(c: Context): Promise<string> {
   try {
-    // 克隆后读，避免消耗原始流导致后续 handler 取不到 body
-    const cloned = c.req.raw.clone();
-    const text = await cloned.text();
-    if (!text) return 'nobody';
-    return crypto.createHash('sha256').update(text).digest('hex').slice(0, 16);
+    // Hono 保留已解析请求体；审计或校验提前读取后，raw.clone() 已经不可用。
+    const text = await c.req.text();
+    return crypto.createHash('sha256').update(text).digest('hex');
   } catch {
-    return 'nobody';
+    throw new HTTPException(400, { message: '无法读取请求内容，请重新提交' });
   }
 }
 
@@ -137,81 +144,59 @@ export function idempotencyGuard(options: IdempotencyOptions = {}) {
   } = options;
 
   return createMiddleware(async (c, next) => {
-    // --- 确定幂等 key ---
-    let idempotencyKey: string | null = null;
-    let keySource: 'header' | 'fingerprint' = 'fingerprint';
-
-    const identity = resolveActor(c);
-
     const clientKey = c.req.header('x-idempotency-key');
-    if (clientKey) {
-      // 模式 1：客户端 Token（最大 128 字符，防止 key 注入攻击）
-      // 同样按身份分命名空间：否则不同调用方用了相同 key 值就会互相读到对方的缓存响应
-      idempotencyKey = crypto.createHash('sha256')
-        .update(`${identity}|${clientKey.slice(0, 128)}`)
-        .digest('hex')
-        .slice(0, 32);
-      keySource = 'header';
-    } else if (autoFingerprint) {
-      // 模式 2：服务端自动指纹
-      const method = c.req.method;
-      // 目标对象常由 query 决定（如开放 API 的 siteCode），只取 pathname 会让不同站点的请求撞指纹
-      const url = new URL(c.req.url);
-      const path = `${url.pathname}${url.search}`;
-      const bodyHash = await hashBody(c);
-      const raw = `${identity}|${method}|${path}|${bodyHash}`;
-      idempotencyKey = crypto.createHash('sha256').update(raw).digest('hex').slice(0, 32);
-      keySource = 'fingerprint';
-    }
-
-    // 若无 key（autoFingerprint=false 且客户端未提供），直接放行
-    if (!idempotencyKey) {
-      return next();
-    }
-
+    if (!clientKey && !autoFingerprint) return next();
+    const url = new URL(c.req.url);
+    const fingerprint = crypto.createHash('sha256')
+      .update(`${c.req.method}|${url.pathname}${url.search}|${await hashBody(c)}`)
+      .digest('hex');
+    const idempotencyKey = crypto.createHash('sha256')
+      .update(`${resolveActor(c)}|${clientKey ? clientKey.slice(0, 128) : fingerprint}`)
+      .digest('hex').slice(0, 32);
     const redisKey = `${IDEMPOTENCY_PREFIX}${idempotencyKey}`;
-
+    const processing = JSON.stringify({ state: 'processing', fingerprint, owner: crypto.randomUUID() });
     try {
       const existing = await redis.get(redisKey);
       if (existing) {
+        let cached: Partial<CachedResponse>;
         try {
-          const cached = JSON.parse(existing) as CachedResponse | { state?: string };
-          if ('body' in cached && typeof cached.body === 'string') {
-            logger.info(`[Idempotency] 返回缓存响应 source=${keySource} key=${idempotencyKey.slice(0, 8)}...`);
-            return new Response(cached.body, {
-              status: cached.status,
-              headers: cached.contentType ? { 'Content-Type': cached.contentType } : undefined,
-            });
-          }
+          cached = JSON.parse(existing) as Partial<CachedResponse>;
         } catch {
-          // fall through to duplicate rejection for legacy/simple markers
+          return c.json(errBody(message, 429), 429);
         }
-        logger.warn(`[Idempotency] 重复提交拦截 source=${keySource} key=${idempotencyKey.slice(0, 8)}...`);
+        if (cached.fingerprint !== fingerprint) {
+          return c.json(errBody('同一幂等键不能提交不同内容', 409), 409);
+        }
+        if (typeof cached.body === 'string' && typeof cached.status === 'number') {
+          const headers = new Headers({ 'X-Idempotency-Replayed': 'true' });
+          if (cached.contentType) headers.set('Content-Type', cached.contentType);
+          if (cached.requestId) headers.set('X-Request-Id', cached.requestId);
+          return new Response(cached.body, { status: cached.status, headers });
+        }
         return c.json(errBody(message, 429), 429);
       }
-
-      // SET NX EX —— 原子性：仅当 key 不存在时设置，确保并发安全
-      const result = await redis.set(redisKey, JSON.stringify({ state: 'processing' }), 'EX', ttlSeconds, 'NX');
-
-      if (result === null) {
-        // key 已存在 → 重复请求
-        logger.warn(`[Idempotency] 重复提交拦截 source=${keySource} key=${idempotencyKey.slice(0, 8)}...`);
+      if (await redis.set(redisKey, processing, 'EX', ttlSeconds, 'NX') === null) {
         return c.json(errBody(message, 429), 429);
       }
-
-      // 首次请求，继续处理；成功 JSON 响应缓存给相同幂等 key 的网络重试。
-      await next();
-      const res = c.res;
-      const contentType = res.headers.get('Content-Type');
-      if (res.status >= 200 && res.status < 300 && contentType?.includes('application/json')) {
-        const body = await res.clone().text();
-        await redis.set(redisKey, JSON.stringify({ status: res.status, contentType, body } satisfies CachedResponse), 'EX', ttlSeconds);
-      }
-      return;
     } catch (err) {
-      // Redis 不可用时降级放行（可观测，不阻断业务）
       logger.error(`[Idempotency] Redis 检查失败，降级放行: ${(err as Error).message}`);
       return next();
+    }
+
+    // 仅 Redis 故障可以降级；业务异常不能再次执行 handler。
+    try {
+      await next();
+    } finally {
+      try {
+        const res = c.res;
+        const contentType = res.headers.get('Content-Type');
+        const cached = res.status >= 200 && res.status < 300 && contentType?.includes('application/json')
+          ? JSON.stringify({ fingerprint, status: res.status, contentType, requestId: res.headers.get('X-Request-Id'), body: await res.clone().text() } satisfies CachedResponse)
+          : '';
+        await redis.eval(SETTLE_KEY, 1, redisKey, processing, cached, String(ttlSeconds));
+      } catch (err) {
+        logger.error(`[Idempotency] Redis 结算失败: ${(err as Error).message}`);
+      }
     }
   });
 }

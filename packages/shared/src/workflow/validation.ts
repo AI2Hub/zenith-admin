@@ -307,6 +307,7 @@ export const workflowCustomFormVariableSchema = z.object({
 });
 
 export const workflowCustomFormConfigSchema = z.object({
+  businessType: z.string().min(1).max(128).optional(),
   // 允许草稿期为空（便于先存草稿再补全）；发布时强制校验非空
   createComponent: z.string().max(256),
   viewComponent: z.string().max(256).nullable().optional(),

@@ -205,7 +205,7 @@ export const WORKFLOW_TRIGGER_EXECUTION_STATUS_OPTIONS: Array<{ value: WorkflowT
 export const WORKFLOW_JOB_TYPES = [
   'delay_wake', 'task_timeout', 'trigger_dispatch', 'external_dispatch',
   'subprocess_spawn', 'subprocess_join', 'event_dispatch', 'webhook_delivery',
-  'compensation_action', 'automation_action', 'schedule_launch',
+  'compensation_action', 'automation_action', 'schedule_launch', 'access_grant_apply',
 ] as const;
 
 export const WORKFLOW_JOB_TYPE_LABELS: Record<WorkflowJobType, string> = {
@@ -220,6 +220,7 @@ export const WORKFLOW_JOB_TYPE_LABELS: Record<WorkflowJobType, string> = {
   compensation_action: '补偿动作',
   automation_action: '自动化动作',
   schedule_launch: '定时发起',
+  access_grant_apply: '权限授权发放',
 };
 
 export const WORKFLOW_JOB_TYPE_OPTIONS: Array<{ value: WorkflowJobType; label: string }> =

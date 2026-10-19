@@ -805,6 +805,8 @@ export interface WorkflowCustomFormVariable {
 
 /** 自定义业务表单 / 业务系统主导流程配置（formType='custom' 或 'external' 时有效） */
 export interface WorkflowCustomFormConfig {
+  /** 内置业务适配器标识，不依赖界面组件路径。 */
+  businessType?: string;
   /** 创建/填写页组件路径（相对 packages/web/src/pages，如 'biz/leave/LeaveForm'；external 可为空） */
   createComponent: string;
   /** 查看页组件路径，缺省时复用 createComponent 以只读模式渲染 */

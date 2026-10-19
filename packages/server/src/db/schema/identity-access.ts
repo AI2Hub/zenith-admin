@@ -113,7 +113,7 @@ export const identityAccessGrants = pgTable('identity_access_grants', {
 }, (t) => [
   index('identity_access_grants_tenant_status_idx').on(t.tenantId, t.status, t.expiresAt),
   index('identity_access_grants_user_status_idx').on(t.userId, t.status, t.startsAt, t.expiresAt),
-  index('identity_access_grants_request_idx').on(t.requestId),
+  unique('identity_access_grants_request_unique').on(t.requestId),
   index('identity_access_grants_expiry_idx').on(t.status, t.expiresAt),
 ]);
 

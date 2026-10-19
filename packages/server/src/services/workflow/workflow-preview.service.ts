@@ -34,7 +34,7 @@ export async function previewFlow(
   const customForm = def.customForm as WorkflowCustomFormConfig | null;
   const formFields = getWorkflowNumberingFields(def.formType, snapshot?.fields ?? [], customForm);
   let previewData = formData ?? {};
-  if (customForm?.createComponent === 'biz/access/AccessRequestWorkflowForm') {
+  if (customForm?.businessType === 'identity.access_request') {
     const { previewAccessWorkflowFormData } = await import('../identity/access-governance.service');
     previewData = await previewAccessWorkflowFormData(previewData, user);
   }
