@@ -44,7 +44,7 @@ async function check(label, url, ready, prepare) {
   const page = await context.newPage();
   const errors = [];
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
-  page.on('pageerror', (err) => errors.push(`pageerror: ${err.message}`));
+  page.on('pageerror', (err) => errors.push(`pageerror: ${err.stack ?? err.message}`));
   if (prepare) await prepare(page);
   try {
     await page.goto(url, { waitUntil: 'load', timeout: 60_000 });

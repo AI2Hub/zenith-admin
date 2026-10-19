@@ -99,9 +99,9 @@ const HEAVY_LIBRARIES: Array<[name: string, test: RegExp]> = [
 ];
 
 const APP_SOURCE = /[\\/]packages[\\/](?:web|shared|analytics-sdk)[\\/]src[\\/]/;
-// 应用公共层只收 hooks / lib / utils / 契约等「纯逻辑」模块：组件会把图表 / 编辑器等重型依赖静态拖进公共层，
-// 让登录页为一个共享组件下载 2MB 图表库
-const APP_SHARED_LOGIC = /[\\/]packages[\\/](?:shared|analytics-sdk)[\\/]src[\\/]|[\\/]packages[\\/]web[\\/]src[\\/](?:hooks|lib|utils|providers|config)[\\/.]/;
+// Web 公共层与 Shared 契约保持单向依赖：把 schema、枚举和消费它们的 hooks 强行混组，
+// 会制造跨 chunk 初始化环。Shared 高复用模块单独成组；组件的重型依赖也不进入此组。
+const APP_SHARED_LOGIC = /[\\/]packages[\\/]analytics-sdk[\\/]src[\\/]|[\\/]packages[\\/]web[\\/]src[\\/](?:hooks|lib|utils|providers|config)[\\/.]/;
 export default defineConfig(({ command, mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   // 仅用于 Vite dev server 代理目标，不会暴露到客户端
@@ -326,6 +326,7 @@ export default defineConfig(({ command, mode }) => {
                 priority: 12,
               },
               { name: 'vendor-common', test: /node_modules/, priority: 10, minShareCount: 10 },
+              { name: 'shared-common', test: /[\\/]packages[\\/]shared[\\/]src[\\/]/, priority: 8, minShareCount: 10 },
               { name: 'app-shared', test: APP_SHARED_LOGIC, priority: 8, minShareCount: 10 },
               { name: 'vendor', test: /node_modules/, priority: 5, entriesAware: true, entriesAwareMergeThreshold: 0 },
             ],
