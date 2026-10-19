@@ -55,6 +55,7 @@ const JOB_TYPE_META: Record<WorkflowJobType, { text: string; color: TagColor }> 
   webhook_delivery: { text: 'Webhook 投递', color: 'orange' },
   compensation_action: { text: '补偿动作', color: 'red' },
   access_grant_apply: { text: '权限授权发放', color: 'blue' },
+  access_review_build: { text: '权限复核准备', color: 'blue' },
 };
 
 const JOB_TYPES = Object.keys(JOB_TYPE_META) as WorkflowJobType[];

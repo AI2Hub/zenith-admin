@@ -195,6 +195,7 @@ export type NewRole = typeof roles.$inferInsert;
 // 关联表统一补「反向索引」：联合主键只覆盖左前缀（user_id），按右列（role_id）等值查询
 // 与父表 ON DELETE CASCADE 触发的子表扫描都无索引可用，行数上来后是顺序扫描。
 export const userRoles = pgTable('user_roles', {
+  createdAt: timestamptz().defaultNow().notNull(),
   userId: integer().notNull().references(() => users.id, { onDelete: 'cascade' }),
   roleId: integer().notNull().references(() => roles.id, { onDelete: 'cascade' }),
 }, (t) => [
@@ -279,6 +280,7 @@ export const roleDeptScopes = pgTable('role_dept_scopes', {
 
 // ─── 用户-菜单直接授权关联表 ──────────────────────────────────────────────────
 export const userMenus = pgTable('user_menus', {
+  createdAt: timestamptz().defaultNow().notNull(),
   userId: integer().notNull().references(() => users.id, { onDelete: 'cascade' }),
   menuId: integer().notNull().references(() => menus.id, { onDelete: 'cascade' }),
 }, (t) => [

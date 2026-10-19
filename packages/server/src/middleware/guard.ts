@@ -1,7 +1,7 @@
 import type { Context } from 'hono';
 import { createMiddleware } from 'hono/factory';
 import type { JwtPayload } from './auth';
-import { setAuditAfter, setAuditBefore, type AppEnv } from '../lib/context';
+import { setAuditAfter, setAuditBefore, runWithOperationPermissions, type AppEnv } from '../lib/context';
 import { isSuperAdmin, getUserPermissions } from '../lib/permissions';
 import { clampAuditJson, sliceUtf8Text, AUDIT_REQUEST_BODY_BUDGET_BYTES, AUDIT_SNAPSHOT_BUDGET_BYTES } from '../lib/audit-clamp';
 import { redactBody, truncateVarchar } from '../lib/sanitize';
@@ -151,23 +151,24 @@ export function guard(opts: GuardOptions) {
       await assertFeatureEnabled(opts.feature);
     }
 
-    // ── 权限校验 ──
+    // ── 权限校验与本次操作的数据范围上下文 ──
+    let operationPermissions: readonly string[] = [];
     if (opts.permission) {
       const user = c.get('user');
-      if (!isSuperAdmin(user)) {
-        const perms = permissionList(opts.permission);
+      const perms = permissionList(opts.permission);
+      if (isSuperAdmin(user)) operationPermissions = perms;
+      else {
         const userPerms = await getUserPermissions(user.userId);
-        const hasPermission = perms.some((p) => userPerms.includes(p));
-        if (!hasPermission) {
-          return c.json(errBody('权限不足', 403), 403);
-        }
+        operationPermissions = perms.filter(permission => userPerms.includes(permission));
+        if (!operationPermissions.length) return c.json(errBody('权限不足', 403), 403);
       }
     }
+    const runAuthorized = () => runWithOperationPermissions(operationPermissions, next);
 
     // ── 审计日志 ──
     if (opts.audit) {
       const start = Date.now();
-      await next();
+      await runAuthorized();
       const body = await resolveAuditRequestBody(c, opts.audit);
       // 捕获操作前快照（由路由处理器通过 setAuditBeforeData 注入）
       const beforeData = c.get('auditBeforeData') as string | undefined;
@@ -215,7 +216,7 @@ export function guard(opts: GuardOptions) {
       return;
     }
 
-    await next();
+    await runAuthorized();
   });
   return tagMiddleware(middleware, {
     kind: 'guard',

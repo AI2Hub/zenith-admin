@@ -1,12 +1,15 @@
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { ACCESS_REQUEST_BIZ_TYPE } from '@zenith/shared/identity';
 import type { DbExecutor } from '../../db/types';
-import { identityAccessRequestItems, identityAccessRequests, workflowInstances } from '../../db/schema';
+import { identityAccessRequestItems, identityAccessRequests, workflowInstances, workflowTasks } from '../../db/schema';
 import { exactTenantCondition } from '../../lib/tenant';
 import { parseDateTimeInput } from '../../lib/datetime';
 import { enqueueJob } from '../../lib/workflow-jobs/engine';
-import { assertNoOverlappingAccessRequest, type normalizeAccessWorkflowFormData } from './access-governance.service';
+import { notifyWithin } from '../messaging/notification-outbox.service';
+import { resolveUserNames } from '../../lib/user-nicknames';
+import type { normalizeAccessWorkflowFormData } from './access-governance.service';
+import { assertNoOverlappingAccessRequest } from './access-reservations.service';
 
 type NormalizedAccessForm = Awaited<ReturnType<typeof normalizeAccessWorkflowFormData>>;
 type InstanceIdentity = Pick<typeof workflowInstances.$inferSelect, 'id' | 'tenantId' | 'initiatorId' | 'formData'>;
@@ -44,6 +47,10 @@ export async function attachAccessRequestToWorkflow(executor: DbExecutor, instan
   }).returning({ id: identityAccessRequests.id });
   await executor.insert(identityAccessRequestItems).values(form.permissionItems.map((item) => ({ requestId: request.id, ...item })));
   await executor.update(workflowInstances).set({ bizType: ACCESS_REQUEST_BIZ_TYPE, bizId: String(request.id) }).where(and(eq(workflowInstances.id, instance.id), exactTenantCondition(workflowInstances.tenantId, instance.tenantId)));
+  await notifyWithin(executor, 'identity.access.requested', {
+    recipients: [{ type: 'user', id: instance.initiatorId }], vars: { requestId: request.id, applicantName: form.targetUserName, targetName: form.targetUserName, riskLevel: form.riskLabel },
+    tenantId: instance.tenantId, link: `/workflow/instance/${instance.id}`, dedupeKey: `identity-access-requested:${request.id}`,
+  });
 }
 
 export async function bridgeAccessWorkflowOutcome(
@@ -55,10 +62,10 @@ export async function bridgeAccessWorkflowOutcome(
   const requestId = Number(instance.bizId);
   if (!Number.isSafeInteger(requestId) || requestId <= 0) throw new Error('权限流程缺少业务申请关联');
   const where = and(eq(identityAccessRequests.id, requestId), eq(identityAccessRequests.workflowInstanceId, instance.id), exactTenantCondition(identityAccessRequests.tenantId, instance.tenantId));
-  const [request] = await executor.select({ status: identityAccessRequests.status, approvedAt: identityAccessRequests.approvedAt }).from(identityAccessRequests).where(where).for('update').limit(1);
+  const [request] = await executor.select({ status: identityAccessRequests.status, approvedAt: identityAccessRequests.approvedAt, provisionStatus: identityAccessRequests.provisionStatus }).from(identityAccessRequests).where(where).for('update').limit(1);
   if (!request) throw new Error('权限流程关联的申请不存在');
-  if (instance.status === 'approved' && ['pending', 'approved'].includes(request.status)) {
-    if (request.status === 'pending') await executor.update(identityAccessRequests).set({ status: 'approved', approvedAt: request.approvedAt ?? new Date(), failureReason: null }).where(where);
+  if (instance.status === 'approved' && ['pending', 'approved'].includes(request.status) && !['succeeded', 'failed', 'terminated'].includes(request.provisionStatus)) {
+    if (request.status === 'pending' || request.provisionStatus === 'not_started') await executor.update(identityAccessRequests).set({ status: 'approved', provisionStatus: 'pending', approvedAt: request.approvedAt ?? new Date(), failureReason: null }).where(where);
     await enqueueJob({
       jobType: 'access_grant_apply',
       instanceId: instance.id,
@@ -70,7 +77,16 @@ export async function bridgeAccessWorkflowOutcome(
   } else if (['rejected', 'withdrawn', 'cancelled'].includes(instance.status)) {
     await executor.update(identityAccessRequests).set({
       status: instance.status === 'rejected' ? 'rejected' : 'cancelled',
+      provisionStatus: 'terminated',
       ...(instance.status === 'rejected' ? { rejectedAt: new Date() } : {}),
     }).where(and(where, inArray(identityAccessRequests.status, ['pending'])));
+    if (instance.status === 'rejected' && request.status === 'pending') {
+      const detail = await executor.query.identityAccessRequests.findFirst({ where, columns: { targetUserId: true, applicantUserId: true } });
+      const rejected = await executor.query.workflowTasks.findFirst({ where: and(eq(workflowTasks.instanceId, instance.id), eq(workflowTasks.status, 'rejected')), columns: { comment: true }, orderBy: [desc(workflowTasks.actionAt)] });
+      if (detail) {
+        const names = await resolveUserNames([detail.targetUserId], executor);
+        await notifyWithin(executor, 'identity.access.rejected', { recipients: [{ type: 'user', id: detail.applicantUserId }], vars: { requestId, targetName: names.get(detail.targetUserId) ?? `用户 ${detail.targetUserId}`, reason: rejected?.comment ?? '审批未通过' }, tenantId: instance.tenantId, link: `/workflow/instance/${instance.id}`, dedupeKey: `identity-access-rejected:${requestId}` });
+      }
+    }
   }
 }

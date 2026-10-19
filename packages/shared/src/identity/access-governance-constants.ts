@@ -21,7 +21,9 @@ export const ACCESS_START_MODES = ['immediate', 'scheduled'] as const;
 export const ACCESS_REQUEST_TYPES = ['temporary', 'emergency'] as const;
 export type AccessRequestType = (typeof ACCESS_REQUEST_TYPES)[number];
 
-export const ACCESS_REQUEST_STATUSES = ['draft', 'pending', 'approved', 'rejected', 'cancelled', 'applied', 'failed'] as const;
+export const ACCESS_REQUEST_STATUSES = ['draft', 'pending', 'approved', 'rejected', 'cancelled'] as const;
+export const ACCESS_PROVISION_STATUSES = ['not_started', 'pending', 'running', 'succeeded', 'failed', 'terminated'] as const;
+export type AccessProvisionStatus = (typeof ACCESS_PROVISION_STATUSES)[number];
 export type AccessRequestStatus = (typeof ACCESS_REQUEST_STATUSES)[number];
 
 export const ACCESS_REQUEST_ITEM_TYPES = ['role', 'menu'] as const;
@@ -33,14 +35,14 @@ export type AccessGrantStatus = (typeof ACCESS_GRANT_STATUSES)[number];
 export const ACCESS_GRANT_SOURCES = ['request', 'emergency', 'admin'] as const;
 export type AccessGrantSource = (typeof ACCESS_GRANT_SOURCES)[number];
 
-export const ACCESS_REVIEW_SCOPE_TYPES = ['tenant', 'department', 'role', 'group', 'high_risk', 'temporary'] as const;
+export const ACCESS_REVIEW_SCOPE_TYPES = ['tenant', 'department', 'role', 'group', 'user', 'high_risk', 'temporary'] as const;
 export type AccessReviewScopeType = (typeof ACCESS_REVIEW_SCOPE_TYPES)[number];
 
-export const ACCESS_REVIEW_STATUSES = ['open', 'in_progress', 'completed', 'overdue'] as const;
+export const ACCESS_REVIEW_STATUSES = ['preparing', 'open', 'in_progress', 'completed', 'overdue', 'failed'] as const;
 export type AccessReviewStatus = (typeof ACCESS_REVIEW_STATUSES)[number];
 
 export const ACCESS_REVIEW_DECISIONS = ['pending', 'keep', 'revoke', 'extend', 'exception', 'escalate'] as const;
 export type AccessReviewDecision = (typeof ACCESS_REVIEW_DECISIONS)[number];
 
-export const ACCESS_REVIEW_SOURCE_TYPES = ['role', 'group_role', 'direct_menu', 'temporary_grant'] as const;
+export const ACCESS_REVIEW_SOURCE_TYPES = ['role', 'group_membership', 'direct_menu', 'temporary_grant'] as const;
 export type AccessReviewSourceType = (typeof ACCESS_REVIEW_SOURCE_TYPES)[number];

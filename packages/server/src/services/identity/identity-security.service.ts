@@ -211,6 +211,7 @@ export async function verifyUserTotp(userId: number, code: string): Promise<numb
     .select()
     .from(userMfaFactors)
     .where(and(eq(userMfaFactors.userId, userId), eq(userMfaFactors.type, 'totp'), eq(userMfaFactors.status, 'enabled')));
+  if (!rows.length) throw new HTTPException(400, { message: '请先在个人中心绑定认证器，再进行 MFA 验证' });
   let unreadable = 0;
   for (const factor of rows) {
     if (!factor.secretEncrypted) continue;

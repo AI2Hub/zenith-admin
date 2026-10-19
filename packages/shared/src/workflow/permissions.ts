@@ -5,6 +5,9 @@ import { definePermissions } from '../core/permissions';
  * 种子 button 节点由此生成（@zenith/shared/seed），契约操作 / 路由门禁 / 前端按钮以 `Permission` 类型引用。
  * `uiOnly` = 服务端没有任何接口检查该码（纯前端门控或待清理）。
  */
+const WORKFLOW_CONTROL = { riskLevel: 'critical', approvalPolicy: 'two_person', maxDurationMinutes: 120, reviewIntervalDays: 30, selfRequestable: false } as const;
+const WORKFLOW_ADMIN = { riskLevel: 'high', approvalPolicy: 'manager_security', maxDurationMinutes: 480, reviewIntervalDays: 90, selfRequestable: false } as const;
+
 export const WORKFLOW_PERMISSIONS = definePermissions({
   'workflow:instance:create': { label: '发起申请', menu: ['WorkflowLaunchpad', 'MyApplications'], id: [undefined, 4072], sort: [undefined, 1] },
   'workflow:task:handle': { label: '查询', menu: ['PendingApprovals', 'WorkflowHandled'] },
@@ -13,10 +16,10 @@ export const WORKFLOW_PERMISSIONS = definePermissions({
   'workflow:delegation:view': { label: '查询', menu: 'WorkflowDelegations' },
   'workflow:delegation:manage': { label: '管理审批代理', menu: 'WorkflowDelegations' },
   'workflow:definition:list': { label: '查询', menu: ['WorkflowDefinitions', 'WorkflowTemplates', 'WorkflowAutomations'] },
-  'workflow:definition:create': { label: '新建流程', menu: 'WorkflowDefinitions' },
-  'workflow:definition:edit': { label: '编辑流程 / 自动化规则', menu: ['WorkflowDefinitions', 'WorkflowAutomations'] },
-  'workflow:definition:delete': { label: '删除流程', menu: 'WorkflowDefinitions' },
-  'workflow:definition:publish': { label: '发布/禁用', menu: 'WorkflowDefinitions' },
+  'workflow:definition:create': { label: '新建流程', menu: 'WorkflowDefinitions', ...WORKFLOW_CONTROL },
+  'workflow:definition:edit': { label: '编辑流程 / 自动化规则', menu: ['WorkflowDefinitions', 'WorkflowAutomations'], ...WORKFLOW_CONTROL },
+  'workflow:definition:delete': { label: '删除流程', menu: 'WorkflowDefinitions', ...WORKFLOW_CONTROL },
+  'workflow:definition:publish': { label: '发布/禁用', menu: 'WorkflowDefinitions', ...WORKFLOW_CONTROL },
   'workflow:form:list': { label: '查询', menu: 'WorkflowForms' },
   'workflow:form:create': { label: '新建表单', menu: 'WorkflowForms' },
   'workflow:form:edit': { label: '编辑表单', menu: 'WorkflowForms' },
@@ -26,10 +29,10 @@ export const WORKFLOW_PERMISSIONS = definePermissions({
   'workflow:schedule:edit': { label: '编辑定时', menu: 'WorkflowSchedules' },
   'workflow:schedule:delete': { label: '删除定时', menu: 'WorkflowSchedules' },
   'workflow:instance:monitor': { label: '查询', menu: 'WorkflowMonitor', id: 4111, sort: 0 },
-  'workflow:instance:cancel': { label: '取消流程', menu: 'WorkflowMonitor', id: 4112, sort: 1 },
-  'workflow:instance:delete': { label: '删除流程', menu: 'WorkflowMonitor', id: 4113, sort: 2 },
-  'workflow:engine:operate': { label: '引擎运维', menu: 'WorkflowMonitor', id: 4114, sort: 3 },
-  'workflow:task:handover': { label: '离职交接', menu: 'WorkflowMonitor', id: 4115, sort: 4 },
+  'workflow:instance:cancel': { label: '取消流程', menu: 'WorkflowMonitor', id: 4112, sort: 1, ...WORKFLOW_ADMIN },
+  'workflow:instance:delete': { label: '删除流程', menu: 'WorkflowMonitor', id: 4113, sort: 2, ...WORKFLOW_ADMIN },
+  'workflow:engine:operate': { label: '引擎运维', menu: 'WorkflowMonitor', id: 4114, sort: 3, ...WORKFLOW_CONTROL },
+  'workflow:task:handover': { label: '离职交接', menu: 'WorkflowMonitor', id: 4115, sort: 4, ...WORKFLOW_ADMIN },
   'workflow:health:view': { label: '查询', menu: 'WorkflowHealth' },
   'workflow:event-subscription:view': { label: '查询', menu: 'WorkflowEventSubscriptions' },
   'workflow:event-subscription:create': { label: '新建订阅', menu: 'WorkflowEventSubscriptions' },

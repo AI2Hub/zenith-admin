@@ -2,6 +2,7 @@
 // 转办/委派/管理员改派/离职交接/超时升级 5 类流转的统一留痕，
 // 同时支撑「禁止折返」校验与详情页转办时间线。
 import { uniquePositiveInts } from '@zenith/shared/core';
+import { ACCESS_REQUEST_BIZ_TYPE } from '@zenith/shared/identity';
 import { and, eq, inArray, ne, or } from 'drizzle-orm';
 import { nullableEq, buildWhere } from '../../../lib/where-helpers';
 import { HTTPException } from 'hono/http-exception';
@@ -52,8 +53,16 @@ export async function recordTaskTransfer(
     reason?: string | null;
     operatorId?: number | null;
     tenantId?: number | null;
+    businessType?: string | null;
+    businessId?: string | null;
+    nodeKey?: string;
   },
 ): Promise<void> {
+  if (input.businessType === ACCESS_REQUEST_BIZ_TYPE) {
+    if (!input.nodeKey) throw new HTTPException(409, { message: '权限审批缺少节点关联' });
+    const { assertAccessTaskAssigneeInTransaction } = await import('../../identity/access-approval.service');
+    await assertAccessTaskAssigneeInTransaction(executor, { id: input.instanceId, tenantId: input.tenantId ?? null, bizType: input.businessType, bizId: input.businessId ?? null }, input.nodeKey, input.toUserId);
+  }
   await executor.insert(workflowTaskTransfers).values({
     taskId: input.taskId,
     instanceId: input.instanceId,

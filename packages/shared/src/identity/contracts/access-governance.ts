@@ -2,8 +2,8 @@ import * as z from 'zod';
 import { auditFieldsSchema, dateRangeQuery, idParam, idQuery, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
 import { DATA_SCOPES } from '../constants';
-import { ACCESS_APPROVAL_POLICIES, ACCESS_GRANT_STATUSES, ACCESS_REQUEST_ITEM_TYPES, ACCESS_REQUEST_STATUSES, ACCESS_REQUEST_TYPES, ACCESS_REVIEW_DECISIONS, ACCESS_REVIEW_SCOPE_TYPES, ACCESS_REVIEW_STATUSES, ACCESS_REVIEW_SOURCE_TYPES, ACCESS_RISK_LEVELS } from '../access-governance-constants';
-import { accessApprovalEvidenceSchema, accessApprovalPlanSchema, accessPolicySnapshotSchema, createAccessReviewCampaignSchema, decideAccessReviewItemSchema, revokeAccessGrantSchema, updatePermissionPolicySchema } from '../access-governance-validation';
+import { ACCESS_PROVISION_STATUSES, ACCESS_APPROVAL_POLICIES, ACCESS_GRANT_STATUSES, ACCESS_REQUEST_ITEM_TYPES, ACCESS_REQUEST_STATUSES, ACCESS_REQUEST_TYPES, ACCESS_REVIEW_DECISIONS, ACCESS_REVIEW_SCOPE_TYPES, ACCESS_REVIEW_STATUSES, ACCESS_REVIEW_SOURCE_TYPES, ACCESS_RISK_LEVELS } from '../access-governance-constants';
+import { assignAccessReviewCampaignSchema, accessReviewHistorySchema, accessApprovalEvidenceSchema, accessApprovalPlanSchema, accessPolicySnapshotSchema, createAccessReviewCampaignSchema, decideAccessReviewItemSchema, revokeAccessGrantSchema, updatePermissionPolicySchema } from '../access-governance-validation';
 
 export const permissionPolicySchema = z.object({
   id: z.int(),
@@ -47,6 +47,7 @@ export const accessRequestSchema = z.object({
   targetUserName: z.string().nullable().optional(),
   requestType: z.enum(ACCESS_REQUEST_TYPES),
   status: z.enum(ACCESS_REQUEST_STATUSES),
+  provisionStatus: z.enum(ACCESS_PROVISION_STATUSES),
   reason: z.string(),
   businessReference: z.string().nullable().optional(),
   startsAt: z.string(),
@@ -67,6 +68,15 @@ export const accessRequestSchema = z.object({
 
 export type AccessRequest = z.infer<typeof accessRequestSchema>;
 
+export const accessGrantItemSchema = z.object({
+  id: z.int(), menuId: z.int(), permissionCode: z.string(), permissionLabel: z.string().nullable(),
+  status: z.enum(ACCESS_GRANT_STATUSES), dataScope: z.enum(DATA_SCOPES), deptScopeIds: z.array(z.int()),
+  startsAt: z.string(), expiresAt: z.string(), nextReviewAt: z.string().nullable(),
+  revokedAt: z.string().nullable(), revokedBy: z.int().nullable(), revokeReason: z.string().nullable(),
+  policySnapshot: accessPolicySnapshotSchema,
+}).meta({ id: 'IdentityAccessGrantItem' });
+export type AccessGrantItem = z.infer<typeof accessGrantItemSchema>;
+
 export const accessGrantSchema = z.object({
   id: z.int(),
   tenantId: z.int().nullable().optional(),
@@ -76,8 +86,6 @@ export const accessGrantSchema = z.object({
   sourceType: z.enum(['request', 'emergency', 'admin']),
   status: z.enum(ACCESS_GRANT_STATUSES),
   riskLevel: z.enum(ACCESS_RISK_LEVELS),
-  dataScope: z.enum(DATA_SCOPES).nullable().optional(),
-  deptScopeIds: z.array(z.int()),
   startsAt: z.string(),
   expiresAt: z.string(),
   approvedBy: z.int().nullable().optional(),
@@ -85,7 +93,7 @@ export const accessGrantSchema = z.object({
   revokedBy: z.int().nullable().optional(),
   revokedAt: z.string().nullable().optional(),
   revokeReason: z.string().nullable().optional(),
-  menus: z.array(z.object({ menuId: z.int(), permissionCode: z.string().nullable(), permissionLabel: z.string().nullable() })),
+  menus: z.array(accessGrantItemSchema),
   ...auditFieldsSchema,
   createdAt: z.string(),
   updatedAt: z.string(),
@@ -98,10 +106,12 @@ export const accessReviewCampaignSchema = z.object({
   tenantId: z.int().nullable().optional(),
   name: z.string(),
   scopeType: z.enum(ACCESS_REVIEW_SCOPE_TYPES),
+  scopeIds: z.array(z.int()),
   reviewerId: z.int(),
   reviewerName: z.string().nullable().optional(),
   dueAt: z.string(),
   status: z.enum(ACCESS_REVIEW_STATUSES),
+  failureReason: z.string().nullable(),
   itemCount: z.int().optional(),
   pendingCount: z.int().optional(),
   startedAt: z.string(),
@@ -124,6 +134,9 @@ export type AccessWorkflowOptions = z.infer<typeof accessWorkflowOptionsSchema>;
 export const accessReviewItemSchema = z.object({
   id: z.int(),
   campaignId: z.int(),
+  reviewerId: z.int(), reviewerName: z.string().nullable().optional(), dueAt: z.string(),
+  exceptionOwnerId: z.int().nullable(), exceptionUntil: z.string().nullable(), nextReviewAt: z.string().nullable(),
+  history: z.array(accessReviewHistorySchema),
   tenantId: z.int().nullable().optional(),
   userId: z.int(),
   userName: z.string().nullable().optional(),
@@ -145,7 +158,8 @@ export type AccessReviewItem = z.infer<typeof accessReviewItemSchema>;
 
 const requestListQuery = paginationQuery.extend({
   keyword: keywordQuery('申请原因 / 业务编号'),
-  status: queryEnum(ACCESS_REQUEST_STATUSES, { description: '申请状态' }),
+  status: queryEnum(ACCESS_REQUEST_STATUSES, { description: '审批状态' }),
+  provisionStatus: queryEnum(ACCESS_PROVISION_STATUSES, { description: '发放状态' }),
   riskLevel: queryEnum(ACCESS_RISK_LEVELS, { description: '风险等级' }),
   targetUserId: idQuery('目标用户'),
   ...dateRangeQuery('申请时间'),
@@ -159,6 +173,8 @@ const grantListQuery = paginationQuery.extend({
 });
 
 const reviewListQuery = paginationQuery.extend({
+  campaignId: idQuery('复核批次'),
+  reviewerId: idQuery('复核负责人'),
   decision: queryEnum(ACCESS_REVIEW_DECISIONS, { description: '复核结果' }),
   riskLevel: queryEnum(ACCESS_RISK_LEVELS, { description: '风险等级' }),
   sourceType: queryEnum(ACCESS_REVIEW_SOURCE_TYPES, { description: '授权来源' }),
@@ -168,14 +184,21 @@ const reviewListQuery = paginationQuery.extend({
 export const accessGovernanceContract = defineContract('/api/access-governance', {
   workflowOptions: op.get('/workflow-options', { access: 'authenticated', response: accessWorkflowOptionsSchema, summary: '权限申请工作流选项' }),
   requestList: op.get('/requests', { access: { permission: 'system:access-governance:view' }, query: requestListQuery, response: paginated(accessRequestSchema), summary: '权限申请列表' }),
+  requestRetry: op.post('/requests/{id}/retry', { access: { permission: 'system:access-governance:grant' }, params: idParam, response: accessRequestSchema, summary: '重试权限发放', audit: '重试权限发放' }),
+  myRequests: op.get('/my/requests', { access: 'authenticated', query: requestListQuery, response: paginated(accessRequestSchema), summary: '本人权限申请' }),
+  myGrants: op.get('/my/grants', { access: 'authenticated', query: grantListQuery, response: paginated(accessGrantSchema), summary: '本人临时授权' }),
   requestDetail: op.get('/requests/{id}', { access: { permission: 'system:access-governance:view' }, params: idParam, response: accessRequestSchema, summary: '权限申请详情' }),
   grantList: op.get('/grants', { access: { permission: 'system:access-governance:view' }, query: grantListQuery, response: paginated(accessGrantSchema), summary: '临时授权列表' }),
   grantDetail: op.get('/grants/{id}', { access: { permission: 'system:access-governance:view' }, params: idParam, response: accessGrantSchema, summary: '临时授权详情' }),
   grantRevoke: op.post('/grants/{id}/revoke', { access: { permission: 'system:access-governance:revoke' }, params: idParam, body: revokeAccessGrantSchema, response: accessGrantSchema, summary: '撤销临时授权', audit: '撤销临时授权' }),
+  grantItemRevoke: op.post('/grant-items/{id}/revoke', { access: { permission: 'system:access-governance:revoke' }, params: idParam, body: revokeAccessGrantSchema, response: accessGrantSchema, summary: '撤销单项临时授权', audit: '撤销单项临时授权' }),
+  reviewOptions: op.get('/review-options', { access: { permission: 'system:access-governance:review' }, response: z.object({ users: z.array(z.object({ id: z.int(), name: z.string() })), reviewers: z.array(z.object({ id: z.int(), name: z.string() })), departments: z.array(z.object({ id: z.int(), name: z.string() })), roles: z.array(z.object({ id: z.int(), name: z.string() })), groups: z.array(z.object({ id: z.int(), name: z.string() })) }), summary: '权限复核范围及可选负责人' }),
   reviewCampaignList: op.get('/review-campaigns', { access: { permission: 'system:access-governance:review' }, query: paginationQuery, response: paginated(accessReviewCampaignSchema), summary: '权限复核批次列表' }),
+  reviewCampaignAssign: op.post('/review-campaigns/{id}/assign', { access: { permission: 'system:access-governance:review' }, params: idParam, body: assignAccessReviewCampaignSchema, response: accessReviewCampaignSchema, summary: '调整权限复核负责人', audit: '调整权限复核负责人' }),
+  reviewCampaignRetry: op.post('/review-campaigns/{id}/retry', { access: { permission: 'system:access-governance:review' }, params: idParam, response: accessReviewCampaignSchema, summary: '重试准备权限复核批次', audit: '重试权限复核准备' }),
   reviewCampaignCreate: op.post('/review-campaigns', { access: { permission: 'system:access-governance:review' }, body: createAccessReviewCampaignSchema, response: accessReviewCampaignSchema, summary: '创建权限复核批次', audit: '创建权限复核批次' }),
   reviewItemList: op.get('/review-items', { access: { permission: 'system:access-governance:review' }, query: reviewListQuery, response: paginated(accessReviewItemSchema), summary: '权限复核项列表' }),
-  reviewItemDecide: op.post('/review-items/{id}/decide', { access: { permission: 'system:access-governance:review' }, params: idParam, body: decideAccessReviewItemSchema, response: accessReviewItemSchema, summary: '处理权限复核项', audit: '处理权限复核项' }),
+  reviewItemDecide: op.post('/review-items/{id}/decide', { access: { permission: 'system:access-governance:review' }, params: idParam, body: decideAccessReviewItemSchema, response: accessReviewItemSchema, summary: '处理权限复核项', audit: { description: '处理权限复核项', recordBody: false } }),
   policyList: op.get('/policies', { access: { permission: 'system:access-governance:policy' }, query: paginationQuery.extend({ keyword: keywordQuery('权限码'), riskLevel: queryEnum(ACCESS_RISK_LEVELS, { description: '风险等级' }), approvalPolicy: queryEnum(ACCESS_APPROVAL_POLICIES, { description: '审批策略' }) }), response: paginated(permissionPolicySchema), summary: '权限治理策略列表' }),
   policyUpdate: op.put('/policies/{permissionCode}', { access: { permission: 'system:access-governance:policy' }, params: z.object({ permissionCode: z.string().min(1).max(128) }), body: updatePermissionPolicySchema, response: permissionPolicySchema, summary: '更新权限治理策略', audit: '更新权限治理策略' }),
   userOverview: op.get('/users/{id}/overview', { access: { permission: 'system:access-governance:view' }, params: idParam, response: z.object({ userId: z.int(), grants: z.array(accessGrantSchema), reviews: z.array(accessReviewItemSchema) }), summary: '用户权限治理概览' }),

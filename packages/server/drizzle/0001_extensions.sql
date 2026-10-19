@@ -117,6 +117,29 @@ CREATE TRIGGER tenant_package_features_cache_invalidate
   AFTER INSERT OR UPDATE OR DELETE ON "tenant_package_features"
   FOR EACH ROW EXECUTE FUNCTION notify_cache_invalidate('package_id');--> statement-breakpoint
 
+CREATE TRIGGER user_roles_cache_invalidate
+  AFTER INSERT OR UPDATE OR DELETE ON "user_roles"
+  FOR EACH ROW EXECUTE FUNCTION notify_cache_invalidate('user_id');--> statement-breakpoint
+CREATE TRIGGER user_menus_cache_invalidate
+  AFTER INSERT OR UPDATE OR DELETE ON "user_menus"
+  FOR EACH ROW EXECUTE FUNCTION notify_cache_invalidate('user_id');--> statement-breakpoint
+CREATE TRIGGER user_group_members_cache_invalidate
+  AFTER INSERT OR UPDATE OR DELETE ON "user_group_members"
+  FOR EACH ROW EXECUTE FUNCTION notify_cache_invalidate('user_id');--> statement-breakpoint
+-- 权限治理表由后续结构迁移建立；其迁移同样安装这两项触发器。
+DO $$ BEGIN
+  IF to_regclass('public.identity_access_grants') IS NOT NULL THEN
+    CREATE TRIGGER identity_access_grants_cache_invalidate
+      AFTER INSERT OR UPDATE OR DELETE ON "identity_access_grants"
+      FOR EACH ROW EXECUTE FUNCTION notify_cache_invalidate('user_id');
+  END IF;
+  IF to_regclass('public.identity_access_grant_menus') IS NOT NULL THEN
+    CREATE TRIGGER identity_access_grant_menus_cache_invalidate
+      AFTER INSERT OR UPDATE OR DELETE ON "identity_access_grant_menus"
+      FOR EACH ROW EXECUTE FUNCTION notify_cache_invalidate('grant_id');
+  END IF;
+END $$;--> statement-breakpoint
+
 -- ─── CMS 不可变事实：修订、审批、版本、发布输入与只追加历史禁止改写 ─────────────────────
 -- 修订 / 审批 / 复审 / 模型、资源、组件、页面预设、集合版本 / 发布激活：除审计列外任何字段变化即拒绝
 CREATE OR REPLACE FUNCTION cms_immutable_revision() RETURNS trigger LANGUAGE plpgsql AS $$

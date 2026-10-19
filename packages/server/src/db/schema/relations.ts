@@ -114,7 +114,6 @@ export const identityAccessGrantsRelations = relations(identityAccessGrants, ({ 
   tenant: one(tenants, { fields: [identityAccessGrants.tenantId], references: [tenants.id] }),
   user: one(users, { fields: [identityAccessGrants.userId], references: [users.id], relationName: 'accessGrantUser' }),
   request: one(identityAccessRequests, { fields: [identityAccessGrants.requestId], references: [identityAccessRequests.id] }),
-  sourceRole: one(roles, { fields: [identityAccessGrants.sourceRoleId], references: [roles.id] }),
   approver: one(users, { fields: [identityAccessGrants.approvedBy], references: [users.id], relationName: 'accessGrantApprover' }),
   revoker: one(users, { fields: [identityAccessGrants.revokedBy], references: [users.id], relationName: 'accessGrantRevoker' }),
   menus: many(identityAccessGrantMenus),
@@ -136,6 +135,7 @@ export const identityAccessReviewItemsRelations = relations(identityAccessReview
   tenant: one(tenants, { fields: [identityAccessReviewItems.tenantId], references: [tenants.id] }),
   user: one(users, { fields: [identityAccessReviewItems.userId], references: [users.id], relationName: 'accessReviewUser' }),
   decider: one(users, { fields: [identityAccessReviewItems.decidedBy], references: [users.id], relationName: 'accessReviewDecider' }),
+  reviewer: one(users, { fields: [identityAccessReviewItems.reviewerId], references: [users.id], relationName: 'accessReviewItemReviewer' }),
 }));
 
 export const domainEventsRelations = relations(domainEvents, ({ many }) => ({

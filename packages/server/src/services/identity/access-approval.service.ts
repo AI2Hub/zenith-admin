@@ -69,18 +69,49 @@ async function loadAccessApprovalRequest(executor: DbExecutor, instance: Instanc
   return request;
 }
 
+export async function assertAccessGrantApproversCurrent(executor: DbExecutor, request: Pick<typeof identityAccessRequests.$inferSelect, 'tenantId' | 'targetUserId' | 'approvalPlan' | 'approvalEvidence'>): Promise<void> {
+  if (!request.approvalPlan.steps.length) return;
+  const actorIds = [...new Set(request.approvalEvidence.map(evidence => evidence.actorId))];
+  const active = await executor.select({ id: users.id }).from(users).where(and(inArray(users.id, actorIds), exactTenantCondition(users.tenantId, request.tenantId), eq(users.status, 'enabled')));
+  if (active.length !== actorIds.length) throw new HTTPException(409, { message: '审批参与人已停用，请重新申请' });
+  const target = await executor.query.users.findFirst({ where: and(eq(users.id, request.targetUserId), exactTenantCondition(users.tenantId, request.tenantId)), columns: { departmentId: true } });
+  const department = target?.departmentId ? await executor.query.departments.findFirst({ where: and(eq(departments.id, target.departmentId), exactTenantCondition(departments.tenantId, request.tenantId), eq(departments.status, 'enabled')), columns: { leaderId: true } }) : null;
+  const security = new Set((await securityCandidates(request.tenantId, executor)).map(candidate => candidate.id));
+  for (const evidence of request.approvalEvidence) {
+    if (evidence.nodeKey === 'approve_manager' ? department?.leaderId !== evidence.actorId : !security.has(evidence.actorId)) throw new HTTPException(409, { message: '审批人组织关系或安全身份已经变化，请重新申请' });
+  }
+}
+
+export async function assertAccessTaskAssigneeInTransaction(executor: DbExecutor, instance: InstanceRef, nodeKey: string, targetUserId: number): Promise<void> {
+  if (instance.bizType !== ACCESS_REQUEST_BIZ_TYPE) return;
+  const request = await loadAccessApprovalRequest(executor, instance);
+  const target = await executor.query.users.findFirst({ where: and(eq(users.id, targetUserId), exactTenantCondition(users.tenantId, instance.tenantId), eq(users.status, 'enabled')), columns: { id: true } });
+  if (!target) throw new HTTPException(403, { message: '新处理人不存在或已停用' });
+  const step = request.approvalPlan.steps.find(entry => entry.nodeKey === nodeKey);
+  if (!step || targetUserId === request.targetUserId || targetUserId === request.applicantUserId || request.approvalEvidence.some(entry => entry.actorId === targetUserId) || request.approvalPlan.steps.some(entry => entry.nodeKey !== nodeKey && entry.userId === targetUserId)) throw new HTTPException(403, { message: '该成员不能独立办理当前权限审批，不能自审或复用其他审批节点成员' });
+  if (step.nodeKey === 'approve_manager' && targetUserId !== step.userId) throw new HTTPException(403, { message: '部门负责人节点不可转给其他成员，请按组织关系重新发起' });
+  if (step.nodeKey !== 'approve_manager' && !(await securityCandidates(instance.tenantId, executor)).some(candidate => candidate.id === targetUserId)) throw new HTTPException(403, { message: '新处理人没有有效的安全审批身份' });
+  const capable = await runWithFreshUserPermissions(targetUserId, async () => (await getUserPermissions(targetUserId)).includes('workflow:task:handle'), executor);
+  if (!capable) throw new HTTPException(403, { message: '新处理人没有审批办理权限' });
+}
+
 export async function verifyAccessApprovalMfa(instance: InstanceRef, taskId: number, actorId: number, code?: string): Promise<AccessMfaEvidence | undefined> {
   if (instance.bizType !== ACCESS_REQUEST_BIZ_TYPE) return undefined;
   const request = await loadAccessApprovalRequest(db, instance);
   if (!request.approvalPlan.mfaRequired) return undefined;
-  if (!code) throw new HTTPException(400, { message: '该权限申请要求 MFA，请输入本人认证器的动态验证码；批量操作请改为逐笔审批' });
+  const receipt = await verifyAccessMfa(actorId, code);
+  return { actorId, taskId, ...receipt };
+}
+
+export async function verifyAccessMfa(actorId: number, code?: string) {
+  if (!code) throw new HTTPException(400, { message: '该操作要求 MFA，请输入本人认证器的动态验证码；批量操作请改为逐笔办理' });
   const key = `${config.redis.keyPrefix}access-approval-mfa:${actorId}`;
   const attempt = await redis.incr(key);
   if (attempt === 1) await redis.expire(key, 300);
   if (attempt > 10) throw new HTTPException(429, { message: 'MFA 验证尝试过多，请 5 分钟后再试' });
   const factorId = await verifyUserTotp(actorId, code);
   await redis.del(key);
-  return { actorId, taskId, factorId, verifiedAt: new Date() };
+  return { factorId, verifiedAt: new Date() };
 }
 
 export async function assertAccessApprovalInTransaction(executor: DbExecutor, instance: InstanceRef, task: { id: number; nodeKey: string }, actorId: number, mfa?: AccessMfaEvidence): Promise<void> {

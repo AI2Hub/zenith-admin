@@ -1,9 +1,11 @@
-import { eq } from 'drizzle-orm';
+import { and, eq, gt, inArray } from 'drizzle-orm';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { DbExecutor } from '../db/types';
 import { SUPER_ADMIN_CODE } from '@zenith/shared/identity';
 import { db } from '../db';
-import { users } from '../db/schema';
+import { users, identityAccessGrants, identityAccessGrantMenus } from '../db/schema';
+import { onInvalidate, onInvalidationReset } from './invalidation-bus';
+import { sendToUser } from './ws-manager';
 import { getTenantPackageFeatureSet } from './tenant-package';
 import { enabledGroupRolesWith, extractEnabledGroupRoles } from './user-group-access';
 import { config } from '../config';
@@ -100,8 +102,17 @@ export async function getUserMenuIds(userId: number): Promise<number[]> {
   return menuIds;
 }
 
+export async function getUserPermissionBoundary(userId: number): Promise<number | null> {
+  const cached = await readCacheEntry(userId);
+  if (cached) return cached.nextPermissionBoundaryAt;
+  const data = await fetchUserPermissionData(userId);
+  await writeCacheEntry(userId, { ...data, timestamp: Date.now() });
+  return data.nextPermissionBoundaryAt;
+}
+
 async function fetchUserPermissionData(userId: number, executor: DbExecutor = db, fresh = false): Promise<{ permissions: string[]; menuIds: number[]; nextPermissionBoundaryAt: number | null }> {
   const menuColumns = { id: true, permission: true, visible: true, status: true, featureKey: true } as const;
+  const now = new Date();
   const user = await executor.query.users.findFirst({
     where: eq(users.id, userId),
     columns: { tenantId: true },
@@ -135,8 +146,9 @@ async function fetchUserPermissionData(userId: number, executor: DbExecutor = db
         },
       }),
       accessGrants: {
+        where: and(inArray(identityAccessGrants.status, ['scheduled', 'active']), gt(identityAccessGrants.expiresAt, now)),
         columns: { status: true, startsAt: true, expiresAt: true },
-        with: { menus: { columns: {}, with: { menu: { columns: menuColumns } } } },
+        with: { menus: { where: and(inArray(identityAccessGrantMenus.status, ['scheduled', 'active']), gt(identityAccessGrantMenus.expiresAt, now)), columns: { permissionCode: true, status: true, startsAt: true, expiresAt: true }, with: { menu: { columns: menuColumns } } } },
       },
     },
   });
@@ -145,13 +157,12 @@ async function fetchUserPermissionData(userId: number, executor: DbExecutor = db
     return { permissions: [], menuIds: [], nextPermissionBoundaryAt: null };
   }
 
-  const now = new Date();
   const grantRows = (user.accessGrants ?? []).filter((grant) => grant.status === 'scheduled' || grant.status === 'active');
   const grantMenuRows = grantRows
     .filter((grant) => grant.startsAt <= now && grant.expiresAt > now)
-    .flatMap((grant) => grant.menus.filter(({ menu }) => menu.status === 'enabled').map(({ menu }) => menu));
+    .flatMap(grant => grant.menus.filter(item => ['scheduled', 'active'].includes(item.status) && item.startsAt <= now && item.expiresAt > now && item.menu.status === 'enabled' && item.menu.permission === item.permissionCode).map(({ menu }) => menu));
   const nextPermissionBoundaryAt = grantRows
-    .flatMap((grant) => [grant.startsAt, grant.expiresAt])
+    .flatMap(grant => grant.menus.filter(item => ['scheduled', 'active'].includes(item.status)).flatMap(item => [item.startsAt, item.expiresAt]))
     .filter((value) => value.getTime() > now.getTime())
     .reduce<number | null>((next, value) => next === null || value.getTime() < next ? value.getTime() : next, null);
 
@@ -189,6 +200,32 @@ async function fetchUserPermissionData(userId: number, executor: DbExecutor = db
  * 清除用户权限缓存（Redis 主存储 + 本地降级缓存）。
  * 等待 Redis 删除完成，确保调用方返回时撤权已生效。
  */
+export async function notifyUserPermissionsChanged(userId: number): Promise<void> {
+  await clearUserPermissionCache(userId);
+  sendToUser(userId, { type: 'identity:permissions-changed', data: { userId } });
+}
+
+function invalidateUserEntry(key?: string | null): void {
+  const userId = Number(key);
+  if (!Number.isSafeInteger(userId) || userId <= 0) localCache.clear();
+  else {
+    localCache.delete(userId);
+    void clearRedisPermCache(userId).catch(() => {});
+  }
+}
+
+onInvalidate('identity_access_grants', message => invalidateUserEntry(message.key));
+onInvalidate('identity_access_grant_menus', message => {
+  localCache.clear();
+  const grantId = Number(message.key);
+  if (Number.isSafeInteger(grantId) && grantId > 0) void db.query.identityAccessGrants.findFirst({ where: eq(identityAccessGrants.id, grantId), columns: { userId: true } })
+    .then(grant => { if (grant) invalidateUserEntry(String(grant.userId)); }).catch(() => {});
+});
+onInvalidate('user_roles', message => invalidateUserEntry(message.key));
+onInvalidate('user_menus', message => invalidateUserEntry(message.key));
+onInvalidate('user_group_members', message => invalidateUserEntry(message.key));
+onInvalidationReset(() => { localCache.clear(); void clearRedisPermCache().catch(() => {}); });
+
 export async function clearUserPermissionCache(userId?: number): Promise<void> {
   if (userId === undefined) {
     localCache.clear();

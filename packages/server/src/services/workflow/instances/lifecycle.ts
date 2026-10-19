@@ -367,6 +367,7 @@ export async function cancelInstance(id: number) {
 export async function deleteInstance(id: number) {
   const user = currentUser();
   const inst = await requireVisibleInstance(id);
+  if (inst.bizType === ACCESS_REQUEST_BIZ_TYPE) throw new HTTPException(409, { message: '权限申请流程是授权审计依据，不支持直接删除；请通过授权撤销与归档管理' });
   if (inst.status === 'running') {
     throw new HTTPException(400, { message: '请先取消进行中的流程再删除' });
   }

@@ -189,6 +189,18 @@ export async function registerSystemTasks(): Promise<void> {
     run: reconcileAccessGovernance,
   });
 
+  const { runAccessReviewLifecycle } = await import('../services/identity/access-review.service');
+  await registerSystemRecurringJob({
+    name: 'identity-access-review-due', title: '权限复核截止与复审扫描', module: '权限治理', cronExpression: '*/5 * * * *',
+    description: '维护复核截止状态，并为到期例外和已完成复核的下次复审准备批次。', allowManualRun: true, manualSingleton: true,
+    run: () => runAccessReviewLifecycle(),
+  });
+  await registerSystemRecurringJob({
+    name: 'identity-access-review-scan', title: '周期权限复核范围扫描', module: '权限治理', cronExpression: '0 2 * * *',
+    description: '按权限策略周期扫描角色、用户组、直接授权和临时授权；分批准备需要复核的来源快照。', allowManualRun: true, manualSingleton: true,
+    run: () => runAccessReviewLifecycle({ scanNewSources: true }),
+  });
+
   const { runWikiGovernanceTick } = await import('../services/wiki/governance.service');
   await registerSystemRecurringJob({
     name: 'wiki-governance-tick',

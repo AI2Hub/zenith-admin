@@ -2,6 +2,7 @@ import type { PermissionMeta } from '../core/permissions';
 import type { WorkflowFlowData } from '../workflow/types';
 import type { AccessApprovalPolicy, AccessRiskLevel } from './access-governance-constants';
 import type { AccessApprovalPlan, AccessPolicySnapshot } from './access-governance-validation';
+import type { DataScope } from './constants';
 
 export const ACCESS_RISK_ORDER: Record<AccessRiskLevel, number> = { low: 0, high: 1, critical: 2 };
 export const ACCESS_APPROVAL_ORDER: Record<AccessApprovalPolicy, number> = { none: 0, manager: 1, manager_security: 2, two_person: 3 };
@@ -51,6 +52,28 @@ export function aggregateAccessPolicies(policies: readonly AccessPolicySnapshot[
     maxDurationMinutes: Math.min(...policies.map(policy => policy.maxDurationMinutes)),
     mfaRequired: policies.some(policy => policy.mfaRequired),
   };
+}
+
+export function accessScopesOverlap(a: { dataScope?: DataScope | null; deptScopeIds: number[] }, b: { dataScope?: DataScope | null; deptScopeIds: number[] }): boolean {
+  if (a.dataScope === 'custom' && b.dataScope === 'custom') return a.deptScopeIds.some(id => b.deptScopeIds.includes(id));
+  return true;
+}
+
+export function mergeAccessPermissionItems(items: ReadonlyArray<{
+  menuId: number | null; permissionCode: string | null; permissionLabel?: string | null; dataScope?: DataScope | null; deptScopeIds: number[];
+}>) {
+  const merged = new Map<string, { menuId: number; permissionCode: string; permissionLabel: string | null; dataScope: DataScope; deptScopeIds: number[] }>();
+  for (const item of items) {
+    if (item.menuId === null || !item.permissionCode) continue;
+    const dataScope = item.dataScope ?? 'self';
+    const key = `${item.permissionCode}:${dataScope}`;
+    const existing = merged.get(key);
+    merged.set(key, {
+      menuId: existing?.menuId ?? item.menuId, permissionCode: item.permissionCode, permissionLabel: item.permissionLabel ?? null, dataScope,
+      deptScopeIds: [...new Set([...(existing?.deptScopeIds ?? []), ...item.deptScopeIds])].sort((a, b) => a - b),
+    });
+  }
+  return [...merged.values()];
 }
 
 /** 将已解析的策略计划冻结为实际执行链，配置编辑不能绕过业务审批要求。 */

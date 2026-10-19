@@ -62,19 +62,42 @@ export const revokeAccessGrantSchema = z.object({
 export const createAccessReviewCampaignSchema = z.object({
   name: z.string().trim().min(1, '复核批次名称不能为空').max(128),
   scopeType: z.enum(ACCESS_REVIEW_SCOPE_TYPES),
+  scopeIds: z.array(z.number().int().positive()).max(1000).default([]),
   reviewerId: z.number().int().positive(),
   dueAt: dateTimeStringSchema,
+}).superRefine((value, ctx) => {
+  if (['department', 'role', 'group', 'user'].includes(value.scopeType) && value.scopeIds.length === 0) ctx.addIssue({ code: 'custom', path: ['scopeIds'], message: '请选择要复核的具体范围' });
 });
+
+export const assignAccessReviewCampaignSchema = z.object({ reviewerId: z.number().int().positive(), reason: z.string().trim().min(2).max(1000) });
+export type AssignAccessReviewCampaignInput = z.infer<typeof assignAccessReviewCampaignSchema>;
 
 export const decideAccessReviewItemSchema = z.object({
   decision: z.enum(['keep', 'revoke', 'extend', 'exception', 'escalate'] as const),
-  remark: z.string().trim().max(1000).optional(),
+  remark: z.string().trim().min(2, '请填写处置依据').max(1000),
+  expiresAt: dateTimeStringSchema.optional(),
+  targetReviewerId: z.number().int().positive().optional(),
+  exceptionOwnerId: z.number().int().positive().optional(),
+  dueAt: dateTimeStringSchema.optional(),
+  mfaCode: z.string().trim().regex(/^\d{6}$/, '请输入六位动态验证码').optional(),
+}).superRefine((value, ctx) => {
+  if (['extend', 'exception'].includes(value.decision) && !value.expiresAt) ctx.addIssue({ code: 'custom', path: ['expiresAt'], message: '请填写新的截止时间' });
+  if (value.decision === 'exception' && !value.exceptionOwnerId) ctx.addIssue({ code: 'custom', path: ['exceptionOwnerId'], message: '请选择例外责任人' });
+  if (value.decision === 'escalate' && (!value.targetReviewerId || !value.dueAt)) ctx.addIssue({ code: 'custom', path: ['targetReviewerId'], message: '升级处理必须指定新负责人和截止时间' });
 });
+
+export const accessReviewHistorySchema = z.object({
+  decision: z.enum(['keep', 'revoke', 'extend', 'exception', 'escalate']),
+  actorId: z.int(), actorName: z.string(), decidedAt: dateTimeStringSchema, remark: z.string(),
+  targetReviewerId: z.int().nullable(), expiresAt: dateTimeStringSchema.nullable(),
+  mfaVerifiedAt: dateTimeStringSchema.nullable(), policies: z.array(accessPolicySnapshotSchema),
+});
+export type AccessReviewHistory = z.infer<typeof accessReviewHistorySchema>;
 
 export const updatePermissionPolicySchema = z.object({
   riskLevel: z.enum(ACCESS_RISK_LEVELS),
   approvalPolicy: z.enum(ACCESS_APPROVAL_POLICIES),
-  maxDurationMinutes: z.number().int().positive().nullable().optional(),
+  maxDurationMinutes: z.number().int().positive().nullable(),
   reviewIntervalDays: z.number().int().min(0).max(3650),
   mfaRequired: z.boolean(),
   enabled: z.boolean(),

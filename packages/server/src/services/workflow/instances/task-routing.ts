@@ -68,7 +68,7 @@ export async function transferTask(taskId: number, targetUserId: number, comment
     if (task.slotId != null) await tx.update(workflowApprovalSlots).set({ currentAssigneeId: targetUserId }).where(eq(workflowApprovalSlots.id, task.slotId));
     await recordTaskTransfer(tx, {
       taskId: task.id, instanceId: inst.id, fromUserId: task.assigneeId, toUserId: targetUserId,
-      action: 'transfer', reason: comment ?? null, operatorId: actor.userId, tenantId: inst.tenantId,
+      action: 'transfer', reason: comment ?? null, operatorId: actor.userId, tenantId: inst.tenantId, businessType: inst.bizType, businessId: inst.bizId, nodeKey: task.nodeKey,
     });
     await emitTaskEvent('task.transferred', mapTask(row, target.nickname),
       { definitionId: inst.definitionId, tenantId: inst.tenantId, actor, comment: transferComment }, tx);
@@ -116,7 +116,7 @@ export async function systemTransferTaskToManagerInTransaction(
     if (task.slotId != null) await tx.update(workflowApprovalSlots).set({ currentAssigneeId: managerId }).where(eq(workflowApprovalSlots.id, task.slotId));
     await recordTaskTransfer(tx, {
       taskId: task.id, instanceId: inst.id, fromUserId: task.assigneeId, toUserId: managerId,
-      action: 'timeout', reason: comment, operatorId: null, tenantId: inst.tenantId,
+      action: 'timeout', reason: comment, operatorId: null, tenantId: inst.tenantId, businessType: inst.bizType, businessId: inst.bizId, nodeKey: task.nodeKey,
     });
     await emitTaskEvent('task.transferred', mapTask(row, target?.nickname ?? null), {
       definitionId: inst.definitionId,
@@ -169,7 +169,7 @@ export async function delegateTask(taskId: number, targetUserId: number, comment
     if (task.slotId != null) await tx.update(workflowApprovalSlots).set({ currentAssigneeId: targetUserId }).where(eq(workflowApprovalSlots.id, task.slotId));
     await recordTaskTransfer(tx, {
       taskId: task.id, instanceId: inst.id, fromUserId: task.assigneeId, toUserId: targetUserId,
-      action: 'delegate', reason: comment ?? null, operatorId: actor.userId, tenantId: inst.tenantId,
+      action: 'delegate', reason: comment ?? null, operatorId: actor.userId, tenantId: inst.tenantId, businessType: inst.bizType, businessId: inst.bizId, nodeKey: task.nodeKey,
     });
     await emitTaskEvent('task.transferred', mapTask(row, target.nickname),
       { definitionId: inst.definitionId, tenantId: inst.tenantId, actor, comment: delegateComment }, tx);

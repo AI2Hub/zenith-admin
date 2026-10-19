@@ -11,16 +11,18 @@ import type { DbTransaction } from '../../db/types';
 const registry = new Map<WorkflowJobType, WorkflowJobHandler>();
 type WorkflowJobSettlementHandler = (tx: DbTransaction, job: WorkflowJobRow) => Promise<void>;
 const settlementHandlers = new Map<WorkflowJobType, WorkflowJobSettlementHandler>();
+const cancellationSettlements = new Set<WorkflowJobType>();
 
 /** Domain continuations commit with attempt settlement, including expired leases. */
-export function registerJobSettlementHandler(jobType: WorkflowJobType, handler: WorkflowJobSettlementHandler): void {
+export function registerJobSettlementHandler(jobType: WorkflowJobType, handler: WorkflowJobSettlementHandler, options: { includeCanceled?: boolean } = {}): void {
   if (settlementHandlers.has(jobType)) throw new Error(`workflow job settlement already registered for "${jobType}"`);
   settlementHandlers.set(jobType, handler);
+  if (options.includeCanceled) cancellationSettlements.add(jobType);
 }
 
 export async function runJobSettlement(tx: DbTransaction, job: WorkflowJobRow): Promise<void> {
   // An explicit cancellation stops work; it never releases a domain continuation.
-  if (job.status === 'canceled') return;
+  if (job.status === 'canceled' && !cancellationSettlements.has(job.jobType)) return;
   await settlementHandlers.get(job.jobType)?.(tx, job);
 }
 

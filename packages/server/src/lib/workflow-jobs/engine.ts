@@ -147,13 +147,16 @@ export async function resumeInstanceJobs(tx: DbExecutor, instanceId: number, job
     .returning({ id: workflowJobs.id, runAt: workflowJobs.runAt });
 }
 
-export async function retryJob(id: number, opts?: { payload?: Record<string, unknown>; runAt?: Date }): Promise<WorkflowJobRow | null> {
-  const [row] = await db.update(workflowJobs).set({
+export async function retryJob(id: number, opts?: { payload?: Record<string, unknown>; runAt?: Date }, executor: DbExecutor = db): Promise<WorkflowJobRow | null> {
+  const [row] = await executor.update(workflowJobs).set({
     status: 'pending', generation: sql`${workflowJobs.generation} + 1`, attempts: 0,
     lastError: null, result: null, pausedRemainingMs: null, ...clearedLease, runAt: opts?.runAt ?? new Date(),
     ...(opts?.payload ? { payload: opts.payload, operationKey: randomUUID() } : {}),
   }).where(and(eq(workflowJobs.id, id), inArray(workflowJobs.status, ['failed', 'dead', 'canceled']))).returning();
-  if (row) scheduleJobPickup(row.id, row.runAt);
+  if (row) {
+    if (executor === db) scheduleJobPickup(row.id, row.runAt);
+    else rememberWorkflowJobPickup(executor, row.id, row.runAt);
+  }
   return row ?? null;
 }
 
@@ -164,6 +167,7 @@ export async function skipJob(id: number): Promise<WorkflowJobRow | null> {
     const [row] = await tx.update(workflowJobs).set({ status: 'canceled', generation: sql`${workflowJobs.generation} + 1`, pausedRemainingMs: null, ...clearedLease })
       .where(eq(workflowJobs.id, id)).returning();
     await closeExecution(tx, job.leaseToken, 'canceled', { errorMessage: 'Job canceled by operator' });
+    if (row) await runJobSettlement(tx, row);
     return row;
   });
 }

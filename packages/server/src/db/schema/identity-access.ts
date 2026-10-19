@@ -1,14 +1,16 @@
-import { pgEnum, pgTable, integer, varchar, boolean, jsonb, index, unique, primaryKey } from 'drizzle-orm/pg-core';
-import { ACCESS_APPROVAL_POLICIES, ACCESS_GRANT_SOURCES, ACCESS_GRANT_STATUSES, ACCESS_REQUEST_ITEM_TYPES, ACCESS_REQUEST_STATUSES, ACCESS_REQUEST_TYPES, ACCESS_REVIEW_DECISIONS, ACCESS_REVIEW_SCOPE_TYPES, ACCESS_REVIEW_STATUSES, ACCESS_REVIEW_SOURCE_TYPES, ACCESS_RISK_LEVELS } from '@zenith/shared/identity';
+import { pgEnum, pgTable, integer, varchar, boolean, jsonb, index, unique, uniqueIndex } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import { ACCESS_PROVISION_STATUSES, ACCESS_APPROVAL_POLICIES, ACCESS_GRANT_SOURCES, ACCESS_GRANT_STATUSES, ACCESS_REQUEST_ITEM_TYPES, ACCESS_REQUEST_STATUSES, ACCESS_REQUEST_TYPES, ACCESS_REVIEW_DECISIONS, ACCESS_REVIEW_SCOPE_TYPES, ACCESS_REVIEW_STATUSES, ACCESS_REVIEW_SOURCE_TYPES, ACCESS_RISK_LEVELS } from '@zenith/shared/identity';
 import { auditColumns, dataScopeEnum, menus, roles, tenantIdColumn, users } from './core';
 import { idColumn, timestamptz, timestampColumns } from './common';
 import { workflowInstances } from './workflow';
-import type { AccessPolicySnapshot, AccessApprovalPlan, AccessApprovalEvidence } from '@zenith/shared/identity';
+import type { AccessPolicySnapshot, AccessApprovalPlan, AccessApprovalEvidence, AccessReviewHistory } from '@zenith/shared/identity';
 
 export const accessRiskLevelEnum = pgEnum('identity_access_risk_level', ACCESS_RISK_LEVELS);
 export const accessApprovalPolicyEnum = pgEnum('identity_access_approval_policy', ACCESS_APPROVAL_POLICIES);
 export const accessRequestTypeEnum = pgEnum('identity_access_request_type', ACCESS_REQUEST_TYPES);
 export const accessRequestStatusEnum = pgEnum('identity_access_request_status', ACCESS_REQUEST_STATUSES);
+export const accessProvisionStatusEnum = pgEnum('identity_access_provision_status', ACCESS_PROVISION_STATUSES);
 export const accessRequestItemTypeEnum = pgEnum('identity_access_request_item_type', ACCESS_REQUEST_ITEM_TYPES);
 export const accessGrantStatusEnum = pgEnum('identity_access_grant_status', ACCESS_GRANT_STATUSES);
 export const accessGrantSourceEnum = pgEnum('identity_access_grant_source', ACCESS_GRANT_SOURCES);
@@ -46,6 +48,7 @@ export const identityAccessRequests = pgTable('identity_access_requests', {
   targetUserId: integer().notNull().references(() => users.id, { onDelete: 'cascade' }),
   requestType: accessRequestTypeEnum().notNull().default('temporary'),
   status: accessRequestStatusEnum().notNull().default('draft'),
+  provisionStatus: accessProvisionStatusEnum().notNull().default('not_started'),
   reason: varchar({ length: 1000 }).notNull(),
   businessReference: varchar({ length: 128 }),
   startsAt: timestamptz().notNull(),
@@ -100,11 +103,8 @@ export const identityAccessGrants = pgTable('identity_access_grants', {
   userId: integer().notNull().references(() => users.id, { onDelete: 'cascade' }),
   requestId: integer().references(() => identityAccessRequests.id, { onDelete: 'set null' }),
   sourceType: accessGrantSourceEnum().notNull().default('request'),
-  sourceRoleId: integer().references(() => roles.id, { onDelete: 'set null' }),
   status: accessGrantStatusEnum().notNull().default('scheduled'),
   riskLevel: accessRiskLevelEnum().notNull().default('low'),
-  dataScope: dataScopeEnum(),
-  deptScopeIds: jsonb().$type<number[]>().notNull().default([]),
   startsAt: timestamptz().notNull(),
   expiresAt: timestamptz().notNull(),
   approvedBy: integer().references(() => users.id, { onDelete: 'set null' }),
@@ -112,6 +112,8 @@ export const identityAccessGrants = pgTable('identity_access_grants', {
   revokedBy: integer().references(() => users.id, { onDelete: 'set null' }),
   revokedAt: timestamptz(),
   revokeReason: varchar({ length: 1000 }),
+  expiringNotifiedAt: timestamptz(),
+  expiredNotifiedAt: timestamptz(),
   snapshot: jsonb().$type<Record<string, unknown>>().notNull().default({}),
   ...auditColumns(),
   ...timestampColumns(),
@@ -126,13 +128,25 @@ export type IdentityAccessGrantRow = typeof identityAccessGrants.$inferSelect;
 export type NewIdentityAccessGrant = typeof identityAccessGrants.$inferInsert;
 
 export const identityAccessGrantMenus = pgTable('identity_access_grant_menus', {
+  id: idColumn(),
   grantId: integer().notNull().references(() => identityAccessGrants.id, { onDelete: 'cascade' }),
   menuId: integer().notNull().references(() => menus.id, { onDelete: 'restrict' }),
-  permissionCode: varchar({ length: 128 }),
+  permissionCode: varchar({ length: 128 }).notNull(),
   permissionLabel: varchar({ length: 128 }),
+  status: accessGrantStatusEnum().notNull().default('scheduled'),
+  dataScope: dataScopeEnum().notNull().default('self'),
+  deptScopeIds: jsonb().$type<number[]>().notNull().default([]),
+  startsAt: timestamptz().notNull(),
+  expiresAt: timestamptz().notNull(),
+  nextReviewAt: timestamptz(),
+  policySnapshot: jsonb().$type<AccessPolicySnapshot>().notNull(),
+  revokedAt: timestamptz(),
+  revokedBy: integer().references(() => users.id, { onDelete: 'set null' }),
+  revokeReason: varchar({ length: 1000 }),
 }, (t) => [
-  primaryKey({ columns: [t.grantId, t.menuId] }),
+  unique('identity_access_grant_menus_permission_scope_unique').on(t.grantId, t.permissionCode, t.dataScope),
   index('identity_access_grant_menus_menu_idx').on(t.menuId),
+  index('identity_access_grant_menus_lifecycle_idx').on(t.status, t.expiresAt),
 ]);
 
 export type IdentityAccessGrantMenuRow = typeof identityAccessGrantMenus.$inferSelect;
@@ -143,9 +157,13 @@ export const identityAccessReviewCampaigns = pgTable('identity_access_review_cam
   tenantId: tenantIdColumn(),
   name: varchar({ length: 128 }).notNull(),
   scopeType: accessReviewScopeTypeEnum().notNull(),
+  scopeIds: jsonb().$type<number[]>().notNull().default([]),
   reviewerId: integer().notNull().references(() => users.id, { onDelete: 'restrict' }),
   dueAt: timestamptz().notNull(),
-  status: accessReviewStatusEnum().notNull().default('open'),
+  status: accessReviewStatusEnum().notNull().default('preparing'),
+  buildCursorUserId: integer().notNull().default(0),
+  dueOnly: boolean().notNull().default(false),
+  failureReason: varchar({ length: 1000 }),
   startedAt: timestamptz().defaultNow().notNull(),
   completedAt: timestamptz(),
   ...auditColumns(),
@@ -161,6 +179,12 @@ export type NewIdentityAccessReviewCampaign = typeof identityAccessReviewCampaig
 export const identityAccessReviewItems = pgTable('identity_access_review_items', {
   id: idColumn(),
   campaignId: integer().notNull().references(() => identityAccessReviewCampaigns.id, { onDelete: 'cascade' }),
+  reviewerId: integer().notNull().references(() => users.id, { onDelete: 'restrict' }),
+  dueAt: timestamptz().notNull(),
+  exceptionOwnerId: integer().references(() => users.id, { onDelete: 'set null' }),
+  exceptionUntil: timestamptz(),
+  nextReviewAt: timestamptz(),
+  history: jsonb().$type<AccessReviewHistory[]>().notNull().default([]),
   tenantId: tenantIdColumn(),
   userId: integer().notNull().references(() => users.id, { onDelete: 'cascade' }),
   sourceType: accessReviewSourceTypeEnum().notNull(),
@@ -178,6 +202,9 @@ export const identityAccessReviewItems = pgTable('identity_access_review_items',
   updatedAt: timestamptz().defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (t) => [
   index('identity_access_review_items_campaign_idx').on(t.campaignId, t.decision),
+  unique('identity_access_review_items_source_unique').on(t.campaignId, t.userId, t.sourceType, t.sourceId).nullsNotDistinct(),
+  uniqueIndex('identity_access_review_items_pending_source_unique').on(sql`coalesce(${t.tenantId}, 0)`, t.userId, t.sourceType, t.sourceId).where(sql`${t.decision} = 'pending'`),
+  index('identity_access_review_items_source_history_idx').on(t.userId, t.sourceType, t.sourceId, t.createdAt.desc()),
   index('identity_access_review_items_tenant_user_idx').on(t.tenantId, t.userId),
   index('identity_access_review_items_risk_idx').on(t.riskLevel, t.decision),
 ]);

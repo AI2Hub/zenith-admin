@@ -37,6 +37,15 @@ export interface CurrentUserDetail {
 export type AppEnv = AuthEnv;
 
 const userOverrideStore = new AsyncLocalStorage<JwtPayload>();
+const operationPermissionStore = new AsyncLocalStorage<readonly string[]>();
+
+export function currentOperationPermissions(): readonly string[] {
+  return operationPermissionStore.getStore() ?? [];
+}
+
+export function runWithOperationPermissions<T>(permissions: readonly string[], fn: () => T | Promise<T>): Promise<T> {
+  return Promise.resolve(operationPermissionStore.run(permissions, fn));
+}
 
 /**
  * 开放 API 写入时的请求级授权上下文。

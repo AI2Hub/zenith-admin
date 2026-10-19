@@ -866,8 +866,8 @@ export const NOTIFICATION_EVENTS = defineNotificationEvents({
   'identity.access.approved': {
     group: 'identity', label: '权限申请已通过', severity: 'important', inAppType: 'success',
     defaultChannels: ['inapp'], availableChannels: ['inapp', 'email'],
-    vars: eventVars<{ requestId: number; targetName: string; expiresAt: string }>(),
-    title: '权限申请已通过', content: '{{targetName}} 的临时权限已生效或将在 {{expiresAt}} 生效。',
+    vars: eventVars<{ requestId: number; targetName: string; startsAt: string; expiresAt: string }>(),
+    title: '权限申请已通过', content: '{{targetName}} 的临时权限已发放，有效期为 {{startsAt}} 至 {{expiresAt}}。',
   },
   'identity.access.rejected': {
     group: 'identity', label: '权限申请被驳回', severity: 'important', inAppType: 'warning',
@@ -892,6 +892,12 @@ export const NOTIFICATION_EVENTS = defineNotificationEvents({
     defaultChannels: ['inapp'], availableChannels: ['inapp', 'email'],
     vars: eventVars<{ grantId: number; targetName: string; reason: string }>(),
     title: '临时权限已撤销', content: '{{targetName}} 的临时权限已被撤销：{{reason}}',
+  },
+  'identity.access.review_decided': {
+    group: 'identity', label: '权限复核处置结果', severity: 'important',
+    defaultChannels: ['inapp'], availableChannels: ['inapp', 'email'],
+    vars: eventVars<{ campaignId: number; itemId: number; targetName: string; sourceLabel: string; decisionLabel: string; summary: string }>(),
+    title: '权限复核已处置', content: '{{targetName}} 的「{{sourceLabel}}」复核结果为{{decisionLabel}}：{{summary}}',
   },
   'identity.access.review_due': {
     group: 'identity', label: '权限复核待处理', severity: 'important',

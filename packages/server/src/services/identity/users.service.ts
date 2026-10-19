@@ -4,7 +4,7 @@ import { eq, and, ne, inArray, exists, type SQL } from 'drizzle-orm';
 import { hashPassword } from '../../lib/password';
 import { db } from '../../db';
 import type { DbExecutor } from '../../db/types';
-import { users, userRoles, roles, departments, positions, userPositions, userMenus, userDeptScopes, userSignatures, menus } from '../../db/schema';
+import { users, userRoles, roles, departments, positions, userPositions, userMenus, userDeptScopes, userSignatures, menus, identityAccessGrants } from '../../db/schema';
 import { HTTPException } from 'hono/http-exception';
 import { exactTenantCondition, tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import { reserveTenantSeats } from '../../lib/tenant-quota';
@@ -18,7 +18,7 @@ import { validatePassword } from '@zenith/shared/settings';
 import { getSettings } from '../../lib/settings';
 import { unlockUser as clearLoginChallenge, batchLoginChallengeRequired, getOnlineSessions, forceLogoutAllByUsers } from '../../lib/session-manager';
 import { batchIterable, streamToExcel, streamToCsv, formatDateTimeForExcel, type ExcelColumn } from '../../lib/excel-export';
-import { clearUserPermissionCache } from '../../lib/permissions';
+import { clearUserPermissionCache, getUserMenuIds } from '../../lib/permissions';
 import type { JwtPayload } from '../../middleware/auth';
 import type { AlertRecipientUser, User } from '@zenith/shared/identity';
 import { mostPermissiveDataScope, userContract } from '@zenith/shared/identity';
@@ -795,6 +795,7 @@ export async function updateUserDataPermission(userId: number, data: { dataScope
 
 export async function getUserEffectivePermissions(userId: number) {
   await ensureUserManageable(userId);
+  const now = new Date();
   const user = requireRow(await db.query.users.findFirst({
     where: eq(users.id, userId),
     columns: { userDataScope: true },
@@ -805,7 +806,7 @@ export async function getUserEffectivePermissions(userId: number) {
         columns: {},
         with: {
           role: {
-            columns: { name: true, code: true, dataScope: true },
+            columns: { name: true, code: true, dataScope: true, status: true },
             with: {
               roleMenus: { columns: { menuId: true } },
               deptScopes: { columns: { deptId: true } },
@@ -814,14 +815,20 @@ export async function getUserEffectivePermissions(userId: number) {
         },
       },
       userGroupMembers: groupRolesWith,
+      accessGrants: { where: inArray(identityAccessGrants.status, ['scheduled', 'active']), columns: { id: true, status: true, startsAt: true, expiresAt: true }, with: { menus: { with: { menu: { columns: { permission: true, status: true } } } } } },
     },
   }), '用户不存在');
+  const activeRoles = user.userRoles.filter(binding => binding.role.status === 'enabled');
+  const activeItems = user.accessGrants.filter(grant => grant.startsAt <= now && grant.expiresAt > now).flatMap(grant => grant.menus.filter(item => ['scheduled', 'active'].includes(item.status) && item.startsAt <= now && item.expiresAt > now && item.menu.status === 'enabled' && item.menu.permission === item.permissionCode).map(item => ({ ...item, grantId: grant.id })));
 
   const { groupMenuIds, groupDataScope, groupDeptScopeIds, groups, inheritedRoles } = extractGroupInheritance(user.userGroupMembers ?? []);
 
   const directMenuIds = user.userMenus.map((m) => m.menuId);
-  const roleMenuIds = [...new Set(user.userRoles.flatMap((ur) => ur.role.roleMenus.map((rm) => rm.menuId)))];
-  const effectiveMenuIds = [...new Set([...directMenuIds, ...roleMenuIds, ...groupMenuIds])];
+  const roleMenuIds = [...new Set(activeRoles.flatMap((ur) => ur.role.roleMenus.map((rm) => rm.menuId)))];
+  const effectiveMenuIds = await getUserMenuIds(userId);
+  const effective = new Set(effectiveMenuIds);
+  const temporaryMenuIds = [...new Set(activeItems.filter(item => effective.has(item.menuId)).map(item => item.menuId))];
+  const temporaryScopes = activeItems.filter(item => effective.has(item.menuId)).map(item => ({ grantId: item.grantId, grantItemId: item.id, menuId: item.menuId, permissionCode: item.permissionCode, dataScope: item.dataScope, deptScopeIds: item.deptScopeIds, expiresAt: formatDateTime(item.expiresAt) }));
   const menuSources = new Map<number, Set<string>>();
   const addMenuSource = (menuId: number, source: string) => {
     const sources = menuSources.get(menuId) ?? new Set<string>();
@@ -829,9 +836,10 @@ export async function getUserEffectivePermissions(userId: number) {
     menuSources.set(menuId, sources);
   };
   for (const menuId of directMenuIds) addMenuSource(menuId, '用户直接授权');
-  for (const userRole of user.userRoles) {
+  for (const userRole of activeRoles) {
     for (const roleMenu of userRole.role.roleMenus) addMenuSource(roleMenu.menuId, `角色：${userRole.role.name}`);
   }
+  for (const item of activeItems) if (effective.has(item.menuId)) addMenuSource(item.menuId, `临时授权 #${item.grantId} · ${item.dataScope} · 至 ${formatDateTime(item.expiresAt)}`);
   for (const membership of user.userGroupMembers ?? []) {
     if (membership.group.status !== 'enabled') continue;
     for (const groupRole of membership.group.groupRoles) {
@@ -843,16 +851,16 @@ export async function getUserEffectivePermissions(userId: number) {
     }
   }
   const menuSourcesResult = Object.fromEntries(
-    [...menuSources.entries()].map(([menuId, sources]) => [String(menuId), [...sources]])
+    [...menuSources.entries()].filter(([menuId]) => effective.has(menuId)).map(([menuId, sources]) => [String(menuId), [...sources]])
   );
 
   const userDataScope = user.userDataScope ?? null;
-  const roleDataScope = getMostPermissiveScope(user.userRoles.map((ur) => ur.role.dataScope));
+  const roleDataScope = getMostPermissiveScope(activeRoles.map((ur) => ur.role.dataScope));
   const effectiveDataScope = getMostPermissiveScope([userDataScope, roleDataScope, groupDataScope]) ?? 'self';
 
   const userDeptScopeIds = user.userDeptScopes.map((ds) => ds.deptId);
   const roleDeptScopeIds = [...new Set(
-    user.userRoles
+    activeRoles
       .filter((ur) => ur.role.dataScope === 'custom')
       .flatMap((ur) => ur.role.deptScopes.map((ds) => ds.deptId))
   )];
@@ -865,6 +873,8 @@ export async function getUserEffectivePermissions(userId: number) {
     roleMenuIds,
     groupMenuIds,
     effectiveMenuIds,
+    temporaryMenuIds,
+    temporaryScopes,
     userDataScope,
     roleDataScope,
     groupDataScope,

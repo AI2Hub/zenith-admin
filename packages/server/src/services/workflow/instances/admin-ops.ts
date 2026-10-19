@@ -134,7 +134,7 @@ export async function reassignTask(taskId: number, targetUserId: number, comment
     const [row] = await tx.update(workflowTasks).set({ assigneeId: targetUserId, delegatedFromId: null, delegationMode: null, taskKind: task.slotId == null ? task.taskKind : 'approval', comment: note }).where(and(eq(workflowTasks.id, taskId), inArray(workflowTasks.status, ['pending', 'waiting']))).returning();
     requireRow(row, '任务状态已变化，无法改派', 409);
     if (task.slotId != null) await tx.update(workflowApprovalSlots).set({ currentAssigneeId: targetUserId }).where(eq(workflowApprovalSlots.id, task.slotId));
-    await recordTaskTransfer(tx, { taskId, instanceId: inst.id, fromUserId: task.assigneeId, toUserId: targetUserId, action, reason: comment ?? null, operatorId: user.userId, tenantId: inst.tenantId });
+    await recordTaskTransfer(tx, { taskId, instanceId: inst.id, fromUserId: task.assigneeId, toUserId: targetUserId, action, reason: comment ?? null, operatorId: user.userId, tenantId: inst.tenantId, businessType: inst.bizType, businessId: inst.bizId, nodeKey: task.nodeKey });
     await emitTaskEvent('task.transferred', mapTask(row), { definitionId: inst.definitionId, tenantId: inst.tenantId, actor: { userId: user.userId, name: user.username } }, tx);
     return row;
   });

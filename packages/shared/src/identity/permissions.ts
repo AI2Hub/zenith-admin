@@ -40,7 +40,7 @@ export const IDENTITY_PERMISSIONS = definePermissions({
   'system:access-governance:view': { label: '查看权限治理', menu: 'SystemAccessGovernance' },
   'system:access-governance:request': { label: '提交权限申请', menu: 'SystemAccessGovernance', uiOnly: true },
   'system:access-governance:approve': { label: '审批权限申请', menu: 'SystemAccessGovernance', uiOnly: true, riskLevel: 'high', approvalPolicy: 'manager_security', reviewIntervalDays: 90 },
-  'system:access-governance:grant': { label: '管理临时授权', menu: 'SystemAccessGovernance', uiOnly: true, riskLevel: 'high', approvalPolicy: 'manager_security', reviewIntervalDays: 90 },
+  'system:access-governance:grant': { label: '管理临时授权', menu: 'SystemAccessGovernance', riskLevel: 'high', approvalPolicy: 'manager_security', reviewIntervalDays: 90 },
   'system:access-governance:revoke': { label: '撤销临时授权', menu: 'SystemAccessGovernance', riskLevel: 'high', approvalPolicy: 'manager_security', reviewIntervalDays: 90 },
   'system:access-governance:review': { label: '权限复核', menu: 'SystemAccessGovernance', riskLevel: 'high', approvalPolicy: 'manager_security', reviewIntervalDays: 90 },
   'system:access-governance:policy': { label: '策略配置', menu: 'SystemAccessGovernance', riskLevel: 'critical', approvalPolicy: 'two_person', reviewIntervalDays: 30, selfRequestable: false },
