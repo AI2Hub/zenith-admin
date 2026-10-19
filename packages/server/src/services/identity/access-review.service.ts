@@ -1,7 +1,7 @@
-import { and, asc, desc, eq, gt, inArray, isNull, lt, lte, ne, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, isNull, lte, ne, or, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { ALL_PERMISSIONS } from '@zenith/shared/permissions';
-import { aggregateAccessPolicies, accessGovernanceContract, type CreateAccessReviewCampaignInput, type DecideAccessReviewItemInput, type AssignAccessReviewCampaignInput } from '@zenith/shared/identity';
+import { higherAccessRisk, accessGovernanceContract, type AccessPolicySnapshot, type AccessRiskLevel, type CreateAccessReviewCampaignInput, type DecideAccessReviewItemInput, type AssignAccessReviewCampaignInput } from '@zenith/shared/identity';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { db } from '../../db';
 import type { DbExecutor } from '../../db/types';
@@ -26,6 +26,11 @@ import { refreshAccessGrantHeader, revokeAccessGrantItemInTransaction } from './
 import { formatReviewCampaign, formatReviewItem } from './access-formatters';
 import { collectAccessReviewSourceBatch, expandReviewDepartmentIds } from './access-review-sources.service';
 import { assertNoOverlappingAccessRequest } from './access-reservations.service';
+
+function reviewPolicy(policies: readonly AccessPolicySnapshot[], minimumRisk: AccessRiskLevel) {
+  const riskLevel = policies.reduce((risk, policy) => higherAccessRisk(risk, policy.riskLevel), minimumRisk);
+  return { riskLevel, mfaRequired: riskLevel === 'critical' || policies.some(policy => policy.mfaRequired) };
+}
 
 function futureDate(value: string, label: string): Date {
   const date = parseDateTimeInput(value);
@@ -190,7 +195,7 @@ export async function decideReviewItem(id: number, input: DecideAccessReviewItem
   if (initial.reviewerId !== actor.userId && !isSuperAdmin(actor)) throw new HTTPException(403, { message: '仅指定负责人可以办理该复核项' });
   if (initial.userId === actor.userId && !['revoke', 'escalate'].includes(input.decision)) throw new HTTPException(403, { message: '不能复核保留自己的权限，请升级给独立复核人' });
   const policies = await loadEffectiveAccessPolicies(snapshotCodes(initial.snapshot), initial.tenantId);
-  const policy = policies.length ? aggregateAccessPolicies(policies) : { riskLevel: initial.riskLevel, mfaRequired: false };
+  const policy = reviewPolicy(policies, initial.riskLevel);
   const mfa = policy.mfaRequired && ['keep', 'extend', 'exception'].includes(input.decision) ? await verifyAccessMfa(actor.userId, input.mfaCode) : null;
   const expiresAt = input.expiresAt ? futureDate(input.expiresAt, '新的截止时间') : null;
   const escalationDueAt = input.dueAt ? futureDate(input.dueAt, '升级截止时间') : null;
@@ -214,7 +219,7 @@ export async function decideReviewItem(id: number, input: DecideAccessReviewItem
     const campaign = requireRow(await tx.query.identityAccessReviewCampaigns.findFirst({ where: and(eq(identityAccessReviewCampaigns.id, item.campaignId), exactTenantCondition(identityAccessReviewCampaigns.tenantId, item.tenantId)) }), '复核批次不存在');
     if (!['open', 'in_progress', 'overdue'].includes(campaign.status)) throw new HTTPException(409, { message: '复核批次尚未准备完成或已关闭' });
     const currentPolicies = await loadEffectiveAccessPolicies(snapshotCodes(item.snapshot), item.tenantId, tx);
-    const currentRisk = currentPolicies.length ? aggregateAccessPolicies(currentPolicies) : { riskLevel: item.riskLevel, mfaRequired: false };
+    const currentRisk = reviewPolicy(currentPolicies, item.riskLevel);
     if (currentRisk.mfaRequired && ['keep', 'extend', 'exception'].includes(input.decision) && !mfa) throw new HTTPException(403, { message: '当前策略要求 MFA，请填写动态验证码后重试' });
     if (mfa) {
       const factor = await tx.query.userMfaFactors.findFirst({ where: and(eq(userMfaFactors.id, mfa.factorId), eq(userMfaFactors.userId, actor.userId), eq(userMfaFactors.status, 'enabled')), columns: { id: true } });
@@ -260,6 +265,8 @@ export async function decideReviewItem(id: number, input: DecideAccessReviewItem
       changedUsers.add(item.userId);
     }
     const intervals = currentPolicies.map(entry => entry.reviewIntervalDays).filter(days => days > 0);
+    if (currentRisk.riskLevel === 'critical') intervals.push(30);
+    else if (currentRisk.riskLevel === 'high') intervals.push(90);
     if (input.decision === 'exception' && expiresAt && expiresAt.getTime() - Date.now() > Math.min(...intervals, currentRisk.riskLevel === 'high' ? 90 : 30) * 86_400_000) throw new HTTPException(400, { message: '例外期限不能超过当前策略的复核周期' });
     const nextReviewAt = input.decision === 'exception' ? expiresAt : intervals.length ? new Date(Date.now() + Math.min(...intervals) * 86_400_000) : null;
     await tx.update(identityAccessReviewItems).set({

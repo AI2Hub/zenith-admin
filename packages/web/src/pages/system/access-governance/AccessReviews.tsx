@@ -23,8 +23,8 @@ import { singleLineColumns, dateTimeColumn } from '@/utils/table-columns';
 
 const SCOPE_OPTIONS = createLabelOptionsFromMap(ACCESS_REVIEW_SCOPE_LABELS);
 const DECISION_OPTIONS = createLabelOptionsFromMap(ACCESS_REVIEW_DECISION_LABELS).filter(option => option.value !== 'pending');
-type CampaignValues = Omit<CreateAccessReviewCampaignInput, 'dueAt'> & { dueAt: Date };
-type DecisionValues = Omit<DecideAccessReviewItemInput, 'expiresAt' | 'dueAt'> & { expiresAt?: Date; dueAt?: Date };
+type CampaignValues = Omit<CreateAccessReviewCampaignInput, 'dueAt'> & { dueAt: Date | string };
+type DecisionValues = Omit<DecideAccessReviewItemInput, 'expiresAt' | 'dueAt'> & { expiresAt?: Date | string; dueAt?: Date | string };
 
 export default function AccessReviews({ onDetail }: Readonly<{ onDetail: (item: AccessReviewItem) => void }>) {
   const { user } = useAuth();
@@ -117,7 +117,7 @@ export default function AccessReviews({ onDetail }: Readonly<{ onDetail: (item: 
           <Form.Select field="scopeType" label="复核范围" optionList={SCOPE_OPTIONS} style={{ width: '100%' }} />
           {['department', 'role', 'group', 'user'].includes(scope) && <Form.Select key={scope} field="scopeIds" label="具体范围" multiple filter style={{ width: '100%' }} optionList={(source ?? []).map(entry => ({ value: entry.id, label: entry.name }))} rules={[{ required: true, message: '请选择具体范围' }]} />}
           <Form.Select field="reviewerId" label="复核负责人" filter style={{ width: '100%' }} optionList={reviewers} rules={[{ required: true, message: '请选择复核负责人' }]} extraText="复核人不能保留自己的权限；可将自有权限升级给独立负责人处理。" />
-          <Form.DatePicker field="dueAt" label="截止时间" type="dateTime" style={{ width: '100%' }} rules={[{ required: true, message: '请选择截止时间' }]} />
+          <Form.DatePicker field="dueAt" label="截止时间" type="dateTime" format="yyyy-MM-dd HH:mm:ss" style={{ width: '100%' }} rules={[{ required: true, message: '请选择截止时间' }]} />
           <Typography.Text type="tertiary">角色和用户组以整个绑定关系为复核单位；临时授权按单个操作权限处置。</Typography.Text>
           {options.error && <Banner type="danger" closeIcon={null} description={options.error.message} />}
         </>;
@@ -136,11 +136,11 @@ export default function AccessReviews({ onDetail }: Readonly<{ onDetail: (item: 
         return <>
           <Form.Select field="decision" label="处置方式" style={{ width: '100%' }} optionList={DECISION_OPTIONS.filter(option => (option.value !== 'extend' || record?.sourceType === 'temporary_grant') && (option.value !== 'revoke' || !dynamic))} rules={[{ required: true }]} />
           {dynamic && <Banner type="info" closeIcon={null} description="动态用户组由规则维护，请升级给负责人调整成员规则，避免撤销后被自动恢复。" />}
-          {['extend', 'exception'].includes(decision) && <Form.DatePicker field="expiresAt" label={decision === 'extend' ? '新失效时间' : '例外截止时间'} type="dateTime" style={{ width: '100%' }} rules={[{ required: true }]} extraText={decision === 'extend' ? '仅延长此授权项，仍受当前风险策略及总时长上限约束。' : '到期将重新进入复核，例外不会永久免审。'} />}
+          {['extend', 'exception'].includes(decision) && <Form.DatePicker field="expiresAt" label={decision === 'extend' ? '新失效时间' : '例外截止时间'} type="dateTime" format="yyyy-MM-dd HH:mm:ss" style={{ width: '100%' }} rules={[{ required: true }]} extraText={decision === 'extend' ? '仅延长此授权项，仍受当前风险策略及总时长上限约束。' : '到期将重新进入复核，例外不会永久免审。'} />}
           {decision === 'exception' && <Form.Select field="exceptionOwnerId" label="例外责任人" filter style={{ width: '100%' }} optionList={reviewers.filter(person => person.value !== record?.userId)} rules={[{ required: true }]} />}
           {decision === 'escalate' && <>
             <Form.Select field="targetReviewerId" label="新复核负责人" filter style={{ width: '100%' }} optionList={reviewers.filter(person => person.value !== user?.id && person.value !== record?.userId)} rules={[{ required: true }]} />
-            <Form.DatePicker field="dueAt" label="新截止时间" type="dateTime" style={{ width: '100%' }} rules={[{ required: true }]} />
+            <Form.DatePicker field="dueAt" label="新截止时间" type="dateTime" format="yyyy-MM-dd HH:mm:ss" style={{ width: '100%' }} rules={[{ required: true }]} />
           </>}
           {needsMfa && <Form.Input field="mfaCode" label="本人动态验证码" inputMode="numeric" autoComplete="one-time-code" maxLength={6} rules={record?.riskLevel === 'critical' ? [{ required: true }, { pattern: /^\d{6}$/, message: '请输入六位数字验证码' }] : []} extraText="极高危及策略要求 MFA 的保留、延期和例外操作必须验证本人身份；未绑定时请先到个人中心绑定认证器。" />}
           <Form.TextArea field="remark" label="处置依据" rows={4} maxCount={1000} rules={[{ required: true, message: '请填写处置依据' }, { min: 2, message: '至少填写两个字' }]} />

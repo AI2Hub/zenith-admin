@@ -24,7 +24,7 @@ const INITIATOR_SELECT_TYPES = new Set(['initiatorSelect', 'initiatorSelectScope
 export async function previewFlow(
   definitionId: number,
   formData?: Record<string, unknown> | null,
-): Promise<{ nodes: WorkflowApproverPreviewNode[]; flowData: WorkflowFlowData }> {
+): Promise<WorkflowApproverPreviewNode[]> {
   const user = currentUser();
   const [def] = await db.select().from(workflowDefinitions)
     .where(buildWhere(eq(workflowDefinitions.id, definitionId), eq(workflowDefinitions.status, 'published'), tenantCondition(workflowDefinitions, user))).limit(1);
@@ -42,7 +42,7 @@ export async function previewFlow(
     previewData = prepared.formData;
     flowData = prepared.flowData;
   }
-  return { nodes: await previewFlowData(flowData, previewData, formFields), flowData };
+  return previewFlowData(flowData, previewData, formFields);
 }
 
 /** 业务调用方先授权已发布定义；业务变量无表单快照时不推算派生字段。 */

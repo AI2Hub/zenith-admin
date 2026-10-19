@@ -669,11 +669,13 @@ export default function WorkflowApprovalDetailSheet({
         okText={signaturePolicy === 'none' ? '确认' : approveLabel}
         style={{ width: 480 }}
       >
+        {detailQuery.isError && <Banner type="danger" closeIcon={null} description={<Space wrap><Typography.Text>审批资料暂时无法加载，请重试后继续。</Typography.Text><Button size="small" onClick={() => void detailQuery.refetch()} loading={detailLoading}>重新加载审批资料</Button></Space>} style={{ marginBottom: 12 }} />}
         <Form allowEmpty getFormApi={api => { approveFormApi.current = api; }}>
           <Form.TextArea
             field="comment"
             label={btnApprove.opinionName ?? '审批意见'}
             placeholder={`请填写${btnApprove.opinionName ?? '审批意见'}`}
+            rules={currentNodeConfig?.operations?.includes('opinionRequired') ? [{ required: true, message: `请填写${btnApprove.opinionName ?? '审批意见'}` }, { pattern: /\S/, message: '意见不能只包含空白字符' }] : []}
             rows={3}
           />
         </Form>

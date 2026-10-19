@@ -20,7 +20,7 @@
 
 ## 自定义业务表单与公共容器边界
 
-`WorkflowLaunchForm`、公共审批窗口和流程页面不识别特定业务类型或字段。业务表单通过 `getFormApi` 提供 `getValues()` / `validate()`，通过 `onValuesChange` 通知容器重新计算预览。流程图始终可查看：信息不全时展示完整定义，信息齐全后使用同一次服务端预览返回的 `{ nodes, flowData }` 展示实际人员和执行图。
+`WorkflowLaunchForm`、公共审批窗口和流程页面不识别特定业务类型或字段。业务表单通过 `getFormApi` 提供 `getValues()` / `validate()`，通过 `onValuesChange` 通知容器重新计算预览。流程图始终展示完整定义，实例图沿用公共组件按任务运行态高亮实际路径、置灰未命中分支的逻辑，不把审批链路预览替换为裁剪后的流程图。审批链路接口继续返回节点数组，业务适配器提供的完整执行定义与预览共用路径规划。
 
 业务需要额外审批输入时，在 `customForm.actionComponent` 配置独立组件。公共审批窗口以 `mode="action"` 挂载它，校验结果作为 `businessInput` 传给后端；这些临时值不混入实例 `formData`，审批契约关闭请求体审计。组件可通过 `onActionSuccess()` 刷新自身领域查询。权限申请的当次 MFA 输入位于权限业务组件中，公共审批窗口不读取 `mfaRequired` 或验证码字段。
 

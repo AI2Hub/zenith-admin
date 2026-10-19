@@ -98,7 +98,7 @@ function invalidateAccessReview(qc: QueryClient, item: AccessReviewItem): void {
     for (const queryKey of [roleKeys.users(item.sourceId), roleKeys.lists, scopeMemberKeys.of('role', item.sourceId)]) void qc.invalidateQueries({ queryKey });
   }
   if (item.sourceType === 'group_membership' && typeof item.snapshot.groupId === 'number') {
-    for (const queryKey of [userGroupKeys.members(item.snapshot.groupId), userGroupKeys.lists, scopeMemberKeys.of('group', item.snapshot.groupId)]) void qc.invalidateQueries({ queryKey });
+    for (const queryKey of [userGroupKeys.members(item.snapshot.groupId), userGroupKeys.lists, scopeMemberKeys.of('userGroup', item.snapshot.groupId)]) void qc.invalidateQueries({ queryKey });
   }
 }
 

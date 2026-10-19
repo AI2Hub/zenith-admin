@@ -76,22 +76,20 @@ export function mergeAccessPermissionItems(items: ReadonlyArray<{
   return [...merged.values()];
 }
 
-/** 将已解析的策略计划冻结为实际执行链，配置编辑不能绕过业务审批要求。 */
+/** 冻结完整流程及实际审批人，保留未命中分支供原有流程图展示和高亮。 */
 export function buildAccessApprovalFlow(plan: AccessApprovalPlan, settings?: WorkflowFlowData['settings']): WorkflowFlowData {
-  const nodes: WorkflowFlowData['nodes'] = [
-    { id: 'access-start', type: 'workflowNode', position: { x: 0, y: 0 }, data: { key: 'start', type: 'start', label: '发起' } },
-    ...plan.steps.map<WorkflowFlowData['nodes'][number]>((step, index) => ({
-      id: step.nodeKey, type: 'workflowNode' as const, position: { x: (index + 1) * 220, y: 0 },
-      data: { key: step.nodeKey, type: 'approve' as const, label: step.label, assigneeType: 'user' as const, assigneeIds: [step.userId], approvalType: 'manual' as const,
-        approveMethod: 'or' as const, emptyStrategy: 'reject' as const, sameInitiatorStrategy: 'selfApprove' as const, signaturePolicy: 'none' as const,
-        operations: ['opinionRequired'], fieldPermissions: {} },
-    })),
-    { id: 'access-end', type: 'workflowNode', position: { x: (plan.steps.length + 1) * 220, y: 0 }, data: { key: 'end', type: 'end', label: '结束' } },
-  ];
+  const template = buildAccessApprovalTemplate(settings);
   return {
-    nodes,
-    edges: nodes.slice(1).map((node, index) => ({ id: `access-edge-${index}`, source: nodes[index].id, target: node.id })),
-    settings: { ...settings, notifyInitiator: true, approverDedupMode: 'none', allowResubmit: false, allowWithdraw: true, summaryFields: ['targetUserName', 'riskLabel', 'expiresAt'] },
+    ...template,
+    nodes: template.nodes.map<WorkflowFlowData['nodes'][number]>(node => {
+      const step = plan.steps.find(item => item.nodeKey === node.data.key);
+      if (!step) return node;
+      return { ...node, data: {
+        ...node.data, label: step.label, assigneeType: 'user', assigneeIds: [step.userId], approvalType: 'manual',
+        approveMethod: 'or', emptyStrategy: 'reject', sameInitiatorStrategy: 'selfApprove', signaturePolicy: 'none',
+        operations: ['opinionRequired'], fieldPermissions: {},
+      } };
+    }),
   };
 }
 

@@ -1,6 +1,6 @@
-import { and, asc, desc, eq, gt, inArray } from 'drizzle-orm';
+import { and, asc, desc, gt, inArray } from 'drizzle-orm';
 import { ALL_PERMISSIONS } from '@zenith/shared/permissions';
-import { aggregateAccessPolicies, type AccessPolicySnapshot } from '@zenith/shared/identity';
+import { aggregateAccessPolicies, higherAccessRisk, type AccessPolicySnapshot, type AccessRiskLevel } from '@zenith/shared/identity';
 import { db } from '../../db';
 import type { DbExecutor } from '../../db/types';
 import { departments, identityAccessReviewItems, userRoles, userGroupMembers, users, type IdentityAccessReviewCampaignRow, type NewIdentityAccessReviewItem } from '../../db/schema';
@@ -53,13 +53,13 @@ export async function collectAccessReviewSourceBatch(campaign: Pick<IdentityAcce
   const sources: ReviewSource[] = [];
   const now = new Date();
   const codesFromRole = (entry: (typeof userRows)[number]['userRoles'][number]['role']) => entry.roleMenus.flatMap(({ menu: row }) => row.status === 'enabled' && row.permission && ALL_PERMISSIONS[row.permission] && !ALL_PERMISSIONS[row.permission].uiOnly ? [row.permission] : []);
-  const append = (input: { userId: number; sourceType: ReviewSource['sourceType']; sourceId: number; sourceLabel: string; permissionCode?: string; permissionLabel?: string; codes: string[]; sourceCreatedAt: Date; snapshot: Record<string, unknown> }) => {
+  const append = (input: { userId: number; sourceType: ReviewSource['sourceType']; sourceId: number; sourceLabel: string; permissionCode?: string; permissionLabel?: string; codes: string[]; riskFloor?: AccessRiskLevel; sourceCreatedAt: Date; snapshot: Record<string, unknown> }) => {
     const codes = [...new Set(input.codes)];
     const policyRows = codes.flatMap(code => { const policy = policies.get(code); return policy ? [policy] : []; });
-    const riskLevel = policyRows.length ? aggregateAccessPolicies(policyRows).riskLevel : 'low';
+    const riskLevel = higherAccessRisk(policyRows.length ? aggregateAccessPolicies(policyRows).riskLevel : 'low', input.riskFloor ?? 'low');
     if (campaign.scopeType === 'high_risk' && riskLevel === 'low') return;
     const intervals = policyRows.map(policy => policy.reviewIntervalDays).filter(days => days > 0);
-    const interval = intervals.length ? Math.min(...intervals) : 0;
+    const interval = riskLevel === 'critical' ? Math.min(...intervals, 30) : riskLevel === 'high' ? Math.min(...intervals, 90) : intervals.length ? Math.min(...intervals) : 0;
     const previous = history.get(sourceKey(input.userId, input.sourceType, input.sourceId));
     if (previous?.decision === 'pending') return;
     if (campaign.dueOnly) {
@@ -74,14 +74,14 @@ export async function collectAccessReviewSourceBatch(campaign: Pick<IdentityAcce
     if (!['group', 'temporary'].includes(campaign.scopeType)) for (const binding of user.userRoles) {
       if (binding.role.status !== 'enabled' || (campaign.scopeType === 'role' && !campaign.scopeIds.includes(binding.role.id))) continue;
       const codes = codesFromRole(binding.role);
-      if (!codes.length && ['security_admin', 'tenant_admin'].includes(binding.role.code)) codes.push('system:access-governance:approve');
-      append({ userId: user.id, sourceType: 'role', sourceId: binding.role.id, sourceLabel: `角色：${binding.role.name}`, codes, sourceCreatedAt: binding.createdAt, snapshot: { roleId: binding.role.id, roleCode: binding.role.code, roleName: binding.role.name, dataScope: binding.role.dataScope } });
+      const riskFloor = ['security_admin', 'tenant_admin', 'super_admin'].includes(binding.role.code) ? 'critical' : 'low';
+      append({ userId: user.id, sourceType: 'role', sourceId: binding.role.id, sourceLabel: `角色：${binding.role.name}`, codes, riskFloor, sourceCreatedAt: binding.createdAt, snapshot: { roleId: binding.role.id, roleCode: binding.role.code, roleName: binding.role.name, dataScope: binding.role.dataScope } });
     }
     if (!['role', 'temporary'].includes(campaign.scopeType)) for (const membership of user.userGroupMembers) {
       if (campaign.scopeType === 'group' && !campaign.scopeIds.includes(membership.group.id)) continue;
       const inherited = extractEnabledGroupRoles([membership]);
       if (!inherited.groups.length) continue;
-      append({ userId: user.id, sourceType: 'group_membership', sourceId: membership.group.id, sourceLabel: `用户组资格：${membership.group.name}`, codes: inherited.roles.flatMap(codesFromRole), sourceCreatedAt: membership.createdAt,
+      append({ userId: user.id, sourceType: 'group_membership', sourceId: membership.group.id, sourceLabel: `用户组资格：${membership.group.name}`, codes: inherited.roles.flatMap(codesFromRole), riskFloor: inherited.roles.some(role => ['security_admin', 'tenant_admin', 'super_admin'].includes(role.code)) ? 'critical' : 'low', sourceCreatedAt: membership.createdAt,
         snapshot: { groupId: membership.group.id, groupName: membership.group.name, memberMode: membership.group.memberMode, roleIds: inherited.roles.map(entry => entry.id), roleNames: inherited.roles.map(entry => entry.name), revocationUnit: '整个用户组成员资格' } });
     }
     if (!['role', 'group', 'temporary'].includes(campaign.scopeType)) for (const binding of user.userMenus) {

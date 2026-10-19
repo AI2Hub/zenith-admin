@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { WorkflowJobContext, WorkflowJobHandler } from '../types';
 
 const mocks = vi.hoisted(() => ({ handler: undefined as WorkflowJobHandler | undefined, apply: vi.fn(), set: vi.fn(), where: vi.fn() }));
-vi.mock('../registry', () => ({ registerJobHandler: (_type: string, handler: WorkflowJobHandler) => { mocks.handler = handler; } }));
+vi.mock('../registry', () => ({ registerJobHandler: (_type: string, handler: WorkflowJobHandler) => { mocks.handler = handler; }, registerJobSettlementHandler: vi.fn() }));
 vi.mock('../../../services/identity/access-governance.service', () => ({ applyApprovedAccessRequest: mocks.apply }));
 vi.mock('../../../db', () => ({ db: {} }));
 vi.mock('../lease', () => ({ workflowTransaction: (fn: (tx: unknown) => Promise<unknown>) => fn({ update: () => ({ set: mocks.set }) }) }));
@@ -21,7 +21,7 @@ describe('durable access grant issuance', () => {
   it('records an actionable failure and rethrows so the worker retries instead of reporting success', async () => {
     mocks.apply.mockRejectedValue(new Error('issuance unavailable'));
     await expect(mocks.handler!(context)).rejects.toThrow('issuance unavailable');
-    expect(mocks.set).toHaveBeenCalledWith({ status: 'failed', failureReason: 'issuance unavailable' });
+    expect(mocks.set).toHaveBeenCalledWith({ provisionStatus: 'failed', failureReason: 'issuance unavailable' });
   });
 
   it('rejects malformed durable payloads before any privilege change', async () => {

@@ -32,7 +32,9 @@ describe('access policy template and resolved execution plan', () => {
     ['none', []], ['manager', ['approve_manager']], ['manager_security', ['approve_manager', 'approve_security']],
     ['two_person', ['approve_manager', 'approve_security', 'approve_second_security']],
   ] as const)('routes the template from effective policy %s rather than request labels', (approvalPolicy, expected) => {
-    const plan = planWorkflowPath(buildAccessApprovalTemplate(), { formData: { approvalPolicy, requestType: 'emergency', validityMode: 'permanent' } });
+    const flow = buildAccessApprovalFlow({ approvalPolicy, mfaRequired: approvalPolicy === 'two_person', steps: expected.map((nodeKey, index) => ({ nodeKey, label: nodeKey, userId: index + 2, userName: `审批人${index + 2}`, reason: '策略解析' })) });
+    expect(flow.nodes.map(node => node.data.key)).toEqual(buildAccessApprovalTemplate().nodes.map(node => node.data.key));
+    const plan = planWorkflowPath(flow, { formData: { approvalPolicy, requestType: 'emergency', validityMode: 'permanent' } });
     expect(plan.nodes.filter(node => node.nodeType === 'approve' && node.status === 'matched').map(node => node.nodeKey)).toEqual(expected);
   });
   it('freezes resolved people and disables resubmission without losing independence', () => {
@@ -40,7 +42,12 @@ describe('access policy template and resolved execution plan', () => {
       { nodeKey: 'approve_manager', label: '负责人', userId: 7, userName: '主管', reason: '部门负责人' },
       { nodeKey: 'approve_security', label: '安全审批', userId: 8, userName: '安全员', reason: '独立安全审批' },
     ] });
-    expect(flow.nodes.filter(node => node.data.type === 'approve').map(node => node.data.assigneeIds)).toEqual([[7], [8]]);
+    expect(flow.nodes.filter(node => ['approve_manager', 'approve_security'].includes(node.data.key)).map(node => node.data.assigneeIds)).toEqual([[7], [8]]);
+    expect(flow.nodes.some(node => node.data.key === 'approve_second_security')).toBe(true);
+    expect(flow.nodes.some(node => node.data.type === 'exclusiveGateway')).toBe(true);
+    const prediction = planWorkflowPath(flow, { formData: { approvalPolicy: 'manager_security' } });
+    expect(prediction.nodes.filter(node => node.nodeType === 'approve' && node.status === 'matched').map(node => node.nodeKey)).toEqual(['approve_manager', 'approve_security']);
+    expect(prediction.nodes.find(node => node.nodeKey === 'approve_second_security')?.status).toBe('excluded');
     expect(flow.settings).toMatchObject({ allowResubmit: false, approverDedupMode: 'none' });
   });
   it('preserves per-permission data scopes when expanding role packages', () => {

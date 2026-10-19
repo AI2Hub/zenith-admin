@@ -120,6 +120,7 @@ vi.mock('../../middleware/rate-limit', () => ({
 vi.mock('../../lib/permissions', () => ({
   isSuperAdmin: vi.fn().mockReturnValue(false),
   getUserPermissions: vi.fn().mockResolvedValue(['user:read']),
+  getUserPermissionBoundary: vi.fn().mockResolvedValue(null),
   clearUserPermissionCache: vi.fn(),
 }));
 

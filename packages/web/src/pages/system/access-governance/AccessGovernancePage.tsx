@@ -240,6 +240,8 @@ function GrantRefSheet({ id, onClose }: { readonly id: number; readonly onClose:
 }
 
 function ReviewDetailSheet({ record, visible = record !== null, loading = false, onClose }: { readonly record: AccessReviewItem | null; readonly visible?: boolean; readonly loading?: boolean; readonly onClose: () => void }) {
+  const { hasPermission } = usePermission();
+  const canViewRelations = hasPermission('system:access-governance:view');
   const [userId, setUserId] = useState<number | null>(null);
   const [grantId, setGrantId] = useState<number | null>(null);
   // 抽屉关闭后清空下钻引用，避免下次打开时残留上一次的用户/授权
@@ -258,12 +260,12 @@ function ReviewDetailSheet({ record, visible = record !== null, loading = false,
           column={2}
           style={{ width: '100%' }}
           data={[
-            { key: '用户', value: <RefLink label={record.userName ?? `用户 #${record.userId}`} onClick={() => setUserId(record.userId)} /> },
+            { key: '用户', value: <RefLink label={record.userName ?? `用户 #${record.userId}`} onClick={canViewRelations ? () => setUserId(record.userId) : undefined} /> },
             { key: '复核批次', value: `#${record.campaignId}` },
             { key: '来源类型', value: REVIEW_SOURCE_LABELS[record.sourceType] },
             {
               key: '来源',
-              value:               record.sourceType === 'temporary_grant' && typeof record.snapshot.grantId === 'number'
+              value:               canViewRelations && record.sourceType === 'temporary_grant' && typeof record.snapshot.grantId === 'number'
                               ? <RefLink label={record.sourceLabel ?? `授权项 #${record.sourceId}`} onClick={() => setGrantId(Number(record.snapshot.grantId))} />
                 : (record.sourceLabel ?? EMPTY_PLACEHOLDER),
             },
@@ -274,7 +276,7 @@ function ReviewDetailSheet({ record, visible = record !== null, loading = false,
             { key: '复核截止时间', value: <DateTimeText value={record.dueAt} mode="absolute" /> },
             { key: '下次复核', value: <DateTimeText value={record.nextReviewAt} mode="absolute" /> },
             { key: '例外截止时间', value: <DateTimeText value={record.exceptionUntil} mode="absolute" /> },
-            { key: '处理人', value: record.decidedBy != null ? <RefLink label={`用户 #${record.decidedBy}`} onClick={() => setUserId(record.decidedBy ?? null)} /> : EMPTY_PLACEHOLDER },
+            { key: '处理人', value: record.decidedBy != null ? <RefLink label={`用户 #${record.decidedBy}`} onClick={canViewRelations ? () => setUserId(record.decidedBy ?? null) : undefined} /> : EMPTY_PLACEHOLDER },
             { key: '处理时间', value: <DateTimeText value={record.decidedAt} mode="absolute" /> },
             { key: '创建时间', value: <DateTimeText value={record.createdAt} mode="absolute" /> },
             { key: '备注', value: record.remark ? <Text style={{ whiteSpace: 'pre-wrap' }}>{record.remark}</Text> : EMPTY_PLACEHOLDER, span: 2 },
@@ -292,8 +294,8 @@ function ReviewDetailSheet({ record, visible = record !== null, loading = false,
         </>}
       </>}
     </DetailSheet>
-    {visible && grantId !== null && <GrantRefSheet id={grantId} onClose={() => setGrantId(null)} />}
-    {visible && userId !== null && <UserGovernanceSheet userId={userId} onClose={() => setUserId(null)} />}
+    {visible && canViewRelations && grantId !== null && <GrantRefSheet id={grantId} onClose={() => setGrantId(null)} />}
+    {visible && canViewRelations && userId !== null && <UserGovernanceSheet userId={userId} onClose={() => setUserId(null)} />}
   </>;
 }
 

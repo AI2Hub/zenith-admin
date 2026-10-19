@@ -147,6 +147,8 @@ export const userPermissionsHandlers = [
       roleMenuIds,
       groupMenuIds,
       effectiveMenuIds,
+      temporaryMenuIds: [],
+      temporaryScopes: [],
       userDataScope,
       roleDataScope,
       groupDataScope,

@@ -339,7 +339,7 @@ export const workflowDefinitionContract = defineContract('/api/workflows/definit
   duplicate: op.post('/{id}/duplicate', { access: { permission: 'workflow:definition:create' }, audit: '复制流程', params: idParam, response: workflowDefinitionSchema, summary: '复制流程' }),
   export: op.get('/{id}/export', { access: { permission: 'workflow:definition:list' }, params: idParam, response: workflowDefinitionExportSchema, summary: '导出流程定义' }),
   diff: op.get('/{id}/diff', { access: { permission: 'workflow:definition:list' }, params: idParam, query: workflowVersionDiffQuery, response: workflowVersionDiffSchema, summary: '版本对比' }),
-  preview: op.post('/{id}/preview', { access: { permission: 'workflow:instance:create' }, params: idParam, body: previewWorkflowSchema, response: z.object({ nodes: z.array(workflowApproverPreviewNodeSchema), flowData: workflowFlowDataSchema }), summary: '提交前实际审批链路与流程图预览' }),
+  preview: op.post('/{id}/preview', { access: { permission: 'workflow:instance:create' }, params: idParam, body: previewWorkflowSchema, response: z.array(workflowApproverPreviewNodeSchema), summary: '提交前审批链路预览' }),
   simulate: op.post('/simulate', { access: { permission: 'workflow:definition:list' }, body: simulateWorkflowSchema, response: workflowSimulationResultSchema, summary: '流程仿真' }),
   healthCheck: op.post('/health-check', { access: { permission: 'workflow:definition:list' }, body: workflowHealthCheckSchema, response: workflowDefinitionHealthReportSchema, summary: '发布前健康体检（评分+分支覆盖）' }),
 }, { auditModule: '工作流管理', tags: ['WorkflowDefinitions'] });

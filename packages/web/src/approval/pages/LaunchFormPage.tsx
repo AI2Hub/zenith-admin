@@ -226,7 +226,7 @@ function LaunchFormContent() {
     chainReloadKey,
     () => (formApi.current?.getValues() ?? {}) as Record<string, unknown>,
   );
-  const chainNodes = useMemo(() => previewQuery.data?.nodes ?? [], [previewQuery.data]);
+  const chainNodes = useMemo(() => previewQuery.data ?? [], [previewQuery.data]);
   const sameInitiatorAutoSkip = useMemo(() => {
     const initiatorId = meQuery.data?.id;
     if (!initiatorId || !def?.flowData) return [] as string[];

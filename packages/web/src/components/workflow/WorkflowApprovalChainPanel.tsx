@@ -14,7 +14,7 @@ import { useEffect, useId, useMemo, useState } from 'react';
 import { Button, Empty, Select, Space, Spin, Tag, Timeline, Typography } from '@douyinfe/semi-ui';
 import { Clock, Flag, Mail, Send, UserPlus, type LucideIcon } from 'lucide-react';
 import { WORKFLOW_APPROVE_METHOD_LABELS as METHOD_LABEL, WORKFLOW_PATH_STATUS_LABELS } from '@zenith/shared/workflow';
-import type { WorkflowApproverPreviewNode, WorkflowFlowData } from '@zenith/shared/workflow';
+import type { WorkflowApproverPreviewNode } from '@zenith/shared/workflow';
 import { UserAvatar } from '@/components/UserAvatar';
 import { timelineDot } from '@/components/workflow/timeline-dot';
 import { useWorkflowApprovalPreview } from '@/hooks/queries/workflow-shared';
@@ -102,22 +102,17 @@ interface Props {
   highlightMissing?: boolean;
   /** 受控刷新信号：变化时按当前表单重新预测链路（发起页防抖 / 手动刷新） */
   reloadKey?: number;
-  /** 同一次服务端预览解析出的执行图，与审批人员列表保持同源。 */
-  onPreviewFlowChange?: (flowData: WorkflowFlowData | null) => void;
 }
 
 export default function WorkflowApprovalChainPanel({
   definitionId,
   getFormData,
   reloadKey,
-  onPreviewFlowChange,
   ...props
 }: Readonly<Props>) {
   const previewQuery = useWorkflowApprovalPreview(definitionId, reloadKey, getFormData);
-  const flowData = previewQuery.isError ? null : previewQuery.data?.flowData ?? null;
-  useEffect(() => { onPreviewFlowChange?.(flowData); }, [flowData, onPreviewFlowChange]);
   if (!definitionId) return null;
-  return <WorkflowApprovalChain {...props} nodes={previewQuery.data?.nodes ?? EMPTY_NODES}
+  return <WorkflowApprovalChain {...props} nodes={previewQuery.data ?? EMPTY_NODES}
     loading={previewQuery.isLoading} error={previewQuery.error?.message ?? false}
     onRetry={() => void previewQuery.refetch()} />;
 }

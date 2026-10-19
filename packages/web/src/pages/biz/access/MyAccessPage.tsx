@@ -39,7 +39,7 @@ function MyGrants() {
     { title: '状态', dataIndex: 'status', width: 110, render: (value: AccessGrant['status']) => ACCESS_GRANT_STATUS_LABELS[value] },
     { title: '权限项', dataIndex: 'menus', minWidth: 200, render: (items: AccessGrant['menus']) => items.map(item => item.permissionLabel ?? item.permissionCode).join('、') },
     dateTimeColumn('生效时间', 'startsAt'), dateTimeColumn('失效时间', 'expiresAt', { empty: '永久有效' }),
-    createOperationColumn<AccessGrant>({ actions: row => [{ key: 'detail', label: '查看授权项', onClick: () => setDetailId(row.id) }] }),
+    createOperationColumn<AccessGrant>({ width: 140, actions: row => [{ key: 'detail', label: '查看授权项', onClick: () => setDetailId(row.id) }] }),
   ];
   return <><ListSearchToolbar page={page} filters={['keyword', 'status']} actions={<RefreshButton onClick={() => void page.listQuery.refetch()} loading={page.listQuery.isFetching} />} /><ConfigurableTable columns={singleLineColumns(columns)} {...page.tableProps} />
     <SideSheet title="本人授权明细" visible={detailId !== null} onCancel={() => setDetailId(null)} width={760} closeOnEsc footer={null}>

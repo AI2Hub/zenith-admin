@@ -334,7 +334,7 @@ export async function normalizeAccessWorkflowFormData(raw: Record<string, unknow
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`identity-access:${request.tenantId ?? 'platform'}:${request.targetUserId}`}, 0))`);
     await assertNoOverlappingAccessRequest({ targetUserId: request.targetUserId, tenantId: request.tenantId, startsAt: request.startsAt, expiresAt: request.expiresAt, items: request.items, excludeRequestId: request.id }, tx);
     const now = new Date();
-    const status = request.startsAt > now ? 'scheduled' : 'active';
+    const status: AccessGrant['status'] = request.startsAt > now ? 'scheduled' : 'active';
     const [grant] = await tx.insert(identityAccessGrants).values({
       tenantId: request.tenantId,
       userId: request.targetUserId,

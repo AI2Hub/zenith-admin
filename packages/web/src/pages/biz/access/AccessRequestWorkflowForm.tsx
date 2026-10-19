@@ -20,7 +20,12 @@ const TYPE_OPTIONS = createLabelOptionsFromMap(ACCESS_REQUEST_TYPE_LABELS);
 const START_OPTIONS = createLabelOptionsFromMap(ACCESS_START_MODE_LABELS);
 const VALIDITY_OPTIONS = createLabelOptionsFromMap(ACCESS_VALIDITY_MODE_LABELS);
 const RISK_COLORS = { low: 'green', high: 'orange', critical: 'red' } as const;
-type FormValues = Omit<AccessWorkflowInput, 'startsAt' | 'expiresAt'> & { startsAt?: Date | null; expiresAt: Date | null };
+type PickerDate = Date | string | null;
+type FormValues = Omit<AccessWorkflowInput, 'startsAt' | 'expiresAt'> & { startsAt?: PickerDate; expiresAt: PickerDate };
+
+function pickerTime(value: PickerDate | undefined): number | undefined {
+  return value instanceof Date ? value.getTime() : typeof value === 'string' ? parseDateTimeParam(value)?.getTime() : undefined;
+}
 
 function initialValues(value: Record<string, unknown>): FormValues {
   return {
@@ -78,14 +83,14 @@ export default function AccessRequestWorkflowForm({ mode, value, getFormApi, onV
   const durationLimits = selection.flatMap(item => item.maxDurationMinutes === null ? [] : [item.maxDurationMinutes]);
   const maxMinutes = durationLimits.length ? Math.min(...durationLimits) : null;
   const mfaRequired = selection.some(item => item.mfaRequired);
-  const startTimestamp = values.startMode === 'scheduled' ? values.startsAt?.getTime() : undefined;
+  const startTimestamp = values.startMode === 'scheduled' ? pickerTime(values.startsAt) : undefined;
 
   useEffect(() => {
     const api = formApi.current;
     if (!api || maxMinutes === null || values.validityMode === 'permanent') return;
-    const expiry = api.getValue('expiresAt') as Date | null;
+    const expiry = pickerTime(api.getValue('expiresAt') as PickerDate | undefined);
     const limit = (startTimestamp ?? Date.now()) + maxMinutes * 60_000;
-    if (expiry && expiry.getTime() > limit) api.setValue('expiresAt', new Date(limit));
+    if (expiry !== undefined && expiry > limit) api.setValue('expiresAt', new Date(limit));
   }, [maxMinutes, startTimestamp, values.validityMode]);
 
   if (mode !== 'create') return <ReadonlyAccessRequest value={value} />;
@@ -101,8 +106,8 @@ export default function AccessRequestWorkflowForm({ mode, value, getFormApi, onV
         const fail = (message: string): never => { Toast.warning(message); throw new Error(message); };
         if (!(current.roleIds?.length || current.menuIds?.length)) fail('请选择至少一项角色或操作权限');
         if (current.roleIds.some(id => !roles.some(role => role.id === id)) || current.menuIds.some(id => !menus.some(menu => menu.id === id && menu.requestable))) fail('所选角色或权限已不可申请，请重新选择');
-        const start = current.startMode === 'scheduled' ? current.startsAt?.getTime() : Date.now();
-        const end = current.expiresAt?.getTime();
+        const start = (current.startMode === 'scheduled' ? pickerTime(current.startsAt) : Date.now()) ?? Number.NaN;
+        const end = pickerTime(current.expiresAt) ?? Number.NaN;
         if (!start || (current.startMode === 'scheduled' && start <= Date.now())) fail('请选择晚于当前时间的预约生效时间');
         if (current.validityMode === 'limited') {
           if (!end || end <= start) fail('失效时间必须晚于生效时间和当前时间');
@@ -114,16 +119,16 @@ export default function AccessRequestWorkflowForm({ mode, value, getFormApi, onV
   };
 
   return <Form getFormApi={registerApi} initValues={defaults} onValueChange={next => { setValues(next as FormValues); onValuesChange?.(); }} labelPosition="left" labelWidth={110} style={{ width: '100%' }}>
-    <Form.RadioGroup field="requestType" label="申请类型" options={TYPE_OPTIONS} type="button"
+    <Form.RadioGroup field="requestType" name="access-request-type" label="申请类型" options={TYPE_OPTIONS} type="button"
       extraText={values.requestType === 'emergency' ? '用于故障处置等紧急任务，将以紧急授权留痕；仍须按所选权限风险完成全部审批与 MFA 验证。' : '用于日常业务任务，可选择限时或永久有效；审批链由所选权限中最严格的策略决定。'} />
     <Form.Select field="roleIds" label="申请角色包" multiple filter showClear style={{ width: '100%' }}
       optionList={roles.map(role => ({ value: role.id, label: `${role.name} · ${role.menuCount} 项 · ${ACCESS_RISK_LABELS[role.riskLevel]}` }))} placeholder="可选，按需申请完整角色权限包"
       extraText="角色包按角色配置的数据范围授权。只需要少量权限时，优先在下方逐项选择。" />
     <FormAccessPermissionPicker field="menuIds" label="操作权限" menus={menus} coveredMenuIds={coveredMenuIds} />
-    <Form.RadioGroup field="startMode" label="生效方式" options={START_OPTIONS} />
-    {values.startMode === 'scheduled' && <Form.DatePicker field="startsAt" label="生效时间" type="dateTime" style={{ width: '100%' }} rules={[{ required: true, message: '请选择预约生效时间' }]} />}
-    <Form.RadioGroup field="validityMode" label="有效期限" options={VALIDITY_OPTIONS} extraText={values.validityMode === 'permanent' ? '无需填写截止时间。授权仍可撤销，并按权限策略定期复核。' : undefined} />
-    {values.validityMode !== 'permanent' && <Form.DatePicker field="expiresAt" label="失效时间" type="dateTime" style={{ width: '100%' }} rules={[{ required: true, message: '请选择失效时间' }]}
+    <Form.RadioGroup field="startMode" name="access-start-mode" label="生效方式" options={START_OPTIONS} />
+    {values.startMode === 'scheduled' && <Form.DatePicker field="startsAt" label="生效时间" type="dateTime" format="yyyy-MM-dd HH:mm:ss" style={{ width: '100%' }} rules={[{ required: true, message: '请选择预约生效时间' }]} />}
+    <Form.RadioGroup field="validityMode" name="access-validity-mode" label="有效期限" options={VALIDITY_OPTIONS} extraText={values.validityMode === 'permanent' ? '无需填写截止时间。授权仍可撤销，并按权限策略定期复核。' : undefined} />
+    {values.validityMode !== 'permanent' && <Form.DatePicker field="expiresAt" label="失效时间" type="dateTime" format="yyyy-MM-dd HH:mm:ss" style={{ width: '100%' }} rules={[{ required: true, message: '请选择失效时间' }]}
       extraText={maxMinutes === null ? '可自由选择截止时间，不限制最长时长；如无需截止时间，请选择“永久有效”。实际权限在审批和发放完成后可用。' : `本次限时授权最长 ${maxMinutes} 分钟；如无需截止时间，请选择“永久有效”。实际权限在审批和发放完成后可用。`} />}
     <Form.TextArea field="reason" label="申请原因" maxCount={1000} rows={4} rules={[{ required: true, message: '请填写申请原因' }, { min: 5, message: '申请原因至少 5 个字' }]} placeholder="说明业务任务、必要权限及使用范围，便于审批人判断" />
     {selection.length > 0 && <section aria-label="提交前确认" style={{ margin: '16px 0', padding: 12, backgroundColor: 'var(--semi-color-fill-0)', borderRadius: 'var(--semi-border-radius-small)' }}>

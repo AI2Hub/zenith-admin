@@ -3,23 +3,28 @@ import type { DbExecutor } from '../../db/types';
 
 const mocks = vi.hoisted(() => ({ overlap: vi.fn(), enqueue: vi.fn() }));
 vi.mock('../../db', () => ({ db: {} }));
-vi.mock('./access-governance.service', () => ({ assertNoOverlappingAccessRequest: mocks.overlap }));
+vi.mock('./access-reservations.service', () => ({ assertNoOverlappingAccessRequest: mocks.overlap }));
+vi.mock('../messaging/notification-outbox.service', () => ({ notifyWithin: vi.fn().mockResolvedValue(undefined) }));
+vi.mock('../../lib/user-nicknames', () => ({ resolveUserNames: vi.fn().mockResolvedValue(new Map([[9, '申请人']])) }));
 vi.mock('../../lib/workflow-jobs/engine', () => ({ enqueueJob: mocks.enqueue }));
 
 import { identityAccessRequests, identityAccessRequestItems, workflowInstances } from '../../db/schema';
 import { attachAccessRequestToWorkflow, bridgeAccessWorkflowOutcome } from './access-workflow.service';
 
-function executor(options: { existing?: { id: number }; status?: string } = {}) {
+function executor(options: { existing?: { id: number }; status?: string; provisionStatus?: string } = {}) {
   const updateWhere = vi.fn().mockResolvedValue(undefined);
   const set = vi.fn(() => ({ where: updateWhere }));
   const itemValues = vi.fn().mockResolvedValue(undefined);
   const requestValues = vi.fn(() => ({ returning: vi.fn().mockResolvedValue([{ id: 77 }]) }));
-  const limit = vi.fn().mockResolvedValue(options.status ? [{ status: options.status, approvedAt: null }] : []);
+  const limit = vi.fn().mockResolvedValue(options.status ? [{ status: options.status, provisionStatus: options.provisionStatus ?? 'not_started', approvedAt: null }] : []);
   const lock = vi.fn(() => ({ limit }));
   const where = vi.fn(() => ({ for: lock }));
   const tx = {
     execute: vi.fn().mockResolvedValue(undefined),
-    query: { identityAccessRequests: { findFirst: vi.fn().mockResolvedValue(options.existing) } },
+    query: {
+      identityAccessRequests: { findFirst: vi.fn().mockImplementation(async (query?: { columns?: Record<string, boolean> }) => query?.columns?.targetUserId ? { targetUserId: 9, applicantUserId: 9 } : options.existing) },
+      workflowTasks: { findFirst: vi.fn().mockResolvedValue({ comment: '审批拒绝' }) },
+    },
     insert: vi.fn((table) => ({ values: table === identityAccessRequests ? requestValues : itemValues })),
     update: vi.fn(() => ({ set })),
     select: vi.fn(() => ({ from: vi.fn(() => ({ where })) })),
@@ -88,9 +93,9 @@ describe('transactional access workflow outcome', () => {
     expect(mocks.enqueue).not.toHaveBeenCalled();
   });
 
-  it('does not regress an already applied or failed request on duplicate outcomes', async () => {
-    for (const status of ['applied', 'failed']) {
-      const e = executor({ status });
+  it('does not regress an already settled grant issuance on duplicate outcomes', async () => {
+    for (const provisionStatus of ['succeeded', 'failed', 'terminated']) {
+      const e = executor({ status: 'approved', provisionStatus });
       await bridgeAccessWorkflowOutcome(e.tx, outcome, 12);
       expect(e.set).not.toHaveBeenCalled();
     }

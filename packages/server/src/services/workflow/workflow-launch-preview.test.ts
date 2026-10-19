@@ -71,9 +71,9 @@ describe('launch preview and selection share the path planner', () => {
 
     const preview = await previewFlow(5, {});
 
-    expect(preview.nodes.find(item => item.nodeKey === 'low')).toMatchObject({ status: 'unknown' });
-    expect(preview.nodes.find(item => item.nodeKey === 'low')?.reason).toContain('风险等级');
-    expect(preview.nodes.find(item => item.nodeKey === 'low')?.reason).not.toContain('riskLevel');
+    expect(preview.find(item => item.nodeKey === 'low')).toMatchObject({ status: 'unknown' });
+    expect(preview.find(item => item.nodeKey === 'low')?.reason).toContain('风险等级');
+    expect(preview.find(item => item.nodeKey === 'low')?.reason).not.toContain('riskLevel');
   });
 
   it('uses a registered business adapter for both routing values and the returned execution graph', async () => {
@@ -97,9 +97,9 @@ describe('launch preview and selection share the path planner', () => {
     const preview = await previewFlow(5, { amount: 10 });
 
     expect(mocks.prepareBusiness).toHaveBeenCalledWith(expect.objectContaining({ mode: 'preview', formData: { amount: 10 }, actor: expect.objectContaining({ userId: 7 }) }));
-    expect(preview.flowData).toEqual(preparedFlow);
-    expect(preview.nodes.find(item => item.nodeKey === 'manager')?.status).toBe('matched');
-    expect(preview.nodes.find(item => item.nodeKey === 'security')?.status).toBe('excluded');
+    expect(preview.find(item => item.nodeKey === 'manager')?.nodeName).toBe('实际审批节点');
+    expect(preview.find(item => item.nodeKey === 'manager')?.status).toBe('matched');
+    expect(preview.find(item => item.nodeKey === 'security')?.status).toBe('excluded');
   });
 
   it('recomputes submitted formulas and requires only the matched branch', async () => {
