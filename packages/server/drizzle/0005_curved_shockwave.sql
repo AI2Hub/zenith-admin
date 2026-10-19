@@ -1,2 +1,0 @@
-ALTER TABLE "biz_leaves" ADD COLUMN "leave_no" varchar(64);--> statement-breakpoint
-CREATE UNIQUE INDEX "biz_leaves_tenant_leave_no_unique" ON "biz_leaves" USING btree (coalesce("tenant_id", 0),"leave_no");

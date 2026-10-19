@@ -1,6 +1,6 @@
 -- 手写 DDL：Drizzle schema 无法表达、drizzle-kit generate 不会生成的结构，随迁移基线一起维护（唯一收口，
 -- 见 docs/backend/database.md「迁移目录」）。pg_trgm 扩展在 0000_baseline.sql 顶部创建。
--- 内容：pgvector（条件）、三张 RANGE 分区表的初始分区、跨实例缓存失效触发器、CMS 不可变事实触发器、
+-- 内容：pgvector（条件）、三张 RANGE 分区表的初始分区、跨实例缓存失效触发器、设置修订与 CMS 不可变事实触发器、
 -- 只读执行角色 zenith_readonly、pg_stat_statements（条件）。
 -- 三张分区父表及其列 / 外键 / 索引直接在 0000_baseline.sql 中创建；本文件只预建初始子分区，
 -- 不删除或重建父表。分区边界一律写带 +00 的 timestamptz 字面量（UTC 日 / 月边界）。
@@ -126,19 +126,23 @@ CREATE TRIGGER user_menus_cache_invalidate
 CREATE TRIGGER user_group_members_cache_invalidate
   AFTER INSERT OR UPDATE OR DELETE ON "user_group_members"
   FOR EACH ROW EXECUTE FUNCTION notify_cache_invalidate('user_id');--> statement-breakpoint
--- 权限治理表由后续结构迁移建立；其迁移同样安装这两项触发器。
-DO $$ BEGIN
-  IF to_regclass('public.identity_access_grants') IS NOT NULL THEN
-    CREATE TRIGGER identity_access_grants_cache_invalidate
-      AFTER INSERT OR UPDATE OR DELETE ON "identity_access_grants"
-      FOR EACH ROW EXECUTE FUNCTION notify_cache_invalidate('user_id');
-  END IF;
-  IF to_regclass('public.identity_access_grant_menus') IS NOT NULL THEN
-    CREATE TRIGGER identity_access_grant_menus_cache_invalidate
-      AFTER INSERT OR UPDATE OR DELETE ON "identity_access_grant_menus"
-      FOR EACH ROW EXECUTE FUNCTION notify_cache_invalidate('grant_id');
-  END IF;
+CREATE TRIGGER identity_access_grants_cache_invalidate
+  AFTER INSERT OR UPDATE OR DELETE ON "identity_access_grants"
+  FOR EACH ROW EXECUTE FUNCTION notify_cache_invalidate('user_id');--> statement-breakpoint
+CREATE TRIGGER identity_access_grant_menus_cache_invalidate
+  AFTER INSERT OR UPDATE OR DELETE ON "identity_access_grant_menus"
+  FOR EACH ROW EXECUTE FUNCTION notify_cache_invalidate('grant_id');--> statement-breakpoint
+
+-- 设置修订不可变；仅允许随已删除的设置主记录级联删除。
+CREATE OR REPLACE FUNCTION protect_settings_revision() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+ IF TG_OP='UPDATE' OR EXISTS(SELECT 1 FROM system_settings WHERE id=OLD.settings_id) THEN
+   RAISE EXCEPTION 'Settings revisions are immutable' USING ERRCODE='55000';
+ END IF;
+ RETURN OLD;
 END $$;--> statement-breakpoint
+CREATE TRIGGER system_settings_revisions_immutable BEFORE UPDATE OR DELETE ON system_settings_revisions
+FOR EACH ROW EXECUTE FUNCTION protect_settings_revision();--> statement-breakpoint
 
 -- ─── CMS 不可变事实：修订、审批、版本、发布输入与只追加历史禁止改写 ─────────────────────
 -- 修订 / 审批 / 复审 / 模型、资源、组件、页面预设、集合版本 / 发布激活：除审计列外任何字段变化即拒绝

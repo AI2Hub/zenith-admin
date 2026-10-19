@@ -5,127 +5,15 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1791430812089,
+      "when": 1792417852370,
       "tag": "0000_baseline",
       "breakpoints": true
     },
     {
       "idx": 1,
       "version": "7",
-      "when": 1791432780373,
+      "when": 1792417872173,
       "tag": "0001_extensions",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1791667487648,
-      "tag": "0002_tiresome_paper_doll",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1791671340452,
-      "tag": "0003_chilly_screwball",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1791672364338,
-      "tag": "0004_lowly_senator_kelly",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1791672881183,
-      "tag": "0005_curved_shockwave",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "7",
-      "when": 1791957023118,
-      "tag": "0006_thick_frog_thor",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "7",
-      "when": 1792240779070,
-      "tag": "0007_ancient_miek",
-      "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "7",
-      "when": 1792250645100,
-      "tag": "0008_flashy_thena",
-      "breakpoints": true
-    },
-    {
-      "idx": 9,
-      "version": "7",
-      "when": 1792253000000,
-      "tag": "0009_reset_access_workflow_definition",
-      "breakpoints": true
-    },
-    {
-      "idx": 10,
-      "version": "7",
-      "when": 1792259000000,
-      "tag": "0010_shared_access_gateways",
-      "breakpoints": true
-    },
-    {
-      "idx": 11,
-      "version": "7",
-      "when": 1792379074978,
-      "tag": "0011_graceful_saracen",
-      "breakpoints": true
-    },
-    {
-      "idx": 12,
-      "version": "7",
-      "when": 1792379479234,
-      "tag": "0012_new_enchantress",
-      "breakpoints": true
-    },
-    {
-      "idx": 13,
-      "version": "7",
-      "when": 1792381498295,
-      "tag": "0013_skinny_sunset_bain",
-      "breakpoints": true
-    },
-    {
-      "idx": 14,
-      "version": "7",
-      "when": 1792385380181,
-      "tag": "0014_modern_dark_phoenix",
-      "breakpoints": true
-    },
-    {
-      "idx": 15,
-      "version": "7",
-      "when": 1792390110271,
-      "tag": "0015_permanent_access_and_business_forms",
-      "breakpoints": true
-    },
-    {
-      "idx": 16,
-      "version": "7",
-      "when": 1792390981925,
-      "tag": "0016_remove_access_business_reference",
-      "breakpoints": true
-    },
-    {
-      "idx": 17,
-      "version": "7",
-      "when": 1792392317713,
-      "tag": "0017_access_flow_and_self_service",
       "breakpoints": true
     }
   ]

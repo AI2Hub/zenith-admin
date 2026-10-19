@@ -24,6 +24,11 @@ describe('空库迁移基准', () => {
     expect(baseline.indexOf('gin_trgm_ops')).toBeGreaterThan(extensionIndex);
   });
 
+  it('设置修订的不可变保护随基线安装', () => {
+    expect(extensions).toContain('CREATE OR REPLACE FUNCTION protect_settings_revision()');
+    expect(extensions).toMatch(/CREATE TRIGGER system_settings_revisions_immutable BEFORE UPDATE OR DELETE ON system_settings_revisions\s+FOR EACH ROW EXECUTE FUNCTION protect_settings_revision\(\)/);
+  });
+
   it('唯一索引先于引用其列的外键创建', () => {
     const firstForeignKey = baseline.search(/ALTER TABLE [^;]+ FOREIGN KEY/);
     expect(firstForeignKey).toBeGreaterThan(0);

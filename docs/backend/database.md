@@ -48,14 +48,15 @@ npm run db:seed
 
 ### 迁移目录
 
-当前 `packages/server/drizzle/` 以 `0000_baseline.sql` 与 `0001_extensions.sql` 为迁移基线，执行顺序由 `drizzle/meta/_journal.json` 管理。此前增量的结构变更已合入当前基线，旧结构转换与历史数据回填不再保留。全新数据库执行 `npm run db:migrate` 会按该顺序建库，再由 `npm run db:seed` 初始化当前菜单与内置数据。
+当前 `packages/server/drizzle/` 仅保留 `0000_baseline.sql` 与 `0001_extensions.sql`，执行顺序由 `drizzle/meta/_journal.json` 管理。权限治理、运行时设置、编号等此前增量的结构变更已按当前 schema 合入基线，旧结构转换、历史数据回填与旧流程 / 菜单修正不再保留。全新数据库执行 `npm run db:migrate` 会直接创建当前结构，再由 `npm run db:seed` 初始化当前菜单、流程与内置数据；既有数据库按下方「重建基线」停机重建。
 
 `0001_extensions.sql` 收口维护 Drizzle schema 无法表达的手写 DDL：
 
 - 条件启用 pgvector：`CREATE EXTENSION IF NOT EXISTS vector`（扩展可用才建，否则静默跳过；扩展创建与条件 DDL 均超出 Drizzle 表达范围）。它服务于 Mastra PgVector——知识库向量存放在 `mastra` schema（索引 `kb_{kbId}`），`ai_kb_chunks` 只存分块文本，业务表上没有任何 `vector` 列；无 pgvector 的部署除知识库向量化外照常工作。
 - `iot_telemetry` 的 RANGE 日分区初始子分区（见下文「分区表」）。
 - `drive_activities` / `drive_share_access_logs` 的 RANGE 月分区初始子分区（见下文「分区表：企业网盘日志」）。
-- 跨实例缓存失效广播：通用触发器函数 `notify_cache_invalidate()`，以及 `system_settings`、`data_mask_policies`、`users`、`tenants`、`members`、`user_api_tokens`、`tenant_packages`、`tenant_package_features` 上的触发器；服务端 `lib/invalidation-bus.ts` 监听该频道，见[运行时设置](./settings.md)。`onInvalidate(topic)` 订阅的每张表都必须在此挂触发器（`invalidation-triggers.test.ts` 守卫）。
+- 跨实例缓存失效广播：通用触发器函数 `notify_cache_invalidate()`，以及 `system_settings`、`data_mask_policies`、`users`、`tenants`、`members`、`user_api_tokens`、`tenant_packages`、`tenant_package_features`、`user_roles`、`user_menus`、`user_group_members`、`identity_access_grants`、`identity_access_grant_menus` 上的触发器；服务端 `lib/invalidation-bus.ts` 监听该频道，见[运行时设置](./settings.md)。`onInvalidate(topic)` 订阅的每张表都必须在此挂触发器（`invalidation-triggers.test.ts` 守卫）。
+- 设置修订不可变保护：`protect_settings_revision()` 与 `system_settings_revisions_immutable` 触发器拒绝修改 / 单独删除修订，仅允许在主设置记录删除后级联清理修订。
 - CMS 不可变事实：`cms_immutable_revision()`（修订、审批、复审、模型 / 资源 / 组件 / 页面预设 / 集合版本、发布激活）、`cms_release_configuration_immutable()`（发布单输入）、`cms_feedback_history_immutable()` 与 `cms_editorial_history_immutable()`（只追加历史）及其触发器。
 - 只读执行角色 `zenith_readonly`（NOLOGIN，仅 SELECT），供用户手写 SQL 在事务内 `SET LOCAL ROLE` 切换；无 CREATEROLE 权限的部署跳过创建并告警，服务端降级为白名单 + READ ONLY，见[数据平台 · 安全边界](../ops/data-platform.md#安全边界)。
 - 条件启用 `pg_stat_statements`：扩展可用时创建数据库扩展；PostgreSQL 仍必须在启动配置中预加载 `pg_stat_statements`，否则 SQL 监控保留降级提示。
