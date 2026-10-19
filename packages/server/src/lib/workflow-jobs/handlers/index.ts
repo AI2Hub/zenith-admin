@@ -13,3 +13,4 @@ import './webhook-delivery';
 import './compensation-action';
 import './automation-action';
 import './schedule-launch';
+import './access-grant-apply';

@@ -1,0 +1,1 @@
+ALTER TYPE "public"."workflow_job_type" ADD VALUE 'access_grant_apply';

@@ -2,7 +2,7 @@ import type { SignatureSnapshot } from '@zenith/shared/core';
 import { pgTable, varchar, pgEnum, integer, bigint, boolean, unique, text, uniqueIndex, index, jsonb, smallint, real, foreignKey, check, uuid as pgUuid, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import type { WorkflowAutomationAction, WorkflowDefinitionSnapshot, WorkflowInstanceFormSnapshot, WorkflowAttachment, WorkflowTaskDecision } from '@zenith/shared/workflow';
-import { WORKFLOW_TASK_KINDS, WORKFLOW_TASK_WAIT_REASONS, WORKFLOW_APPROVAL_ACTIVATION_STATUSES, WORKFLOW_APPROVAL_SLOT_ORIGINS, WORKFLOW_APPROVAL_SLOT_STATUSES, WORKFLOW_SIGN_POSITIONS, WORKFLOW_SIGN_MODES, WORKFLOW_SIGN_GROUP_STATUSES } from '@zenith/shared/workflow';
+import { WORKFLOW_JOB_TYPES, WORKFLOW_TASK_KINDS, WORKFLOW_TASK_WAIT_REASONS, WORKFLOW_APPROVAL_ACTIVATION_STATUSES, WORKFLOW_APPROVAL_SLOT_ORIGINS, WORKFLOW_APPROVAL_SLOT_STATUSES, WORKFLOW_SIGN_POSITIONS, WORKFLOW_SIGN_MODES, WORKFLOW_SIGN_GROUP_STATUSES } from '@zenith/shared/workflow';
 import { timestampColumns, idColumn, statusColumn, sortColumn, remarkColumn, timestamptz } from './common';
 import { auditColumns, users, tenantIdColumn } from './core';
 import { managedFiles } from './files';
@@ -52,11 +52,7 @@ export const workflowSignModeEnum = pgEnum('workflow_sign_mode', WORKFLOW_SIGN_M
 export const workflowSignGroupStatusEnum = pgEnum('workflow_sign_group_status', WORKFLOW_SIGN_GROUP_STATUSES);
 
 // 统一作业账本枚举
-export const workflowJobTypeEnum = pgEnum('workflow_job_type', [
-  'delay_wake', 'task_timeout', 'trigger_dispatch', 'external_dispatch',
-  'subprocess_spawn', 'subprocess_join', 'event_dispatch', 'webhook_delivery',
-  'compensation_action', 'automation_action', 'schedule_launch',
-]);
+export const workflowJobTypeEnum = pgEnum('workflow_job_type', WORKFLOW_JOB_TYPES);
 
 export const workflowJobStatusEnum = pgEnum('workflow_job_status', ['pending', 'running', 'paused', 'succeeded', 'failed', 'dead', 'canceled']);
 

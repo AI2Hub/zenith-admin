@@ -22,7 +22,7 @@ vi.mock('../config', () => ({
 }));
 
 vi.mock('../lib/redis', () => ({
-  default: { get: vi.fn(), set: vi.fn() },
+  default: { get: vi.fn(), set: vi.fn(), eval: vi.fn() },
 }));
 
 vi.mock('../lib/context', () => ({
@@ -67,12 +67,13 @@ function placeholderKey(callIndex = 0): string {
   return redisMock.set.mock.calls[callIndex][0] as string;
 }
 
-function buildApp(opts: IdempotencyOptions = {}, status = 200, openAppKey?: string) {
+function buildApp(opts: IdempotencyOptions = {}, status = 200, openAppKey?: string, consumeBody = false) {
   const app = new Hono();
   const handler = vi.fn();
   app.post('/orders', async (c, next) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if (openAppKey) c.set('openApp', { clientId: openAppKey } as any);
+    if (consumeBody) await c.req.json();
     await next();
   }, idempotencyGuard(opts), (c) => {
     handler();
@@ -98,6 +99,7 @@ beforeEach(() => {
   asAdmin(1);
   redisMock.get.mockResolvedValue(null);
   redisMock.set.mockResolvedValue('OK');
+  redisMock.eval.mockResolvedValue('OK');
 });
 
 describe('idempotencyGuard - 客户端 Token 模式', () => {
@@ -118,8 +120,10 @@ describe('idempotencyGuard - 客户端 Token 模式', () => {
   });
 
   it('处理中重复提交（GET 命中 processing 占位）→ 429 不执行 handler', async () => {
-    redisMock.get.mockResolvedValue(JSON.stringify({ state: 'processing' }));
     const { app, handler } = buildApp({ message: '订单处理中，请勿重复提交' });
+    await post(app, { 'X-Idempotency-Key': 'client-key-123' });
+    redisMock.get.mockResolvedValue(redisMock.set.mock.calls[0][1] as string);
+    handler.mockClear();
     const res = await post(app, { 'X-Idempotency-Key': 'client-key-123' });
     const body = await res.json();
 
@@ -128,25 +132,27 @@ describe('idempotencyGuard - 客户端 Token 模式', () => {
     expect(handler).not.toHaveBeenCalled();
   });
 
-  it('成功 JSON 响应写入缓存（第二次 set）', async () => {
+  it('成功响应仅由持有者原子写入缓存', async () => {
     const { app } = buildApp({ ttlSeconds: 30 });
     await post(app, { 'X-Idempotency-Key': 'k1' });
 
-    expect(redisMock.set).toHaveBeenCalledTimes(2);
-    const [key, value, , ttl] = redisMock.set.mock.calls[1];
+    expect(redisMock.set).toHaveBeenCalledTimes(1);
+    const [, , key, owner, value, ttl] = redisMock.eval.mock.calls[0];
     expect(key).toMatch(HASHED_KEY);
     expect(key).toBe(redisMock.set.mock.calls[0][0]);
-    expect(ttl).toBe(30);
+    expect(owner).toBe(redisMock.set.mock.calls[0][1]);
+    expect(ttl).toBe('30');
     const cached = JSON.parse(value as string);
     expect(cached.status).toBe(200);
+    expect(cached.fingerprint).toHaveLength(64);
     expect(cached.body).toContain('PO-1');
   });
 
   it('网络重试命中已缓存响应 → 直接返回缓存 body/status，不执行 handler', async () => {
-    redisMock.get.mockResolvedValue(
-      JSON.stringify({ status: 200, contentType: 'application/json', body: '{"code":0,"data":{"orderNo":"PO-1"}}' }),
-    );
     const { app, handler } = buildApp();
+    await post(app, { 'X-Idempotency-Key': 'k1' });
+    redisMock.get.mockResolvedValue(redisMock.eval.mock.calls[0][4] as string);
+    handler.mockClear();
     const res = await post(app, { 'X-Idempotency-Key': 'k1' });
     const body = await res.json();
 
@@ -163,7 +169,7 @@ describe('idempotencyGuard - 客户端 Token 模式', () => {
 
     // 超出 128 的部分被丢弃 → 两个请求落在同一个 key 上
     expect(redisMock.set.mock.calls[0][0]).toMatch(HASHED_KEY);
-    expect(redisMock.set.mock.calls[0][0]).toBe(redisMock.set.mock.calls[2][0]);
+    expect(redisMock.set.mock.calls[0][0]).toBe(redisMock.set.mock.calls[1][0]);
   });
 
   it('同一 key 在不同调用方之间隔离（防跨应用响应回放）', async () => {
@@ -172,8 +178,7 @@ describe('idempotencyGuard - 客户端 Token 模式', () => {
     const { app: appB } = buildApp({}, 200, 'app-b');
     await post(appB, { 'X-Idempotency-Key': 'same-key' });
 
-    // 每次成功请求 set 两次（占位 + 缓存）
-    expect(redisMock.set.mock.calls[0][0]).not.toBe(redisMock.set.mock.calls[2][0]);
+    expect(redisMock.set.mock.calls[0][0]).not.toBe(redisMock.set.mock.calls[1][0]);
   });
 
   it('非 2xx 响应不缓存（仅 processing 占位，无第二次 set）', async () => {
@@ -206,7 +211,7 @@ describe('idempotencyGuard - 自动指纹模式', () => {
     await post(app, {}, '{"amount":200}');
 
     const key1 = redisMock.set.mock.calls[0][0];
-    const key2 = redisMock.set.mock.calls[2][0]; // 每次成功请求 set 两次（占位 + 缓存）
+    const key2 = redisMock.set.mock.calls[1][0];
     expect(key1).not.toBe(key2);
   });
 
@@ -215,7 +220,7 @@ describe('idempotencyGuard - 自动指纹模式', () => {
     await app.request('/orders?siteCode=main', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
     await app.request('/orders?siteCode=tech', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
 
-    expect(redisMock.set.mock.calls[0][0]).not.toBe(redisMock.set.mock.calls[2][0]);
+    expect(redisMock.set.mock.calls[0][0]).not.toBe(redisMock.set.mock.calls[1][0]);
   });
 
   it('未登录时退化为来源 IP 指纹，且不同 IP 互不碰撞', async () => {
@@ -250,6 +255,36 @@ describe('idempotencyGuard - 自动指纹模式', () => {
     expect(handler).toHaveBeenCalledTimes(1);
     expect(redisMock.get).not.toHaveBeenCalled();
     expect(redisMock.set).not.toHaveBeenCalled();
+  });
+});
+
+describe('idempotencyGuard - 请求内容一致性', () => {
+  it('校验提前读取 JSON 后，不同表单仍产生不同指纹', async () => {
+    const { app, handler } = buildApp({}, 200, undefined, true);
+    await post(app, {}, '{"title":"A","menuIds":[1011]}');
+    await post(app, {}, '{"title":"B","menuIds":[1021]}');
+    expect(handler).toHaveBeenCalledTimes(2);
+    expect(placeholderKey(0)).not.toBe(placeholderKey(1));
+  });
+
+  it('同一客户端幂等键提交不同内容返回 409，不回放旧表单', async () => {
+    const { app, handler } = buildApp({}, 200, undefined, true);
+    await post(app, { 'X-Idempotency-Key': 'same' }, '{"title":"A"}');
+    redisMock.get.mockResolvedValue(redisMock.eval.mock.calls[0][4] as string);
+    const response = await post(app, { 'X-Idempotency-Key': 'same' }, '{"title":"B"}');
+    expect(response.status).toBe(409);
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+
+  it('业务异常和缓存结算异常不会再次执行业务', async () => {
+    const handler = vi.fn(() => { throw new Error('business failure'); });
+    const app = new Hono();
+    app.onError((_err, c) => c.json({ code: 500 }, 500));
+    app.post('/orders', idempotencyGuard(), handler);
+    redisMock.eval.mockRejectedValue(new Error('cache unavailable'));
+    const response = await post(app);
+    expect(response.status).toBe(500);
+    expect(handler).toHaveBeenCalledTimes(1);
   });
 });
 

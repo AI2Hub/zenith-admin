@@ -89,7 +89,7 @@ describe('launch preview and selection share the path planner', () => {
     };
     mocks.definition = {
       id: 5, status: 'published', formType: 'custom', formId: null, flowData: flow,
-      customForm: { createComponent: 'biz/access/AccessRequestWorkflowForm', variables: [{ key: 'riskLevel', label: '风险等级', type: 'string' }] },
+      customForm: { businessType: 'identity.access_request', createComponent: 'biz/access/AccessRequestWorkflowForm', variables: [{ key: 'riskLevel', label: '风险等级', type: 'string' }] },
     };
     mocks.normalizeAccess.mockResolvedValue({ roleIds: [], menuIds: [10], riskLevel: 'low' });
 

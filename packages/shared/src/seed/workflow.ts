@@ -585,7 +585,7 @@ SEED_WORKFLOW_DEFINITIONS.push({
   initiatorScopeType: 'all',
   flowData: ACCESS_REQUEST_FLOW,
   formType: 'custom',
-  customForm: { createComponent: 'biz/access/AccessRequestWorkflowForm', viewComponent: 'biz/access/AccessRequestWorkflowForm', icon: 'ShieldCheck', variables: ACCESS_REQUEST_VARIABLES },
+  customForm: { businessType: 'identity.access_request', createComponent: 'biz/access/AccessRequestWorkflowForm', viewComponent: 'biz/access/AccessRequestWorkflowForm', icon: 'ShieldCheck', variables: ACCESS_REQUEST_VARIABLES },
   status: 'published', version: 1, tenantId: null,
 });
 
