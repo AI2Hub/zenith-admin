@@ -153,7 +153,7 @@ export default function DepartmentsPage() {
     { title: '部门名称', dataIndex: 'name', minWidth: 220 },
     { title: '部门编码', dataIndex: 'code', width: 180, render: renderEllipsis },
     { title: '类别', dataIndex: 'category', width: 90, render: (value: string) => <DictTag dictCode="department_category" value={value} /> },
-    { title: '负责人', dataIndex: 'leaderName', width: 120, render: (value) => value || EMPTY_PLACEHOLDER },
+    { title: '负责人', dataIndex: 'leaderName', width: 180, ellipsis: { showTitle: true }, render: (value) => value || EMPTY_PLACEHOLDER },
     { title: '联系电话', dataIndex: 'phone', width: 140, render: (value) => value || EMPTY_PLACEHOLDER },
     { title: '邮箱', dataIndex: 'email', width: 200, render: renderEllipsis },
     { title: '排序', dataIndex: 'sort', width: 90 },
