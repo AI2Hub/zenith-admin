@@ -197,7 +197,7 @@ export default function UserGroupsPage() {
       render: renderEllipsis,
     },
     {
-      title: '负责人', dataIndex: 'ownerName', width: 120,
+      title: '负责人', dataIndex: 'ownerName', width: 180, ellipsis: { showTitle: true },
       render: (v: string | null | undefined) => v || EMPTY_PLACEHOLDER,
     },
     {
