@@ -330,8 +330,8 @@ function RequestsTab() {
   const retry = useRetryAccessProvision();
   const [detail, setDetail] = useState<AccessRequest | null>(null);
   const columns: ColumnProps<AccessRequest>[] = [
-    { title: '申请人', dataIndex: 'applicantName', width: 120, render: (value) => value || EMPTY_PLACEHOLDER },
-    { title: '目标用户', dataIndex: 'targetUserName', width: 120, render: (value) => value || EMPTY_PLACEHOLDER },
+    { title: '申请人', dataIndex: 'applicantName', width: 180, render: (value) => value || EMPTY_PLACEHOLDER },
+    { title: '目标用户', dataIndex: 'targetUserName', width: 180, render: (value) => value || EMPTY_PLACEHOLDER },
     { title: '风险等级', dataIndex: 'riskLevel', width: 100, render: (value: AccessRequest['riskLevel']) => <RiskTag value={value} /> },
     { title: '审批状态', dataIndex: 'status', width: 110, render: (value: AccessRequest['status']) => STATUS_LABELS[value] },
     { title: '发放状态', dataIndex: 'provisionStatus', width: 110, render: (value: AccessRequest['provisionStatus']) => ACCESS_PROVISION_STATUS_LABELS[value] },
