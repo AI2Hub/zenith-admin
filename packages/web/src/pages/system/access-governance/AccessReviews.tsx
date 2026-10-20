@@ -85,7 +85,7 @@ export default function AccessReviews({ onDetail }: Readonly<{ onDetail: (item: 
     ] }),
   ];
   const itemColumns: ColumnProps<AccessReviewItem>[] = [
-    { title: '用户', dataIndex: 'userName', width: 120 },
+    { title: '用户', dataIndex: 'userName', width: 180 },
     { title: '权限 / 授权来源', minWidth: 230, render: (_, row) => row.permissionLabel ?? row.sourceLabel ?? row.permissionCode },
     { title: '处置范围', dataIndex: 'sourceType', width: 150, render: (value: AccessReviewItem['sourceType']) => ACCESS_REVIEW_SOURCE_LABELS[value] },
     { title: '风险', dataIndex: 'riskLevel', width: 90, render: (value: AccessReviewItem['riskLevel']) => ACCESS_RISK_LABELS[value] },
