@@ -7,9 +7,11 @@ import { beginEntityRelationNavigation, EntityNavigationContext, entityRelationS
 import { useEntityAccessKey } from '@/hooks/queries/entity-relations';
 import { EntityContextSheet } from './EntityRelationButton';
 
-export default function EntityRefBadge({ entityRef, capabilities, children }: {
+export default function EntityRefBadge({ entityRef, capabilities, onOpen, children }: {
   readonly entityRef: CanonicalEntityRef;
   readonly capabilities: { view: boolean; open: boolean };
+  /** Custom open action; when provided it replaces navigation and the local relation sheet. */
+  readonly onOpen?: (entityRef: CanonicalEntityRef) => void;
   readonly children?: ReactNode;
 }) {
   const navigate = useNavigate();
@@ -23,6 +25,7 @@ export default function EntityRefBadge({ entityRef, capabilities, children }: {
   return <>
     <Button theme="borderless" size="small" style={{ maxWidth: '100%', paddingLeft: 0, justifyContent: 'flex-start' }} onClick={(event) => {
       event.stopPropagation();
+      if (onOpen) { onOpen(entityRef); return; }
       if (openEntity) { openEntity(entityRef); return; }
       const route = entityDetailRoute(entityRef);
       if (route) {
@@ -31,7 +34,9 @@ export default function EntityRefBadge({ entityRef, capabilities, children }: {
           pageScrollTop: document.querySelector<HTMLElement>('.admin-content')?.scrollTop ?? 0,
         }, route, accessKey, location.pathname);
         navigate(route);
-      } else setOpen(true);
+        return;
+      }
+      setOpen(true);
     }}><Typography.Text ellipsis={{ showTooltip: true }} style={{ color: 'inherit' }}>{title}</Typography.Text></Button>
     {open && <Suspense fallback={null}><EntityContextSheet entityRef={entityRef} onClose={() => setOpen(false)} /></Suspense>}
   </>;
