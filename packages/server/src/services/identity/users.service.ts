@@ -293,7 +293,7 @@ export async function createUser(data: CreateUserInput) {
   const policy = (await getSettings('identitySecurity')).password;
   const policyError = validatePassword(data.password, policy);
   if (policyError) throw new HTTPException(400, { message: policyError });
-  const { password, ...rest } = data;
+  const { password, organization, roles: assignedRoles, ...rest } = data;
   // PostgreSQL NULL != NULL 导致复合唯一约束对 tenantId=NULL 的用户失效，需在应用层显式检查
   const newTenantId = getCreateTenantId(user);
   const tenantFilter = exactTenantCondition(users.tenantId, newTenantId);
@@ -316,15 +316,31 @@ export async function createUser(data: CreateUserInput) {
       await reserveTenantSeats(tx, newTenantId);
       const [u] = await tx.insert(users).values({
         ...rest,
+        ...(organization ? { departmentId: organization.departmentId } : {}),
         password: hashedPassword,
         status: 'enabled',
         tenantId: getCreateTenantId(user),
       }).returning();
       await provisionBasicUser(tx, u.id, newTenantId);
+      if (organization) {
+        // 创建时附带组织命令与 manage 同口径：同一事务内按能力 + 数据范围鉴权
+        await assertAuthorityActor(tx, newTenantId, 'system:user:organization', [u.id]);
+        if (organization.departmentId !== null) {
+          requireRow(await tx.query.departments.findFirst({ where: and(eq(departments.id, organization.departmentId), exactTenantCondition(departments.tenantId, newTenantId)) }), '所属部门不存在');
+        }
+        const ids = [...new Set(organization.positionIds)];
+        const found = ids.length
+          ? await tx.select({ id: positions.id }).from(positions).where(and(inArray(positions.id, ids), exactTenantCondition(positions.tenantId, newTenantId)))
+          : [];
+        if (found.length !== ids.length) throw new HTTPException(400, { message: '岗位不存在或不属于目标租户' });
+      }
+      if (assignedRoles) await replaceUserRoles(tx, u.id, assignedRoles.roleIds, newTenantId);
+      if (organization) await setUserPositions(tx, u.id, organization.positionIds);
       return u;
     });
     const full = await findUserWithRelations({ where: eq(users.id, created.id) });
     if (!full) throw new HTTPException(500, { message: '创建用户后回读失败' });
+    if (organization || assignedRoles) await clearUserPermissionCache(created.id);
     syncUserDynamicMembershipsSafe([created.id], '管理端创建用户');
     return mapUser(full);
   } catch (err: unknown) {

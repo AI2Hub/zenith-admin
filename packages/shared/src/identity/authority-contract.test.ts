@@ -10,6 +10,12 @@ describe('identity profile authority boundary', () => {
     expect(updateUserSchema.safeParse({ nickname: '普通用户', ...fields }).success).toBe(false);
   });
 
+  it('creation accepts manage-shaped commands so create can apply authority in one transaction', () => {
+    const parsed = createUserSchema.parse({ username: 'normal', nickname: '普通用户', password: '123456', organization: { departmentId: null, positionIds: [] }, roles: { roleIds: [3] } });
+    expect(parsed.organization).toEqual({ departmentId: null, positionIds: [] });
+    expect(parsed.roles).toEqual({ roleIds: [3] });
+  });
+
   it('keeps profile editing independent from organization changes', () => {
     expect(updateUserSchema.parse({ nickname: '新昵称', email: '' })).toEqual({ nickname: '新昵称', email: null });
     expect(updateUserOrganizationSchema.parse({ departmentId: null, positionIds: [] })).toEqual({ departmentId: null, positionIds: [] });

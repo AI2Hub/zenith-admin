@@ -92,6 +92,10 @@ export const usersHandlers = [
   }),
 
   mock(userContract.create, ({ body, ok }) => {
+    const department = body.organization?.departmentId !== null && body.organization?.departmentId !== undefined
+      ? flattenDepts(mockDepartments).find((d) => d.id === body.organization?.departmentId)
+      : undefined;
+    const positionIds = body.organization?.positionIds ?? [];
     const newUser: MockUser = {
       id: getNextUserId(),
       username: body.username,
@@ -101,11 +105,11 @@ export const usersHandlers = [
       gender: body.gender,
       birthDate: body.birthDate ?? null,
       password: DEMO_INITIAL_CREDENTIAL,
-      departmentId: null,
-      departmentName: null,
-      positionIds: [],
-      positions: [],
-      roles: mockRoles.filter(role => role.code === 'user'),
+      departmentId: department?.id ?? null,
+      departmentName: department?.name ?? null,
+      positionIds,
+      positions: resolvePositions(positionIds),
+      roles: body.roles ? resolveRoles(body.roles.roleIds) : mockRoles.filter(role => role.code === 'user'),
       status: 'enabled',
       passwordUpdatedAt: mockDateTime(),
       createdAt: mockDateTime(),

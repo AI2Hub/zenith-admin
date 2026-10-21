@@ -45,7 +45,7 @@ export const registerSchema = z.object({
 });
 
 
-export const createUserSchema = z.strictObject({
+const createUserProfileSchema = z.strictObject({
   username: z.string().min(2).max(32),
   nickname: z.string().min(1).max(32),
   email: z.preprocess(
@@ -61,11 +61,6 @@ export const createUserSchema = z.strictObject({
   birthDate: z.string().max(20).nullable().optional(),
 });
 
-
-export const updateUserSchema = partialForUpdate(createUserSchema).omit({ password: true }).extend({
-  avatar: z.string().max(512).nullable().optional(),
-}).strict();
-
 export const updateUserOrganizationSchema = z.strictObject({
   departmentId: z.number().int().positive().nullable(),
   positionIds: z.array(z.number().int().positive()),
@@ -74,6 +69,18 @@ export const updateUserOrganizationSchema = z.strictObject({
 export const assignUserRolesSchema = z.strictObject({
   roleIds: z.array(z.number().int().positive()),
 });
+
+/** 创建 = 资料字段 + 可选的即时授权命令（与 manage 命令同形，服务端在创建事务内独立鉴权） */
+export const createUserSchema = z.strictObject({
+  ...createUserProfileSchema.shape,
+  organization: updateUserOrganizationSchema.optional(),
+  roles: assignUserRolesSchema.optional(),
+});
+
+
+export const updateUserSchema = partialForUpdate(createUserProfileSchema).omit({ password: true }).extend({
+  avatar: z.string().max(512).nullable().optional(),
+}).strict();
 
 /** One editor submission, independently authorized commands, one transaction. */
 export const manageUserSchema = z.strictObject({

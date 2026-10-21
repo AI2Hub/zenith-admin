@@ -218,7 +218,17 @@ export default function UsersPage() {
       if (!('email' in values)) delete payload.email;
       if (!('phone' in values)) delete payload.phone;
 
-      if (!editing) return payload;
+      if (!editing) {
+        // 新增弹窗同样走命令模型：只把实际选择的组织/角色作为可选命令提交，
+        // 留空则沿用服务端默认（无部门、无岗位、自动挂基础角色）
+        if (canEditOrganization && (departmentId != null || (positionIds?.length ?? 0) > 0)) {
+          payload.organization = { departmentId: departmentId ?? null, positionIds: positionIds ?? [] };
+        }
+        if (canAssignRoles && (roleIds?.length ?? 0) > 0) {
+          payload.roles = { roleIds: roleIds ?? [] };
+        }
+        return payload;
+      }
       const protectedRoleId = protectedSuperRoleId(editing);
       if (canAssignRoles && protectedRoleId !== undefined && !roleIds?.includes(protectedRoleId)) {
         Toast.warning('不能移除 admin 管理员用户的超级管理员角色');
@@ -808,7 +818,7 @@ export default function UsersPage() {
               rules={[{ type: 'email', message: '邮箱格式不正确' }]}
             />
           </Col>
-          {editingUser && canEditOrganization && (
+          {canEditOrganization && (
             <Col span={12}>
               <Form.TreeSelect
                 field="departmentId"
@@ -822,7 +832,7 @@ export default function UsersPage() {
             </Col>
           )}
         </Row>
-        {editingUser && (canEditOrganization || canAssignRoles) && (
+        {(canEditOrganization || canAssignRoles) && (
           <Row gutter={16}>
             {canEditOrganization && (
               <Col span={12}>
