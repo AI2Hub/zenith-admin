@@ -55,37 +55,37 @@ export async function getDataScopeCondition(options: DataScopeOptions): Promise<
         columns: {},
         with: {
           role: {
-            columns: { dataScope: true, code: true, tenantId: true, status: true },
-            with: { deptScopes: { columns: { deptId: true } }, roleMenus: { columns: {}, with: { menu: { columns: { permission: true, status: true } } } } },
+            columns: { dataScope: true, code: true, tenantId: true, status: true, permissionCodes: true },
+            with: { deptScopes: { columns: { deptId: true } } },
           },
         },
       },
       // 用户组绑定的角色：组内成员继承其数据权限（仅启用组的启用角色生效，口径见 user-group-access）
       userGroupMembers: enabledGroupRolesWith({
-        columns: { dataScope: true, code: true, tenantId: true, status: true },
-        with: { deptScopes: { columns: { deptId: true } }, roleMenus: { columns: {}, with: { menu: { columns: { permission: true, status: true } } } } },
+        columns: { dataScope: true, code: true, tenantId: true, status: true, permissionCodes: true },
+        with: { deptScopes: { columns: { deptId: true } } },
       }),
-      userDeptScopes: { columns: { deptId: true } },
-      accessGrants: { columns: { status: true, startsAt: true, expiresAt: true }, with: { menus: { columns: { permissionCode: true, dataScope: true, deptScopeIds: true, status: true, startsAt: true, expiresAt: true }, with: { menu: { columns: { permission: true, status: true } } } } } },
+      directPermissions: true,
+      accessGrants: { columns: { status: true, startsAt: true, expiresAt: true }, with: { items: { columns: { permissionCode: true, dataScope: true, deptScopeIds: true, status: true, startsAt: true, expiresAt: true } } } },
     },
   });
   const now = new Date();
   const activeGrantScopes = (userData?.accessGrants ?? []).filter(grant =>
     ['scheduled', 'active'].includes(grant.status) && grant.startsAt <= now && (!grant.expiresAt || grant.expiresAt > now),
-  ).flatMap(grant => grant.menus.filter(item => ['scheduled', 'active'].includes(item.status) && item.startsAt <= now && (!item.expiresAt || item.expiresAt > now) && item.menu.status === 'enabled' && item.menu.permission === item.permissionCode && permissionCodes.includes(item.permissionCode)));
+  ).flatMap(grant => grant.items.filter(item => ['scheduled', 'active'].includes(item.status) && item.startsAt <= now && (!item.expiresAt || item.expiresAt > now) && permissionCodes.includes(item.permissionCode)));
 
   // 禁用角色的数据权限不再生效（与功能权限解析同一口径）
   const directRoleList = (userData?.userRoles.map((ur) => ur.role) ?? []).filter((r) => r.status === 'enabled');
   const groupRoleList = extractEnabledGroupRoles(userData?.userGroupMembers).roles;
   const allRoles = [...directRoleList, ...groupRoleList];
-  const userRoleList = allRoles.filter(role => !permissionCodes.length || role.roleMenus.some(({ menu }) => menu.status === 'enabled' && menu.permission !== null && permissionCodes.includes(menu.permission)));
-  const userDirectScope = userData?.userDataScope ?? null;
+  const userRoleList = allRoles.filter(role => !permissionCodes.length || role.permissionCodes.some(code => permissionCodes.includes(code)));
+  const directScopes = (userData?.directPermissions ?? []).filter(item => permissionCodes.includes(item.permissionCode));
 
   // ── 2. 计算有效权限（多角色 + 用户直接权限取最宽松原则）─────────────────────────────────────
   // 平台超管须双条件判定（code + 平台角色），防止租户自建 super_admin 伪造全量数据权限
   const isSuperAdmin = allRoles.some((r) => r.code === 'super_admin' && r.tenantId === null);
   const scopeSet = new Set(userRoleList.map((r) => r.dataScope));
-  if (userDirectScope !== null) scopeSet.add(userDirectScope);
+  for (const item of directScopes) scopeSet.add(item.dataScope);
   for (const grant of activeGrantScopes) {
     if (grant.dataScope !== null) scopeSet.add(grant.dataScope);
   }
@@ -104,7 +104,7 @@ export async function getDataScopeCondition(options: DataScopeOptions): Promise<
   }
   if (scopeSet.has('custom')) {
     const roleIds = userRoleList.filter(role => role.dataScope === 'custom').flatMap(role => role.deptScopes.map(scope => scope.deptId));
-    const directIds = userDirectScope === 'custom' ? (userData?.userDeptScopes?.map(scope => scope.deptId) ?? []) : [];
+    const directIds = directScopes.filter(item => item.dataScope === 'custom').flatMap(item => item.deptScopeIds);
     const grantIds = activeGrantScopes.filter(grant => grant.dataScope === 'custom').flatMap(grant => grant.deptScopeIds);
     const ids = [...new Set([...roleIds, ...directIds, ...grantIds])];
     if (deptColumn && ids.length) conditions.push(inArray(deptColumn, ids));

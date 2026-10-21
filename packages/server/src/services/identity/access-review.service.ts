@@ -5,7 +5,7 @@ import { higherAccessRisk, accessGovernanceContract, type AccessPolicySnapshot, 
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { db } from '../../db';
 import type { DbExecutor } from '../../db/types';
-import { departments, identityAccessGrantMenus, identityAccessGrants, identityAccessReviewCampaigns, identityAccessReviewItems, menus, roleMenus, roles, userGroupMembers, userGroupRoles, userGroups, userMenus, userRoles, users, userMfaFactors, workflowJobs, type IdentityAccessReviewCampaignRow } from '../../db/schema';
+import { departments, identityAccessGrantItems, identityAccessGrants, identityAccessReviewCampaigns, identityAccessReviewItems, menus, roleMenus, roles, userGroupMembers, userGroupRoles, userGroups, identityUserPermissions, userRoles, users, userMfaFactors, workflowJobs, type IdentityAccessReviewCampaignRow } from '../../db/schema';
 import { currentUser, setAuditBefore } from '../../lib/context';
 import { randomUUID } from 'node:crypto';
 import { exactTenantCondition, getCreateTenantId, tenantCondition } from '../../lib/tenant';
@@ -39,11 +39,12 @@ function futureDate(value: string, label: string): Date {
 }
 
 function reviewerCondition(executor: DbExecutor) {
+  const roleCanReview = sql`${roles.permissionCodes} @> '["system:access-governance:review"]'::jsonb`;
   return or(
-    inArray(users.id, executor.select({ userId: userRoles.userId }).from(userRoles).innerJoin(roles, eq(roles.id, userRoles.roleId)).innerJoin(roleMenus, eq(roleMenus.roleId, roles.id)).innerJoin(menus, eq(menus.id, roleMenus.menuId)).where(and(eq(roles.status, 'enabled'), eq(menus.status, 'enabled'), eq(menus.permission, 'system:access-governance:review')))),
-    inArray(users.id, executor.select({ userId: userMenus.userId }).from(userMenus).innerJoin(menus, eq(menus.id, userMenus.menuId)).where(and(eq(menus.status, 'enabled'), eq(menus.permission, 'system:access-governance:review')))),
-    inArray(users.id, executor.select({ userId: userGroupMembers.userId }).from(userGroupMembers).innerJoin(userGroups, eq(userGroups.id, userGroupMembers.groupId)).innerJoin(userGroupRoles, eq(userGroupRoles.groupId, userGroups.id)).innerJoin(roles, eq(roles.id, userGroupRoles.roleId)).innerJoin(roleMenus, eq(roleMenus.roleId, roles.id)).innerJoin(menus, eq(menus.id, roleMenus.menuId)).where(and(eq(userGroups.status, 'enabled'), eq(roles.status, 'enabled'), eq(menus.status, 'enabled'), eq(menus.permission, 'system:access-governance:review')))),
-    inArray(users.id, executor.select({ userId: identityAccessGrants.userId }).from(identityAccessGrants).innerJoin(identityAccessGrantMenus, eq(identityAccessGrantMenus.grantId, identityAccessGrants.id)).where(and(inArray(identityAccessGrants.status, ['scheduled', 'active']), inArray(identityAccessGrantMenus.status, ['scheduled', 'active']), eq(identityAccessGrantMenus.permissionCode, 'system:access-governance:review'), lte(identityAccessGrantMenus.startsAt, new Date()), or(isNull(identityAccessGrantMenus.expiresAt), gt(identityAccessGrantMenus.expiresAt, new Date()))))),
+    inArray(users.id, executor.select({ userId: userRoles.userId }).from(userRoles).innerJoin(roles, eq(roles.id, userRoles.roleId)).where(and(eq(roles.status, 'enabled'), roleCanReview))),
+    inArray(users.id, executor.select({ userId: identityUserPermissions.userId }).from(identityUserPermissions).where(eq(identityUserPermissions.permissionCode, 'system:access-governance:review'))),
+    inArray(users.id, executor.select({ userId: userGroupMembers.userId }).from(userGroupMembers).innerJoin(userGroups, eq(userGroups.id, userGroupMembers.groupId)).innerJoin(userGroupRoles, eq(userGroupRoles.groupId, userGroups.id)).innerJoin(roles, eq(roles.id, userGroupRoles.roleId)).where(and(eq(userGroups.status, 'enabled'), eq(roles.status, 'enabled'), roleCanReview))),
+    inArray(users.id, executor.select({ userId: identityAccessGrants.userId }).from(identityAccessGrants).innerJoin(identityAccessGrantItems, eq(identityAccessGrantItems.grantId, identityAccessGrants.id)).where(and(inArray(identityAccessGrants.status, ['scheduled', 'active']), inArray(identityAccessGrantItems.status, ['scheduled', 'active']), eq(identityAccessGrantItems.permissionCode, 'system:access-governance:review'), lte(identityAccessGrantItems.startsAt, new Date()), or(isNull(identityAccessGrantItems.expiresAt), gt(identityAccessGrantItems.expiresAt, new Date()))))),
   );
 }
 
@@ -227,26 +228,26 @@ export async function decideReviewItem(id: number, input: DecideAccessReviewItem
     }
     if (input.decision === 'extend') {
       if (item.sourceType !== 'temporary_grant' || !item.sourceId || !expiresAt) throw new HTTPException(400, { message: '只有临时授权项支持延期，永久授权无需延期' });
-      const grantItem = requireRow(await tx.query.identityAccessGrantMenus.findFirst({ where: eq(identityAccessGrantMenus.id, item.sourceId), with: { grant: true } }), '来源授权项不存在');
+      const grantItem = requireRow(await tx.query.identityAccessGrantItems.findFirst({ where: eq(identityAccessGrantItems.id, item.sourceId), with: { grant: true } }), '来源授权项不存在');
       if (!grantItem.expiresAt) throw new HTTPException(409, { message: '此授权项永久有效，无需延期' });
       if (grantItem.grant.tenantId !== item.tenantId || grantItem.grant.userId !== item.userId || !['active', 'scheduled'].includes(grantItem.status) || grantItem.expiresAt.getTime() <= Date.now() || expiresAt <= grantItem.expiresAt) throw new HTTPException(409, { message: '只能延长仍有效的来源授权项，且新时间必须晚于原到期时间' });
       await tx.select({ id: identityAccessGrants.id }).from(identityAccessGrants).where(and(eq(identityAccessGrants.id, grantItem.grantId), exactTenantCondition(identityAccessGrants.tenantId, item.tenantId))).for('update');
-      const currentItem = requireRow(await tx.query.identityAccessGrantMenus.findFirst({ where: eq(identityAccessGrantMenus.id, grantItem.id) }), '来源授权项不存在');
+      const currentItem = requireRow(await tx.query.identityAccessGrantItems.findFirst({ where: eq(identityAccessGrantItems.id, grantItem.id) }), '来源授权项不存在');
       if (!currentItem.expiresAt || !['active', 'scheduled'].includes(currentItem.status) || currentItem.expiresAt.getTime() <= Date.now() || expiresAt <= currentItem.expiresAt) throw new HTTPException(409, { message: '来源授权已永久有效、撤销、到期或被其他人修改，请刷新后重试' });
       await assertAccessSnapshotDuration([currentItem.policySnapshot], currentItem.startsAt, expiresAt, item.tenantId, tx);
       await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`identity-access:${item.tenantId ?? 'platform'}:${item.userId}`}, 0))`);
       await assertNoOverlappingAccessRequest({ targetUserId: item.userId, tenantId: item.tenantId, startsAt: currentItem.expiresAt, expiresAt, items: [currentItem], excludeGrantItemId: currentItem.id }, tx);
-      await tx.update(identityAccessGrantMenus).set({ expiresAt }).where(and(eq(identityAccessGrantMenus.id, grantItem.id), eq(identityAccessGrantMenus.grantId, grantItem.grantId)));
+      await tx.update(identityAccessGrantItems).set({ expiresAt }).where(and(eq(identityAccessGrantItems.id, grantItem.id), eq(identityAccessGrantItems.grantId, grantItem.grantId)));
       await refreshAccessGrantHeader(tx, grantItem.grantId, item.tenantId);
       changedUsers.add(item.userId);
     } else if (input.decision === 'revoke') {
       if (!item.sourceId) throw new HTTPException(409, { message: '复核项缺少有效授权来源' });
       if (item.sourceType === 'temporary_grant') {
-        const source = await tx.query.identityAccessGrantMenus.findFirst({ where: eq(identityAccessGrantMenus.id, item.sourceId), with: { grant: true } });
+        const source = await tx.query.identityAccessGrantItems.findFirst({ where: eq(identityAccessGrantItems.id, item.sourceId), with: { grant: true } });
         if (source && (source.grant.tenantId !== item.tenantId || source.grant.userId !== item.userId)) throw new HTTPException(409, { message: '授权项与复核对象不匹配' });
         if (source) await revokeAccessGrantItemInTransaction(tx, item.sourceId, item.tenantId, actor.userId, input.remark);
-      } else if (item.sourceType === 'direct_menu') {
-        await tx.delete(userMenus).where(and(eq(userMenus.userId, item.userId), eq(userMenus.menuId, item.sourceId)));
+      } else if (item.sourceType === 'direct_permission') {
+        await tx.delete(identityUserPermissions).where(and(eq(identityUserPermissions.userId, item.userId), eq(identityUserPermissions.id, item.sourceId)));
       } else if (item.sourceType === 'group_membership') {
         const group = await tx.query.userGroups.findFirst({ where: and(eq(userGroups.id, item.sourceId), exactTenantCondition(userGroups.tenantId, item.tenantId)), columns: { memberMode: true } });
         if (group?.memberMode === 'dynamic') throw new HTTPException(409, { message: '动态用户组由规则维护，请升级给用户组负责人调整源规则后再完成复核，避免资格被自动恢复' });

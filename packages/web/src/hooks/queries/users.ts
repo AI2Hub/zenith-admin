@@ -147,8 +147,8 @@ export function useUserEffectivePermissions(userId: number | undefined, enabled 
   return useApiQuery(userContract.effectivePermissions, { params: { id: userId ?? 0 } }, { enabled: enabled && userId !== undefined });
 }
 
-export function useUpdateUserOrganization() {
-  return useApiMutation(userContract.organization, {
+export function useManageUser() {
+  return useApiMutation(userContract.manage, {
     invalidate: (qc, _output, { params }) => {
       void qc.invalidateQueries({ queryKey: userKeys.detail(params.id) });
       void qc.invalidateQueries({ queryKey: userKeys.lists });

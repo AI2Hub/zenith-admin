@@ -6,7 +6,7 @@ import { definePermissions } from '../core/permissions';
  * `uiOnly` = 服务端没有任何接口检查该码（纯前端门控或待清理）。
  */
 export const IDENTITY_PERMISSIONS = definePermissions({
-  'system:user:list': { label: '查询', menu: 'SystemUsers' },
+  'system:user:list': { label: '查询', menu: 'SystemUsers', approvalPolicy: 'none', permanentAllowed: true, emergencyAllowed: true },
   'system:user:create': { label: '新增用户', menu: 'SystemUsers', selfRequestable: false, riskLevel: 'high', approvalPolicy: 'manager_security', reviewIntervalDays: 90 },
   'system:user:update': { label: '编辑用户', menu: 'SystemUsers' },
   'system:user:delete': { label: '删除用户', menu: 'SystemUsers', selfRequestable: false, riskLevel: 'high', approvalPolicy: 'manager_security', reviewIntervalDays: 90 },
@@ -18,11 +18,11 @@ export const IDENTITY_PERMISSIONS = definePermissions({
   'system:user:organization': { label: '调整组织归属', menu: 'SystemUsers', id: 999001, riskLevel: 'high', approvalPolicy: 'manager_security', selfRequestable: false },
   'system:user:status': { label: '启停账号', menu: 'SystemUsers', id: 999002, riskLevel: 'high', approvalPolicy: 'manager_security', selfRequestable: false },
   'system:user:credentials': { label: '管理账号凭据', menu: 'SystemUsers', id: 999003, riskLevel: 'critical', approvalPolicy: 'two_person', selfRequestable: false },
-  'system:department:list': { label: '查询', menu: 'SystemDepartments' },
+  'system:department:list': { label: '查询', menu: 'SystemDepartments', approvalPolicy: 'none', permanentAllowed: true, emergencyAllowed: true },
   'system:department:create': { label: '新增部门', menu: 'SystemDepartments', selfRequestable: false, riskLevel: 'high', approvalPolicy: 'manager_security', reviewIntervalDays: 90 },
   'system:department:update': { label: '编辑部门', menu: 'SystemDepartments', selfRequestable: false, riskLevel: 'high', approvalPolicy: 'manager_security', reviewIntervalDays: 90 },
   'system:department:delete': { label: '删除部门', menu: 'SystemDepartments', selfRequestable: false, riskLevel: 'high', approvalPolicy: 'manager_security', reviewIntervalDays: 90 },
-  'system:position:list': { label: '查询', menu: 'SystemPositions' },
+  'system:position:list': { label: '查询', menu: 'SystemPositions', approvalPolicy: 'none', permanentAllowed: true, emergencyAllowed: true },
   'system:position:create': { label: '新增岗位', menu: 'SystemPositions', selfRequestable: false, riskLevel: 'high', approvalPolicy: 'manager_security', reviewIntervalDays: 90 },
   'system:position:update': { label: '编辑岗位', menu: 'SystemPositions', selfRequestable: false, riskLevel: 'high', approvalPolicy: 'manager_security', reviewIntervalDays: 90 },
   'system:position:delete': { label: '删除岗位', menu: 'SystemPositions', selfRequestable: false, riskLevel: 'high', approvalPolicy: 'manager_security', reviewIntervalDays: 90 },

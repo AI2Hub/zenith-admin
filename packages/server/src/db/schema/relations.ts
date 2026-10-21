@@ -11,7 +11,7 @@ import { domainEventSubjects, domainEvents, entityRelationEdges } from './entity
 import { businessFiles, fileStorageConfigs, managedFiles, uploadChunks, uploadSessions } from './files';
 import { asyncTaskItems, asyncTaskSubjects, asyncTasks, exportJobDownloads, exportJobs } from './tasks';
 import { cronJobLogs, cronJobs, userFeedbacks, systemSettings, systemSettingsRevisions } from './system';
-import { identityAccessGrantMenus, identityAccessGrants, identityAccessRequestItems, identityAccessRequests, identityAccessReviewCampaigns, identityAccessReviewItems, identityPermissionPolicies } from './identity-access';
+import { identityRoleVersions, identityUserPermissions, identityAccessGrantItems, identityAccessGrants, identityAccessRequestItems, identityAccessRequests, identityAccessReviewCampaigns, identityAccessReviewItems, identityPermissionPolicies } from './identity-access';
 import { loginRiskEvents, passwordResetTokens, userApiTokens, userSignatures, userMfaFactors, userOauthAccounts, userTrustedDevices } from './auth';
 import { identityProviderSyncLogs, tenantIdentityProviders, userIdentityAccounts } from './identity-providers';
 import { directorySyncConflicts, directorySyncDeptLinks, directorySyncRunItems, directorySyncRuns, directorySyncSources, directorySyncUserLinks } from './directory-sync';
@@ -107,7 +107,6 @@ export const identityAccessRequestsRelations = relations(identityAccessRequests,
 export const identityAccessRequestItemsRelations = relations(identityAccessRequestItems, ({ one }) => ({
   request: one(identityAccessRequests, { fields: [identityAccessRequestItems.requestId], references: [identityAccessRequests.id] }),
   role: one(roles, { fields: [identityAccessRequestItems.roleId], references: [roles.id] }),
-  menu: one(menus, { fields: [identityAccessRequestItems.menuId], references: [menus.id] }),
 }));
 
 export const identityAccessGrantsRelations = relations(identityAccessGrants, ({ one, many }) => ({
@@ -116,12 +115,11 @@ export const identityAccessGrantsRelations = relations(identityAccessGrants, ({ 
   request: one(identityAccessRequests, { fields: [identityAccessGrants.requestId], references: [identityAccessRequests.id] }),
   approver: one(users, { fields: [identityAccessGrants.approvedBy], references: [users.id], relationName: 'accessGrantApprover' }),
   revoker: one(users, { fields: [identityAccessGrants.revokedBy], references: [users.id], relationName: 'accessGrantRevoker' }),
-  menus: many(identityAccessGrantMenus),
+  items: many(identityAccessGrantItems),
 }));
 
-export const identityAccessGrantMenusRelations = relations(identityAccessGrantMenus, ({ one }) => ({
-  grant: one(identityAccessGrants, { fields: [identityAccessGrantMenus.grantId], references: [identityAccessGrants.id] }),
-  menu: one(menus, { fields: [identityAccessGrantMenus.menuId], references: [menus.id] }),
+export const identityAccessGrantItemsRelations = relations(identityAccessGrantItems, ({ one }) => ({
+  grant: one(identityAccessGrants, { fields: [identityAccessGrantItems.grantId], references: [identityAccessGrants.id] }),
 }));
 
 export const identityAccessReviewCampaignsRelations = relations(identityAccessReviewCampaigns, ({ one, many }) => ({
@@ -551,6 +549,7 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   passwordResetTokens: many(passwordResetTokens),
   leadingDepartments: many(departments, { relationName: 'departmentLeader' }),
   userMenus: many(userMenus),
+  directPermissions: many(identityUserPermissions),
   userDeptScopes: many(userDeptScopes),
   exportJobs: many(exportJobs),
   exportJobDownloads: many(exportJobDownloads),
@@ -567,6 +566,7 @@ export const rolesRelations = relations(roles, ({ one, many }) => ({
   userRoles: many(userRoles),
   deptScopes: many(roleDeptScopes),
   userGroupRoles: many(userGroupRoles),
+  permissionVersions: many(identityRoleVersions),
 }));
 
 export const menusRelations = relations(menus, ({ many }) => ({
@@ -2320,4 +2320,11 @@ export const systemSettingsRelations = relations(systemSettings, ({ one, many })
 
 export const systemSettingsRevisionsRelations = relations(systemSettingsRevisions, ({ one }) => ({
   settings: one(systemSettings, { fields: [systemSettingsRevisions.settingsId], references: [systemSettings.id], relationName: 'settingsRevisionOwner' }),
+}));
+
+export const identityUserPermissionsRelations = relations(identityUserPermissions, ({ one }) => ({
+  user: one(users, { fields: [identityUserPermissions.userId], references: [users.id] }),
+}));
+export const identityRoleVersionsRelations = relations(identityRoleVersions, ({ one }) => ({
+  role: one(roles, { fields: [identityRoleVersions.roleId], references: [roles.id] }),
 }));

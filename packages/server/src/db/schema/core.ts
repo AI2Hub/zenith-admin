@@ -181,6 +181,8 @@ export const roles = pgTable('roles', {
   code: varchar({ length: 64 }).notNull(),
   description: varchar({ length: 256 }),
   status: statusColumn(),
+  permissionCodes: jsonb().$type<string[]>().notNull().default([]),
+  permissionVersion: integer().notNull().default(1),
   dataScope: dataScopeEnum().notNull().default('all'),
   tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
   ...auditColumns(),

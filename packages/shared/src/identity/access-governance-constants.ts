@@ -28,7 +28,7 @@ export const ACCESS_PROVISION_STATUSES = ['not_started', 'pending', 'running', '
 export type AccessProvisionStatus = (typeof ACCESS_PROVISION_STATUSES)[number];
 export type AccessRequestStatus = (typeof ACCESS_REQUEST_STATUSES)[number];
 
-export const ACCESS_REQUEST_ITEM_TYPES = ['role', 'menu'] as const;
+export const ACCESS_REQUEST_ITEM_TYPES = ['role', 'permission'] as const;
 export type AccessRequestItemType = (typeof ACCESS_REQUEST_ITEM_TYPES)[number];
 
 export const ACCESS_GRANT_STATUSES = ['scheduled', 'active', 'expired', 'revoked'] as const;
@@ -46,7 +46,7 @@ export type AccessReviewStatus = (typeof ACCESS_REVIEW_STATUSES)[number];
 export const ACCESS_REVIEW_DECISIONS = ['pending', 'keep', 'revoke', 'extend', 'exception', 'escalate'] as const;
 export type AccessReviewDecision = (typeof ACCESS_REVIEW_DECISIONS)[number];
 
-export const ACCESS_REVIEW_SOURCE_TYPES = ['role', 'group_membership', 'direct_menu', 'temporary_grant'] as const;
+export const ACCESS_REVIEW_SOURCE_TYPES = ['role', 'group_membership', 'direct_permission', 'temporary_grant'] as const;
 export type AccessReviewSourceType = (typeof ACCESS_REVIEW_SOURCE_TYPES)[number];
 
 export const ACCESS_RISK_LABELS: Record<AccessRiskLevel, string> = { low: '普通', high: '高危', critical: '极高危' };
@@ -59,5 +59,5 @@ export const ACCESS_GRANT_SOURCE_LABELS: Record<AccessGrantSource, string> = { r
 export const ACCESS_REVIEW_SCOPE_LABELS: Record<AccessReviewScopeType, string> = { tenant: '当前租户全部用户', department: '指定部门及子部门', role: '指定角色', group: '指定用户组', user: '指定用户', high_risk: '高危权限', temporary: '临时授权' };
 export const ACCESS_REVIEW_STATUS_LABELS: Record<AccessReviewStatus, string> = { preparing: '准备中', open: '待复核', in_progress: '复核中', completed: '已完成', overdue: '已逾期', failed: '准备失败' };
 export const ACCESS_REVIEW_DECISION_LABELS: Record<AccessReviewDecision, string> = { pending: '待处理', keep: '保留', revoke: '撤销', extend: '延期', exception: '限时例外', escalate: '升级处理' };
-export const ACCESS_REVIEW_SOURCE_LABELS: Record<AccessReviewSourceType, string> = { role: '角色绑定', group_membership: '用户组成员资格', direct_menu: '直接菜单权限', temporary_grant: '单项临时授权' };
-export const ACCESS_REQUEST_ITEM_LABELS: Record<AccessRequestItemType, string> = { role: '角色', menu: '操作权限' };
+export const ACCESS_REVIEW_SOURCE_LABELS: Record<AccessReviewSourceType, string> = { role: '角色绑定', group_membership: '用户组成员资格', direct_permission: '直接菜单权限', temporary_grant: '单项临时授权' };
+export const ACCESS_REQUEST_ITEM_LABELS: Record<AccessRequestItemType, string> = { role: '角色', permission: '操作权限' };

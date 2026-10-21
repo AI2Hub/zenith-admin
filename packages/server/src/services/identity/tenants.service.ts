@@ -1,3 +1,4 @@
+import { publishRoleVersion } from './authority-write.service';
 import { buildListResult } from '../../lib/list-query';
 import { requireRow } from '../../lib/db-assert';
 import { eq, and, ne, desc, count, inArray, or } from 'drizzle-orm';

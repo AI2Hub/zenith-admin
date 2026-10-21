@@ -3,10 +3,10 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import type { DbExecutor } from '../db/types';
 import { SUPER_ADMIN_CODE } from '@zenith/shared/identity';
 import { db } from '../db';
-import { users, identityAccessGrants, identityAccessGrantMenus } from '../db/schema';
+import { users, identityAccessGrants, identityAccessGrantItems } from '../db/schema';
 import { onInvalidate, onInvalidationReset } from './invalidation-bus';
 import { sendToUser } from './ws-manager';
-import { getTenantPackageFeatureSet } from './tenant-package';
+import { availablePermissionCodes, navigationForPermissions } from '../services/identity/permission-catalog.service';
 import { enabledGroupRolesWith, extractEnabledGroupRoles } from './user-group-access';
 import { config } from '../config';
 import redis from './redis';
@@ -110,90 +110,36 @@ export async function getUserPermissionBoundary(userId: number): Promise<number 
   return data.nextPermissionBoundaryAt;
 }
 
-async function fetchUserPermissionData(userId: number, executor: DbExecutor = db, fresh = false): Promise<{ permissions: string[]; menuIds: number[]; nextPermissionBoundaryAt: number | null }> {
-  const menuColumns = { id: true, permission: true, visible: true, status: true, featureKey: true } as const;
+async function fetchUserPermissionData(userId: number, executor: DbExecutor = db, _fresh = false): Promise<{ permissions: string[]; menuIds: number[]; nextPermissionBoundaryAt: number | null }> {
   const now = new Date();
   const user = await executor.query.users.findFirst({
-    where: eq(users.id, userId),
-    columns: { tenantId: true },
+    where: eq(users.id, userId), columns: { tenantId: true, status: true },
     with: {
-      userRoles: {
-        columns: {},
-        with: {
-          role: {
-            columns: { status: true },
-            with: {
-              roleMenus: {
-                columns: {},
-                with: { menu: { columns: menuColumns } },
-              },
-            },
-          },
-        },
-      },
-      userMenus: {
-        columns: {},
-        with: { menu: { columns: menuColumns } },
-      },
-      // 用户组绑定的角色：组内成员自动继承（仅启用组的启用角色生效，口径见 user-group-access）
-      userGroupMembers: enabledGroupRolesWith({
-        columns: { status: true },
-        with: {
-          roleMenus: {
-            columns: {},
-            with: { menu: { columns: menuColumns } },
-          },
-        },
-      }),
+      userRoles: { with: { role: { columns: { permissionCodes: true, status: true } } } },
+      directPermissions: { columns: { permissionCode: true } },
+      userMenus: { with: { menu: { columns: { id: true, permission: true, status: true } } } },
+      userGroupMembers: enabledGroupRolesWith({ columns: { permissionCodes: true, status: true } }),
       accessGrants: {
-        where: and(inArray(identityAccessGrants.status, ['scheduled', 'active']), or(isNull(identityAccessGrants.expiresAt), gt(identityAccessGrants.expiresAt, now))),
-        columns: { status: true, startsAt: true, expiresAt: true },
-        with: { menus: { where: and(inArray(identityAccessGrantMenus.status, ['scheduled', 'active']), or(isNull(identityAccessGrantMenus.expiresAt), gt(identityAccessGrantMenus.expiresAt, now))), columns: { permissionCode: true, status: true, startsAt: true, expiresAt: true }, with: { menu: { columns: menuColumns } } } },
+        where: inArray(identityAccessGrants.status, ['scheduled', 'active']),
+        with: { items: { where: inArray(identityAccessGrantItems.status, ['scheduled', 'active']) } },
       },
     },
   });
-
-  if (!user) {
-    return { permissions: [], menuIds: [], nextPermissionBoundaryAt: null };
-  }
-
-  const grantRows = (user.accessGrants ?? []).filter((grant) => grant.status === 'scheduled' || grant.status === 'active');
-  const grantMenuRows = grantRows
-    .filter((grant) => grant.startsAt <= now && (!grant.expiresAt || grant.expiresAt > now))
-    .flatMap(grant => grant.menus.filter(item => ['scheduled', 'active'].includes(item.status) && item.startsAt <= now && (!item.expiresAt || item.expiresAt > now) && item.menu.status === 'enabled' && item.menu.permission === item.permissionCode).map(({ menu }) => menu));
-  const nextPermissionBoundaryAt = grantRows
-    .flatMap(grant => grant.menus.filter(item => ['scheduled', 'active'].includes(item.status)).flatMap(item => [item.startsAt, item.expiresAt]))
-    .filter((value): value is Date => value !== null && value.getTime() > now.getTime())
-    .reduce<number | null>((next, value) => next === null || value.getTime() < next ? value.getTime() : next, null);
-
-  // 禁用角色不再授权（与用户组 status 过滤同一口径）；禁用菜单在下方统一剔除
-  const roleMenuRows = user.userRoles
-    .filter(({ role }) => role.status === 'enabled')
-    .flatMap(({ role }) => role.roleMenus.map(({ menu }) => menu));
-  const directMenuRows = user.userMenus.map(({ menu }) => menu);
-  const groupMenuRows = extractEnabledGroupRoles(user.userGroupMembers)
-    .roles.flatMap((role) => role.roleMenus.map(({ menu }) => menu));
-  let allMenuRows = [...roleMenuRows, ...directMenuRows, ...groupMenuRows, ...grantMenuRows]
-    .filter((menu) => menu.status === 'enabled');
-
-  // 多租户：按租户套餐的功能集过滤——featureKey 为空的菜单是核心能力永远保留；
-  // 有 featureKey 的菜单仅当套餐分配了对应功能时保留（套餐禁用时功能集为空 = fail-closed）。
-  const featureSet = await getTenantPackageFeatureSet(user.tenantId, fresh ? executor : undefined);
-  if (featureSet) {
-    allMenuRows = allMenuRows.filter((menu) => !menu.featureKey || featureSet.has(menu.featureKey));
-  }
-
-  const menuIds = [...new Set(allMenuRows.map((menu) => menu.id))];
-
-  const permissions = [
-    ...new Set(
-      allMenuRows
-        .map((menu) => menu.permission)
-        .filter((permission): permission is string => permission !== null && permission !== '')
-    ),
+  if (!user || user.status !== 'enabled') return { permissions: [], menuIds: [], nextPermissionBoundaryAt: null };
+  const granted = user.accessGrants.flatMap(grant => grant.items);
+  const active = granted.filter(item => item.startsAt <= now && (!item.expiresAt || item.expiresAt > now));
+  const nextPermissionBoundaryAt = granted.flatMap(item => [item.startsAt, item.expiresAt]).filter((date): date is Date => date !== null && date > now)
+    .reduce<number | null>((boundary, date) => boundary === null ? date.getTime() : Math.min(boundary, date.getTime()), null);
+  const codes = [
+    ...user.userRoles.filter(({ role }) => role.status === 'enabled').flatMap(({ role }) => role.permissionCodes),
+    ...extractEnabledGroupRoles(user.userGroupMembers).roles.flatMap(role => role.permissionCodes),
+    ...user.directPermissions.map(item => item.permissionCode), ...active.map(item => item.permissionCode),
   ];
-
-  return { permissions, menuIds, nextPermissionBoundaryAt };
+  const permissions = await availablePermissionCodes(codes, user.tenantId, executor);
+  const menuIds = await navigationForPermissions(permissions, executor);
+  // Explicit navigation-only grants cannot introduce any operation permission.
+  const navigation = user.userMenus.filter(({ menu }) => menu.status === 'enabled' && !menu.permission).map(({ menu }) => menu.id);
+  return { permissions, menuIds: [...new Set([...menuIds, ...navigation])], nextPermissionBoundaryAt };
 }
 
 /**
@@ -215,13 +161,16 @@ function invalidateUserEntry(key?: string | null): void {
 }
 
 onInvalidate('identity_access_grants', message => invalidateUserEntry(message.key));
-onInvalidate('identity_access_grant_menus', message => {
+onInvalidate('identity_access_grant_items', message => {
   localCache.clear();
   const grantId = Number(message.key);
   if (Number.isSafeInteger(grantId) && grantId > 0) void db.query.identityAccessGrants.findFirst({ where: eq(identityAccessGrants.id, grantId), columns: { userId: true } })
     .then(grant => { if (grant) invalidateUserEntry(String(grant.userId)); }).catch(() => {});
 });
 onInvalidate('user_roles', message => invalidateUserEntry(message.key));
+onInvalidate('identity_user_permissions', message => invalidateUserEntry(message.key));
+onInvalidate('roles', () => invalidateUserEntry());
+onInvalidate('user_group_roles', () => invalidateUserEntry());
 onInvalidate('user_menus', message => invalidateUserEntry(message.key));
 onInvalidate('user_group_members', message => invalidateUserEntry(message.key));
 onInvalidationReset(() => { localCache.clear(); void clearRedisPermCache().catch(() => {}); });

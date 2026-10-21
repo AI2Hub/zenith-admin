@@ -2,6 +2,7 @@ import type { PermissionMeta } from '../core/permissions';
 import type { WorkflowFlowData } from '../workflow/types';
 import type { AccessApprovalPolicy, AccessRiskLevel } from './access-governance-constants';
 import type { AccessApprovalPlan, AccessPolicySnapshot } from './access-governance-validation';
+import type { AccessSourceRef } from './access-governance-validation';
 import type { DataScope } from './constants';
 
 export const ACCESS_RISK_ORDER: Record<AccessRiskLevel, number> = { low: 0, high: 1, critical: 2 };
@@ -20,6 +21,7 @@ export function accessPolicyBaseline(permissionCode: string, meta: PermissionMet
   const riskLevel = meta.riskLevel ?? 'low';
   return {
     permissionCode, policyId: null, version: 0, riskLevel,
+    permanentAllowed: meta.permanentAllowed === true, emergencyAllowed: meta.emergencyAllowed === true, maxEmergencyMinutes: meta.maxEmergencyMinutes ?? 60,
     approvalPolicy: meta.approvalPolicy ?? (riskLevel === 'low' ? 'manager' : ACCESS_MINIMUM_APPROVAL[riskLevel]),
     maxDurationMinutes: meta.maxDurationMinutes ?? null,
     reviewIntervalDays: meta.reviewIntervalDays ?? (riskLevel === 'critical' ? 30 : riskLevel === 'high' ? 90 : 0),
@@ -30,7 +32,7 @@ export function accessPolicyBaseline(permissionCode: string, meta: PermissionMet
 
 export function effectiveAccessPolicy(baseline: AccessPolicySnapshot, configured?: {
   id: number; version: number; riskLevel: AccessRiskLevel; approvalPolicy: AccessApprovalPolicy; maxDurationMinutes?: number | null;
-  reviewIntervalDays: number; mfaRequired: boolean; enabled: boolean;
+  reviewIntervalDays: number; mfaRequired: boolean; enabled: boolean; permanentAllowed: boolean; emergencyAllowed: boolean; maxEmergencyMinutes: number;
 }): AccessPolicySnapshot {
   if (!configured) return baseline;
   const riskLevel = higherAccessRisk(baseline.riskLevel, configured.riskLevel);
@@ -41,6 +43,7 @@ export function effectiveAccessPolicy(baseline: AccessPolicySnapshot, configured
     reviewIntervalDays: riskLevel === 'low' ? configured.reviewIntervalDays : Math.min(configured.reviewIntervalDays || (riskLevel === 'critical' ? 30 : 90), riskLevel === 'critical' ? 30 : 90),
     mfaRequired: riskLevel === 'critical' || configured.mfaRequired,
     enabled: baseline.enabled && configured.enabled,
+    permanentAllowed: configured.permanentAllowed, emergencyAllowed: configured.emergencyAllowed, maxEmergencyMinutes: configured.maxEmergencyMinutes,
   };
 }
 
@@ -51,6 +54,9 @@ export function aggregateAccessPolicies(policies: readonly AccessPolicySnapshot[
     approvalPolicy: policies.reduce<AccessApprovalPolicy>((mode, policy) => stricterAccessApproval(mode, policy.approvalPolicy), 'none'),
     maxDurationMinutes: limits.length ? Math.min(...limits) : null,
     mfaRequired: policies.some(policy => policy.mfaRequired),
+    permanentAllowed: policies.every(policy => policy.permanentAllowed),
+    emergencyAllowed: policies.every(policy => policy.emergencyAllowed),
+    maxEmergencyMinutes: Math.min(...policies.map(policy => policy.maxEmergencyMinutes), 1440),
   };
 }
 
@@ -59,21 +65,32 @@ export function accessScopesOverlap(a: { dataScope?: DataScope | null; deptScope
   return true;
 }
 
+export function accessScopeKey(dataScope: DataScope, deptScopeIds: readonly number[]): string {
+  const ids = dataScope === 'custom' ? [...new Set(deptScopeIds)].sort((a, b) => a - b) : [];
+  if (ids.length > 100) throw new Error('单项自定义范围最多包含 100 个部门');
+  return `${dataScope}:${ids.join(',')}`;
+}
+
 export function mergeAccessPermissionItems(items: ReadonlyArray<{
-  menuId: number | null; permissionCode: string | null; permissionLabel?: string | null; dataScope?: DataScope | null; deptScopeIds: number[];
+  permissionCode: string | null; permissionLabel?: string | null; dataScope?: DataScope | null; deptScopeIds: number[]; sourceRefs?: AccessSourceRef[];
 }>) {
-  const merged = new Map<string, { menuId: number; permissionCode: string; permissionLabel: string | null; dataScope: DataScope; deptScopeIds: number[] }>();
+  const merged = new Map<string, { permissionCode: string; permissionLabel: string | null; dataScope: DataScope; deptScopeIds: number[]; scopeKey: string; sourceRefs: AccessSourceRef[] }>();
   for (const item of items) {
-    if (item.menuId === null || !item.permissionCode) continue;
+    if (!item.permissionCode) continue;
     const dataScope = item.dataScope ?? 'self';
-    const key = `${item.permissionCode}:${dataScope}`;
-    const existing = merged.get(key);
-    merged.set(key, {
-      menuId: existing?.menuId ?? item.menuId, permissionCode: item.permissionCode, permissionLabel: item.permissionLabel ?? null, dataScope,
-      deptScopeIds: [...new Set([...(existing?.deptScopeIds ?? []), ...item.deptScopeIds])].sort((a, b) => a - b),
-    });
+    const deptScopeIds = dataScope === 'custom' ? [...new Set(item.deptScopeIds)].sort((a, b) => a - b) : [];
+    const scopeKey = accessScopeKey(dataScope, deptScopeIds);
+    const key = `${item.permissionCode}:${scopeKey}`;
+    const previous = merged.get(key);
+    const refs = [...(previous?.sourceRefs ?? []), ...(item.sourceRefs ?? [])];
+    merged.set(key, { permissionCode: item.permissionCode, permissionLabel: item.permissionLabel ?? null, dataScope, deptScopeIds, scopeKey,
+      sourceRefs: [...new Map(refs.map(ref => [JSON.stringify(ref), ref])).values()] });
   }
   return [...merged.values()];
+}
+
+export function accessPermissionCount(items: ReadonlyArray<{ permissionCode?: string | null }>): number {
+  return new Set(items.flatMap(item => item.permissionCode ? [item.permissionCode] : [])).size;
 }
 
 /** 冻结完整流程及实际审批人，保留未命中分支供原有流程图展示和高亮。 */

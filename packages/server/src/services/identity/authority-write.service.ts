@@ -1,10 +1,11 @@
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import type { Permission } from '@zenith/shared/core';
+import { accessScopeKey } from '@zenith/shared/identity';
 import { ALL_PERMISSIONS } from '@zenith/shared/permissions';
 import { db } from '../../db';
 import type { DbExecutor } from '../../db/types';
-import { users, roles, userRoles, roleMenus, menus, userGroups, userGroupRoles, userGroupMembers } from '../../db/schema';
+import { users, roles, userRoles, roleMenus, menus, userGroups, userGroupRoles, userGroupMembers, identityRoleVersions, identityUserPermissions } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { exactTenantCondition } from '../../lib/tenant';
 import { getUserPermissions, runWithFreshUserPermissions } from '../../lib/permissions';
@@ -39,6 +40,11 @@ export async function assertAuthorityActor(tx: DbExecutor, tenantId: number | nu
   return { platform, owned };
 }
 
+/** Profile changes permit self editing, but still require a live, current capability. */
+export async function assertProfileActor(tx: DbExecutor, tenantId: number | null) {
+  return assertAuthorityActor(tx, tenantId, 'system:user:update');
+}
+
 export async function assertGrantableRoles(tx: DbExecutor, roleIds: readonly number[], tenantId: number | null) {
   const ids = [...new Set(roleIds)];
   if (!ids.length) return [];
@@ -53,7 +59,7 @@ export async function assertAutomaticRolesAllowed(tx: DbExecutor, roleIds: reado
   await lockIdentityAuthority(tx, tenantId);
   const rows = await assertGrantableRoles(tx, roleIds, tenantId);
   if (rows.some(role => ['super_admin', 'tenant_admin', 'security_admin'].includes(role.code))) throw new HTTPException(403, { message: '自动配置不允许授予管理身份' });
-  const codes = [...new Set(rows.flatMap(role => role.roleMenus.flatMap(({ menu }) => menu.permission ? [menu.permission] : [])))];
+  const codes = [...new Set(rows.flatMap(role => role.permissionCodes))];
   const policies = await loadEffectiveAccessPolicies(codes, tenantId, tx);
   if (policies.some(policy => policy.riskLevel !== 'low' || !policy.enabled || policy.mfaRequired)) throw new HTTPException(403, { message: '自动配置仅允许审定的基础权限，高危或治理能力须独立授予' });
   return rows;
@@ -65,7 +71,7 @@ export async function assertAuthorityGrant(tx: DbExecutor, input: { tenantId: nu
   const ids = [...new Set(input.menuIds ?? [])];
   const menuRows = ids.length ? await tx.select().from(menus).where(inArray(menus.id, ids)) : [];
   if (menuRows.length !== ids.length || menuRows.some(menu => menu.status !== 'enabled')) throw new HTTPException(400, { message: '存在无效或停用的菜单' });
-  const codes = [...new Set([...menuRows, ...roleRows.flatMap(role => role.roleMenus.map(row => row.menu))].flatMap(menu => menu.permission ? [menu.permission] : []))];
+  const codes = [...new Set([...menuRows.flatMap(menu => menu.permission ? [menu.permission] : []), ...roleRows.flatMap(role => role.permissionCodes)])];
   for (const code of codes) if (!ALL_PERMISSIONS[code]) throw new HTTPException(400, { message: `权限目录未登记 ${code}` });
   const policies = await loadEffectiveAccessPolicies(codes, input.tenantId, tx);
   if (!actor.platform) {
@@ -95,6 +101,31 @@ export async function replaceRolePermissions(tx: DbExecutor, roleId: number, men
   await assertAuthorityGrant(tx, { tenantId, permission: 'system:role:assign', beneficiaryIds: await roleBeneficiaries(tx, roleId), menuIds });
   await tx.delete(roleMenus).where(eq(roleMenus.roleId, roleId));
   if (menuIds.length) await tx.insert(roleMenus).values([...new Set(menuIds)].map(menuId => ({ roleId, menuId })));
+  const rows = menuIds.length ? await tx.select({ code: menus.permission }).from(menus).where(inArray(menus.id, [...menuIds])) : [];
+  await publishRoleVersion(tx, roleId, rows.flatMap(row => row.code ? [row.code] : []));
+}
+
+export async function publishRoleVersion(tx: DbExecutor, roleId: number, codes?: readonly string[]) {
+  const role = await tx.query.roles.findFirst({ where: eq(roles.id, roleId), with: { deptScopes: true } });
+  if (!role) throw new HTTPException(404, { message: '角色不存在' });
+  await lockIdentityAuthority(tx, role.tenantId);
+  const permissionCodes = [...new Set(codes ?? role.permissionCodes)].sort();
+  const deptScopeIds = role.deptScopes.map(item => item.deptId).sort((a, b) => a - b);
+  accessScopeKey(role.dataScope, deptScopeIds);
+  const old = await tx.query.identityRoleVersions.findFirst({ where: and(eq(identityRoleVersions.roleId, roleId), eq(identityRoleVersions.version, role.permissionVersion)) });
+  const snapshot = { permissionCodes, dataScope: role.dataScope, deptScopeIds };
+  const changed = old && JSON.stringify({ permissionCodes: old.permissionCodes, dataScope: old.dataScope, deptScopeIds: old.deptScopeIds }) !== JSON.stringify(snapshot);
+  const version = role.permissionVersion + (changed ? 1 : 0);
+  await tx.insert(identityRoleVersions).values({ roleId, version, ...snapshot }).onConflictDoNothing();
+  await tx.update(roles).set({ permissionCodes, permissionVersion: version }).where(eq(roles.id, roleId));
+}
+
+export async function replaceDirectPermissions(tx: DbExecutor, userId: number, menuIds: readonly number[], tenantId: number | null) {
+  await assertAuthorityGrant(tx, { tenantId, permission: 'system:user:assign', beneficiaryIds: [userId], menuIds });
+  const rows = menuIds.length ? await tx.select({ code: menus.permission }).from(menus).where(inArray(menus.id, [...menuIds])) : [];
+  const codes = [...new Set(rows.flatMap(row => row.code ? [row.code] : []))];
+  await tx.delete(identityUserPermissions).where(eq(identityUserPermissions.userId, userId));
+  if (codes.length) await tx.insert(identityUserPermissions).values(codes.map(permissionCode => ({ userId, permissionCode, dataScope: 'self' as const, deptScopeIds: [], scopeKey: accessScopeKey('self', []) })));
 }
 
 export async function replaceRoleMembers(tx: DbExecutor, roleId: number, userIds: readonly number[], tenantId: number | null) {

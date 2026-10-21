@@ -24,7 +24,7 @@ export async function loadEffectiveAccessPolicies(permissionCodes: readonly stri
 }
 
 function policySignature(policies: readonly AccessPolicySnapshot[]): string {
-  return JSON.stringify([...policies].sort((a, b) => a.permissionCode.localeCompare(b.permissionCode)).map(p => [p.permissionCode, p.policyId, p.version, p.riskLevel, p.approvalPolicy, p.maxDurationMinutes, p.reviewIntervalDays, p.mfaRequired, p.enabled]));
+  return JSON.stringify([...policies].sort((a, b) => a.permissionCode.localeCompare(b.permissionCode)).map(p => [p.permissionCode, p.policyId, p.version, p.riskLevel, p.approvalPolicy, p.maxDurationMinutes, p.reviewIntervalDays, p.mfaRequired, p.enabled, p.permanentAllowed, p.emergencyAllowed, p.maxEmergencyMinutes]));
 }
 
 export async function assertAccessPolicySnapshotCurrent(snapshot: readonly AccessPolicySnapshot[], tenantId: number | null, executor: DbExecutor): Promise<void> {
@@ -49,7 +49,10 @@ export function assertPermissionPolicyUpdate(permissionCode: string, input: Upda
 
 export async function assertAccessSnapshotDuration(snapshot: readonly AccessPolicySnapshot[], startsAt: Date, expiresAt: Date | null, tenantId: number | null, executor: DbExecutor): Promise<void> {
   await assertAccessPolicySnapshotCurrent(snapshot, tenantId, executor);
-  if (expiresAt === null) return;
+  if (expiresAt === null) {
+    if (snapshot.some(policy => !policy.permanentAllowed)) throw new HTTPException(409, { message: '当前策略不允许永久授权' });
+    return;
+  }
   if (expiresAt.getTime() <= Date.now()) throw new HTTPException(409, { message: '申请有效期已经结束，不能继续审批或发放' });
   const limits = snapshot.flatMap(policy => policy.maxDurationMinutes === null ? [] : [policy.maxDurationMinutes]);
   const limit = limits.length ? Math.min(...limits) : null;

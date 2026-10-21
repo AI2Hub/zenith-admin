@@ -37,16 +37,16 @@ function MyGrants() {
   const columns: ColumnProps<AccessGrant>[] = [
     { title: '授权', dataIndex: 'id', width: 90, render: (value: number) => `#${value}` },
     { title: '状态', dataIndex: 'status', width: 110, render: (value: AccessGrant['status']) => ACCESS_GRANT_STATUS_LABELS[value] },
-    { title: '权限项', dataIndex: 'menus', minWidth: 200, render: (items: AccessGrant['menus']) => items.map(item => item.permissionLabel ?? item.permissionCode).join('、') },
+    { title: '权限项', dataIndex: 'items', minWidth: 200, render: (items: AccessGrant['items']) => items.map(item => item.permissionLabel ?? item.permissionCode).join('、') },
     dateTimeColumn('生效时间', 'startsAt'), dateTimeColumn('失效时间', 'expiresAt', { empty: '永久有效' }),
     createOperationColumn<AccessGrant>({ width: 140, actions: row => [{ key: 'detail', label: '查看授权项', onClick: () => setDetailId(row.id) }] }),
   ];
   return <><ListSearchToolbar page={page} filters={['keyword', 'status']} actions={<RefreshButton onClick={() => void page.listQuery.refetch()} loading={page.listQuery.isFetching} />} /><ConfigurableTable columns={singleLineColumns(columns)} {...page.tableProps} />
     <SideSheet title="本人授权明细" visible={detailId !== null} onCancel={() => setDetailId(null)} width={760} closeOnEsc footer={null}>
-      {detail && <><Descriptions column={2} align="plain" data={[{ key: '状态', value: ACCESS_GRANT_STATUS_LABELS[detail.status] }, { key: '失效时间', value: <DateTimeText value={detail.expiresAt} empty="永久有效" mode="absolute" /> }]} /><Table rowKey="id" pagination={false} size="small" dataSource={detail.menus} columns={singleLineColumns([
-        { title: '操作权限', render: (_, item: AccessGrant['menus'][number]) => item.permissionLabel ?? item.permissionCode },
-        { title: '数据范围', render: (_, item: AccessGrant['menus'][number]) => DATA_SCOPE_OPTIONS.find(option => option.value === item.dataScope)?.label },
-        { title: '状态', render: (_, item: AccessGrant['menus'][number]) => ACCESS_GRANT_STATUS_LABELS[item.status] },
+      {detail && <><Descriptions column={2} align="plain" data={[{ key: '状态', value: ACCESS_GRANT_STATUS_LABELS[detail.status] }, { key: '失效时间', value: <DateTimeText value={detail.expiresAt} empty="永久有效" mode="absolute" /> }]} /><Table rowKey="id" pagination={false} size="small" dataSource={detail.items} columns={singleLineColumns([
+        { title: '操作权限', render: (_, item: AccessGrant['items'][number]) => item.permissionLabel ?? item.permissionCode },
+        { title: '数据范围', render: (_, item: AccessGrant['items'][number]) => DATA_SCOPE_OPTIONS.find(option => option.value === item.dataScope)?.label },
+        { title: '状态', render: (_, item: AccessGrant['items'][number]) => ACCESS_GRANT_STATUS_LABELS[item.status] },
         dateTimeColumn('失效时间', 'expiresAt', { empty: '永久有效' }),
       ])} /></>}
     </SideSheet>

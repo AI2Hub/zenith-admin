@@ -63,7 +63,7 @@ function UserGovernanceSheet({ userId, onClose }: { readonly userId: number; rea
   const grantColumns: ColumnProps<AccessGrant>[] = [
     { title: '状态', dataIndex: 'status', width: 90, render: (value: AccessGrant['status']) => GRANT_STATUS_LABELS[value] },
     { title: '风险等级', dataIndex: 'riskLevel', width: 90, render: (value: AccessGrant['riskLevel']) => <RiskTag value={value} /> },
-    { title: '权限项', dataIndex: 'menus', width: 90, render: (menus: AccessGrant['menus']) => `${menus.length} 项` },
+    { title: '权限项', dataIndex: 'items', width: 90, render: (menus: AccessGrant['items']) => `${menus.length} 项` },
     dateTimeColumn('生效时间', 'startsAt'),
     dateTimeColumn('失效时间', 'expiresAt', { empty: '永久有效' }),
   ];
@@ -168,11 +168,11 @@ function GrantDetailSheet({ record: suppliedRecord, visible = suppliedRecord !==
   const detailQuery = useAccessGrantDetail(suppliedRecord?.id, visible);
   const record = detailQuery.data ?? suppliedRecord;
   const revokeItem = useRevokeAccessGrantItem();
-  const revokeModal = useEditModal<AccessGrant['menus'][number], { reason: string }>({
+  const revokeModal = useEditModal<AccessGrant['items'][number], { reason: string }>({
     entityName: '授权项',
     save: { isPending: revokeItem.isPending, mutateAsync: async ({ id, values }) => {
       const grant = await revokeItem.mutateAsync({ params: { id: id! }, body: values });
-      return grant.menus.find(item => item.id === id)!;
+      return grant.items.find(item => item.id === id)!;
     } },
     toValues: () => ({ reason: '' }),
     successMessage: () => '该授权项已撤销，其他授权项保留',
@@ -186,7 +186,7 @@ function GrantDetailSheet({ record: suppliedRecord, visible = suppliedRecord !==
       setRequestId(null);
     }
   }, [visible]);
-  const menuColumns: ColumnProps<AccessGrant['menus'][number]>[] = [
+  const menuColumns: ColumnProps<AccessGrant['items'][number]>[] = [
     { title: '权限码', dataIndex: 'permissionCode', minWidth: 220, render: (value: string | null) => value ?? EMPTY_PLACEHOLDER },
     { title: '权限名称', dataIndex: 'permissionLabel', width: 200, render: (value: string | null) => value ?? EMPTY_PLACEHOLDER },
     { title: '数据范围', dataIndex: 'dataScope', width: 130, render: (value: string) => dataScopeLabel(value) },
@@ -194,7 +194,7 @@ function GrantDetailSheet({ record: suppliedRecord, visible = suppliedRecord !==
     { title: '状态', dataIndex: 'status', width: 100, render: (value: AccessGrant['status']) => GRANT_STATUS_LABELS[value] },
     dateTimeColumn('生效时间', 'startsAt'),
     dateTimeColumn('失效时间', 'expiresAt', { empty: '永久有效' }),
-    createOperationColumn<AccessGrant['menus'][number]>({ width: 120, actions: row => [{ key: 'revoke', label: '撤销此项', danger: true, hidden: !hasPermission('system:access-governance:revoke') || !['active', 'scheduled'].includes(row.status), onClick: () => revokeModal.openEdit(row) }] }),
+    createOperationColumn<AccessGrant['items'][number]>({ width: 120, actions: row => [{ key: 'revoke', label: '撤销此项', danger: true, hidden: !hasPermission('system:access-governance:revoke') || !['active', 'scheduled'].includes(row.status), onClick: () => revokeModal.openEdit(row) }] }),
   ];
   return <>
     <DetailSheet title={record ? `授权详情 #${record.id}` : '授权详情'} visible={visible} onClose={onClose} width={1000}>
@@ -221,8 +221,8 @@ function GrantDetailSheet({ record: suppliedRecord, visible = suppliedRecord !==
             { key: '撤销原因', value: record.revokeReason ? <Text style={{ whiteSpace: 'pre-wrap' }}>{record.revokeReason}</Text> : EMPTY_PLACEHOLDER, span: 2 },
           ]}
         />
-        <Divider align="left" style={{ margin: '16px 0 10px' }}>授权权限项（{record.menus.length}）</Divider>
-        <Table columns={singleLineColumns(menuColumns)} dataSource={record.menus} rowKey="id" size="small" pagination={false} scroll={{ x: 1240 }} empty="暂无权限项" />
+        <Divider align="left" style={{ margin: '16px 0 10px' }}>授权权限项（{record.items.length}）</Divider>
+        <Table columns={singleLineColumns(menuColumns)} dataSource={record.items} rowKey="id" size="small" pagination={false} scroll={{ x: 1240 }} empty="暂无权限项" />
       </>}
     </DetailSheet>
     {visible && requestId !== null && <RequestRefSheet id={requestId} onClose={() => setRequestId(null)} />}
@@ -364,8 +364,8 @@ function GrantsTab() {
     { title: '用户', dataIndex: 'userName', minWidth: 120, render: (value) => value || EMPTY_PLACEHOLDER },
     { title: '风险等级', dataIndex: 'riskLevel', width: 100, render: (value: AccessGrant['riskLevel']) => <RiskTag value={value} /> },
     { title: '状态', dataIndex: 'status', width: 100, render: (value: AccessGrant['status']) => value === 'active' ? <Tag color="green" size="small">{GRANT_STATUS_LABELS[value]}</Tag> : GRANT_STATUS_LABELS[value] },
-    { title: '权限项', dataIndex: 'menus', width: 90, render: (menus: AccessGrant['menus']) => `${menus.length} 项` },
-    { title: '数据范围', dataIndex: 'menus', width: 170, render: (items: AccessGrant['menus']) => [...new Set(items.map(item => dataScopeLabel(item.dataScope)))].join('、') },
+    { title: '权限项', dataIndex: 'items', width: 90, render: (menus: AccessGrant['items']) => `${menus.length} 项` },
+    { title: '数据范围', dataIndex: 'items', width: 170, render: (items: AccessGrant['items']) => [...new Set(items.map(item => dataScopeLabel(item.dataScope)))].join('、') },
     dateTimeColumn('生效时间', 'startsAt'),
     dateTimeColumn('失效时间', 'expiresAt', { empty: '永久有效' }),
     createOperationColumn<AccessGrant>({ width: 210, actions: (row) => [
@@ -388,7 +388,7 @@ function PoliciesTab() {
   const modal = useEditModal<PermissionPolicy, UpdatePermissionPolicyInput & { permissionCode: string }>({
     entityName: '权限策略',
     save,
-    toValues: (record) => ({ permissionCode: record.permissionCode, riskLevel: record.riskLevel, approvalPolicy: record.approvalPolicy, maxDurationMinutes: record.maxDurationMinutes ?? null, reviewIntervalDays: record.reviewIntervalDays, mfaRequired: record.mfaRequired, enabled: record.enabled }),
+    toValues: (record) => ({ permissionCode: record.permissionCode, riskLevel: record.riskLevel, approvalPolicy: record.approvalPolicy, maxDurationMinutes: record.maxDurationMinutes ?? null, reviewIntervalDays: record.reviewIntervalDays, mfaRequired: record.mfaRequired, enabled: record.enabled, permanentAllowed: record.permanentAllowed, emergencyAllowed: record.emergencyAllowed, maxEmergencyMinutes: record.maxEmergencyMinutes }),
     beforeSave: values => ({ ...values, maxDurationMinutes: values.maxDurationMinutes ?? null }),
   });
   const columns: ColumnProps<PermissionPolicy>[] = [
@@ -425,6 +425,9 @@ function PoliciesTab() {
           <Form.InputNumber field="maxDurationMinutes" label="限时申请上限" min={1} suffix="分钟" extraText="选填，留空不限时长；不影响永久有效授权。" />
           <Form.InputNumber field="reviewIntervalDays" label="复核周期" min={risk === 'low' ? 0 : 1} max={risk === 'critical' ? 30 : risk === 'high' ? 90 : 3650} suffix="天" />
           <Form.Switch field="mfaRequired" label="审批时要求 MFA" disabled={risk === 'critical'} />
+          <Form.Switch field="permanentAllowed" label="允许永久授权" />
+          <Form.Switch field="emergencyAllowed" label="允许紧急授权" />
+          <Form.InputNumber field="maxEmergencyMinutes" label="紧急授权上限" min={1} max={1440} suffix="分钟" />
           <Form.Switch field="enabled" label="允许本人申请" disabled={modal.editing?.selfRequestable === false} />
         </>;
       }}

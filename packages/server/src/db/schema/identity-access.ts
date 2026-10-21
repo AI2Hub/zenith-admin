@@ -1,7 +1,7 @@
 import { pgEnum, pgTable, integer, varchar, boolean, jsonb, index, unique, uniqueIndex } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { ACCESS_PROVISION_STATUSES, ACCESS_APPROVAL_POLICIES, ACCESS_GRANT_SOURCES, ACCESS_GRANT_STATUSES, ACCESS_REQUEST_ITEM_TYPES, ACCESS_REQUEST_STATUSES, ACCESS_REQUEST_TYPES, ACCESS_REVIEW_DECISIONS, ACCESS_REVIEW_SCOPE_TYPES, ACCESS_REVIEW_STATUSES, ACCESS_REVIEW_SOURCE_TYPES, ACCESS_RISK_LEVELS } from '@zenith/shared/identity';
-import { auditColumns, dataScopeEnum, menus, roles, tenantIdColumn, users } from './core';
+import { auditColumns, dataScopeEnum, roles, tenantIdColumn, users } from './core';
 import { idColumn, timestamptz, timestampColumns } from './common';
 import { workflowInstances } from './workflow';
 import type { AccessPolicySnapshot, AccessApprovalPlan, AccessApprovalEvidence, AccessReviewHistory } from '@zenith/shared/identity';
@@ -29,6 +29,9 @@ export const identityPermissionPolicies = pgTable('identity_permission_policies'
   reviewIntervalDays: integer().notNull().default(0),
   mfaRequired: boolean().notNull().default(false),
   enabled: boolean().notNull().default(true),
+  permanentAllowed: boolean().notNull().default(false),
+  emergencyAllowed: boolean().notNull().default(false),
+  maxEmergencyMinutes: integer().notNull().default(60),
   tenantId: tenantIdColumn(),
   ...auditColumns(),
   ...timestampColumns(),
@@ -80,17 +83,17 @@ export const identityAccessRequestItems = pgTable('identity_access_request_items
   requestId: integer().notNull().references(() => identityAccessRequests.id, { onDelete: 'cascade' }),
   itemType: accessRequestItemTypeEnum().notNull(),
   roleId: integer().references(() => roles.id, { onDelete: 'set null' }),
-  menuId: integer().references(() => menus.id, { onDelete: 'set null' }),
-  permissionCode: varchar({ length: 128 }),
+  permissionCode: varchar({ length: 128 }).notNull(),
   permissionLabel: varchar({ length: 128 }),
   dataScope: dataScopeEnum(),
   deptScopeIds: jsonb().$type<number[]>().notNull().default([]),
+  scopeKey: varchar({ length: 2048 }).notNull(),
+  sourceRefs: jsonb().$type<Array<{ kind: 'direct' | 'role'; roleId?: number; roleVersion?: number; label: string }>>().notNull().default([]),
   snapshot: jsonb().$type<Record<string, unknown>>().notNull().default({}),
   createdAt: timestamptz().defaultNow().notNull(),
 }, (t) => [
   index('identity_access_request_items_request_idx').on(t.requestId),
   index('identity_access_request_items_role_idx').on(t.roleId),
-  index('identity_access_request_items_menu_idx').on(t.menuId),
 ]);
 
 export type IdentityAccessRequestItemRow = typeof identityAccessRequestItems.$inferSelect;
@@ -126,13 +129,14 @@ export const identityAccessGrants = pgTable('identity_access_grants', {
 export type IdentityAccessGrantRow = typeof identityAccessGrants.$inferSelect;
 export type NewIdentityAccessGrant = typeof identityAccessGrants.$inferInsert;
 
-export const identityAccessGrantMenus = pgTable('identity_access_grant_menus', {
+export const identityAccessGrantItems = pgTable('identity_access_grant_items', {
   id: idColumn(),
   grantId: integer().notNull().references(() => identityAccessGrants.id, { onDelete: 'cascade' }),
-  menuId: integer().notNull().references(() => menus.id, { onDelete: 'restrict' }),
   permissionCode: varchar({ length: 128 }).notNull(),
   permissionLabel: varchar({ length: 128 }),
   status: accessGrantStatusEnum().notNull().default('scheduled'),
+  scopeKey: varchar({ length: 2048 }).notNull(),
+  sourceRefs: jsonb().$type<Array<{ kind: 'direct' | 'role'; roleId?: number; roleVersion?: number; label: string }>>().notNull().default([]),
   dataScope: dataScopeEnum().notNull().default('self'),
   deptScopeIds: jsonb().$type<number[]>().notNull().default([]),
   startsAt: timestamptz().notNull(),
@@ -143,13 +147,13 @@ export const identityAccessGrantMenus = pgTable('identity_access_grant_menus', {
   revokedBy: integer().references(() => users.id, { onDelete: 'set null' }),
   revokeReason: varchar({ length: 1000 }),
 }, (t) => [
-  unique('identity_access_grant_menus_permission_scope_unique').on(t.grantId, t.permissionCode, t.dataScope),
-  index('identity_access_grant_menus_menu_idx').on(t.menuId),
-  index('identity_access_grant_menus_lifecycle_idx').on(t.status, t.expiresAt),
+  unique('identity_access_grant_items_permission_scope_unique').on(t.grantId, t.permissionCode, t.scopeKey),
+  index('identity_access_grant_items_permission_idx').on(t.permissionCode),
+  index('identity_access_grant_items_lifecycle_idx').on(t.status, t.expiresAt),
 ]);
 
-export type IdentityAccessGrantMenuRow = typeof identityAccessGrantMenus.$inferSelect;
-export type NewIdentityAccessGrantMenu = typeof identityAccessGrantMenus.$inferInsert;
+export type IdentityAccessGrantItemRow = typeof identityAccessGrantItems.$inferSelect;
+export type NewIdentityAccessGrantItem = typeof identityAccessGrantItems.$inferInsert;
 
 export const identityAccessReviewCampaigns = pgTable('identity_access_review_campaigns', {
   id: idColumn(),
@@ -210,3 +214,21 @@ export const identityAccessReviewItems = pgTable('identity_access_review_items',
 
 export type IdentityAccessReviewItemRow = typeof identityAccessReviewItems.$inferSelect;
 export type NewIdentityAccessReviewItem = typeof identityAccessReviewItems.$inferInsert;
+
+/** Direct permissions are independent from navigation and have stable review source IDs. */
+export const identityUserPermissions = pgTable('identity_user_permissions', {
+  id: idColumn(), userId: integer().notNull().references(() => users.id, { onDelete: 'cascade' }),
+  permissionCode: varchar({ length: 128 }).notNull(),
+  dataScope: dataScopeEnum().notNull().default('self'),
+  deptScopeIds: jsonb().$type<number[]>().notNull().default([]),
+  scopeKey: varchar({ length: 2048 }).notNull(),
+  ...auditColumns(), ...timestampColumns(),
+}, t => [unique('identity_user_permissions_scope_unique').on(t.userId, t.permissionCode, t.scopeKey)]);
+
+/** Immutable published role content; bindings read the role's current published version. */
+export const identityRoleVersions = pgTable('identity_role_versions', {
+  id: idColumn(), roleId: integer().notNull().references(() => roles.id, { onDelete: 'cascade' }),
+  version: integer().notNull(), permissionCodes: jsonb().$type<string[]>().notNull(),
+  dataScope: dataScopeEnum().notNull(), deptScopeIds: jsonb().$type<number[]>().notNull().default([]),
+  ...auditColumns(), createdAt: timestamptz().defaultNow().notNull(),
+}, t => [unique('identity_role_versions_number_unique').on(t.roleId, t.version)]);

@@ -15,6 +15,20 @@
       "when": 1792417872173,
       "tag": "0001_extensions",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792546368408,
+      "tag": "0002_goofy_eddie_brock",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792546620429,
+      "tag": "0003_authority_guards",
+      "breakpoints": true
     }
   ]
 }

@@ -160,6 +160,17 @@ export const usersHandlers = [
     return ok(toUserResponse(user), '更新成功');
   }),
 
+  mock(userContract.manage, ({ params, body, ok }) => {
+    const user = requireItem(mockUsers, params.id, '用户不存在', { status: 404 });
+    Object.assign(user, body.profile ?? {}, { updatedAt: mockDateTime() });
+    if (body.organization) {
+      user.departmentId = body.organization.departmentId;
+      user.positionIds = body.organization.positionIds;
+      user.positions = resolvePositions(body.organization.positionIds);
+    }
+    return ok(toUserResponse(user));
+  }),
+
   mock(userContract.organization, ({ params, body, ok }) => {
     const user = requireItem(mockUsers, params.id, '用户不存在', { status: 404 });
     user.departmentId = body.departmentId;

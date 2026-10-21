@@ -38,7 +38,7 @@ import { useListSearch } from '@/hooks/useListSearch';
 import { useListDeepLink } from '@/hooks/useListDeepLink';
 import {
   useAssignUserRoles,
-  useUpdateUserOrganization,
+  useManageUser,
   useBatchUserPassword,
   useBatchUserStatus,
   useDeleteUsers,
@@ -84,9 +84,11 @@ interface UserFormValues extends Partial<Omit<CreateUserInput, 'email' | 'phone'
   phone?: string | null;
   gender?: string | null;
   birthDate?: Date | string | null;
+  departmentId?: number | null;
+  positionIds?: number[];
 }
 
-type UserSavePayload = Partial<BodyOf<typeof userContract.create>>;
+type UserSavePayload = Partial<BodyOf<typeof userContract.create>> & Pick<BodyOf<typeof userContract.manage>, 'profile' | 'organization'>;
 
 interface ResetPasswordFormValues {
   password: string;
@@ -168,19 +170,17 @@ export default function UsersPage() {
   const toggleStatusMutation = useBatchUserStatus();
   const batchPasswordMutation = useBatchUserPassword();
   const assignRolesMutation = useAssignUserRoles();
-  const organizationMutation = useUpdateUserOrganization();
-  const organizationModal = useEditModal<User, BodyOf<typeof userContract.organization>>({
-    entityName: '组织归属',
-    save: { isPending: organizationMutation.isPending, mutateAsync: ({ id, values }) => organizationMutation.mutateAsync({ params: { id: id! }, body: values }) },
-    toValues: user => ({ departmentId: user.departmentId ?? null, positionIds: user.positionIds ?? [] }),
-  });
+  const manageMutation = useManageUser();
+  const canEditOrganization = hasPermission('system:user:organization');
   const roleEffectivePermissionsQuery = useUserEffectivePermissions(roleAssignUser?.id, roleAssignVisible);
   const kickSessionsMutation = useKickUserSessions();
   // 敏感字段（手机号 / 邮箱）对非豁免用户是掩码：编辑时锁定，提交前剔除未修改的锁定字段
   const sensitiveFieldsRef = useRef<ReturnType<typeof useSensitiveFormFields<User>> | null>(null);
   const modal = useEditModal<User, UserFormValues, UserSavePayload>({
     entityName: '用户',
-    save: saveMutation,
+    save: { isPending: saveMutation.isPending || manageMutation.isPending, mutateAsync: ({ id, values }) => id === undefined
+      ? saveMutation.mutateAsync({ values })
+      : manageMutation.mutateAsync({ params: { id }, body: { profile: values.profile, organization: values.organization } }) },
     useDetail: useUserDetail,
     defaults: {},
     toValues: (user) => ({
@@ -190,12 +190,15 @@ export default function UsersPage() {
       phone: user.phone ?? undefined,
       gender: user.gender ?? undefined,
       birthDate: user.birthDate ?? undefined,
+      departmentId: user.departmentId ?? null,
+      positionIds: user.positionIds ?? [],
     }),
-    beforeSave: (rawValues) => {
+    beforeSave: (rawValues, { editing }) => {
       const control = sensitiveFieldsRef.current;
       const values = (control ? control.strip(rawValues as unknown as Record<string, unknown>) : rawValues) as UserFormValues;
+      const { departmentId, positionIds, ...profileValues } = values;
       const payload: UserSavePayload = {
-        ...values,
+        ...profileValues,
         email: values.email ?? undefined,
         phone: values.phone ?? undefined,
         gender: values.gender ?? null,
@@ -205,7 +208,9 @@ export default function UsersPage() {
       if (!('email' in values)) delete payload.email;
       if (!('phone' in values)) delete payload.phone;
 
-      return payload;
+      if (!editing) return payload;
+      const organizationChanged = (departmentId ?? null) !== (editing.departmentId ?? null) || JSON.stringify([...(positionIds ?? [])].sort()) !== JSON.stringify([...(editing.positionIds ?? [])].sort());
+      return { profile: hasPermission('system:user:update') ? payload : undefined, organization: canEditOrganization && organizationChanged ? { departmentId: departmentId ?? null, positionIds: positionIds ?? [] } : undefined };
     },
     labelWidth: 72,
   });
@@ -448,7 +453,6 @@ export default function UsersPage() {
       actions: (record) => {
         const isAdmin = isAdminUser(record);
         return [
-          { key: 'organization', label: '调整组织', hidden: !hasPermission('system:user:organization') || record.id === currentUser?.id, onClick: () => organizationModal.openEdit(record) },
           {
             key: 'edit',
             label: '编辑',
@@ -557,7 +561,7 @@ export default function UsersPage() {
         ];
       },
     }),
-  ], [hasPermission, status, deleteMutation, handleUnlock, kickUserSessions, refetchUserList, openEdit, openPassword, canImpersonate, openImpersonate, canViewUserLogs, organizationModal, currentUser?.id]);
+  ], [hasPermission, status, deleteMutation, handleUnlock, kickUserSessions, refetchUserList, openEdit, openPassword, canImpersonate, openImpersonate, canViewUserLogs, currentUser?.id]);
 
   const [showDeptTree, setShowDeptTree] = useState(false);
   const [isLayoutNarrow, setIsLayoutNarrow] = useState(false);
@@ -800,11 +804,12 @@ export default function UsersPage() {
             />
           </Col>
         </Row>
-      </EditFormModal>
-
-      <EditFormModal modal={organizationModal} title="调整组织归属" width={560}>
-        <Form.TreeSelect field="departmentId" label="所属部门" treeData={departmentTreeData} filterTreeNode showClear style={{ width: '100%' }} />
-        <Form.Select field="positionIds" label="岗位" multiple filter optionList={positionOptionList} style={{ width: '100%' }} />
+        {editingUser && canEditOrganization && editingUser.id !== currentUser?.id && <>
+          <Form.Section text="组织归属">
+            <Form.TreeSelect field="departmentId" label="所属部门" treeData={departmentTreeData} filterTreeNode showClear style={{ width: '100%' }} />
+            <Form.Select field="positionIds" label="岗位" multiple filter optionList={positionOptionList} style={{ width: '100%' }} />
+          </Form.Section>
+        </>}
       </EditFormModal>
 
       <EditFormModal modal={passwordModal} title={passwordModal.editing ? `修改密码 - ${passwordModal.editing.nickname}` : '修改密码'} onCancel={() => { passwordModal.close(); setEditPwdVal(''); }} width={420}>

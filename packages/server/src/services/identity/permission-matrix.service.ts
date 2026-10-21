@@ -12,24 +12,9 @@ import { roles, users } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { requireRow } from '../../lib/db-assert';
 import { getUserPermissions, isSuperAdmin } from '../../lib/permissions';
-import { getTenantPackageFeatureSet } from '../../lib/tenant-package';
+import { availablePermissionCodes } from './permission-catalog.service';
 import { tenantCondition } from '../../lib/tenant';
 import { extractEnabledGroupRoles, enabledGroupRolesWith } from '../../lib/user-group-access';
-
-const MENU_COLUMNS = { permission: true, status: true, featureKey: true } as const;
-
-type MenuRow = { permission: string | null; status: string; featureKey: string | null };
-
-/** 启用菜单的权限码，按租户套餐功能集过滤（featureKey 为空的核心能力永远保留） */
-async function permissionsOfMenus(menuRows: readonly MenuRow[], tenantId: number | null): Promise<string[]> {
-  const featureSet = await getTenantPackageFeatureSet(tenantId);
-  const codes = menuRows
-    .filter((menu) => menu.status === 'enabled')
-    .filter((menu) => !featureSet || !menu.featureKey || featureSet.has(menu.featureKey))
-    .map((menu) => menu.permission)
-    .filter((code): code is string => !!code);
-  return [...new Set(codes)].sort();
-}
 
 /** 当前租户视角下全部角色各自生效的权限码 */
 export async function listRolePermissionSets(): Promise<RolePermissionSet[]> {
@@ -37,8 +22,7 @@ export async function listRolePermissionSets(): Promise<RolePermissionSet[]> {
   const rows = await db.query.roles.findMany({
     where: tenantCondition(roles, user),
     orderBy: [asc(roles.id)],
-    columns: { id: true, name: true, code: true, status: true, tenantId: true },
-    with: { roleMenus: { columns: {}, with: { menu: { columns: MENU_COLUMNS } } } },
+    columns: { id: true, name: true, code: true, status: true, tenantId: true, permissionCodes: true },
   });
   return Promise.all(rows.map(async (role) => ({
     id: role.id,
@@ -47,7 +31,7 @@ export async function listRolePermissionSets(): Promise<RolePermissionSet[]> {
     status: role.status,
     tenantId: role.tenantId,
     superAdmin: role.code === SUPER_ADMIN_CODE && role.tenantId === null,
-    permissions: await permissionsOfMenus(role.roleMenus.map(({ menu }) => menu), role.tenantId),
+    permissions: role.status === 'enabled' ? await availablePermissionCodes(role.permissionCodes, role.tenantId) : [],
   })));
 }
 

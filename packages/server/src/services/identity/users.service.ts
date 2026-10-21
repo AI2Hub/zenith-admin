@@ -4,7 +4,7 @@ import { eq, and, ne, inArray, exists, type SQL } from 'drizzle-orm';
 import { hashPassword } from '../../lib/password';
 import { db } from '../../db';
 import type { DbExecutor } from '../../db/types';
-import { users, userRoles, roles, departments, positions, userPositions, userMenus, userDeptScopes, userSignatures, menus, identityAccessGrants } from '../../db/schema';
+import { users, userRoles, roles, departments, positions, userPositions, userMenus, userDeptScopes, userSignatures, menus, identityUserPermissions, identityAccessGrants } from '../../db/schema';
 import { HTTPException } from 'hono/http-exception';
 import { exactTenantCondition, tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import { reserveTenantSeats } from '../../lib/tenant-quota';
@@ -18,11 +18,12 @@ import { validatePassword } from '@zenith/shared/settings';
 import { getSettings } from '../../lib/settings';
 import { unlockUser as clearLoginChallenge, batchLoginChallengeRequired, getOnlineSessions, forceLogoutAllByUsers } from '../../lib/session-manager';
 import { batchIterable, streamToExcel, streamToCsv, formatDateTimeForExcel, type ExcelColumn } from '../../lib/excel-export';
-import { clearUserPermissionCache, getUserMenuIds } from '../../lib/permissions';
+import { clearUserPermissionCache, getUserMenuIds, getUserPermissions } from '../../lib/permissions';
 import type { JwtPayload } from '../../middleware/auth';
 import type { AlertRecipientUser, User, CreateUserInput, UpdateUserInput } from '@zenith/shared/identity';
-import { mostPermissiveDataScope, userContract, createUserSchema, updateUserSchema } from '@zenith/shared/identity';
+import { accessScopeKey, mostPermissiveDataScope, userContract, createUserSchema, updateUserSchema, manageUserSchema } from '@zenith/shared/identity';
 import type { QueryOutputOf } from '@zenith/shared/core';
+import { navigationForPermissions } from './permission-catalog.service';
 import { currentUser } from '../../lib/context';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { formatDateTime, formatNullableDateTime, formatTimestamps } from '../../lib/datetime';
@@ -31,7 +32,7 @@ import logger from '../../lib/logger';
 import { userHasPlatformSuperRole } from './role-grant';
 import { emitIdentityRemoval } from '../../lib/identity-lifecycle';
 import { releaseIdentitySignatures } from './user-signature-lifecycle';
-import { assertAuthorityActor, assertAuthorityGrant, provisionBasicUser, replaceUserRoles } from './authority-write.service';
+import { assertAuthorityActor, assertAuthorityGrant, assertProfileActor, provisionBasicUser, replaceDirectPermissions, replaceUserRoles } from './authority-write.service';
 
 // ─── 关联查询配置 ─────────────────────────────────────────────────────────────
 
@@ -414,33 +415,50 @@ export async function getUserRoleAssignmentAudit(id: number) {
   };
 }
 
+export async function manageUser(id: number, data: import('@zenith/shared/core').BodyOf<typeof userContract.manage>) {
+  const parsed = manageUserSchema.safeParse(data);
+  if (!parsed.success) throw new HTTPException(400, { message: parsed.error.issues[0]?.message ?? '用户变更无效' });
+  const target = await ensureUserManageable(id);
+  const profile = parsed.data.profile;
+  const organization = parsed.data.organization;
+  try {
+    await db.transaction(async tx => {
+      if (profile && Object.keys(profile).length) await assertProfileActor(tx, target.tenantId);
+      if (organization) {
+        await assertAuthorityActor(tx, target.tenantId, 'system:user:organization', [id]);
+        if (organization.departmentId !== null) requireRow(await tx.query.departments.findFirst({ where: and(eq(departments.id, organization.departmentId), exactTenantCondition(departments.tenantId, target.tenantId)) }), '所属部门不存在');
+        const ids = [...new Set(organization.positionIds)];
+        const found = ids.length ? await tx.select({ id: positions.id }).from(positions).where(and(inArray(positions.id, ids), exactTenantCondition(positions.tenantId, target.tenantId))) : [];
+        if (found.length !== ids.length) throw new HTTPException(400, { message: '岗位不存在或不属于目标租户' });
+      }
+      if (profile) for (const [field, column] of [['username', users.username], ['email', users.email], ['phone', users.phone]] as const) {
+        const value = profile[field];
+        if (!value) continue;
+        const duplicate = await tx.select({ id: users.id }).from(users).where(and(eq(column, value), ne(users.id, id), exactTenantCondition(users.tenantId, target.tenantId))).limit(1);
+        if (duplicate.length) throw new HTTPException(400, { message: '用户名、邮箱或手机号已存在' });
+      }
+      await tx.update(users).set({ ...profile, ...(organization ? { departmentId: organization.departmentId } : {}) }).where(and(eq(users.id, id), exactTenantCondition(users.tenantId, target.tenantId)));
+      if (organization) await setUserPositions(tx, id, organization.positionIds);
+    });
+  } catch (error) {
+    if (error instanceof HTTPException) throw error;
+    rethrowPgUniqueViolation(error, '用户名、邮箱或手机号已存在');
+  }
+  if (organization) {
+    await clearUserPermissionCache(id);
+    await syncUserDynamicMembershipsSafe([id], '调整用户组织归属');
+  }
+  return getUser(id);
+}
+
 export async function updateUser(id: number, data: UpdateUserInput) {
   const parsed = updateUserSchema.safeParse(data);
   if (!parsed.success) throw new HTTPException(400, { message: '普通资料不能包含角色、组织、状态或其他授权字段' });
-  const target = await ensureUserManageable(id);
-  for (const [field, column] of [['username', users.username], ['email', users.email], ['phone', users.phone]] as const) {
-    const value = parsed.data[field];
-    if (!value) continue;
-    const duplicate = await db.select({ id: users.id }).from(users)
-      .where(and(eq(column, value), ne(users.id, id), exactTenantCondition(users.tenantId, target.tenantId))).limit(1);
-    if (duplicate.length) throw new HTTPException(400, { message: '用户名、邮箱或手机号已存在' });
-  }
-  await db.update(users).set(parsed.data).where(and(eq(users.id, id), exactTenantCondition(users.tenantId, target.tenantId)));
-  const full = await findUserWithRelations({ where: and(eq(users.id, id), exactTenantCondition(users.tenantId, target.tenantId)) });
-  return mapUser(requireRow(full, '用户不存在'));
+  return manageUser(id, { profile: parsed.data });
 }
 
 export async function updateUserOrganization(id: number, data: { departmentId: number | null; positionIds: number[] }) {
-  const target = await ensureUserManageable(id);
-  await Promise.all([ensureDepartmentExists(data.departmentId, currentUser()), ensurePositionIdsExist(data.positionIds, currentUser())]);
-  await db.transaction(async tx => {
-    await assertAuthorityActor(tx, target.tenantId, 'system:user:organization', [id]);
-    await tx.update(users).set({ departmentId: data.departmentId }).where(and(eq(users.id, id), exactTenantCondition(users.tenantId, target.tenantId)));
-    await setUserPositions(tx, id, data.positionIds);
-  });
-  await clearUserPermissionCache(id);
-  await syncUserDynamicMembershipsSafe([id], '调整用户组织归属');
-  return getUser(id);
+  return manageUser(id, { organization: data });
 }
 
 export async function deleteUser(id: number) {
@@ -583,7 +601,7 @@ export async function assignUserMenus(userId: number, menuIds: number[]) {
     }
   }
   await db.transaction(async (tx) => {
-    await assertAuthorityGrant(tx, { tenantId: target.tenantId, permission: 'system:user:assign', beneficiaryIds: [userId], menuIds: uniqueMenuIds });
+    await replaceDirectPermissions(tx, userId, uniqueMenuIds, target.tenantId);
     await tx.delete(userMenus).where(eq(userMenus.userId, userId));
     if (uniqueMenuIds.length > 0) {
       await tx.insert(userMenus).values(uniqueMenuIds.map((menuId) => ({ userId, menuId })));
@@ -714,6 +732,8 @@ export async function updateUserDataPermission(userId: number, data: { dataScope
     await tx.update(users)
       .set({ userDataScope: data.dataScope as typeof users.$inferInsert['userDataScope'] })
       .where(eq(users.id, userId));
+    const scope = data.dataScope as import('@zenith/shared/identity').DataScope | null;
+    await tx.update(identityUserPermissions).set({ dataScope: scope ?? 'self', deptScopeIds: scope === 'custom' ? data.deptScopeIds : [], scopeKey: accessScopeKey(scope ?? 'self', data.deptScopeIds) }).where(eq(identityUserPermissions.userId, userId));
     await tx.delete(userDeptScopes).where(eq(userDeptScopes.userId, userId));
     if (data.dataScope === 'custom' && data.deptScopeIds.length > 0) {
       await tx.insert(userDeptScopes).values(data.deptScopeIds.map((deptId) => ({ userId, deptId })));
@@ -744,11 +764,11 @@ export async function getUserEffectivePermissions(userId: number) {
         },
       },
       userGroupMembers: groupRolesWith,
-      accessGrants: { where: inArray(identityAccessGrants.status, ['scheduled', 'active']), columns: { id: true, status: true, startsAt: true, expiresAt: true }, with: { menus: { with: { menu: { columns: { permission: true, status: true } } } } } },
+      accessGrants: { where: inArray(identityAccessGrants.status, ['scheduled', 'active']), columns: { id: true, status: true, startsAt: true, expiresAt: true }, with: { items: { with: { menu: { columns: { permission: true, status: true } } } } } },
     },
   }), '用户不存在');
   const activeRoles = user.userRoles.filter(binding => binding.role.status === 'enabled');
-  const activeItems = user.accessGrants.filter(grant => grant.startsAt <= now && (!grant.expiresAt || grant.expiresAt > now)).flatMap(grant => grant.menus.filter(item => ['scheduled', 'active'].includes(item.status) && item.startsAt <= now && (!item.expiresAt || item.expiresAt > now) && item.menu.status === 'enabled' && item.menu.permission === item.permissionCode).map(item => ({ ...item, grantId: grant.id })));
+  const activeItems = user.accessGrants.filter(grant => grant.startsAt <= now && (!grant.expiresAt || grant.expiresAt > now)).flatMap(grant => grant.items.filter(item => ['scheduled', 'active'].includes(item.status) && item.startsAt <= now && (!item.expiresAt || item.expiresAt > now) && item.menu.status === 'enabled' && item.menu.permission === item.permissionCode).map(item => ({ ...item, grantId: grant.id })));
 
   const { groupMenuIds, groupDataScope, groupDeptScopeIds, groups, inheritedRoles } = extractGroupInheritance(user.userGroupMembers ?? []);
 
@@ -756,9 +776,18 @@ export async function getUserEffectivePermissions(userId: number) {
   const roleMenuIds = [...new Set(activeRoles.flatMap((ur) => ur.role.roleMenus.map((rm) => rm.menuId)))];
   const effectiveMenuIds = await getUserMenuIds(userId);
   const effective = new Set(effectiveMenuIds);
-  const temporaryMenuIds = [...new Set(activeItems.filter(item => effective.has(item.menuId)).map(item => item.menuId))];
-  const temporaryScopes = activeItems.filter(item => effective.has(item.menuId)).map(item => ({ grantId: item.grantId, grantItemId: item.id, menuId: item.menuId, permissionCode: item.permissionCode, dataScope: item.dataScope, deptScopeIds: item.deptScopeIds, expiresAt: item.expiresAt ? formatDateTime(item.expiresAt) : null }));
+  const permissionCodes = await getUserPermissions(userId);
+  const allowedCodes = new Set(permissionCodes);
+  const temporaryMenuIds = await navigationForPermissions(activeItems.filter(item => allowedCodes.has(item.permissionCode)).map(item => item.permissionCode));
+  const temporaryScopes = activeItems.filter(item => allowedCodes.has(item.permissionCode)).map(item => ({ grantId: item.grantId, grantItemId: item.id, permissionCode: item.permissionCode, dataScope: item.dataScope, deptScopeIds: item.deptScopeIds, expiresAt: item.expiresAt ? formatDateTime(item.expiresAt) : null }));
   const menuSources = new Map<number, Set<string>>();
+  const permissionSources: Record<string, string[]> = {};
+  for (const code of permissionCodes) permissionSources[code] = [];
+  for (const item of activeItems) if (allowedCodes.has(item.permissionCode)) permissionSources[item.permissionCode].push(`审批授权 #${item.grantId}`);
+  const authoritative = await db.query.users.findFirst({ where: eq(users.id, userId), with: { userRoles: { with: { role: true } }, directPermissions: true, userGroupMembers: enabledGroupRolesWith({ columns: { id: true, name: true, status: true, permissionCodes: true } }) } });
+  for (const binding of authoritative?.userRoles ?? []) if (binding.role.status === 'enabled') for (const code of binding.role.permissionCodes) if (allowedCodes.has(code)) permissionSources[code].push(`角色：${binding.role.name}`);
+  for (const item of authoritative?.directPermissions ?? []) if (allowedCodes.has(item.permissionCode)) permissionSources[item.permissionCode].push('用户直接授权');
+  for (const role of extractEnabledGroupRoles(authoritative?.userGroupMembers).roles) for (const code of role.permissionCodes) if (allowedCodes.has(code)) permissionSources[code].push(`用户组继承角色：${role.name}`);
   const addMenuSource = (menuId: number, source: string) => {
     const sources = menuSources.get(menuId) ?? new Set<string>();
     sources.add(source);
@@ -768,7 +797,7 @@ export async function getUserEffectivePermissions(userId: number) {
   for (const userRole of activeRoles) {
     for (const roleMenu of userRole.role.roleMenus) addMenuSource(roleMenu.menuId, `角色：${userRole.role.name}`);
   }
-  for (const item of activeItems) if (effective.has(item.menuId)) addMenuSource(item.menuId, `审批授权 #${item.grantId} · ${item.dataScope} · ${item.expiresAt ? `至 ${formatDateTime(item.expiresAt)}` : '永久有效'}`);
+  for (const item of activeItems) if (allowedCodes.has(item.permissionCode)) for (const menuId of await navigationForPermissions([item.permissionCode])) addMenuSource(menuId, `审批授权 #${item.grantId} · ${item.dataScope} · ${item.expiresAt ? `至 ${formatDateTime(item.expiresAt)}` : '永久有效'}`);
   for (const membership of user.userGroupMembers ?? []) {
     if (membership.group.status !== 'enabled') continue;
     for (const groupRole of membership.group.groupRoles) {
@@ -802,6 +831,7 @@ export async function getUserEffectivePermissions(userId: number) {
     roleMenuIds,
     groupMenuIds,
     effectiveMenuIds,
+    permissionCodes, permissionSources,
     temporaryMenuIds,
     temporaryScopes,
     userDataScope,

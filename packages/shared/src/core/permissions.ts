@@ -23,6 +23,10 @@ export interface PermissionMeta {
   readonly riskLevel?: 'low' | 'high' | 'critical';
   /** 是否允许本人通过临时授权流程申请；治理控制能力可以显式禁止。 */
   readonly selfRequestable?: boolean;
+  /** Explicit self-service decision; unspecified capabilities require manual approval. */
+  readonly permanentAllowed?: boolean;
+  readonly emergencyAllowed?: boolean;
+  readonly maxEmergencyMinutes?: number;
   /** 权限治理默认审批策略；未声明时使用对应风险的审批策略 */
   readonly approvalPolicy?: 'none' | 'manager' | 'manager_security' | 'two_person';
   /** 临时授权默认最大时长（分钟）；未声明时由运行时策略决定 */

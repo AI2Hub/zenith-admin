@@ -13,6 +13,7 @@ import {
   updateUserDataPermissionSchema,
   updateUserSchema,
   updateUserOrganizationSchema,
+  manageUserSchema,
 } from '../validation';
 import { positionSchema } from './positions';
 import { roleSchema } from './roles';
@@ -99,7 +100,9 @@ export const userEffectivePermissionsSchema = z.object({
   groupMenuIds: z.array(z.int()).meta({ description: '用户组继承的菜单 ID 列表' }),
   effectiveMenuIds: z.array(z.int()),
   temporaryMenuIds: z.array(z.int()),
-  temporaryScopes: z.array(z.object({ grantId: z.int(), grantItemId: z.int(), menuId: z.int(), permissionCode: z.string(), dataScope: z.enum(DATA_SCOPES), deptScopeIds: z.array(z.int()), expiresAt: z.string().nullable() })),
+  permissionCodes: z.array(z.string()),
+  permissionSources: z.record(z.string(), z.array(z.string())),
+  temporaryScopes: z.array(z.object({ grantId: z.int(), grantItemId: z.int(), permissionCode: z.string(), dataScope: z.enum(DATA_SCOPES), deptScopeIds: z.array(z.int()), expiresAt: z.string().nullable() })),
   userDataScope: z.enum(DATA_SCOPES).nullable(),
   roleDataScope: z.string().nullable(),
   groupDataScope: z.string().nullable(),
@@ -138,6 +141,7 @@ export const userContract = defineContract('/api/users', {
   resetPassword: op.put('/{id}/password', { access: { permission: 'system:user:credentials' }, audit: '修改用户密码', params: idParam, body: resetUserPasswordSchema, summary: '修改用户密码' }),
   unlock: op.post('/{id}/unlock', { access: { permission: 'system:user:credentials' }, audit: '清除账号登录验证码要求', params: idParam, summary: '清除登录验证码要求' }),
   organization: op.put('/{id}/organization', { access: { permission: 'system:user:organization' }, audit: '调整用户组织归属', params: idParam, body: updateUserOrganizationSchema, response: userSchema, summary: '调整部门及岗位' }),
+  manage: op.put('/{id}/manage', { access: { permission: ['system:user:update', 'system:user:organization'] }, audit: '更新用户资料及组织归属', params: idParam, body: manageUserSchema, response: userSchema, summary: '独立鉴权后原子保存资料和组织' }),
   detail: op.get('/{id}', { access: { permission: 'system:user:list' }, params: idParam, response: userSchema, summary: '获取用户详情' }),
   update: op.put('/{id}', { access: { permission: 'system:user:update' }, audit: '更新用户', params: idParam, body: updateUserSchema, response: userSchema, summary: '更新用户' }),
   remove: op.delete('/{id}', { access: { permission: 'system:user:delete' }, audit: '删除用户', params: idParam, summary: '删除用户' }),

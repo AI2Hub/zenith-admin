@@ -3,7 +3,7 @@ import { HTTPException } from 'hono/http-exception';
 import type { RevokeAccessGrantInput } from '@zenith/shared/identity';
 import { db } from '../../db';
 import type { DbExecutor } from '../../db/types';
-import { identityAccessGrantMenus, identityAccessGrants, identityAccessRequests, identityAccessRequestItems, workflowInstances, workflowJobs } from '../../db/schema';
+import { identityAccessGrantItems, identityAccessGrants, identityAccessRequests, identityAccessRequestItems, workflowInstances, workflowJobs } from '../../db/schema';
 import { currentUser, setAuditBefore } from '../../lib/context';
 import { exactTenantCondition, tenantCondition } from '../../lib/tenant';
 import { requireRow } from '../../lib/db-assert';
@@ -21,7 +21,7 @@ export async function refreshAccessGrantHeader(executor: DbExecutor, grantId: nu
   const where = and(eq(identityAccessGrants.id, grantId), exactTenantCondition(identityAccessGrants.tenantId, tenantId));
   const [grant] = await executor.select().from(identityAccessGrants).where(where).for('update').limit(1);
   if (!grant || grant.status === 'revoked') return;
-  const items = await executor.query.identityAccessGrantMenus.findMany({ where: eq(identityAccessGrantMenus.grantId, grantId) });
+  const items = await executor.query.identityAccessGrantItems.findMany({ where: eq(identityAccessGrantItems.grantId, grantId) });
   const remaining = items.filter(item => item.status !== 'revoked');
   if (!remaining.length) {
     await executor.update(identityAccessGrants).set({ status: 'revoked', revokedAt: new Date(), revokedBy: actorId ?? null, revokeReason: reason ?? '全部授权项已撤销' }).where(where);
@@ -36,15 +36,15 @@ export async function refreshAccessGrantHeader(executor: DbExecutor, grantId: nu
 }
 
 export async function revokeAccessGrantItemInTransaction(executor: DbExecutor, itemId: number, tenantId: number | null, actorId: number, reason: string) {
-  const item = requireRow(await executor.query.identityAccessGrantMenus.findFirst({ where: eq(identityAccessGrantMenus.id, itemId), with: { grant: true } }), '授权项不存在');
+  const item = requireRow(await executor.query.identityAccessGrantItems.findFirst({ where: eq(identityAccessGrantItems.id, itemId), with: { grant: true } }), '授权项不存在');
   if (item.grant.tenantId !== tenantId) throw new HTTPException(404, { message: '授权项不存在' });
   const where = and(eq(identityAccessGrants.id, item.grantId), exactTenantCondition(identityAccessGrants.tenantId, tenantId));
   const [grant] = await executor.select().from(identityAccessGrants).where(where).for('update').limit(1);
   requireRow(grant, '授权不存在');
-  const currentItem = requireRow(await executor.query.identityAccessGrantMenus.findFirst({ where: and(eq(identityAccessGrantMenus.id, itemId), eq(identityAccessGrantMenus.grantId, grant.id)) }), '授权项不存在');
+  const currentItem = requireRow(await executor.query.identityAccessGrantItems.findFirst({ where: and(eq(identityAccessGrantItems.id, itemId), eq(identityAccessGrantItems.grantId, grant.id)) }), '授权项不存在');
   if (currentItem.status !== 'revoked') {
-    await executor.update(identityAccessGrantMenus).set({ status: 'revoked', revokedBy: actorId, revokedAt: new Date(), revokeReason: reason })
-      .where(and(eq(identityAccessGrantMenus.id, itemId), eq(identityAccessGrantMenus.grantId, grant.id)));
+    await executor.update(identityAccessGrantItems).set({ status: 'revoked', revokedBy: actorId, revokedAt: new Date(), revokeReason: reason })
+      .where(and(eq(identityAccessGrantItems.id, itemId), eq(identityAccessGrantItems.grantId, grant.id)));
     await refreshAccessGrantHeader(executor, grant.id, tenantId, actorId, reason);
     const names = await resolveUserNames([grant.userId], executor);
     await notifyWithin(executor, 'identity.access.revoked', { recipients: [{ type: 'user', id: grant.userId }], vars: { grantId: grant.id, targetName: names.get(grant.userId) ?? `用户 ${grant.userId}`, reason: `${currentItem.permissionLabel ?? currentItem.permissionCode}（单项）：${reason}` }, tenantId, link: '/workflow/launchpad', dedupeKey: `identity-access-item-revoked:${itemId}` });
@@ -53,12 +53,12 @@ export async function revokeAccessGrantItemInTransaction(executor: DbExecutor, i
 }
 
 async function readGrant(grantId: number) {
-  return formatAccessGrant(requireRow(await db.query.identityAccessGrants.findFirst({ where: and(eq(identityAccessGrants.id, grantId), tenantCondition(identityAccessGrants, currentUser())), with: { user: true, approver: true, revoker: true, menus: true } }), '临时授权不存在'));
+  return formatAccessGrant(requireRow(await db.query.identityAccessGrants.findFirst({ where: and(eq(identityAccessGrants.id, grantId), tenantCondition(identityAccessGrants, currentUser())), with: { user: true, approver: true, revoker: true, items: true } }), '临时授权不存在'));
 }
 
 export async function revokeAccessGrantItem(id: number, input: RevokeAccessGrantInput) {
   const actor = currentUser();
-  const item = requireRow(await db.query.identityAccessGrantMenus.findFirst({ where: eq(identityAccessGrantMenus.id, id), with: { grant: true } }), '授权项不存在');
+  const item = requireRow(await db.query.identityAccessGrantItems.findFirst({ where: eq(identityAccessGrantItems.id, id), with: { grant: true } }), '授权项不存在');
   const allowed = requireRow(await db.query.identityAccessGrants.findFirst({ where: and(eq(identityAccessGrants.id, item.grantId), tenantCondition(identityAccessGrants, actor)), columns: { id: true, tenantId: true } }), '授权项不存在');
   setAuditBefore(await readGrant(item.grantId));
   const changed = await db.transaction(tx => revokeAccessGrantItemInTransaction(tx, id, allowed.tenantId, actor.userId, input.reason));
@@ -74,7 +74,7 @@ export async function revokeAccessGrant(id: number, input: RevokeAccessGrantInpu
     const [row] = await tx.select().from(identityAccessGrants).where(where).for('update').limit(1);
     requireRow(row, '临时授权不存在');
     if (row.status !== 'revoked') {
-      await tx.update(identityAccessGrantMenus).set({ status: 'revoked', revokedBy: actor.userId, revokedAt: new Date(), revokeReason: input.reason }).where(and(eq(identityAccessGrantMenus.grantId, id), inArray(identityAccessGrantMenus.status, ['scheduled', 'active'])));
+      await tx.update(identityAccessGrantItems).set({ status: 'revoked', revokedBy: actor.userId, revokedAt: new Date(), revokeReason: input.reason }).where(and(eq(identityAccessGrantItems.grantId, id), inArray(identityAccessGrantItems.status, ['scheduled', 'active'])));
       await tx.update(identityAccessGrants).set({ status: 'revoked', revokedBy: actor.userId, revokedAt: new Date(), revokeReason: input.reason }).where(where);
       const names = await resolveUserNames([row.userId], tx);
       await notifyWithin(tx, 'identity.access.revoked', { recipients: [{ type: 'user', id: row.userId }], vars: { grantId: id, targetName: names.get(row.userId) ?? `用户 ${row.userId}`, reason: input.reason }, tenantId: row.tenantId, link: '/workflow/launchpad', dedupeKey: `identity-access-revoked:${id}` });
@@ -111,17 +111,17 @@ export async function runAccessGrantLifecycle(): Promise<string> {
   let changed = 0;
   const affectedUsers = new Set<number>();
   while (true) {
-    const due = await db.select({ id: identityAccessGrantMenus.id, grantId: identityAccessGrants.id, userId: identityAccessGrants.userId, tenantId: identityAccessGrants.tenantId }).from(identityAccessGrantMenus)
-      .innerJoin(identityAccessGrants, eq(identityAccessGrants.id, identityAccessGrantMenus.grantId))
-      .where(and(inArray(identityAccessGrants.status, ['scheduled', 'active']), inArray(identityAccessGrantMenus.status, ['scheduled', 'active']), or(lte(identityAccessGrantMenus.expiresAt, now), and(eq(identityAccessGrantMenus.status, 'scheduled'), lte(identityAccessGrantMenus.startsAt, now)))))
-      .orderBy(asc(identityAccessGrantMenus.id)).limit(200);
+    const due = await db.select({ id: identityAccessGrantItems.id, grantId: identityAccessGrants.id, userId: identityAccessGrants.userId, tenantId: identityAccessGrants.tenantId }).from(identityAccessGrantItems)
+      .innerJoin(identityAccessGrants, eq(identityAccessGrants.id, identityAccessGrantItems.grantId))
+      .where(and(inArray(identityAccessGrants.status, ['scheduled', 'active']), inArray(identityAccessGrantItems.status, ['scheduled', 'active']), or(lte(identityAccessGrantItems.expiresAt, now), and(eq(identityAccessGrantItems.status, 'scheduled'), lte(identityAccessGrantItems.startsAt, now)))))
+      .orderBy(asc(identityAccessGrantItems.id)).limit(200);
     if (!due.length) break;
     const grantIds = [...new Set(due.map(item => item.grantId))].sort((a, b) => a - b);
     const itemIds = due.map(item => item.id);
     await db.transaction(async tx => {
       await tx.select({ id: identityAccessGrants.id }).from(identityAccessGrants).where(inArray(identityAccessGrants.id, grantIds)).orderBy(asc(identityAccessGrants.id)).for('update');
-      await tx.update(identityAccessGrantMenus).set({ status: 'active' }).where(and(inArray(identityAccessGrantMenus.id, itemIds), eq(identityAccessGrantMenus.status, 'scheduled'), lte(identityAccessGrantMenus.startsAt, now), or(isNull(identityAccessGrantMenus.expiresAt), gt(identityAccessGrantMenus.expiresAt, now))));
-      await tx.update(identityAccessGrantMenus).set({ status: 'expired' }).where(and(inArray(identityAccessGrantMenus.id, itemIds), inArray(identityAccessGrantMenus.status, ['scheduled', 'active']), lte(identityAccessGrantMenus.expiresAt, now)));
+      await tx.update(identityAccessGrantItems).set({ status: 'active' }).where(and(inArray(identityAccessGrantItems.id, itemIds), eq(identityAccessGrantItems.status, 'scheduled'), lte(identityAccessGrantItems.startsAt, now), or(isNull(identityAccessGrantItems.expiresAt), gt(identityAccessGrantItems.expiresAt, now))));
+      await tx.update(identityAccessGrantItems).set({ status: 'expired' }).where(and(inArray(identityAccessGrantItems.id, itemIds), inArray(identityAccessGrantItems.status, ['scheduled', 'active']), lte(identityAccessGrantItems.expiresAt, now)));
       for (const grantId of grantIds) await refreshAccessGrantHeader(tx, grantId, due.find(item => item.grantId === grantId)!.tenantId);
     });
     for (const item of due) affectedUsers.add(item.userId);

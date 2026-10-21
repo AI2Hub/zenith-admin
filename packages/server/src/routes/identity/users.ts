@@ -13,6 +13,7 @@ import {
   batchResetUsersPassword,
   updateUser,
   updateUserOrganization,
+  manageUser,
   deleteUser,
   updateUserPassword,
   unlockUserById,
@@ -32,6 +33,10 @@ import {
 import { mountCrud } from '../_crud';
 
 const usersRouter = new OpenAPIHono({ defaultHook: validationHook });
+
+const manageUserRoute = defineContractRoute(userContract.manage, {
+  handler: async c => c.json(okBody(await manageUser(c.req.valid('param').id, c.req.valid('json'))), 200),
+});
 
 const updateOrganizationRoute = defineContractRoute(userContract.organization, {
   handler: async c => c.json(okBody(await updateUserOrganization(c.req.valid('param').id, c.req.valid('json'))), 200),
@@ -148,6 +153,7 @@ mountCrud(usersRouter, userContract,
   { exclude: ['removeBatch'] },
   [
     updateOrganizationRoute,
+    manageUserRoute,
     getAlertRecipientUsersRoute,
     getAllUsersRoute,
     batchDeleteUsersRoute,

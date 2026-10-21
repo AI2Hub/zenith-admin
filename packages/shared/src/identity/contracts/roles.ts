@@ -13,6 +13,8 @@ export const roleSchema = z.object({
   id: z.int().meta({ example: 1 }),
   name: z.string().meta({ example: '超级管理员' }),
   code: z.string().meta({ example: 'super_admin' }),
+  permissionVersion: z.int().optional(),
+  permissionCodes: z.array(z.string()).optional(),
   description: z.string().nullable().optional(),
   /** 用户携带的角色摘要（登录态 / 用户详情）不含数据范围 */
   dataScope: queryEnum(DATA_SCOPES).meta({ example: 'all' }),

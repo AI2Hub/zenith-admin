@@ -17,6 +17,7 @@ import { SEED_PAYMENT_DEDUCT_PLANS, SEED_CMS_EDITOR_USER, SEED_CMS_SITES, SEED_C
 import { SEED_WIKI_SPACES, SEED_WIKI_SPACE_MEMBERS, SEED_WIKI_TAGS, SEED_WIKI_TEMPLATES, SEED_WIKI_DOCS, SEED_WIKI_COMMENTS, SEED_WIKI_SEARCH_LOGS } from '@zenith/shared/seed';
 import { SEED_SHORT_LINKS } from '@zenith/shared/seed';
 import { ALL_PERMISSIONS } from '@zenith/shared/permissions';
+import { publishRoleVersion } from '../services/identity/authority-write.service';
 import { accessPolicyBaseline } from '@zenith/shared/identity';
 import { shortLinks } from './schema';
 import { SEED_MARKETING_CAMPAIGNS, SEED_MARKETING_PRIZES } from '@zenith/shared/seed';
@@ -172,7 +173,11 @@ async function seedRest() {
         .onConflictDoNothing();
     }
   }
-  logger.info('  ✔ Role-menu bindings seeded');
+  for (const role of SEED_ROLES) {
+    const permissionCodes = role.id === 1 ? Object.keys(ALL_PERMISSIONS) : SEED_MENUS.filter(menu => (role.menuIds ?? []).includes(menu.id)).flatMap(menu => menu.permission ? [menu.permission] : []);
+    await db.transaction(tx => publishRoleVersion(tx, role.id, permissionCodes));
+  }
+  logger.info('  ✔ Role content and navigation seeded');
 
   // 权限治理默认策略：从共享权限注册表派生，平台级策略只补不覆盖管理员调整过的配置。
   const permissionPolicyRows = Object.entries(ALL_PERMISSIONS).map(([permissionCode, meta]) => {

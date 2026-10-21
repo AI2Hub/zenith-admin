@@ -16,7 +16,7 @@ export async function assertNoOverlappingAccessRequest(input: {
   const [grants, requests] = await Promise.all([
     executor.query.identityAccessGrants.findMany({
       where: buildWhere(eq(identityAccessGrants.userId, input.targetUserId), exactTenantCondition(identityAccessGrants.tenantId, input.tenantId), inArray(identityAccessGrants.status, ['scheduled', 'active']), input.expiresAt ? lt(identityAccessGrants.startsAt, input.expiresAt) : undefined, or(isNull(identityAccessGrants.expiresAt), gt(identityAccessGrants.expiresAt, input.startsAt))),
-      with: { menus: true },
+      with: { items: true },
     }),
     executor.query.identityAccessRequests.findMany({
       where: buildWhere(eq(identityAccessRequests.targetUserId, input.targetUserId), exactTenantCondition(identityAccessRequests.tenantId, input.tenantId),
@@ -28,7 +28,7 @@ export async function assertNoOverlappingAccessRequest(input: {
   ]);
   const conflicts = new Set<string>();
   for (const wanted of requested) {
-    if (grants.some(grant => grant.menus.some(item => item.id !== input.excludeGrantItemId && ['active', 'scheduled'].includes(item.status) && (!input.expiresAt || item.startsAt < input.expiresAt) && (!item.expiresAt || item.expiresAt > input.startsAt) && item.permissionCode === wanted.permissionCode && accessScopesOverlap(wanted, item)))
+    if (grants.some(grant => grant.items.some(item => item.id !== input.excludeGrantItemId && ['active', 'scheduled'].includes(item.status) && (!input.expiresAt || item.startsAt < input.expiresAt) && (!item.expiresAt || item.expiresAt > input.startsAt) && item.permissionCode === wanted.permissionCode && accessScopesOverlap(wanted, item)))
       || requests.some(request => request.items.some(item => item.permissionCode === wanted.permissionCode && accessScopesOverlap(wanted, item)))) conflicts.add(wanted.permissionLabel || wanted.permissionCode);
   }
   if (conflicts.size) throw new HTTPException(409, { message: `以下权限已有有效授权或待处理申请，请勿重复申请：${[...conflicts].join('、')}` });

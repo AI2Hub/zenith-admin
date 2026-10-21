@@ -3,7 +3,7 @@ import { auditFieldsSchema, dateRangeQuery, idParam, idQuery, keywordQuery, pagi
 import { defineContract, op } from '../../core/contract';
 import { DATA_SCOPES } from '../constants';
 import { ACCESS_PROVISION_STATUSES, ACCESS_APPROVAL_POLICIES, ACCESS_GRANT_STATUSES, ACCESS_REQUEST_ITEM_TYPES, ACCESS_REQUEST_STATUSES, ACCESS_REQUEST_TYPES, ACCESS_REVIEW_DECISIONS, ACCESS_REVIEW_SCOPE_TYPES, ACCESS_REVIEW_STATUSES, ACCESS_REVIEW_SOURCE_TYPES, ACCESS_RISK_LEVELS } from '../access-governance-constants';
-import { assignAccessReviewCampaignSchema, accessReviewHistorySchema, accessApprovalEvidenceSchema, accessApprovalPlanSchema, accessPolicySnapshotSchema, createAccessReviewCampaignSchema, decideAccessReviewItemSchema, revokeAccessGrantSchema, updatePermissionPolicySchema } from '../access-governance-validation';
+import { accessSourceRefSchema, assignAccessReviewCampaignSchema, accessReviewHistorySchema, accessApprovalEvidenceSchema, accessApprovalPlanSchema, accessPolicySnapshotSchema, createAccessReviewCampaignSchema, decideAccessReviewItemSchema, revokeAccessGrantSchema, updatePermissionPolicySchema } from '../access-governance-validation';
 
 export const permissionPolicySchema = z.object({
   id: z.int(),
@@ -15,6 +15,7 @@ export const permissionPolicySchema = z.object({
   reviewIntervalDays: z.int(),
   mfaRequired: z.boolean(),
   enabled: z.boolean(),
+  permanentAllowed: z.boolean(), emergencyAllowed: z.boolean(), maxEmergencyMinutes: z.int(),
   tenantId: z.int().nullable().optional(),
   inherited: z.boolean(),
   minimumRiskLevel: z.enum(ACCESS_RISK_LEVELS),
@@ -30,11 +31,11 @@ export const accessRequestItemSchema = z.object({
   id: z.int(),
   itemType: z.enum(ACCESS_REQUEST_ITEM_TYPES),
   roleId: z.int().nullable().optional(),
-  menuId: z.int().nullable().optional(),
-  permissionCode: z.string().nullable().optional(),
+  permissionCode: z.string(),
   permissionLabel: z.string().nullable().optional(),
   dataScope: z.enum(DATA_SCOPES).nullable().optional(),
   deptScopeIds: z.array(z.int()),
+  scopeKey: z.string(), sourceRefs: z.array(accessSourceRefSchema),
   snapshot: z.record(z.string(), z.unknown()),
 }).meta({ id: 'IdentityAccessRequestItem' });
 
@@ -68,7 +69,7 @@ export const accessRequestSchema = z.object({
 export type AccessRequest = z.infer<typeof accessRequestSchema>;
 
 export const accessGrantItemSchema = z.object({
-  id: z.int(), menuId: z.int(), permissionCode: z.string(), permissionLabel: z.string().nullable(),
+  id: z.int(), scopeKey: z.string(), sourceRefs: z.array(accessSourceRefSchema), permissionCode: z.string(), permissionLabel: z.string().nullable(),
   status: z.enum(ACCESS_GRANT_STATUSES), dataScope: z.enum(DATA_SCOPES), deptScopeIds: z.array(z.int()),
   startsAt: z.string(), expiresAt: z.string().nullable(), nextReviewAt: z.string().nullable(),
   revokedAt: z.string().nullable(), revokedBy: z.int().nullable(), revokeReason: z.string().nullable(),
@@ -92,7 +93,7 @@ export const accessGrantSchema = z.object({
   revokedBy: z.int().nullable().optional(),
   revokedAt: z.string().nullable().optional(),
   revokeReason: z.string().nullable().optional(),
-  menus: z.array(accessGrantItemSchema),
+  items: z.array(accessGrantItemSchema),
   ...auditFieldsSchema,
   createdAt: z.string(),
   updatedAt: z.string(),
@@ -122,9 +123,9 @@ export const accessReviewCampaignSchema = z.object({
 
 export type AccessReviewCampaign = z.infer<typeof accessReviewCampaignSchema>;
 
-const accessPolicySummaryFields = { riskLevel: z.enum(ACCESS_RISK_LEVELS), approvalPolicy: z.enum(ACCESS_APPROVAL_POLICIES), maxDurationMinutes: z.int().positive().nullable(), mfaRequired: z.boolean() };
+const accessPolicySummaryFields = { riskLevel: z.enum(ACCESS_RISK_LEVELS), approvalPolicy: z.enum(ACCESS_APPROVAL_POLICIES), maxDurationMinutes: z.int().positive().nullable(), mfaRequired: z.boolean(), permanentAllowed: z.boolean(), emergencyAllowed: z.boolean(), maxEmergencyMinutes: z.int() };
 export const accessWorkflowOptionsSchema = z.object({
-  roles: z.array(z.object({ id: z.int(), name: z.string(), code: z.string(), description: z.string().nullable().optional(), dataScope: z.enum(DATA_SCOPES), menuCount: z.int(), menuIds: z.array(z.int()), ...accessPolicySummaryFields })),
+  roles: z.array(z.object({ id: z.int(), name: z.string(), code: z.string(), description: z.string().nullable().optional(), dataScope: z.enum(DATA_SCOPES), version: z.int(), permissionCount: z.int(), permissionCodes: z.array(z.string()), ...accessPolicySummaryFields })),
   menus: z.array(z.object({ id: z.int(), parentId: z.int(), title: z.string(), name: z.string().nullable().optional(), type: z.enum(['directory', 'menu', 'button']), permission: z.string().nullable().optional(), permissionLabel: z.string().nullable().optional(), requestable: z.boolean(), path: z.array(z.string()), ...accessPolicySummaryFields })),
 }).meta({ id: 'IdentityAccessWorkflowOptions' });
 

@@ -17,7 +17,7 @@ import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { formatTimestamps } from '../../lib/datetime';
 import { getScopeMemberSummaries, validateScopeUserIds } from './user-scope.service';
 import { RESERVED_ROLE_CODES } from './role-grant';
-import { assertAuthorityActor, roleBeneficiaries, replaceRoleMembers, replaceRolePermissions } from './authority-write.service';
+import { assertAuthorityActor, roleBeneficiaries, publishRoleVersion, replaceRoleMembers, replaceRolePermissions } from './authority-write.service';
 
 export function mapRole(row: typeof roles.$inferSelect, menuIds?: number[], deptScopeIds?: number[]) {
   return {
@@ -110,6 +110,7 @@ export async function createRole(data: CreateRoleInput) {
       if (deptScopeIds !== undefined && deptScopeIds !== null) {
         await syncRoleDeptScopes(tx, role.id, deptScopeIds);
       }
+      await publishRoleVersion(tx, role.id);
       return mapRole(role, undefined, deptScopeIds ?? undefined);
     });
   } catch (err: unknown) {
@@ -143,6 +144,7 @@ export async function updateRole(id: number, data: Partial<CreateRoleInput>) {
     if (deptScopeIds !== undefined && deptScopeIds !== null) {
       await syncRoleDeptScopes(tx, id, deptScopeIds);
     }
+    await publishRoleVersion(tx, id);
     // 角色状态/属性变更影响权限解析结果（禁用角色即时失权），清空权限缓存
     await clearUserPermissionCache();
     return mapRole(role, undefined, deptScopeIds ?? undefined);

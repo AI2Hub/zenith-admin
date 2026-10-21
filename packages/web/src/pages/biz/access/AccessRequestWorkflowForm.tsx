@@ -5,7 +5,7 @@ import { createLabelOptionsFromMap } from '@zenith/shared/core';
 import {
   ACCESS_APPROVAL_POLICY_LABELS, ACCESS_REQUEST_TYPE_LABELS, ACCESS_RISK_LABELS, ACCESS_START_MODE_LABELS, ACCESS_VALIDITY_MODE_LABELS,
   accessApprovalPlanSchema, higherAccessRisk, stricterAccessApproval,
-  type AccessApprovalPolicy, type AccessRiskLevel, type AccessWorkflowInput,
+  type AccessApprovalPolicy, type AccessRiskLevel, type AccessWorkflowInput, type AccessWorkflowOptions,
 } from '@zenith/shared/identity';
 import DateTimeText from '@/components/DateTimeText';
 import { DATA_SCOPE_OPTIONS } from '@/components/permissions/DataScopePanel';
@@ -21,7 +21,7 @@ const START_OPTIONS = createLabelOptionsFromMap(ACCESS_START_MODE_LABELS);
 const VALIDITY_OPTIONS = createLabelOptionsFromMap(ACCESS_VALIDITY_MODE_LABELS);
 const RISK_COLORS = { low: 'green', high: 'orange', critical: 'red' } as const;
 type PickerDate = Date | string | null;
-type FormValues = Omit<AccessWorkflowInput, 'startsAt' | 'expiresAt'> & { startsAt?: PickerDate; expiresAt: PickerDate };
+type FormValues = Omit<AccessWorkflowInput, 'startsAt' | 'expiresAt' | 'roleSelections'> & { roleIds: number[]; startsAt?: PickerDate; expiresAt: PickerDate };
 
 function pickerTime(value: PickerDate | undefined): number | undefined {
   return value instanceof Date ? value.getTime() : typeof value === 'string' ? parseDateTimeParam(value)?.getTime() : undefined;
@@ -32,16 +32,17 @@ function initialValues(value: Record<string, unknown>): FormValues {
     requestType: value.requestType === 'emergency' ? 'emergency' : 'temporary',
     startMode: value.startMode === 'scheduled' ? 'scheduled' : 'immediate',
     validityMode: value.validityMode === 'permanent' ? 'permanent' : 'limited',
-    roleIds: Array.isArray(value.roleIds) ? value.roleIds as number[] : [],
-    menuIds: Array.isArray(value.menuIds) ? value.menuIds as number[] : [],
+    roleIds: Array.isArray(value.roleSelections) ? (value.roleSelections as AccessWorkflowInput['roleSelections']).map(role => role.roleId) : [],
+    permissionCodes: Array.isArray(value.permissionCodes) ? value.permissionCodes as string[] : [],
     startsAt: typeof value.startsAt === 'string' ? parseDateTimeParam(value.startsAt) : null,
     expiresAt: typeof value.expiresAt === 'string' ? parseDateTimeParam(value.expiresAt) : new Date(Date.now() + 480 * 60_000),
     reason: typeof value.reason === 'string' ? value.reason : '',
   };
 }
 
-function serialize(values: FormValues): Record<string, unknown> {
-  return { ...values, startsAt: values.startMode === 'scheduled' ? formatDateTimeForApi(values.startsAt) : undefined, expiresAt: values.validityMode === 'permanent' ? null : formatDateTimeForApi(values.expiresAt) };
+function serialize(values: FormValues, roles: AccessWorkflowOptions['roles']): Record<string, unknown> {
+  const { roleIds, ...input } = values;
+  return { ...input, roleSelections: roleIds.map(roleId => ({ roleId, version: roles.find(role => role.id === roleId)?.version ?? 0 })), startsAt: values.startMode === 'scheduled' ? formatDateTimeForApi(values.startsAt) : undefined, expiresAt: values.validityMode === 'permanent' ? null : formatDateTimeForApi(values.expiresAt) };
 }
 
 function ReadonlyAccessRequest({ value }: Readonly<{ value: Record<string, unknown> }>) {
@@ -75,8 +76,8 @@ export default function AccessRequestWorkflowForm({ mode, value, getFormApi, onV
   const roles = optionsQuery.data?.roles ?? [];
   const menus = optionsQuery.data?.menus ?? [];
   const selectedRoles = roles.filter(role => values.roleIds.includes(role.id));
-  const coveredMenuIds = useMemo(() => [...new Set((optionsQuery.data?.roles ?? []).filter(role => values.roleIds.includes(role.id)).flatMap(role => role.menuIds))], [optionsQuery.data?.roles, values.roleIds]);
-  const selectedMenus = menus.filter(menu => values.menuIds.includes(menu.id) && menu.requestable);
+  const coveredPermissionCodes = useMemo(() => [...new Set((optionsQuery.data?.roles ?? []).filter(role => values.roleIds.includes(role.id)).flatMap(role => role.permissionCodes))], [optionsQuery.data?.roles, values.roleIds]);
+  const selectedMenus = menus.filter(menu => !!menu.permission && values.permissionCodes.includes(menu.permission) && menu.requestable);
   const selection = [...selectedRoles, ...selectedMenus];
   const risk = selection.reduce<AccessRiskLevel>((level, item) => higherAccessRisk(level, item.riskLevel), 'low');
   const approval = selection.reduce<AccessApprovalPolicy>((policy, item) => stricterAccessApproval(policy, item.approvalPolicy), 'none');
@@ -100,12 +101,12 @@ export default function AccessRequestWorkflowForm({ mode, value, getFormApi, onV
   const registerApi = (api: FormApi) => {
     formApi.current = api;
     getFormApi?.({
-      getValues: () => serialize(api.getValues() as FormValues),
+      getValues: () => serialize(api.getValues() as FormValues, roles),
       validate: async () => {
         const current = await api.validate() as FormValues;
         const fail = (message: string): never => { Toast.warning(message); throw new Error(message); };
-        if (!(current.roleIds?.length || current.menuIds?.length)) fail('请选择至少一项角色或操作权限');
-        if (current.roleIds.some(id => !roles.some(role => role.id === id)) || current.menuIds.some(id => !menus.some(menu => menu.id === id && menu.requestable))) fail('所选角色或权限已不可申请，请重新选择');
+        if (!(current.roleIds?.length || current.permissionCodes?.length)) fail('请选择至少一项角色或操作权限');
+        if (current.roleIds.some(id => !roles.some(role => role.id === id)) || current.permissionCodes.some(code => !menus.some(menu => menu.permission === code && menu.requestable))) fail('所选角色或权限已不可申请，请重新选择');
         const start = (current.startMode === 'scheduled' ? pickerTime(current.startsAt) : Date.now()) ?? Number.NaN;
         const end = pickerTime(current.expiresAt) ?? Number.NaN;
         if (!start || (current.startMode === 'scheduled' && start <= Date.now())) fail('请选择晚于当前时间的预约生效时间');
@@ -113,7 +114,7 @@ export default function AccessRequestWorkflowForm({ mode, value, getFormApi, onV
           if (!end || end <= start) fail('失效时间必须晚于生效时间和当前时间');
           if (maxMinutes !== null && end - start > maxMinutes * 60_000) fail(`本次限时申请最长有效 ${maxMinutes} 分钟，请调整失效时间或选择永久有效`);
         }
-        return serialize(current);
+        return serialize(current, roles);
       },
     } satisfies WorkflowBusinessFormApi);
   };
@@ -122,9 +123,9 @@ export default function AccessRequestWorkflowForm({ mode, value, getFormApi, onV
     <Form.RadioGroup field="requestType" name="access-request-type" label="申请类型" options={TYPE_OPTIONS} type="button"
       extraText={values.requestType === 'emergency' ? '用于故障处置等紧急任务，将以紧急授权留痕；仍须按所选权限风险完成全部审批与 MFA 验证。' : '用于日常业务任务，可选择限时或永久有效；审批链由所选权限中最严格的策略决定。'} />
     <Form.Select field="roleIds" label="申请角色包" multiple filter showClear style={{ width: '100%' }}
-      optionList={roles.map(role => ({ value: role.id, label: `${role.name} · ${role.menuCount} 项 · ${ACCESS_RISK_LABELS[role.riskLevel]}` }))} placeholder="可选，按需申请完整角色权限包"
+      optionList={roles.map(role => ({ value: role.id, label: `${role.name} · ${role.permissionCount} 项 · ${ACCESS_RISK_LABELS[role.riskLevel]}` }))} placeholder="可选，按需申请完整角色权限包"
       extraText="角色包按角色配置的数据范围授权。只需要少量权限时，优先在下方逐项选择。" />
-    <FormAccessPermissionPicker field="menuIds" label="操作权限" menus={menus} coveredMenuIds={coveredMenuIds} />
+    <FormAccessPermissionPicker field="permissionCodes" label="操作权限" menus={menus} coveredPermissionCodes={coveredPermissionCodes} />
     <Form.RadioGroup field="startMode" name="access-start-mode" label="生效方式" options={START_OPTIONS} />
     {values.startMode === 'scheduled' && <Form.DatePicker field="startsAt" label="生效时间" type="dateTime" format="yyyy-MM-dd HH:mm:ss" style={{ width: '100%' }} rules={[{ required: true, message: '请选择预约生效时间' }]} />}
     <Form.RadioGroup field="validityMode" name="access-validity-mode" label="有效期限" options={VALIDITY_OPTIONS} extraText={values.validityMode === 'permanent' ? '无需填写截止时间。授权仍可撤销，并按权限策略定期复核。' : undefined} />

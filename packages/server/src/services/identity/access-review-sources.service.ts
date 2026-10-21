@@ -24,8 +24,7 @@ export async function expandReviewDepartmentIds(ids: readonly number[], tenantId
 }
 
 export async function collectAccessReviewSourceBatch(campaign: Pick<IdentityAccessReviewCampaignRow, 'tenantId' | 'scopeType' | 'scopeIds' | 'dueOnly'>, afterUserId: number, policies: ReadonlyMap<string, AccessPolicySnapshot>, departmentIds: readonly number[] = [], executor: DbExecutor = db) {
-  const menu = { columns: { id: true, permission: true, status: true, title: true } } as const;
-  const role = { columns: { id: true, name: true, code: true, status: true, dataScope: true }, with: { roleMenus: { columns: {}, with: { menu } } } } as const;
+  const role = { columns: { id: true, name: true, code: true, status: true, dataScope: true, permissionCodes: true, permissionVersion: true } } as const;
   const userRows = await executor.query.users.findMany({
     where: buildWhere(exactTenantCondition(users.tenantId, campaign.tenantId), gt(users.id, afterUserId),
       campaign.scopeType === 'user' ? inArray(users.id, campaign.scopeIds) : undefined,
@@ -35,9 +34,9 @@ export async function collectAccessReviewSourceBatch(campaign: Pick<IdentityAcce
     columns: { id: true, status: true },
     with: {
       userRoles: { columns: { createdAt: true }, with: { role } },
-      userMenus: { columns: { createdAt: true }, with: { menu } },
+      directPermissions: true,
       userGroupMembers: { columns: { createdAt: true }, with: { group: { columns: { id: true, name: true, status: true, memberMode: true }, with: { groupRoles: { columns: {}, with: { role } } } } } },
-      accessGrants: { columns: { id: true, status: true }, with: { menus: true } },
+      accessGrants: { columns: { id: true, status: true }, with: { items: true } },
     },
     orderBy: [asc(users.id)], limit: 200,
   });
@@ -52,7 +51,7 @@ export async function collectAccessReviewSourceBatch(campaign: Pick<IdentityAcce
   const history = new Map(latest.map(item => [sourceKey(item.userId, item.sourceType, item.sourceId), item]));
   const sources: ReviewSource[] = [];
   const now = new Date();
-  const codesFromRole = (entry: (typeof userRows)[number]['userRoles'][number]['role']) => entry.roleMenus.flatMap(({ menu: row }) => row.status === 'enabled' && row.permission && ALL_PERMISSIONS[row.permission] && !ALL_PERMISSIONS[row.permission].uiOnly ? [row.permission] : []);
+  const codesFromRole = (entry: (typeof userRows)[number]['userRoles'][number]['role']) => entry.permissionCodes.filter(code => ALL_PERMISSIONS[code] && !ALL_PERMISSIONS[code].uiOnly);
   const append = (input: { userId: number; sourceType: ReviewSource['sourceType']; sourceId: number; sourceLabel: string; permissionCode?: string; permissionLabel?: string; codes: string[]; riskFloor?: AccessRiskLevel; sourceCreatedAt: Date; snapshot: Record<string, unknown> }) => {
     const codes = [...new Set(input.codes)];
     const policyRows = codes.flatMap(code => { const policy = policies.get(code); return policy ? [policy] : []; });
@@ -75,7 +74,7 @@ export async function collectAccessReviewSourceBatch(campaign: Pick<IdentityAcce
       if (binding.role.status !== 'enabled' || (campaign.scopeType === 'role' && !campaign.scopeIds.includes(binding.role.id))) continue;
       const codes = codesFromRole(binding.role);
       const riskFloor = ['security_admin', 'tenant_admin', 'super_admin'].includes(binding.role.code) ? 'critical' : 'low';
-      append({ userId: user.id, sourceType: 'role', sourceId: binding.role.id, sourceLabel: `角色：${binding.role.name}`, codes, riskFloor, sourceCreatedAt: binding.createdAt, snapshot: { roleId: binding.role.id, roleCode: binding.role.code, roleName: binding.role.name, dataScope: binding.role.dataScope } });
+      append({ userId: user.id, sourceType: 'role', sourceId: binding.role.id, sourceLabel: `角色：${binding.role.name}`, codes, riskFloor, sourceCreatedAt: binding.createdAt, snapshot: { roleId: binding.role.id, roleCode: binding.role.code, roleName: binding.role.name, roleVersion: binding.role.permissionVersion, dataScope: binding.role.dataScope } });
     }
     if (!['role', 'temporary'].includes(campaign.scopeType)) for (const membership of user.userGroupMembers) {
       if (campaign.scopeType === 'group' && !campaign.scopeIds.includes(membership.group.id)) continue;
@@ -84,17 +83,18 @@ export async function collectAccessReviewSourceBatch(campaign: Pick<IdentityAcce
       append({ userId: user.id, sourceType: 'group_membership', sourceId: membership.group.id, sourceLabel: `用户组资格：${membership.group.name}`, codes: inherited.roles.flatMap(codesFromRole), riskFloor: inherited.roles.some(role => ['security_admin', 'tenant_admin', 'super_admin'].includes(role.code)) ? 'critical' : 'low', sourceCreatedAt: membership.createdAt,
         snapshot: { groupId: membership.group.id, groupName: membership.group.name, memberMode: membership.group.memberMode, roleIds: inherited.roles.map(entry => entry.id), roleNames: inherited.roles.map(entry => entry.name), revocationUnit: '整个用户组成员资格' } });
     }
-    if (!['role', 'group', 'temporary'].includes(campaign.scopeType)) for (const binding of user.userMenus) {
-      const entry = binding.menu;
-      if (entry.status !== 'enabled' || !entry.permission || !ALL_PERMISSIONS[entry.permission] || ALL_PERMISSIONS[entry.permission].uiOnly) continue;
-      append({ userId: user.id, sourceType: 'direct_menu', sourceId: entry.id, sourceLabel: '用户直接授权', permissionCode: entry.permission, permissionLabel: ALL_PERMISSIONS[entry.permission].label, codes: [entry.permission], sourceCreatedAt: binding.createdAt, snapshot: { menuId: entry.id } });
+    if (!['role', 'group', 'temporary'].includes(campaign.scopeType)) for (const entry of user.directPermissions) {
+      if (!ALL_PERMISSIONS[entry.permissionCode]) continue;
+      append({ userId: user.id, sourceType: 'direct_permission', sourceId: entry.id, sourceLabel: '用户直接授权', permissionCode: entry.permissionCode,
+        permissionLabel: ALL_PERMISSIONS[entry.permissionCode].label, codes: [entry.permissionCode], sourceCreatedAt: entry.createdAt,
+        snapshot: { directPermissionId: entry.id, dataScope: entry.dataScope, deptScopeIds: entry.deptScopeIds } });
     }
     if (!['role', 'group'].includes(campaign.scopeType)) for (const grant of user.accessGrants) {
       if (!['scheduled', 'active'].includes(grant.status)) continue;
-      for (const item of grant.menus) {
+      for (const item of grant.items) {
         if (!['scheduled', 'active'].includes(item.status) || (item.expiresAt && item.expiresAt <= now)) continue;
         append({ userId: user.id, sourceType: 'temporary_grant', sourceId: item.id, sourceLabel: `临时授权 #${grant.id} · 授权项 #${item.id}`, permissionCode: item.permissionCode, permissionLabel: item.permissionLabel ?? undefined, codes: [item.permissionCode], sourceCreatedAt: item.startsAt,
-          snapshot: { grantId: grant.id, grantItemId: item.id, menuId: item.menuId, dataScope: item.dataScope, deptScopeIds: item.deptScopeIds, startsAt: formatDateTime(item.startsAt), expiresAt: item.expiresAt ? formatDateTime(item.expiresAt) : null } });
+          snapshot: { grantId: grant.id, grantItemId: item.id, sourceRefs: item.sourceRefs, dataScope: item.dataScope, deptScopeIds: item.deptScopeIds, startsAt: formatDateTime(item.startsAt), expiresAt: item.expiresAt ? formatDateTime(item.expiresAt) : null } });
       }
     }
   }
