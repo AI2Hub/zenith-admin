@@ -174,7 +174,6 @@ export default function UsersPage() {
   const manageMutation = useManageUser();
   const canEditProfile = hasPermission('system:user:update');
   const canEditOrganization = hasPermission('system:user:organization');
-  const canEditOwnOrganization = Boolean(currentUser && isPlatformSuperUser(currentUser));
   const canAssignRoles = hasPermission('system:user:assign');
   const roleEffectivePermissionsQuery = useUserEffectivePermissions(roleAssignUser?.id, roleAssignVisible);
   const kickSessionsMutation = useKickUserSessions();
@@ -216,11 +215,10 @@ export default function UsersPage() {
       if (!editing) return payload;
       const organizationChanged = (departmentId ?? null) !== (editing.departmentId ?? null) || JSON.stringify([...(positionIds ?? [])].sort()) !== JSON.stringify([...(editing.positionIds ?? [])].sort());
       const rolesChanged = JSON.stringify([...(roleIds ?? [])].sort()) !== JSON.stringify(editing.roles.map(role => role.id).sort());
-      const canChangeAuthority = editing.id !== currentUser?.id;
       const commands: BodyOf<typeof userContract.manage> = {
         profile: canEditProfile ? payload : undefined,
-        organization: (canChangeAuthority || canEditOwnOrganization) && canEditOrganization && organizationChanged ? { departmentId: departmentId ?? null, positionIds: positionIds ?? [] } : undefined,
-        roles: canChangeAuthority && canAssignRoles && rolesChanged ? { roleIds: roleIds ?? [] } : undefined,
+        organization: canEditOrganization && organizationChanged ? { departmentId: departmentId ?? null, positionIds: positionIds ?? [] } : undefined,
+        roles: canAssignRoles && rolesChanged ? { roleIds: roleIds ?? [] } : undefined,
       };
       if (!commands.profile && !commands.organization && !commands.roles) {
         Toast.info('没有需要保存的变更');
@@ -577,7 +575,7 @@ export default function UsersPage() {
         ];
       },
     }),
-  ], [hasPermission, status, deleteMutation, handleUnlock, kickUserSessions, refetchUserList, openEdit, openPassword, canImpersonate, openImpersonate, canViewUserLogs, currentUser?.id]);
+  ], [hasPermission, status, deleteMutation, handleUnlock, kickUserSessions, refetchUserList, openEdit, openPassword, canImpersonate, openImpersonate, canViewUserLogs]);
 
   const [showDeptTree, setShowDeptTree] = useState(false);
   const [isLayoutNarrow, setIsLayoutNarrow] = useState(false);
@@ -809,7 +807,6 @@ export default function UsersPage() {
                 placeholder="请选择所属部门"
                 filterTreeNode
                 showClear
-                disabled={editingUser.id === currentUser?.id && !canEditOwnOrganization}
               />
             </Col>
           )}
@@ -827,7 +824,6 @@ export default function UsersPage() {
                   showClear
                   optionList={positionOptionList}
                   placeholder="请选择岗位"
-                  disabled={editingUser.id === currentUser?.id && !canEditOwnOrganization}
                 />
               </Col>
             )}
@@ -842,7 +838,6 @@ export default function UsersPage() {
                   showClear
                   optionList={allRoles.map(role => ({ value: role.id, label: role.name }))}
                   placeholder="请选择角色"
-                  disabled={editingUser.id === currentUser?.id}
                 />
               </Col>
             )}
