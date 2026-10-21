@@ -174,6 +174,7 @@ export default function UsersPage() {
   const manageMutation = useManageUser();
   const canEditProfile = hasPermission('system:user:update');
   const canEditOrganization = hasPermission('system:user:organization');
+  const canEditOwnOrganization = Boolean(currentUser && isPlatformSuperUser(currentUser));
   const canAssignRoles = hasPermission('system:user:assign');
   const roleEffectivePermissionsQuery = useUserEffectivePermissions(roleAssignUser?.id, roleAssignVisible);
   const kickSessionsMutation = useKickUserSessions();
@@ -218,7 +219,7 @@ export default function UsersPage() {
       const canChangeAuthority = editing.id !== currentUser?.id;
       const commands: BodyOf<typeof userContract.manage> = {
         profile: canEditProfile ? payload : undefined,
-        organization: canChangeAuthority && canEditOrganization && organizationChanged ? { departmentId: departmentId ?? null, positionIds: positionIds ?? [] } : undefined,
+        organization: (canChangeAuthority || canEditOwnOrganization) && canEditOrganization && organizationChanged ? { departmentId: departmentId ?? null, positionIds: positionIds ?? [] } : undefined,
         roles: canChangeAuthority && canAssignRoles && rolesChanged ? { roleIds: roleIds ?? [] } : undefined,
       };
       if (!commands.profile && !commands.organization && !commands.roles) {
@@ -808,7 +809,7 @@ export default function UsersPage() {
                 placeholder="请选择所属部门"
                 filterTreeNode
                 showClear
-                disabled={editingUser.id === currentUser?.id}
+                disabled={editingUser.id === currentUser?.id && !canEditOwnOrganization}
               />
             </Col>
           )}
@@ -826,7 +827,7 @@ export default function UsersPage() {
                   showClear
                   optionList={positionOptionList}
                   placeholder="请选择岗位"
-                  disabled={editingUser.id === currentUser?.id}
+                  disabled={editingUser.id === currentUser?.id && !canEditOwnOrganization}
                 />
               </Col>
             )}

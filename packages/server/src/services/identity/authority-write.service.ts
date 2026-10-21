@@ -28,7 +28,8 @@ export async function assertAuthorityActor(tx: DbExecutor, tenantId: number | nu
   if (!account) throw new HTTPException(403, { message: '当前身份已失效，不能修改权限' });
   const platform = account.tenantId === null && account.userRoles.some(({ role }) => role.code === 'super_admin' && role.tenantId === null && role.status === 'enabled');
   if (!platform && account.tenantId !== tenantId) throw new HTTPException(403, { message: '不能跨租户修改身份权限' });
-  if (!allowSelf && beneficiaryIds.includes(actor.userId)) throw new HTTPException(403, { message: '不能通过管理操作改变自己的授权或组织归属，请由独立管理员办理' });
+  const canManageOwnOrganization = platform && permission === 'system:user:organization';
+  if (!allowSelf && !canManageOwnOrganization && beneficiaryIds.includes(actor.userId)) throw new HTTPException(403, { message: '不能通过管理操作改变自己的授权或组织归属，请由独立管理员办理' });
   const owned = await runWithFreshUserPermissions(actor.userId, () => getUserPermissions(actor.userId), tx);
   if (!platform && !owned.includes(permission)) throw new HTTPException(403, { message: '没有当前权限变更的管理能力' });
   if (beneficiaryIds.length) {
