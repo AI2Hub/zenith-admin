@@ -297,6 +297,7 @@ export default function DataMaskPage() {
           filter
           allowCreate
           style={{ width: '100%' }}
+          maxTagCount={2} showRestTagsPopover
           optionList={permissionOptions}
           placeholder={`拥有任一权限即看到明文；平台超管无需配置。推荐 ${DATA_MASK_BYPASS_PERMISSION}`}
           extraText="按钮权限码来自菜单管理；也可输入自定义权限码"

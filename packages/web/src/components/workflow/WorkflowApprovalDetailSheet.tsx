@@ -861,6 +861,7 @@ export default function WorkflowApprovalDetailSheet({
             placeholder="请选择加签人，可多选"
             multiple
             filter
+            maxTagCount={2} showRestTagsPopover
             optionList={userOptions}
             rules={[{ required: true, message: '请选择加签人' }]}
             style={{ width: '100%' }}

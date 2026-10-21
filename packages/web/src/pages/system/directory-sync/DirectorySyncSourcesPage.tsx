@@ -363,6 +363,7 @@ export default function DirectorySyncSourcesPage() {
               </Row>
               <Form.Select field="lifecycle.defaultRoleIds" label="默认角色" multiple style={{ width: '100%' }}
                 placeholder="新建账号自动授予的角色（可空）"
+                maxTagCount={3} showRestTagsPopover
                 extraText="只能选择本租户的普通角色；平台保留角色需由平台管理员手动分配"
                 optionList={roleOptions} loading={rolesQuery.isFetching} />
               {type !== 'scim' && (

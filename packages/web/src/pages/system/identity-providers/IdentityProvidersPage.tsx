@@ -451,6 +451,7 @@ export default function IdentityProvidersPage() {
             field="defaultRoleIds"
             label="默认角色"
             multiple
+            maxTagCount={3} showRestTagsPopover
             optionList={roleOptions}
             style={{ width: '100%' }}
             extraText="自动建号只授予本租户的普通角色；平台保留角色需由平台管理员手动分配"

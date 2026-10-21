@@ -457,6 +457,7 @@ export default function AiProviderFormModal(props: AiProviderFormModalProps) {
                 filter
                 allowCreate
                 loading={catalogModelsQuery.isLoading}
+                maxTagCount={3} showRestTagsPopover
                 optionList={(catalogModelsQuery.data ?? []).map((m) => ({ value: m, label: m }))}
                 style={{ width: '100%' }}
                 rules={[{ required: true, message: '至少启用一个模型' }]}
@@ -509,6 +510,7 @@ export default function AiProviderFormModal(props: AiProviderFormModalProps) {
                     filter
                     showClear
                     style={{ width: '100%' }}
+                    maxTagCount={2} showRestTagsPopover
                     extraText="失败(5xx/限流/超时)时按顺序自动切换,可多级"
                     optionList={(allProvidersQuery.data ?? [])
                       .filter((pr) => pr.id !== editTarget?.id && pr.isEnabled)

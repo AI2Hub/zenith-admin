@@ -267,12 +267,14 @@ export default function UserGroupsPage() {
               <Form.Select
                 field="roleIds" label="角色" placeholder="请选择角色（可选）"
                 style={{ width: '100%' }} multiple filter showClear
+                maxTagCount={2} showRestTagsPopover
                 optionList={(allRolesQuery.data ?? []).map((role) => ({ value: role.id, label: `${role.name}（${role.code}）` }))}
               />
               {!groupModal.editing && memberMode === 'static' && (
                 <Form.Select
                   field="userIds" label="成员" placeholder="请选择成员（可选）"
                   style={{ width: '100%' }} multiple filter showClear
+                  maxTagCount={2} showRestTagsPopover
                   optionList={allUsers.map((user) => ({ value: user.id, label: `${user.nickname}（${user.username}）` }))}
                 />
               )}
@@ -302,18 +304,21 @@ export default function UserGroupsPage() {
                     field="memberRule.positionIds" label="命中岗位" placeholder="选择岗位（可多选）"
                     extraText="多个岗位满足任一即可；与部门条件同时设置时须同时满足"
                     style={{ width: '100%' }} multiple filter showClear
+                    maxTagCount={3} showRestTagsPopover
                     optionList={(positionsQuery.data ?? []).map((p) => ({ value: p.id, label: p.name }))}
                   />
                   <Form.Select
                     field="memberRule.includeUserIds" label="强制包含" placeholder="选择用户（可选）"
                     extraText="规则之外的例外成员"
                     style={{ width: '100%' }} multiple filter showClear
+                    maxTagCount={2} showRestTagsPopover
                     optionList={allUsers.map(u => ({ value: u.id, label: `${u.nickname} (${u.username})` }))}
                   />
                   <Form.Select
                     field="memberRule.excludeUserIds" label="强制排除" placeholder="选择用户（可选）"
                     extraText="优先级最高，命中规则也不会加入"
                     style={{ width: '100%' }} multiple filter showClear
+                    maxTagCount={2} showRestTagsPopover
                     optionList={allUsers.map(u => ({ value: u.id, label: `${u.nickname} (${u.username})` }))}
                   />
                   <Space vertical align="start" spacing={8} style={{ width: '100%', marginTop: 12 }}>

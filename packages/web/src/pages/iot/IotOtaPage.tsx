@@ -508,6 +508,7 @@ function CreateTaskModal({ firmware, onClose, onCreated }: Readonly<{
           {target === 'devices' && (
             <Form.Select
               field="deviceIds" label="目标设备" placeholder="选择设备（可多选）" multiple showClear style={{ width: '100%' }}
+              maxTagCount={2} showRestTagsPopover
               optionList={deviceOptions}
               rules={[{ required: true, message: '请选择目标设备' }]}
             />

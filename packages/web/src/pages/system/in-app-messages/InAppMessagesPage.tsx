@@ -234,6 +234,7 @@ export default function InAppMessagesPage() {
             <Form.Select field="userIds" label="收件人" multiple filter style={{ width: '100%' }}
               optionList={users.map((u) => ({ label: `${u.nickname || u.username} (${u.username})`, value: u.id }))}
               placeholder="请选择收件人"
+              maxTagCount={4} showRestTagsPopover
               rules={[{ required: true, message: '请选择收件人' }]} />
           </Col>
         </Row>

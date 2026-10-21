@@ -115,7 +115,7 @@ export default function AccessReviews({ onDetail }: Readonly<{ onDetail: (item: 
         return <>
           <Form.Input field="name" label="批次名称" maxLength={128} rules={[{ required: true, message: '请填写批次名称' }]} />
           <Form.Select field="scopeType" label="复核范围" optionList={SCOPE_OPTIONS} style={{ width: '100%' }} />
-          {['department', 'role', 'group', 'user'].includes(scope) && <Form.Select key={scope} field="scopeIds" label="具体范围" multiple filter style={{ width: '100%' }} optionList={(source ?? []).map(entry => ({ value: entry.id, label: entry.name }))} rules={[{ required: true, message: '请选择具体范围' }]} />}
+          {['department', 'role', 'group', 'user'].includes(scope) && <Form.Select key={scope} field="scopeIds" label="具体范围" multiple filter style={{ width: '100%' }} maxTagCount={3} showRestTagsPopover optionList={(source ?? []).map(entry => ({ value: entry.id, label: entry.name }))} rules={[{ required: true, message: '请选择具体范围' }]} />}
           <Form.Select field="reviewerId" label="复核负责人" filter style={{ width: '100%' }} optionList={reviewers} rules={[{ required: true, message: '请选择复核负责人' }]} extraText="复核人不能保留自己的权限；可将自有权限升级给独立负责人处理。" />
           <Form.DatePicker field="dueAt" label="截止时间" type="dateTime" format="yyyy-MM-dd HH:mm:ss" style={{ width: '100%' }} rules={[{ required: true, message: '请选择截止时间' }]} />
           <Typography.Text type="tertiary">角色和用户组以整个绑定关系为复核单位；临时授权按单个操作权限处置。</Typography.Text>

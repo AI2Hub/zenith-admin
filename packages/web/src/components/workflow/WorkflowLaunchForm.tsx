@@ -302,6 +302,7 @@ const WorkflowLaunchForm = forwardRef<WorkflowLaunchFormHandle, WorkflowLaunchFo
                   filter
                   showClear
                   style={{ width: '100%' }}
+                  maxTagCount={3} showRestTagsPopover
                   optionList={userOptions}
                   initValue={initialCcUserIds}
                 />
