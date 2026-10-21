@@ -29,11 +29,12 @@ registerJobHandler('access_grant_apply', async ({ job, payload }) => {
     });
     return { result: { requestId, grantId: grant?.id ?? null } };
   } catch (error) {
+    const permanent = error instanceof HTTPException && error.status >= 400 && error.status < 500;
     await workflowTransaction(async (tx) => {
-      await tx.update(identityAccessRequests).set({ provisionStatus: 'failed', failureReason: error instanceof Error ? error.message.slice(0, 1000) : '权限授权发放失败' })
+      await tx.update(identityAccessRequests).set({ provisionStatus: permanent ? 'terminated' : 'failed', failureReason: error instanceof Error ? error.message.slice(0, 1000) : '权限授权发放失败' })
         .where(and(eq(identityAccessRequests.id, requestId), eq(identityAccessRequests.workflowInstanceId, workflowInstanceId), exactTenantCondition(identityAccessRequests.tenantId, job.tenantId), eq(identityAccessRequests.status, 'approved'), inArray(identityAccessRequests.provisionStatus, ['pending', 'running', 'failed'])));
     });
-    if (error instanceof HTTPException && error.status >= 400 && error.status < 500) throw new WorkflowJobPermanentError(error.message);
+    if (permanent) throw new WorkflowJobPermanentError(error.message);
     throw error;
   }
 });

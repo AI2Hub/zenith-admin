@@ -144,10 +144,10 @@ export async function updateRole(id: number, data: Partial<CreateRoleInput>) {
     if (deptScopeIds !== undefined && deptScopeIds !== null) {
       await syncRoleDeptScopes(tx, id, deptScopeIds);
     }
-    await publishRoleVersion(tx, id);
+    const published = await publishRoleVersion(tx, id);
     // 角色状态/属性变更影响权限解析结果（禁用角色即时失权），清空权限缓存
     await clearUserPermissionCache();
-    return mapRole(role, undefined, deptScopeIds ?? undefined);
+    return mapRole(published, undefined, deptScopeIds ?? undefined);
   });
 }
 

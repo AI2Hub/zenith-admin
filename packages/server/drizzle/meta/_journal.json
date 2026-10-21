@@ -29,6 +29,13 @@
       "when": 1792546620429,
       "tag": "0003_authority_guards",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792550585536,
+      "tag": "0004_access_governance_cache",
+      "breakpoints": true
     }
   ]
 }

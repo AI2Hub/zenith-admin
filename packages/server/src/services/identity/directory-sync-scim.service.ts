@@ -1,9 +1,10 @@
+import { provisionUserRoles } from './authority-write.service';
 import { and, eq } from 'drizzle-orm';
 import { hashPassword } from '../../lib/password';
 import crypto from 'node:crypto';
 import { db } from '../../db';
 import {
-  directorySyncSources, directorySyncUserLinks, users, userRoles,
+  directorySyncSources, directorySyncUserLinks, users,
   type DirectorySyncSourceRow, type DirectorySyncUserLinkRow, type UserRow,
 } from '../../db/schema';
 import { timingSafeCompare } from '../../lib/wechat/signature';
@@ -306,7 +307,7 @@ export async function createScimUser(source: DirectorySyncSourceRow, payload: Re
         });
         const roleIds = await resolveGrantableDefaultRoleIds(lifecycle.defaultRoleIds, source.tenantId, tx);
         if (roleIds.length > 0) {
-          await tx.insert(userRoles).values(roleIds.map((roleId) => ({ userId: created.id, roleId }))).onConflictDoNothing();
+          await provisionUserRoles(tx, created.id, roleIds, source.tenantId);
         }
         return created.id;
       });

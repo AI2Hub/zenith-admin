@@ -1,3 +1,4 @@
+import { provisionUserRoles } from './authority-write.service';
 import { buildListResult } from '../../lib/list-query';
 import { requireRow } from '../../lib/db-assert';
 import crypto from 'node:crypto';
@@ -11,7 +12,7 @@ import { SECRET_PLACEHOLDER, trimTrailingSlash } from '@zenith/shared/core';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { config } from '../../config';
 import { db } from '../../db';
-import { identityProviderSyncLogs, tenantIdentityProviders, tenants, userIdentityAccounts, userRoles, users, type UserRow } from '../../db/schema';
+import { identityProviderSyncLogs, tenantIdentityProviders, tenants, userIdentityAccounts, users, type UserRow } from '../../db/schema';
 import { reserveTenantSeats } from '../../lib/tenant-quota';
 import { exactTenantCondition, isTenantActive, isTenantExpired, resolveManagedTenantId, tenantScope } from '../../lib/tenant';
 import { syncUserDynamicMembershipsSafe } from './user-group-rules.service';
@@ -836,7 +837,7 @@ async function provisionJitUser(
     }));
     const roleIds = await resolveGrantableDefaultRoleIds(provider.defaultRoleIds, provider.tenantId ?? null, tx);
     if (roleIds.length > 0) {
-      await tx.insert(userRoles).values(roleIds.map((roleId) => ({ userId: user.id, roleId }))).onConflictDoNothing();
+      await provisionUserRoles(tx, user.id, roleIds, provider.tenantId ?? null);
     }
     return user;
   });

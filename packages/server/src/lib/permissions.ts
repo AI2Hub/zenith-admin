@@ -4,7 +4,7 @@ import type { DbExecutor } from '../db/types';
 import { SUPER_ADMIN_CODE } from '@zenith/shared/identity';
 import { db } from '../db';
 import { users, identityAccessGrants, identityAccessGrantItems } from '../db/schema';
-import { onInvalidate, onInvalidationReset } from './invalidation-bus';
+import { onInvalidate, onInvalidationReset, invalidationBusState } from './invalidation-bus';
 import { sendToUser } from './ws-manager';
 import { availablePermissionCodes, navigationForPermissions } from '../services/identity/permission-catalog.service';
 import { enabledGroupRolesWith, extractEnabledGroupRoles } from './user-group-access';
@@ -15,18 +15,18 @@ const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 const CACHE_TTL_SECONDS = 300;
 /** Redis key：{prefix}perm:{userId}，与 session/blacklist 同一命名空间 */
 const PERM_CACHE_PREFIX = `${config.redis.keyPrefix}perm:`;
+const PERM_GENERATION_KEY = `${config.redis.keyPrefix}perm-generation`;
+let cacheResetRequired = false;
 
 interface CacheEntry {
   permissions: string[];
   menuIds: number[];
   timestamp: number;
+  generation: string;
   /** 下一个临时授权时间边界；到达后不能继续使用旧缓存 */
   nextPermissionBoundaryAt: number | null;
 }
 
-// 进程内缓存：仅作为 Redis 不可用时的降级数据源（单实例语义）。
-// 主存储为 Redis，保证多实例部署下 clearUserPermissionCache 撤权即时生效。
-const localCache = new Map<number, CacheEntry>();
 const freshPermissionStore = new AsyncLocalStorage<{ userId: number; permissions: string[] }>();
 
 /** Background delivery guards must not reuse a permissions snapshot taken before revocation. */
@@ -41,26 +41,35 @@ function isCacheEntryValid(entry: CacheEntry | null | undefined): entry is Cache
 }
 
 async function readCacheEntry(userId: number): Promise<CacheEntry | null> {
+  if (invalidationBusState() !== 'listening') return null;
   try {
-    const raw = await redis.get(`${PERM_CACHE_PREFIX}${userId}`);
-    const entry = raw ? (JSON.parse(raw) as CacheEntry) : null;
-    return isCacheEntryValid(entry) ? entry : null;
+    if (cacheResetRequired) {
+      await clearRedisPermCache();
+      cacheResetRequired = false;
+    }
+    const [raw, generation] = await Promise.all([redis.get(`${PERM_CACHE_PREFIX}${userId}`), redis.get(PERM_GENERATION_KEY)]);
+    const entry = raw ? JSON.parse(raw) as CacheEntry : null;
+    return isCacheEntryValid(entry) && entry.generation === (generation ?? '0') ? entry : null;
   } catch {
-    const entry = localCache.get(userId);
-    return isCacheEntryValid(entry) ? entry : null;
+    cacheResetRequired = true;
+    return null;
   }
 }
 
-async function writeCacheEntry(userId: number, entry: CacheEntry): Promise<void> {
-  localCache.set(userId, entry);
-  try {
-    await redis.set(`${PERM_CACHE_PREFIX}${userId}`, JSON.stringify(entry), 'EX', CACHE_TTL_SECONDS);
-  } catch {
-    // Redis 不可用时退化为进程内缓存
+async function loadPermissionData(userId: number) {
+  const cached = await readCacheEntry(userId);
+  if (cached) return cached;
+  // Read the generation before the database so an in-flight old read cannot repopulate a revoked cache.
+  const generation = await redis.get(PERM_GENERATION_KEY).catch(() => null);
+  const data = await fetchUserPermissionData(userId);
+  if (!cacheResetRequired && invalidationBusState() === 'listening') {
+    await redis.set(`${PERM_CACHE_PREFIX}${userId}`, JSON.stringify({ ...data, timestamp: Date.now(), generation: generation ?? '0' }), 'EX', CACHE_TTL_SECONDS).catch(() => { cacheResetRequired = true; });
   }
+  return data;
 }
 
 async function clearRedisPermCache(userId?: number): Promise<void> {
+  await redis.incr(PERM_GENERATION_KEY);
   if (userId !== undefined) {
     await redis.del(`${PERM_CACHE_PREFIX}${userId}`);
     return;
@@ -85,29 +94,15 @@ export function isSuperAdmin(user: { roles: string[]; tenantId?: number | null }
 export async function getUserPermissions(userId: number): Promise<string[]> {
   const fresh = freshPermissionStore.getStore();
   if (fresh?.userId === userId) return fresh.permissions;
-  const entry = await readCacheEntry(userId);
-  if (entry) return entry.permissions;
-
-  const { permissions, menuIds, nextPermissionBoundaryAt } = await fetchUserPermissionData(userId);
-  await writeCacheEntry(userId, { permissions, menuIds, timestamp: Date.now(), nextPermissionBoundaryAt });
-  return permissions;
+  return (await loadPermissionData(userId)).permissions;
 }
 
 export async function getUserMenuIds(userId: number): Promise<number[]> {
-  const entry = await readCacheEntry(userId);
-  if (entry) return entry.menuIds;
-
-  const { permissions, menuIds, nextPermissionBoundaryAt } = await fetchUserPermissionData(userId);
-  await writeCacheEntry(userId, { permissions, menuIds, timestamp: Date.now(), nextPermissionBoundaryAt });
-  return menuIds;
+  return (await loadPermissionData(userId)).menuIds;
 }
 
 export async function getUserPermissionBoundary(userId: number): Promise<number | null> {
-  const cached = await readCacheEntry(userId);
-  if (cached) return cached.nextPermissionBoundaryAt;
-  const data = await fetchUserPermissionData(userId);
-  await writeCacheEntry(userId, { ...data, timestamp: Date.now() });
-  return data.nextPermissionBoundaryAt;
+  return (await loadPermissionData(userId)).nextPermissionBoundaryAt;
 }
 
 async function fetchUserPermissionData(userId: number, executor: DbExecutor = db, _fresh = false): Promise<{ permissions: string[]; menuIds: number[]; nextPermissionBoundaryAt: number | null }> {
@@ -115,7 +110,7 @@ async function fetchUserPermissionData(userId: number, executor: DbExecutor = db
   const user = await executor.query.users.findFirst({
     where: eq(users.id, userId), columns: { tenantId: true, status: true },
     with: {
-      userRoles: { with: { role: { columns: { permissionCodes: true, status: true } } } },
+      userRoles: { with: { role: { columns: { permissionCodes: true, status: true }, with: { roleMenus: { with: { menu: { columns: { id: true, permission: true, status: true } } } } } } } },
       directPermissions: { columns: { permissionCode: true } },
       userMenus: { with: { menu: { columns: { id: true, permission: true, status: true } } } },
       userGroupMembers: enabledGroupRolesWith({ columns: { permissionCodes: true, status: true } }),
@@ -138,12 +133,13 @@ async function fetchUserPermissionData(userId: number, executor: DbExecutor = db
   const permissions = await availablePermissionCodes(codes, user.tenantId, executor);
   const menuIds = await navigationForPermissions(permissions, executor);
   // Explicit navigation-only grants cannot introduce any operation permission.
-  const navigation = user.userMenus.filter(({ menu }) => menu.status === 'enabled' && !menu.permission).map(({ menu }) => menu.id);
+  const navigationBindings = [...user.userMenus, ...user.userRoles.filter(binding => binding.role.status === 'enabled').flatMap(binding => binding.role.roleMenus)];
+  const navigation = navigationBindings.filter(({ menu }) => menu.status === 'enabled' && !menu.permission).map(({ menu }) => menu.id);
   return { permissions, menuIds: [...new Set([...menuIds, ...navigation])], nextPermissionBoundaryAt };
 }
 
 /**
- * 清除用户权限缓存（Redis 主存储 + 本地降级缓存）。
+ * 清除用户权限缓存（Redis 缓存；不可用时直接读取数据库）。
  * 等待 Redis 删除完成，确保调用方返回时撤权已生效。
  */
 export async function notifyUserPermissionsChanged(userId: number): Promise<void> {
@@ -153,16 +149,11 @@ export async function notifyUserPermissionsChanged(userId: number): Promise<void
 
 function invalidateUserEntry(key?: string | null): void {
   const userId = Number(key);
-  if (!Number.isSafeInteger(userId) || userId <= 0) localCache.clear();
-  else {
-    localCache.delete(userId);
-    void clearRedisPermCache(userId).catch(() => {});
-  }
+  void clearUserPermissionCache(Number.isSafeInteger(userId) && userId > 0 ? userId : undefined);
 }
 
 onInvalidate('identity_access_grants', message => invalidateUserEntry(message.key));
 onInvalidate('identity_access_grant_items', message => {
-  localCache.clear();
   const grantId = Number(message.key);
   if (Number.isSafeInteger(grantId) && grantId > 0) void db.query.identityAccessGrants.findFirst({ where: eq(identityAccessGrants.id, grantId), columns: { userId: true } })
     .then(grant => { if (grant) invalidateUserEntry(String(grant.userId)); }).catch(() => {});
@@ -170,16 +161,18 @@ onInvalidate('identity_access_grant_items', message => {
 onInvalidate('user_roles', message => invalidateUserEntry(message.key));
 onInvalidate('identity_user_permissions', message => invalidateUserEntry(message.key));
 onInvalidate('roles', () => invalidateUserEntry());
+onInvalidate('users', message => invalidateUserEntry(message.key));
+onInvalidate('menus', () => invalidateUserEntry());
+onInvalidate('role_menus', () => invalidateUserEntry());
+onInvalidate('user_groups', () => invalidateUserEntry());
+onInvalidate('tenants', () => invalidateUserEntry());
+onInvalidate('tenant_package_features', () => invalidateUserEntry());
+onInvalidate('tenant_packages', () => invalidateUserEntry());
 onInvalidate('user_group_roles', () => invalidateUserEntry());
 onInvalidate('user_menus', message => invalidateUserEntry(message.key));
 onInvalidate('user_group_members', message => invalidateUserEntry(message.key));
-onInvalidationReset(() => { localCache.clear(); void clearRedisPermCache().catch(() => {}); });
+onInvalidationReset(() => { void clearUserPermissionCache(); });
 
 export async function clearUserPermissionCache(userId?: number): Promise<void> {
-  if (userId === undefined) {
-    localCache.clear();
-  } else {
-    localCache.delete(userId);
-  }
-  await clearRedisPermCache(userId).catch(() => {});
+  await clearRedisPermCache(userId).catch(() => { cacheResetRequired = true; });
 }

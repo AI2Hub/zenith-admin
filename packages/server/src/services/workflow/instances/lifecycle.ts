@@ -15,7 +15,7 @@ import { tenantCondition, getCreateTenantId, exactTenantCondition } from '../../
 import { buildWhere } from '../../../lib/where-helpers';
 import { validateFlowData } from '../../../lib/workflow-engine';
 import { cancelJobs, WORKFLOW_ADVANCING_JOB_TYPES } from '../../../lib/workflow-jobs/engine';
-import type { WorkflowFlowData, WorkflowInstanceFormSnapshot } from '@zenith/shared/workflow';
+import type { WorkflowFlowData, WorkflowInstanceFormSnapshot, WorkflowEventActor } from '@zenith/shared/workflow';
 import { collectWorkflowFormValidationErrors, WORKFLOW_ACTIVE_INSTANCE_STATUSES } from '@zenith/shared/workflow';
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../../lib/context';
@@ -324,36 +324,30 @@ export async function withdrawInstance(id: number) {
   return mapInstance(updated);
 }
 
+/** Business invalidation uses the same token, task, job and outcome cleanup as administrator cancellation. */
+export async function cancelWorkflowInstanceInTransaction(tx: DbExecutor, id: number, tenantId: number | null, actor: WorkflowEventActor, reason: string) {
+  const where = and(eq(workflowInstances.id, id), exactTenantCondition(workflowInstances.tenantId, tenantId));
+  const [locked] = await tx.select({ status: workflowInstances.status }).from(workflowInstances).where(where).for('update').limit(1);
+  if (!locked || !['running', 'suspended'].includes(locked.status)) return null;
+  const cancelled = await tx.update(workflowTasks).set({ status: 'skipped', actionAt: new Date(), comment: reason })
+    .where(and(eq(workflowTasks.instanceId, id), inArray(workflowTasks.status, ['pending', 'waiting']))).returning();
+  await killInstanceTokens(tx, id);
+  await cancelJobs({ instanceId: id, jobTypes: WORKFLOW_ADVANCING_JOB_TYPES }, tx);
+  const [row] = await tx.update(workflowInstances).set({ status: 'cancelled', currentNodeKey: null, suspendedAt: null, suspendReason: null }).where(where).returning();
+  await enqueueSubprocessJoin(row, tx);
+  await bridgeReportFillWorkflowOutcome(tx, { workflowInstanceId: id, outcome: 'cancelled', actorId: actor.userId ?? null });
+  await getWorkflowBusinessAdapter(row.bizType)?.onOutcomeInTransaction?.(tx, mapInstance(row), actor.userId ?? null);
+  for (const task of cancelled) await emitTaskEvent('task.skipped', mapTask(task), { definitionId: row.definitionId, tenantId: row.tenantId, actor }, tx);
+  return row;
+}
+
 export async function cancelInstance(id: number) {
   const user = currentUser();
-  const inst = await requireVisibleInstance(id);
-  const where = buildWhere(eq(workflowInstances.id, id), tenantCondition(workflowInstances, user));
-  if (inst.status !== 'running' && inst.status !== 'suspended') throw new HTTPException(400, { message: '只能取消进行中或已挂起的流程' });
-  const { row: updated } = await workflowTransaction(async (tx) => {
-    const [locked] = await tx.select({ status: workflowInstances.status })
-      .from(workflowInstances).where(where).for('update').limit(1);
-    if (!locked || (locked.status !== 'running' && locked.status !== 'suspended')) {
-      throw new HTTPException(400, { message: '只能取消进行中或已挂起的流程' });
-    }
-    const cancelled = await tx.update(workflowTasks).set({ status: 'skipped', actionAt: new Date(), comment: '[管理员取消] 流程已取消，本待办作废' })
-      .where(and(eq(workflowTasks.instanceId, id), inArray(workflowTasks.status, ['pending', 'waiting'])))
-      .returning();
-    await killInstanceTokens(tx, id);
-    await cancelJobs({ instanceId: id, jobTypes: WORKFLOW_ADVANCING_JOB_TYPES }, tx);
-    const [row] = await tx.update(workflowInstances).set({ status: 'cancelled', currentNodeKey: null, suspendedAt: null, suspendReason: null }).where(where).returning();
-    await enqueueSubprocessJoin(row, tx);
-    await bridgeReportFillWorkflowOutcome(tx, {
-      workflowInstanceId: id,
-      outcome: 'cancelled',
-      actorId: user.userId,
-    });
-    await getWorkflowBusinessAdapter(row.bizType)?.onOutcomeInTransaction?.(tx, mapInstance(row), user.userId);
-    // 事务性 outbox：取消事件与状态变更原子提交
-    const actor = { userId: user.userId, name: user.username };
-    for (const t of cancelled) {
-      await emitTaskEvent('task.skipped', mapTask(t), { definitionId: row.definitionId, tenantId: row.tenantId, actor }, tx);
-    }
-    return { row, cancelledTasks: cancelled };
+  const instance = await requireVisibleInstance(id);
+  const updated = await workflowTransaction(async tx => {
+    const result = await cancelWorkflowInstanceInTransaction(tx, id, instance.tenantId, { userId: user.userId, name: user.username }, '[管理员取消] 流程已取消，本待办作废');
+    if (!result) throw new HTTPException(400, { message: '只能取消进行中或已挂起的流程' });
+    return result;
   });
   return mapInstance(updated);
 }

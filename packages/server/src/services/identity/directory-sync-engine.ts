@@ -1,3 +1,4 @@
+import { provisionUserRoles } from './authority-write.service';
 import { requireRow } from '../../lib/db-assert';
 import { HTTPException } from 'hono/http-exception';
 import { and, desc, eq, getTableColumns, inArray, isNull, lte, sql } from 'drizzle-orm';
@@ -7,7 +8,7 @@ import { hashPassword } from '../../lib/password';
 import crypto from 'node:crypto';
 import { db } from '../../db';
 import {
-  departments, users, userRoles,
+  departments, users,
   directorySyncSources, directorySyncRuns, directorySyncRunItems,
   directorySyncConflicts, directorySyncUserLinks, directorySyncDeptLinks,
   type DirectorySyncSourceRow, type DirectorySyncUserLinkRow, type DirectorySyncDeptLinkRow,
@@ -551,7 +552,7 @@ export async function runDirectorySync(sourceId: number, opts: RunOptions): Prom
               });
               const roleIds = await resolveGrantableDefaultRoleIds(lifecycle.defaultRoleIds, source.tenantId, tx);
               if (roleIds.length > 0) {
-                await tx.insert(userRoles).values(roleIds.map((roleId) => ({ userId: created.id, roleId }))).onConflictDoNothing();
+                await provisionUserRoles(tx, created.id, roleIds, source.tenantId);
               }
             });
             usedUsernames.add(username);

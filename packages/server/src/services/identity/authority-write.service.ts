@@ -119,9 +119,11 @@ export async function replaceRolePermissions(tx: DbExecutor, roleId: number, men
 }
 
 export async function publishRoleVersion(tx: DbExecutor, roleId: number, codes?: readonly string[]) {
+  const identity = await tx.query.roles.findFirst({ where: eq(roles.id, roleId), columns: { tenantId: true } });
+  if (!identity) throw new HTTPException(404, { message: '角色不存在' });
+  await lockIdentityAuthority(tx, identity.tenantId);
   const role = await tx.query.roles.findFirst({ where: eq(roles.id, roleId), with: { deptScopes: true } });
   if (!role) throw new HTTPException(404, { message: '角色不存在' });
-  await lockIdentityAuthority(tx, role.tenantId);
   const permissionCodes = [...new Set(codes ?? role.permissionCodes)].sort();
   const deptScopeIds = role.deptScopes.map(item => item.deptId).sort((a, b) => a - b);
   accessScopeKey(role.dataScope, deptScopeIds);
@@ -130,15 +132,19 @@ export async function publishRoleVersion(tx: DbExecutor, roleId: number, codes?:
   const changed = old && JSON.stringify({ permissionCodes: old.permissionCodes, dataScope: old.dataScope, deptScopeIds: old.deptScopeIds }) !== JSON.stringify(snapshot);
   const version = role.permissionVersion + (changed ? 1 : 0);
   await tx.insert(identityRoleVersions).values({ roleId, version, ...snapshot }).onConflictDoNothing();
-  await tx.update(roles).set({ permissionCodes, permissionVersion: version }).where(eq(roles.id, roleId));
+  const [published] = await tx.update(roles).set({ permissionCodes, permissionVersion: version }).where(eq(roles.id, roleId)).returning();
+  return published;
 }
 
 export async function replaceDirectPermissions(tx: DbExecutor, userId: number, menuIds: readonly number[], tenantId: number | null) {
   await assertAuthorityGrant(tx, { tenantId, permission: 'system:user:assign', beneficiaryIds: [userId], menuIds });
   const rows = menuIds.length ? await tx.select({ code: menus.permission }).from(menus).where(inArray(menus.id, [...menuIds])) : [];
   const codes = [...new Set(rows.flatMap(row => row.code ? [row.code] : []))];
-  await tx.delete(identityUserPermissions).where(eq(identityUserPermissions.userId, userId));
-  if (codes.length) await tx.insert(identityUserPermissions).values(codes.map(permissionCode => ({ userId, permissionCode, dataScope: 'self' as const, deptScopeIds: [], scopeKey: accessScopeKey('self', []) })));
+  const existing = await tx.query.identityUserPermissions.findMany({ where: eq(identityUserPermissions.userId, userId) });
+  const removed = existing.filter(item => !codes.includes(item.permissionCode)).map(item => item.id);
+  const added = codes.filter(code => !existing.some(item => item.permissionCode === code));
+  if (removed.length) await tx.delete(identityUserPermissions).where(and(eq(identityUserPermissions.userId, userId), inArray(identityUserPermissions.id, removed)));
+  if (added.length) await tx.insert(identityUserPermissions).values(added.map(permissionCode => ({ userId, permissionCode, dataScope: 'self' as const, deptScopeIds: [], scopeKey: accessScopeKey('self', []) })));
 }
 
 export async function replaceRoleMembers(tx: DbExecutor, roleId: number, userIds: readonly number[], tenantId: number | null) {

@@ -23,7 +23,7 @@ export async function expandReviewDepartmentIds(ids: readonly number[], tenantId
   return [...selected];
 }
 
-export async function collectAccessReviewSourceBatch(campaign: Pick<IdentityAccessReviewCampaignRow, 'tenantId' | 'scopeType' | 'scopeIds' | 'dueOnly'>, afterUserId: number, policies: ReadonlyMap<string, AccessPolicySnapshot>, departmentIds: readonly number[] = [], executor: DbExecutor = db) {
+export async function collectAccessReviewSourceBatch(campaign: Pick<IdentityAccessReviewCampaignRow, 'tenantId' | 'scopeType' | 'scopeIds' | 'dueOnly'>, afterUserId: number, policies: ReadonlyMap<string, AccessPolicySnapshot>, departmentIds: readonly number[] = [], executor: DbExecutor = db, includePending = false) {
   const role = { columns: { id: true, name: true, code: true, status: true, dataScope: true, permissionCodes: true, permissionVersion: true } } as const;
   const userRows = await executor.query.users.findMany({
     where: buildWhere(exactTenantCondition(users.tenantId, campaign.tenantId), gt(users.id, afterUserId),
@@ -60,7 +60,7 @@ export async function collectAccessReviewSourceBatch(campaign: Pick<IdentityAcce
     const intervals = policyRows.map(policy => policy.reviewIntervalDays).filter(days => days > 0);
     const interval = riskLevel === 'critical' ? Math.min(...intervals, 30) : riskLevel === 'high' ? Math.min(...intervals, 90) : intervals.length ? Math.min(...intervals) : 0;
     const previous = history.get(sourceKey(input.userId, input.sourceType, input.sourceId));
-    if (previous?.decision === 'pending') return;
+    if (!includePending && previous?.decision === 'pending') return;
     if (campaign.dueOnly) {
       const dueAt = previous?.nextReviewAt ?? (interval > 0 ? new Date((previous?.decidedAt ?? input.sourceCreatedAt).getTime() + interval * 86_400_000) : null);
       if (!dueAt || dueAt > now) return;
@@ -81,7 +81,7 @@ export async function collectAccessReviewSourceBatch(campaign: Pick<IdentityAcce
       const inherited = extractEnabledGroupRoles([membership]);
       if (!inherited.groups.length) continue;
       append({ userId: user.id, sourceType: 'group_membership', sourceId: membership.group.id, sourceLabel: `用户组资格：${membership.group.name}`, codes: inherited.roles.flatMap(codesFromRole), riskFloor: inherited.roles.some(role => ['security_admin', 'tenant_admin', 'super_admin'].includes(role.code)) ? 'critical' : 'low', sourceCreatedAt: membership.createdAt,
-        snapshot: { groupId: membership.group.id, groupName: membership.group.name, memberMode: membership.group.memberMode, roleIds: inherited.roles.map(entry => entry.id), roleNames: inherited.roles.map(entry => entry.name), revocationUnit: '整个用户组成员资格' } });
+        snapshot: { groupId: membership.group.id, groupName: membership.group.name, memberMode: membership.group.memberMode, roleIds: inherited.roles.map(entry => entry.id), roleVersions: inherited.roles.map(entry => ({ roleId: entry.id, version: entry.permissionVersion })).sort((a, b) => a.roleId - b.roleId), roleNames: inherited.roles.map(entry => entry.name), revocationUnit: '整个用户组成员资格' } });
     }
     if (!['role', 'group', 'temporary'].includes(campaign.scopeType)) for (const entry of user.directPermissions) {
       if (!ALL_PERMISSIONS[entry.permissionCode]) continue;

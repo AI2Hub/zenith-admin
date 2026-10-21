@@ -392,6 +392,8 @@ export async function getUserAccessOverview(userId: number) {
 }
 
 export async function reconcileAccessGovernance(): Promise<string> {
+  const { reconcilePendingAccessRequests } = await import('./access-request-lifecycle.service');
+  const invalidated = await reconcilePendingAccessRequests();
   const rows = await db.select({ id: workflowInstances.id, tenantId: workflowInstances.tenantId, bizType: workflowInstances.bizType, bizId: workflowInstances.bizId, status: workflowInstances.status, initiatorId: workflowInstances.initiatorId })
     .from(identityAccessRequests)
     .innerJoin(workflowInstances, eq(workflowInstances.id, identityAccessRequests.workflowInstanceId))
@@ -402,5 +404,5 @@ export async function reconcileAccessGovernance(): Promise<string> {
     const approver = await tx.query.workflowTasks.findFirst({ where: and(eq(workflowTasks.instanceId, row.id), eq(workflowTasks.status, 'approved')), columns: { assigneeId: true }, orderBy: [desc(workflowTasks.actionAt), desc(workflowTasks.id)] });
     await bridgeAccessWorkflowOutcome(tx, row, approver?.assigneeId ?? null);
   });
-  return `权限审批对账：核对 ${rows.length} 条，授权由可靠作业发放`;
+  return `权限审批对账：终止 ${invalidated} 条失效申请，核对 ${rows.length} 条结束申请，授权由可靠作业发放`;
 }

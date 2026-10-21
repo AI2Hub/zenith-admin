@@ -211,11 +211,25 @@ export async function decideReviewItem(id: number, input: DecideAccessReviewItem
   }
   const changedUsers = new Set<number>();
   const logoutUsers = new Set<number>();
+  let sourceRefreshed = false;
   await db.transaction(async tx => {
     await tx.select({ id: identityAccessReviewCampaigns.id }).from(identityAccessReviewCampaigns).where(and(eq(identityAccessReviewCampaigns.id, initial.campaignId), exactTenantCondition(identityAccessReviewCampaigns.tenantId, initial.tenantId))).for('update');
     const [item] = await tx.select().from(identityAccessReviewItems).where(where).for('update').limit(1);
     if (!item || item.decision !== 'pending') throw new HTTPException(409, { message: '复核项已被处理，请刷新后重试' });
     if (item.reviewerId !== initial.reviewerId) throw new HTTPException(409, { message: '复核负责人已变化，请刷新后重试' });
+    await lockIdentityAuthority(tx, item.tenantId);
+    if (['keep', 'extend', 'exception'].includes(input.decision)) {
+      const currentSources = await collectAccessReviewSourceBatch({ tenantId: item.tenantId, scopeType: 'user', scopeIds: [item.userId], dueOnly: false }, item.userId - 1, new Map(policies.map(policy => [policy.permissionCode, policy])), [], tx, true);
+      const source = currentSources.sources.find(source => source.sourceType === item.sourceType && source.sourceId === item.sourceId);
+      if (!source) throw new HTTPException(409, { message: '授权来源已经失效，请选择撤销完成此项复核' });
+      const sourceSignature = (snapshot: Record<string, unknown>) => JSON.stringify(Object.entries(snapshot).filter(([key]) => !['capturedAt', 'reviewIntervalDays'].includes(key)).sort(([a], [b]) => a.localeCompare(b)));
+      if (sourceSignature(source.snapshot) !== sourceSignature(item.snapshot)) {
+        const refreshedPolicies = await loadEffectiveAccessPolicies(snapshotCodes(source.snapshot), item.tenantId, tx);
+        await tx.update(identityAccessReviewItems).set({ snapshot: source.snapshot, sourceLabel: source.sourceLabel, riskLevel: reviewPolicy(refreshedPolicies, source.riskLevel).riskLevel }).where(where);
+        sourceRefreshed = true;
+        return;
+      }
+    }
     const activeActor = await tx.query.users.findFirst({ where: and(eq(users.id, actor.userId), eq(users.status, 'enabled')), columns: { id: true } });
     if (!activeActor) throw new HTTPException(403, { message: '当前账号已停用，不能继续办理' });
     const campaign = requireRow(await tx.query.identityAccessReviewCampaigns.findFirst({ where: and(eq(identityAccessReviewCampaigns.id, item.campaignId), exactTenantCondition(identityAccessReviewCampaigns.tenantId, item.tenantId)) }), '复核批次不存在');
@@ -290,6 +304,7 @@ export async function decideReviewItem(id: number, input: DecideAccessReviewItem
     }
     await aggregateCampaign(tx, item.campaignId, item.tenantId);
   });
+  if (sourceRefreshed) throw new HTTPException(409, { message: '授权来源内容或范围已变化，复核快照已更新，请刷新后重新确认' });
   for (const userId of changedUsers) await notifyUserPermissionsChanged(userId);
   if (logoutUsers.size) await forceLogoutAllByUsers([...logoutUsers]);
   return formatReviewItem(requireRow(await db.query.identityAccessReviewItems.findFirst({ where, with: { user: true, reviewer: true } }), '复核项不存在'));
