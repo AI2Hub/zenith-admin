@@ -10,6 +10,7 @@ import { validateUserGroupRulePresence } from '@zenith/shared/identity';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { currentUser } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
+import { replaceGroupRoleBindings, replaceGroupMemberBindings, assertAuthorityActor, assertAutomaticGroupMembership } from './authority-write.service';
 import { clearUserPermissionCache } from '../../lib/permissions';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { formatDateTime, formatTimestamps } from '../../lib/datetime';
@@ -161,17 +162,17 @@ export async function createUserGroup(input: CreateUserGroupInput) {
     throw new HTTPException(400, { message: '动态用户组至少需要一个部门/岗位条件或强制包含名单' });
   }
   try {
-    const [row] = await db
-      .insert(userGroups)
-      .values({
-        ...groupInput,
-        memberMode,
-        memberRule: memberMode === 'dynamic' ? groupInput.memberRule ?? null : null,
-        tenantId: getCreateTenantId(currentUser()),
-      })
-      .returning();
-    if (roleIds.length > 0) await setGroupRoles(row.id, roleIds);
-    if (memberMode === 'static' && userIds.length > 0) await setGroupMembers(row.id, userIds);
+    const tenantId = getCreateTenantId(currentUser());
+    if (memberMode === 'static' && userIds.length) await validateScopeUserIds(userIds, tenantId);
+    const row = await db.transaction(async tx => {
+      const [created] = await tx.insert(userGroups).values({ ...groupInput, memberMode,
+        memberRule: memberMode === 'dynamic' ? groupInput.memberRule ?? null : null, tenantId }).returning();
+      if (roleIds.length) await replaceGroupRoleBindings(tx, created.id, roleIds, tenantId);
+      if (memberMode === 'static' && userIds.length) {
+        await replaceGroupMemberBindings(tx, created.id, userIds, tenantId);
+      }
+      return created;
+    });
     // 动态组建组即物化一次成员
     if (row.memberMode === 'dynamic') await syncDynamicGroup(row.id);
     return getUserGroup(row.id);
@@ -185,7 +186,7 @@ export async function updateUserGroup(id: number, input: UpdateUserGroupInput) {
   const { roleIds, ...groupInput } = input;
   const tc = tenantCondition(userGroups, currentUser());
   const [existing] = await db
-    .select({ id: userGroups.id, memberMode: userGroups.memberMode, memberRule: userGroups.memberRule })
+    .select({ id: userGroups.id, tenantId: userGroups.tenantId, memberMode: userGroups.memberMode, memberRule: userGroups.memberRule })
     .from(userGroups)
     .where(and(eq(userGroups.id, id), tc))
     .limit(1);
@@ -199,18 +200,19 @@ export async function updateUserGroup(id: number, input: UpdateUserGroupInput) {
   }
 
   try {
-    const [row] = await db
-      .update(userGroups)
-      .set({
-        ...groupInput,
-        // dynamic → static：冻结当前成员为手工维护，规则清空
+    const row = await db.transaction(async tx => {
+      if (groupInput.status !== undefined || groupInput.memberRule !== undefined || groupInput.memberMode !== undefined) {
+        const members = await tx.select({ id: userGroupMembers.userId }).from(userGroupMembers).where(eq(userGroupMembers.groupId, id));
+        await assertAuthorityActor(tx, existing.tenantId, 'system:user-groups:assign', members.map(member => member.id));
+      }
+      const [updated] = await tx.update(userGroups).set({ ...groupInput,
         ...(nextMode === 'static' ? { memberRule: null } : {}),
-      })
-      .where(and(eq(userGroups.id, id), tc))
-      .returning();
-    requireRow(row, '用户组不存在');
-
-    if (roleIds !== undefined) await setGroupRoles(id, roleIds);
+      }).where(and(eq(userGroups.id, id), tc)).returning();
+      requireRow(updated, '用户组不存在');
+      if (roleIds !== undefined) await replaceGroupRoleBindings(tx, id, roleIds, existing.tenantId);
+      if (nextMode === 'dynamic') await assertAutomaticGroupMembership(tx, id, existing.tenantId);
+      return updated;
+    });
     const ruleChanged = groupInput.memberRule !== undefined || groupInput.memberMode !== undefined;
     if (nextMode === 'dynamic' && ruleChanged) {
       // static → dynamic 或规则变化：成员整体重算（含清缓存）
@@ -374,10 +376,7 @@ export async function setGroupMembers(groupId: number, userIds: number[]) {
   const uniqueUserIds = await validateScopeUserIds(userIds, group.tenantId);
   const previous = await db.select({ userId: userGroupMembers.userId }).from(userGroupMembers).where(eq(userGroupMembers.groupId, groupId));
   await db.transaction(async (tx) => {
-    await tx.delete(userGroupMembers).where(eq(userGroupMembers.groupId, groupId));
-    if (uniqueUserIds.length > 0) {
-      await tx.insert(userGroupMembers).values(uniqueUserIds.map(userId => ({ groupId, userId })));
-    }
+    await replaceGroupMemberBindings(tx, groupId, uniqueUserIds, group.tenantId);
   });
   // 组可能绑定角色：成员进出影响其继承权限，前后成员均需清缓存
   await Promise.all([...new Set([...previous.map((r) => r.userId), ...uniqueUserIds])].map((uid) => clearUserPermissionCache(uid)));
@@ -395,7 +394,10 @@ export async function addGroupMembers(groupId: number, userIds: number[]) {
   const exists = new Set(existing.map(r => r.userId));
   const toAdd = uniqueUserIds.filter(id => !exists.has(id));
   if (toAdd.length > 0) {
-    await db.insert(userGroupMembers).values(toAdd.map(uid => ({ groupId, userId: uid })));
+    await db.transaction(async tx => {
+      const before = await tx.select({ userId: userGroupMembers.userId }).from(userGroupMembers).where(eq(userGroupMembers.groupId, groupId));
+      await replaceGroupMemberBindings(tx, groupId, [...before.map(row => row.userId), ...toAdd], group.tenantId);
+    });
     await Promise.all(toAdd.map((uid) => clearUserPermissionCache(uid)));
   }
 }
@@ -425,19 +427,10 @@ export async function listGroupRoles(groupId: number) {
 
 /** 全量覆盖用户组绑定的角色，组内成员的继承权限即时生效 */
 export async function setGroupRoles(groupId: number, roleIds: number[]) {
-  await ensureGroupAccessible(groupId);
+  const group = await ensureGroupAccessible(groupId);
   const uniqueRoleIds = [...new Set(roleIds)];
-  if (uniqueRoleIds.length > 0) {
-    const tc = tenantCondition(roles, currentUser());
-    const found = await db.select({ id: roles.id }).from(roles)
-      .where(buildWhere(inArray(roles.id, uniqueRoleIds), tc));
-    if (found.length !== uniqueRoleIds.length) throw new HTTPException(400, { message: '包含不存在的角色' });
-  }
-  await db.transaction(async (tx) => {
-    await tx.delete(userGroupRoles).where(eq(userGroupRoles.groupId, groupId));
-    if (uniqueRoleIds.length > 0) {
-      await tx.insert(userGroupRoles).values(uniqueRoleIds.map((roleId) => ({ groupId, roleId })));
-    }
+  await db.transaction(async tx => {
+    await replaceGroupRoleBindings(tx, groupId, uniqueRoleIds, group.tenantId);
   });
   // 组内所有成员的权限受影响，清缓存即时生效
   const members = await db.select({ userId: userGroupMembers.userId }).from(userGroupMembers).where(eq(userGroupMembers.groupId, groupId));

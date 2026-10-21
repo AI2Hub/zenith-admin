@@ -6,6 +6,7 @@ import type { DbExecutor } from '../../db/types';
 import { roles, userRoles } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { exactTenantCondition, isPlatformAdmin, tenantCondition } from '../../lib/tenant';
+import { assertAutomaticRolesAllowed } from './authority-write.service';
 import { buildWhere } from '../../lib/where-helpers';
 
 /**
@@ -57,6 +58,7 @@ export async function assertDefaultRolesGrantable(roleIds: number[], targetTenan
   if (rows.some((r) => RESERVED_ROLE_CODES.has(r.code))) {
     throw new HTTPException(400, { message: '自动建号不允许授予平台保留角色，请由平台管理员手动授予' });
   }
+  await db.transaction(tx => assertAutomaticRolesAllowed(tx, uniq, targetTenantId));
 }
 
 /**
@@ -76,5 +78,6 @@ export async function resolveGrantableDefaultRoleIds(
     roleTenantCondition(tenantId),
     notInArray(roles.code, [...RESERVED_ROLE_CODES]),
   ));
+  await assertAutomaticRolesAllowed(executor, rows.map(row => row.id), tenantId);
   return rows.map((r) => r.id);
 }

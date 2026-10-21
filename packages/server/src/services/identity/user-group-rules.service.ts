@@ -14,6 +14,7 @@ import { and, eq, inArray, type SQL } from 'drizzle-orm';
 import type { UserGroupMemberRule } from '@zenith/shared/identity';
 import { db } from '../../db';
 import { departments, userGroupMembers, userGroups, userPositions, users } from '../../db/schema';
+import { assertAutomaticGroupMembership } from './authority-write.service';
 import { clearUserPermissionCache } from '../../lib/permissions';
 import { formatDateTime } from '../../lib/datetime';
 import logger from '../../lib/logger';
@@ -95,6 +96,8 @@ async function computeRuleTargetUserIds(group: DynamicGroupRow): Promise<Set<num
 
 async function applyMembershipDiff(groupId: number, toAdd: number[], toRemove: number[]): Promise<void> {
   await db.transaction(async (tx) => {
+    const group = requireRow(await tx.query.userGroups.findFirst({ where: eq(userGroups.id, groupId), columns: { tenantId: true } }), '用户组不存在');
+    if (toAdd.length) await assertAutomaticGroupMembership(tx, groupId, group.tenantId);
     if (toRemove.length > 0) {
       await tx.delete(userGroupMembers)
         .where(and(eq(userGroupMembers.groupId, groupId), inArray(userGroupMembers.userId, toRemove)));

@@ -45,7 +45,7 @@ export const registerSchema = z.object({
 });
 
 
-export const createUserSchema = z.object({
+export const createUserSchema = z.strictObject({
   username: z.string().min(2).max(32),
   nickname: z.string().min(1).max(32),
   email: z.preprocess(
@@ -59,15 +59,16 @@ export const createUserSchema = z.object({
   ),
   gender: z.string().max(20).nullable().optional(),
   birthDate: z.string().max(20).nullable().optional(),
-  departmentId: z.number().int().positive().nullable().optional(),
-  positionIds: z.array(z.number().int().positive()).default([]),
-  roleIds: z.array(z.number().int()).default([]),
-  status: entityStatusSchema.default('enabled'),
 });
 
 
 export const updateUserSchema = partialForUpdate(createUserSchema).omit({ password: true }).extend({
   avatar: z.string().max(512).nullable().optional(),
+}).strict();
+
+export const updateUserOrganizationSchema = z.strictObject({
+  departmentId: z.number().int().positive().nullable(),
+  positionIds: z.array(z.number().int().positive()),
 });
 
 

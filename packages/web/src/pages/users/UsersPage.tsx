@@ -38,6 +38,7 @@ import { useListSearch } from '@/hooks/useListSearch';
 import { useListDeepLink } from '@/hooks/useListDeepLink';
 import {
   useAssignUserRoles,
+  useUpdateUserOrganization,
   useBatchUserPassword,
   useBatchUserStatus,
   useDeleteUsers,
@@ -167,6 +168,12 @@ export default function UsersPage() {
   const toggleStatusMutation = useBatchUserStatus();
   const batchPasswordMutation = useBatchUserPassword();
   const assignRolesMutation = useAssignUserRoles();
+  const organizationMutation = useUpdateUserOrganization();
+  const organizationModal = useEditModal<User, BodyOf<typeof userContract.organization>>({
+    entityName: '组织归属',
+    save: { isPending: organizationMutation.isPending, mutateAsync: ({ id, values }) => organizationMutation.mutateAsync({ params: { id: id! }, body: values }) },
+    toValues: user => ({ departmentId: user.departmentId ?? null, positionIds: user.positionIds ?? [] }),
+  });
   const roleEffectivePermissionsQuery = useUserEffectivePermissions(roleAssignUser?.id, roleAssignVisible);
   const kickSessionsMutation = useKickUserSessions();
   // 敏感字段（手机号 / 邮箱）对非豁免用户是掩码：编辑时锁定，提交前剔除未修改的锁定字段
@@ -175,11 +182,7 @@ export default function UsersPage() {
     entityName: '用户',
     save: saveMutation,
     useDetail: useUserDetail,
-    defaults: {
-      positionIds: [],
-      roleIds: [],
-      status: 'enabled',
-    },
+    defaults: {},
     toValues: (user) => ({
       username: user.username,
       nickname: user.nickname,
@@ -187,32 +190,21 @@ export default function UsersPage() {
       phone: user.phone ?? undefined,
       gender: user.gender ?? undefined,
       birthDate: user.birthDate ?? undefined,
-      departmentId: user.departmentId ?? undefined,
-      positionIds: user.positionIds ?? user.positions?.map((item) => item.id) ?? [],
-      roleIds: user.roles.map((r) => r.id),
-      status: user.status,
     }),
-    beforeSave: (rawValues, { editing }) => {
+    beforeSave: (rawValues) => {
       const control = sensitiveFieldsRef.current;
       const values = (control ? control.strip(rawValues as unknown as Record<string, unknown>) : rawValues) as UserFormValues;
       const payload: UserSavePayload = {
         ...values,
         email: values.email ?? undefined,
         phone: values.phone ?? undefined,
-        departmentId: values.departmentId ?? null,
         gender: values.gender ?? null,
         birthDate: values.birthDate ? formatDateForApi(values.birthDate) : null,
-        positionIds: values.positionIds ?? [],
-        roleIds: values.roleIds ?? [],
       };
       // 被剔除的锁定字段不出现在载荷里（服务端只更新提交了的字段）
       if (!('email' in values)) delete payload.email;
       if (!('phone' in values)) delete payload.phone;
 
-      if (editing && isAdminUser(editing) && values.status === 'disabled') {
-        Toast.warning('admin 账号不允许禁用');
-        abortSubmit('admin_status_forbidden');
-      }
       return payload;
     },
     labelWidth: 72,
@@ -293,7 +285,7 @@ export default function UsersPage() {
   const status = useStatusToggle<User>({
     toggle: (user, enabled) => toggleStatusMutation.mutateAsync({ body: { ids: [user.id], status: enabled ? 'enabled' : 'disabled' } }),
     confirmDisable: (user) => ({ danger: true, title: `确认停用用户「${user.nickname ?? user.username}」？`, content: '停用后该用户将无法登录。', okText: '确认停用' }),
-    disabled: (user) => isAdminUser(user) || !hasPermission('system:user:update'),
+    disabled: (user) => isAdminUser(user) || !hasPermission('system:user:status'),
   });
 
   // 启用 / 停用都需确认（停用后无法登录，红色实心确认）；admin 账号不在选中集里
@@ -456,6 +448,7 @@ export default function UsersPage() {
       actions: (record) => {
         const isAdmin = isAdminUser(record);
         return [
+          { key: 'organization', label: '调整组织', hidden: !hasPermission('system:user:organization') || record.id === currentUser?.id, onClick: () => organizationModal.openEdit(record) },
           {
             key: 'edit',
             label: '编辑',
@@ -484,7 +477,7 @@ export default function UsersPage() {
           {
             key: 'password',
             label: '修改密码',
-            hidden: !hasPermission('system:user:update'),
+            hidden: !hasPermission('system:user:credentials'),
             onClick: () => {
               openPassword(record);
             },
@@ -492,7 +485,7 @@ export default function UsersPage() {
           {
             key: 'unlock',
             label: '清除登录验证码要求',
-            hidden: !record.loginChallengeRequired || !hasPermission('system:user:update'),
+            hidden: !record.loginChallengeRequired || !hasPermission('system:user:credentials'),
             onClick: () => handleUnlock(record.id),
           },
           {
@@ -564,7 +557,7 @@ export default function UsersPage() {
         ];
       },
     }),
-  ], [hasPermission, status, deleteMutation, handleUnlock, kickUserSessions, refetchUserList, openEdit, openPassword, canImpersonate, openImpersonate, canViewUserLogs]);
+  ], [hasPermission, status, deleteMutation, handleUnlock, kickUserSessions, refetchUserList, openEdit, openPassword, canImpersonate, openImpersonate, canViewUserLogs, organizationModal, currentUser?.id]);
 
   const [showDeptTree, setShowDeptTree] = useState(false);
   const [isLayoutNarrow, setIsLayoutNarrow] = useState(false);
@@ -626,10 +619,10 @@ export default function UsersPage() {
       {selectedDeletableCount > 0 && hasPermission('system:user:delete') && (
         <BatchDeleteButton count={selectedDeletableCount} onClick={handleBatchDelete} />
       )}
-      {selectedNonAdminIds.length > 0 && hasPermission('system:user:update') && (
+      {selectedNonAdminIds.length > 0 && (hasPermission('system:user:status') || hasPermission('system:user:credentials')) && (
         <>
-          <BatchStatusButtons count={selectedNonAdminIds.length} onChange={handleBatchStatus} danger />
-          <Button theme="light" icon={<KeyRound size={14} />} onClick={() => setBatchPasswordModalVisible(true)}>
+          {hasPermission('system:user:status') && <BatchStatusButtons count={selectedNonAdminIds.length} onChange={handleBatchStatus} danger />}
+          <Button disabled={!hasPermission('system:user:credentials')} theme="light" icon={<KeyRound size={14} />} onClick={() => setBatchPasswordModalVisible(true)}>
             批量修改密码 ({selectedNonAdminIds.length})
           </Button>
         </>
@@ -784,42 +777,6 @@ export default function UsersPage() {
               rules={[{ type: 'email', message: '邮箱格式不正确' }]}
             />
           </Col>
-          <Col span={12}>
-            <Form.TreeSelect
-              field="departmentId"
-              label="所属部门"
-              style={{ width: '100%' }}
-              treeData={departmentTreeData}
-              placeholder="请选择所属部门"
-              filterTreeNode
-              showClear
-            />
-          </Col>
-        </Row>
-        <Row gutter={16}>
-          <Col span={12}>
-            <Form.Select
-              field="positionIds"
-              label="岗位"
-              style={{ width: '100%' }}
-              multiple
-              filter
-              showClear
-              optionList={positionOptionList}
-              placeholder="请选择岗位"
-            />
-          </Col>
-          <Col span={12}>
-            <Form.Select
-              field="roleIds"
-              label="角色"
-              style={{ width: '100%' }}
-              multiple
-              filter
-              optionList={allRoles.map((r) => ({ value: r.id, label: r.name }))}
-              placeholder="请选择角色"
-            />
-          </Col>
         </Row>
         <Row gutter={16}>
           <Col span={12}>
@@ -843,21 +800,11 @@ export default function UsersPage() {
             />
           </Col>
         </Row>
-        <Row gutter={16}>
-          <Col span={12}>
-            <Form.Select
-              field="status"
-              label="状态"
-              style={{ width: '100%' }}
-              optionList={statusItems.map((i) => ({
-                value: i.value,
-                label: i.label,
-                disabled: editingUser ? (isAdminUser(editingUser) && i.value === 'disabled') : false,
-              }))}
-              placeholder="请选择状态"
-            />
-          </Col>
-        </Row>
+      </EditFormModal>
+
+      <EditFormModal modal={organizationModal} title="调整组织归属" width={560}>
+        <Form.TreeSelect field="departmentId" label="所属部门" treeData={departmentTreeData} filterTreeNode showClear style={{ width: '100%' }} />
+        <Form.Select field="positionIds" label="岗位" multiple filter optionList={positionOptionList} style={{ width: '100%' }} />
       </EditFormModal>
 
       <EditFormModal modal={passwordModal} title={passwordModal.editing ? `修改密码 - ${passwordModal.editing.nickname}` : '修改密码'} onCancel={() => { passwordModal.close(); setEditPwdVal(''); }} width={420}>

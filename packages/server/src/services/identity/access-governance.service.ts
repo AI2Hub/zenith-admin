@@ -124,24 +124,6 @@ async function resolveRequestItems(itemsInput: AccessRequestItemInput[], tenantI
   return { items: [...deduped.values()], riskLevel };
 }
 
-export async function assertDirectHighRiskGrantAllowed(menuIds: number[] = [], roleIds: number[] = []): Promise<void> {
-  const actor = currentUser();
-  if (isSuperAdmin({ roles: actor.roles, tenantId: actor.tenantId })) return;
-  const requestedMenuIds = [...new Set(menuIds)];
-  const requestedRoleIds = [...new Set(roleIds)];
-  const directRows = requestedMenuIds.length > 0
-    ? await db.select({ permission: menus.permission }).from(menus).where(inArray(menus.id, requestedMenuIds))
-    : [];
-  const roleRows = requestedRoleIds.length > 0
-    ? await db.select({ permission: menus.permission }).from(roleMenus).innerJoin(menus, eq(menus.id, roleMenus.menuId)).where(inArray(roleMenus.roleId, requestedRoleIds))
-    : [];
-  const highRiskCodes = [...new Set([...directRows, ...roleRows].map((row) => row.permission).filter((permission): permission is string => !!permission))]
-    .filter((permission) => ['high', 'critical'].includes(ALL_PERMISSIONS[permission]?.riskLevel ?? 'low'));
-  if (highRiskCodes.length > 0) {
-    throw new HTTPException(409, { message: `高危权限必须通过权限治理流程申请：${highRiskCodes.join('、')}` });
-  }
-}
-
 export async function getAccessWorkflowOptions() {
   const user = currentUser();
   const featureSet = await getTenantPackageFeatureSet(user.tenantId);
@@ -310,7 +292,8 @@ export async function normalizeAccessWorkflowFormData(raw: Record<string, unknow
   };
 }
 
-export async function applyApprovedAccessRequest(requestId: number, expected?: { workflowInstanceId: number; tenantId: number | null; approvedBy: number | null }): Promise<AccessGrant | null> {
+
+export async function applyApprovedAccessRequest(requestId: number, expected?: { workflowInstanceId: number; tenantId: number | null; approvedBy: number | null }): Promise<AccessGrant | null> {
   const result = await workflowTransaction(async (tx) => {
     const where = buildWhere(eq(identityAccessRequests.id, requestId), expected ? exactTenantCondition(identityAccessRequests.tenantId, expected.tenantId) : undefined);
     const [locked] = await tx.select({ id: identityAccessRequests.id }).from(identityAccessRequests).where(where).for('update').limit(1);

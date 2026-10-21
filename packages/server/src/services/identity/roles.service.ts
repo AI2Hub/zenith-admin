@@ -17,7 +17,7 @@ import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { formatTimestamps } from '../../lib/datetime';
 import { getScopeMemberSummaries, validateScopeUserIds } from './user-scope.service';
 import { RESERVED_ROLE_CODES } from './role-grant';
-import { assertDirectHighRiskGrantAllowed } from './access-governance.service';
+import { assertAuthorityActor, roleBeneficiaries, replaceRoleMembers, replaceRolePermissions } from './authority-write.service';
 
 export function mapRole(row: typeof roles.$inferSelect, menuIds?: number[], deptScopeIds?: number[]) {
   return {
@@ -135,6 +135,9 @@ export async function updateRole(id: number, data: Partial<CreateRoleInput>) {
         throw new HTTPException(400, { message: '超级管理员角色编码不允许修改' });
       }
     }
+    if (rest.dataScope !== undefined || deptScopeIds !== undefined || rest.status !== undefined) {
+      await assertAuthorityActor(tx, existing.tenantId, 'system:role:assign', await roleBeneficiaries(tx, id));
+    }
     const [role] = await tx.update(roles).set({ ...rest }).where(and(eq(roles.id, id), tenantCondition(roles, user))).returning();
     requireRow(role, '角色不存在');
     if (deptScopeIds !== undefined && deptScopeIds !== null) {
@@ -171,7 +174,6 @@ async function ensureRoleBelongsToTenant(id: number): Promise<{ tenantId: number
 }
 
 export async function assignRoleMenus(id: number, menuIds: number[]) {
-  await assertDirectHighRiskGrantAllowed(menuIds);
   const { tenantId: roleTenantId } = await ensureRoleBelongsToTenant(id);
   // 多租户：角色所属租户绑定套餐时，分配的菜单必须落在套餐功能范围内。
   const featureSet = await getTenantPackageFeatureSet(roleTenantId);
@@ -182,10 +184,7 @@ export async function assignRoleMenus(id: number, menuIds: number[]) {
     }
   }
   await db.transaction(async (tx) => {
-    await tx.delete(roleMenus).where(eq(roleMenus.roleId, id));
-    if (menuIds.length > 0) {
-      await tx.insert(roleMenus).values(menuIds.map((menuId) => ({ roleId: id, menuId })));
-    }
+    await replaceRolePermissions(tx, id, menuIds, roleTenantId);
   });
   await clearUserPermissionCache();
 }
@@ -216,10 +215,7 @@ export async function assignRoleUsers(id: number, userIds: number[]) {
     removedUserIds.push(...beforeRows.map((r) => r.userId).filter((uid) => !nextSet.has(uid)));
   }
   await db.transaction(async (tx) => {
-    await tx.delete(userRoles).where(eq(userRoles.roleId, id));
-    if (uniqueUserIds.length > 0) {
-      await tx.insert(userRoles).values(uniqueUserIds.map((userId) => ({ userId, roleId: id })));
-    }
+    await replaceRoleMembers(tx, id, uniqueUserIds, roleInfo.tenantId);
   });
   await clearUserPermissionCache();
   if (removedUserIds.length > 0) {

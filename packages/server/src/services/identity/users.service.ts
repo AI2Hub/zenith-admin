@@ -20,8 +20,8 @@ import { unlockUser as clearLoginChallenge, batchLoginChallengeRequired, getOnli
 import { batchIterable, streamToExcel, streamToCsv, formatDateTimeForExcel, type ExcelColumn } from '../../lib/excel-export';
 import { clearUserPermissionCache, getUserMenuIds } from '../../lib/permissions';
 import type { JwtPayload } from '../../middleware/auth';
-import type { AlertRecipientUser, User } from '@zenith/shared/identity';
-import { mostPermissiveDataScope, userContract } from '@zenith/shared/identity';
+import type { AlertRecipientUser, User, CreateUserInput, UpdateUserInput } from '@zenith/shared/identity';
+import { mostPermissiveDataScope, userContract, createUserSchema, updateUserSchema } from '@zenith/shared/identity';
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { currentUser } from '../../lib/context';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
@@ -31,7 +31,7 @@ import logger from '../../lib/logger';
 import { userHasPlatformSuperRole } from './role-grant';
 import { emitIdentityRemoval } from '../../lib/identity-lifecycle';
 import { releaseIdentitySignatures } from './user-signature-lifecycle';
-import { assertDirectHighRiskGrantAllowed } from './access-governance.service';
+import { assertAuthorityActor, assertAuthorityGrant, provisionBasicUser, replaceUserRoles } from './authority-write.service';
 
 // ─── 关联查询配置 ─────────────────────────────────────────────────────────────
 
@@ -170,12 +170,7 @@ export function mapUsers(rows: UserWithRelations[]): User[] {
 
 // ─── 关联关系设置 ─────────────────────────────────────────────────────────────
 
-export async function setUserRoles(executor: DbExecutor, userId: number, roleIds: number[]) {
-  await executor.delete(userRoles).where(eq(userRoles.userId, userId));
-  if (roleIds.length > 0) {
-    await executor.insert(userRoles).values(roleIds.map((roleId) => ({ userId, roleId })));
-  }
-}
+
 
 export async function setUserPositions(executor: DbExecutor, userId: number, positionIds: number[]) {
   await executor.delete(userPositions).where(eq(userPositions.userId, userId));
@@ -291,26 +286,13 @@ export async function listUsers(q: QueryOutputOf<typeof userContract.list>) {
   });
 }
 
-export interface CreateUserInput {
-  username: string; nickname: string; email?: string | null; password: string;
-  phone?: string; gender?: string | null; departmentId?: number | null;
-  positionIds: number[]; roleIds: number[];
-  status: 'enabled' | 'disabled';
-}
-
 export async function createUser(data: CreateUserInput) {
+  data = createUserSchema.parse(data);
   const user = currentUser();
   const policy = (await getSettings('identitySecurity')).password;
   const policyError = validatePassword(data.password, policy);
   if (policyError) throw new HTTPException(400, { message: policyError });
-  const { password, roleIds, positionIds, departmentId, ...rest } = data;
-  const nextRoleIds = Array.from(new Set(roleIds));
-  const nextPositionIds = Array.from(new Set(positionIds));
-  await Promise.all([
-    ensureDepartmentExists(departmentId, user),
-    ensureRoleIdsExist(nextRoleIds, user),
-    ensurePositionIdsExist(nextPositionIds, user),
-  ]);
+  const { password, ...rest } = data;
   // PostgreSQL NULL != NULL 导致复合唯一约束对 tenantId=NULL 的用户失效，需在应用层显式检查
   const newTenantId = getCreateTenantId(user);
   const tenantFilter = exactTenantCondition(users.tenantId, newTenantId);
@@ -334,11 +316,10 @@ export async function createUser(data: CreateUserInput) {
       const [u] = await tx.insert(users).values({
         ...rest,
         password: hashedPassword,
-        departmentId: departmentId ?? null,
+        status: 'enabled',
         tenantId: getCreateTenantId(user),
       }).returning();
-      await setUserRoles(tx, u.id, nextRoleIds);
-      await setUserPositions(tx, u.id, nextPositionIds);
+      await provisionBasicUser(tx, u.id, newTenantId);
       return u;
     });
     const full = await findUserWithRelations({ where: eq(users.id, created.id) });
@@ -433,87 +414,33 @@ export async function getUserRoleAssignmentAudit(id: number) {
   };
 }
 
-export interface UpdateUserInput {
-  username?: string; nickname?: string; email?: string | null; phone?: string; gender?: string | null;
-  birthDate?: string | null;
-  departmentId?: number | null;
-  positionIds?: number[]; roleIds?: number[];
-  status?: 'enabled' | 'disabled';
-  avatar?: string | null;
+export async function updateUser(id: number, data: UpdateUserInput) {
+  const parsed = updateUserSchema.safeParse(data);
+  if (!parsed.success) throw new HTTPException(400, { message: '普通资料不能包含角色、组织、状态或其他授权字段' });
+  const target = await ensureUserManageable(id);
+  for (const [field, column] of [['username', users.username], ['email', users.email], ['phone', users.phone]] as const) {
+    const value = parsed.data[field];
+    if (!value) continue;
+    const duplicate = await db.select({ id: users.id }).from(users)
+      .where(and(eq(column, value), ne(users.id, id), exactTenantCondition(users.tenantId, target.tenantId))).limit(1);
+    if (duplicate.length) throw new HTTPException(400, { message: '用户名、邮箱或手机号已存在' });
+  }
+  await db.update(users).set(parsed.data).where(and(eq(users.id, id), exactTenantCondition(users.tenantId, target.tenantId)));
+  const full = await findUserWithRelations({ where: and(eq(users.id, id), exactTenantCondition(users.tenantId, target.tenantId)) });
+  return mapUser(requireRow(full, '用户不存在'));
 }
 
-export async function updateUser(id: number, data: UpdateUserInput) {
-  const user = currentUser();
-  await ensureUserManageable(id);
-  const { roleIds, positionIds, departmentId, ...rest } = data;
-  const nextRoleIds = roleIds ? Array.from(new Set(roleIds)) : undefined;
-  const nextPositionIds = positionIds ? Array.from(new Set(positionIds)) : undefined;
-  await Promise.all([
-    ensureDepartmentExists(departmentId, user),
-    ensureRoleIdsExist(nextRoleIds ?? [], user),
-    ensurePositionIdsExist(nextPositionIds ?? [], user),
-  ]);
-  // 更新时检查用户名/邮箱是否已被其他用户占用（排除自身），以及禁用时校验保护账号——三项独立并行
-  const tc = tenantCondition(users, user);
-  const usernameWhereClause = tc
-    ? and(eq(users.username, data.username!), ne(users.id, id), tc)
-    : and(eq(users.username, data.username!), ne(users.id, id));
-  const emailWhereClause = tc
-    ? and(eq(users.email, data.email!), ne(users.id, id), tc)
-    : and(eq(users.email, data.email!), ne(users.id, id));
-  const phoneWhereClause = tc
-    ? and(eq(users.phone, data.phone!), ne(users.id, id), tc)
-    : and(eq(users.phone, data.phone!), ne(users.id, id));
-  const idWhereClause = buildWhere(eq(users.id, id), tc);
-  const [usernameDup, emailDup, phoneDup, disabledTarget] = await Promise.all([
-    data.username
-      ? db.select({ id: users.id }).from(users).where(usernameWhereClause).limit(1)
-      : Promise.resolve([] as { id: number }[]),
-    data.email
-      ? db.select({ id: users.id }).from(users).where(emailWhereClause).limit(1)
-      : Promise.resolve([] as { id: number }[]),
-    data.phone
-      ? db.select({ id: users.id }).from(users).where(phoneWhereClause).limit(1)
-      : Promise.resolve([] as { id: number }[]),
-    data.status === 'disabled'
-      ? db.select({ id: users.id, username: users.username }).from(users).where(idWhereClause).limit(1)
-      : Promise.resolve([] as { id: number; username: string }[]),
-  ]);
-  if (usernameDup[0]) throw new HTTPException(400, { message: '用户名已存在' });
-  if (emailDup[0]) throw new HTTPException(400, { message: '邮箱已存在' });
-  if (phoneDup[0]) throw new HTTPException(400, { message: '手机号已存在' });
-  if (data.status === 'disabled') {
-    if (id === user.userId) throw new HTTPException(400, { message: '不允许禁用当前登录账号' });
-    requireRow(disabledTarget[0], '用户不存在');
-    if (isProtectedAdminUser(disabledTarget[0].username)) throw new HTTPException(400, { message: 'admin 账号不允许禁用' });
-  }
-  const nextValues = {
-    ...rest,
-    ...(departmentId === undefined ? {} : { departmentId: departmentId ?? null }),
-  };
-  // 变更前是否绑定平台超管角色：失去绑定时须撤销会话（JWT roles 2h 内不随 DB 变化）
-  const hadPlatformSuper = nextRoleIds !== undefined ? await userHasPlatformSuperRole(id) : false;
-  const updated = await db.transaction(async (tx) => {
-    const [u] = await tx.update(users).set(nextValues)
-      .where(buildWhere(eq(users.id, id), tc)).returning();
-    if (!u) return null;
-    if (nextRoleIds !== undefined) await setUserRoles(tx, id, nextRoleIds);
-    if (nextPositionIds !== undefined) await setUserPositions(tx, id, nextPositionIds);
-    return u;
+export async function updateUserOrganization(id: number, data: { departmentId: number | null; positionIds: number[] }) {
+  const target = await ensureUserManageable(id);
+  await Promise.all([ensureDepartmentExists(data.departmentId, currentUser()), ensurePositionIdsExist(data.positionIds, currentUser())]);
+  await db.transaction(async tx => {
+    await assertAuthorityActor(tx, target.tenantId, 'system:user:organization', [id]);
+    await tx.update(users).set({ departmentId: data.departmentId }).where(and(eq(users.id, id), exactTenantCondition(users.tenantId, target.tenantId)));
+    await setUserPositions(tx, id, data.positionIds);
   });
-  const updatedUser = requireRow(updated, '用户不存在');
-  if (nextRoleIds !== undefined) {
-    await clearUserPermissionCache(id);
-    if (hadPlatformSuper && !(await userHasPlatformSuperRole(id))) {
-      await revokeUserSessions([id]);
-      emitIdentityRemoval({ kind: 'user', ids: [id] });
-    }
-  }
-  if (data.status === 'disabled') await revokeUserSessions([id]);
-  // 部门/岗位/状态变化可能改变动态用户组归属
-  syncUserDynamicMembershipsSafe([id], '管理端更新用户');
-  const full = await findUserWithRelations({ where: eq(users.id, updatedUser.id) });
-  return mapUser(requireRow(full, '用户不存在'));
+  await clearUserPermissionCache(id);
+  await syncUserDynamicMembershipsSafe([id], '调整用户组织归属');
+  return getUser(id);
 }
 
 export async function deleteUser(id: number) {
@@ -646,7 +573,7 @@ export async function getUserMenuPermissionsBeforeAudit(userId: number) {
 export async function assignUserMenus(userId: number, menuIds: number[]) {
   const target = await ensureUserManageable(userId);
   const uniqueMenuIds = Array.from(new Set(menuIds));
-  await assertDirectHighRiskGrantAllowed(uniqueMenuIds);
+
   // 多租户：直授菜单必须落在目标用户所属租户的套餐功能范围内（与角色分配菜单同一口径）
   const featureSet = await getTenantPackageFeatureSet(target.tenantId);
   if (featureSet && uniqueMenuIds.length > 0) {
@@ -656,6 +583,7 @@ export async function assignUserMenus(userId: number, menuIds: number[]) {
     }
   }
   await db.transaction(async (tx) => {
+    await assertAuthorityGrant(tx, { tenantId: target.tenantId, permission: 'system:user:assign', beneficiaryIds: [userId], menuIds: uniqueMenuIds });
     await tx.delete(userMenus).where(eq(userMenus.userId, userId));
     if (uniqueMenuIds.length > 0) {
       await tx.insert(userMenus).values(uniqueMenuIds.map((menuId) => ({ userId, menuId })));
@@ -665,15 +593,15 @@ export async function assignUserMenus(userId: number, menuIds: number[]) {
 }
 
 export async function assignRolesToUser(userId: number, roleIds: number[]) {
-  await ensureUserManageable(userId);
+  const target = await ensureUserManageable(userId);
   const uniqueRoleIds = Array.from(new Set(roleIds));
-  await assertDirectHighRiskGrantAllowed([], uniqueRoleIds);
+
   // 角色必须存在且落在当前操作者可见租户内，防止绑定跨租户/平台角色
   await ensureRoleIdsExist(uniqueRoleIds, currentUser());
   // 变更前是否绑定平台超管角色：失去绑定时须撤销会话（JWT roles 2h 内不随 DB 变化）
   const hadPlatformSuper = await userHasPlatformSuperRole(userId);
   await db.transaction(async (tx) => {
-    await setUserRoles(tx, userId, uniqueRoleIds);
+    await replaceUserRoles(tx, userId, uniqueRoleIds, target.tenantId);
   });
   await clearUserPermissionCache(userId);
   if (hadPlatformSuper && !(await userHasPlatformSuperRole(userId))) {
@@ -780,8 +708,9 @@ export async function getUserDataPermissionBeforeAudit(userId: number) {
 }
 
 export async function updateUserDataPermission(userId: number, data: { dataScope: string | null; deptScopeIds: number[] }) {
-  await ensureUserManageable(userId);
+  const target = await ensureUserManageable(userId);
   await db.transaction(async (tx) => {
+    await assertAuthorityActor(tx, target.tenantId, 'system:user:assign', [userId]);
     await tx.update(users)
       .set({ userDataScope: data.dataScope as typeof users.$inferInsert['userDataScope'] })
       .where(eq(users.id, userId));

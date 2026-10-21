@@ -96,12 +96,12 @@ export const usersHandlers = [
       gender: body.gender,
       birthDate: body.birthDate ?? null,
       password: DEMO_INITIAL_CREDENTIAL,
-      departmentId: body.departmentId ?? null,
+      departmentId: null,
       departmentName: null,
-      positionIds: body.positionIds,
-      positions: resolvePositions(body.positionIds),
-      roles: resolveRoles(body.roleIds),
-      status: body.status,
+      positionIds: [],
+      positions: [],
+      roles: mockRoles.filter(role => role.code === 'user'),
+      status: 'enabled',
       passwordUpdatedAt: mockDateTime(),
       createdAt: mockDateTime(),
       updatedAt: mockDateTime(),
@@ -156,16 +156,16 @@ export const usersHandlers = [
 
   mock(userContract.update, ({ params, body, ok }) => {
     const user = requireItem(mockUsers, params.id, '用户不存在', { status: 404 });
-    const { roleIds, positionIds, ...rest } = body;
-    if (roleIds !== undefined) {
-      user.roles = resolveRoles(roleIds);
-    }
-    if (positionIds !== undefined) {
-      user.positionIds = positionIds;
-      user.positions = resolvePositions(positionIds);
-    }
-    Object.assign(user, rest, { updatedAt: mockDateTime() });
+    Object.assign(user, body, { updatedAt: mockDateTime() });
     return ok(toUserResponse(user), '更新成功');
+  }),
+
+  mock(userContract.organization, ({ params, body, ok }) => {
+    const user = requireItem(mockUsers, params.id, '用户不存在', { status: 404 });
+    user.departmentId = body.departmentId;
+    user.positionIds = body.positionIds;
+    user.positions = resolvePositions(body.positionIds);
+    return ok(toUserResponse(user));
   }),
 
   mock(userContract.remove, ({ params, ok }) => {

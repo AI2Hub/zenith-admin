@@ -146,3 +146,16 @@ export function useSaveUserMenus() {
 export function useUserEffectivePermissions(userId: number | undefined, enabled = true) {
   return useApiQuery(userContract.effectivePermissions, { params: { id: userId ?? 0 } }, { enabled: enabled && userId !== undefined });
 }
+
+export function useUpdateUserOrganization() {
+  return useApiMutation(userContract.organization, {
+    invalidate: (qc, _output, { params }) => {
+      void qc.invalidateQueries({ queryKey: userKeys.detail(params.id) });
+      void qc.invalidateQueries({ queryKey: userKeys.lists });
+      void qc.invalidateQueries({ queryKey: userKeys.allUsers });
+      void qc.invalidateQueries({ queryKey: userKeys.effectivePermissions(params.id) });
+      invalidateScopeMemberPreviews(qc);
+      invalidateCurrentUserAccess(qc);
+    },
+  });
+}

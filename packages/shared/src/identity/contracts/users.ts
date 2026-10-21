@@ -12,6 +12,7 @@ import {
   resetUserPasswordSchema,
   updateUserDataPermissionSchema,
   updateUserSchema,
+  updateUserOrganizationSchema,
 } from '../validation';
 import { positionSchema } from './positions';
 import { roleSchema } from './roles';
@@ -132,10 +133,11 @@ export const userContract = defineContract('/api/users', {
   list: op.get('/', { access: { permission: 'system:user:list' }, query: userListQuery, response: paginated(userSchema), summary: '用户列表' }),
   create: op.post('/', { access: { permission: 'system:user:create' }, audit: '创建用户', body: createUserSchema, response: userSchema, summary: '创建用户' }),
   removeBatch: op.delete('/batch', { access: { permission: 'system:user:delete' }, audit: '批量删除用户', body: batchIdsBody, summary: '批量删除用户' }),
-  batchStatus: op.put('/batch-status', { access: { permission: 'system:user:update' }, audit: '批量修改用户状态', body: batchUpdateUserStatusSchema, summary: '批量修改用户状态' }),
-  batchResetPassword: op.put('/batch-password', { access: { permission: 'system:user:update' }, audit: '批量重置用户密码', body: batchResetUsersPasswordSchema, summary: '批量重置用户密码' }),
-  resetPassword: op.put('/{id}/password', { access: { permission: 'system:user:update' }, audit: '修改用户密码', params: idParam, body: resetUserPasswordSchema, summary: '修改用户密码' }),
-  unlock: op.post('/{id}/unlock', { access: { permission: 'system:user:update' }, audit: '清除账号登录验证码要求', params: idParam, summary: '清除登录验证码要求' }),
+  batchStatus: op.put('/batch-status', { access: { permission: 'system:user:status' }, audit: '批量修改用户状态', body: batchUpdateUserStatusSchema, summary: '批量修改用户状态' }),
+  batchResetPassword: op.put('/batch-password', { access: { permission: 'system:user:credentials' }, audit: '批量重置用户密码', body: batchResetUsersPasswordSchema, summary: '批量重置用户密码' }),
+  resetPassword: op.put('/{id}/password', { access: { permission: 'system:user:credentials' }, audit: '修改用户密码', params: idParam, body: resetUserPasswordSchema, summary: '修改用户密码' }),
+  unlock: op.post('/{id}/unlock', { access: { permission: 'system:user:credentials' }, audit: '清除账号登录验证码要求', params: idParam, summary: '清除登录验证码要求' }),
+  organization: op.put('/{id}/organization', { access: { permission: 'system:user:organization' }, audit: '调整用户组织归属', params: idParam, body: updateUserOrganizationSchema, response: userSchema, summary: '调整部门及岗位' }),
   detail: op.get('/{id}', { access: { permission: 'system:user:list' }, params: idParam, response: userSchema, summary: '获取用户详情' }),
   update: op.put('/{id}', { access: { permission: 'system:user:update' }, audit: '更新用户', params: idParam, body: updateUserSchema, response: userSchema, summary: '更新用户' }),
   remove: op.delete('/{id}', { access: { permission: 'system:user:delete' }, audit: '删除用户', params: idParam, summary: '删除用户' }),
