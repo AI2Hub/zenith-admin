@@ -159,7 +159,7 @@ export default function DepartmentsPage() {
     { title: '排序', dataIndex: 'sort', width: 90 },
     memberPreviewColumn<Department>({
       dataIndex: 'userPreview',
-      width: 150,
+      width: 180,
       getPreview: (record) => record.userPreview,
       getCount: (record) => record.userCount,
       getScope: (record) => ({ type: 'department', id: record.id, name: record.name }),

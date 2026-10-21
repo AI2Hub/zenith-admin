@@ -208,7 +208,7 @@ export default function UserGroupsPage() {
     },
     memberPreviewColumn<UserGroup>({
       dataIndex: 'memberPreview',
-      width: 150,
+      width: 180,
       getPreview: (record) => record.memberPreview,
       getCount: (record) => record.memberCount,
       getScope: (record) => ({ type: 'userGroup', id: record.id, name: record.name }),
