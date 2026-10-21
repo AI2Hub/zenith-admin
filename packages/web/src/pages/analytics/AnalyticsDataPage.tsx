@@ -482,53 +482,87 @@ export default function AnalyticsDataPage() {
   const renderEventDetail = () => {
     if (detailLoading) return <Typography.Text type="tertiary">加载中...</Typography.Text>;
     if (!eventDetail) return <Typography.Text type="tertiary">暂无详情</Typography.Text>;
+    // 与异常事件详情抽屉同一套版式：分节 + size="small" 网格 Description；
     // [标签, 原始值, 定制渲染]：原始值为空的字段不平铺 30+ 个「–」，统一收进底部「未采集」一行
-    const fields: Array<[string, unknown, React.ReactNode?]> = [
-      ['ID', eventDetail.id],
-      ['用户 ID', eventDetail.userId],
-      ['用户名', eventDetail.username],
-      ['事件类型', eventDetail.eventType, <EventTypeTag key="type" value={eventDetail.eventType} />],
-      ['事件名', eventDetail.eventName],
-      ['页面路径', eventDetail.pagePath],
-      ['页面标题', eventDetail.pageTitle],
-      ['元素 Key', eventDetail.elementKey],
-      ['元素标签', eventDetail.elementLabel],
-      ['组件区域', eventDetail.componentArea],
-      ['停留时长', eventDetail.durationMs, msToReadable(eventDetail.durationMs)],
-      ['浏览器', eventDetail.browser],
-      ['浏览器版本', eventDetail.browserVersion],
-      ['操作系统', eventDetail.os],
-      ['系统版本', eventDetail.osVersion],
-      ['设备类型', eventDetail.deviceType],
-      ['屏幕宽度', eventDetail.screenW],
-      ['屏幕高度', eventDetail.screenH],
-      ['语言', eventDetail.language],
-      ['地区', eventDetail.region],
-      ['国家', eventDetail.country],
-      ['城市', eventDetail.city],
-      ['IP', eventDetail.ip],
-      ['会话 ID', eventDetail.sessionId],
-      ['Distinct ID', eventDetail.distinctId],
-      ['匿名 ID', eventDetail.anonymousId],
-      ['滚动深度', eventDetail.scrollDepth],
-      ['来源页', eventDetail.referrer],
-      ['UTM Source', eventDetail.utmSource],
-      ['UTM Medium', eventDetail.utmMedium],
-      ['UTM Campaign', eventDetail.utmCampaign],
-      ['指标名', eventDetail.metricName],
-      ['指标值', eventDetail.metricValue],
-      ['User Agent', eventDetail.userAgent],
-      ['创建时间', eventDetail.createdAt, formatDateTime(eventDetail.createdAt)],
-    ];
-    const hasValue = ([, raw]: [string, unknown, React.ReactNode?]) => raw != null && raw !== '';
-    const detailData = fields.filter(hasValue).map(([key, raw, node]) => ({ key, value: node ?? String(raw) }));
-    const emptyKeys = fields.filter((f) => !hasValue(f)).map(([key]) => key);
+    const fields: Array<[string, unknown, React.ReactNode?]> = [];
+    const description = (...items: Array<[string, unknown, React.ReactNode?]>) => {
+      const data = items.filter((item) => item[1] != null && item[1] !== '').map(([key, raw, node]) => ({ key, value: node ?? String(raw) }));
+      if (!data.length) return null;
+      fields.push(...items);
+      return <Descriptions size="small" data={data} />;
+    };
+    const longText = (value: string) => (
+      <Typography.Paragraph style={{ margin: 0, wordBreak: 'break-all' }} copyable>
+        {value}
+      </Typography.Paragraph>
+    );
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <Descriptions row data={detailData} />
-        {emptyKeys.length > 0 && (
-          <Typography.Text type="tertiary" size="small">未采集：{emptyKeys.join('、')}</Typography.Text>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16, paddingBottom: 16 }}>
+        <Descriptions size="small" data={[
+          { key: 'ID', value: String(eventDetail.id) },
+          { key: '事件类型', value: <EventTypeTag value={eventDetail.eventType} /> },
+          { key: '事件名', value: eventDetail.eventName },
+          ...(eventDetail.userId != null ? [{ key: '用户', value: `${eventDetail.username ?? '匿名'}（#${eventDetail.userId}）` }] : []),
+          ...(eventDetail.durationMs != null ? [{ key: '停留时长', value: msToReadable(eventDetail.durationMs) }] : []),
+          { key: '创建时间', value: formatDateTime(eventDetail.createdAt) },
+        ]} />
+        <div>
+          <Typography.Title heading={6} style={{ marginBottom: 8 }}>页面与元素</Typography.Title>
+          {description(
+            ['页面路径', eventDetail.pagePath],
+            ['页面标题', eventDetail.pageTitle],
+            ['元素 Key', eventDetail.elementKey],
+            ['元素标签', eventDetail.elementLabel],
+            ['组件区域', eventDetail.componentArea],
+            ['滚动深度', eventDetail.scrollDepth],
+          ) ?? <Typography.Text type="tertiary" size="small">未采集</Typography.Text>}
+        </div>
+        <div>
+          <Typography.Title heading={6} style={{ marginBottom: 8 }}>环境与设备</Typography.Title>
+          {description(
+            ['浏览器', eventDetail.browser, eventDetail.browser ? `${eventDetail.browser}${eventDetail.browserVersion ? ` ${eventDetail.browserVersion}` : ''}` : null],
+            ['操作系统', eventDetail.os, eventDetail.os ? `${eventDetail.os}${eventDetail.osVersion ? ` ${eventDetail.osVersion}` : ''}` : null],
+            ['设备类型', eventDetail.deviceType],
+            ['屏幕', eventDetail.screenW != null && eventDetail.screenH != null ? `${eventDetail.screenW} × ${eventDetail.screenH}` : null],
+            ['语言', eventDetail.language],
+            ['User Agent', eventDetail.userAgent, eventDetail.userAgent ? longText(eventDetail.userAgent) : null],
+          ) ?? <Typography.Text type="tertiary" size="small">未采集</Typography.Text>}
+        </div>
+        <div>
+          <Typography.Title heading={6} style={{ marginBottom: 8 }}>位置与来源</Typography.Title>
+          {description(
+            ['IP', eventDetail.ip],
+            ['国家 / 省市', eventDetail.country, [eventDetail.country, eventDetail.region, eventDetail.city].filter(Boolean).join(' / ') || null],
+            ['来源页', eventDetail.referrer, longText(eventDetail.referrer ?? '')],
+            ['UTM Source', eventDetail.utmSource],
+            ['UTM Medium', eventDetail.utmMedium],
+            ['UTM Campaign', eventDetail.utmCampaign],
+          ) ?? <Typography.Text type="tertiary" size="small">未采集</Typography.Text>}
+        </div>
+        <div>
+          <Typography.Title heading={6} style={{ marginBottom: 8 }}>会话与标识</Typography.Title>
+          {description(
+            ['会话 ID', eventDetail.sessionId, eventDetail.sessionId ? longText(eventDetail.sessionId) : null],
+            ['Distinct ID', eventDetail.distinctId, eventDetail.distinctId ? longText(eventDetail.distinctId) : null],
+            ['匿名 ID', eventDetail.anonymousId, eventDetail.anonymousId ? longText(eventDetail.anonymousId) : null],
+          ) ?? <Typography.Text type="tertiary" size="small">未采集</Typography.Text>}
+        </div>
+        {eventDetail.metricName != null && (
+          <div>
+            <Typography.Title heading={6} style={{ marginBottom: 8 }}>指标</Typography.Title>
+            <Descriptions size="small" data={[
+              { key: '指标名', value: eventDetail.metricName },
+              { key: '指标值', value: eventDetail.metricValue ?? EMPTY_PLACEHOLDER },
+            ]} />
+          </div>
         )}
+        {(() => {
+          const emptyKeys = fields.filter((f) => f[1] == null || f[1] === '').map(([key]) => key);
+          if (eventDetail.metricName == null) emptyKeys.push('指标名', '指标值');
+          return emptyKeys.length > 0 ? (
+            <Typography.Text type="tertiary" size="small">未采集：{emptyKeys.join('、')}</Typography.Text>
+          ) : null;
+        })()}
         <div>
           <Typography.Title heading={6}>事件属性</Typography.Title>
           <JsonBlock value={eventDetail.properties ?? {}} />
