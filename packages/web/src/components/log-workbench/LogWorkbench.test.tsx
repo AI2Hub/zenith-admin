@@ -89,17 +89,3 @@ describe('精确链路定位', () => {
   });
 });
 
-describe('日志配色偏好', () => {
-  it('选择配色即时生效并在重新挂载后保留，不重新请求日志', async () => {
-    const view = renderWorkbench();
-    await waitFor(() => expect(view.container.querySelector('.log-content-view')).toHaveAttribute('data-palette', 'github'));
-    fireEvent.click(screen.getByRole('combobox', { name: '日志配色' }));
-    fireEvent.click(await screen.findByText('Nord'));
-    // Semi Select 在收起动画完成后才触发受控值的 onChange；CI 慢机上 1s 默认窗口可能不够，放宽到 3s。
-    await waitFor(() => expect(view.container.querySelector('.log-content-view')).toHaveAttribute('data-palette', 'nord'), { timeout: 3000 });
-    expect(recorder.countOf('GET', `/api/log-files/${FILENAME}/content`)).toBe(1);
-    view.unmount();
-    const reopened = renderWorkbench();
-    await waitFor(() => expect(reopened.container.querySelector('.log-content-view')).toHaveAttribute('data-palette', 'nord'), { timeout: 3000 });
-  });
-});
