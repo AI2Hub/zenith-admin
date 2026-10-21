@@ -95,7 +95,8 @@ describe('日志配色偏好', () => {
     await waitFor(() => expect(view.container.querySelector('.log-content-view')).toHaveAttribute('data-palette', 'github'));
     fireEvent.click(screen.getByRole('combobox', { name: '日志配色' }));
     fireEvent.click(await screen.findByText('Nord'));
-    expect(view.container.querySelector('.log-content-view')).toHaveAttribute('data-palette', 'nord');
+    // Semi Select 在收起动画完成后才触发受控值的 onChange。
+    await waitFor(() => expect(view.container.querySelector('.log-content-view')).toHaveAttribute('data-palette', 'nord'));
     expect(recorder.countOf('GET', `/api/log-files/${FILENAME}/content`)).toBe(1);
     view.unmount();
     const reopened = renderWorkbench();
