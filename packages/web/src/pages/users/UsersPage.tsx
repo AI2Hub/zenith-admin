@@ -835,6 +835,8 @@ export default function UsersPage() {
                   showClear
                   optionList={positionOptionList}
                   placeholder="请选择岗位"
+                  maxTagCount={2}
+                  showRestTagsPopover
                 />
               </Col>
             )}
@@ -849,6 +851,8 @@ export default function UsersPage() {
                   showClear={protectedSuperRoleId(editingUser) === undefined}
                   optionList={allRoles.map(role => ({ value: role.id, label: role.name, disabled: role.id === protectedSuperRoleId(editingUser) }))}
                   placeholder="请选择角色"
+                  maxTagCount={2}
+                  showRestTagsPopover
                 />
               </Col>
             )}
