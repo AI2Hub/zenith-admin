@@ -372,16 +372,10 @@ export default function AnalyticsDataPage() {
     {
       title: '页面',
       dataIndex: 'pagePath',
-      width: 220,
-      render: (_: unknown, record) => (
-        <div>
-          {renderEllipsis(record.pageTitle || record.pagePath)}
-          {record.pageTitle && (
-            <Typography.Text type="tertiary" size="small" ellipsis={{ showTooltip: true }} style={{ display: 'block', maxWidth: '100%' }}>
-              {record.pagePath}
-            </Typography.Text>
-          )}
-        </div>
+      width: 320,
+      // 单行「标题 · 路径」，超宽整体省略 + tooltip 完整展示：行高统一，标题与路径都不丢
+      render: (_: unknown, record) => renderEllipsis(
+        record.pageTitle ? `${record.pageTitle} · ${record.pagePath}` : record.pagePath,
       ),
     },
     {
