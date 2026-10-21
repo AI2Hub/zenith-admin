@@ -470,6 +470,12 @@ class Tracker {
       anonymousId: this.getAnonymousId(),
       distinctId: this.distinctId ?? undefined,
       referrer: event.referrer ?? (event.eventType === 'page_view' ? this.referrer : undefined),
+      // 页面标题：只有 $pageview / $pageleave 显式携带（来自 trackPageView 的页面上下文），
+      // autocapture / web_vitals / api 等自动事件只带 pagePath，导致明细里页面列忽有忽无。
+      // 统一兜底：同路径用页面上下文的标题，否则退回 document.title（SPA 每路由都会同步）。
+      pageTitle: event.pageTitle
+        ?? (currentPage && currentPage.path === event.pagePath && currentPage.title ? currentPage.title : undefined)
+        ?? (typeof document !== 'undefined' && document.title ? document.title : undefined),
       screenW: event.screenW ?? globalThis.screen?.width,
       screenH: event.screenH ?? globalThis.screen?.height,
       language: event.language ?? navigator.language,
