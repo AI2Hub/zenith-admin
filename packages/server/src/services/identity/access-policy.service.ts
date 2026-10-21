@@ -1,4 +1,4 @@
-import { and, inArray } from 'drizzle-orm';
+import { and, inArray, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { ALL_PERMISSIONS } from '@zenith/shared/permissions';
 import { accessPolicyBaseline, effectiveAccessPolicy, ACCESS_RISK_ORDER, ACCESS_APPROVAL_ORDER, ACCESS_MINIMUM_APPROVAL, type AccessPolicySnapshot, type UpdatePermissionPolicyInput } from '@zenith/shared/identity';
@@ -6,6 +6,11 @@ import { db } from '../../db';
 import type { DbExecutor } from '../../db/types';
 import { identityPermissionPolicies } from '../../db/schema';
 import { inheritedTenantCondition } from '../../lib/tenant';
+
+/** Global policies can be inherited by every tenant, including absent override rows. */
+export async function lockAccessPolicies(executor: DbExecutor) {
+  await executor.execute(sql`select pg_advisory_xact_lock(hashtextextended('identity-access-policies', 0))`);
+}
 
 export async function readAccessPolicySet(permissionCodes: readonly string[], tenantId: number | null, executor: DbExecutor = db) {
   const codes = [...new Set(permissionCodes)].sort();
@@ -28,6 +33,7 @@ function policySignature(policies: readonly AccessPolicySnapshot[]): string {
 }
 
 export async function assertAccessPolicySnapshotCurrent(snapshot: readonly AccessPolicySnapshot[], tenantId: number | null, executor: DbExecutor): Promise<void> {
+  await lockAccessPolicies(executor);
   if (!snapshot.length) throw new HTTPException(409, { message: '权限申请缺少有效策略快照，请重新发起' });
   const current = await loadEffectiveAccessPolicies(snapshot.map(policy => policy.permissionCode), tenantId, executor);
   if (current.some(policy => !policy.enabled) || policySignature(current) !== policySignature(snapshot)) {

@@ -5,6 +5,7 @@ import { idempotencyGuard } from '../../middleware/idempotency';
 import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
   getAccessWorkflowOptions,
+  evaluateAccessWorkflow,
   getAccessReviewOptions,
   retryAccessRequestProvision,
   revokeAccessGrantItem,
@@ -28,6 +29,9 @@ const accessGovernanceRouter = new OpenAPIHono({ defaultHook: validationHook });
 
 const workflowOptionsRoute = defineContractRoute(accessGovernanceContract.workflowOptions, {
   handler: async (c) => c.json(okBody(await getAccessWorkflowOptions()), 200),
+});
+const workflowPreviewRoute = defineContractRoute(accessGovernanceContract.workflowPreview, {
+  handler: async (c) => c.json(okBody(await evaluateAccessWorkflow(c.req.valid('json'))), 200),
 });
 const reviewOptionsRoute = defineContractRoute(accessGovernanceContract.reviewOptions, {
   handler: async (c) => c.json(okBody(await getAccessReviewOptions()), 200),
@@ -97,6 +101,7 @@ const userOverviewRoute = defineContractRoute(accessGovernanceContract.userOverv
 
 accessGovernanceRouter.openapiRoutes([
   workflowOptionsRoute,
+  workflowPreviewRoute,
   reviewOptionsRoute,
   myRequestListRoute,
   myGrantListRoute,

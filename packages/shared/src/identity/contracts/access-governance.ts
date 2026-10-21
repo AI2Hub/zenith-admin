@@ -4,6 +4,7 @@ import { defineContract, op } from '../../core/contract';
 import { DATA_SCOPES } from '../constants';
 import { ACCESS_PROVISION_STATUSES, ACCESS_APPROVAL_POLICIES, ACCESS_GRANT_STATUSES, ACCESS_REQUEST_ITEM_TYPES, ACCESS_REQUEST_STATUSES, ACCESS_REQUEST_TYPES, ACCESS_REVIEW_DECISIONS, ACCESS_REVIEW_SCOPE_TYPES, ACCESS_REVIEW_STATUSES, ACCESS_REVIEW_SOURCE_TYPES, ACCESS_RISK_LEVELS } from '../access-governance-constants';
 import { accessSourceRefSchema, assignAccessReviewCampaignSchema, accessReviewHistorySchema, accessApprovalEvidenceSchema, accessApprovalPlanSchema, accessPolicySnapshotSchema, createAccessReviewCampaignSchema, decideAccessReviewItemSchema, revokeAccessGrantSchema, updatePermissionPolicySchema } from '../access-governance-validation';
+import { accessWorkflowPreviewInputSchema } from '../access-governance-validation';
 
 export const permissionPolicySchema = z.object({
   id: z.int(),
@@ -131,6 +132,13 @@ export const accessWorkflowOptionsSchema = z.object({
 
 export type AccessWorkflowOptions = z.infer<typeof accessWorkflowOptionsSchema>;
 
+export const accessWorkflowPreviewSchema = z.discriminatedUnion('status', [
+  z.object({ status: z.literal('selection_required'), message: z.string() }),
+  z.object({ status: z.literal('blocked'), message: z.string() }),
+  z.object({ status: z.literal('ready'), fingerprint: z.string(), permissionCount: z.int(), grantItemCount: z.int(), approvalPlan: accessApprovalPlanSchema, policies: z.array(accessPolicySnapshotSchema) }),
+]);
+export type AccessWorkflowPreview = z.infer<typeof accessWorkflowPreviewSchema>;
+
 export const accessReviewItemSchema = z.object({
   id: z.int(),
   campaignId: z.int(),
@@ -183,6 +191,7 @@ const reviewListQuery = paginationQuery.extend({
 
 export const accessGovernanceContract = defineContract('/api/access-governance', {
   workflowOptions: op.get('/workflow-options', { access: 'authenticated', response: accessWorkflowOptionsSchema, summary: '权限申请工作流选项' }),
+  workflowPreview: op.post('/workflow-preview', { access: 'authenticated', body: accessWorkflowPreviewInputSchema, response: accessWorkflowPreviewSchema, summary: '评估权限申请及实际审批计划' }),
   requestList: op.get('/requests', { access: { permission: 'system:access-governance:view' }, query: requestListQuery, response: paginated(accessRequestSchema), summary: '权限申请列表' }),
   requestRetry: op.post('/requests/{id}/retry', { access: { permission: 'system:access-governance:grant' }, params: idParam, response: accessRequestSchema, summary: '重试权限发放', audit: '重试权限发放' }),
   myRequests: op.get('/my/requests', { access: 'authenticated', query: requestListQuery, response: paginated(accessRequestSchema), summary: '本人权限申请' }),

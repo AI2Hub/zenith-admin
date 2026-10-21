@@ -1,16 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useDebouncedValue } from '@tanstack/react-pacer';
 import { Banner, Descriptions, Form, Space, Spin, Table, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
-import { createLabelOptionsFromMap } from '@zenith/shared/core';
+import { createLabelOptionsFromMap, type BodyOf } from '@zenith/shared/core';
 import {
   ACCESS_APPROVAL_POLICY_LABELS, ACCESS_REQUEST_TYPE_LABELS, ACCESS_RISK_LABELS, ACCESS_START_MODE_LABELS, ACCESS_VALIDITY_MODE_LABELS,
   accessApprovalPlanSchema, higherAccessRisk, stricterAccessApproval,
+  accessGovernanceContract,
   type AccessApprovalPolicy, type AccessRiskLevel, type AccessWorkflowInput, type AccessWorkflowOptions,
 } from '@zenith/shared/identity';
 import DateTimeText from '@/components/DateTimeText';
 import { DATA_SCOPE_OPTIONS } from '@/components/permissions/DataScopePanel';
 import type { WorkflowBusinessFormApi, WorkflowBusinessFormProps } from '@/components/workflow/BusinessFormHost';
-import { useAccessWorkflowOptions } from '@/hooks/queries/identity-access-governance';
+import { useAccessWorkflowOptions, useAccessWorkflowPreview } from '@/hooks/queries/identity-access-governance';
+import { abortSubmit } from '@/lib/abort-submit';
 import { formatDateTimeForApi, parseDateTimeParam } from '@/utils/date';
 import { singleLineColumns } from '@/utils/table-columns';
 import { FormAccessPermissionPicker } from './AccessPermissionPicker';
@@ -40,8 +43,8 @@ function initialValues(value: Record<string, unknown>): FormValues {
   };
 }
 
-function serialize(values: FormValues, roles: AccessWorkflowOptions['roles']): Record<string, unknown> {
-  const { roleIds, ...input } = values;
+function serialize(values: FormValues, roles: AccessWorkflowOptions['roles']): BodyOf<typeof accessGovernanceContract.workflowPreview> {
+  const { roleIds, previewFingerprint: _fingerprint, ...input } = values;
   return { ...input, roleSelections: roleIds.map(roleId => ({ roleId, version: roles.find(role => role.id === roleId)?.version ?? 0 })), startsAt: values.startMode === 'scheduled' ? formatDateTimeForApi(values.startsAt) : undefined, expiresAt: values.validityMode === 'permanent' ? null : formatDateTimeForApi(values.expiresAt) };
 }
 
@@ -85,6 +88,13 @@ export default function AccessRequestWorkflowForm({ mode, value, getFormApi, onV
   const maxMinutes = durationLimits.length ? Math.min(...durationLimits) : null;
   const mfaRequired = selection.some(item => item.mfaRequired);
   const startTimestamp = values.startMode === 'scheduled' ? pickerTime(values.startsAt) : undefined;
+  const previewInput = useMemo(() => ({ ...serialize(values, optionsQuery.data?.roles ?? []), reason: '' }), [values, optionsQuery.data]);
+  const [debouncedPreviewInput] = useDebouncedValue(previewInput, { wait: 350 });
+  const previewQuery = useAccessWorkflowPreview(debouncedPreviewInput, mode === 'create' && optionsQuery.isSuccess);
+  const previewPending = previewQuery.isFetching || JSON.stringify(previewInput) !== JSON.stringify(debouncedPreviewInput);
+  const preview = previewPending ? undefined : previewQuery.data;
+  const latestPreview = useRef({ preview, previewInput, roles, maxMinutes });
+  latestPreview.current = { preview, previewInput, roles, maxMinutes };
 
   useEffect(() => {
     const api = formApi.current;
@@ -101,20 +111,24 @@ export default function AccessRequestWorkflowForm({ mode, value, getFormApi, onV
   const registerApi = (api: FormApi) => {
     formApi.current = api;
     getFormApi?.({
-      getValues: () => serialize(api.getValues() as FormValues, roles),
+      getValues: () => serialize(api.getValues() as FormValues, latestPreview.current.roles),
       validate: async () => {
         const current = await api.validate() as FormValues;
-        const fail = (message: string): never => { Toast.warning(message); throw new Error(message); };
+        const fail = (message: string): never => { Toast.warning(message); return abortSubmit('invalid_access_request'); };
+        const { preview: evaluated, roles: currentRoles, maxMinutes: currentLimit } = latestPreview.current;
         if (!(current.roleIds?.length || current.permissionCodes?.length)) fail('请选择至少一项角色或操作权限');
-        if (current.roleIds.some(id => !roles.some(role => role.id === id)) || current.permissionCodes.some(code => !menus.some(menu => menu.permission === code && menu.requestable))) fail('所选角色或权限已不可申请，请重新选择');
+        if (current.roleIds.some(id => !currentRoles.some(role => role.id === id)) || current.permissionCodes.some(code => !menus.some(menu => menu.permission === code && menu.requestable))) fail('所选角色或权限已不可申请，请重新选择');
         const start = (current.startMode === 'scheduled' ? pickerTime(current.startsAt) : Date.now()) ?? Number.NaN;
         const end = pickerTime(current.expiresAt) ?? Number.NaN;
         if (!start || (current.startMode === 'scheduled' && start <= Date.now())) fail('请选择晚于当前时间的预约生效时间');
         if (current.validityMode === 'limited') {
           if (!end || end <= start) fail('失效时间必须晚于生效时间和当前时间');
-          if (maxMinutes !== null && end - start > maxMinutes * 60_000) fail(`本次限时申请最长有效 ${maxMinutes} 分钟，请调整失效时间或选择永久有效`);
+          if (currentLimit !== null && end - start > currentLimit * 60_000) fail(`本次限时申请最长有效 ${currentLimit} 分钟，请调整失效时间`);
         }
-        return serialize(current, roles);
+        const serialized = serialize(current, currentRoles);
+        if (!evaluated || JSON.stringify({ ...serialized, reason: '' }) !== JSON.stringify(latestPreview.current.previewInput)) fail('正在更新权限预览，请确认最新结果后提交');
+        if (evaluated.status !== 'ready') fail(evaluated.message);
+        return { ...serialized, previewFingerprint: evaluated.fingerprint };
       },
     } satisfies WorkflowBusinessFormApi);
   };
@@ -132,8 +146,15 @@ export default function AccessRequestWorkflowForm({ mode, value, getFormApi, onV
     {values.validityMode !== 'permanent' && <Form.DatePicker field="expiresAt" label="失效时间" type="dateTime" format="yyyy-MM-dd HH:mm:ss" style={{ width: '100%' }} rules={[{ required: true, message: '请选择失效时间' }]}
       extraText={maxMinutes === null ? '可自由选择截止时间，不限制最长时长；如无需截止时间，请选择“永久有效”。实际权限在审批和发放完成后可用。' : `本次限时授权最长 ${maxMinutes} 分钟；如无需截止时间，请选择“永久有效”。实际权限在审批和发放完成后可用。`} />}
     <Form.TextArea field="reason" label="申请原因" maxCount={1000} rows={4} rules={[{ required: true, message: '请填写申请原因' }, { min: 5, message: '申请原因至少 5 个字' }]} placeholder="说明业务任务、必要权限及使用范围，便于审批人判断" />
+    {previewPending && <Spin tip="正在计算权限与审批计划" />}
+    {previewQuery.error && <Banner type="warning" closeIcon={null} description={previewQuery.error.message} />}
+    {preview && preview.status !== 'ready' && <Banner type={preview.status === 'blocked' ? 'warning' : 'info'} closeIcon={null} description={preview.message} />}
     {selection.length > 0 && <section aria-label="提交前确认" style={{ margin: '16px 0', padding: 12, backgroundColor: 'var(--semi-color-fill-0)', borderRadius: 'var(--semi-border-radius-small)' }}>
       <Text strong style={{ display: 'block', marginBottom: 8 }}>提交前确认</Text>
+      {preview?.status === 'ready' && <div style={{ marginBottom: 8 }}>
+        <Text>{preview.permissionCount} 项权限 · {preview.grantItemCount} 条授权范围</Text>
+        <div><Text>{preview.approvalPlan.steps.length ? preview.approvalPlan.steps.map(step => `${step.label}：${step.userName}`).join(' → ') : '当前策略免人工审批，提交后自动发放'}</Text></div>
+      </div>}
       <Space wrap><Tag color={RISK_COLORS[risk]}>{ACCESS_RISK_LABELS[risk]}</Tag><Text>{ACCESS_APPROVAL_POLICY_LABELS[approval]}</Text><Text>{values.validityMode === 'permanent' ? '永久有效' : '限时有效'}</Text>{mfaRequired && <Tag color="orange">审批需 MFA</Tag>}</Space>
       {selectedRoles.length > 0 && <div style={{ marginTop: 8 }}><Text type="tertiary" size="small">角色数据范围：</Text><Space wrap>{selectedRoles.map(role => <Tag key={role.id}>{role.name}：{DATA_SCOPE_OPTIONS.find(option => option.value === role.dataScope)?.label ?? '—'}</Tag>)}</Space></div>}
       <Text type="tertiary" size="small" style={{ display: 'block', marginTop: 8 }}>实际审批人见右侧审批预览。授权可撤销，并按权限策略定期复核。</Text>

@@ -8,7 +8,8 @@ import { parseDateTimeInput } from '../../lib/datetime';
 import { enqueueJob } from '../../lib/workflow-jobs/engine';
 import { notifyWithin } from '../messaging/notification-outbox.service';
 import { resolveUserNames } from '../../lib/user-nicknames';
-import type { normalizeAccessWorkflowFormData } from './access-governance.service';
+import { normalizeAccessWorkflowFormData } from './access-governance.service';
+import { lockIdentityAuthority } from './authority-write.service';
 import { assertNoOverlappingAccessRequest } from './access-reservations.service';
 
 type NormalizedAccessForm = Awaited<ReturnType<typeof normalizeAccessWorkflowFormData>>;
@@ -20,6 +21,8 @@ export async function attachAccessRequestToWorkflow(executor: DbExecutor, instan
   if (!Array.isArray(form?.permissionItems) || form.permissionItems.length === 0 || form.targetUserId !== instance.initiatorId) {
     throw new HTTPException(409, { message: '权限申请缺少有效的服务端审批快照' });
   }
+  await lockIdentityAuthority(executor, instance.tenantId);
+  await normalizeAccessWorkflowFormData(form.requestInput, { userId: instance.initiatorId, tenantId: instance.tenantId, username: form.targetUserName }, executor);
   const startsAt = parseDateTimeInput(form.startsAt);
   const expiresAt = form.expiresAt === null ? null : parseDateTimeInput(form.expiresAt);
   if (!startsAt || (form.validityMode === 'limited' && !expiresAt)) throw new HTTPException(400, { message: '权限申请有效期无效' });

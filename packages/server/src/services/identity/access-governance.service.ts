@@ -1,7 +1,8 @@
 import { and, asc, desc, eq, exists, gt, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
+import { createHash } from 'node:crypto';
 import { type AccessRequest, type AccessGrant, type PermissionPolicy, accessGovernanceContract } from '@zenith/shared/identity';
-import type { AccessSourceRef, AccessWorkflowInput } from '@zenith/shared/identity';
+import type { AccessSourceRef, AccessWorkflowInput, AccessWorkflowPreview } from '@zenith/shared/identity';
 import { availablePermissionCodes } from './permission-catalog.service';
 import { ALL_PERMISSIONS } from '@zenith/shared/permissions';
 import type { QueryOutputOf } from '@zenith/shared/core';
@@ -23,7 +24,7 @@ import { notifyWithin } from '../messaging/notification-outbox.service';
 import { ACCESS_REQUEST_BIZ_TYPE, accessWorkflowInputSchema, type AccessRiskLevel, type DataScope } from '@zenith/shared/identity';
 import { workflowTransaction } from '../../lib/workflow-jobs/lease';
 import { aggregateAccessPolicies, accessPolicyBaseline, higherAccessRisk, mergeAccessPermissionItems } from '@zenith/shared/identity';
-import { loadEffectiveAccessPolicies, readAccessPolicySet, assertPermissionPolicyUpdate, assertAccessSnapshotDuration } from './access-policy.service';
+import { loadEffectiveAccessPolicies, readAccessPolicySet, assertPermissionPolicyUpdate, assertAccessSnapshotDuration, lockAccessPolicies } from './access-policy.service';
 import { resolveAccessApprovalPlan, assertAccessGrantApproversCurrent } from './access-approval.service';
 import { formatAccessRequest, formatAccessGrant, formatPermissionPolicy, formatReviewItem } from './access-formatters';
 import { assertNoOverlappingAccessRequest } from './access-reservations.service';
@@ -31,6 +32,7 @@ export { assertNoOverlappingAccessRequest } from './access-reservations.service'
 export { revokeAccessGrant, revokeAccessGrantItem, retryAccessRequestProvision, runAccessGrantLifecycle } from './access-grants.service';
 export { getAccessReviewOptions, createAccessReviewCampaign, listReviewCampaigns, listReviewItems, decideReviewItem, retryAccessReviewCampaign, assignAccessReviewCampaign } from './access-review.service';
 import type { UpdatePermissionPolicyInput } from '@zenith/shared/identity';
+import { accessPermissionCount } from '@zenith/shared/identity';
 
 function parseRequiredDate(value: string, label: string): Date {
   const parsed = parseDateTimeInput(value);
@@ -160,20 +162,32 @@ export async function getAccessRequest(id: number): Promise<AccessRequest> {
 
 type AccessWorkflowCaller = { userId: number; username: string; tenantId: number | null; roles?: string[]; viewingTenantId?: number | null };
 
-async function enrichAccessWorkflowFormData<T extends Record<string, unknown> & Pick<AccessWorkflowInput, 'roleSelections' | 'permissionCodes'>>(input: T, caller: AccessWorkflowCaller) {
+async function enrichAccessWorkflowFormData(input: AccessWorkflowInput, caller: AccessWorkflowCaller, executor: DbExecutor) {
   if (caller.viewingTenantId != null && caller.viewingTenantId !== caller.tenantId) throw new HTTPException(409, { message: '平台查看模式不能代他人申请，请切换至所属租户的真实账号' });
-  const resolved = await resolveRequestItems(input.roleSelections, input.permissionCodes, caller.tenantId);
+  const resolved = await resolveRequestItems(input.roleSelections, input.permissionCodes, caller.tenantId, executor);
   if (resolved.items.length === 0) throw new HTTPException(400, { message: '至少申请一项有效权限' });
   const permissionCodes = resolved.items.flatMap(item => item.permissionCode ? [item.permissionCode] : []);
   if (!permissionCodes.length) throw new HTTPException(400, { message: '请选择至少一项实际操作权限' });
-  const policySnapshot = await loadEffectiveAccessPolicies(permissionCodes, caller.tenantId);
+  const policySnapshot = await loadEffectiveAccessPolicies(permissionCodes, caller.tenantId, executor);
   const forbidden = policySnapshot.find(policy => !policy.enabled);
   if (forbidden) throw new HTTPException(400, { message: `权限 ${forbidden.permissionCode} 不允许自助申请或已被策略停用` });
   const effective = aggregateAccessPolicies(policySnapshot);
-  const approvalPlan = await resolveAccessApprovalPlan(caller.userId, caller.tenantId, effective.approvalPolicy, effective.mfaRequired);
-  const names = await resolveUserNames([caller.userId]);
+  const approvalPlan = await resolveAccessApprovalPlan(caller.userId, caller.tenantId, effective.approvalPolicy, effective.mfaRequired, executor);
+  const target = requireRow(await executor.query.users.findFirst({ where: and(eq(users.id, caller.userId), exactTenantCondition(users.tenantId, caller.tenantId), eq(users.status, 'enabled')), columns: { departmentId: true } }), '申请人不存在或已停用');
+  const names = await resolveUserNames([caller.userId], executor);
+  const fingerprint = createHash('sha256').update(JSON.stringify({
+    userId: caller.userId, tenantId: caller.tenantId, departmentId: target.departmentId,
+    requestType: input.requestType, startMode: input.startMode, startsAt: input.startMode === 'scheduled' ? input.startsAt : null,
+    validityMode: input.validityMode, expiresAt: input.expiresAt,
+    items: [...resolved.items].sort((a, b) => `${a.permissionCode}:${a.scopeKey}`.localeCompare(`${b.permissionCode}:${b.scopeKey}`)).map(item => ({
+      permissionCode: item.permissionCode, scopeKey: item.scopeKey,
+      sources: item.sourceRefs.map(source => [source.kind, source.roleId ?? null, source.roleVersion ?? null]).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))),
+    })),
+    policies: policySnapshot, approvalPlan,
+  })).digest('hex');
   return {
     ...input,
+    previewFingerprint: fingerprint,
     targetUserId: caller.userId,
     targetUserName: names.get(caller.userId) ?? caller.username,
     riskLevel: effective.riskLevel,
@@ -193,13 +207,28 @@ async function enrichAccessWorkflowFormData<T extends Record<string, unknown> & 
 }
 
 export async function previewAccessWorkflowFormData(raw: Record<string, unknown>, caller: AccessWorkflowCaller) {
-  const roleSelections = Array.isArray(raw.roleSelections) ? raw.roleSelections as AccessWorkflowInput['roleSelections'] : [];
-  const permissionCodes = Array.isArray(raw.permissionCodes) ? raw.permissionCodes.filter((code): code is string => typeof code === 'string') : [];
-  if (!roleSelections.length && !permissionCodes.length) return raw;
-  return enrichAccessWorkflowFormData({ ...raw, roleSelections, permissionCodes }, caller);
+  if (!Array.isArray(raw.roleSelections) || !raw.roleSelections.length) {
+    if (!Array.isArray(raw.permissionCodes) || !raw.permissionCodes.length) throw new HTTPException(409, { message: '请选择权限后查看实际审批计划' });
+  }
+  return normalizeAccessWorkflowFormData({ ...raw, reason: '预览权限申请' }, caller, db, false);
 }
 
-export async function normalizeAccessWorkflowFormData(raw: Record<string, unknown>, caller: AccessWorkflowCaller) {
+export async function evaluateAccessWorkflow(raw: Record<string, unknown>, caller: AccessWorkflowCaller = currentUser()): Promise<AccessWorkflowPreview> {
+  if ((!Array.isArray(raw.roleSelections) || !raw.roleSelections.length) && (!Array.isArray(raw.permissionCodes) || !raw.permissionCodes.length)) {
+    return { status: 'selection_required', message: '请选择角色包或操作权限，系统将据此计算实际审批计划' };
+  }
+  try {
+    const form = await previewAccessWorkflowFormData(raw, caller);
+    return { status: 'ready', fingerprint: form.previewFingerprint, approvalPlan: form.approvalPlan, policies: form.policySnapshot,
+      permissionCount: accessPermissionCount(form.permissionItems), grantItemCount: form.permissionItems.length };
+  } catch (error) {
+    if (error instanceof HTTPException && error.status < 500) return { status: 'blocked', message: error.message };
+    throw error;
+  }
+}
+
+export async function normalizeAccessWorkflowFormData(raw: Record<string, unknown>, caller: AccessWorkflowCaller, executor: DbExecutor = db, requirePreview = true) {
+  if (executor !== db) await lockAccessPolicies(executor);
   const parsed = accessWorkflowInputSchema.safeParse(raw);
   if (!parsed.success) throw new HTTPException(400, { message: parsed.error.issues[0]?.message ?? '权限申请表单不完整' });
   const input = parsed.data;
@@ -209,7 +238,8 @@ export async function normalizeAccessWorkflowFormData(raw: Record<string, unknow
   if (input.startMode === 'scheduled' && startsAt < now) throw new HTTPException(400, { message: '预约生效时间不能早于当前时间' });
   if (expiresAt && expiresAt <= now) throw new HTTPException(400, { message: '失效时间必须晚于当前时间' });
   if (expiresAt && expiresAt <= startsAt) throw new HTTPException(400, { message: '失效时间必须晚于生效时间' });
-  const enriched = await enrichAccessWorkflowFormData(input, caller);
+  const enriched = await enrichAccessWorkflowFormData(input, caller, executor);
+  if (requirePreview && input.previewFingerprint !== enriched.previewFingerprint) throw new HTTPException(409, { message: '权限、策略或审批人已变化，请刷新预览并确认后重新提交' });
   if (input.validityMode === 'permanent' && !enriched.permanentAllowed) throw new HTTPException(400, { message: '所选权限策略不允许永久授权' });
   if (input.requestType === 'emergency' && (!enriched.emergencyAllowed || input.validityMode === 'permanent')) throw new HTTPException(400, { message: '所选权限不支持紧急授权或紧急永久授权' });
 
@@ -221,9 +251,10 @@ export async function normalizeAccessWorkflowFormData(raw: Record<string, unknow
     startsAt,
     expiresAt,
     items: enriched.permissionItems,
-  });
+  }, executor);
   return {
     ...enriched,
+    requestInput: input,
     startsAt: formatDateTime(startsAt),
     expiresAt: expiresAt ? formatDateTime(expiresAt) : null,
   };
@@ -336,16 +367,19 @@ export async function listPermissionPolicies(q: QueryOutputOf<typeof accessGover
 export async function updatePermissionPolicy(permissionCode: string, input: UpdatePermissionPolicyInput): Promise<PermissionPolicy> {
   assertPermissionPolicyUpdate(permissionCode, input);
   const tenantId = getCreateTenantId(currentUser());
-  const [previous] = await readAccessPolicySet([permissionCode], tenantId);
+  return db.transaction(async tx => {
+  await lockAccessPolicies(tx);
+  const [previous] = await readAccessPolicySet([permissionCode], tenantId, tx);
   setAuditBefore(formatPermissionPolicy(previous.policy, previous.record, tenantId));
-  const [saved] = await db.insert(identityPermissionPolicies).values({ permissionCode, tenantId, ...input })
+  const [saved] = await tx.insert(identityPermissionPolicies).values({ permissionCode, tenantId, ...input })
     .onConflictDoUpdate({ target: [identityPermissionPolicies.permissionCode, identityPermissionPolicies.tenantId],
       set: { ...input, version: sql`${identityPermissionPolicies.version} + 1`, updatedAt: new Date() },
       setWhere: sql`row(${identityPermissionPolicies.riskLevel}, ${identityPermissionPolicies.approvalPolicy}, ${identityPermissionPolicies.maxDurationMinutes}, ${identityPermissionPolicies.reviewIntervalDays}, ${identityPermissionPolicies.mfaRequired}, ${identityPermissionPolicies.enabled}, ${identityPermissionPolicies.permanentAllowed}, ${identityPermissionPolicies.emergencyAllowed}, ${identityPermissionPolicies.maxEmergencyMinutes}) is distinct from row(${input.riskLevel}::identity_access_risk_level, ${input.approvalPolicy}::identity_access_approval_policy, ${input.maxDurationMinutes}::integer, ${input.reviewIntervalDays}::integer, ${input.mfaRequired}::boolean, ${input.enabled}::boolean, ${input.permanentAllowed}::boolean, ${input.emergencyAllowed}::boolean, ${input.maxEmergencyMinutes}::integer)`,
     }).returning();
-  const row = saved ?? requireRow(await db.query.identityPermissionPolicies.findFirst({ where: and(eq(identityPermissionPolicies.permissionCode, permissionCode), exactTenantCondition(identityPermissionPolicies.tenantId, tenantId)) }), '权限策略不存在');
+  const row = saved ?? requireRow(await tx.query.identityPermissionPolicies.findFirst({ where: and(eq(identityPermissionPolicies.permissionCode, permissionCode), exactTenantCondition(identityPermissionPolicies.tenantId, tenantId)) }), '权限策略不存在');
   const baseline = accessPolicyBaseline(permissionCode, ALL_PERMISSIONS[permissionCode]);
   return formatPermissionPolicy(effectiveAccessPolicy(baseline, row), row, tenantId);
+  });
 }
 
 export async function getUserAccessOverview(userId: number) {

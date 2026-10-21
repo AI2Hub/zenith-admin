@@ -34,23 +34,23 @@ async function securityCandidates(tenantId: number | null, executor: DbExecutor)
   return [...unique.values()];
 }
 
-async function canHandleWorkflow(userId: number): Promise<boolean> {
-  return runWithFreshUserPermissions(userId, async () => (await getUserPermissions(userId)).includes('workflow:task:handle'));
+async function canHandleWorkflow(userId: number, executor: DbExecutor): Promise<boolean> {
+  return runWithFreshUserPermissions(userId, async () => (await getUserPermissions(userId)).includes('workflow:task:handle'), executor);
 }
 
-export async function resolveAccessApprovalPlan(targetUserId: number, tenantId: number | null, approvalPolicy: AccessApprovalPolicy, mfaRequired: boolean): Promise<AccessApprovalPlan> {
-  const target = await db.query.users.findFirst({ where: and(eq(users.id, targetUserId), exactTenantCondition(users.tenantId, tenantId), eq(users.status, 'enabled')), columns: { departmentId: true } });
+export async function resolveAccessApprovalPlan(targetUserId: number, tenantId: number | null, approvalPolicy: AccessApprovalPolicy, mfaRequired: boolean, executor: DbExecutor = db): Promise<AccessApprovalPlan> {
+  const target = await executor.query.users.findFirst({ where: and(eq(users.id, targetUserId), exactTenantCondition(users.tenantId, tenantId), eq(users.status, 'enabled')), columns: { departmentId: true } });
   if (!target) throw new HTTPException(400, { message: '申请人不存在或已停用' });
   const plan: AccessApprovalPlan = { approvalPolicy, mfaRequired, steps: [] };
   if (approvalPolicy === 'none') return plan;
-  const manager = target.departmentId ? await db.select({ id: users.id, name: users.nickname, username: users.username }).from(departments)
+  const manager = target.departmentId ? await executor.select({ id: users.id, name: users.nickname, username: users.username }).from(departments)
     .innerJoin(users, eq(users.id, departments.leaderId)).where(and(eq(departments.id, target.departmentId), exactTenantCondition(departments.tenantId, tenantId), exactTenantCondition(users.tenantId, tenantId), eq(departments.status, 'enabled'), eq(users.status, 'enabled'))).limit(1) : [];
   if (!manager[0] || manager[0].id === targetUserId) throw new HTTPException(409, { message: '请先配置有效且独立的部门负责人，不能由申请人本人审批' });
-  if (!await canHandleWorkflow(manager[0].id)) throw new HTTPException(409, { message: '部门负责人尚未获得审批办理权限' });
+  if (!await canHandleWorkflow(manager[0].id, executor)) throw new HTTPException(409, { message: '部门负责人尚未获得审批办理权限' });
   plan.steps.push({ nodeKey: 'approve_manager', label: '部门负责人审批', userId: manager[0].id, userName: manager[0].name || manager[0].username, reason: '申请人所在部门的有效负责人' });
   if (ACCESS_APPROVAL_ORDER[approvalPolicy] < ACCESS_APPROVAL_ORDER.manager_security) return plan;
-  const candidates = (await securityCandidates(tenantId, db)).filter(candidate => candidate.id !== targetUserId && candidate.id !== manager[0].id);
-  const capable = await Promise.all(candidates.map(async candidate => ({ ...candidate, capable: candidate.code === 'super_admin' || await canHandleWorkflow(candidate.id) })));
+  const candidates = (await securityCandidates(tenantId, executor)).filter(candidate => candidate.id !== targetUserId && candidate.id !== manager[0].id);
+  const capable = await Promise.all(candidates.map(async candidate => ({ ...candidate, capable: candidate.code === 'super_admin' || await canHandleWorkflow(candidate.id, executor) })));
   const eligible = capable.filter(candidate => candidate.capable);
   const needed = approvalPolicy === 'two_person' ? 2 : 1;
   if (eligible.length < needed) throw new HTTPException(409, { message: needed === 2 ? '缺少两名独立且可办理审批的安全审批人' : '缺少独立且可办理审批的安全审批人' });

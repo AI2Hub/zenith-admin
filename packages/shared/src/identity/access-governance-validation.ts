@@ -17,7 +17,7 @@ import {
 export const accessSourceRefSchema = z.object({ kind: z.enum(['direct', 'role']), roleId: z.int().optional(), roleVersion: z.int().optional(), label: z.string() });
 export type AccessSourceRef = z.infer<typeof accessSourceRefSchema>;
 
-export const accessWorkflowInputSchema = z.strictObject({
+const accessWorkflowFieldsSchema = z.strictObject({
   requestType: z.enum(ACCESS_REQUEST_TYPES).default('temporary'),
   roleSelections: z.array(z.strictObject({ roleId: z.int().positive(), version: z.int().positive() })).max(50).default([]),
   permissionCodes: z.array(z.string().min(1).max(128)).max(200).default([]),
@@ -27,7 +27,11 @@ export const accessWorkflowInputSchema = z.strictObject({
   startsAt: dateTimeStringSchema.optional(),
   validityMode: z.enum(ACCESS_VALIDITY_MODES).default('limited'),
   expiresAt: dateTimeStringSchema.nullable().default(null),
-}).superRefine((value, ctx) => {
+});
+
+export const accessWorkflowPreviewInputSchema = accessWorkflowFieldsSchema.omit({ previewFingerprint: true }).extend({ reason: z.string().max(1000).optional() }).partial();
+
+export const accessWorkflowInputSchema = accessWorkflowFieldsSchema.superRefine((value, ctx) => {
   if (value.validityMode === 'limited' && !value.expiresAt) ctx.addIssue({ code: 'custom', path: ['expiresAt'], message: '限时授权必须填写失效时间' });
   if (value.validityMode === 'permanent' && value.expiresAt !== null) ctx.addIssue({ code: 'custom', path: ['expiresAt'], message: '永久授权不应填写失效时间' });
   if (value.startMode === 'scheduled' && !value.startsAt) ctx.addIssue({ code: 'custom', path: ['startsAt'], message: '预约生效必须填写生效时间' });

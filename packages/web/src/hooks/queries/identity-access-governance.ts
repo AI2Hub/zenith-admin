@@ -1,5 +1,5 @@
 import { keepPreviousData, type QueryClient } from '@tanstack/react-query';
-import type { QueryOf } from '@zenith/shared/core';
+import type { BodyOf, QueryOf } from '@zenith/shared/core';
 import { accessGovernanceContract, type AccessReviewItem } from '@zenith/shared/identity';
 import { contractKey, useApiMutation, useApiQuery } from '@/lib/contract-query';
 import { invalidateCurrentUserAccess } from './menus';
@@ -33,6 +33,10 @@ export const identityAccessGovernanceKeys = {
 
 export function useAccessWorkflowOptions(enabled = true) {
   return useApiQuery(accessGovernanceContract.workflowOptions, undefined, { enabled, staleTime: 0, refetchOnMount: 'always' });
+}
+
+export function useAccessWorkflowPreview(body: BodyOf<typeof accessGovernanceContract.workflowPreview>, enabled: boolean) {
+  return useApiQuery(accessGovernanceContract.workflowPreview, { body }, { enabled, staleTime: 0 });
 }
 
 export function useAccessRequestList(query: AccessRequestListQuery, enabled = true) {
