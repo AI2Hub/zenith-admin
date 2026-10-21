@@ -367,7 +367,7 @@ export default function QuestionDesigner({ questions, onChange, kind, locked, er
                       }))}
                     />
                     <Select
-                      size="small" multiple placeholder="选择触发选项" style={{ minWidth: 200 }} disabled={locked}
+                      size="small" multiple maxTagCount={1} showRestTagsPopover placeholder="选择触发选项" style={{ minWidth: 200 }} disabled={locked}
                       value={question.visibleWhen.values}
                       optionList={conditionSource.options.map((option) => ({ value: option.value, label: option.label || option.value }))}
                       onChange={(value) => patch(index, (item) => ({

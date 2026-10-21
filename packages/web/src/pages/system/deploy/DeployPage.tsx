@@ -37,7 +37,7 @@ function TargetFields({ apps, hosts }: { apps: ClientApp[]; hosts: Array<{ id: n
     <Divider align="left">基本信息</Divider>
     <Form.Select field="appId" label="服务端应用" placeholder="选择服务端应用" style={{ width: '100%' }} optionList={apps.filter((a) => a.kind === 'service').map((a) => ({ value: a.id, label: a.name }))} rules={[{ required: true, message: '请选择服务端应用' }]} />
     <Form.Input field="name" label="部署环境" placeholder="生产 / 预发" rules={[{ required: true, message: '请输入名称' }]} />
-    <Form.Select field="hostIds" label="目标主机" placeholder="选择目标主机，可多选" style={{ width: '100%' }} multiple optionList={hosts.filter((h) => h.enabled).map((h) => ({ value: h.id, label: h.name }))} rules={[{ required: true, message: '至少选择一台主机' }]} />
+    <Form.Select field="hostIds" label="目标主机" placeholder="选择目标主机，可多选" style={{ width: '100%' }} multiple maxTagCount={2} showRestTagsPopover optionList={hosts.filter((h) => h.enabled).map((h) => ({ value: h.id, label: h.name }))} rules={[{ required: true, message: '至少选择一台主机' }]} />
     <Form.Input field="deployPath" label="部署根目录" placeholder="/opt/apps/order-svc" rules={[{ required: true, message: '请输入绝对路径' }]} />
 
     <Divider align="left">发布策略</Divider>

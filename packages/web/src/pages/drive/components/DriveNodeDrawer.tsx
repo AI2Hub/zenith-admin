@@ -40,6 +40,7 @@ function TagsEditor({ node }: { readonly node: DriveNodeDetail }) {
   return (
     <Select
       multiple filter allowCreate size="small" style={{ width: '100%' }} placeholder="选择或输入新标签"
+      maxTagCount={2} showRestTagsPopover
       value={value}
       loading={tagsQuery.isPending}
       optionList={(tagsQuery.data ?? []).map((t) => ({ value: t.id, label: t.name }))}

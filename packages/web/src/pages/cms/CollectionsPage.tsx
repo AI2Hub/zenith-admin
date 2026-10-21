@@ -63,8 +63,8 @@ export default function CollectionsPage() {
         </Col>
       </Row>
       <FilterInput field="definition.filters" label="模型字段条件" extraText="多个条件需全部满足" fields={models.data?.find(model => model.id === (editingModelId === undefined ? modal.editing?.definition.modelId : editingModelId))?.fields ?? []} />
-      <Form.Select field="definition.channelIds" label="栏目范围" multiple optionList={flattenChannels(channels.data ?? []).map(row => ({ value: row.id, label: row.name }))} style={{ width: '100%' }} />
-      <Form.Select field="definition.tagIds" label="分类 / 标签" extraText="内容需全部匹配所选项" multiple filter optionList={(tags.data ?? []).map(row => ({ value: row.id, label: row.name }))} style={{ width: '100%' }} />
+      <Form.Select field="definition.channelIds" label="栏目范围" multiple optionList={flattenChannels(channels.data ?? []).map(row => ({ value: row.id, label: row.name }))} style={{ width: '100%' }} maxTagCount={2} showRestTagsPopover />
+      <Form.Select field="definition.tagIds" label="分类 / 标签" extraText="内容需全部匹配所选项" multiple filter optionList={(tags.data ?? []).map(row => ({ value: row.id, label: row.name }))} style={{ width: '100%' }} maxTagCount={2} showRestTagsPopover />
       <Row gutter={16}>
         <Col span={12}>
           <Form.Select field="definition.sort" label="排序" optionList={[{ value: 'publishedAt', label: '发布时间' }, { value: 'title', label: '标题' }, { value: 'field', label: '模型字段' }]} style={{ width: '100%' }} />

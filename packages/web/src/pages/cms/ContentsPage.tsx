@@ -799,7 +799,7 @@ export default function ContentsPage() {
           <FilterSelect placeholder="负责人" width={140} items={(users ?? []).map((user) => ({ value: user.id, label: user.nickname }))} {...bind('ownerId')} />
           <FilterSelect placeholder="编辑状态" width={130} items={Object.entries(CMS_EDITORIAL_STATUS_LABELS).map(([value, label]) => ({ value: value as CmsEditorialStatus, label }))} {...bind('editorialStatus')} />
           <Input placeholder="语言，如 zh-CN" {...bind('locale')} style={{ width: 130 }} showClear />
-          <Select multiple showClear placeholder="标签" value={submittedParams.tags?.split(',').map(Number)} onChange={(value) => applySearch({ ...submittedParams, tags: Array.isArray(value) && value.length ? value.join(',') : undefined })} optionList={(allTags ?? []).map((tag) => ({ value: tag.id, label: tag.name }))} style={{ width: 180 }} />
+          <Select multiple showClear maxTagCount={1} showRestTagsPopover placeholder="标签" value={submittedParams.tags?.split(',').map(Number)} onChange={(value) => applySearch({ ...submittedParams, tags: Array.isArray(value) && value.length ? value.join(',') : undefined })} optionList={(allTags ?? []).map((tag) => ({ value: tag.id, label: tag.name }))} style={{ width: 180 }} />
           <DateRangeFilter {...bind('timeRange')} />
           </>
         )}
@@ -919,6 +919,7 @@ export default function ContentsPage() {
       >
         <Form getFormApi={(api) => { tagFormApi.current = api; }} allowEmpty labelPosition="left" labelWidth={90}>
           <Form.Select field="tagIds" label="追加标签" multiple style={{ width: '100%' }}
+            maxTagCount={2} showRestTagsPopover
             optionList={(allTags ?? []).map((t) => ({ value: t.id, label: t.name }))}
             rules={[{ required: true, message: '请选择标签' }]} />
         </Form>

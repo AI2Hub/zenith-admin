@@ -1028,6 +1028,7 @@ export default function UsersPage() {
             filter
             showClear={protectedSuperRoleId(roleAssignUser) === undefined}
             style={{ width: '100%' }}
+            maxTagCount={2} showRestTagsPopover
             value={roleAssignIds}
             onChange={(v) => setRoleAssignIds((v as number[]) ?? [])}
             optionList={allRoles.map((r) => ({ value: r.id, label: r.name, disabled: r.id === protectedSuperRoleId(roleAssignUser) }))}

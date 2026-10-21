@@ -289,7 +289,7 @@ export default function MetricsPage() {
               <Col xs={24} md={12}><Form.Select field="datasetId" label="数据集" filter style={{ width: '100%' }} optionList={datasets.map((item) => ({ value: item.id, label: item.name }))} rules={[{ required: true, message: '请选择数据集' }]} /></Col>
               <Col xs={24} md={12}><Form.Select field="sourceField" label="来源字段" placeholder="简单指标必填" filter allowCreate showClear style={{ width: '100%' }} optionList={formFieldOptions} /></Col>
               <Col xs={24} md={12}><Form.Select field="aggregate" label="聚合方式" style={{ width: '100%' }} optionList={['sum', 'avg', 'max', 'min', 'count', 'distinct_count'].map((value) => ({ value, label: value }))} showClear /></Col>
-              <Col xs={24} md={12}><Form.Select field="dimensions" label="维度字段" multiple filter allowCreate showClear style={{ width: '100%' }} optionList={formFieldOptions} /></Col>
+              <Col xs={24} md={12}><Form.Select field="dimensions" label="维度字段" multiple filter allowCreate showClear style={{ width: '100%' }} maxTagCount={2} showRestTagsPopover optionList={formFieldOptions} /></Col>
               <Col xs={24} md={12}><Form.Select field="timeField" label="时间字段" filter allowCreate showClear style={{ width: '100%' }} optionList={formFieldOptions} /></Col>
               <Col xs={24} md={12}><Form.Input field="unit" label="单位" /></Col>
               <Col xs={24} md={12}><Form.Input field="format" label="显示格式" placeholder="如 0,0.00" /></Col>

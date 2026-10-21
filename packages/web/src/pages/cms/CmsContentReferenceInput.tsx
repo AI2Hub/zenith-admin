@@ -26,6 +26,7 @@ export default function CmsContentReferenceInput({ value, onChange, siteId, mult
     {modelIds.length > 1 && <Select value={modelId} placeholder="引用内容类型" optionList={modelIds.map((id) => ({ value: id, label: models.data?.find((model) => model.id === id)?.name ?? `模型 #${id}` }))}
       onChange={(next) => { setSelectedModelId(Number(next)); setPage(1); }} />}
     <Select value={value} multiple={multiple} remote filter showClear disabled={!siteId} loading={list.isFetching}
+      maxTagCount={2} showRestTagsPopover
       placeholder="搜索本站内容" optionList={[...options.values()]} style={{ width: '100%' }}
       onSearch={(next) => { setKeyword(next); setPage(1); }} onChange={(next) => onChange?.(next as number | number[] | undefined)} />
     <Pagination currentPage={page} pageSize={CONTENT_PAGE_SIZE} total={list.data?.total ?? 0}

@@ -454,6 +454,7 @@ export default function UserGroupsPage() {
             filter
             placeholder="请选择角色"
             style={{ width: '100%' }}
+            maxTagCount={1} showRestTagsPopover
             value={roleIds}
             onChange={(v) => setRoleIds((v as number[]) ?? [])}
             optionList={(allRolesQuery.data ?? []).map((r) => ({ value: r.id, label: `${r.name}（${r.code}）` }))}

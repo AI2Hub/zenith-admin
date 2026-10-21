@@ -40,7 +40,7 @@ export default function TaxonomyPage() {
       <Form.Input field="name" label="词表名称" rules={[{ required: true }]} />
       <Form.Input field="code" label="编码" rules={[{ required: true }]} placeholder="如 region、industry" />
       <Form.TextArea field="description" label="用途说明" />
-      <Form.Select field="modelIds" label="适用内容模型" multiple optionList={(models.data ?? []).map(model => ({ value: model.id, label: model.name }))} extraText="留空适用于所有模型" style={{ width: '100%' }} />
+      <Form.Select field="modelIds" label="适用内容模型" multiple optionList={(models.data ?? []).map(model => ({ value: model.id, label: model.name }))} extraText="留空适用于所有模型" style={{ width: '100%' }} maxTagCount={3} showRestTagsPopover />
       <Form.Switch field="required" label="发布必须选择" />
       <Form.InputNumber field="maxSelections" label="最多选择词条" min={1} max={100} style={{ width: '100%' }} />
       <Form.Select field="status" label="状态" optionList={[{ value: 'enabled', label: '启用' }, { value: 'disabled', label: '停用' }]} style={{ width: '100%' }} />

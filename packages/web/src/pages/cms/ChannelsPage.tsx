@@ -700,6 +700,7 @@ export default function ChannelsPage() {
       >
         <Form getFormApi={(api) => { mergeFormApi.current = api; }} allowEmpty labelPosition="left" labelWidth={90}>
           <Form.TreeSelect field="sourceIds" label="来源栏目" multiple style={{ width: '100%' }}
+            maxTagCount={1} showRestTagsPopover
             treeData={toTreeSelectData(tree)}
             placeholder="内容将被迁出并删除的栏目（须为无子栏目的列表栏目）"
             rules={[{ required: true, message: '请选择来源栏目' }]} />
@@ -754,6 +755,7 @@ export default function ChannelsPage() {
           value={selectedUserIds}
           onChange={(v) => setSelectedUserIds((v as number[]) ?? [])}
           style={{ width: '100%' }}
+          maxTagCount={2} showRestTagsPopover
           loading={channelUsersQuery.isFetching}
           optionList={(allUsers ?? []).map((u) => ({ value: u.id, label: `${u.nickname}（${u.username}）` }))}
         />

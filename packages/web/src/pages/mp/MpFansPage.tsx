@@ -215,6 +215,7 @@ export default function MpFansPage() {
       <EditFormModal modal={fanModal} title="编辑粉丝" width={520}>
         <Form.Input field="remark" label="备注" placeholder="请输入备注（最多128字）" maxLength={128} />
         <Form.Select field="tagIds" label="标签" multiple style={{ width: '100%' }}
+          maxTagCount={2} showRestTagsPopover
           placeholder="为该粉丝选择标签" optionList={tags.map((t) => ({ label: t.name, value: t.id }))} />
       </EditFormModal>
     </div>

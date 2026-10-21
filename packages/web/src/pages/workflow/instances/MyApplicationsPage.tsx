@@ -237,6 +237,7 @@ function InstanceDetailDrawer({
             multiple
             filter
             value={ccUserIds}
+            maxTagCount={2} showRestTagsPopover
             onChange={(v) => setCcUserIds(v as number[])}
             optionList={ccUserOptions}
             placeholder="请选择抄送人"

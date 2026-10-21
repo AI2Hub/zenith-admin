@@ -260,6 +260,7 @@ export default function AiAgentsPage() {
           label="工具"
           multiple
           style={{ width: '100%' }}
+          maxTagCount={2} showRestTagsPopover
           placeholder="不启用工具"
           optionList={(toolsQuery.data ?? []).map((t) => ({ value: t.name, label: `${t.name}（${t.source === 'builtin' ? '内置' : 'HTTP'}）` }))}
         />

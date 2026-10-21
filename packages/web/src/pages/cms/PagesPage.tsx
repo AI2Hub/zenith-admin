@@ -695,6 +695,7 @@ export default function PagesPage() {
               placeholder="选择平台用户"
               optionList={toUserOptions(usersQuery.data ?? [])}
               onChange={(value) => setAclUserIds(value as number[])}
+              maxTagCount={2} showRestTagsPopover
             />
           </label>
           <label>
@@ -707,6 +708,7 @@ export default function PagesPage() {
               placeholder="选择平台角色"
               optionList={(rolesQuery.data ?? []).map((role) => ({ value: role.id, label: role.name }))}
               onChange={(value) => setAclRoleIds(value as number[])}
+              maxTagCount={2} showRestTagsPopover
             />
           </label>
         </div>

@@ -440,6 +440,7 @@ export default function MembersPage() {
           为会员「{tagsMember?.nickname}」设置标签（覆盖原有标签）：
         </p>
         <Select multiple filter placeholder="选择标签" value={tagsDraft} style={{ width: '100%' }}
+          maxTagCount={3} showRestTagsPopover
           onChange={(v) => setTagsDraft((v as number[]) ?? [])}
           optionList={enabledTags.map((t: MemberTag) => ({ value: t.id, label: t.name }))} />
       </AppModal>
@@ -450,6 +451,7 @@ export default function MembersPage() {
         onCancel={() => { setBatchTagsVisible(false); setBatchTagIds([]); }} onOk={handleBatchTags}>
         <p style={{ marginBottom: 12 }}>为已选 <strong>{selectedRowKeys.length}</strong> 名会员追加标签（已有标签保留）：</p>
         <Select multiple filter placeholder="选择标签" value={batchTagIds} style={{ width: '100%' }}
+          maxTagCount={3} showRestTagsPopover
           onChange={(v) => setBatchTagIds((v as number[]) ?? [])}
           optionList={enabledTags.map((t: MemberTag) => ({ value: t.id, label: t.name }))} />
       </AppModal>

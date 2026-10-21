@@ -73,6 +73,7 @@ export default function SiteOpenGrantsModal({ site, onClose }: Readonly<SiteOpen
           onChange={(v) => setDraft((d) => ({ ...d, channelIds: (v as number[]) ?? [] }))}
           optionList={channelOptions}
           style={{ width: 240 }}
+          maxTagCount={1} showRestTagsPopover
         />
         <Checkbox
           checked={draft.canPublish}

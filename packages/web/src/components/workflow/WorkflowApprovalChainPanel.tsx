@@ -205,6 +205,7 @@ export function WorkflowApprovalChain({
             }}
             placeholder={n.status === 'unknown' ? '请预选审批人' : '请选择审批人'}
             emptyContent="暂无可选审批人"
+            maxTagCount={2} showRestTagsPopover
             optionList={(n.selectableApprovers ?? []).map((u) => ({ value: u.id, label: u.name }))}
             value={selected}
             onChange={(v) => handleSelect(n.nodeKey, v)}

@@ -381,6 +381,7 @@ export default function ApproverSettingsTab({
                 filter
                 style={{ width: '100%' }}
                 placeholder="请选择用户组"
+                maxTagCount={2} showRestTagsPopover
                 optionList={userGroups.map(g => ({ value: g.id, label: g.name }))}
                 emptyContent={userGroups.length === 0 ? '请先在系统中配置用户组' : '无匹配项'}
               />

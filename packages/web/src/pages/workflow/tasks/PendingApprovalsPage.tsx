@@ -390,6 +390,7 @@ export default function PendingApprovalsPage() {
           placeholder="选择协办人"
           optionList={userOptions}
           value={consult?.userIds ?? []}
+          maxTagCount={2} showRestTagsPopover
           onChange={(v) => setConsult((s) => (s ? { ...s, userIds: (v as number[]) ?? [] } : s))}
         />
         <TextArea

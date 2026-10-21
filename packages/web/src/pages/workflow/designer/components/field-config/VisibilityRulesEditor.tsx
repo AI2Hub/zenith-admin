@@ -42,7 +42,7 @@ function ConditionValueEditor({ refField, operator, value, onChange }: Readonly<
         : (typeof value === 'string' && value ? value.split(',').map(s => s.trim()).filter(Boolean) : []);
       return (
         <Select
-          multiple value={arr} onChange={(v) => onChange(v)} style={{ width: '100%' }}
+          multiple maxTagCount={1} showRestTagsPopover value={arr} onChange={(v) => onChange(v)} style={{ width: '100%' }}
           optionList={options.map(o => ({ value: o, label: o }))}
           placeholder="选择一个或多个值"
         />

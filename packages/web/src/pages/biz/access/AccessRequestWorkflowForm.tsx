@@ -142,6 +142,7 @@ export default function AccessRequestWorkflowForm({ mode, value, getFormApi, onV
     <Form.RadioGroup field="requestType" name="access-request-type" label="申请类型" options={TYPE_OPTIONS.map(option => ({ ...option, disabled: option.value === 'emergency' && !emergencyAllowed }))} type="button"
       extraText={values.requestType === 'emergency' ? '用于故障处置等紧急任务，将以紧急授权留痕；仍须按所选权限风险完成全部审批与 MFA 验证。' : '用于日常业务任务，可选择限时或永久有效；审批链由所选权限中最严格的策略决定。'} />
     <Form.Select field="roleIds" label="申请角色包" multiple filter showClear style={{ width: '100%' }}
+      maxTagCount={2} showRestTagsPopover
       optionList={roles.map(role => ({ value: role.id, label: `${role.name} · ${role.permissionCount} 项 · ${ACCESS_RISK_LABELS[role.riskLevel]}` }))} placeholder="可选，按需申请完整角色权限包"
       extraText="角色包按角色配置的数据范围授权。只需要少量权限时，优先在下方逐项选择。" />
     <FormAccessPermissionPicker field="permissionCodes" label="操作权限" menus={menus} coveredPermissionCodes={coveredPermissionCodes} />

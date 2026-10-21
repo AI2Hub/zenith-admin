@@ -392,6 +392,7 @@ export default function ApproverAdvancedSections({
               multiple
               filter
               style={{ width: '100%' }}
+              maxTagCount={2} showRestTagsPopover
               placeholder="请选择异常通知人"
               value={catchNotifyUserIds ?? []}
               onChange={(v) => onChange({ catchNotifyUserIds: (v as number[]) ?? [] })}

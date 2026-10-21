@@ -100,7 +100,7 @@ export function FilterBar({
               optionList={optionsOf(f)} onChange={(val) => change(f.id, val ?? null)} />;
             break;
           case 'multiSelect':
-            control = <Select multiple placeholder={f.label} value={v as string[] | undefined} style={{ width: fullWidth ? '100%' : Math.max(w, 200) }} showClear filter
+            control = <Select multiple placeholder={f.label} value={v as string[] | undefined} style={{ width: fullWidth ? '100%' : Math.max(w, 200) }} maxTagCount={1} showRestTagsPopover showClear filter
               disabled={disabled} getPopupContainer={popupContainer}
               aria-labelledby={fullWidth ? labelId : undefined}
               optionList={optionsOf(f)} onChange={(val) => change(f.id, val ?? [])} />;

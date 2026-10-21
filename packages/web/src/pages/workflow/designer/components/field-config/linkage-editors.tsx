@@ -139,6 +139,7 @@ export function AutoFillEditor({
       <Typography.Text strong size="small">联动赋值（选择后自动填充）</Typography.Text>
       <Select
         multiple
+        maxTagCount={2} showRestTagsPopover
         value={targets}
         onChange={(v) => setTargets((v as string[]) ?? [])}
         placeholder="选择要自动填充的目标字段（留空不启用）"

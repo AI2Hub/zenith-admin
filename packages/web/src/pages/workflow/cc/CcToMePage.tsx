@@ -146,6 +146,7 @@ export default function CcToMePage() {
             multiple
             filter
             value={forwardUserIds}
+            maxTagCount={2} showRestTagsPopover
             onChange={(v) => setForwardUserIds(v as number[])}
             optionList={userOptions}
             placeholder="请选择抄送人"

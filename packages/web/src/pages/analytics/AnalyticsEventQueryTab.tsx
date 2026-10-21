@@ -211,6 +211,7 @@ export default function AnalyticsEventQueryTab() {
               multiple
               placeholder="按日期"
               optionList={ANALYTICS_EVENT_QUERY_GROUP_BY_OPTIONS}
+              maxTagCount={2}
               {...bind('groupBy', (v) => ((v as AnalyticsEventQueryGroupByField[]) ?? []).slice(0, 2))}
               style={{ width: '100%' }}
             />

@@ -706,6 +706,7 @@ export default function AnnouncementsPage() {
                     value={selectedUserIds}
                     optionList={userOptions}
                     onSearch={handleUserSearch}
+                    maxTagCount={2} showRestTagsPopover
                     onChange={(v) => setSelectedUserIds(v as number[])}
                     style={{ width: '100%' }}
                     disabled={viewOnly}
@@ -720,6 +721,7 @@ export default function AnnouncementsPage() {
                     loading={recipientOptionsQuery.isFetching}
                     placeholder="请选择角色"
                     value={selectedRoleIds}
+                    maxTagCount={2} showRestTagsPopover
                     optionList={roleOptions}
                     onChange={(v) => setSelectedRoleIds(v as number[])}
                     style={{ width: '100%' }}
@@ -735,6 +737,7 @@ export default function AnnouncementsPage() {
                     loading={recipientOptionsQuery.isFetching}
                     placeholder="请选择部门"
                     value={selectedDeptIds}
+                    maxTagCount={2} showRestTagsPopover
                     optionList={deptOptions}
                     onChange={(v) => setSelectedDeptIds(v as number[])}
                     style={{ width: '100%' }}

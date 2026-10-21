@@ -1236,6 +1236,7 @@ export default function PrintDesignerPage() {
                         onChange={(value) => patchCrosstab({ rowFields: (value as string[]) ?? [] })}
                         filter
                         style={{ width: '100%' }}
+                        maxTagCount={1} showRestTagsPopover
                       />
                     </Field>
                     <Field label="列维度">
@@ -1246,6 +1247,7 @@ export default function PrintDesignerPage() {
                         onChange={(value) => patchCrosstab({ columnFields: (value as string[]) ?? [] })}
                         filter
                         style={{ width: '100%' }}
+                        maxTagCount={1} showRestTagsPopover
                       />
                     </Field>
                     <Divider margin={10}>指标</Divider>

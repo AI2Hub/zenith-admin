@@ -440,10 +440,12 @@ export default function PaymentRiskRulesPage() {
           <>
             <Form.Select
               field="blockListKeys" label="黑名单" multiple filter showClear style={{ width: '100%' }}
+              maxTagCount={2} showRestTagsPopover
               placeholder="选择规则中心名单库（黑/灰名单）" optionList={blockListOptions}
             />
             <Form.Select
               field="allowListKeys" label="白名单" multiple filter showClear style={{ width: '100%' }}
+              maxTagCount={2} showRestTagsPopover
               placeholder="选择规则中心名单库（白名单）" optionList={allowListOptions}
             />
             <Typography.Text type="tertiary" size="small" style={{ display: 'block', margin: '-8px 0 8px 100px' }}>

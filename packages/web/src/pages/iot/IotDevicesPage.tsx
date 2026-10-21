@@ -373,6 +373,7 @@ export default function IotDevicesPage() {
               )}
               <Form.Select
                 field="groupIds" label="所属分组" placeholder="选择分组（可多选）" multiple showClear style={{ width: '100%' }}
+                maxTagCount={2} showRestTagsPopover
                 optionList={groupOptions}
               />
               <Row gutter={16}>

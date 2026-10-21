@@ -46,6 +46,7 @@ export function SelectScopeFields({
           style={{ width: '100%' }}
           placeholder={allowEmpty ? '可选范围，留空则上一审批人可任选' : '请选择可供发起人挑选的范围'}
           optionList={scopeOptions}
+          maxTagCount={2} showRestTagsPopover
         />
       </Form.Slot>
       <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginTop: 4 }}>

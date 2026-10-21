@@ -17,7 +17,7 @@ export default function CmsConfigurationPicker({ kind, siteId, value, onChange }
   const options = new Map((query.data?.list ?? []).map((item) => { labels.current.set(item.id, item.name); return [item.id, { value: item.id, label: item.name }] as const; }));
   for (const id of value) if (!options.has(id)) options.set(id, { value: id, label: labels.current.get(id) ?? `#${id}` });
   return <Space vertical align="start" style={{ width: '100%' }}>
-    <Select multiple filter remote showClear value={value} onChange={(next) => onChange(Array.isArray(next) ? next.map(Number) : [])} onSearch={setKeyword} optionList={[...options.values()]} loading={query.isFetching} placeholder={kind === 'page' ? '搜索并选择页面' : '搜索并选择页面部件'} style={{ width: '100%' }} />
+    <Select multiple filter remote showClear value={value} onChange={(next) => onChange(Array.isArray(next) ? next.map(Number) : [])} onSearch={setKeyword} maxTagCount={2} showRestTagsPopover optionList={[...options.values()]} loading={query.isFetching} placeholder={kind === 'page' ? '搜索并选择页面' : '搜索并选择页面部件'} style={{ width: '100%' }} />
     <Pagination currentPage={pagination.page} pageSize={pagination.pageSize} total={query.data?.total ?? 0}
       onPageChange={pagination.setPage} {...COMPACT_PAGINATION_PROPS} />
   </Space>;

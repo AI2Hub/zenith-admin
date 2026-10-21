@@ -61,6 +61,7 @@ export default function SiteUsersModal({ site, onClose }: Readonly<SiteUsersModa
         placeholder="选择授权用户"
         value={selectedUserIds}
         onChange={(v) => setSelectedUserIds((v as number[]) ?? [])}
+        maxTagCount={2} showRestTagsPopover
         style={{ width: '100%' }}
         loading={siteUsersQuery.isFetching}
         optionList={(allUsers ?? []).map((u) => ({ value: u.id, label: `${u.nickname}（${u.username}）` }))}

@@ -166,7 +166,7 @@ export function ConfigPanel({ widget, datasets, metrics, dashboards, fieldOption
       )}
       {isCartesian && (
         <Field label="指标字段（可多选）">
-          <Select multiple style={full} value={o.valueFields ?? []} placeholder="字段" showClear onChange={(v) => onOptions({ valueFields: (v as string[]) ?? [] })} optionList={fieldOptions} />
+          <Select multiple style={full} maxTagCount={2} showRestTagsPopover value={o.valueFields ?? []} placeholder="字段" showClear onChange={(v) => onOptions({ valueFields: (v as string[]) ?? [] })} optionList={fieldOptions} />
         </Field>
       )}
       {(t === 'pie' || t === 'scatter' || t === 'radar' || t === 'funnel') && (
@@ -238,7 +238,7 @@ export function ConfigPanel({ widget, datasets, metrics, dashboards, fieldOption
       {t === 'table' && (
         <>
           <Field label="展示列（留空=全部）">
-            <Select multiple style={full} value={(o.columns ?? []).map((c) => c.name)} placeholder="全部字段" showClear
+            <Select multiple style={full} maxTagCount={2} showRestTagsPopover value={(o.columns ?? []).map((c) => c.name)} placeholder="全部字段" showClear
               onChange={(v) => onOptions({ columns: (v as string[]).map((name) => ({ name, label: fieldOptions.find((f) => f.value === name)?.label ?? name, type: 'string' })) })}
               optionList={fieldOptions} />
           </Field>
@@ -266,7 +266,7 @@ export function ConfigPanel({ widget, datasets, metrics, dashboards, fieldOption
       {/* ── 透视表 ── */}
       {t === 'pivot' && (
         <>
-          <Field label="行维度（可多选）"><Select multiple style={full} value={o.pivotRows ?? []} showClear onChange={(v) => onOptions({ pivotRows: (v as string[]) ?? [] })} optionList={fieldOptions} /></Field>
+          <Field label="行维度（可多选）"><Select multiple style={full} maxTagCount={2} showRestTagsPopover value={o.pivotRows ?? []} showClear onChange={(v) => onOptions({ pivotRows: (v as string[]) ?? [] })} optionList={fieldOptions} /></Field>
           <Field label="列维度"><Select style={full} value={o.pivotColumns?.[0]} placeholder="可选" showClear onChange={(v) => onOptions({ pivotColumns: v ? [v as string] : [] })} optionList={fieldOptions} /></Field>
           <Field label="值字段"><Select style={full} value={o.pivotValueField} showClear onChange={(v) => onOptions({ pivotValueField: v as string })} optionList={fieldOptions} /></Field>
           <Field label="聚合"><Select style={full} value={o.pivotAggregate ?? 'sum'} onChange={(v) => onOptions({ pivotAggregate: v as ReportWidgetOptions['pivotAggregate'] })} optionList={AGG.filter((a) => a.value !== 'first')} /></Field>
@@ -328,7 +328,7 @@ export function ConfigPanel({ widget, datasets, metrics, dashboards, fieldOption
               }
               return (
                 <>
-                  <Select size="small" multiple style={full} placeholder="选择下钻维度层级（按顺序）" value={widget.drilldown?.fields ?? []}
+                  <Select size="small" multiple maxTagCount={1} showRestTagsPopover style={full} placeholder="选择下钻维度层级（按顺序）" value={widget.drilldown?.fields ?? []}
                     onChange={(v) => onPatch({ drilldown: { ...widget.drilldown, fields: (v as string[]) } })} optionList={fieldOptions} />
                   <span style={{ fontSize: 11, color: 'var(--semi-color-text-2)' }}>数据集需包含各层级维度列（如省/市/区）；按选择顺序逐层下钻。</span>
                 </>
