@@ -5,7 +5,7 @@ import { higherAccessRisk, accessGovernanceContract, type AccessPolicySnapshot, 
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { db } from '../../db';
 import type { DbExecutor } from '../../db/types';
-import { departments, identityAccessGrantItems, identityAccessGrants, identityAccessReviewCampaigns, identityAccessReviewItems, menus, roleMenus, roles, userGroupMembers, userGroupRoles, userGroups, identityUserPermissions, userRoles, users, userMfaFactors, workflowJobs, type IdentityAccessReviewCampaignRow } from '../../db/schema';
+import { departments, identityAccessGrantItems, identityAccessGrants, identityAccessReviewCampaigns, identityAccessReviewItems, roles, userGroupMembers, userGroupRoles, userGroups, identityUserPermissions, userRoles, users, userMfaFactors, workflowJobs, type IdentityAccessReviewCampaignRow } from '../../db/schema';
 import { currentUser, setAuditBefore } from '../../lib/context';
 import { randomUUID } from 'node:crypto';
 import { exactTenantCondition, getCreateTenantId, tenantCondition } from '../../lib/tenant';
@@ -223,9 +223,9 @@ export async function decideReviewItem(id: number, input: DecideAccessReviewItem
       const source = currentSources.sources.find(source => source.sourceType === item.sourceType && source.sourceId === item.sourceId);
       if (!source) throw new HTTPException(409, { message: '授权来源已经失效，请选择撤销完成此项复核' });
       const sourceSignature = (snapshot: Record<string, unknown>) => JSON.stringify(Object.entries(snapshot).filter(([key]) => !['capturedAt', 'reviewIntervalDays'].includes(key)).sort(([a], [b]) => a.localeCompare(b)));
-      if (sourceSignature(source.snapshot) !== sourceSignature(item.snapshot)) {
-        const refreshedPolicies = await loadEffectiveAccessPolicies(snapshotCodes(source.snapshot), item.tenantId, tx);
-        await tx.update(identityAccessReviewItems).set({ snapshot: source.snapshot, sourceLabel: source.sourceLabel, riskLevel: reviewPolicy(refreshedPolicies, source.riskLevel).riskLevel }).where(where);
+      if (sourceSignature(source.snapshot ?? {}) !== sourceSignature(item.snapshot)) {
+        const refreshedPolicies = await loadEffectiveAccessPolicies(snapshotCodes(source.snapshot ?? {}), item.tenantId, tx);
+        await tx.update(identityAccessReviewItems).set({ snapshot: source.snapshot, sourceLabel: source.sourceLabel, riskLevel: reviewPolicy(refreshedPolicies, source.riskLevel ?? 'low').riskLevel }).where(where);
         sourceRefreshed = true;
         return;
       }

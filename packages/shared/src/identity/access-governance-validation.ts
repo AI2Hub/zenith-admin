@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { dateTimeStringSchema } from '../core/validation';
+import { dateTimeStringSchema, partialForUpdate } from '../core/validation';
 import {
   ACCESS_APPROVAL_POLICIES,
   ACCESS_APPROVAL_NODE_KEYS,
@@ -29,7 +29,7 @@ const accessWorkflowFieldsSchema = z.strictObject({
   expiresAt: dateTimeStringSchema.nullable().default(null),
 });
 
-export const accessWorkflowPreviewInputSchema = accessWorkflowFieldsSchema.omit({ previewFingerprint: true }).extend({ reason: z.string().max(1000).optional() }).partial();
+export const accessWorkflowPreviewInputSchema = partialForUpdate(accessWorkflowFieldsSchema.omit({ previewFingerprint: true }).extend({ reason: z.string().max(1000).optional() })).strict();
 
 export const accessWorkflowInputSchema = accessWorkflowFieldsSchema.superRefine((value, ctx) => {
   if (value.validityMode === 'limited' && !value.expiresAt) ctx.addIssue({ code: 'custom', path: ['expiresAt'], message: '限时授权必须填写失效时间' });

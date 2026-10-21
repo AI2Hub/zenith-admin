@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DbExecutor } from '../../db/types';
 
 const mocks = vi.hoisted(() => ({ overlap: vi.fn(), enqueue: vi.fn() }));
+vi.mock('./access-governance.service', () => ({ normalizeAccessWorkflowFormData: vi.fn().mockResolvedValue({}) }));
+vi.mock('./authority-write.service', () => ({ lockIdentityAuthority: vi.fn().mockResolvedValue(undefined) }));
 vi.mock('../../db', () => ({ db: {} }));
 vi.mock('./access-reservations.service', () => ({ assertNoOverlappingAccessRequest: mocks.overlap }));
 vi.mock('../messaging/notification-outbox.service', () => ({ notifyWithin: vi.fn().mockResolvedValue(undefined) }));
@@ -36,7 +38,7 @@ const instance = {
   id: 41, tenantId: 3, initiatorId: 9,
   formData: {
     targetUserId: 9, requestType: 'temporary', reason: '部署工单需要查询用户', startsAt: '2026-10-19 10:00:00', expiresAt: '2026-10-19 11:00:00', riskLevel: 'low',
-    permissionItems: [{ itemType: 'menu', roleId: null, menuId: 1011, permissionCode: 'system:user:list', permissionLabel: '查询用户', dataScope: 'self', deptScopeIds: [], snapshot: {} }],
+    permissionItems: [{ itemType: 'permission', roleId: null, scopeKey: 'self:', sourceRefs: [], permissionCode: 'system:user:list', permissionLabel: '查询用户', dataScope: 'self', deptScopeIds: [], snapshot: {} }],
   },
 };
 const outcome = { id: 41, tenantId: 3, bizType: 'identity.access_request', bizId: '77', status: 'approved' };
@@ -51,7 +53,7 @@ describe('atomic access request workflow attachment', () => {
     expect(e.raw.execute.mock.invocationCallOrder[0]).toBeLessThan(mocks.overlap.mock.invocationCallOrder[0]);
     expect(e.requestValues).toHaveBeenCalledWith(expect.objectContaining({ applicantUserId: 9, targetUserId: 9, workflowInstanceId: 41, status: 'pending' }));
     expect(e.raw.insert).toHaveBeenCalledWith(identityAccessRequestItems);
-    expect(e.itemValues).toHaveBeenCalledWith([expect.objectContaining({ requestId: 77, menuId: 1011, dataScope: 'self' })]);
+    expect(e.itemValues).toHaveBeenCalledWith([expect.objectContaining({ requestId: 77, scopeKey: 'self:', sourceRefs: [], dataScope: 'self' })]);
     expect(e.raw.update).toHaveBeenCalledWith(workflowInstances);
     expect(e.set).toHaveBeenCalledWith({ bizType: 'identity.access_request', bizId: '77' });
   });

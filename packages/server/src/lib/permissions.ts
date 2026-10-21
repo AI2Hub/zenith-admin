@@ -1,4 +1,4 @@
-import { and, eq, gt, inArray, isNull, or } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { DbExecutor } from '../db/types';
 import { SUPER_ADMIN_CODE } from '@zenith/shared/identity';
@@ -17,6 +17,11 @@ const CACHE_TTL_SECONDS = 300;
 const PERM_CACHE_PREFIX = `${config.redis.keyPrefix}perm:`;
 const PERM_GENERATION_KEY = `${config.redis.keyPrefix}perm-generation`;
 let cacheResetRequired = false;
+
+async function readPermissionGeneration(userId: number): Promise<string> {
+  const [global, personal] = await Promise.all([redis.get(PERM_GENERATION_KEY), redis.get(`${PERM_GENERATION_KEY}:user:${userId}`)]);
+  return `${global ?? '0'}:${personal ?? '0'}`;
+}
 
 interface CacheEntry {
   permissions: string[];
@@ -47,9 +52,9 @@ async function readCacheEntry(userId: number): Promise<CacheEntry | null> {
       await clearRedisPermCache();
       cacheResetRequired = false;
     }
-    const [raw, generation] = await Promise.all([redis.get(`${PERM_CACHE_PREFIX}${userId}`), redis.get(PERM_GENERATION_KEY)]);
+    const [raw, generation] = await Promise.all([redis.get(`${PERM_CACHE_PREFIX}${userId}`), readPermissionGeneration(userId)]);
     const entry = raw ? JSON.parse(raw) as CacheEntry : null;
-    return isCacheEntryValid(entry) && entry.generation === (generation ?? '0') ? entry : null;
+    return isCacheEntryValid(entry) && entry.generation === generation ? entry : null;
   } catch {
     cacheResetRequired = true;
     return null;
@@ -60,16 +65,16 @@ async function loadPermissionData(userId: number) {
   const cached = await readCacheEntry(userId);
   if (cached) return cached;
   // Read the generation before the database so an in-flight old read cannot repopulate a revoked cache.
-  const generation = await redis.get(PERM_GENERATION_KEY).catch(() => null);
+  const generation = await readPermissionGeneration(userId).catch(() => { cacheResetRequired = true; return null; });
   const data = await fetchUserPermissionData(userId);
   if (!cacheResetRequired && invalidationBusState() === 'listening') {
-    await redis.set(`${PERM_CACHE_PREFIX}${userId}`, JSON.stringify({ ...data, timestamp: Date.now(), generation: generation ?? '0' }), 'EX', CACHE_TTL_SECONDS).catch(() => { cacheResetRequired = true; });
+    await redis.set(`${PERM_CACHE_PREFIX}${userId}`, JSON.stringify({ ...data, timestamp: Date.now(), generation }), 'EX', CACHE_TTL_SECONDS).catch(() => { cacheResetRequired = true; });
   }
   return data;
 }
 
 async function clearRedisPermCache(userId?: number): Promise<void> {
-  await redis.incr(PERM_GENERATION_KEY);
+  await redis.incr(userId === undefined ? PERM_GENERATION_KEY : `${PERM_GENERATION_KEY}:user:${userId}`);
   if (userId !== undefined) {
     await redis.del(`${PERM_CACHE_PREFIX}${userId}`);
     return;

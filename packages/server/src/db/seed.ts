@@ -175,7 +175,7 @@ async function seedRest() {
   }
   for (const role of SEED_ROLES) {
     const permissionCodes = role.id === 1 ? Object.keys(ALL_PERMISSIONS) : SEED_MENUS.filter(menu => (role.menuIds ?? []).includes(menu.id)).flatMap(menu => menu.permission ? [menu.permission] : []);
-    await db.transaction(tx => publishRoleVersion(tx, role.id, permissionCodes));
+    await db.transaction(tx => publishRoleVersion(tx, role.id, role.tenantId ?? null, permissionCodes));
   }
   logger.info('  ✔ Role content and navigation seeded');
 

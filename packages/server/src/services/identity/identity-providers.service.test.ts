@@ -1,3 +1,4 @@
+import { provisionUserRoles } from './authority-write.service';
 /**
  * 企业身份源服务单测 —— 锁定 C1 修复的行为契约：
  * 1. 登录时不再按 username 隐式关联本地账号；按邮箱关联必须显式开启且邮箱已验证，且永不接管平台超管；
@@ -47,6 +48,7 @@ vi.mock('../../lib/session-manager', () => ({
 }));
 vi.mock('./user-group-rules.service', () => ({ syncUserDynamicMembershipsSafe: vi.fn() }));
 vi.mock('./auth.service', () => ({ finalizeLogin: vi.fn(), recordLoginLog: vi.fn(), completeLoginWithMfa: vi.fn() }));
+vi.mock('./authority-write.service', () => ({ provisionUserRoles: vi.fn().mockResolvedValue(undefined) }));
 vi.mock('./role-grant', () => ({
   assertDefaultRolesGrantable: vi.fn(),
   resolveGrantableDefaultRoleIds: vi.fn(async () => []),
@@ -250,7 +252,7 @@ describe('findOrCreateUserForProvider（登录路径）', () => {
     expect(user.id).toBe(100);
     expect(userInsert.values).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 3, email: 'alice@example.com' }));
     expect(resolveGrantableDefaultRoleIds).toHaveBeenCalledWith([1, 7], 3, db);
-    expect(roleInsert.values).toHaveBeenCalledWith([{ userId: 100, roleId: 7 }]);
+    expect(provisionUserRoles).toHaveBeenCalledWith(db, 100, [7], 3);
   });
 
   it('JIT 建号：过滤后没有可授予角色时不写 user_roles', async () => {

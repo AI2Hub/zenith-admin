@@ -215,7 +215,7 @@ export async function createTenant(data: CreateTenantInput) {
     if (menuIds.length > 0) {
       await tx.insert(roleMenus).values(menuIds.map((menuId) => ({ roleId: adminRole.id, menuId })));
     }
-    await publishRoleVersion(tx, adminRole.id, SEED_MENUS.flatMap(menu => menuIds.includes(menu.id) && menu.permission ? [menu.permission] : []));
+    await publishRoleVersion(tx, adminRole.id, row.id, SEED_MENUS.flatMap(menu => menuIds.includes(menu.id) && menu.permission ? [menu.permission] : []));
 
     // 2) 管理员账号并绑定角色
     const email = adminEmail || `${adminUsername}@${row.code}.tenant`;

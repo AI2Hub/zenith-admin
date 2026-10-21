@@ -23,6 +23,8 @@ vi.mock('../../lib/redis', () => ({
   default: { get: vi.fn(), set: vi.fn(), del: vi.fn(), scan: vi.fn() },
 }));
 
+vi.mock('./authority-write.service', () => ({ assertAutomaticRolesAllowed: vi.fn().mockResolvedValue([]) }));
+
 vi.mock('../../lib/context', () => ({ currentUser: vi.fn() }));
 
 vi.mock('../../lib/tenant', () => ({
@@ -71,7 +73,7 @@ const tenantAdmin = { userId: 10, username: 'ta', roles: ['tenant_admin'], tenan
 const platformAdmin = { userId: 1, username: 'admin', roles: ['super_admin'], tenantId: null } as unknown as JwtPayload;
 
 beforeEach(() => {
-  vi.resetAllMocks();
+  vi.clearAllMocks();
   vi.mocked(tenantCondition).mockReturnValue(undefined);
 });
 

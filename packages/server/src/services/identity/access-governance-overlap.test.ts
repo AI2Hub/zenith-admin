@@ -7,7 +7,7 @@ vi.mock('../messaging/notification-outbox.service', () => ({ notify: vi.fn() }))
 import { assertNoOverlappingAccessRequest } from './access-reservations.service';
 
 const requestedItem = {
-  itemType: 'menu' as const,
+  itemType: 'permission' as const,
   roleId: null,
   menuId: 10,
   permissionCode: 'system:user:assign',
@@ -37,19 +37,19 @@ const input = {
 describe('access request overlap guard', () => {
   it('treats a permanent request as overlapping a future grant of the same permission', async () => {
     const future = new Date(input.expiresAt.getTime() + 86_400_000);
-    const executor = executorWith({ grants: [{ menus: [{ ...requestedItem, id: 1, status: 'scheduled', startsAt: future, expiresAt: null }] }] });
+    const executor = executorWith({ grants: [{ items: [{ ...requestedItem, id: 1, status: 'scheduled', startsAt: future, expiresAt: null }] }] });
     await expect(assertNoOverlappingAccessRequest({ ...input, expiresAt: null }, executor)).rejects.toMatchObject({ status: 409 });
     await expect(assertNoOverlappingAccessRequest(input, executor)).resolves.toBeUndefined();
   });
 
   it('does not conflict with revoked items or disjoint custom department ranges', async () => {
     const existing = { ...requestedItem, id: 1, status: 'active', startsAt: input.startsAt, expiresAt: null, dataScope: 'custom', deptScopeIds: [1] };
-    const executor = executorWith({ grants: [{ menus: [existing, { ...existing, status: 'revoked', dataScope: 'all' }] }] });
+    const executor = executorWith({ grants: [{ items: [existing, { ...existing, status: 'revoked', dataScope: 'all' }] }] });
     await expect(assertNoOverlappingAccessRequest({ ...input, items: [{ ...requestedItem, dataScope: 'custom', deptScopeIds: [2] }] }, executor)).resolves.toBeUndefined();
   });
 
   it('rejects a permission already covered by an effective grant', async () => {
-    const executor = executorWith({ grants: [{ menus: [{ ...requestedItem, id: 1, status: 'active', startsAt: input.startsAt, expiresAt: input.expiresAt }] }] });
+    const executor = executorWith({ grants: [{ items: [{ ...requestedItem, id: 1, status: 'active', startsAt: input.startsAt, expiresAt: input.expiresAt }] }] });
 
     await expect(assertNoOverlappingAccessRequest(input, executor)).rejects.toMatchObject({
       status: 409,
@@ -67,7 +67,7 @@ describe('access request overlap guard', () => {
   });
 
   it('allows unrelated permissions', async () => {
-    const executor = executorWith({ grants: [{ menus: [{ ...requestedItem, menuId: 11, permissionCode: 'system:menu:list', status: 'active', startsAt: input.startsAt, expiresAt: input.expiresAt }] }], requests: [{ items: [{ ...requestedItem, menuId: 12, permissionCode: 'system:role:list' }] }] });
+    const executor = executorWith({ grants: [{ items: [{ ...requestedItem, menuId: 11, permissionCode: 'system:menu:list', status: 'active', startsAt: input.startsAt, expiresAt: input.expiresAt }] }], requests: [{ items: [{ ...requestedItem, menuId: 12, permissionCode: 'system:role:list' }] }] });
 
     await expect(assertNoOverlappingAccessRequest(input, executor)).resolves.toBeUndefined();
   });

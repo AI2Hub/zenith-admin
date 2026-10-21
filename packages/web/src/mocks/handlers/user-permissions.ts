@@ -4,6 +4,7 @@ import { requireItem } from '@/mocks/utils/crud';
 import { mockUsers } from '@/mocks/data/users';
 import { mockRoles } from '@/mocks/data/roles';
 import { mockUserGroups } from '@/mocks/data/user-groups';
+import { mockMenus } from '@/mocks/data/menus';
 
 // In-memory store for user-level menu/data permissions
 const userMenuMap: Record<number, number[]> = {};
@@ -128,6 +129,11 @@ export const userPermissionsHandlers = [
     const menuSourcesResult = Object.fromEntries(
       [...menuSources.entries()].map(([menuId, sources]) => [String(menuId), [...sources]])
     );
+    const permissionSources: Record<string, string[]> = {};
+    for (const [id, sources] of menuSources) {
+      const code = mockMenus.find(menu => menu.id === id)?.permission;
+      if (code) permissionSources[code] = [...new Set([...(permissionSources[code] ?? []), ...sources])];
+    }
 
     const userDataScope = userDataScopeMap[userId] ?? null;
     const roleDataScope = getMostPermissive(userRoles.map((r) => r.dataScope ?? null));
@@ -147,6 +153,8 @@ export const userPermissionsHandlers = [
       roleMenuIds,
       groupMenuIds,
       effectiveMenuIds,
+      permissionCodes: Object.keys(permissionSources),
+      permissionSources,
       temporaryMenuIds: [],
       temporaryScopes: [],
       userDataScope,

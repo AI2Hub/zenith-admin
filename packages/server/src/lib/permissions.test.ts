@@ -1,313 +1,119 @@
-/**
- * permissions 单元测试
- *
- * 覆盖要点：
- *  1. isSuperAdmin          — 正确识别 super_admin 角色（code + 平台归属双条件）
- *  2. getUserPermissions    — 无角色 / 有角色 / 去重 / 过滤空值 / 状态过滤 / 缓存命中
- *  3. getUserMenuIds        — 返回去重菜单 ID
- *  4. clearUserPermissionCache — 清除单用户 / 全部用户缓存
- *
- * 测试策略：mock `../db` 与 `./redis`（内存 Map 模拟 GET/SET EX/DEL/SCAN），避免真实连接；
- * 通过 `db.query.users.findFirst()` 返回带嵌套 relations 的结果，验证 Drizzle RQB 聚合逻辑。
- */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { db } from '../db';
-import redis from './redis';
-import {
-  isSuperAdmin,
-  getUserPermissions,
-  getUserMenuIds,
-  clearUserPermissionCache,
-} from './permissions';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-function createUserResult(menuGroups: Array<Array<{ id: number; permission: string | null }>>) {
-  return {
-    userRoles: menuGroups.map((menus) => ({
-      role: {
-        status: 'enabled',
-        roleMenus: menus.map((menu) => ({ menu: { visible: true, status: 'enabled', ...menu } })),
-      },
-    })),
-    // 实现侧 getUserPermissions 还会读取 user.userMenus（直接菜单授权），需提供以免 undefined.map
-    userMenus: [],
-  };
-}
-
-// ─── Mock ────────────────────────────────────────────────────────────────────
-vi.mock('../db', () => ({
-  db: { query: { users: { findFirst: vi.fn() } } },
+const state = vi.hoisted(() => ({
+  findUser: vi.fn(), cache: new Map<string, string>(), bus: 'listening' as 'listening' | 'degraded',
+  navigation: [{ id: 1, parentId: 0, permission: null, status: 'enabled' }, { id: 2, parentId: 1, permission: 'system:user:list', status: 'enabled' }],
+  handlers: new Map<string, (message: { key?: string }) => void>(),
 }));
+vi.mock('../db', () => ({ db: { query: { users: { findFirst: state.findUser } }, select: () => ({ from: async () => state.navigation }) } }));
+vi.mock('./tenant-package', () => ({ getTenantPackageFeatureSet: async () => null }));
+vi.mock('./ws-manager', () => ({ sendToUser: vi.fn() }));
+vi.mock('./invalidation-bus', () => ({
+  onInvalidate: (topic: string, handler: (message: { key?: string }) => void) => state.handlers.set(topic, handler),
+  onInvalidationReset: vi.fn(), invalidationBusState: () => state.bus,
+}));
+vi.mock('./redis', () => ({ default: {
+  get: vi.fn(async (key: string) => state.cache.get(key) ?? null),
+  set: vi.fn(async (key: string, value: string) => { state.cache.set(key, value); return 'OK'; }),
+  incr: vi.fn(async (key: string) => { const value = Number(state.cache.get(key) ?? 0) + 1; state.cache.set(key, String(value)); return value; }),
+  del: vi.fn(async (...keys: string[]) => { keys.forEach(key => state.cache.delete(key)); return keys.length; }),
+  scan: vi.fn(async (_cursor: string, _match: string, pattern: string) => ['0', [...state.cache.keys()].filter(key => key.startsWith(pattern.slice(0, -1)))]),
+} }));
 
-// 内存 Redis mock：GET 按 expireAt（受 fake timers 影响的 Date.now）判断过期
-vi.mock('./redis', () => {
-  const store = new Map<string, { value: string; expireAt: number }>();
-  return {
-    default: {
-      __store: store,
-      get: vi.fn(async (key: string) => {
-        const entry = store.get(key);
-        if (!entry) return null;
-        if (Date.now() >= entry.expireAt) {
-          store.delete(key);
-          return null;
-        }
-        return entry.value;
-      }),
-      set: vi.fn(async (key: string, value: string, _ex: string, seconds: number) => {
-        store.set(key, { value, expireAt: Date.now() + seconds * 1000 });
-        return 'OK';
-      }),
-      del: vi.fn(async (...keys: string[]) => {
-        keys.forEach((k) => store.delete(k));
-        return keys.length;
-      }),
-      scan: vi.fn(async (_cursor: string, _match: string, pattern: string) => {
-        const prefix = pattern.replace(/\*$/, '');
-        return ['0', [...store.keys()].filter((k) => k.startsWith(prefix))] as [string, string[]];
-      }),
-    },
-  };
-});
+import redis from './redis';
+import { clearUserPermissionCache, getUserMenuIds, getUserPermissions, getUserPermissionBoundary, isSuperAdmin, runWithFreshUserPermissions } from './permissions';
 
-const findUserMock = vi.mocked(db.query.users.findFirst);
-const redisStore = (redis as unknown as { __store: Map<string, unknown> }).__store;
-
-/** 等待 fire-and-forget 的 Redis 清理 microtask 完成 */
-async function flushAsync() {
-  for (let i = 0; i < 5; i++) await Promise.resolve();
+const role = (permissionCodes: string[], status = 'enabled') => ({ role: { permissionCodes, status, roleMenus: [] } });
+function user(overrides: Record<string, unknown> = {}) {
+  return { tenantId: null, status: 'enabled', userRoles: [], userMenus: [], userGroupMembers: [], directPermissions: [], accessGrants: [], ...overrides };
+}
+const now = new Date('2030-01-01T00:00:00Z');
+function item(permissionCode: string, from: number, until: number | null) {
+  return { permissionCode, status: 'active', startsAt: new Date(now.getTime() + from), expiresAt: until === null ? null : new Date(now.getTime() + until) };
 }
 
-// ─── Setup ───────────────────────────────────────────────────────────────────
-beforeEach(() => {
-  vi.clearAllMocks();
-  redisStore.clear(); // 直接清空 mock 存储，避免依赖异步的 clearUserPermissionCache
-  clearUserPermissionCache(); // 同时清空进程内降级缓存
+beforeEach(async () => {
+  vi.useRealTimers(); vi.clearAllMocks(); state.cache.clear(); state.bus = 'listening';
+  state.findUser.mockReset();
+  state.navigation = [{ id: 1, parentId: 0, permission: null, status: 'enabled' }, { id: 2, parentId: 1, permission: 'system:user:list', status: 'enabled' }];
+  await clearUserPermissionCache();
 });
 
-// 确保 fake timers 在每次测试后恢复，防止影响后续测试
-afterEach(() => {
-  vi.useRealTimers();
-});
-
-// ─── isSuperAdmin ─────────────────────────────────────────────────────────────
-describe('isSuperAdmin', () => {
-  it('平台用户（tenantId 为 null）包含 super_admin 时返回 true', () => {
-    expect(isSuperAdmin({ roles: ['user', 'super_admin'], tenantId: null })).toBe(true);
+describe('permission source aggregation', () => {
+  it.each([null, user({ status: 'disabled', userRoles: [role(['system:user:list'])] }), user()])('grants no capability for absent, disabled or unassigned users', async account => {
+    state.findUser.mockResolvedValue(account);
+    expect(await getUserPermissions(7)).toEqual([]);
   });
-
-  it('未携带 tenantId 字段时视为平台用户', () => {
-    expect(isSuperAdmin({ roles: ['super_admin'] })).toBe(true);
+  it('merges current role content, active groups, direct permissions and grants without duplicates', async () => {
+    state.findUser.mockResolvedValue(user({
+      userRoles: [role(['system:user:list']), role(['system:user:delete'], 'disabled')],
+      userGroupMembers: [{ group: { id: 1, name: '工作组', status: 'enabled', groupRoles: [role(['system:user:list', 'system:user:update'])] } }, { group: { id: 2, name: '停用组', status: 'disabled', groupRoles: [role(['system:user:create'])] } }],
+      directPermissions: [{ permissionCode: 'system:role:list' }],
+      accessGrants: [{ status: 'active', items: [{ permissionCode: 'system:dict:list', status: 'active', startsAt: new Date(0), expiresAt: null }] }],
+    }));
+    expect(await getUserPermissions(7)).toEqual(['system:dict:list', 'system:role:list', 'system:user:list', 'system:user:update']);
   });
-
-  it('租户用户即使角色 code 含 super_admin 也返回 false（防伪造提权）', () => {
-    expect(isSuperAdmin({ roles: ['super_admin'], tenantId: 2 })).toBe(false);
+  it('navigation bindings and changed menu metadata cannot mint operation permissions', async () => {
+    state.findUser.mockResolvedValue(user({ userRoles: [role(['system:user:list'])], userMenus: [{ menu: { id: 9, permission: 'system:user:assign', status: 'enabled' } }] }));
+    state.navigation[1].permission = 'system:user:assign';
+    expect(await getUserPermissions(7)).toEqual(['system:user:list']);
+    expect(await getUserMenuIds(7)).toEqual([]);
   });
-
-  it('不含 super_admin 时返回 false', () => {
-    expect(isSuperAdmin({ roles: ['user', 'admin'], tenantId: null })).toBe(false);
+  it('projects declared permissions into menus with ancestors and ignores unknown codes', async () => {
+    state.findUser.mockResolvedValue(user({ userRoles: [role(['system:user:list', 'unregistered:capability'])] }));
+    expect(await getUserPermissions(7)).toEqual(['system:user:list']);
+    expect(await getUserMenuIds(7)).toEqual([2, 1]);
   });
-
-  it('空角色数组返回 false', () => {
-    expect(isSuperAdmin({ roles: [], tenantId: null })).toBe(false);
-  });
-});
-
-// ─── getUserPermissions ───────────────────────────────────────────────────────
-describe('getUserPermissions', () => {
-  it('用户无角色时返回空数组（仅查一次 DB）', async () => {
-    findUserMock.mockResolvedValueOnce({ userRoles: [], userMenus: [] } as never);
-
-    const perms = await getUserPermissions(1);
-
-    expect(perms).toEqual([]);
-    expect(findUserMock).toHaveBeenCalledTimes(1);
-  });
-
-  it('用户无角色对应的菜单时返回空数组', async () => {
-    findUserMock.mockResolvedValueOnce(createUserResult([[]]) as never);
-
-    const perms = await getUserPermissions(2);
-
-    expect(perms).toEqual([]);
-    expect(findUserMock).toHaveBeenCalledTimes(1);
-  });
-
-  it('正常情况返回权限码列表', async () => {
-    findUserMock.mockResolvedValueOnce(createUserResult([[{ id: 10, permission: 'user:read' }, { id: 11, permission: 'user:write' }]]) as never);
-
-    const perms = await getUserPermissions(3);
-
-    expect(perms).toContain('user:read');
-    expect(perms).toContain('user:write');
-    expect(perms).toHaveLength(2);
-  });
-
-  it('合并启用用户组继承的角色权限，忽略禁用组', async () => {
-    findUserMock.mockResolvedValueOnce({
-      userRoles: [],
-      userMenus: [],
-      userGroupMembers: [
-        {
-          group: {
-            status: 'enabled',
-            groupRoles: [
-              { role: { status: 'enabled', roleMenus: [{ menu: { id: 20, permission: 'group:perm', visible: true, status: 'enabled' } }] } },
-            ],
-          },
-        },
-        {
-          group: {
-            status: 'disabled',
-            groupRoles: [
-              { role: { status: 'enabled', roleMenus: [{ menu: { id: 21, permission: 'disabled:perm', visible: true, status: 'enabled' } }] } },
-            ],
-          },
-        },
-      ],
-    } as never);
-
-    const perms = await getUserPermissions(30);
-
-    expect(perms).toContain('group:perm');
-    expect(perms).not.toContain('disabled:perm');
-    clearUserPermissionCache(30);
-  });
-
-  it('禁用角色不再授权（即时失权）', async () => {
-    findUserMock.mockResolvedValueOnce({
-      userRoles: [
-        { role: { status: 'enabled', roleMenus: [{ menu: { id: 30, permission: 'enabled:perm', visible: true, status: 'enabled' } }] } },
-        { role: { status: 'disabled', roleMenus: [{ menu: { id: 31, permission: 'disabled-role:perm', visible: true, status: 'enabled' } }] } },
-      ],
-      userMenus: [],
-    } as never);
-
-    const perms = await getUserPermissions(31);
-
-    expect(perms).toContain('enabled:perm');
-    expect(perms).not.toContain('disabled-role:perm');
-    clearUserPermissionCache(31);
-  });
-
-  it('禁用菜单的权限码被剔除（含直授菜单）', async () => {
-    findUserMock.mockResolvedValueOnce({
-      userRoles: [
-        { role: { status: 'enabled', roleMenus: [{ menu: { id: 40, permission: 'menu:enabled', visible: true, status: 'enabled' } }, { menu: { id: 41, permission: 'menu:disabled', visible: true, status: 'disabled' } }] } },
-      ],
-      userMenus: [{ menu: { id: 42, permission: 'direct:disabled', visible: true, status: 'disabled' } }],
-    } as never);
-
-    const perms = await getUserPermissions(32);
-
-    expect(perms).toEqual(['menu:enabled']);
-    clearUserPermissionCache(32);
-  });
-
-  it('对权限码进行去重', async () => {
-    findUserMock.mockResolvedValueOnce(createUserResult([
-      [{ id: 10, permission: 'user:read' }],
-      [{ id: 10, permission: 'user:read' }],
-    ]) as never);
-
-    const perms = await getUserPermissions(4);
-
-    const count = perms.filter((p) => p === 'user:read').length;
-    expect(count).toBe(1);
-  });
-
-  it('过滤掉 null 和空字符串权限码', async () => {
-    findUserMock.mockResolvedValueOnce(createUserResult([[{ id: 10, permission: null }, { id: 11, permission: '' }]]) as never);
-
-    const perms = await getUserPermissions(5);
-
-    expect(perms).toEqual([]);
-  });
-
-  it('第二次调用命中缓存，不再查询 DB', async () => {
-    findUserMock.mockResolvedValueOnce(createUserResult([[{ id: 20, permission: 'dashboard:view' }]]) as never);
-
-    await getUserPermissions(10);
-    await getUserPermissions(10); // 命中缓存
-
-    expect(findUserMock).toHaveBeenCalledTimes(1);
-  });
-
-  it('缓存 TTL 过期后重新查询 DB', async () => {
-    vi.useFakeTimers();
-
-    findUserMock.mockResolvedValueOnce(createUserResult([[{ id: 20, permission: 'perm:a' }]]) as never);
-
-    await getUserPermissions(50);
-    expect(findUserMock).toHaveBeenCalledTimes(1);
-
-    // 推进 5 分钟 + 1ms，超过 CACHE_TTL
-    vi.advanceTimersByTime(5 * 60 * 1000 + 1);
-
-    findUserMock.mockResolvedValueOnce({ userRoles: [], userMenus: [] } as never);
-    await getUserPermissions(50);
-
-    expect(findUserMock).toHaveBeenCalledTimes(2); // 缓存失效，多查一次
+  it('re-evaluates both activation and expiry at the exact time boundary', async () => {
+    vi.useFakeTimers(); vi.setSystemTime(now);
+    state.findUser.mockResolvedValue(user({ accessGrants: [{ status: 'active', items: [item('system:user:list', 1000, 2000)] }] }));
+    expect(await getUserPermissions(7)).toEqual([]);
+    expect(await getUserPermissionBoundary(7)).toBe(now.getTime() + 1000);
+    vi.setSystemTime(now.getTime() + 1000);
+    expect(await getUserPermissions(7)).toEqual(['system:user:list']);
+    vi.setSystemTime(now.getTime() + 2000);
+    expect(await getUserPermissions(7)).toEqual([]);
+    vi.useRealTimers();
   });
 });
 
-// ─── getUserMenuIds ────────────────────────────────────────────────────────────
-describe('getUserMenuIds', () => {
-  it('用户无角色时返回空数组', async () => {
-    findUserMock.mockResolvedValueOnce({ userRoles: [], userMenus: [] } as never);
-
-    const ids = await getUserMenuIds(99);
-
-    expect(ids).toEqual([]);
+describe('permission cache revocation', () => {
+  it('reuses a current cache and re-reads after explicit invalidation', async () => {
+    state.findUser.mockResolvedValue(user({ userRoles: [role(['system:user:list'])] }));
+    await getUserPermissions(7); await getUserMenuIds(7);
+    expect(state.findUser).toHaveBeenCalledTimes(1);
+    state.findUser.mockResolvedValue(user()); await clearUserPermissionCache(7);
+    expect(await getUserPermissions(7)).toEqual([]);
   });
-
-  it('正常情况返回去重后的菜单 ID 列表', async () => {
-    findUserMock.mockResolvedValueOnce(createUserResult([
-      [{ id: 5, permission: 'p1' }, { id: 6, permission: 'p2' }],
-      [{ id: 5, permission: 'p1' }],
-    ]) as never);
-
-    const ids = await getUserMenuIds(100);
-
-    // menuIds 来自 fetchUserPermissionData 内部的去重逻辑
-    expect(ids).toContain(5);
-    expect(ids).toContain(6);
-    expect(ids.filter((id) => id === 5)).toHaveLength(1); // 确认去重
+  it('cannot repopulate a revoked generation from an older in-flight read', async () => {
+    let release!: (value: unknown) => void;
+    state.findUser.mockImplementationOnce(() => new Promise(resolve => { release = resolve; }));
+    const reading = getUserPermissions(7);
+    await vi.waitFor(() => expect(release).toBeDefined());
+    await clearUserPermissionCache(7);
+    release(user({ userRoles: [role(['system:user:list'])] })); await reading;
+    state.findUser.mockResolvedValue(user());
+    expect(await getUserPermissions(7)).toEqual([]);
+  });
+  it('reads the database when Redis or invalidation delivery is unavailable', async () => {
+    state.findUser.mockResolvedValue(user({ userRoles: [role(['system:user:list'])] })); await getUserPermissions(7);
+    state.findUser.mockResolvedValue(user());
+    vi.mocked(redis.get).mockRejectedValueOnce(new Error('Redis unavailable'));
+    expect(await getUserPermissions(7)).toEqual([]);
+    state.bus = 'degraded'; state.findUser.mockResolvedValue(user({ userRoles: [role(['system:user:update'])] }));
+    expect(await getUserPermissions(7)).toEqual(['system:user:update']);
+  });
+  it('fresh guards ignore cached permissions', async () => {
+    state.findUser.mockResolvedValue(user({ userRoles: [role(['system:user:list'])] })); await getUserPermissions(7);
+    state.findUser.mockResolvedValue(user());
+    expect(await runWithFreshUserPermissions(7, () => getUserPermissions(7))).toEqual([]);
   });
 });
 
-// ─── clearUserPermissionCache ─────────────────────────────────────────────────
-describe('clearUserPermissionCache', () => {
-  it('清除指定用户的缓存后，下次调用重新查询 DB', async () => {
-    // 预热 user 1 的缓存（roles 为空，只查一次 DB）
-    findUserMock.mockResolvedValueOnce({ userRoles: [], userMenus: [] } as never);
-    await getUserPermissions(1);
-    expect(findUserMock).toHaveBeenCalledTimes(1);
-
-    clearUserPermissionCache(1);
-
-    // 清除后再次调用应重查 DB
-    findUserMock.mockResolvedValueOnce({ userRoles: [], userMenus: [] } as never);
-    await getUserPermissions(1);
-    expect(findUserMock).toHaveBeenCalledTimes(2);
-  });
-
-  it('不传 userId 时清除所有用户的缓存', async () => {
-    // 预热 user 1 & user 2 的缓存
-    findUserMock.mockResolvedValueOnce({ userRoles: [], userMenus: [] } as never);
-    await getUserPermissions(1);
-    findUserMock.mockResolvedValueOnce({ userRoles: [], userMenus: [] } as never);
-    await getUserPermissions(2);
-    const callsAfterWarmup = findUserMock.mock.calls.length;
-
-    clearUserPermissionCache(); // 清除全部
-    await flushAsync(); // 全量清除走 SCAN+DEL 异步链，等待其完成
-
-    // 两个用户都应重查
-    findUserMock.mockResolvedValueOnce({ userRoles: [], userMenus: [] } as never);
-    await getUserPermissions(1);
-    findUserMock.mockResolvedValueOnce({ userRoles: [], userMenus: [] } as never);
-    await getUserPermissions(2);
-
-    expect(findUserMock).toHaveBeenCalledTimes(callsAfterWarmup + 2);
+describe('platform administrator identity', () => {
+  it('requires both the reserved role and platform tenancy', () => {
+    expect(isSuperAdmin({ roles: ['super_admin'], tenantId: null })).toBe(true);
+    expect(isSuperAdmin({ roles: ['super_admin'], tenantId: 9 })).toBe(false);
+    expect(isSuperAdmin({ roles: ['user'], tenantId: null })).toBe(false);
   });
 });

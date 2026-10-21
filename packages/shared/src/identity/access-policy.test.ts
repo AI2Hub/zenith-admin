@@ -3,7 +3,7 @@ import { planWorkflowPath } from '../workflow/path-planner';
 import { accessWorkflowInputSchema } from './access-governance-validation';
 import { accessPolicyBaseline, aggregateAccessPolicies, buildAccessApprovalFlow, buildAccessApprovalTemplate, effectiveAccessPolicy, mergeAccessPermissionItems } from './access-policy';
 
-const form = { menuIds: [1], reason: '权限治理有效期测试', requestType: 'temporary', startMode: 'immediate' };
+const form = { permissionCodes: ['system:user:list'], reason: '权限治理有效期测试', requestType: 'temporary', startMode: 'immediate' };
 
 describe('explicit limited and permanent access validity', () => {
   it('accepts permanent grants without an artificial maximum duration', () => {
@@ -52,13 +52,21 @@ describe('access policy template and resolved execution plan', () => {
   });
   it('preserves per-permission data scopes when expanding role packages', () => {
     const items = mergeAccessPermissionItems([
-      { menuId: 1, permissionCode: 'example:list', dataScope: 'all', deptScopeIds: [] },
-      { menuId: 2, permissionCode: 'example:edit', dataScope: 'self', deptScopeIds: [] },
-      { menuId: 2, permissionCode: 'example:edit', dataScope: 'custom', deptScopeIds: [3] },
-      { menuId: 2, permissionCode: 'example:edit', dataScope: 'custom', deptScopeIds: [4] },
+      { permissionCode: 'example:list', dataScope: 'all', deptScopeIds: [] },
+      { permissionCode: 'example:edit', dataScope: 'self', deptScopeIds: [] },
+      { permissionCode: 'example:edit', dataScope: 'custom', deptScopeIds: [3] },
+      { permissionCode: 'example:edit', dataScope: 'custom', deptScopeIds: [4] },
     ]);
-    expect(items).toHaveLength(3);
-    expect(items.find(item => item.dataScope === 'custom')?.deptScopeIds).toEqual([3, 4]);
+    expect(items).toHaveLength(4);
+    expect(items.filter(item => item.dataScope === 'custom').map(item => item.deptScopeIds)).toEqual([[3], [4]]);
     expect(items.find(item => item.permissionCode === 'example:edit' && item.dataScope === 'self')).toBeDefined();
+  });
+  it('deduplicates identical scopes while preserving independent role versions and direct selection', () => {
+    const [item] = mergeAccessPermissionItems([
+      { permissionCode: 'example:list', dataScope: 'self', sourceRefs: [{ kind: 'direct', label: '直接申请' }] },
+      { permissionCode: 'example:list', dataScope: 'self', sourceRefs: [{ kind: 'role', roleId: 3, roleVersion: 2, label: '查询包' }] },
+    ]);
+    expect(item.scopeKey).toBe('self:');
+    expect(item.sourceRefs).toHaveLength(2);
   });
 });

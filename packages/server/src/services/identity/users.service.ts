@@ -4,7 +4,7 @@ import { eq, and, ne, inArray, exists, type SQL } from 'drizzle-orm';
 import { hashPassword } from '../../lib/password';
 import { db } from '../../db';
 import type { DbExecutor } from '../../db/types';
-import { users, userRoles, roles, departments, positions, userPositions, userMenus, userDeptScopes, userSignatures, menus, identityUserPermissions, identityAccessGrants } from '../../db/schema';
+import { users, roles, departments, positions, userPositions, userMenus, userDeptScopes, userSignatures, menus, identityUserPermissions, identityAccessGrants } from '../../db/schema';
 import { HTTPException } from 'hono/http-exception';
 import { exactTenantCondition, tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import { reserveTenantSeats } from '../../lib/tenant-quota';
@@ -32,7 +32,7 @@ import logger from '../../lib/logger';
 import { userHasPlatformSuperRole } from './role-grant';
 import { emitIdentityRemoval } from '../../lib/identity-lifecycle';
 import { releaseIdentitySignatures } from './user-signature-lifecycle';
-import { assertAuthorityActor, assertAuthorityGrant, assertProfileActor, provisionBasicUser, replaceDirectPermissions, replaceUserRoles } from './authority-write.service';
+import { assertAuthorityActor, assertProfileActor, provisionBasicUser, replaceDirectPermissions, replaceUserRoles } from './authority-write.service';
 
 // ─── 关联查询配置 ─────────────────────────────────────────────────────────────
 

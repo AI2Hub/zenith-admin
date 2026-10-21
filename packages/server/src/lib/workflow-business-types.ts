@@ -13,7 +13,7 @@ export interface WorkflowBusinessAdapter {
     mode: 'preview' | 'submit'; definition: WorkflowDefinitionSnapshot; formData: Record<string, unknown>; flowData: WorkflowFlowData; actor: WorkflowBusinessCaller;
   }) => Promise<{ formData: Record<string, unknown>; flowData: WorkflowFlowData }>;
   attachInTransaction?: (executor: DbExecutor, instance: WorkflowBusinessInstance) => Promise<void>;
-  onOutcomeInTransaction?: (executor: DbExecutor, instance: WorkflowInstance, actorId: number) => Promise<void>;
+  onOutcomeInTransaction?: (executor: DbExecutor, instance: WorkflowInstance, actorId: number | null) => Promise<void>;
   assertDeletable?: (instance: WorkflowBusinessInstance) => void | Promise<void>;
   prepareApproval?: (context: {
     instance: WorkflowBusinessInstance; task: WorkflowBusinessTask; actor: WorkflowEventActor; input?: Record<string, unknown>; formUpdates?: Record<string, unknown>;

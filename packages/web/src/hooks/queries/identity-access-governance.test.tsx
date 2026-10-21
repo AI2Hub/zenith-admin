@@ -53,7 +53,7 @@ describe('access governance mutation cache ownership', () => {
     const hook = renderHook(() => ({ grants: useAccessGrantList(params), policies: usePermissionPolicyList(params), options: useAccessWorkflowOptions(), update: useUpdatePermissionPolicy() }), { wrapper: createWrapper(qc) });
     await waitFor(() => expect([hook.result.current.grants, hook.result.current.policies, hook.result.current.options].every(query => query.isSuccess)).toBe(true));
     recorder.resetCalls();
-    await hook.result.current.update.mutateAsync({ params: { permissionCode: 'example:list' }, body: { riskLevel: 'low', approvalPolicy: 'manager', maxDurationMinutes: null, reviewIntervalDays: 0, mfaRequired: false, enabled: true } });
+    await hook.result.current.update.mutateAsync({ params: { permissionCode: 'example:list' }, body: { riskLevel: 'low', approvalPolicy: 'manager', maxDurationMinutes: null, reviewIntervalDays: 0, mfaRequired: false, enabled: true, permanentAllowed: false, emergencyAllowed: false, maxEmergencyMinutes: 60 } });
     await waitFor(() => expect(recorder.countOf('GET', '/api/access-governance/workflow-options')).toBe(1));
     expect(recorder.countOf('GET', '/api/access-governance/policies')).toBe(1);
     expect(recorder.countOf('GET', '/api/access-governance/grants')).toBe(0);

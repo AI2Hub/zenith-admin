@@ -115,14 +115,13 @@ export async function replaceRolePermissions(tx: DbExecutor, roleId: number, men
   await tx.delete(roleMenus).where(eq(roleMenus.roleId, roleId));
   if (menuIds.length) await tx.insert(roleMenus).values([...new Set(menuIds)].map(menuId => ({ roleId, menuId })));
   const rows = menuIds.length ? await tx.select({ code: menus.permission }).from(menus).where(inArray(menus.id, [...menuIds])) : [];
-  await publishRoleVersion(tx, roleId, rows.flatMap(row => row.code ? [row.code] : []));
+  await publishRoleVersion(tx, roleId, tenantId, rows.flatMap(row => row.code ? [row.code] : []));
 }
 
-export async function publishRoleVersion(tx: DbExecutor, roleId: number, codes?: readonly string[]) {
-  const identity = await tx.query.roles.findFirst({ where: eq(roles.id, roleId), columns: { tenantId: true } });
-  if (!identity) throw new HTTPException(404, { message: '角色不存在' });
-  await lockIdentityAuthority(tx, identity.tenantId);
-  const role = await tx.query.roles.findFirst({ where: eq(roles.id, roleId), with: { deptScopes: true } });
+export async function publishRoleVersion(tx: DbExecutor, roleId: number, tenantId: number | null, codes?: readonly string[]) {
+  await lockIdentityAuthority(tx, tenantId);
+  const where = and(eq(roles.id, roleId), exactTenantCondition(roles.tenantId, tenantId));
+  const role = await tx.query.roles.findFirst({ where, with: { deptScopes: true } });
   if (!role) throw new HTTPException(404, { message: '角色不存在' });
   const permissionCodes = [...new Set(codes ?? role.permissionCodes)].sort();
   const deptScopeIds = role.deptScopes.map(item => item.deptId).sort((a, b) => a - b);
@@ -132,7 +131,7 @@ export async function publishRoleVersion(tx: DbExecutor, roleId: number, codes?:
   const changed = old && JSON.stringify({ permissionCodes: old.permissionCodes, dataScope: old.dataScope, deptScopeIds: old.deptScopeIds }) !== JSON.stringify(snapshot);
   const version = role.permissionVersion + (changed ? 1 : 0);
   await tx.insert(identityRoleVersions).values({ roleId, version, ...snapshot }).onConflictDoNothing();
-  const [published] = await tx.update(roles).set({ permissionCodes, permissionVersion: version }).where(eq(roles.id, roleId)).returning();
+  const [published] = await tx.update(roles).set({ permissionCodes, permissionVersion: version }).where(where).returning();
   return published;
 }
 

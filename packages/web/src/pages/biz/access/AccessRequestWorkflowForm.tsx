@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useDebouncedValue } from '@tanstack/react-pacer';
 import { Banner, Descriptions, Form, Space, Spin, Table, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
-import { createLabelOptionsFromMap, type BodyOf } from '@zenith/shared/core';
+import { createLabelOptionsFromMap, stableStringify, type BodyOf } from '@zenith/shared/core';
 import {
   ACCESS_APPROVAL_POLICY_LABELS, ACCESS_REQUEST_TYPE_LABELS, ACCESS_RISK_LABELS, ACCESS_START_MODE_LABELS, ACCESS_VALIDITY_MODE_LABELS,
   accessApprovalPlanSchema, higherAccessRisk, stricterAccessApproval,
@@ -96,7 +96,7 @@ export default function AccessRequestWorkflowForm({ mode, value, getFormApi, onV
   const previewInput = useMemo(() => ({ ...serialize(values, optionsQuery.data?.roles ?? []), reason: '' }), [values, optionsQuery.data]);
   const [debouncedPreviewInput] = useDebouncedValue(previewInput, { wait: 350 });
   const previewQuery = useAccessWorkflowPreview(debouncedPreviewInput, mode === 'create' && optionsQuery.isSuccess);
-  const previewPending = previewQuery.isFetching || JSON.stringify(previewInput) !== JSON.stringify(debouncedPreviewInput);
+  const previewPending = previewQuery.isFetching || stableStringify(previewInput) !== stableStringify(debouncedPreviewInput);
   const preview = previewPending ? undefined : previewQuery.data;
   const latestPreview = useRef({ preview, previewInput, roles, maxMinutes });
   latestPreview.current = { preview, previewInput, roles, maxMinutes };
@@ -131,8 +131,8 @@ export default function AccessRequestWorkflowForm({ mode, value, getFormApi, onV
           if (currentLimit !== null && end - start > currentLimit * 60_000) fail(`本次限时申请最长有效 ${currentLimit} 分钟，请调整失效时间`);
         }
         const serialized = serialize(current, currentRoles);
-        if (!evaluated || JSON.stringify({ ...serialized, reason: '' }) !== JSON.stringify(latestPreview.current.previewInput)) fail('正在更新权限预览，请确认最新结果后提交');
-        if (evaluated.status !== 'ready') fail(evaluated.message);
+        if (!evaluated || stableStringify({ ...serialized, reason: '' }) !== stableStringify(latestPreview.current.previewInput)) return fail('正在更新权限预览，请确认最新结果后提交');
+        if (evaluated.status !== 'ready') return fail(evaluated.message);
         return { ...serialized, previewFingerprint: evaluated.fingerprint };
       },
     } satisfies WorkflowBusinessFormApi);

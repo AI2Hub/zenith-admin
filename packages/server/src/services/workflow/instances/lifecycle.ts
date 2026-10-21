@@ -325,7 +325,7 @@ export async function withdrawInstance(id: number) {
 }
 
 /** Business invalidation uses the same token, task, job and outcome cleanup as administrator cancellation. */
-export async function cancelWorkflowInstanceInTransaction(tx: DbExecutor, id: number, tenantId: number | null, actor: WorkflowEventActor, reason: string) {
+export async function cancelWorkflowInstanceInTransaction(tx: DbExecutor, id: number, tenantId: number | null, actor: WorkflowEventActor | undefined, reason: string) {
   const where = and(eq(workflowInstances.id, id), exactTenantCondition(workflowInstances.tenantId, tenantId));
   const [locked] = await tx.select({ status: workflowInstances.status }).from(workflowInstances).where(where).for('update').limit(1);
   if (!locked || !['running', 'suspended'].includes(locked.status)) return null;
@@ -335,8 +335,8 @@ export async function cancelWorkflowInstanceInTransaction(tx: DbExecutor, id: nu
   await cancelJobs({ instanceId: id, jobTypes: WORKFLOW_ADVANCING_JOB_TYPES }, tx);
   const [row] = await tx.update(workflowInstances).set({ status: 'cancelled', currentNodeKey: null, suspendedAt: null, suspendReason: null }).where(where).returning();
   await enqueueSubprocessJoin(row, tx);
-  await bridgeReportFillWorkflowOutcome(tx, { workflowInstanceId: id, outcome: 'cancelled', actorId: actor.userId ?? null });
-  await getWorkflowBusinessAdapter(row.bizType)?.onOutcomeInTransaction?.(tx, mapInstance(row), actor.userId ?? null);
+  await bridgeReportFillWorkflowOutcome(tx, { workflowInstanceId: id, outcome: 'cancelled', actorId: actor?.userId ?? null });
+  await getWorkflowBusinessAdapter(row.bizType)?.onOutcomeInTransaction?.(tx, mapInstance(row), actor?.userId ?? null);
   for (const task of cancelled) await emitTaskEvent('task.skipped', mapTask(task), { definitionId: row.definitionId, tenantId: row.tenantId, actor }, tx);
   return row;
 }

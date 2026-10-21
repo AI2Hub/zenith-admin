@@ -35,7 +35,7 @@ export async function reconcilePendingAccessRequests(): Promise<number> {
         } catch (error) {
           if (!(error instanceof HTTPException) || error.status >= 500) throw error;
           const reason = `权限申请已失效：${error.message}`;
-          const ended = await cancelWorkflowInstanceInTransaction(tx, row.workflowInstanceId!, row.tenantId, { name: '权限治理' }, reason);
+          const ended = await cancelWorkflowInstanceInTransaction(tx, row.workflowInstanceId!, row.tenantId, undefined, reason);
           if (!ended) return;
           await tx.update(identityAccessRequests).set({ status: 'cancelled', provisionStatus: 'terminated', failureReason: reason.slice(0, 1000) }).where(where);
           cancelled++;

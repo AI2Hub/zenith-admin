@@ -6,7 +6,7 @@ import { roleContract, SUPER_ADMIN_CODE } from '@zenith/shared/identity';
 import { buildWhere, dateRangeConditions, keywordCondition, withPagination } from '../../lib/where-helpers';
 import { db } from '../../db';
 import type { DbTransaction } from '../../db/types';
-import { roles, roleMenus, roleDeptScopes, userRoles, menus } from '../../db/schema';
+import { roles, roleDeptScopes, userRoles, menus } from '../../db/schema';
 import { clearUserPermissionCache } from '../../lib/permissions';
 import { getTenantPackageFeatureSet } from '../../lib/tenant-package';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
@@ -110,7 +110,7 @@ export async function createRole(data: CreateRoleInput) {
       if (deptScopeIds !== undefined && deptScopeIds !== null) {
         await syncRoleDeptScopes(tx, role.id, deptScopeIds);
       }
-      await publishRoleVersion(tx, role.id);
+      await publishRoleVersion(tx, role.id, role.tenantId);
       return mapRole(role, undefined, deptScopeIds ?? undefined);
     });
   } catch (err: unknown) {
@@ -144,7 +144,7 @@ export async function updateRole(id: number, data: Partial<CreateRoleInput>) {
     if (deptScopeIds !== undefined && deptScopeIds !== null) {
       await syncRoleDeptScopes(tx, id, deptScopeIds);
     }
-    const published = await publishRoleVersion(tx, id);
+    const published = await publishRoleVersion(tx, id, existing.tenantId);
     // 角色状态/属性变更影响权限解析结果（禁用角色即时失权），清空权限缓存
     await clearUserPermissionCache();
     return mapRole(published, undefined, deptScopeIds ?? undefined);

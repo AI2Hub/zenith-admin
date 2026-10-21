@@ -7,6 +7,7 @@ import { usePinyinReady } from '@/hooks/usePinyinReady';
 import { textMatches } from '@/utils/pinyin';
 
 type MenuOption = AccessWorkflowOptions['menus'][number];
+interface PermissionTreeNode extends MenuOption { children?: PermissionTreeNode[] }
 interface Props {
   readonly menus: MenuOption[];
   readonly coveredPermissionCodes: string[];
@@ -20,7 +21,7 @@ function AccessPermissionPicker({ menus, coveredPermissionCodes, value = [], onC
   usePinyinReady();
   const covered = new Set(coveredPermissionCodes);
   const index = useMemo(() => new Map(menus.map(menu => [menu.id, menu])), [menus]);
-  const treeData = useMemo<TreeNodeData[]>(() => mapTree(buildTree(menus), menu => {
+  const treeData = useMemo<TreeNodeData[]>(() => mapTree<PermissionTreeNode, TreeNodeData>(buildTree<PermissionTreeNode>(menus), menu => {
     const permission = menu.permission;
     const roleCovered = !!permission && coveredPermissionCodes.includes(permission);
     return {
