@@ -219,18 +219,7 @@ export default function WorkflowDesignerPage({
   );
 
   // 同步表单字段到视图：设计器表单取所选表单字段；自定义表单取声明的流程变量
-  const VARIABLE_TYPE_TO_FIELD: Record<string, WorkflowFormField['type']> = {
-    string: 'text', number: 'number', boolean: 'switch', date: 'date', user: 'userSelect', dept: 'deptSelect',
-  };
-  const formFields = useMemo<Array<{ key: string; label: string; type: WorkflowFormField['type']; options?: string[] }>>(() => {
-    if (formType === 'custom' || formType === 'external') {
-      return (customForm?.variables ?? [])
-        .filter(v => v.key)
-        .map(v => ({ key: v.key, label: v.label || v.key, type: VARIABLE_TYPE_TO_FIELD[v.type] ?? 'text' }));
-    }
-    return localFormFields.map(f => ({ key: f.key, label: f.label, type: f.type, options: f.options ?? undefined }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formType, customForm, localFormFields]);
+  const formFields = useMemo(() => getWorkflowNumberingFields(formType, localFormFields, customForm).filter(field => field.key), [formType, customForm, localFormFields]);
 
   // ─── 加载数据 ─────────────────────────────────────────────────────
 

@@ -23,7 +23,7 @@ interface BranchContainerProps {
   onEditNode?: (node: FlowNode) => void;
   renderChildren: (childNode: FlowNode | undefined, parentId: string) => React.ReactNode;
   /** 可选：表单字段列表，用于路由分支展示「路由字段：XXX」提示 */
-  formFields?: ReadonlyArray<{ key: string; label: string; type?: string; options?: readonly string[] }>;
+  formFields?: ReadonlyArray<{ key: string; label: string; type?: string; options?: readonly string[]; optionItems?: ReadonlyArray<{ value: string; label?: string }> }>;
   /** 运行态：未被实际命中的分支 id（置灰展示） */
   dimmedBranchIds?: Set<string>;
   readOnly?: boolean;
@@ -45,12 +45,12 @@ function getBranchNameClass(type: BranchNodeType, isDefault?: boolean): string {
   }
 }
 
-function formatConditionValue(value: ConditionRule['value']): string {
-  if (typeof value === 'string' && value.includes(',')) return value.split(',').map((item) => item.trim()).filter(Boolean).join('、');
-  return String(value);
+function formatConditionValue(value: ConditionRule['value'], optionItems?: ReadonlyArray<{ value: string; label?: string }>): string {
+  const values = typeof value === 'string' ? value.split(',').map(item => item.trim()).filter(Boolean) : [String(value)];
+  return values.map(item => optionItems?.find(option => option.value === item)?.label ?? item).join('、');
 }
 
-function formatConditionRule(rule: ConditionRule, formFields?: ReadonlyArray<{ key: string; label: string; options?: readonly string[] }>): string {
+function formatConditionRule(rule: ConditionRule, formFields?: ReadonlyArray<{ key: string; label: string; options?: readonly string[]; optionItems?: ReadonlyArray<{ value: string; label?: string }> }>): string {
   const field = rule.source === 'starter'
     ? STARTER_CONDITION_FIELDS.find((item) => item.value === rule.field)?.label
     : formFields?.find((item) => item.key === rule.field)?.label;
@@ -59,10 +59,10 @@ function formatConditionRule(rule: ConditionRule, formFields?: ReadonlyArray<{ k
   const aggregateLabel = rule.aggregate === 'sum' ? '合计' : rule.aggregate === 'count' ? '数量' : rule.aggregate === 'avg' ? '平均值' : '';
   const aggregate = aggregateLabel ? `（${aggregateLabel}${rule.aggregateField ? `：${formFields?.find((item) => item.key === rule.aggregateField)?.label ?? rule.aggregateField}` : ''}）` : '';
   if (rule.operator === 'isEmpty' || rule.operator === 'isNotEmpty') return `${fieldLabel}${aggregate} ${operatorLabel}`;
-  return `${fieldLabel}${aggregate} ${operatorLabel} ${formatConditionValue(rule.value)}`;
+  return `${fieldLabel}${aggregate} ${operatorLabel} ${formatConditionValue(rule.value, formFields?.find(item => item.key === rule.field)?.optionItems)}`;
 }
 
-function getBranchDesc(branch: FlowBranch, branchType: BranchNodeType, formFields?: ReadonlyArray<{ key: string; label: string; options?: readonly string[] }>): string {
+function getBranchDesc(branch: FlowBranch, branchType: BranchNodeType, formFields?: ReadonlyArray<{ key: string; label: string; options?: readonly string[]; optionItems?: ReadonlyArray<{ value: string; label?: string }> }>): string {
   if (branch.isDefault) return '未命中其它分支时，将进入此分支';
   if (branchType === 'parallelBranch') return '';
   if (branchType === 'routeBranch') {

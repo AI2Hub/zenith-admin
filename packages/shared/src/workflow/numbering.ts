@@ -8,7 +8,8 @@ export function getWorkflowNumberingFields(formType: WorkflowFormType, designerF
   const types: Record<NonNullable<WorkflowCustomFormConfig['variables']>[number]['type'], WorkflowFormField['type']> = {
     string: 'text', number: 'number', boolean: 'switch', date: 'date', user: 'userSelect', dept: 'deptSelect',
   };
-  return (customForm?.variables ?? []).map(variable => ({ key: variable.key, label: variable.label, type: types[variable.type] }));
+  return (customForm?.variables ?? []).map(variable => ({ key: variable.key, label: variable.label, type: types[variable.type],
+    ...(variable.optionItems ? { optionItems: variable.optionItems, options: variable.optionItems.map(item => item.value) } : {}) }));
 }
 
 /** Plain values and selection arrays can appear in identifiers; rich or secret data cannot. */

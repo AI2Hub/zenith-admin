@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
-import { Banner, Button, Space, Tag, Tree, Typography, withField } from '@douyinfe/semi-ui';
+import { Banner, Button, Checkbox, Space, Tag, Tree, Typography, withField } from '@douyinfe/semi-ui';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree/interface';
 import { ACCESS_RISK_LABELS, type AccessWorkflowOptions } from '@zenith/shared/identity';
+import { buildTree, mapTree } from '@zenith/shared/core';
 import { usePinyinReady } from '@/hooks/usePinyinReady';
 import { textMatches } from '@/utils/pinyin';
 
@@ -15,28 +16,26 @@ interface Props {
 
 function AccessPermissionPicker({ menus, coveredPermissionCodes, value = [], onChange }: Props) {
   const [expandedKeys, setExpandedKeys] = useState<string[]>([]);
+  const [search, setSearch] = useState('');
   usePinyinReady();
   const covered = new Set(coveredPermissionCodes);
   const index = useMemo(() => new Map(menus.map(menu => [menu.id, menu])), [menus]);
-  const treeData = useMemo(() => {
-    const nodes = new Map<number, TreeNodeData>();
-    for (const menu of menus) {
-      nodes.set(menu.id, {
+  const treeData = useMemo<TreeNodeData[]>(() => mapTree(buildTree(menus), menu => {
+    const permission = menu.permission;
+    const roleCovered = !!permission && coveredPermissionCodes.includes(permission);
+    return {
         key: String(menu.id), value: String(menu.id),
-        label: <Space spacing={6}><span>{menu.title}</span>{menu.requestable && menu.riskLevel !== 'low' && <Tag size="small" color={menu.riskLevel === 'critical' ? 'red' : 'orange'}>{ACCESS_RISK_LABELS[menu.riskLevel]}</Tag>}{!!menu.permission && coveredPermissionCodes.includes(menu.permission) && <Tag size="small">角色已包含</Tag>}</Space>,
+        label: <Space spacing={6}>
+          {menu.requestable && permission ? <span onClick={event => event.stopPropagation()}>
+            <Checkbox aria-label={`申请${menu.path.join('/')}`} checked={value.includes(permission)}
+              onChange={event => onChange?.(event.target.checked ? [...new Set([...value, permission])] : value.filter(code => code !== permission))}>{menu.title}</Checkbox>
+          </span> : <span>{menu.title}</span>}
+          {menu.requestable && menu.riskLevel !== 'low' && <Tag size="small" color={menu.riskLevel === 'critical' ? 'red' : 'orange'}>{ACCESS_RISK_LABELS[menu.riskLevel]}</Tag>}
+          {roleCovered && <Tag size="small">角色已包含</Tag>}
+        </Space>,
         filterLabel: `${menu.path.join(' / ')} ${menu.permission ?? ''} ${menu.permissionLabel ?? ''}`,
-        disabled: !menu.requestable || !!menu.permission && coveredPermissionCodes.includes(menu.permission),
-        children: [],
-      });
-    }
-    const roots: TreeNodeData[] = [];
-    for (const menu of menus) {
-      const node = nodes.get(menu.id)!;
-      const parent = nodes.get(menu.parentId);
-      if (parent) parent.children!.push(node); else roots.push(node);
-    }
-    return roots;
-  }, [menus, coveredPermissionCodes]);
+    };
+  }), [menus, coveredPermissionCodes, value, onChange]);
   const selected = value.map(code => menus.find(menu => menu.permission === code)).filter((menu): menu is MenuOption => !!menu);
   const locate = (menu: MenuOption) => {
     const ancestors = new Set(expandedKeys);
@@ -56,9 +55,9 @@ function AccessPermissionPicker({ menus, coveredPermissionCodes, value = [], onC
       <Typography.Text type="tertiary">直接申请 {value.length} 项 · 角色覆盖 {covered.size} 项</Typography.Text>
       <Button size="small" theme="borderless" disabled={!value.length} onClick={() => onChange?.([])}>清空直接申请项</Button>
     </div>
-    <Tree treeData={treeData} multiple checkRelation="unRelated" autoMergeValue={false}
-      value={menus.filter(menu => !!menu.permission && (value.includes(menu.permission) || covered.has(menu.permission))).map(menu => String(menu.id))} expandedKeys={expandedKeys} onExpand={setExpandedKeys}
-      onChange={keys => onChange?.([...new Set((keys as string[]).map(Number).flatMap(id => { const menu = index.get(id); return menu?.permission && menu.requestable && !covered.has(menu.permission) ? [menu.permission] : []; }))])}
+    <Tree treeData={treeData} value="" expandAction="click"
+      expandedKeys={expandedKeys} onExpand={keys => { if (!search) setExpandedKeys(keys); }}
+      onSearch={input => setSearch(input)}
       filterTreeNode={(input, _node, data) => textMatches(String(data?.filterLabel ?? ''), String(input))}
       showFilteredOnly searchPlaceholder="搜索名称、完整路径或权限码" virtualize={{ height: 288, itemSize: 36 }} />
     {selected.length > 0 && <div style={{ marginTop: 12, display: 'grid', gap: 6 }} aria-label="直接申请的权限清单">

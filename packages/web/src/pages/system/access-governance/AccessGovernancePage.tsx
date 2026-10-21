@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Banner, Descriptions, Divider, Form, SideSheet, Skeleton, Spin, TabPane, Table, Tabs, Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { AccessGrant, AccessRequest, AccessReviewItem, PermissionPolicy, UpdatePermissionPolicyInput } from '@zenith/shared/identity';
-import { accessGovernanceContract, ACCESS_RISK_LABELS as RISK_LABELS, ACCESS_REQUEST_STATUS_LABELS as STATUS_LABELS, ACCESS_PROVISION_STATUS_LABELS, ACCESS_GRANT_STATUS_LABELS as GRANT_STATUS_LABELS, ACCESS_REVIEW_DECISION_LABELS as REVIEW_DECISION_LABELS, ACCESS_APPROVAL_POLICY_LABELS as APPROVAL_LABELS, ACCESS_REQUEST_TYPE_LABELS as REQUEST_TYPE_LABELS, ACCESS_GRANT_SOURCE_LABELS as GRANT_SOURCE_LABELS, ACCESS_REVIEW_SOURCE_LABELS as REVIEW_SOURCE_LABELS, ACCESS_REQUEST_ITEM_LABELS as ITEM_TYPE_LABELS, ACCESS_MINIMUM_APPROVAL, higherAccessRisk, stricterAccessApproval } from '@zenith/shared/identity';
+import { accessGovernanceContract, accessPermissionCount, accessSourceLabel, ACCESS_RISK_LABELS as RISK_LABELS, ACCESS_REQUEST_STATUS_LABELS as STATUS_LABELS, ACCESS_PROVISION_STATUS_LABELS, ACCESS_GRANT_STATUS_LABELS as GRANT_STATUS_LABELS, ACCESS_REVIEW_DECISION_LABELS as REVIEW_DECISION_LABELS, ACCESS_APPROVAL_POLICY_LABELS as APPROVAL_LABELS, ACCESS_REQUEST_TYPE_LABELS as REQUEST_TYPE_LABELS, ACCESS_GRANT_SOURCE_LABELS as GRANT_SOURCE_LABELS, ACCESS_REVIEW_SOURCE_LABELS as REVIEW_SOURCE_LABELS, ACCESS_MINIMUM_APPROVAL, higherAccessRisk, stricterAccessApproval } from '@zenith/shared/identity';
 import { createLabelOptionsFromMap } from '@zenith/shared/core';
 import AccessReviews from './AccessReviews';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -104,7 +104,7 @@ function RequestDetailSheet({ record, visible = record !== null, loading = false
     }
   }, [visible]);
   const itemColumns: ColumnProps<AccessRequest['items'][number]>[] = [
-    { title: '类型', dataIndex: 'itemType', width: 120, ellipsis: { showTitle: true }, render: (value: AccessRequest['items'][number]['itemType']) => ITEM_TYPE_LABELS[value] },
+    { title: '来源', dataIndex: 'sourceRefs', width: 180, ellipsis: { showTitle: true }, render: (value: AccessRequest['items'][number]['sourceRefs']) => accessSourceLabel(value) },
     {
       title: '权限',
       dataIndex: 'permissionCode',
@@ -136,7 +136,7 @@ function RequestDetailSheet({ record, visible = record !== null, loading = false
             { key: '审批策略', value: APPROVAL_LABELS[record.approvalPlan.approvalPolicy] },
             { key: 'MFA 要求', value: record.approvalPlan.mfaRequired ? '每名审批人验证本人身份' : '无需 MFA' },
             { key: '风险等级', value: <RiskTag value={record.riskLevel} /> },
-            { key: '权限项', value: `${record.items.length} 项` },
+            { key: '权限项', value: `${accessPermissionCount(record.items)} 项权限 · ${record.items.length} 条范围` },
             { key: '生效时间', value: <DateTimeText value={record.startsAt} mode="absolute" /> },
             { key: '失效时间', value: <DateTimeText value={record.expiresAt} empty="永久有效" mode="absolute" /> },
             { key: '工作流实例', value: record.workflowInstanceId != null ? <WorkflowInstanceCell instanceId={record.workflowInstanceId} showSub={false} onOpen={canViewWorkflow ? setWorkflowId : undefined} /> : EMPTY_PLACEHOLDER },
@@ -147,7 +147,7 @@ function RequestDetailSheet({ record, visible = record !== null, loading = false
             { key: '申请原因', value: <Text style={{ whiteSpace: 'pre-wrap' }}>{record.reason}</Text>, span: 2 },
           ]}
         />
-        <Divider align="left" style={{ margin: '16px 0 10px' }}>申请权限项（{record.items.length}）</Divider>
+        <Divider align="left" style={{ margin: '16px 0 10px' }}>申请权限（{accessPermissionCount(record.items)} 项 · {record.items.length} 条范围）</Divider>
         <Table columns={singleLineColumns(itemColumns)} dataSource={record.items} rowKey="id" size="small" pagination={false} empty="暂无权限项" />
       </>}
     </DetailSheet>
@@ -221,7 +221,7 @@ function GrantDetailSheet({ record: suppliedRecord, visible = suppliedRecord !==
             { key: '撤销原因', value: record.revokeReason ? <Text style={{ whiteSpace: 'pre-wrap' }}>{record.revokeReason}</Text> : EMPTY_PLACEHOLDER, span: 2 },
           ]}
         />
-        <Divider align="left" style={{ margin: '16px 0 10px' }}>授权权限项（{record.items.length}）</Divider>
+        <Divider align="left" style={{ margin: '16px 0 10px' }}>授权权限（{accessPermissionCount(record.items)} 项 · {record.items.length} 条范围）</Divider>
         <Table columns={singleLineColumns(menuColumns)} dataSource={record.items} rowKey="id" size="small" pagination={false} scroll={{ x: 1240 }} empty="暂无权限项" />
       </>}
     </DetailSheet>
@@ -337,7 +337,7 @@ function RequestsTab() {
     { title: '发放状态', dataIndex: 'provisionStatus', width: 110, render: (value: AccessRequest['provisionStatus']) => ACCESS_PROVISION_STATUS_LABELS[value] },
     { title: '发放失败原因', dataIndex: 'failureReason', minWidth: 200, render: (value: string | null) => value ?? '—' },
     { title: '申请原因', dataIndex: 'reason', minWidth: 220, ellipsis: true },
-    { title: '权限项', dataIndex: 'items', width: 90, render: (items: AccessRequest['items']) => `${items.length} 项` },
+    { title: '权限项', dataIndex: 'items', width: 90, render: (items: AccessRequest['items']) => `${accessPermissionCount(items)} 项` },
     dateTimeColumn('生效时间', 'startsAt'),
     dateTimeColumn('失效时间', 'expiresAt', { empty: '永久有效' }),
     dateTimeColumn('申请时间', 'createdAt'),

@@ -81,6 +81,7 @@ export async function previewFlowData(
   const initiatorNames = await resolveUserNames([user.userId]);
   const nodes = await Promise.all(planned.map(async (node): Promise<WorkflowApproverPreviewNode> => {
     const config = configs.get(node.nodeKey)!;
+    const automaticAction = config.approvalType === 'autoReject' ? 'reject' : config.approvalType === 'autoApprove' || config.approveMethod === 'auto' ? 'approve' : null;
     const prediction = byKey.get(node.nodeKey);
     const isInitiatorSelect = INITIATOR_SELECT_TYPES.has(config.assigneeType ?? '');
     const selectionRequired = isInitiatorSelect && node.status !== 'excluded';
@@ -97,9 +98,10 @@ export async function previewFlowData(
         : node.nodeType === 'subProcess' ? '子流程进入后按其流程配置确定' : prediction?.approverReason ?? null,
       selectableApprovers: selectionRequired ? await listSelectableApprovers(config) : undefined,
       selectionRequired,
-      approveMethod: config.approveMethod ?? null,
+      approveMethod: automaticAction ? null : config.approveMethod ?? null,
+      automaticAction,
       branchLabel: plan.branches.find(branch => branch.target === node.nodeId)?.label ?? null,
-      empty: node.status !== 'excluded' && APPROVER_TYPES.has(node.nodeType) && !approvers.length && !selectionRequired,
+      empty: !automaticAction && node.status !== 'excluded' && APPROVER_TYPES.has(node.nodeType) && !approvers.length && !selectionRequired,
     };
   }));
   return [{

@@ -1,5 +1,6 @@
 import type { WorkflowCustomFormConfig, WorkflowCustomFormVariable } from '../workflow/types';
 import { buildAccessApprovalTemplate } from '../identity/access-policy';
+import { ACCESS_APPROVAL_POLICY_LABELS } from '../identity/access-governance-constants';
 import type { WorkflowCategory, WorkflowDataSource, WorkflowDefinition, WorkflowForm } from '../workflow/contracts';
 import { SEED_DATE } from './_base';
 
@@ -534,7 +535,7 @@ const ACCESS_REQUEST_VARIABLES: WorkflowCustomFormVariable[] = [
   { key: 'reason', label: '申请原因', type: 'string' },
   { key: 'requestType', label: '申请类型', type: 'string' },
   { key: 'validityMode', label: '有效期限', type: 'string' },
-  { key: 'approvalPolicy', label: '有效审批策略', type: 'string' },
+  { key: 'approvalPolicy', label: '审批要求', type: 'string', optionItems: Object.entries(ACCESS_APPROVAL_POLICY_LABELS).map(([value, label]) => ({ value, label })) },
   { key: 'mfaRequired', label: '审批需要 MFA', type: 'boolean' },
   { key: 'startsAt', label: '生效时间', type: 'date' },
   { key: 'expiresAt', label: '失效时间', type: 'date' },

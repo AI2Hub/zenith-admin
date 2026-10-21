@@ -304,6 +304,7 @@ export const workflowCustomFormVariableSchema = z.object({
   key: z.string().min(1).max(64),
   label: z.string().min(1).max(64),
   type: z.enum(['string', 'number', 'boolean', 'date', 'user', 'dept']),
+  optionItems: z.array(z.object({ value: z.string(), label: z.string().optional() })).optional(),
 });
 
 export const workflowCustomFormConfigSchema = z.object({

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Banner, Descriptions, SideSheet, TabPane, Table, Tabs, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { useQueryClient } from '@tanstack/react-query';
-import { accessGovernanceContract, ACCESS_GRANT_STATUS_LABELS, ACCESS_PROVISION_STATUS_LABELS, ACCESS_REQUEST_STATUS_LABELS, ACCESS_RISK_LABELS, type AccessGrant, type AccessRequest } from '@zenith/shared/identity';
+import { accessGovernanceContract, accessSourceLabel, ACCESS_GRANT_STATUS_LABELS, ACCESS_PROVISION_STATUS_LABELS, ACCESS_REQUEST_STATUS_LABELS, ACCESS_RISK_LABELS, type AccessGrant, type AccessRequest } from '@zenith/shared/identity';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import DateTimeText from '@/components/DateTimeText';
 import { ListSearchToolbar } from '@/components/list-page';
@@ -46,6 +46,7 @@ function MyGrants() {
       {detail && <><Descriptions column={2} align="plain" data={[{ key: '状态', value: ACCESS_GRANT_STATUS_LABELS[detail.status] }, { key: '失效时间', value: <DateTimeText value={detail.expiresAt} empty="永久有效" mode="absolute" /> }]} /><Table rowKey="id" pagination={false} size="small" dataSource={detail.items} columns={singleLineColumns([
         { title: '操作权限', render: (_, item: AccessGrant['items'][number]) => item.permissionLabel ?? item.permissionCode },
         { title: '数据范围', render: (_, item: AccessGrant['items'][number]) => DATA_SCOPE_OPTIONS.find(option => option.value === item.dataScope)?.label },
+        { title: '来源', render: (_, item: AccessGrant['items'][number]) => accessSourceLabel(item.sourceRefs) },
         { title: '状态', render: (_, item: AccessGrant['items'][number]) => ACCESS_GRANT_STATUS_LABELS[item.status] },
         dateTimeColumn('失效时间', 'expiresAt', { empty: '永久有效' }),
       ])} /></>}

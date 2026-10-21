@@ -169,6 +169,7 @@ export const workflowApproverPreviewNodeSchema = z.object({
   selectableApprovers: z.array(approverRefSchema).optional().meta({ description: '发起人 / 审批人自选节点的可选候选人' }),
   selectionRequired: z.boolean().optional(),
   approveMethod: z.string().nullable().optional().meta({ description: '多人审批方式（and/or/sequential/ratio）' }),
+  automaticAction: z.enum(['approve', 'reject']).nullable().optional(),
   branchLabel: z.string().nullable().optional().meta({ description: '所在分支标签（条件 / 并行分支时）' }),
   empty: z.boolean().optional().meta({ description: '审批人为空（需按节点空处理策略兜底）' }),
 }).meta({ id: 'WorkflowApproverPreviewNode' });

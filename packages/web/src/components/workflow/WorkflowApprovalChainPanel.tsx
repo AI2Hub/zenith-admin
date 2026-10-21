@@ -163,7 +163,7 @@ export function WorkflowApprovalChain({
   const reasonOwners = collapseRepeatedReasons(visibleNodes);
 
   // 链路摘要：审批步数 + 去重审批人数（自选节点单列标注）
-  const approvalNodes = flowNodes.filter((n) => n.nodeType === 'approve' || n.nodeType === 'handler');
+  const approvalNodes = flowNodes.filter((n) => !n.automaticAction && (n.nodeType === 'approve' || n.nodeType === 'handler'));
   const approverIdSet = new Set<number>();
   approvalNodes.forEach((n) => n.approvers.forEach((a) => approverIdSet.add(a.id)));
   const hasSelectNode = approvalNodes.some((n) => n.selectionRequired);
@@ -300,9 +300,9 @@ export function WorkflowApprovalChain({
                       自选审批人{n.selectionRequired ? ' *' : ''}
                     </Tag>
                   ) : !isExcluded && (
-                    <Tag color={meta.statusColor} size="small">{meta.status}</Tag>
+                    <Tag color={meta.statusColor} size="small">{n.automaticAction === 'reject' ? '自动拒绝' : n.automaticAction === 'approve' ? '自动通过' : meta.status}</Tag>
                   )}
-                  {!isExcluded && n.approveMethod && METHOD_LABEL[n.approveMethod] && (
+                  {!isExcluded && !n.automaticAction && n.approveMethod && METHOD_LABEL[n.approveMethod] && (
                     <Tag color="light-blue" size="small">{METHOD_LABEL[n.approveMethod]}</Tag>
                   )}
                   {n.status && (

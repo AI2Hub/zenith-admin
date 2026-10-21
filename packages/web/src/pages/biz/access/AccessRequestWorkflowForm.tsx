@@ -7,6 +7,7 @@ import {
   ACCESS_APPROVAL_POLICY_LABELS, ACCESS_REQUEST_TYPE_LABELS, ACCESS_RISK_LABELS, ACCESS_START_MODE_LABELS, ACCESS_VALIDITY_MODE_LABELS,
   accessApprovalPlanSchema, higherAccessRisk, stricterAccessApproval,
   accessGovernanceContract,
+  accessSourceLabel, accessSourceRefSchema,
   type AccessApprovalPolicy, type AccessRiskLevel, type AccessWorkflowInput, type AccessWorkflowOptions,
 } from '@zenith/shared/identity';
 import DateTimeText from '@/components/DateTimeText';
@@ -64,9 +65,10 @@ function ReadonlyAccessRequest({ value }: Readonly<{ value: Record<string, unkno
     ]} />
     {plan.success && plan.data.steps.length > 0 && <div style={{ margin: '16px 0' }}><Text strong>实际审批计划</Text><div style={{ marginTop: 8 }}>{plan.data.steps.map(step => `${step.label}：${step.userName}`).join(' → ')}</div></div>}
     <Table dataSource={items.map((item, index) => ({ ...item, key: index }))} rowKey="key" pagination={false} size="small" empty="暂无权限项" columns={singleLineColumns([
-      { title: '权限名称', dataIndex: 'permissionLabel', render: (label: unknown, row: Record<string, unknown>) => String(label ?? row.permissionCode ?? '导航目录') },
+      { title: '权限名称', dataIndex: 'permissionLabel', render: (label: unknown, row: Record<string, unknown>) => String(label ?? row.permissionCode ?? '—') },
       { title: '权限码', dataIndex: 'permissionCode' },
-      { title: '来源', render: (_: unknown, row: Record<string, unknown>) => { const snapshot = row.snapshot as Record<string, unknown> | undefined; return snapshot?.roleName ? `角色：${String(snapshot.roleName)}` : '直接申请'; } },
+      { title: '数据范围', render: (_: unknown, row: Record<string, unknown>) => DATA_SCOPE_OPTIONS.find(option => option.value === row.dataScope)?.label ?? '—' },
+      { title: '来源', render: (_: unknown, row: Record<string, unknown>) => { const sources = accessSourceRefSchema.array().safeParse(row.sourceRefs); return sources.success ? accessSourceLabel(sources.data) : '—'; } },
     ])} />
   </div>;
 }
@@ -85,6 +87,9 @@ export default function AccessRequestWorkflowForm({ mode, value, getFormApi, onV
   const risk = selection.reduce<AccessRiskLevel>((level, item) => higherAccessRisk(level, item.riskLevel), 'low');
   const approval = selection.reduce<AccessApprovalPolicy>((policy, item) => stricterAccessApproval(policy, item.approvalPolicy), 'none');
   const durationLimits = selection.flatMap(item => item.maxDurationMinutes === null ? [] : [item.maxDurationMinutes]);
+  const permanentAllowed = selection.length > 0 && selection.every(item => item.permanentAllowed);
+  const emergencyAllowed = selection.length > 0 && selection.every(item => item.emergencyAllowed);
+  if (values.requestType === 'emergency') durationLimits.push(...selection.map(item => item.maxEmergencyMinutes));
   const maxMinutes = durationLimits.length ? Math.min(...durationLimits) : null;
   const mfaRequired = selection.some(item => item.mfaRequired);
   const startTimestamp = values.startMode === 'scheduled' ? pickerTime(values.startsAt) : undefined;
@@ -134,7 +139,7 @@ export default function AccessRequestWorkflowForm({ mode, value, getFormApi, onV
   };
 
   return <Form getFormApi={registerApi} initValues={defaults} onValueChange={next => { setValues(next as FormValues); onValuesChange?.(); }} labelPosition="left" labelWidth={110} style={{ width: '100%' }}>
-    <Form.RadioGroup field="requestType" name="access-request-type" label="申请类型" options={TYPE_OPTIONS} type="button"
+    <Form.RadioGroup field="requestType" name="access-request-type" label="申请类型" options={TYPE_OPTIONS.map(option => ({ ...option, disabled: option.value === 'emergency' && !emergencyAllowed }))} type="button"
       extraText={values.requestType === 'emergency' ? '用于故障处置等紧急任务，将以紧急授权留痕；仍须按所选权限风险完成全部审批与 MFA 验证。' : '用于日常业务任务，可选择限时或永久有效；审批链由所选权限中最严格的策略决定。'} />
     <Form.Select field="roleIds" label="申请角色包" multiple filter showClear style={{ width: '100%' }}
       optionList={roles.map(role => ({ value: role.id, label: `${role.name} · ${role.permissionCount} 项 · ${ACCESS_RISK_LABELS[role.riskLevel]}` }))} placeholder="可选，按需申请完整角色权限包"
@@ -142,9 +147,9 @@ export default function AccessRequestWorkflowForm({ mode, value, getFormApi, onV
     <FormAccessPermissionPicker field="permissionCodes" label="操作权限" menus={menus} coveredPermissionCodes={coveredPermissionCodes} />
     <Form.RadioGroup field="startMode" name="access-start-mode" label="生效方式" options={START_OPTIONS} />
     {values.startMode === 'scheduled' && <Form.DatePicker field="startsAt" label="生效时间" type="dateTime" format="yyyy-MM-dd HH:mm:ss" style={{ width: '100%' }} rules={[{ required: true, message: '请选择预约生效时间' }]} />}
-    <Form.RadioGroup field="validityMode" name="access-validity-mode" label="有效期限" options={VALIDITY_OPTIONS} extraText={values.validityMode === 'permanent' ? '无需填写截止时间。授权仍可撤销，并按权限策略定期复核。' : undefined} />
+    <Form.RadioGroup field="validityMode" name="access-validity-mode" label="有效期限" options={VALIDITY_OPTIONS.map(option => ({ ...option, disabled: option.value === 'permanent' && (!permanentAllowed || values.requestType === 'emergency') }))} extraText={values.validityMode === 'permanent' ? '无需填写截止时间。授权仍可撤销，并按权限策略定期复核。' : !permanentAllowed && selection.length > 0 ? '所选权限仅支持限时授权。' : undefined} />
     {values.validityMode !== 'permanent' && <Form.DatePicker field="expiresAt" label="失效时间" type="dateTime" format="yyyy-MM-dd HH:mm:ss" style={{ width: '100%' }} rules={[{ required: true, message: '请选择失效时间' }]}
-      extraText={maxMinutes === null ? '可自由选择截止时间，不限制最长时长；如无需截止时间，请选择“永久有效”。实际权限在审批和发放完成后可用。' : `本次限时授权最长 ${maxMinutes} 分钟；如无需截止时间，请选择“永久有效”。实际权限在审批和发放完成后可用。`} />}
+      extraText={maxMinutes === null ? '请按业务需要选择截止时间。实际权限在审批和发放完成后可用。' : `本次限时授权最长 ${maxMinutes} 分钟。实际权限在审批和发放完成后可用。`} />}
     <Form.TextArea field="reason" label="申请原因" maxCount={1000} rows={4} rules={[{ required: true, message: '请填写申请原因' }, { min: 5, message: '申请原因至少 5 个字' }]} placeholder="说明业务任务、必要权限及使用范围，便于审批人判断" />
     {previewPending && <Spin tip="正在计算权限与审批计划" />}
     {previewQuery.error && <Banner type="warning" closeIcon={null} description={previewQuery.error.message} />}

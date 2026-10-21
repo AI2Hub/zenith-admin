@@ -801,6 +801,7 @@ export interface WorkflowCustomFormVariable {
   key: string;
   label: string;
   type: 'string' | 'number' | 'boolean' | 'date' | 'user' | 'dept';
+  optionItems?: WorkflowFormFieldOptionItem[];
 }
 
 /** 自定义业务表单 / 业务系统主导流程配置（formType='custom' 或 'external' 时有效） */

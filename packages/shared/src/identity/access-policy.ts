@@ -93,6 +93,10 @@ export function accessPermissionCount(items: ReadonlyArray<{ permissionCode?: st
   return new Set(items.flatMap(item => item.permissionCode ? [item.permissionCode] : [])).size;
 }
 
+export function accessSourceLabel(sources: readonly AccessSourceRef[]): string {
+  return sources.map(source => source.kind === 'role' ? `${source.label}（版本 ${source.roleVersion}）` : source.label).join('、');
+}
+
 /** 冻结完整流程及实际审批人，保留未命中分支供原有流程图展示和高亮。 */
 export function buildAccessApprovalFlow(plan: AccessApprovalPlan, settings?: WorkflowFlowData['settings']): WorkflowFlowData {
   const template = buildAccessApprovalTemplate(settings);
@@ -127,17 +131,17 @@ export function buildAccessApprovalTemplate(settings?: WorkflowFlowData['setting
     ],
     edges: [
       { id: 'access-start-policy', source: 'access-start', target: 'access-policy' },
-      { id: 'access-auto', source: 'access-policy', target: 'access-end', condition: { field: 'approvalPolicy', operator: 'eq', value: 'none' } },
-      { id: 'access-human', source: 'access-policy', target: 'access-manager', condition: { field: 'approvalPolicy', operator: 'in', value: 'manager,manager_security,two_person' } },
-      { id: 'access-policy-invalid', source: 'access-policy', target: 'access-invalid', isDefault: true },
+      { id: 'access-auto', label: '无需人工审批', source: 'access-policy', target: 'access-end', condition: { field: 'approvalPolicy', operator: 'eq', value: 'none' } },
+      { id: 'access-human', label: '需要人工审批', source: 'access-policy', target: 'access-manager', condition: { field: 'approvalPolicy', operator: 'in', value: 'manager,manager_security,two_person' } },
+      { id: 'access-policy-invalid', label: '策略无效，自动拒绝', source: 'access-policy', target: 'access-invalid', isDefault: true },
       { id: 'access-manager-policy', source: 'access-manager', target: 'access-security-policy' },
-      { id: 'access-manager-end', source: 'access-security-policy', target: 'access-end', condition: { field: 'approvalPolicy', operator: 'eq', value: 'manager' } },
-      { id: 'access-with-security', source: 'access-security-policy', target: 'access-security', condition: { field: 'approvalPolicy', operator: 'in', value: 'manager_security,two_person' } },
-      { id: 'access-security-invalid', source: 'access-security-policy', target: 'access-invalid', isDefault: true },
+      { id: 'access-manager-end', label: '仅需部门负责人审批', source: 'access-security-policy', target: 'access-end', condition: { field: 'approvalPolicy', operator: 'eq', value: 'manager' } },
+      { id: 'access-with-security', label: '还需独立安全审批', source: 'access-security-policy', target: 'access-security', condition: { field: 'approvalPolicy', operator: 'in', value: 'manager_security,two_person' } },
+      { id: 'access-security-invalid', label: '策略无效，自动拒绝', source: 'access-security-policy', target: 'access-invalid', isDefault: true },
       { id: 'access-security-second', source: 'access-security', target: 'access-second-policy' },
-      { id: 'access-single-security-end', source: 'access-second-policy', target: 'access-end', condition: { field: 'approvalPolicy', operator: 'eq', value: 'manager_security' } },
-      { id: 'access-with-second', source: 'access-second-policy', target: 'access-second', condition: { field: 'approvalPolicy', operator: 'eq', value: 'two_person' } },
-      { id: 'access-second-invalid', source: 'access-second-policy', target: 'access-invalid', isDefault: true },
+      { id: 'access-single-security-end', label: '安全审批已满足', source: 'access-second-policy', target: 'access-end', condition: { field: 'approvalPolicy', operator: 'eq', value: 'manager_security' } },
+      { id: 'access-with-second', label: '还需第二独立安全审批', source: 'access-second-policy', target: 'access-second', condition: { field: 'approvalPolicy', operator: 'eq', value: 'two_person' } },
+      { id: 'access-second-invalid', label: '策略无效，自动拒绝', source: 'access-second-policy', target: 'access-invalid', isDefault: true },
       { id: 'access-second-end', source: 'access-second', target: 'access-end' },
       { id: 'access-invalid-end', source: 'access-invalid', target: 'access-end' },
     ],

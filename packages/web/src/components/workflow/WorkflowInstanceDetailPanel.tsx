@@ -1,4 +1,4 @@
-import { workflowAttachmentContract } from '@zenith/shared/workflow';
+import { getWorkflowNumberingFields, workflowAttachmentContract } from '@zenith/shared/workflow';
 import { urlOf } from '@/lib/contract-query';
 /**
  * 通用流程实例详情面板
@@ -573,7 +573,7 @@ export default function WorkflowInstanceDetailPanel({
   );
 
   const graphContent = (
-    <WorkflowGraphView flowData={flowData} tasks={instance.tasks ?? []} consults={consults} instanceStatus={instance.status} formFields={formFields} height="calc(100vh - 160px)" />
+    <WorkflowGraphView flowData={flowData} tasks={instance.tasks ?? []} consults={consults} instanceStatus={instance.status} formFields={getWorkflowNumberingFields(formType, formFields, customForm)} height="calc(100vh - 160px)" />
   );
 
   return (
