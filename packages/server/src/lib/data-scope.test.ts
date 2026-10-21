@@ -18,6 +18,8 @@ interface MockRole {
 function mockUser(departmentId: number | null, roles: MockRole[]) {
   return {
     departmentId,
+    userDataScope: null,
+    userDeptScopes: [],
     userRoles: roles.map((role) => ({ role: { tenantId: null, status: 'enabled', ...role } })),
   };
 }
@@ -200,6 +202,28 @@ describe('dataScope = dept', () => {
     // 降级为 self → eq(ownerColumn, userId) → 不是 undefined
     expect(result).toBeDefined();
     expect(dbMock.select).not.toHaveBeenCalled();
+  });
+});
+
+describe('user-level data scope overrides', () => {
+  it('applies the user department scope written by the user management screen', async () => {
+    dbMock.query.users.findFirst.mockResolvedValueOnce({
+      ...mockUser(1, [{ dataScope: 'self', code: 'operator' }]),
+      userDataScope: 'dept',
+      userDeptScopes: [],
+    });
+    dbMock.select.mockReturnValueOnce(createChain([{ id: 1, parentId: 0 }, { id: 2, parentId: 1 }]));
+    await expect(getDataScopeCondition({ currentUserId: 20, deptColumn: mockOrderTable.departmentId, ownerColumn: mockOrderTable.createdBy })).resolves.toBeDefined();
+    expect(dbMock.select).toHaveBeenCalledOnce();
+  });
+
+  it('applies custom department ids written by the user management screen', async () => {
+    dbMock.query.users.findFirst.mockResolvedValueOnce({
+      ...mockUser(null, [{ dataScope: 'self', code: 'operator' }]),
+      userDataScope: 'custom',
+      userDeptScopes: [{ deptId: 42 }, { deptId: 43 }],
+    });
+    await expect(getDataScopeCondition({ currentUserId: 21, deptColumn: mockOrderTable.departmentId, ownerColumn: mockOrderTable.createdBy })).resolves.toBeDefined();
   });
 });
 

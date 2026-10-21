@@ -51,6 +51,7 @@ export async function getDataScopeCondition(options: DataScopeOptions): Promise<
     where: eq(users.id, currentUserId),
     columns: { departmentId: true, userDataScope: true },
     with: {
+      userDeptScopes: { columns: { deptId: true } },
       userRoles: {
         columns: {},
         with: {
@@ -85,6 +86,7 @@ export async function getDataScopeCondition(options: DataScopeOptions): Promise<
   // 平台超管须双条件判定（code + 平台角色），防止租户自建 super_admin 伪造全量数据权限
   const isSuperAdmin = allRoles.some((r) => r.code === 'super_admin' && r.tenantId === null);
   const scopeSet = new Set(userRoleList.map((r) => r.dataScope));
+  if (userData?.userDataScope) scopeSet.add(userData.userDataScope);
   for (const item of directScopes) scopeSet.add(item.dataScope);
   for (const grant of activeGrantScopes) {
     if (grant.dataScope !== null) scopeSet.add(grant.dataScope);
@@ -104,7 +106,10 @@ export async function getDataScopeCondition(options: DataScopeOptions): Promise<
   }
   if (scopeSet.has('custom')) {
     const roleIds = userRoleList.filter(role => role.dataScope === 'custom').flatMap(role => role.deptScopes.map(scope => scope.deptId));
-    const directIds = directScopes.filter(item => item.dataScope === 'custom').flatMap(item => item.deptScopeIds);
+    const directIds = [
+      ...(userData?.userDataScope === 'custom' ? (userData.userDeptScopes ?? []).map(item => item.deptId) : []),
+      ...directScopes.filter(item => item.dataScope === 'custom').flatMap(item => item.deptScopeIds),
+    ];
     const grantIds = activeGrantScopes.filter(grant => grant.dataScope === 'custom').flatMap(grant => grant.deptScopeIds);
     const ids = [...new Set([...roleIds, ...directIds, ...grantIds])];
     if (deptColumn && ids.length) conditions.push(inArray(deptColumn, ids));
