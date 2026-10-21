@@ -231,10 +231,12 @@ export default function InAppMessagesPage() {
       <EditFormModal modal={sendModal} title="发送站内信" width={720}>
         <Row gutter={16}>
           <Col span={24}>
+            {/* 收件人标签是「昵称 (用户名)」，比普通选项长一倍：上限只给 2，剩下的收进 +N 气泡，
+                否则 3 枚以上就把 550px 的选择框撑满，标签只能截成一串「张工·采购申...」 */}
             <Form.Select field="userIds" label="收件人" multiple filter style={{ width: '100%' }}
               optionList={users.map((u) => ({ label: `${u.nickname || u.username} (${u.username})`, value: u.id }))}
               placeholder="请选择收件人"
-              maxTagCount={4} showRestTagsPopover
+              maxTagCount={2} showRestTagsPopover
               rules={[{ required: true, message: '请选择收件人' }]} />
           </Col>
         </Row>

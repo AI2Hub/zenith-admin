@@ -433,7 +433,7 @@ function renderStarterValueInput(
       multiple
       filter
       value={parseIdValue(rule.value)}
-      maxTagCount={1} showRestTagsPopover
+      showRestTagsPopover
       onChange={(v) => onChange((Array.isArray(v) ? (v as number[]) : []).join(','))}
       optionList={options}
       placeholder={placeholder}

@@ -133,6 +133,24 @@ body {
   height: 100%;
 }
 
+/* 多选 Select 的标签行一旦按 maxTagCount 收起（TagGroup 单行 + +N），Semi 给标签组
+   `flex-shrink: 0` + `overflow: hidden`：标签文案长短不一时（「昵称 (用户名)」这类长标签），
+   这一行会宽于选择框，末尾标签连同 +N 一起被裁掉，看起来像没做省略。
+   允许标签组收缩——标签内部本身是 ellipsis，N 枚标签挤进一行，+N 始终留在可见区。
+   只管收起后的单行形态（下拉打开时是换行排版，不需要收缩）。 */
+.semi-select.semi-select-multiple .semi-select-content-wrapper-one-line .semi-tag-group {
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+/* 带 labelWidth 的表单行里，`flex: 0 1 auto` 的字段主体默认 min-width: auto，
+   宽内容（多选标签行这类不可断行的东西）会把它撑到内容宽度：选择框按行宽而不是可用宽度
+   排版，右半边直接落在字段框外被 overflow: hidden 裁掉。
+   允许它收缩到可用宽度，宽内容才有机会按容器宽度省略。 */
+.semi-form-field-main {
+  min-width: 0;
+}
+
 /* Semi override for compact feel */
 .semi-card {
   border-radius: var(--semi-border-radius-medium);
