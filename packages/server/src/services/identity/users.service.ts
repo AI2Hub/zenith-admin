@@ -421,9 +421,11 @@ export async function manageUser(id: number, data: import('@zenith/shared/core')
   const target = await ensureUserManageable(id);
   const profile = parsed.data.profile;
   const organization = parsed.data.organization;
+  const roleAssignment = parsed.data.roles;
+  const hadPlatformSuper = roleAssignment ? await userHasPlatformSuperRole(id) : false;
   try {
     await db.transaction(async tx => {
-      if (profile && Object.keys(profile).length) await assertProfileActor(tx, target.tenantId);
+      if (profile && Object.keys(profile).length) await assertProfileActor(tx, target.tenantId, id);
       if (organization) {
         await assertAuthorityActor(tx, target.tenantId, 'system:user:organization', [id]);
         if (organization.departmentId !== null) requireRow(await tx.query.departments.findFirst({ where: and(eq(departments.id, organization.departmentId), exactTenantCondition(departments.tenantId, target.tenantId)) }), '所属部门不存在');
@@ -437,17 +439,22 @@ export async function manageUser(id: number, data: import('@zenith/shared/core')
         const duplicate = await tx.select({ id: users.id }).from(users).where(and(eq(column, value), ne(users.id, id), exactTenantCondition(users.tenantId, target.tenantId))).limit(1);
         if (duplicate.length) throw new HTTPException(400, { message: '用户名、邮箱或手机号已存在' });
       }
-      await tx.update(users).set({ ...profile, ...(organization ? { departmentId: organization.departmentId } : {}) }).where(and(eq(users.id, id), exactTenantCondition(users.tenantId, target.tenantId)));
+      // Authorize every command against the existing organization before any user changes.
+      if (roleAssignment) await replaceUserRoles(tx, id, roleAssignment.roleIds, target.tenantId);
+      if (profile || organization) await tx.update(users).set({ ...profile, ...(organization ? { departmentId: organization.departmentId } : {}) }).where(and(eq(users.id, id), exactTenantCondition(users.tenantId, target.tenantId)));
       if (organization) await setUserPositions(tx, id, organization.positionIds);
     });
   } catch (error) {
     if (error instanceof HTTPException) throw error;
     rethrowPgUniqueViolation(error, '用户名、邮箱或手机号已存在');
   }
-  if (organization) {
+  if (organization || roleAssignment) {
     await clearUserPermissionCache(id);
+  }
+  if (organization) {
     await syncUserDynamicMembershipsSafe([id], '调整用户组织归属');
   }
+  if (hadPlatformSuper && !(await userHasPlatformSuperRole(id))) await revokeUserSessions([id]);
   return getUser(id);
 }
 

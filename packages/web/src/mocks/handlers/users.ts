@@ -168,6 +168,7 @@ export const usersHandlers = [
       user.positionIds = body.organization.positionIds;
       user.positions = resolvePositions(body.organization.positionIds);
     }
+    if (body.roles) user.roles = resolveRoles(body.roles.roleIds);
     return ok(toUserResponse(user));
   }),
 

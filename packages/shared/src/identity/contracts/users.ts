@@ -141,7 +141,7 @@ export const userContract = defineContract('/api/users', {
   resetPassword: op.put('/{id}/password', { access: { permission: 'system:user:credentials' }, audit: '修改用户密码', params: idParam, body: resetUserPasswordSchema, summary: '修改用户密码' }),
   unlock: op.post('/{id}/unlock', { access: { permission: 'system:user:credentials' }, audit: '清除账号登录验证码要求', params: idParam, summary: '清除登录验证码要求' }),
   organization: op.put('/{id}/organization', { access: { permission: 'system:user:organization' }, audit: '调整用户组织归属', params: idParam, body: updateUserOrganizationSchema, response: userSchema, summary: '调整部门及岗位' }),
-  manage: op.put('/{id}/manage', { access: { permission: ['system:user:update', 'system:user:organization'] }, audit: '更新用户资料及组织归属', params: idParam, body: manageUserSchema, response: userSchema, summary: '独立鉴权后原子保存资料和组织' }),
+  manage: op.put('/{id}/manage', { access: { permission: ['system:user:update', 'system:user:organization', 'system:user:assign'] }, audit: '更新用户资料、组织及角色', params: idParam, body: manageUserSchema, response: userSchema, summary: '独立鉴权后原子保存资料、组织和角色' }),
   detail: op.get('/{id}', { access: { permission: 'system:user:list' }, params: idParam, response: userSchema, summary: '获取用户详情' }),
   update: op.put('/{id}', { access: { permission: 'system:user:update' }, audit: '更新用户', params: idParam, body: updateUserSchema, response: userSchema, summary: '更新用户' }),
   remove: op.delete('/{id}', { access: { permission: 'system:user:delete' }, audit: '删除用户', params: idParam, summary: '删除用户' }),

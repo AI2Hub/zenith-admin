@@ -86,9 +86,10 @@ interface UserFormValues extends Partial<Omit<CreateUserInput, 'email' | 'phone'
   birthDate?: Date | string | null;
   departmentId?: number | null;
   positionIds?: number[];
+  roleIds?: number[];
 }
 
-type UserSavePayload = Partial<BodyOf<typeof userContract.create>> & Pick<BodyOf<typeof userContract.manage>, 'profile' | 'organization'>;
+type UserSavePayload = Partial<BodyOf<typeof userContract.create>> & BodyOf<typeof userContract.manage>;
 
 interface ResetPasswordFormValues {
   password: string;
@@ -171,7 +172,9 @@ export default function UsersPage() {
   const batchPasswordMutation = useBatchUserPassword();
   const assignRolesMutation = useAssignUserRoles();
   const manageMutation = useManageUser();
+  const canEditProfile = hasPermission('system:user:update');
   const canEditOrganization = hasPermission('system:user:organization');
+  const canAssignRoles = hasPermission('system:user:assign');
   const roleEffectivePermissionsQuery = useUserEffectivePermissions(roleAssignUser?.id, roleAssignVisible);
   const kickSessionsMutation = useKickUserSessions();
   // 敏感字段（手机号 / 邮箱）对非豁免用户是掩码：编辑时锁定，提交前剔除未修改的锁定字段
@@ -180,7 +183,7 @@ export default function UsersPage() {
     entityName: '用户',
     save: { isPending: saveMutation.isPending || manageMutation.isPending, mutateAsync: ({ id, values }) => id === undefined
       ? saveMutation.mutateAsync({ values })
-      : manageMutation.mutateAsync({ params: { id }, body: { profile: values.profile, organization: values.organization } }) },
+      : manageMutation.mutateAsync({ params: { id }, body: { profile: values.profile, organization: values.organization, roles: values.roles } }) },
     useDetail: useUserDetail,
     defaults: {},
     toValues: (user) => ({
@@ -192,11 +195,12 @@ export default function UsersPage() {
       birthDate: user.birthDate ?? undefined,
       departmentId: user.departmentId ?? null,
       positionIds: user.positionIds ?? [],
+      roleIds: user.roles.map(role => role.id),
     }),
     beforeSave: (rawValues, { editing }) => {
       const control = sensitiveFieldsRef.current;
       const values = (control ? control.strip(rawValues as unknown as Record<string, unknown>) : rawValues) as UserFormValues;
-      const { departmentId, positionIds, ...profileValues } = values;
+      const { departmentId, positionIds, roleIds, ...profileValues } = values;
       const payload: UserSavePayload = {
         ...profileValues,
         email: values.email ?? undefined,
@@ -210,7 +214,18 @@ export default function UsersPage() {
 
       if (!editing) return payload;
       const organizationChanged = (departmentId ?? null) !== (editing.departmentId ?? null) || JSON.stringify([...(positionIds ?? [])].sort()) !== JSON.stringify([...(editing.positionIds ?? [])].sort());
-      return { profile: hasPermission('system:user:update') ? payload : undefined, organization: canEditOrganization && organizationChanged ? { departmentId: departmentId ?? null, positionIds: positionIds ?? [] } : undefined };
+      const rolesChanged = JSON.stringify([...(roleIds ?? [])].sort()) !== JSON.stringify(editing.roles.map(role => role.id).sort());
+      const canChangeAuthority = editing.id !== currentUser?.id;
+      const commands: BodyOf<typeof userContract.manage> = {
+        profile: canEditProfile ? payload : undefined,
+        organization: canChangeAuthority && canEditOrganization && organizationChanged ? { departmentId: departmentId ?? null, positionIds: positionIds ?? [] } : undefined,
+        roles: canChangeAuthority && canAssignRoles && rolesChanged ? { roleIds: roleIds ?? [] } : undefined,
+      };
+      if (!commands.profile && !commands.organization && !commands.roles) {
+        Toast.info('没有需要保存的变更');
+        abortSubmit('unchanged_user');
+      }
+      return commands;
     },
     labelWidth: 72,
   });
@@ -456,7 +471,7 @@ export default function UsersPage() {
           {
             key: 'edit',
             label: '编辑',
-            hidden: !hasPermission('system:user:update'),
+            hidden: !hasPermission('system:user:update') && !hasPermission('system:user:organization') && !hasPermission('system:user:assign'),
             onClick: () => {
               openEdit(record);
             },
@@ -724,7 +739,7 @@ export default function UsersPage() {
                 <Form.Input field="username" label="用户名" disabled />
               </Col>
               <Col span={12}>
-                <Form.Input field="nickname" label="昵称" placeholder="请输入昵称" rules={[{ required: true, message: '请输入昵称' }]} />
+                <Form.Input field="nickname" label="昵称" placeholder="请输入昵称" disabled={!canEditProfile} rules={[{ required: true, message: '请输入昵称' }]} />
               </Col>
             </Row>
             <Row gutter={16}>
@@ -733,6 +748,7 @@ export default function UsersPage() {
                   control={sensitiveFields}
                   field="phone"
                   label="手机号码"
+                  disabled={!canEditProfile}
                   placeholder="请输入手机号码"
                   rules={[{ pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号码' }]}
                 />
@@ -777,16 +793,66 @@ export default function UsersPage() {
               control={sensitiveFields}
               field="email"
               label="邮箱"
+              disabled={Boolean(editingUser) && !canEditProfile}
               placeholder="请输入邮箱"
               rules={[{ type: 'email', message: '邮箱格式不正确' }]}
             />
           </Col>
+          {editingUser && canEditOrganization && (
+            <Col span={12}>
+              <Form.TreeSelect
+                field="departmentId"
+                label="所属部门"
+                style={{ width: '100%' }}
+                treeData={departmentTreeData}
+                placeholder="请选择所属部门"
+                filterTreeNode
+                showClear
+                disabled={editingUser.id === currentUser?.id}
+              />
+            </Col>
+          )}
         </Row>
+        {editingUser && (canEditOrganization || canAssignRoles) && (
+          <Row gutter={16}>
+            {canEditOrganization && (
+              <Col span={12}>
+                <Form.Select
+                  field="positionIds"
+                  label="岗位"
+                  style={{ width: '100%' }}
+                  multiple
+                  filter
+                  showClear
+                  optionList={positionOptionList}
+                  placeholder="请选择岗位"
+                  disabled={editingUser.id === currentUser?.id}
+                />
+              </Col>
+            )}
+            {canAssignRoles && (
+              <Col span={12}>
+                <Form.Select
+                  field="roleIds"
+                  label="角色"
+                  style={{ width: '100%' }}
+                  multiple
+                  filter
+                  showClear
+                  optionList={allRoles.map(role => ({ value: role.id, label: role.name }))}
+                  placeholder="请选择角色"
+                  disabled={editingUser.id === currentUser?.id}
+                />
+              </Col>
+            )}
+          </Row>
+        )}
         <Row gutter={16}>
           <Col span={12}>
             <Form.Select
               field="gender"
               label="性别"
+              disabled={Boolean(editingUser) && !canEditProfile}
               style={{ width: '100%' }}
               showClear
               optionList={genderOptions}
@@ -797,6 +863,7 @@ export default function UsersPage() {
             <Form.DatePicker
               field="birthDate"
               label="出生日期"
+              disabled={Boolean(editingUser) && !canEditProfile}
               type="date"
               style={{ width: '100%' }}
               placeholder="请选择出生日期"
@@ -804,12 +871,6 @@ export default function UsersPage() {
             />
           </Col>
         </Row>
-        {editingUser && canEditOrganization && editingUser.id !== currentUser?.id && <>
-          <Form.Section text="组织归属">
-            <Form.TreeSelect field="departmentId" label="所属部门" treeData={departmentTreeData} filterTreeNode showClear style={{ width: '100%' }} />
-            <Form.Select field="positionIds" label="岗位" multiple filter optionList={positionOptionList} style={{ width: '100%' }} />
-          </Form.Section>
-        </>}
       </EditFormModal>
 
       <EditFormModal modal={passwordModal} title={passwordModal.editing ? `修改密码 - ${passwordModal.editing.nickname}` : '修改密码'} onCancel={() => { passwordModal.close(); setEditPwdVal(''); }} width={420}>

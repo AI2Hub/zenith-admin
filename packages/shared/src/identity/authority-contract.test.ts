@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createUserSchema, updateUserSchema, updateUserOrganizationSchema } from './validation';
+import { createUserSchema, updateUserSchema, updateUserOrganizationSchema, manageUserSchema } from './validation';
 
 describe('identity profile authority boundary', () => {
   it.each([
@@ -14,5 +14,14 @@ describe('identity profile authority boundary', () => {
     expect(updateUserSchema.parse({ nickname: '新昵称', email: '' })).toEqual({ nickname: '新昵称', email: null });
     expect(updateUserOrganizationSchema.parse({ departmentId: null, positionIds: [] })).toEqual({ departmentId: null, positionIds: [] });
     expect(updateUserOrganizationSchema.safeParse({ departmentId: 1 }).success).toBe(false);
+  });
+
+  it('accepts a single editor submission while keeping each authority command separate', () => {
+    const commands = { profile: { nickname: '新昵称' }, organization: { departmentId: 1, positionIds: [2] }, roles: { roleIds: [3] } };
+    expect(manageUserSchema.parse(commands)).toEqual(commands);
+    expect(manageUserSchema.parse({ roles: { roleIds: [] } })).toEqual({ roles: { roleIds: [] } });
+    expect(manageUserSchema.safeParse({ profile: { roleIds: [3] } }).success).toBe(false);
+    expect(manageUserSchema.safeParse({ roles: { roleIds: [0] } }).success).toBe(false);
+    expect(manageUserSchema.safeParse({}).success).toBe(false);
   });
 });

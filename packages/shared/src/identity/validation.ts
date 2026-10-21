@@ -71,11 +71,16 @@ export const updateUserOrganizationSchema = z.strictObject({
   positionIds: z.array(z.number().int().positive()),
 });
 
-/** One editor submission, two independently authorized commands, one transaction. */
+export const assignUserRolesSchema = z.strictObject({
+  roleIds: z.array(z.number().int().positive()),
+});
+
+/** One editor submission, independently authorized commands, one transaction. */
 export const manageUserSchema = z.strictObject({
   profile: updateUserSchema.optional(),
   organization: updateUserOrganizationSchema.optional(),
-}).refine(value => Boolean(value.organization || (value.profile && Object.keys(value.profile).length)), '请至少提交一项资料或组织变更');
+  roles: assignUserRolesSchema.optional(),
+}).refine(value => Boolean(value.organization || value.roles || (value.profile && Object.keys(value.profile).length)), '请至少提交一项用户变更');
 
 
 export const changePasswordSchema = z.object({
@@ -618,10 +623,6 @@ export const batchResetUsersPasswordSchema = z.object({
 export const batchUpdateUserStatusSchema = z.object({
   ids: z.array(z.number().int()),
   status: entityStatusSchema,
-});
-
-export const assignUserRolesSchema = z.object({
-  roleIds: z.array(z.number().int()),
 });
 
 export const assignUserMenusSchema = z.object({

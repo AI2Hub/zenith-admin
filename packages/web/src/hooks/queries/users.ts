@@ -153,7 +153,10 @@ export function useManageUser() {
       void qc.invalidateQueries({ queryKey: userKeys.detail(params.id) });
       void qc.invalidateQueries({ queryKey: userKeys.lists });
       void qc.invalidateQueries({ queryKey: userKeys.allUsers });
+      void qc.invalidateQueries({ queryKey: userKeys.alertRecipients });
+      void qc.invalidateQueries({ queryKey: userKeys.dataPermission(params.id) });
       void qc.invalidateQueries({ queryKey: userKeys.effectivePermissions(params.id) });
+      void invalidateEntityRelations(qc);
       invalidateScopeMemberPreviews(qc);
       invalidateCurrentUserAccess(qc);
     },

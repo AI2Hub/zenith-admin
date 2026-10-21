@@ -17,7 +17,7 @@ export async function lockIdentityAuthority(tx: DbExecutor, tenantId: number | n
   await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`identity-authority:${tenantId ?? 'platform'}`}, 0))`);
 }
 
-export async function assertAuthorityActor(tx: DbExecutor, tenantId: number | null, permission: Permission, beneficiaryIds: readonly number[] = []) {
+export async function assertAuthorityActor(tx: DbExecutor, tenantId: number | null, permission: Permission, beneficiaryIds: readonly number[] = [], allowSelf = false) {
   await lockIdentityAuthority(tx, tenantId);
   const actor = currentUser();
   const account = await tx.query.users.findFirst({
@@ -28,7 +28,7 @@ export async function assertAuthorityActor(tx: DbExecutor, tenantId: number | nu
   if (!account) throw new HTTPException(403, { message: '当前身份已失效，不能修改权限' });
   const platform = account.tenantId === null && account.userRoles.some(({ role }) => role.code === 'super_admin' && role.tenantId === null && role.status === 'enabled');
   if (!platform && account.tenantId !== tenantId) throw new HTTPException(403, { message: '不能跨租户修改身份权限' });
-  if (beneficiaryIds.includes(actor.userId)) throw new HTTPException(403, { message: '不能通过管理操作改变自己的授权或组织归属，请由独立管理员办理' });
+  if (!allowSelf && beneficiaryIds.includes(actor.userId)) throw new HTTPException(403, { message: '不能通过管理操作改变自己的授权或组织归属，请由独立管理员办理' });
   const owned = await runWithFreshUserPermissions(actor.userId, () => getUserPermissions(actor.userId), tx);
   if (!platform && !owned.includes(permission)) throw new HTTPException(403, { message: '没有当前权限变更的管理能力' });
   if (beneficiaryIds.length) {
@@ -41,8 +41,8 @@ export async function assertAuthorityActor(tx: DbExecutor, tenantId: number | nu
 }
 
 /** Profile changes permit self editing, but still require a live, current capability. */
-export async function assertProfileActor(tx: DbExecutor, tenantId: number | null) {
-  return assertAuthorityActor(tx, tenantId, 'system:user:update');
+export async function assertProfileActor(tx: DbExecutor, tenantId: number | null, userId: number) {
+  return assertAuthorityActor(tx, tenantId, 'system:user:update', [userId], true);
 }
 
 export async function assertGrantableRoles(tx: DbExecutor, roleIds: readonly number[], tenantId: number | null) {
@@ -65,8 +65,8 @@ export async function assertAutomaticRolesAllowed(tx: DbExecutor, roleIds: reado
   return rows;
 }
 
-export async function assertAuthorityGrant(tx: DbExecutor, input: { tenantId: number | null; permission: Permission; beneficiaryIds?: readonly number[]; roleIds?: readonly number[]; menuIds?: readonly number[] }) {
-  const actor = await assertAuthorityActor(tx, input.tenantId, input.permission, input.beneficiaryIds);
+export async function assertAuthorityGrant(tx: DbExecutor, input: { tenantId: number | null; permission: Permission; beneficiaryIds?: readonly number[]; roleIds?: readonly number[]; menuIds?: readonly number[]; allowSelf?: boolean }) {
+  const actor = await assertAuthorityActor(tx, input.tenantId, input.permission, input.beneficiaryIds, input.allowSelf);
   const roleRows = await assertGrantableRoles(tx, input.roleIds ?? [], input.tenantId);
   const ids = [...new Set(input.menuIds ?? [])];
   const menuRows = ids.length ? await tx.select().from(menus).where(inArray(menus.id, ids)) : [];
@@ -92,7 +92,7 @@ export async function replaceUserRoles(tx: DbExecutor, userId: number, roleIds: 
   await lockIdentityAuthority(tx, tenantId);
   const previous = await tx.select({ roleId: userRoles.roleId }).from(userRoles).where(eq(userRoles.userId, userId));
   const added = roleIds.filter(id => !previous.some(row => row.roleId === id));
-  await assertAuthorityGrant(tx, { tenantId, permission: 'system:user:assign', beneficiaryIds: added.length ? [userId] : [], roleIds: added });
+  await assertAuthorityGrant(tx, { tenantId, permission: 'system:user:assign', beneficiaryIds: [userId], roleIds: added, allowSelf: !added.length });
   await tx.delete(userRoles).where(eq(userRoles.userId, userId));
   if (roleIds.length) await tx.insert(userRoles).values([...new Set(roleIds)].map(roleId => ({ userId, roleId })));
 }
