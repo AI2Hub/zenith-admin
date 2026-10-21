@@ -94,6 +94,9 @@ export const rolesHandlers = [
     const roleId = params.id;
     const role = requireItem(mockRoles, roleId, '角色不存在', { status: 404 });
     const nextIds = new Set(body.userIds);
+    if (role.code === 'super_admin' && role.tenantId == null && mockUsers.some(user => user.tenantId == null && user.username.trim().toLowerCase() === 'admin' && user.roles.some(item => item.id === roleId) && !nextIds.has(user.id))) {
+      return conflict('不能移除 admin 管理员用户的超级管理员角色');
+    }
     mockUsers.forEach((u) => {
       const has = u.roles.some((r) => r.id === roleId);
       if (nextIds.has(u.id) && !has) u.roles = [...u.roles, role];

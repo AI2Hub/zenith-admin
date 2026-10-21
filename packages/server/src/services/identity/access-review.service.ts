@@ -26,6 +26,7 @@ import { refreshAccessGrantHeader, revokeAccessGrantItemInTransaction } from './
 import { formatReviewCampaign, formatReviewItem } from './access-formatters';
 import { collectAccessReviewSourceBatch, expandReviewDepartmentIds } from './access-review-sources.service';
 import { assertNoOverlappingAccessRequest } from './access-reservations.service';
+import { assertUserRolesRemovable, lockIdentityAuthority } from './authority-write.service';
 
 function reviewPolicy(policies: readonly AccessPolicySnapshot[], minimumRisk: AccessRiskLevel) {
   const riskLevel = policies.reduce((risk, policy) => higherAccessRisk(risk, policy.riskLevel), minimumRisk);
@@ -253,6 +254,8 @@ export async function decideReviewItem(id: number, input: DecideAccessReviewItem
         if (group?.memberMode === 'dynamic') throw new HTTPException(409, { message: '动态用户组由规则维护，请升级给用户组负责人调整源规则后再完成复核，避免资格被自动恢复' });
         await tx.delete(userGroupMembers).where(and(eq(userGroupMembers.userId, item.userId), eq(userGroupMembers.groupId, item.sourceId)));
       } else {
+        await lockIdentityAuthority(tx, item.tenantId);
+        await assertUserRolesRemovable(tx, [item.userId], [item.sourceId]);
         const role = await tx.query.roles.findFirst({ where: and(eq(roles.id, item.sourceId), exactTenantCondition(roles.tenantId, item.tenantId)), columns: { code: true } });
         if (role?.code === 'super_admin' && item.tenantId === null) {
           if (!isSuperAdmin(actor)) throw new HTTPException(403, { message: '平台管理员身份必须交由另一名平台管理员处理' });

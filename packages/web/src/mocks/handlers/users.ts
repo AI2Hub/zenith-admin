@@ -1,7 +1,7 @@
 import { userContract, type Department, type Position, type Role, type User } from '@zenith/shared/identity';
 import { mock } from '@/mocks/utils/contract';
 import { removeByIds, requireItem } from '@/mocks/utils/crud';
-import { badRequest } from '@/mocks/utils/handlers';
+import { badRequest, conflict } from '@/mocks/utils/handlers';
 import { removeWhere } from '@/mocks/utils/array';
 import { mockUsers, getNextUserId, type MockUser } from '@/mocks/data/users';
 import { mockRoles } from '@/mocks/data/roles';
@@ -14,6 +14,11 @@ import { includesKeyword } from '@/mocks/utils/filter';
 
 // Demo 模式下新增/重置用户时使用的默认初始口令（明文仅用于演示环境）
 const DEMO_INITIAL_CREDENTIAL = ['1', '2', '3', '4', '5', '6'].join('');
+
+function removesProtectedAdminRole(user: MockUser, roleIds: number[]) {
+  return user.tenantId == null && user.username.trim().toLowerCase() === 'admin'
+    && user.roles.some(role => role.code === 'super_admin' && !roleIds.includes(role.id));
+}
 
 function flattenDepts(depts: Department[]): Department[] {
   const result: Department[] = [];
@@ -162,6 +167,7 @@ export const usersHandlers = [
 
   mock(userContract.manage, ({ params, body, ok }) => {
     const user = requireItem(mockUsers, params.id, '用户不存在', { status: 404 });
+    if (body.roles && removesProtectedAdminRole(user, body.roles.roleIds)) return conflict('不能移除 admin 管理员用户的超级管理员角色');
     Object.assign(user, body.profile ?? {}, { updatedAt: mockDateTime() });
     if (body.organization) {
       user.departmentId = body.organization.departmentId;
@@ -194,6 +200,7 @@ export const usersHandlers = [
 
   mock(userContract.assignRoles, ({ params, body, ok }) => {
     const user = requireItem(mockUsers, params.id, '用户不存在', { status: 404 });
+    if (removesProtectedAdminRole(user, body.roleIds)) return conflict('不能移除 admin 管理员用户的超级管理员角色');
     user.roles = resolveRoles(body.roleIds);
     user.updatedAt = mockDateTime();
     return ok(null, '保存成功');

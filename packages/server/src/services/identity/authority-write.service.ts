@@ -1,4 +1,4 @@
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import type { Permission } from '@zenith/shared/core';
 import { accessScopeKey } from '@zenith/shared/identity';
@@ -87,13 +87,27 @@ export async function roleBeneficiaries(tx: DbExecutor, roleId: number): Promise
   return [...new Set([...direct, ...grouped].map(row => row.id))];
 }
 
+/** The built-in platform admin must retain its direct super-admin binding. */
+export async function assertUserRolesRemovable(tx: DbExecutor, userIds: readonly number[], roleIds: readonly number[]) {
+  if (!userIds.length || !roleIds.length) return;
+  const protectedBindings = await tx.select({ userId: users.id }).from(userRoles)
+    .innerJoin(users, eq(users.id, userRoles.userId))
+    .innerJoin(roles, eq(roles.id, userRoles.roleId))
+    .where(and(inArray(userRoles.userId, [...userIds]), inArray(userRoles.roleId, [...roleIds]),
+      isNull(users.tenantId), sql`lower(btrim(${users.username})) = 'admin'`,
+      isNull(roles.tenantId), eq(roles.code, 'super_admin'))).limit(1);
+  if (protectedBindings.length) throw new HTTPException(409, { message: '不能移除 admin 管理员用户的超级管理员角色' });
+}
+
 export async function replaceUserRoles(tx: DbExecutor, userId: number, roleIds: readonly number[], tenantId: number | null) {
   await lockIdentityAuthority(tx, tenantId);
   const previous = await tx.select({ roleId: userRoles.roleId }).from(userRoles).where(eq(userRoles.userId, userId));
   const added = roleIds.filter(id => !previous.some(row => row.roleId === id));
+  const removed = previous.map(row => row.roleId).filter(id => !roleIds.includes(id));
   await assertAuthorityGrant(tx, { tenantId, permission: 'system:user:assign', beneficiaryIds: [userId], roleIds: added });
-  await tx.delete(userRoles).where(eq(userRoles.userId, userId));
-  if (roleIds.length) await tx.insert(userRoles).values([...new Set(roleIds)].map(roleId => ({ userId, roleId })));
+  await assertUserRolesRemovable(tx, [userId], removed);
+  if (removed.length) await tx.delete(userRoles).where(and(eq(userRoles.userId, userId), inArray(userRoles.roleId, removed)));
+  if (added.length) await tx.insert(userRoles).values([...new Set(added)].map(roleId => ({ userId, roleId })));
 }
 
 export async function replaceRolePermissions(tx: DbExecutor, roleId: number, menuIds: readonly number[], tenantId: number | null) {
@@ -131,9 +145,11 @@ export async function replaceRoleMembers(tx: DbExecutor, roleId: number, userIds
   await lockIdentityAuthority(tx, tenantId);
   const previous = await tx.select({ userId: userRoles.userId }).from(userRoles).where(eq(userRoles.roleId, roleId));
   const added = userIds.filter(id => !previous.some(row => row.userId === id));
-  await assertAuthorityGrant(tx, { tenantId, permission: 'system:role:assign', beneficiaryIds: added, roleIds: added.length ? [roleId] : [] });
-  await tx.delete(userRoles).where(eq(userRoles.roleId, roleId));
-  if (userIds.length) await tx.insert(userRoles).values([...new Set(userIds)].map(userId => ({ roleId, userId })));
+  const removed = previous.map(row => row.userId).filter(id => !userIds.includes(id));
+  await assertAuthorityGrant(tx, { tenantId, permission: 'system:role:assign', beneficiaryIds: [...added, ...removed], roleIds: added.length ? [roleId] : [] });
+  await assertUserRolesRemovable(tx, removed, [roleId]);
+  if (removed.length) await tx.delete(userRoles).where(and(eq(userRoles.roleId, roleId), inArray(userRoles.userId, removed)));
+  if (added.length) await tx.insert(userRoles).values([...new Set(added)].map(userId => ({ roleId, userId })));
 }
 
 export async function replaceGroupRoleBindings(tx: DbExecutor, groupId: number, roleIds: readonly number[], tenantId: number | null) {

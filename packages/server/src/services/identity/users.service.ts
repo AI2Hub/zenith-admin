@@ -426,6 +426,10 @@ export async function manageUser(id: number, data: import('@zenith/shared/core')
   try {
     await db.transaction(async tx => {
       if (profile && Object.keys(profile).length) await assertProfileActor(tx, target.tenantId, id);
+      if (profile?.username !== undefined && !isProtectedAdminUser(profile.username)) {
+        const account = await tx.query.users.findFirst({ where: eq(users.id, id), columns: { username: true, tenantId: true } });
+        if (account?.tenantId === null && isProtectedAdminUser(account.username)) throw new HTTPException(409, { message: '内置 admin 管理员用户名不允许修改' });
+      }
       if (organization) {
         await assertAuthorityActor(tx, target.tenantId, 'system:user:organization', [id]);
         if (organization.departmentId !== null) requireRow(await tx.query.departments.findFirst({ where: and(eq(departments.id, organization.departmentId), exactTenantCondition(departments.tenantId, target.tenantId)) }), '所属部门不存在');
@@ -771,11 +775,11 @@ export async function getUserEffectivePermissions(userId: number) {
         },
       },
       userGroupMembers: groupRolesWith,
-      accessGrants: { where: inArray(identityAccessGrants.status, ['scheduled', 'active']), columns: { id: true, status: true, startsAt: true, expiresAt: true }, with: { items: { with: { menu: { columns: { permission: true, status: true } } } } } },
+      accessGrants: { where: inArray(identityAccessGrants.status, ['scheduled', 'active']), columns: { id: true, status: true, startsAt: true, expiresAt: true }, with: { items: true } },
     },
   }), '用户不存在');
   const activeRoles = user.userRoles.filter(binding => binding.role.status === 'enabled');
-  const activeItems = user.accessGrants.filter(grant => grant.startsAt <= now && (!grant.expiresAt || grant.expiresAt > now)).flatMap(grant => grant.items.filter(item => ['scheduled', 'active'].includes(item.status) && item.startsAt <= now && (!item.expiresAt || item.expiresAt > now) && item.menu.status === 'enabled' && item.menu.permission === item.permissionCode).map(item => ({ ...item, grantId: grant.id })));
+  const activeItems = user.accessGrants.filter(grant => grant.startsAt <= now && (!grant.expiresAt || grant.expiresAt > now)).flatMap(grant => grant.items.filter(item => ['scheduled', 'active'].includes(item.status) && item.startsAt <= now && (!item.expiresAt || item.expiresAt > now)).map(item => ({ ...item, grantId: grant.id })));
 
   const { groupMenuIds, groupDataScope, groupDeptScopeIds, groups, inheritedRoles } = extractGroupInheritance(user.userGroupMembers ?? []);
 

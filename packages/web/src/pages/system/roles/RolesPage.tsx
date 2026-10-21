@@ -132,6 +132,13 @@ export default function RolesPage() {
 
   const handleAssignUsers = async () => {
     if (!userRole) return;
+    if (userRole.code === 'super_admin' && userRole.tenantId == null) {
+      const admin = roleUsersQuery.data?.find(user => user.username.trim().toLowerCase() === 'admin');
+      if (admin && !assignedUserIds.includes(admin.id)) {
+        Toast.warning('不能移除 admin 管理员用户的超级管理员角色');
+        return;
+      }
+    }
     await assignUsersMutation.mutateAsync({ params: { id: userRole.id }, body: { userIds: assignedUserIds } });
     Toast.success('用户分配已更新');
     setUserModalVisible(false);
@@ -313,7 +320,15 @@ export default function RolesPage() {
           <UserTransferSelect
             dataSource={allUsers}
             value={assignedUserIds}
-            onChange={setAssignedUserIds}
+            onChange={ids => {
+              const admin = userRole?.code === 'super_admin' && userRole.tenantId == null
+                ? roleUsersQuery.data?.find(user => user.username.trim().toLowerCase() === 'admin') : undefined;
+              if (admin && !ids.includes(admin.id)) {
+                Toast.warning('不能移除 admin 管理员用户的超级管理员角色');
+                return;
+              }
+              setAssignedUserIds(ids);
+            }}
             departments={flatDepts}
           />
         )}

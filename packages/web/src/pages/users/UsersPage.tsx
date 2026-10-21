@@ -105,6 +105,12 @@ function isAdminUser(user: Pick<User, 'username'>) {
   return user.username.trim().toLowerCase() === 'admin';
 }
 
+function protectedSuperRoleId(user: User | null) {
+  return user && isAdminUser(user) && user.tenantId == null
+    ? user.roles.find(role => role.code === 'super_admin')?.id
+    : undefined;
+}
+
 /** 平台超管：角色含 super_admin 且归属平台（与服务端 isSuperAdmin 同口径），永不可被模拟 */
 function isPlatformSuperUser(user: Pick<User, 'roles' | 'tenantId'>) {
   return (user.tenantId ?? null) === null && user.roles.some((r) => r.code === 'super_admin');
@@ -213,6 +219,11 @@ export default function UsersPage() {
       if (!('phone' in values)) delete payload.phone;
 
       if (!editing) return payload;
+      const protectedRoleId = protectedSuperRoleId(editing);
+      if (canAssignRoles && protectedRoleId !== undefined && !roleIds?.includes(protectedRoleId)) {
+        Toast.warning('不能移除 admin 管理员用户的超级管理员角色');
+        abortSubmit('protected_admin_role');
+      }
       const organizationChanged = (departmentId ?? null) !== (editing.departmentId ?? null) || JSON.stringify([...(positionIds ?? [])].sort()) !== JSON.stringify([...(editing.positionIds ?? [])].sort());
       const rolesChanged = JSON.stringify([...(roleIds ?? [])].sort()) !== JSON.stringify(editing.roles.map(role => role.id).sort());
       const commands: BodyOf<typeof userContract.manage> = {
@@ -835,8 +846,8 @@ export default function UsersPage() {
                   style={{ width: '100%' }}
                   multiple
                   filter
-                  showClear
-                  optionList={allRoles.map(role => ({ value: role.id, label: role.name }))}
+                  showClear={protectedSuperRoleId(editingUser) === undefined}
+                  optionList={allRoles.map(role => ({ value: role.id, label: role.name, disabled: role.id === protectedSuperRoleId(editingUser) }))}
                   placeholder="请选择角色"
                 />
               </Col>
@@ -993,6 +1004,11 @@ export default function UsersPage() {
         confirmLoading={assignRolesMutation.isPending}
         onOk={async () => {
           if (!roleAssignUser) return;
+          const protectedRoleId = protectedSuperRoleId(roleAssignUser);
+          if (protectedRoleId !== undefined && !roleAssignIds.includes(protectedRoleId)) {
+            Toast.warning('不能移除 admin 管理员用户的超级管理员角色');
+            return;
+          }
           await assignRolesMutation.mutateAsync({ params: { id: roleAssignUser.id }, body: { roleIds: roleAssignIds } });
           Toast.success('角色分配成功');
           setRoleAssignVisible(false);
@@ -1006,11 +1022,11 @@ export default function UsersPage() {
           <Select
             multiple
             filter
-            showClear
+            showClear={protectedSuperRoleId(roleAssignUser) === undefined}
             style={{ width: '100%' }}
             value={roleAssignIds}
             onChange={(v) => setRoleAssignIds((v as number[]) ?? [])}
-            optionList={allRoles.map((r) => ({ value: r.id, label: r.name }))}
+            optionList={allRoles.map((r) => ({ value: r.id, label: r.name, disabled: r.id === protectedSuperRoleId(roleAssignUser) }))}
             placeholder="请选择要分配的角色"
           />
         </div>
