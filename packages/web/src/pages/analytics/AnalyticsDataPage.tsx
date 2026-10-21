@@ -399,19 +399,8 @@ export default function AnalyticsDataPage() {
         </div>
       ),
     },
-    {
-      title: '设备/浏览器',
-      dataIndex: 'deviceType',
-      width: 140,
-      render: (_: unknown, record) => (
-        <div>
-          <Typography.Text>{nullableText(record.deviceType)}</Typography.Text>
-          <Typography.Text type="tertiary" size="small" ellipsis={{ showTooltip: true }} style={{ display: 'block', maxWidth: '100%' }}>
-            {nullableText(record.browser)}
-          </Typography.Text>
-        </div>
-      ),
-    },
+    { title: '设备', dataIndex: 'deviceType', width: 90, render: (value: string | null) => nullableText(value) },
+    { title: '浏览器', dataIndex: 'browser', width: 100, render: (value: string | null) => nullableText(value) },
     {
       title: '接口',
       dataIndex: 'apiUrl',
