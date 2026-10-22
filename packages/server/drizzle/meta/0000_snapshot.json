@@ -1,5 +1,5 @@
 {
-  "id": "8f22d9e4-caa9-4239-99eb-b50ee45c4b89",
+  "id": "8a2ab772-7812-4bea-bab4-7d8ff61cbfe4",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -718,6 +718,20 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'enabled'"
+        },
+        "permission_codes": {
+          "name": "permission_codes",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "permission_version": {
+          "name": "permission_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
         },
         "data_scope": {
           "name": "data_scope",
@@ -9343,8 +9357,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.identity_access_grant_menus": {
-      "name": "identity_access_grant_menus",
+    "public.identity_access_grant_items": {
+      "name": "identity_access_grant_items",
       "schema": "",
       "columns": {
         "id": {
@@ -9354,7 +9368,7 @@
           "notNull": true,
           "identity": {
             "type": "always",
-            "name": "identity_access_grant_menus_id_seq",
+            "name": "identity_access_grant_items_id_seq",
             "schema": "public",
             "increment": "1",
             "startWith": "1",
@@ -9366,12 +9380,6 @@
         },
         "grant_id": {
           "name": "grant_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "menu_id": {
-          "name": "menu_id",
           "type": "integer",
           "primaryKey": false,
           "notNull": true
@@ -9395,6 +9403,19 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'scheduled'"
+        },
+        "scope_key": {
+          "name": "scope_key",
+          "type": "varchar(2048)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_refs": {
+          "name": "source_refs",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
         },
         "data_scope": {
           "name": "data_scope",
@@ -9455,11 +9476,11 @@
         }
       },
       "indexes": {
-        "identity_access_grant_menus_menu_idx": {
-          "name": "identity_access_grant_menus_menu_idx",
+        "identity_access_grant_items_permission_idx": {
+          "name": "identity_access_grant_items_permission_idx",
           "columns": [
             {
-              "expression": "menu_id",
+              "expression": "permission_code",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -9470,8 +9491,8 @@
           "method": "btree",
           "with": {}
         },
-        "identity_access_grant_menus_lifecycle_idx": {
-          "name": "identity_access_grant_menus_lifecycle_idx",
+        "identity_access_grant_items_lifecycle_idx": {
+          "name": "identity_access_grant_items_lifecycle_idx",
           "columns": [
             {
               "expression": "status",
@@ -9493,9 +9514,9 @@
         }
       },
       "foreignKeys": {
-        "identity_access_grant_menus_grant_id_identity_access_grants_id_fk": {
-          "name": "identity_access_grant_menus_grant_id_identity_access_grants_id_fk",
-          "tableFrom": "identity_access_grant_menus",
+        "identity_access_grant_items_grant_id_identity_access_grants_id_fk": {
+          "name": "identity_access_grant_items_grant_id_identity_access_grants_id_fk",
+          "tableFrom": "identity_access_grant_items",
           "tableTo": "identity_access_grants",
           "columnsFrom": [
             "grant_id"
@@ -9506,22 +9527,9 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "identity_access_grant_menus_menu_id_menus_id_fk": {
-          "name": "identity_access_grant_menus_menu_id_menus_id_fk",
-          "tableFrom": "identity_access_grant_menus",
-          "tableTo": "menus",
-          "columnsFrom": [
-            "menu_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
-        },
-        "identity_access_grant_menus_revoked_by_users_id_fk": {
-          "name": "identity_access_grant_menus_revoked_by_users_id_fk",
-          "tableFrom": "identity_access_grant_menus",
+        "identity_access_grant_items_revoked_by_users_id_fk": {
+          "name": "identity_access_grant_items_revoked_by_users_id_fk",
+          "tableFrom": "identity_access_grant_items",
           "tableTo": "users",
           "columnsFrom": [
             "revoked_by"
@@ -9535,13 +9543,13 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "identity_access_grant_menus_permission_scope_unique": {
-          "name": "identity_access_grant_menus_permission_scope_unique",
+        "identity_access_grant_items_permission_scope_unique": {
+          "name": "identity_access_grant_items_permission_scope_unique",
           "nullsNotDistinct": false,
           "columns": [
             "grant_id",
             "permission_code",
-            "data_scope"
+            "scope_key"
           ]
         }
       },
@@ -9930,17 +9938,11 @@
           "primaryKey": false,
           "notNull": false
         },
-        "menu_id": {
-          "name": "menu_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
         "permission_code": {
           "name": "permission_code",
           "type": "varchar(128)",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "permission_label": {
           "name": "permission_label",
@@ -9957,6 +9959,19 @@
         },
         "dept_scope_ids": {
           "name": "dept_scope_ids",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "scope_key": {
+          "name": "scope_key",
+          "type": "varchar(2048)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_refs": {
+          "name": "source_refs",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": true,
@@ -10007,21 +10022,6 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
-        },
-        "identity_access_request_items_menu_idx": {
-          "name": "identity_access_request_items_menu_idx",
-          "columns": [
-            {
-              "expression": "menu_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
         }
       },
       "foreignKeys": {
@@ -10044,19 +10044,6 @@
           "tableTo": "roles",
           "columnsFrom": [
             "role_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "identity_access_request_items_menu_id_menus_id_fk": {
-          "name": "identity_access_request_items_menu_id_menus_id_fk",
-          "tableFrom": "identity_access_request_items",
-          "tableTo": "menus",
-          "columnsFrom": [
-            "menu_id"
           ],
           "columnsTo": [
             "id"
@@ -11145,6 +11132,27 @@
           "notNull": true,
           "default": true
         },
+        "permanent_allowed": {
+          "name": "permanent_allowed",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "emergency_allowed": {
+          "name": "emergency_allowed",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "max_emergency_minutes": {
+          "name": "max_emergency_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 60
+        },
         "tenant_id": {
           "name": "tenant_id",
           "type": "integer",
@@ -11259,6 +11267,275 @@
           "columns": [
             "permission_code",
             "tenant_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.identity_role_versions": {
+      "name": "identity_role_versions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "always",
+            "name": "identity_role_versions_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "role_id": {
+          "name": "role_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "permission_codes": {
+          "name": "permission_codes",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "data_scope": {
+          "name": "data_scope",
+          "type": "data_scope",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "dept_scope_ids": {
+          "name": "dept_scope_ids",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "identity_role_versions_role_id_roles_id_fk": {
+          "name": "identity_role_versions_role_id_roles_id_fk",
+          "tableFrom": "identity_role_versions",
+          "tableTo": "roles",
+          "columnsFrom": [
+            "role_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "identity_role_versions_created_by_users_id_fk": {
+          "name": "identity_role_versions_created_by_users_id_fk",
+          "tableFrom": "identity_role_versions",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "identity_role_versions_updated_by_users_id_fk": {
+          "name": "identity_role_versions_updated_by_users_id_fk",
+          "tableFrom": "identity_role_versions",
+          "tableTo": "users",
+          "columnsFrom": [
+            "updated_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "identity_role_versions_number_unique": {
+          "name": "identity_role_versions_number_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "role_id",
+            "version"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.identity_user_permissions": {
+      "name": "identity_user_permissions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "always",
+            "name": "identity_user_permissions_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "permission_code": {
+          "name": "permission_code",
+          "type": "varchar(128)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "data_scope": {
+          "name": "data_scope",
+          "type": "data_scope",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'self'"
+        },
+        "dept_scope_ids": {
+          "name": "dept_scope_ids",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "scope_key": {
+          "name": "scope_key",
+          "type": "varchar(2048)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "identity_user_permissions_user_id_users_id_fk": {
+          "name": "identity_user_permissions_user_id_users_id_fk",
+          "tableFrom": "identity_user_permissions",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "identity_user_permissions_created_by_users_id_fk": {
+          "name": "identity_user_permissions_created_by_users_id_fk",
+          "tableFrom": "identity_user_permissions",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "identity_user_permissions_updated_by_users_id_fk": {
+          "name": "identity_user_permissions_updated_by_users_id_fk",
+          "tableFrom": "identity_user_permissions",
+          "tableTo": "users",
+          "columnsFrom": [
+            "updated_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "identity_user_permissions_scope_unique": {
+          "name": "identity_user_permissions_scope_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "user_id",
+            "permission_code",
+            "scope_key"
           ]
         }
       },
@@ -101566,7 +101843,7 @@
       "schema": "public",
       "values": [
         "role",
-        "menu"
+        "permission"
       ]
     },
     "public.identity_access_request_status": {
@@ -101619,7 +101896,7 @@
       "values": [
         "role",
         "group_membership",
-        "direct_menu",
+        "direct_permission",
         "temporary_grant"
       ]
     },

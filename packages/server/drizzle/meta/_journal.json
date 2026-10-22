@@ -5,36 +5,15 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1792417852370,
+      "when": 1792668793041,
       "tag": "0000_baseline",
       "breakpoints": true
     },
     {
       "idx": 1,
       "version": "7",
-      "when": 1792417872173,
+      "when": 1792668831457,
       "tag": "0001_extensions",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1792546368408,
-      "tag": "0002_goofy_eddie_brock",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1792546620429,
-      "tag": "0003_authority_guards",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1792550585536,
-      "tag": "0004_access_governance_cache",
       "breakpoints": true
     }
   ]

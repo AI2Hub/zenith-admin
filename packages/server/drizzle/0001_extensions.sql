@@ -1,7 +1,7 @@
 -- 手写 DDL：Drizzle schema 无法表达、drizzle-kit generate 不会生成的结构，随迁移基线一起维护（唯一收口，
 -- 见 docs/backend/database.md「迁移目录」）。pg_trgm 扩展在 0000_baseline.sql 顶部创建。
--- 内容：pgvector（条件）、三张 RANGE 分区表的初始分区、跨实例缓存失效触发器、设置修订与 CMS 不可变事实触发器、
--- 只读执行角色 zenith_readonly、pg_stat_statements（条件）。
+-- 内容：pgvector（条件）、三张 RANGE 分区表的初始分区、跨实例缓存失效触发器、设置修订与角色版本不可变保护、
+-- CMS 不可变事实触发器、只读执行角色 zenith_readonly、pg_stat_statements（条件）。
 -- 三张分区父表及其列 / 外键 / 索引直接在 0000_baseline.sql 中创建；本文件只预建初始子分区，
 -- 不删除或重建父表。分区边界一律写带 +00 的 timestamptz 字面量（UTC 日 / 月边界）。
 
@@ -129,9 +129,29 @@ CREATE TRIGGER user_group_members_cache_invalidate
 CREATE TRIGGER identity_access_grants_cache_invalidate
   AFTER INSERT OR UPDATE OR DELETE ON "identity_access_grants"
   FOR EACH ROW EXECUTE FUNCTION notify_cache_invalidate('user_id');--> statement-breakpoint
-CREATE TRIGGER identity_access_grant_menus_cache_invalidate
-  AFTER INSERT OR UPDATE OR DELETE ON "identity_access_grant_menus"
+-- 权限治理：授权项、用户直接授权、角色内容与用户组角色共同决定有效权限
+CREATE TRIGGER identity_access_grant_items_cache_invalidate
+  AFTER INSERT OR UPDATE OR DELETE ON "identity_access_grant_items"
   FOR EACH ROW EXECUTE FUNCTION notify_cache_invalidate('grant_id');--> statement-breakpoint
+CREATE TRIGGER identity_user_permissions_cache_invalidate
+  AFTER INSERT OR UPDATE OR DELETE ON "identity_user_permissions"
+  FOR EACH ROW EXECUTE FUNCTION notify_cache_invalidate('user_id');--> statement-breakpoint
+CREATE TRIGGER roles_cache_invalidate
+  AFTER INSERT OR UPDATE OR DELETE ON "roles"
+  FOR EACH ROW EXECUTE FUNCTION notify_cache_invalidate();--> statement-breakpoint
+CREATE TRIGGER user_group_roles_cache_invalidate
+  AFTER INSERT OR UPDATE OR DELETE ON "user_group_roles"
+  FOR EACH ROW EXECUTE FUNCTION notify_cache_invalidate();--> statement-breakpoint
+-- 菜单、角色菜单与用户组影响权限来源，变更后清空权限缓存
+CREATE TRIGGER menus_permission_cache_invalidate
+  AFTER INSERT OR UPDATE OR DELETE ON "menus"
+  FOR EACH ROW EXECUTE FUNCTION notify_cache_invalidate();--> statement-breakpoint
+CREATE TRIGGER role_menus_permission_cache_invalidate
+  AFTER INSERT OR UPDATE OR DELETE ON "role_menus"
+  FOR EACH ROW EXECUTE FUNCTION notify_cache_invalidate();--> statement-breakpoint
+CREATE TRIGGER user_groups_permission_cache_invalidate
+  AFTER INSERT OR UPDATE OR DELETE ON "user_groups"
+  FOR EACH ROW EXECUTE FUNCTION notify_cache_invalidate();--> statement-breakpoint
 
 -- 设置修订不可变；仅允许随已删除的设置主记录级联删除。
 CREATE OR REPLACE FUNCTION protect_settings_revision() RETURNS trigger LANGUAGE plpgsql AS $$
@@ -143,6 +163,18 @@ BEGIN
 END $$;--> statement-breakpoint
 CREATE TRIGGER system_settings_revisions_immutable BEFORE UPDATE OR DELETE ON system_settings_revisions
 FOR EACH ROW EXECUTE FUNCTION protect_settings_revision();--> statement-breakpoint
+
+-- ─── 角色版本不可变：已发布角色内容只能追加新版本 ─────────────────────────────────
+-- 角色权限包按 version 快照发布；除审计列外任何字段变化都会让既有授权的来源失真。
+CREATE OR REPLACE FUNCTION protect_identity_role_version() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF (to_jsonb(NEW) - ARRAY['created_by', 'updated_by']) IS DISTINCT FROM (to_jsonb(OLD) - ARRAY['created_by', 'updated_by']) THEN
+    RAISE EXCEPTION 'Published role content is immutable' USING ERRCODE = '23514';
+  END IF;
+  RETURN NEW;
+END $$;--> statement-breakpoint
+CREATE TRIGGER identity_role_versions_immutable BEFORE UPDATE ON identity_role_versions
+  FOR EACH ROW EXECUTE FUNCTION protect_identity_role_version();--> statement-breakpoint
 
 -- ─── CMS 不可变事实：修订、审批、版本、发布输入与只追加历史禁止改写 ─────────────────────
 -- 修订 / 审批 / 复审 / 模型、资源、组件、页面预设、集合版本 / 发布激活：除审计列外任何字段变化即拒绝
