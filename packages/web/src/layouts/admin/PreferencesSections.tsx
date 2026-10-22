@@ -11,13 +11,13 @@ import { SwatchColorPicker } from '@/components/SwatchColorPicker';
 import { confirmDanger } from '@/utils/confirm';
 import { LoadingIndicator } from '@/components/PageLoading';
 import { PreferenceControl, PreferenceSection } from '@/components/settings/SettingRow';
-import { preferenceDefinitionMap, type MultiSelectLayout } from '@zenith/shared/preferences';
+import { preferenceDefinitionMap, type PreferencePath, type MultiSelectLayout } from '@zenith/shared/preferences';
 
 // 偏好设置面板各分区。所有分区组件都返回 Fragment，
 // 使设置块保持为外层 flex 容器的直接子节点（gap 布局不变）。
 interface PrefsSectionBaseProps {
   readonly prefSection: (label: string) => ReactNode;
-  readonly matchesPref: (keywords: string[]) => boolean;
+  readonly matchesPref: (keywords: string[], paths?: PreferencePath | readonly PreferencePath[]) => boolean;
   readonly preferences: UserPreferences;
   readonly setPreferences: (prefs: Partial<UserPreferences>) => void;
 }
@@ -34,7 +34,7 @@ export function PrefsLayoutSection({
     <PreferenceSection title={prefSection('布局')}>
 
       {/* ── 导航布局 ── */}
-      {matchesPref(['导航布局', '布局', '左侧菜单', '顶部菜单', '混合菜单', '双列菜单']) && (
+      {matchesPref(['导航布局', '布局', '左侧菜单', '顶部菜单', '混合菜单', '双列菜单'], 'navLayout') && (
       <PreferenceControl path="navLayout">
       <div>
         <div style={{ marginBottom: 12, fontSize: 13, fontWeight: 500, color: 'var(--semi-color-text-0)' }}>导航布局</div>
@@ -61,7 +61,7 @@ export function PrefsLayoutSection({
       )}
 
       {/* ── 双列首列形式（仅双列布局适用，依赖 navLayout）── */}
-      {navLayout === 'double' && matchesPref(['双列', '双列菜单', '首列', '双列首列', '图标', '图标文字']) && (
+      {navLayout === 'double' && matchesPref(['双列', '双列菜单', '首列', '双列首列', '图标', '图标文字'], 'doubleRailStyle') && (
       <PreferenceControl path="doubleRailStyle">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -83,7 +83,7 @@ export function PrefsLayoutSection({
       )}
 
       {/* ── 内容宽度 ── */}
-      {matchesPref(['内容宽度', '固定宽度', '居中', '内容区']) && (
+      {matchesPref(['内容宽度', '固定内容宽度', '固定宽度', '居中', '内容区'], 'contentWidth') && (
       <PreferenceControl path="contentWidth">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -98,7 +98,7 @@ export function PrefsLayoutSection({
       )}
 
       {/* ── Logo 图标 ── */}
-      {matchesPref(['Logo', 'Logo图标', '图标', '显示Logo']) && (
+      {matchesPref(['Logo', 'Logo图标', '图标', '显示Logo'], 'showLogo') && (
       <PreferenceControl path="showLogo">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span>显示 Logo 图标</span>
@@ -221,7 +221,7 @@ export function PrefsAppearanceSection({
     <PreferenceSection title={prefSection('外观')}>
 
       {/* ── 标签栏尺寸 ── */}
-      {matchesPref(['标签栏尺寸', 'Tabs尺寸', 'Tabs 大小', '标签控件尺寸', 'small', 'medium', 'large', '外观']) && (
+      {matchesPref(['标签栏尺寸', 'Tabs尺寸', 'Tabs 大小', '标签控件尺寸', 'small', 'medium', 'large', '外观'], 'tabsSize') && (
       <PreferenceControl path="tabsSize">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -244,7 +244,7 @@ export function PrefsAppearanceSection({
       )}
 
       {/* ── 标签栏样式 ── */}
-      {matchesPref(['标签栏样式', 'Tabs样式', 'Tabs 类型', 'line', 'button', 'card', 'slash', '外观']) && (
+      {matchesPref(['标签栏样式', 'Tabs样式', 'Tabs 类型', 'line', 'button', 'card', 'slash', '外观'], 'tabsType') && (
       <PreferenceControl path="tabsType">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -269,7 +269,7 @@ export function PrefsAppearanceSection({
       )}
 
       {/* ── 颜色模式 ── */}
-      {matchesPref(['颜色模式', '深色', '浅色', '系统', '主题模式']) && (
+      {matchesPref(['颜色模式', '深色', '浅色', '系统', '主题模式'], 'colorMode') && (
       <PreferenceControl path="colorMode">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span>颜色模式</span>
@@ -289,7 +289,7 @@ export function PrefsAppearanceSection({
       </PreferenceControl>
       )}
       {/* ── 定时深色 ── */}
-      {matchesPref(['定时深色', '夜间深色', '自动深色', '深色定时', '深色时段']) && (
+      {matchesPref(['定时深色', '夜间深色', '自动深色', '深色定时', '深色时段'], 'scheduledDarkMode') && (
       <PreferenceControl path="scheduledDarkMode">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -309,18 +309,18 @@ export function PrefsAppearanceSection({
       </div>
       </PreferenceControl>
       )}
-      {matchesPref(['深色开始时间', '开始时间', '定时深色', '夜间开始']) && (
+      {matchesPref(['深色开始时间', '开始时间', '定时深色', '夜间开始'], 'scheduledDarkStart') && (
         <ScheduleTimeInput path="scheduledDarkStart" label="深色开始时间"
           value={preferences.scheduledDarkStart ?? '18:00'}
           onCommit={(value) => setPreferences({ scheduledDarkStart: value })} />
       )}
-      {matchesPref(['深色结束时间', '结束时间', '定时深色', '夜间结束']) && (
+      {matchesPref(['深色结束时间', '结束时间', '定时深色', '夜间结束'], 'scheduledDarkEnd') && (
         <ScheduleTimeInput path="scheduledDarkEnd" label="深色结束时间"
           value={preferences.scheduledDarkEnd ?? '06:00'}
           onCommit={(value) => setPreferences({ scheduledDarkEnd: value })} />
       )}
 
-      {!isDark && matchesPref(['顶部栏深色', '深色', '深色模式', '顶部栏', '顶部导航']) && (
+      {!isDark && matchesPref(['顶部栏深色', '深色', '深色模式', '顶部栏', '顶部导航'], 'headerDarkMode') && (
       <PreferenceControl path="headerDarkMode">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span>顶部栏深色模式</span>
@@ -328,7 +328,7 @@ export function PrefsAppearanceSection({
       </div>
       </PreferenceControl>
       )}
-      {!isDark && matchesPref(['侧边栏深色', '深色', '深色模式', '侧边栏']) && (
+      {!isDark && matchesPref(['侧边栏深色', '深色', '深色模式', '侧边栏'], 'sidebarDarkMode') && (
       <PreferenceControl path="sidebarDarkMode">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span>侧边栏深色模式</span>
@@ -338,7 +338,7 @@ export function PrefsAppearanceSection({
       )}
 
       {/* ── 深色底色档位（仅深色模式下可调；分区深色区域同样跟随） ── */}
-      {(isDark || preferences.sidebarDarkMode) && matchesPref(['侧边栏底色', '底色', '色调', '深浅', '侧边栏']) && (
+      {(isDark || preferences.sidebarDarkMode) && matchesPref(['侧边栏底色', '底色', '色调', '深浅', '侧边栏'], 'darkSidebarTone') && (
       <PreferenceControl path="darkSidebarTone">
       <PrefDarkToneRow
         label="侧边栏底色"
@@ -348,7 +348,7 @@ export function PrefsAppearanceSection({
       />
       </PreferenceControl>
       )}
-      {(isDark || preferences.headerDarkMode) && matchesPref(['顶部底色', '底色', '色调', '深浅', '顶部', '顶栏', '标签栏', '面包屑']) && (
+      {(isDark || preferences.headerDarkMode) && matchesPref(['顶部底色', '底色', '色调', '深浅', '顶部', '顶栏', '标签栏', '面包屑'], 'darkHeaderTone') && (
       <PreferenceControl path="darkHeaderTone">
       <PrefDarkToneRow
         label="顶部底色"
@@ -358,7 +358,7 @@ export function PrefsAppearanceSection({
       />
       </PreferenceControl>
       )}
-      {isDark && matchesPref(['主区域底色', '底色', '色调', '深浅', '主区域', '内容区', '画布']) && (
+      {isDark && matchesPref(['主区域底色', '底色', '色调', '深浅', '主区域', '内容区', '画布'], 'darkContentTone') && (
       <PreferenceControl path="darkContentTone">
       <PrefDarkToneRow
         label="主区域底色"
@@ -370,7 +370,7 @@ export function PrefsAppearanceSection({
       )}
 
       {/* ── 主题色 ── */}
-      {matchesPref(['主题颜色', '主题色', '颜色', '品牌色', '自定义颜色']) && (
+      {matchesPref(['主题颜色', '主题色', '颜色', '品牌色', '自定义颜色'], 'themeColor') && (
       <PreferenceControl path="themeColor">
       <div>
         <div style={{ marginBottom: 12, fontSize: 13, fontWeight: 500, color: 'var(--semi-color-text-0)' }}>主题颜色</div>
@@ -388,7 +388,7 @@ export function PrefsAppearanceSection({
       )}
 
       {/* ── 圆角大小 ── */}
-      {matchesPref(['圆角', '圆角大小', '直角', '边框圆角', 'radius', '外观']) && (
+      {matchesPref(['圆角', '圆角大小', '直角', '边框圆角', 'radius', '外观'], 'borderRadius') && (
       <PreferenceControl path="borderRadius">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -412,7 +412,7 @@ export function PrefsAppearanceSection({
       )}
 
       {/* ── 界面缩放 ── */}
-      {matchesPref(['界面缩放', '缩放', '字号', '字体大小', '放大', '缩小', '外观', '无障碍']) && (
+      {matchesPref(['界面缩放', '缩放', '字号', '字体大小', '放大', '缩小', '外观', '无障碍'], 'uiScale') && (
       <PreferenceControl path="uiScale">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
@@ -432,7 +432,7 @@ export function PrefsAppearanceSection({
       )}
 
       {/* ── 界面字体 ── */}
-      {matchesPref(['字体', '界面字体', 'Inter', '思源', '等宽', '外观']) && (
+      {matchesPref(['字体', '界面字体', 'Inter', '思源', '等宽', '外观'], 'fontFamily') && (
       <PreferenceControl path="fontFamily">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
@@ -453,7 +453,7 @@ export function PrefsAppearanceSection({
 
       {/* ── 加载动画 ── */}
       {/* 形态名直接取自选项表：新增一种动画不必再来这里补关键词 */}
-      {matchesPref(['加载动画', '加载效果', 'Loading', ...LOADING_STYLE_OPTIONS.map((option) => option.label)]) && (
+      {matchesPref(['加载动画', '加载效果', 'Loading', ...LOADING_STYLE_OPTIONS.map((option) => option.label)], 'loadingStyle') && (
       <PreferenceControl path="loadingStyle">
       <div>
         <div className="loading-style-picker__heading">
@@ -512,7 +512,7 @@ export function PrefsAppearanceSection({
       )}
 
       {/* ── 无障碍 ── */}
-      {matchesPref(['灰色', '灰色模式', '无障碍', '公祭日', '去色']) && (
+      {matchesPref(['灰色', '灰色模式', '无障碍', '公祭日', '去色'], 'grayscale') && (
       <PreferenceControl path="grayscale">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -528,7 +528,7 @@ export function PrefsAppearanceSection({
       </div>
       </PreferenceControl>
       )}
-      {matchesPref(['色弱', '色弱模式', '无障碍', '对比度', '色觉']) && (
+      {matchesPref(['色弱', '色弱模式', '无障碍', '对比度', '色觉'], 'colorBlind') && (
       <PreferenceControl path="colorBlind">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -546,7 +546,7 @@ export function PrefsAppearanceSection({
       )}
 
       {/* ── 减弱动效 ── */}
-      {matchesPref(['动效', '动画', '减弱动效', '性能', '晕动', '过渡']) && (
+      {matchesPref(['动效', '动画', '减弱动效', '性能', '晕动', '过渡'], 'reduceMotion') && (
       <PreferenceControl path="reduceMotion">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -576,7 +576,7 @@ export function PrefsNavToolbarSection({
     <PreferenceSection title={prefSection('导航与工具栏')}>
 
       {/* ── 动态标题 ── */}
-      {matchesPref(['动态标题', '浏览器标题', '页面标题', '标题']) && (
+      {matchesPref(['动态标题', '浏览器标题', '页面标题', '标题'], 'dynamicTitle') && (
       <PreferenceControl path="dynamicTitle">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -591,7 +591,7 @@ export function PrefsNavToolbarSection({
       )}
 
       {/* ── 面包屑 ── */}
-      {matchesPref(['面包屑', '面包屑导航', '导航栏', '路径导航']) && (
+      {matchesPref(['面包屑', '面包屑导航', '显示面包屑导航', '导航栏', '路径导航'], 'showBreadcrumb') && (
       <PreferenceControl path="showBreadcrumb">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -604,7 +604,7 @@ export function PrefsNavToolbarSection({
       </div>
       </PreferenceControl>
       )}
-      {(preferences.showBreadcrumb || !!prefsSearch.trim()) && matchesPref(['面包屑图标', '图标', '面包屑']) && (
+      {(preferences.showBreadcrumb || !!prefsSearch.trim()) && matchesPref(['面包屑图标', '图标', '面包屑'], 'breadcrumbIcon') && (
       <PreferenceControl path="breadcrumbIcon">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span>面包屑显示图标</span>
@@ -612,7 +612,7 @@ export function PrefsNavToolbarSection({
       </div>
       </PreferenceControl>
       )}
-      {(preferences.showBreadcrumb || !!prefsSearch.trim()) && matchesPref(['面包屑首页', '首页', '面包屑']) && (
+      {(preferences.showBreadcrumb || !!prefsSearch.trim()) && matchesPref(['面包屑首页', '面包屑从首页开始', '首页', '面包屑'], 'breadcrumbShowHome') && (
       <PreferenceControl path="breadcrumbShowHome">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -625,7 +625,7 @@ export function PrefsNavToolbarSection({
       </div>
       </PreferenceControl>
       )}
-      {(preferences.showBreadcrumb || !!prefsSearch.trim()) && matchesPref(['面包屑可点击', '点击', '面包屑跳转', '面包屑']) && (
+      {(preferences.showBreadcrumb || !!prefsSearch.trim()) && matchesPref(['面包屑可点击', '点击', '面包屑跳转', '面包屑'], 'breadcrumbClickable') && (
       <PreferenceControl path="breadcrumbClickable">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -638,7 +638,7 @@ export function PrefsNavToolbarSection({
       </div>
       </PreferenceControl>
       )}
-      {(preferences.showBreadcrumb || !!prefsSearch.trim()) && matchesPref(['面包屑子菜单', '子菜单', '面包屑悬浮', '面包屑展开']) && (
+      {(preferences.showBreadcrumb || !!prefsSearch.trim()) && matchesPref(['面包屑子菜单', '子菜单', '面包屑悬浮', '面包屑展开'], 'breadcrumbSubMenu') && (
       <PreferenceControl path="breadcrumbSubMenu">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -653,7 +653,7 @@ export function PrefsNavToolbarSection({
       )}
 
       {/* ── 菜单搜索 ── */}
-      {matchesPref(['菜单搜索', '搜索框', '搜索', '搜索菜单']) && (
+      {matchesPref(['菜单搜索', '显示菜单搜索框', '搜索框', '搜索', '搜索菜单'], 'showMenuSearch') && (
       <PreferenceControl path="showMenuSearch">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span>显示菜单搜索框</span>
@@ -663,7 +663,7 @@ export function PrefsNavToolbarSection({
       )}
 
       {/* ── 收藏 ── */}
-      {matchesPref(['收藏', '收藏菜单', '收藏按钮', '显示收藏', '收藏入口', '快捷收藏']) && (
+      {matchesPref(['收藏', '收藏菜单', '收藏按钮', '显示收藏', '收藏入口', '快捷收藏'], 'showFavorites') && (
       <PreferenceControl path="showFavorites">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span>显示收藏入口</span>
@@ -673,7 +673,7 @@ export function PrefsNavToolbarSection({
       )}
 
       {/* ── 全屏按钮 ── */}
-      {matchesPref(['全屏', '全屏按钮', '显示全屏']) && (
+      {matchesPref(['全屏', '全屏按钮', '显示全屏'], 'showFullscreen') && (
       <PreferenceControl path="showFullscreen">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span>显示全屏按钮</span>
@@ -683,7 +683,7 @@ export function PrefsNavToolbarSection({
       )}
 
       {/* ── 回到顶部按钮 ── */}
-      {matchesPref(['回到顶部', 'BackTop', '返回顶部', '回到顶', '顶部按钮']) && (
+      {matchesPref(['回到顶部', '显示回到顶部按钮', 'BackTop', '返回顶部', '回到顶', '顶部按钮'], 'showBackTop') && (
       <PreferenceControl path="showBackTop">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -698,7 +698,7 @@ export function PrefsNavToolbarSection({
       )}
 
       {/* ── 快捷聊天 ── */}
-      {quickChatEnabled && matchesPref(['快捷聊天', '聊天', 'AI助手', '聊天按钮', '快捷聊天按钮']) && (
+      {quickChatEnabled && matchesPref(['快捷聊天', '显示快捷聊天按钮', '聊天', 'AI助手', '聊天按钮', '快捷聊天按钮'], 'showQuickChat') && (
         <PreferenceControl path="showQuickChat">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -712,7 +712,7 @@ export function PrefsNavToolbarSection({
       </PreferenceControl>
       )}
       {/* ── 顶栏时钟 ── */}
-      {matchesPref(['顶栏时钟', '时钟', '时钟显示', '12小时', '24小时']) && (
+      {matchesPref(['顶栏时钟', '时钟', '时钟显示', '12小时', '24小时'], 'topbarClock') && (
       <PreferenceControl path="topbarClock">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span>顶栏时钟</span>
@@ -728,7 +728,7 @@ export function PrefsNavToolbarSection({
       </div>
       </PreferenceControl>
       )}
-      {matchesPref(['时钟显示日期', '日期', '时钟日期', '星期']) && (
+      {matchesPref(['时钟显示日期', '日期', '时钟日期', '星期'], 'topbarClockShowDate') && (
       <PreferenceControl path="topbarClockShowDate">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span>时钟显示日期</span>
@@ -753,7 +753,7 @@ export function PrefsSidebarSection({
     <PreferenceSection title={prefSection('侧边栏')}>
 
       {/* ── 侧边栏宽度 ── */}
-      {matchesPref(['侧边栏宽度', '侧边栏', '菜单宽度', '展开宽度']) && navLayout !== 'horizontal' && (
+      {matchesPref(['侧边栏宽度', '侧边栏', '菜单宽度', '展开宽度'], 'sidebarWidth') && navLayout !== 'horizontal' && (
       <PreferenceControl path="sidebarWidth">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
         <span style={{ flexShrink: 0 }}>侧边栏宽度</span>
@@ -772,7 +772,7 @@ export function PrefsSidebarSection({
       )}
 
       {/* ── 子菜单箭头位置 ── */}
-      {matchesPref(['箭头', '展开箭头', '箭头位置', '展开收起', '子菜单箭头', '侧边栏']) && (
+      {matchesPref(['箭头', '展开箭头', '箭头位置', '展开收起', '子菜单箭头', '侧边栏'], 'sidebarToggleIconPosition') && (
       <PreferenceControl path="sidebarToggleIconPosition">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -794,7 +794,7 @@ export function PrefsSidebarSection({
       )}
 
       {/* ── 侧边栏分组标题 sticky ── */}
-      {matchesPref(['侧边栏', '分组标题', '滚动固定', '侧边栏分组']) && (
+      {matchesPref(['侧边栏', '侧边栏分组标题滚动固定', '分组标题', '滚动固定', '侧边栏分组'], 'sidebarStickyScroll') && (
       <PreferenceControl path="sidebarStickyScroll">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -809,7 +809,7 @@ export function PrefsSidebarSection({
       )}
 
       {/* ── 侧栏手风琴展开 ── */}
-      {matchesPref(['侧边栏', '手风琴', '排他展开', '侧栏排他']) && (
+      {matchesPref(['侧边栏', '侧栏排他展开', '手风琴', '排他展开', '侧栏排他'], 'sidebarAccordion') && (
       <PreferenceControl path="sidebarAccordion">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -822,7 +822,7 @@ export function PrefsSidebarSection({
       </div>
       </PreferenceControl>
       )}
-      {matchesPref(['悬浮展开', '侧边栏悬浮', '侧边栏', 'hover']) && (
+      {matchesPref(['悬浮展开', '悬浮展开侧边栏', '侧边栏悬浮', '侧边栏', 'hover'], 'sidebarHoverTrigger') && (
       <PreferenceControl path="sidebarHoverTrigger">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -835,7 +835,7 @@ export function PrefsSidebarSection({
       </div>
       </PreferenceControl>
       )}
-      {matchesPref(['菜单滚动', '自动定位', '菜单', '滚动定位']) && (
+      {matchesPref(['菜单滚动', '菜单自动滚动定位', '自动定位', '菜单', '滚动定位'], 'scrollMenuIntoView') && (
       <PreferenceControl path="scrollMenuIntoView">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -874,7 +874,7 @@ export function PrefsGeneralSection({
     <PreferenceSection title={prefSection('通用')}>
 
       {/* ── 默认首页 ── */}
-      {matchesPref(['默认首页', '首页', '登录跳转', '落地页', '默认页面', '登录页面']) && (
+      {matchesPref(['默认首页', '登录默认页面', '首页', '登录跳转', '落地页', '默认页面', '登录页面'], 'homePath') && (
       <PreferenceControl path="homePath">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
@@ -895,7 +895,7 @@ export function PrefsGeneralSection({
       )}
 
       {/* ── 时间显示方式 ── */}
-      {matchesPref(['时间显示', '相对时间', '绝对时间', '分钟前', '时间格式', '时间戳']) && (
+      {matchesPref(['时间显示', '相对时间', '绝对时间', '分钟前', '时间格式', '时间戳'], 'timeDisplay') && (
       <PreferenceControl path="timeDisplay">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -917,7 +917,7 @@ export function PrefsGeneralSection({
       )}
 
       {/* ── 一周起始日 ── */}
-      {matchesPref(['一周起始日', '周一', '周日', '星期', '日历', '日期选择器', '起始日']) && (
+      {matchesPref(['一周起始日', '周一', '周日', '星期', '日历', '日期选择器', '起始日'], 'weekStart') && (
       <PreferenceControl path="weekStart">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -939,7 +939,7 @@ export function PrefsGeneralSection({
       )}
 
       {/* ── 聚焦时自动刷新 ── */}
-      {matchesPref(['自动刷新', '聚焦', '切回', '窗口', '页签', '重新获取', '过期数据', 'refetch']) && (
+      {matchesPref(['自动刷新', '切回窗口时自动刷新数据', '聚焦', '切回', '窗口', '页签', '重新获取', '过期数据', 'refetch'], 'refetchOnFocus') && (
       <PreferenceControl path="refetchOnFocus">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -954,7 +954,7 @@ export function PrefsGeneralSection({
       )}
 
       {/* ── 页面加载进度条 ── */}
-      {matchesPref(['进度条', '加载进度', '页面加载', '顶部进度', 'NProgress']) && (
+      {matchesPref(['进度条', '加载进度', '页面加载', '顶部进度', 'NProgress'], 'showProgressBar') && (
       <PreferenceControl path="showProgressBar">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -969,7 +969,7 @@ export function PrefsGeneralSection({
       )}
 
       {/* ── 全局快捷键 ── */}
-      {matchesPref(['快捷键', '键盘', '热键', 'Alt', 'Ctrl', '组合键']) && (
+      {matchesPref(['快捷键', '键盘', '热键', 'Alt', 'Ctrl', '组合键'], 'enableShortcuts') && (
       <PreferenceControl path="enableShortcuts">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -984,7 +984,7 @@ export function PrefsGeneralSection({
       )}
 
       {/* ── 页面状态同步到地址栏 ── */}
-      {matchesPref(['地址栏', 'URL', '深链', '页面状态', '查询参数', '分享', '书签', '标签参数', 'tab参数', '选中项']) && (
+      {matchesPref(['地址栏', 'URL', '深链', '页面状态', '查询参数', '分享', '书签', '标签参数', 'tab参数', '选中项'], 'syncPageStateToUrl') && (
       <PreferenceControl path="syncPageStateToUrl">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -999,7 +999,7 @@ export function PrefsGeneralSection({
       )}
 
       {/* ── 退出登录确认 ── */}
-      {matchesPref(['退出确认', '退出登录', '二次确认', '注销', '登出']) && (
+      {matchesPref(['退出确认', '退出登录二次确认', '退出登录', '二次确认', '注销', '登出'], 'confirmLogout') && (
       <PreferenceControl path="confirmLogout">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -1014,7 +1014,7 @@ export function PrefsGeneralSection({
       )}
 
       {/* ── 弹窗点击遮罩关闭 ── */}
-      {matchesPref(['弹窗', '模态框', '遮罩', '蒙层', '点击关闭', 'maskClosable', '误触']) && (
+      {matchesPref(['弹窗', '弹窗点击遮罩关闭', '模态框', '遮罩', '蒙层', '点击关闭', 'maskClosable', '误触'], 'modalClickMaskToClose') && (
       <PreferenceControl path="modalClickMaskToClose">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -1028,7 +1028,7 @@ export function PrefsGeneralSection({
       </PreferenceControl>
       )}
 
-      {matchesPref(['多选框', '选择时', '布局', '单行', '自动换行', '下拉', '标签', '搜索']) && (
+      {matchesPref(['多选框', '选择时', '布局', '单行', '自动换行', '下拉', '标签', '搜索'], 'multiSelectLayout') && (
       <PreferenceControl path="multiSelectLayout">
       <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0, whiteSpace: 'nowrap' }}>
@@ -1053,7 +1053,7 @@ export function PrefsGeneralSection({
       )}
 
       {/* ── 文件默认视图 ── */}
-      {matchesPref(['文件视图', '文件列表', '文件管理', '列表', '网格', '文件']) && (
+      {matchesPref(['文件视图', '文件列表', '文件管理', '列表', '网格', '文件'], 'filesViewMode') && (
       <PreferenceControl path="filesViewMode">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span>文件列表默认视图</span>
@@ -1070,7 +1070,7 @@ export function PrefsGeneralSection({
       )}
 
       {/* ── 锁屏 ── */}
-      {matchesPref(['锁屏', '屏幕锁', '密码', '锁定']) && (
+      {matchesPref(['锁屏', '屏幕锁', '密码', '锁定'], 'enableLockScreen') && (
       <PreferenceControl path="enableLockScreen">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -1107,7 +1107,7 @@ export function PrefsGeneralSection({
           </Button>
         </div>
       )}
-      {(preferences.enableLockScreen ?? false) && hasPassword() && matchesPref(['自动锁屏', '锁屏', '无操作', '空闲', '闲置']) && (
+      {(preferences.enableLockScreen ?? false) && hasPassword() && matchesPref(['自动锁屏', '锁屏', '无操作', '空闲', '闲置'], 'autoLockMinutes') && (
         <PreferenceControl path="autoLockMinutes">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -1145,7 +1145,7 @@ export function PrefsTableSection({
     <PreferenceSection title={prefSection('表格')}>
 
       {/* ── 表格设置 ── */}
-      {matchesPref(['表格', '边框', '斦马纹', '尺寸', '分页', '列设置', '显示表格', '启用斦马纹']) && (
+      {matchesPref(['表格', '边框', '斑马纹', '启用斑马纹', '尺寸', '分页', '列设置', '显示表格'], ['tableBordered', 'tableStriped', 'tableSize', 'tablePageSize', 'showTableColumnSettings']) && (
       <>
         <PreferenceControl path="tableBordered">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1194,7 +1194,7 @@ export function PrefsTableSection({
       )}
 
       {/* ── 记住筛选条件 ── */}
-      {matchesPref(['筛选', '筛选条件', '记住', '搜索条件', '恢复', '查询条件', '表格']) && (
+      {matchesPref(['筛选', '筛选条件', '记住', '搜索条件', '恢复', '查询条件', '表格'], 'rememberListFilters') && (
       <PreferenceControl path="rememberListFilters">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -1229,7 +1229,7 @@ export function PrefsTabsSection({
     <PreferenceSection title={prefSection('标签页')}>
 
       {/* ── 多标签页 ── */}
-      {matchesPref(['多标签页', '标签页', '标签', '启用标签']) && (
+      {matchesPref(['多标签页', '标签页', '标签', '启用标签'], 'enableTabs') && (
       <PreferenceControl path="enableTabs">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span>启用多标签页</span>
@@ -1237,7 +1237,7 @@ export function PrefsTabsSection({
       </div>
       </PreferenceControl>
       )}
-      {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['保存标签', '恢复标签', '标签页', '标签']) && (
+      {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['保存标签', '恢复标签', '标签页', '标签'], 'keepTabs') && (
       <PreferenceControl path="keepTabs">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -1250,7 +1250,7 @@ export function PrefsTabsSection({
       </div>
       </PreferenceControl>
       )}
-      {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['页面缓存', 'keepalive', 'keep-alive', '缓存', '标签页', '标签']) && (
+      {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['页面缓存', 'keepalive', 'keep-alive', '缓存', '标签页', '标签'], 'enablePageCache') && (
       <PreferenceControl path="enablePageCache">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -1263,7 +1263,7 @@ export function PrefsTabsSection({
       </div>
       </PreferenceControl>
       )}
-      {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['标签图标', '图标', '标签页', '标签']) && (
+      {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['标签图标', '图标', '标签页', '标签'], 'showTabIcon') && (
       <PreferenceControl path="showTabIcon">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span>标签页显示图标</span>
@@ -1271,7 +1271,7 @@ export function PrefsTabsSection({
       </div>
       </PreferenceControl>
       )}
-      {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['紧凑标签', '紧凑模式', '页签密度', '标签页', '标签']) && (
+      {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['紧凑标签', '紧凑模式', '页签密度', '标签页', '标签'], 'compactTabs') && (
       <PreferenceControl path="compactTabs">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -1284,7 +1284,7 @@ export function PrefsTabsSection({
       </div>
       </PreferenceControl>
       )}
-      {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['标签切换器', '切换器', 'chevron', '标签页', '标签']) && (
+      {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['标签切换器', '切换器', 'chevron', '标签页', '标签'], 'showTabSwitcher') && (
       <PreferenceControl path="showTabSwitcher">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span>显示标签切换器</span>
@@ -1292,7 +1292,7 @@ export function PrefsTabsSection({
       </div>
       </PreferenceControl>
       )}
-      {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['标签栏位置', '页签位置', '底部', '顶部', '左侧', '右侧', '垂直', 'bottom', 'left', 'right', '标签页', '标签']) && (
+      {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['标签栏位置', '页签位置', '底部', '顶部', '左侧', '右侧', '垂直', 'bottom', 'left', 'right', '标签页', '标签'], 'tabsPosition') && (
       <PreferenceControl path="tabsPosition">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -1315,7 +1315,7 @@ export function PrefsTabsSection({
       </div>
       </PreferenceControl>
       )}
-      {(preferences.enableTabs || !!prefsSearch.trim()) && (preferences.tabsPosition === 'left' || preferences.tabsPosition === 'right' || !!prefsSearch.trim()) && matchesPref(['折叠', '收起', '图标栏', '垂直页签', '展开', '标签页', '标签']) && (
+      {(preferences.enableTabs || !!prefsSearch.trim()) && (preferences.tabsPosition === 'left' || preferences.tabsPosition === 'right' || !!prefsSearch.trim()) && matchesPref(['折叠', '收起', '图标栏', '垂直页签', '展开', '标签页', '标签'], 'sideTabsCollapsed') && (
       <PreferenceControl path="sideTabsCollapsed">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -1328,7 +1328,7 @@ export function PrefsTabsSection({
       </div>
       </PreferenceControl>
       )}
-      {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['自动隐藏', '隐藏标签', '程序坞', 'dock', '标签页', '标签']) && (
+      {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['自动隐藏', '隐藏标签', '程序坞', 'dock', '标签页', '标签'], 'autoHideTabs') && (
       <PreferenceControl path="autoHideTabs">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -1341,7 +1341,7 @@ export function PrefsTabsSection({
       </div>
       </PreferenceControl>
       )}
-      {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['最大标签', '标签数量', '标签页', '标签']) && (
+      {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['最大标签', '标签数量', '标签页', '标签'], 'tabsMaxCount') && (
       <PreferenceControl path="tabsMaxCount">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span>最大标签数</span>
@@ -1355,7 +1355,7 @@ export function PrefsTabsSection({
       </div>
       </PreferenceControl>
       )}
-      {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['超限策略', 'FIFO', 'LRU', '关闭策略', '标签页', '标签']) && (
+      {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['超限策略', 'FIFO', 'LRU', '关闭策略', '标签页', '标签'], 'tabEvictPolicy') && (
       <PreferenceControl path="tabEvictPolicy">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -1375,7 +1375,7 @@ export function PrefsTabsSection({
       </div>
       </PreferenceControl>
       )}
-      {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['插入位置', '新标签位置', '标签插入', '标签页', '标签']) && (
+      {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['插入位置', '新标签位置', '标签插入', '标签页', '标签'], 'openTabBehavior') && (
       <PreferenceControl path="openTabBehavior">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -1395,7 +1395,7 @@ export function PrefsTabsSection({
       </div>
       </PreferenceControl>
       )}
-      {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['双击标签', '双击', '标签行为', '标签页', '标签']) && (
+      {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['双击标签', '双击', '标签行为', '标签页', '标签'], 'tabDoubleClickAction') && (
       <PreferenceControl path="tabDoubleClickAction">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span>双击标签行为</span>
@@ -1411,7 +1411,7 @@ export function PrefsTabsSection({
       </div>
       </PreferenceControl>
       )}
-      {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['标签风格', '风格', '线条', '胶囊', '卡片', 'chrome', '谷歌', '极简', 'minimal', '分段', 'segment', '方块', 'block', '短线', 'shortline', '圆点', 'dot', '顶线', 'topline', '标签页', '标签']) && (
+      {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['标签风格', '风格', '线条', '胶囊', '卡片', 'chrome', '谷歌', '极简', 'minimal', '分段', 'segment', '方块', 'block', '短线', 'shortline', '圆点', 'dot', '顶线', 'topline', '标签页', '标签'], 'tabStyle') && (
       <PreferenceControl path="tabStyle">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span>标签页风格</span>
@@ -1435,7 +1435,7 @@ export function PrefsTabsSection({
       </div>
       </PreferenceControl>
       )}
-      {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['标签动画', '动画', '淡入', '滑入', '缩放', '标签页', '标签']) && (
+      {(preferences.enableTabs || !!prefsSearch.trim()) && matchesPref(['标签动画', '动画', '淡入', '滑入', '缩放', '标签页', '标签'], 'tabAnimation') && (
       <PreferenceControl path="tabAnimation">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span>标签页动画</span>
@@ -1471,7 +1471,7 @@ export function PrefsTabsSection({
       </div>
       </PreferenceControl>
       )}
-      {matchesPref(['路由动画', '切换动画', '动画', '淡入', '上滑', '左滑']) && (
+      {matchesPref(['路由动画', '切换动画', '动画', '淡入', '上滑', '左滑'], 'routeAnimation') && (
       <PreferenceControl path="routeAnimation">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span>路由切换动画</span>

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import type { PreferencePath } from '@zenith/shared/preferences';
 import { usePreferences, type NavLayout, type UserPreferences } from '@/hooks/usePreferences';
 import type { ThemeMode } from '@/hooks/useTheme';
 import {
@@ -14,7 +15,7 @@ import {
 
 export interface PreferencesSheetBodyProps {
   readonly prefSection: (label: string) => ReactNode;
-  readonly matchesPref: (keywords: string[]) => boolean;
+  readonly matchesPref: (keywords: string[], paths?: PreferencePath | readonly PreferencePath[]) => boolean;
   readonly preferences: UserPreferences;
   readonly setPreferences: (prefs: Partial<UserPreferences>) => void;
   readonly navLayout: NavLayout;

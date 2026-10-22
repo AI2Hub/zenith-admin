@@ -1,9 +1,10 @@
 import { useCallback, useState } from 'react';
 import { Toast } from '@douyinfe/semi-ui';
-import { textMatches } from '@/utils/pinyin';
+import type { PreferencePath } from '@zenith/shared/preferences';
 import { copyTextWithToast } from '@/utils/clipboard';
 import { downloadBlob } from '@/utils/download';
 import { sanitizeImportedPreferences, usePreferences } from '@/hooks/usePreferences';
+import { preferenceSearchMatches } from './preference-search';
 
 // 偏好设置面板：搜索过滤、分区标题、复制 / 导入 / 导出偏好
 export function usePreferencesPanel() {
@@ -11,10 +12,10 @@ export function usePreferencesPanel() {
   const [prefsVisible, setPrefsVisible] = useState(false);
   const [prefsSearch, setPrefsSearch] = useState('');
 
-  const matchesPref = useCallback((keywords: string[]): boolean => {
-    if (!prefsSearch.trim()) return true;
-    return keywords.some((kw) => textMatches(kw, prefsSearch));
-  }, [prefsSearch]);
+  // 关键词只补充别名；名称 / 说明 / 选项名由偏好目录按 path 自动参与匹配，避免手写关键词漏词
+  const matchesPref = useCallback((keywords: string[], paths?: PreferencePath | readonly PreferencePath[]): boolean => (
+    preferenceSearchMatches(keywords, prefsSearch, paths)
+  ), [prefsSearch]);
 
   // 偏好面板分区标题：搜索时隐藏（搜索结果为扁平列表）
   const prefSection = useCallback((label: string) => (
