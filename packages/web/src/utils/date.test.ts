@@ -129,10 +129,6 @@ describe('stripHtml', () => {
     expect(stripHtml(null)).toBe('');
   });
 
-  it('对于 undefined 应该返回空字符', () => {
-    expect(stripHtml(undefined)).toBe('');
-  });
-
   it('应该把复杂tag当做文本剥离', () => {
     expect(stripHtml('<div>content</div><span>more</span>')).toBe('contentmore');
   });

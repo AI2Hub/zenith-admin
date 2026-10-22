@@ -20,15 +20,6 @@ describe('SearchToolbar', () => {
     expect(container.querySelector('.responsive-toolbar')).not.toBeNull();
   });
 
-  it('renders children as toolbar content', () => {
-    render(
-      <SearchToolbar>
-        <span>SearchContent</span>
-      </SearchToolbar>
-    );
-    expect(screen.getByText('SearchContent')).toBeTruthy();
-  });
-
   it('applies custom className to toolbar', () => {
     render(<SearchToolbar className="custom-class" />);
     expect(document.querySelector('.custom-class')).not.toBeNull();

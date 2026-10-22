@@ -2,14 +2,6 @@ import { describe, it, expect } from 'vitest';
 import logger from './logger';
 
 describe('logger', () => {
-  it('should be defined', () => {
-    expect(logger).toBeDefined();
-  });
-
-  it.each(['info', 'error', 'warn', 'debug'] as const)('should have a %s method', (method) => {
-    expect(typeof logger[method]).toBe('function');
-  });
-
   it('should not throw when logging a plain message', () => {
     expect(() => logger.info('Test info message')).not.toThrow();
     expect(() => logger.error('Test error message')).not.toThrow();

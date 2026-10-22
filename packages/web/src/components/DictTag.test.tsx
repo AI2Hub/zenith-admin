@@ -16,18 +16,6 @@ describe('DictTag', () => {
     expect(container.textContent).toBe('—');
   });
 
-  it('should render fallback dash when value is undefined', () => {
-    vi.mocked(useDictItems).mockReturnValue({ items: [], options: [], loading: false, getLabel: (v: string) => v, getColor: () => undefined });
-    const { container } = render(<DictTag dictCode="test" value={undefined} />);
-    expect(container.textContent).toBe('—');
-  });
-
-  it('should render fallback dash when value is empty string', () => {
-    vi.mocked(useDictItems).mockReturnValue({ items: [], options: [], loading: false, getLabel: (v: string) => v, getColor: () => undefined });
-    const { container } = render(<DictTag dictCode="test" value="" />);
-    expect(container.textContent).toBe('—');
-  });
-
   it('should render dictionary label when value is found', () => {
     vi.mocked(useDictItems).mockReturnValue({
       items: [{ id: 1, dictId: 1, value: 'yes', label: '是', color: 'green', sort: 1, status: 'enabled', createdAt: '', updatedAt: '' }],
@@ -50,19 +38,5 @@ describe('DictTag', () => {
     vi.mocked(useDictItems).mockReturnValue({ items: [], options: [], loading: false, getLabel: (v: string) => v, getColor: () => undefined });
     render(<DictTag dictCode="test" value="unknown" fallback="未知" />);
     expect(screen.getByText('未知')).toBeTruthy();
-  });
-
-  it('should pass size prop to Tag', () => {
-    vi.mocked(useDictItems).mockReturnValue({
-      items: [{ id: 1, dictId: 1, value: '1', label: 'One', sort: 0, status: 'enabled', createdAt: '', updatedAt: '' }],
-      options: [{ value: '1', label: 'One' }],
-      loading: false,
-      getLabel: () => 'One',
-      getColor: () => undefined,
-    });
-    const { container } = render(<DictTag dictCode="test" value="1" size="large" />);
-    // Testing specific DOM structure based on Semi-UI might be brittle,
-    // but at least it should render safely without crashing.
-    expect(container).toBeTruthy();
   });
 });

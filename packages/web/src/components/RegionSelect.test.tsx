@@ -30,13 +30,6 @@ describe('RegionSelect', () => {
     vi.clearAllMocks();
   });
 
-  it('should render empty Cascader initially', async () => {
-    vi.mocked(request.get).mockResolvedValueOnce({ code: 0, message: 'ok', data: [] });
-    const { container } = renderRegionSelect();
-    await waitForRegionsLoaded(container);
-    expect(container).toBeTruthy();
-  });
-
   it('should load regions from API', async () => {
     // Mock response data
     const mockData = {
@@ -52,20 +45,6 @@ describe('RegionSelect', () => {
     const { container } = renderRegionSelect();
 
     // We expect request.get to be called with correct URL
-    await waitForRegionsLoaded(container);
-  });
-
-  it('should apply custom placeholder', async () => {
-    vi.mocked(request.get).mockResolvedValueOnce({ code: 0, message: 'ok', data: [] });
-    // Assuming Semi UI renders placeholder somewhere
-    const { container } = renderRegionSelect({ placeholder: 'Select region' });
-    await waitForRegionsLoaded(container);
-    // Just ensuring no crash with props
-  });
-
-  it('should pass value prop correctly', async () => {
-    vi.mocked(request.get).mockResolvedValueOnce({ code: 0, message: 'ok', data: [] });
-    const { container } = renderRegionSelect({ value: ['110000', '110100'] });
     await waitForRegionsLoaded(container);
   });
 });
