@@ -261,6 +261,12 @@
 
 ## 表单与展示组件
 
+- **多选下拉展示**：普通集合型 `Select` / `Form.Select` 显式设置正数 `maxTagCount`；可能隐藏已选项时提供
+  `showRestTagsPopover`。`max` 只表示业务选择上限，不能用来替代展示折叠。开合时是否单行统一遵循
+  `multiSelectLayout` 偏好，不在页面另写固定高度、`nowrap` 或读取偏好后二次覆盖样式。
+  `TreeSelect` 使用独立适配规则；`TagInput`、Cascader、穿梭框不按普通 Select 批量套属性。
+  顺序敏感配置、自由路径编辑、无选中值的禁用画布预览等保留完整展示时，在调用处注明理由。
+  属性组合、数量选择与入口范围见 [多选下拉展示](./crud-frontend.md#多选下拉展示)。
 - **密码 / 密钥输入统一组件**：普通输入用 `components/PasswordInput.tsx` 的 `PasswordInput`，
   Semi 表单用同文件的 `FormPasswordInput`；默认掩码，点击小眼睛切换显隐。
   登录页的 `LoginField mode="password"` 已委托给此组件；禁止在业务页面直接写

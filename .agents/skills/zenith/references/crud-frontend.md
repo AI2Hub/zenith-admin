@@ -338,6 +338,40 @@ if (!(await confirmDangerAsync({ title: `确认停用「${name}」？`, okText: 
 | 4–5 字（部门名称、联系电话） | 90（默认） |
 | ≥6 字（上级部门名称、所属租户） | 110 或 120 |
 
+## 多选下拉展示
+
+先区分集合选择和必须核对顺序的编辑，再决定展示上限。普通表单可参考 2–3 项，窄筛选栏可参考 1–2 项；
+数量是按字段宽度和标签长度选择的展示预算，不是业务限制。固定且短的枚举可把展示上限设为全部选项数，
+以接入单行布局而不刻意隐藏标签。
+
+```tsx
+<Form.Select field="roleIds" label="角色" multiple filter
+  maxTagCount={2} showRestTagsPopover
+  style={{ width: '100%' }} optionList={roleOptions} />
+
+// TreeSelect 默认在下拉面板搜索，保持该模式以使用现有树形多选适配。
+<Form.TreeSelect field="departmentIds" label="部门" multiple filterTreeNode
+  maxTagCount={3} showRestTagsPopover
+  style={{ width: '100%' }} treeData={departmentTreeData} />
+```
+
+「偏好设置 → 通用 → 多选框布局」默认保持单行，可选择自动换行。`styles/global.css` 根据 body 上的
+`data-multi-select-layout` 处理已折叠标签的布局：普通 Select 使用直接 TagGroup 子节点，TreeSelect 仅适配
+下拉面板搜索的数量受限标签组。不要为了接入偏好逐页添加 `ellipsisTrigger`：它会切换到另一套渲染结构，
+需要单独验证。未设置上限、`expandRestTagsOnClick` 显式展开、TreeSelect 触发器内搜索不在该规则范围内。
+
+人员、字典、部门选择分别复用 `UserSelect` / `UserSelectBase`、`DictSelect`、`DepartmentSelect`；
+工作流动态表单的普通 `multiSelect` 由共享 `FieldRenderer` 统一设置展示属性，不改字段值或保存协议。
+主后台经 `PreferencesProvider` 应用偏好；独立移动审批经 `ApprovalPreferencesBoundary` 使用自己的请求实例
+读取个人偏好和系统策略。会员身份与管理员隔离，不能复用管理员偏好客户端。
+
+顺序会签名单、摘要字段顺序、自由路径编辑和禁用画布占位预览可保留完整标签；不要为统一外观隐藏业务顺序。
+仅限制数量但永远不会隐藏选项的字段不必添加剩余项浮层。触控端不能仅靠 hover 查看隐藏项，应能在下拉内核对和移除选择；
+Semi 的普通 Select 剩余标签有延迟生成逻辑，不要未经触控验证就将 Popover 改为纯 click。
+
+验证重点是选择、打开、搜索、清空、收起的高度一致，以及 `+N`、输入光标和完整已选项可访问；
+同时核对自动换行偏好仍恢复组件原行为。用实际浏览器检查这些布局行为，纯 DOM 单测不能证明没有换行。
+
 ## 权限控制
 
 ```tsx
