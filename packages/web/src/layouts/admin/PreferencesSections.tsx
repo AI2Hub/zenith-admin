@@ -11,6 +11,7 @@ import { SwatchColorPicker } from '@/components/SwatchColorPicker';
 import { confirmDanger } from '@/utils/confirm';
 import { LoadingIndicator } from '@/components/PageLoading';
 import { PreferenceControl, PreferenceSection } from '@/components/settings/SettingRow';
+import { preferenceDefinitionMap, type MultiSelectLayout } from '@zenith/shared/preferences';
 
 // 偏好设置面板各分区。所有分区组件都返回 Fragment，
 // 使设置块保持为外层 flex 容器的直接子节点（gap 布局不变）。
@@ -1023,6 +1024,30 @@ export function PrefsGeneralSection({
           </Tooltip>
         </span>
         <Switch checked={preferences.modalClickMaskToClose ?? false} onChange={(v) => setPreferences({ modalClickMaskToClose: v })} />
+      </div>
+      </PreferenceControl>
+      )}
+
+      {matchesPref(['多选框', '选择时', '布局', '单行', '自动换行', '下拉', '标签', '搜索']) && (
+      <PreferenceControl path="multiSelectLayout">
+      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0, whiteSpace: 'nowrap' }}>
+          {preferenceDefinitionMap.multiSelectLayout.label}
+          <Tooltip content={preferenceDefinitionMap.multiSelectLayout.description} position="right">
+            <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+          </Tooltip>
+        </span>
+        <RadioGroup
+          type="button"
+          aria-label={preferenceDefinitionMap.multiSelectLayout.label}
+          value={preferences.multiSelectLayout}
+          onChange={(e) => setPreferences({ multiSelectLayout: e.target.value as MultiSelectLayout })}
+          style={{ flexShrink: 0 }}
+        >
+          {preferenceDefinitionMap.multiSelectLayout.options?.map((option) => (
+            <Radio key={option.value} value={option.value}>{option.label}</Radio>
+          ))}
+        </RadioGroup>
       </div>
       </PreferenceControl>
       )}

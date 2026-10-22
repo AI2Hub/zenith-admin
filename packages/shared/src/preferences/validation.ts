@@ -100,6 +100,7 @@ export const preferenceValuesSchema = z.strictObject({
   reduceMotion: z.boolean().default(false),
   confirmLogout: z.boolean().default(true),
   modalClickMaskToClose: z.boolean().default(false),
+  multiSelectLayout: z.enum(C.MULTI_SELECT_LAYOUTS).default('single-line'),
   showTabSwitcher: z.boolean().default(true),
   notificationSound: z.boolean().default(false),
   notificationSoundStyle: z.enum(C.NOTIFICATION_SOUND_STYLES).default(C.DEFAULT_NOTIFICATION_SOUND_STYLE),

@@ -133,14 +133,31 @@ body {
   height: 100%;
 }
 
-/* 多选 Select 的标签行一旦按 maxTagCount 收起（TagGroup 单行 + +N），Semi 给标签组
-   `flex-shrink: 0` + `overflow: hidden`：标签文案长短不一时（「昵称 (用户名)」这类长标签），
-   这一行会宽于选择框，末尾标签连同 +N 一起被裁掉，看起来像没做省略。
-   允许标签组收缩——标签内部本身是 ellipsis，N 枚标签挤进一行，+N 始终留在可见区。
-   只管收起后的单行形态（下拉打开时是换行排版，不需要收缩）。 */
+/* 收起时允许标签组缩到字段可用宽度；自动换行偏好保留这项既有修正。 */
 .semi-select.semi-select-multiple .semi-select-content-wrapper-one-line .semi-tag-group {
   flex-shrink: 1;
   min-width: 0;
+}
+
+/* maxTagCount 的折叠路径使用 TagGroup。Semi 展开下拉时移除 one-line 类，
+   默认 wrap 会把搜索输入框挤到下一行，导致表单跳动；展开与收起均保持单行。
+   未设置数量上限、或 expandRestTagsOnClick 展开全部标签时不走 TagGroup，仍可换行。 */
+body[data-multi-select-layout='single-line'] .semi-select.semi-select-multiple .semi-select-content-wrapper:has(> .semi-tag-group) {
+  flex-wrap: nowrap;
+}
+
+body[data-multi-select-layout='single-line'] .semi-select.semi-select-multiple .semi-select-content-wrapper > .semi-tag-group {
+  /* 标签、+N 与搜索框共享一层 flex，避免长搜索词挤小标签组后将 +N 裁掉。 */
+  display: contents;
+}
+
+/* TagGroup 超过上限时，最后一项是 +N；为数量提示保留完整宽度。 */
+body[data-multi-select-layout='single-line'] .semi-select.semi-select-multiple .semi-select-content-wrapper > .semi-tag-group-max > .semi-tag:last-child {
+  flex-shrink: 0;
+}
+
+body[data-multi-select-layout='single-line'] .semi-select.semi-select-multiple .semi-select-content-wrapper:has(> .semi-tag-group) > .semi-select-input-multiple {
+  min-width: 2px;
 }
 
 /* 带 labelWidth 的表单行里，`flex: 0 1 auto` 的字段主体默认 min-width: auto，

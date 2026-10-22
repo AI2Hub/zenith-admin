@@ -13,6 +13,12 @@ export const TAB_TYPES = ['line', 'button', 'card', 'slash'] as const;
 export type TabType = (typeof TAB_TYPES)[number];
 export const TABLE_SIZES = ['small', 'default', 'middle'] as const;
 export type TableSizePreference = (typeof TABLE_SIZES)[number];
+export const MULTI_SELECT_LAYOUTS = ['single-line', 'wrap'] as const;
+export type MultiSelectLayout = (typeof MULTI_SELECT_LAYOUTS)[number];
+export const MULTI_SELECT_LAYOUT_OPTIONS = [
+  { value: 'single-line', label: '保持单行' },
+  { value: 'wrap', label: '自动换行' },
+] as const;
 export const ROUTE_ANIMATIONS = ['none', 'fade', 'slide-up', 'slide-left'] as const;
 export type RouteAnimation = (typeof ROUTE_ANIMATIONS)[number];
 export const SIDEBAR_TOGGLE_ICON_POSITIONS = ['left', 'right'] as const;

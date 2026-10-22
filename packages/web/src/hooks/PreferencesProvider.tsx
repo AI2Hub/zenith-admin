@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react';
+import { useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useDebouncer } from '@tanstack/react-pacer';
 import {
@@ -33,6 +33,11 @@ export function PreferencesProvider({ children }: Readonly<{ children: ReactNode
   // DatePicker 的 defaultProps 必须在子树构造前更新，动态加载也由 applyWeekStart 同步。
   void applyWeekStart(preferences.weekStart);
   useEffect(() => { writePreferenceCache(policy, overrides); }, [policy, overrides]);
+  // Portal 弹窗挂在 body 下；绘制前应用布局偏好，避免首次展开时跳行。
+  useLayoutEffect(() => {
+    document.body.dataset.multiSelectLayout = preferences.multiSelectLayout;
+    return () => { delete document.body.dataset.multiSelectLayout; };
+  }, [preferences.multiSelectLayout]);
   useEffect(() => {
     const options = queryClient.getDefaultOptions();
     queryClient.setDefaultOptions({

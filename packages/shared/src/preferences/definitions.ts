@@ -64,6 +64,7 @@ const metadata: Record<PreferencePath, Entry> = {
   syncPageStateToUrl: { label: '页面状态同步到地址栏', group: 'general' },
   confirmLogout: { label: '退出登录前确认', group: 'general' },
   modalClickMaskToClose: { label: '点击遮罩关闭弹窗', group: 'general' },
+  multiSelectLayout: { label: '多选框布局', group: 'general', options: C.MULTI_SELECT_LAYOUT_OPTIONS, description: '适用于已折叠标签的多选框。保持单行可避免选择和搜索时撑高表单；自动换行在空间不足时增加行高。' },
   filesViewMode: { label: '文件列表默认视图', group: 'general', options: options(C.FILES_VIEW_MODES, ['列表', '网格']) },
   enableLockScreen: { label: '开启屏幕锁', group: 'general', description: '需用户在当前设备设置锁屏密码后才能使用。' },
   autoLockMinutes: { label: '无操作自动锁屏', group: 'general', options: options(C.AUTO_LOCK_MINUTES, ['关闭', '5 分钟', '10 分钟', '30 分钟']), applicableWhen: { field: 'enableLockScreen', equals: true } },

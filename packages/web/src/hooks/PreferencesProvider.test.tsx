@@ -59,6 +59,22 @@ afterEach(() => {
 });
 
 describe('PreferencesProvider', () => {
+  it('applies and persists the multi-select layout, restores the default and cleans up on unmount', async () => {
+    const { hook } = await setup();
+    expect(window.document.body.dataset.multiSelectLayout).toBe('single-line');
+    act(() => hook.result.current.setPreferences({ multiSelectLayout: 'wrap' }));
+    expect(window.document.body.dataset.multiSelectLayout).toBe('wrap');
+    await waitFor(() => expect(document.overrides.multiSelectLayout).toBe('wrap'));
+    hook.unmount();
+    expect(window.document.body.dataset.multiSelectLayout).toBeUndefined();
+
+    const reloaded = await setup();
+    expect(window.document.body.dataset.multiSelectLayout).toBe('wrap');
+    act(() => reloaded.hook.result.current.resetPreference('multiSelectLayout'));
+    expect(window.document.body.dataset.multiSelectLayout).toBe('single-line');
+    await waitFor(() => expect(document.overrides.multiSelectLayout).toBeUndefined());
+  });
+
   it('applies the week start before the first render and on every change', async () => {
     const { hook } = await setup();
     // 默认周一：Provider 初始化时已同步写入，而不是等 effect

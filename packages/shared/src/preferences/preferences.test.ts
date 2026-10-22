@@ -18,9 +18,11 @@ import {
 } from './index';
 
 describe('偏好策略与个人覆盖', () => {
-  it('保留全部现有默认值，99 项策略排除个人收藏', () => {
+  it('保留全部现有默认值，100 项策略排除个人收藏', () => {
     const policy = preferencePolicySchema.parse({});
-    expect(preferenceDefinitions).toHaveLength(99);
+    expect(preferenceDefinitions).toHaveLength(100);
+    expect(policy.defaults.multiSelectLayout).toBe('single-line');
+    expect(policy.allowUserOverride.multiSelectLayout).toBe(true);
     expect(defaultPreferences.topbarClock).toBe('off');
     expect(defaultPreferences.topbarClockShowDate).toBe(true);
     expect(defaultPreferences.scheduledDarkMode).toBe('off');
@@ -40,6 +42,13 @@ describe('偏好策略与个人覆盖', () => {
     const policy = preferencePolicySchema.parse({ defaults: { colorMode: 'dark', terminal: { fontSize: 18 } } });
     expect(resolvePreferences(policy, override)).toMatchObject({ colorMode: 'light', terminal: { fontSize: 14 } });
     expect(resolvePreferences(policy, {})).toMatchObject({ colorMode: 'dark', terminal: { fontSize: 18 } });
+  });
+
+  it('多选布局兼容缺省偏好，保留换行选择并过滤非法导入', () => {
+    const document = userPreferencesDocumentSchema.parse({ overrides: { multiSelectLayout: 'wrap' } });
+    expect(resolvePreferences(preferencePolicySchema.parse({}), document.overrides).multiSelectLayout).toBe('wrap');
+    expect(userPreferencesDocumentSchema.parse({}).overrides).toEqual({});
+    expect(sanitizePreferenceOverrides({ multiSelectLayout: 'invalid', tableBordered: false })).toEqual({ tableBordered: false });
   });
 
   it('强制值暂停个人覆盖，解除后恢复，其他嵌套叶子互不影响', () => {
