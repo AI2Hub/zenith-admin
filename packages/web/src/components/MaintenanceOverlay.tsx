@@ -1,8 +1,9 @@
-import { Button, Typography } from '@douyinfe/semi-ui';
-import { Wrench, RefreshCw } from 'lucide-react';
+import { Button, Empty, Typography } from '@douyinfe/semi-ui';
+import { RefreshCw } from 'lucide-react';
+import { emptyIllustration } from '@/components/EmptyIllustration';
 import { usePublicMaintenanceStatus } from '@/hooks/queries/maintenance';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 interface MaintenanceInfo {
   message: string;
@@ -26,71 +27,53 @@ export default function MaintenanceOverlay({ info }: Readonly<Props>) {
         inset: 0,
         zIndex: 10000,
         display: 'flex',
-        flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
         background: 'var(--color-content-bg)',
         padding: 24,
+        overflow: 'auto',
       }}
     >
-      <div
-        style={{
-          maxWidth: 460,
-          width: '100%',
-          textAlign: 'center',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: 16,
-        }}
+      {/* 维护态复用 Semi 空状态：插画、标题、描述与操作区的间距交给组件默认排版。
+          「建设中」表达"正在施工、能力暂不可用"，比「神游四方」的"空/发呆"语义更贴近计划内维护 */}
+      <Empty
+        {...emptyIllustration('Construction', 160)}
+        title="系统维护中"
+        description={info.message || '系统正在进行维护升级，请稍后再试。'}
+        style={{ maxWidth: 460, width: '100%' }}
       >
         <div
           style={{
-            width: 80,
-            height: 80,
-            borderRadius: '50%',
-            background: 'var(--semi-color-warning-light-default)',
             display: 'flex',
+            flexDirection: 'column',
             alignItems: 'center',
-            justifyContent: 'center',
-            marginBottom: 8,
+            gap: 12,
           }}
         >
-          <Wrench size={36} style={{ color: 'var(--semi-color-warning)' }} />
-        </div>
+          {info.estimatedEndAt && (
+            <div
+              style={{
+                background: 'var(--semi-color-fill-1)',
+                borderRadius: 'var(--semi-border-radius-medium)',
+                padding: '10px 20px',
+              }}
+            >
+              <Text type="secondary" size="small">预计恢复时间：</Text>
+              <Text strong>{info.estimatedEndAt}</Text>
+            </div>
+          )}
 
-        <Title heading={3} style={{ margin: 0 }}>系统维护中</Title>
-
-        <Text
-          type="secondary"
-          style={{ fontSize: 15, lineHeight: 1.6, maxWidth: 360 }}
-        >
-          {info.message || '系统正在进行维护升级，请稍后再试。'}
-        </Text>
-
-        {info.estimatedEndAt && (
-          <div
-            style={{
-              background: 'var(--semi-color-fill-1)',
-              borderRadius: 'var(--semi-border-radius-medium)',
-              padding: '10px 20px',
-            }}
+          <Button
+            icon={<RefreshCw size={14} />}
+            loading={isFetching}
+            onClick={() => void refetch()}
           >
-            <Text type="secondary" size="small">预计恢复时间：</Text>
-            <Text strong>{info.estimatedEndAt}</Text>
-          </div>
-        )}
+            检查是否恢复
+          </Button>
 
-        <Button
-          icon={<RefreshCw size={14} />}
-          loading={isFetching}
-          onClick={() => void refetch()}
-          style={{ marginTop: 8 }}
-        >
-          检查是否恢复
-        </Button>
-        <Text type="tertiary" size="small">每 30 秒自动检查一次</Text>
-      </div>
+          <Text type="tertiary" size="small">每 30 秒自动检查一次</Text>
+        </div>
+      </Empty>
     </div>
   );
 }
