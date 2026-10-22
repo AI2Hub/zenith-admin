@@ -378,6 +378,8 @@ function DatasetDetail({ dataset, canManage }: { dataset: AiEvalDataset; canMana
                 field="scorers"
                 label="打分器"
                 multiple
+                maxTagCount={3}
+                showRestTagsPopover
                 style={{ width: '100%' }}
                 optionList={SCORER_OPTIONS}
                 rules={[{ required: true, type: 'array', min: 1, message: '至少选择一个打分器' }]}

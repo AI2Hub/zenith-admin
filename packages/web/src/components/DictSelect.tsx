@@ -50,6 +50,7 @@ export default function DictSelect({
       disabled={disabled || loading}
       showClear={showClear}
       maxTagCount={4}
+      showRestTagsPopover
       style={{ width: '100%', ...style }}
       optionList={options}
     />

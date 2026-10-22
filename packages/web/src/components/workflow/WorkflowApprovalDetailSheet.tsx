@@ -721,6 +721,7 @@ export default function WorkflowApprovalDetailSheet({
                   <Typography.Text size="small" style={{ display: 'block', marginBottom: 4 }}>
                     {group.label}<span style={{ color: 'var(--semi-color-danger)' }}> *</span>
                   </Typography.Text>
+                  {/* 下一节点可能采用顺序会签，完整展示所选审批人以便核对次序。 */}
                   <Select
                     multiple
                     filter
@@ -910,6 +911,8 @@ export default function WorkflowApprovalDetailSheet({
             label="退回到节点"
             placeholder="请选择退回节点（可多选）"
             multiple
+            maxTagCount={2}
+            showRestTagsPopover
             optionList={returnTargetOptions}
             rules={[{ required: true, message: '请选择退回节点' }]}
             style={{ width: '100%' }}

@@ -17,7 +17,7 @@ export default function CmsTaxonomyInput({ siteId, modelId, value = [], onChange
       return <div key={group.id ?? 'free'} style={{ width: '100%' }}>
         <Typography.Text type="secondary">{group.name}{group.required ? '（发布必选）' : ''}</Typography.Text>
         <Select multiple filter value={value.filter(id => ids.has(id))} disabled={disabled} loading={tags.isFetching || vocabularies.isFetching} style={{ width: '100%' }}
-          maxTagCount={3} placeholder={`选择${group.name}`} optionList={terms.map(term => ({ value: term.id, label: term.parentId ? `${tags.data?.find(parent => parent.id === term.parentId)?.name ?? ''} / ${term.name}` : term.name, searchText: [term.name, ...(term.aliases ?? [])].join(' ') }))}
+          maxTagCount={3} showRestTagsPopover placeholder={`选择${group.name}`} optionList={terms.map(term => ({ value: term.id, label: term.parentId ? `${tags.data?.find(parent => parent.id === term.parentId)?.name ?? ''} / ${term.name}` : term.name, searchText: [term.name, ...(term.aliases ?? [])].join(' ') }))}
           onChange={next => onChange?.([...value.filter(id => !ids.has(id) && known.has(id)), ...(Array.isArray(next) ? next.map(Number) : [])])} />
       </div>;
     })}

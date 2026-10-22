@@ -272,6 +272,7 @@ export function CronBuilderPopover({ value, onApply }: CronBuilderPopoverProps) 
                 style={{ width: 220 }}
                 placeholder="请选择日期"
                 maxTagCount={4}
+                showRestTagsPopover
               />
             </Space>
             {timeInputs(monthlyHour, setMonthlyHour, monthlyMinute, setMonthlyMinute)}

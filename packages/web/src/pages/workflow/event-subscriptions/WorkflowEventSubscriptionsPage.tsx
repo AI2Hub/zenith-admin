@@ -373,6 +373,7 @@ export default function WorkflowEventSubscriptionsPage() {
           <Col span={24}>
             <Form.Select
               field="events" label="订阅事件" multiple maxTagCount={5}
+              showRestTagsPopover
               style={{ width: '100%' }}
               rules={[{ required: true, type: 'array', min: 1, message: '至少选择一个事件' }]}
               optionList={WORKFLOW_EVENT_TYPE_OPTIONS}

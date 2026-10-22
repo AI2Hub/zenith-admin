@@ -4,6 +4,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { Spin } from '@douyinfe/semi-ui';
 import { TOKEN_KEY } from '@zenith/shared/core';
 import { approvalQueryClient } from './lib/query-client';
+import { ApprovalPreferencesBoundary } from './components/ApprovalPreferencesBoundary';
 
 // 页面级懒加载：入口只带路由壳，TaskDetail/LaunchForm 携带的全能表单渲染器
 // （富文本、附件、地区选择等重依赖）不再进入首屏预载
@@ -23,7 +24,7 @@ const routeFallback = (
 function RequireAuth() {
   const token = localStorage.getItem(TOKEN_KEY);
   if (!token) return <Navigate to="/login" replace />;
-  return <Outlet />;
+  return <ApprovalPreferencesBoundary><Outlet /></ApprovalPreferencesBoundary>;
 }
 
 export default function ApprovalApp() {

@@ -147,6 +147,7 @@ export default function BasicInfoPanel({
                 multiple
                 filter
                 maxTagCount={3}
+                showRestTagsPopover
                 style={{ width: '100%' }}
                 optionList={targetOptions}
                 placeholder={scopePlaceholder}

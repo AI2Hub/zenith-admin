@@ -469,7 +469,7 @@ export default function AlertsPage() {
                 <Form.Select field="misfirePolicy" label="错过策略" style={{ width: '100%' }} optionList={REPORT_MISFIRE_POLICY_OPTIONS} />
               </Col>
               <Col xs={24} md={12}>
-                <Form.Select field="channels" label="通知通道" multiple style={{ width: '100%' }} rules={[{ required: true, message: '至少选择一个通道' }]}
+                <Form.Select field="channels" label="通知通道" multiple maxTagCount={3} style={{ width: '100%' }} rules={[{ required: true, message: '至少选择一个通道' }]}
                   optionList={[{ value: 'email', label: channelLabelMap.email }, { value: 'inApp', label: channelLabelMap.inApp }, { value: 'webhook', label: `${channelLabelMap.webhook}（企微/钉钉机器人）` }]} />
               </Col>
               {selectedChannels.includes('email') && (

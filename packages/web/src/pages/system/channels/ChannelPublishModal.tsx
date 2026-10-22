@@ -424,7 +424,7 @@ export function ChannelPublishModal({ channel, editing, visible, onClose, onSucc
                       <FormDeptSelect field="departmentIds" label="选择部门" multiple placeholder="请选择部门" />
                     )}
                     {audienceMode === 'roles' && (
-                      <Form.Select field="roleIds" label="选择角色" multiple filter style={{ width: '100%' }} placeholder="请选择角色" optionList={roleOptions} maxTagCount={3} />
+                      <Form.Select field="roleIds" label="选择角色" multiple filter style={{ width: '100%' }} placeholder="请选择角色" optionList={roleOptions} maxTagCount={3} showRestTagsPopover />
                     )}
 
                     <Form.Slot label=" ">

@@ -829,6 +829,7 @@ export default function WikiDocCenterPage() {
                         placeholder="@ 提及同事（选填）"
                         value={mentionIds}
                         maxTagCount={2}
+                        showRestTagsPopover
                         showClear
                         filter
                         onChange={(v) => setMentionIds((v as number[]) ?? [])}

@@ -722,6 +722,7 @@ export default function SystemSchedulerPage() {
                   field="alertChannels"
                   label="告警渠道"
                   multiple
+                  maxTagCount={NOTIFY_CHANNEL_OPTIONS.length}
                   optionList={NOTIFY_CHANNEL_OPTIONS}
                   style={{ width: '100%' }}
                 />

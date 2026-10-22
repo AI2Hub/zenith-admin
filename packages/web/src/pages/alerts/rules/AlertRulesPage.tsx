@@ -313,7 +313,7 @@ export default function AlertRulesPage() {
                   <Form.InputNumber field="silenceMinutes" label="静默期" min={0} max={10080} suffix="分钟" style={{ width: '100%' }} />
                 </Col>
               </Row>
-              <Form.Select field="channels" label="通知渠道" multiple style={{ width: '100%' }} optionList={NOTIFY_CHANNEL_OPTIONS} />
+              <Form.Select field="channels" label="通知渠道" multiple maxTagCount={NOTIFY_CHANNEL_OPTIONS.length} style={{ width: '100%' }} optionList={NOTIFY_CHANNEL_OPTIONS} />
               {usesUserRecipients && (
                 <FormAlertRecipientUserSelect
                   field="recipientUserIds"

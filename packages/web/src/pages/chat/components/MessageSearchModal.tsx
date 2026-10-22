@@ -86,6 +86,7 @@ export function MessageSearchModal({
                   onChange={(val) => setSearchTypeFilters(((val as ChatMessage['type'][]) ?? []))}
                   optionList={CHAT_MESSAGE_TYPE_OPTIONS}
                   maxTagCount={2}
+                  showRestTagsPopover
                 />
 
                 <FilterSelect

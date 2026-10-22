@@ -160,6 +160,22 @@ body[data-multi-select-layout='single-line'] .semi-select.semi-select-multiple .
   min-width: 2px;
 }
 
+/* TreeSelect 在下拉面板搜索时使用另一套结构；只处理已设置 maxTagCount 的标签组。
+   触发器内搜索走 TagInput，不匹配这里的直接子节点，保留该模式的原有布局。 */
+body[data-multi-select-layout='single-line'] .semi-tree-select-multiple .semi-tree-select-selection:has(> .semi-tag-group-max) {
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+body[data-multi-select-layout='single-line'] .semi-tree-select-multiple .semi-tree-select-selection > .semi-tag-group-max {
+  display: contents;
+}
+
+/* TreeSelect 总是传入 maxTagCount，未超限也有 group-max；灰色数量标签区别于白色已选项。 */
+body[data-multi-select-layout='single-line'] .semi-tree-select-multiple .semi-tree-select-selection > .semi-tag-group-max > .semi-tag-grey-light {
+  flex-shrink: 0;
+}
+
 /* 带 labelWidth 的表单行里，`flex: 0 1 auto` 的字段主体默认 min-width: auto，
    宽内容（多选标签行这类不可断行的东西）会把它撑到内容宽度：选择框按行宽而不是可用宽度
    排版，右半边直接落在字段框外被 overflow: hidden 裁掉。

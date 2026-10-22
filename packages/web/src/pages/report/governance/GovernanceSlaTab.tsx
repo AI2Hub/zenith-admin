@@ -200,7 +200,7 @@ export default function GovernanceSlaTab() {
           <Col xs={24} md={12}><FormTimezoneSelect /></Col>
           <Col xs={24} md={12}><Form.InputNumber field="silenceMins" label="静默分钟" min={0} style={{ width: '100%' }} /></Col>
         </Row>
-        <Form.Select multiple field="channels" label="通知渠道" style={{ width: '100%' }} optionList={[{ value: 'email', label: '邮件' }, { value: 'inApp', label: '站内信' }, { value: 'webhook', label: 'Webhook' }]} />
+        <Form.Select multiple maxTagCount={3} field="channels" label="通知渠道" style={{ width: '100%' }} optionList={[{ value: 'email', label: '邮件' }, { value: 'inApp', label: '站内信' }, { value: 'webhook', label: 'Webhook' }]} />
         <Form.Input field="recipients" label="邮件收件人" placeholder="多个邮箱以逗号分隔" />
         <Form.Input field="webhookUrl" label="Webhook" />
         <Form.Switch field="enabled" label="启用规则" />

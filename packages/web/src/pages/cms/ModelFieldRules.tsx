@@ -146,7 +146,7 @@ export default function ModelFieldRules({ field, siteId, siblingsPath = 'fields'
         : requiredType === 'switch' ? <Form.Switch field={`${field}.configuration.requiredWhen.equals`} label="等于" initValue={false} />
           : <Form.Input field={`${field}.configuration.requiredWhen.equals`} label="等于" />)}
     </div>
-    {(type === 'reference' || type === 'references') && <Form.Select field={`${field}.configuration.referenceModelIds`} label="允许引用的模型" multiple showClear optionList={(models.data ?? []).map((model) => ({ value: model.id, label: model.name }))} extraText="留空允许本站全部模型；跨站引用不可用" />}
+    {(type === 'reference' || type === 'references') && <Form.Select field={`${field}.configuration.referenceModelIds`} label="允许引用的模型" multiple maxTagCount={3} showRestTagsPopover showClear optionList={(models.data ?? []).map((model) => ({ value: model.id, label: model.name }))} extraText="留空允许本站全部模型；跨站引用不可用" />}
     {(type === 'object' || type === 'array') && <>
       <ComponentVersionPicker field={`${field}.configuration.componentVersionId`} fieldsPath={`${field}.configuration.fields`} siteId={siteId} />
       <div hidden={!!definition?.configuration?.componentVersionId}><CmsFieldDefinitionsEditor field={`${field}.configuration.fields`} siteId={siteId} depth={depth + 1} /></div>

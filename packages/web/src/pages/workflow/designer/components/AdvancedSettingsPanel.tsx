@@ -79,6 +79,7 @@ export default function AdvancedSettingsPanel({ settings, onChange, readOnly = f
             ))}
           </Form.RadioGroup>
           <Form.Switch field="allowComment" label="允许流程中评论" />
+          {/* 摘要按选择顺序展示且最多三项，保留全部标签便于核对顺序。 */}
           <Form.Select
             field="summaryFields"
             label="列表摘要字段"

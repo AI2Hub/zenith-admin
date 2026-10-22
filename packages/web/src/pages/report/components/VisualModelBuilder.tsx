@@ -107,7 +107,7 @@ export function VisualModelBuilder({ initial, onGenerate }: Readonly<Props>) {
           onChange={(v) => setModel({ ...EMPTY_MODEL, table: String(v ?? ''), alias: String(v ?? ''), limit: model.limit })} />
         <Input placeholder="主表别名（可选）" value={model.alias ?? ''} style={{ width: 180 }} showClear
           onChange={(v) => patch({ alias: v || model.table })} />
-        <Select multiple filter placeholder="维度（分组列）" value={model.dimensions} style={{ minWidth: 260 }} maxTagCount={3}
+        <Select multiple filter placeholder="维度（分组列）" value={model.dimensions} style={{ minWidth: 260 }} maxTagCount={3} showRestTagsPopover
           optionList={columnOptions} disabled={!model.table} loading={columnsLoading}
           onChange={(v) => patch({ dimensions: (v as string[]) ?? [] })} />
       </Space>

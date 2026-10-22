@@ -359,6 +359,8 @@ export default function ApproverAdvancedSections({
                 });
               }}
               multiple
+              maxTagCount={2}
+              showRestTagsPopover
               filter
               style={{ width: '100%' }}
               placeholder="请选择转交人员"

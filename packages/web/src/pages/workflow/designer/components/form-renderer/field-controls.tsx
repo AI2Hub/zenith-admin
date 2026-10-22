@@ -108,6 +108,7 @@ function RelationSelect({
       disabled={disabled}
       showClear={showClear}
       maxTagCount={3}
+      showRestTagsPopover
       style={{ width: '100%', ...style }}
       optionList={optionList}
     />

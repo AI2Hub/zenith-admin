@@ -156,6 +156,7 @@ function SpecificPicker({ min, max, value, onChange, names }: SpecificPickerProp
       style={{ width: '100%' }}
       placeholder="选择具体值"
       maxTagCount={8}
+      showRestTagsPopover
     />
   );
 }

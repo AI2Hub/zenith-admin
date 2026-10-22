@@ -894,7 +894,7 @@ export default function DatasetsPage() {
                     <Space vertical align="start" style={{ width: '100%', marginTop: 8 }}>
                       {rowRules.map((rule, index) => (
                         <Space key={index} align="start" style={{ width: '100%' }}>
-                          <Select multiple filter placeholder="全部角色" value={rule.roles ?? []} style={{ width: 180 }} maxTagCount={2}
+                          <Select multiple filter placeholder="全部角色" value={rule.roles ?? []} style={{ width: 180 }} maxTagCount={2} showRestTagsPopover
                             optionList={roleOptions}
                             onChange={(v) => updateRowRule(index, { roles: (v as string[]) ?? [] })} />
                           <Input placeholder={'WHERE 片段，如 dept_id = ${__deptId}'} value={rule.where} style={{ width: 280 }} showClear

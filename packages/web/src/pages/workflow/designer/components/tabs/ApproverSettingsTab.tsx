@@ -260,6 +260,7 @@ export default function ApproverSettingsTab({
           {/* 指定成员 */}
           {assigneeType === 'user' && (
             <Form.Slot label="选择成员">
+              {/* 顺序会签沿用成员选择顺序，保留完整标签便于核对。 */}
               <Select
                 value={assigneeIds}
                 onChange={(v) => {
@@ -287,6 +288,8 @@ export default function ApproverSettingsTab({
                   onChange({ roleIds: ids, roleNames: names });
                 }}
                 multiple
+                maxTagCount={2}
+                showRestTagsPopover
                 filter
                 style={{ width: '100%' }}
                 placeholder="请选择角色"
@@ -426,6 +429,8 @@ export default function ApproverSettingsTab({
                   onChange({ postIds: ids, postNames: names });
                 }}
                 multiple
+                maxTagCount={2}
+                showRestTagsPopover
                 filter
                 style={{ width: '100%' }}
                 placeholder="请选择岗位"
@@ -450,6 +455,8 @@ export default function ApproverSettingsTab({
                     onChange({ deptMemberDeptIds: ids, deptMemberDeptNames: names });
                   }}
                   multiple
+                  maxTagCount={2}
+                  showRestTagsPopover
                   filter
                   style={{ width: '100%' }}
                   placeholder="请选择部门"

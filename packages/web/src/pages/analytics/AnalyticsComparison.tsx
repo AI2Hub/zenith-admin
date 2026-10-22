@@ -70,6 +70,7 @@ export function ComparisonPicker({ value, onChange }: ComparisonPickerProps) {
           onChange={(v) => onChange({ type: 'segments', segmentIds: ((v as number[]) ?? []).slice(0, ANALYTICS_COMPARE_MAX_SEGMENTS) })}
           style={{ minWidth: 220 }}
           maxTagCount={2}
+          showRestTagsPopover
         />
       )}
     </Space>

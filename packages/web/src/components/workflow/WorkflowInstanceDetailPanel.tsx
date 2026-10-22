@@ -345,6 +345,7 @@ function InstanceComments({ instance, readOnly = false }: Readonly<{ instance: W
               onChange={(v) => setMentions((v as number[]) ?? [])}
               optionList={mentionOptions}
               maxTagCount={3}
+              showRestTagsPopover
               style={{ flex: 1, minWidth: 0 }}
               showClear
             />

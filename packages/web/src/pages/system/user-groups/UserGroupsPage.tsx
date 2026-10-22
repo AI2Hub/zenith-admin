@@ -297,6 +297,7 @@ export default function UserGroupsPage() {
                   <Form.TreeSelect
                     field="memberRule.departmentIds" label="命中部门" placeholder="选择部门（可多选）"
                     style={{ width: '100%' }} multiple filterTreeNode showClear leafOnly={false}
+                    maxTagCount={3} showRestTagsPopover
                     treeData={departmentTreeData}
                   />
                   <Form.Switch field="memberRule.includeSubDepartments" label="包含子部门" checkedText="是" uncheckedText="否" />

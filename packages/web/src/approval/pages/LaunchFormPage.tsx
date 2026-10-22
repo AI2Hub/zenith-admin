@@ -330,6 +330,8 @@ function LaunchFormContent() {
               <Typography.Text type="tertiary" size="small">抄送人</Typography.Text>
               <Select
                 multiple
+                maxTagCount={2}
+                showRestTagsPopover
                 filter
                 showClear
                 value={ccUserIds}

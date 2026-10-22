@@ -58,6 +58,7 @@ export default function DepartmentSelect({
       filterTreeNode
       leafOnly={false}
       maxTagCount={3}
+      showRestTagsPopover
       placeholder={loading ? '加载中...' : placeholder}
       disabled={disabled || loading}
       showClear={showClear}

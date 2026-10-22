@@ -356,6 +356,7 @@ export default function WikiDocEditPage() {
             onChange={(v) => { setTagIds((v as number[]) ?? []); markDirty(); }}
             optionList={(tagsQuery.data ?? []).map((t) => ({ value: t.id, label: t.name }))}
             maxTagCount={4}
+            showRestTagsPopover
           />
         </div>
         {id ? (

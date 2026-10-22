@@ -87,12 +87,12 @@ export function DriveSubjectPicker({ value, onChange, disabled, subjectTypes, em
       ? <DepartmentSelect {...commonSelectProps} placeholder="选择部门（含子部门成员）" />
       : subjectType === 'role'
         ? (
-            <Select multiple filter maxTagCount={3} style={{ width: '100%' }} placeholder="选择角色" value={subjectIds}
+            <Select multiple filter maxTagCount={3} showRestTagsPopover style={{ width: '100%' }} placeholder="选择角色" value={subjectIds}
               onChange={(v) => setSubjectIds((v as number[]) ?? [])}
               optionList={(roles ?? []).map((r) => ({ value: r.id, label: r.name }))} />
           )
         : (
-            <Select multiple filter maxTagCount={3} style={{ width: '100%' }} placeholder="选择用户组" value={subjectIds}
+            <Select multiple filter maxTagCount={3} showRestTagsPopover style={{ width: '100%' }} placeholder="选择用户组" value={subjectIds}
               loading={groupsQuery.isPending}
               onChange={(v) => setSubjectIds((v as number[]) ?? [])}
               optionList={(groupsQuery.data?.list ?? []).map((g) => ({ value: g.id, label: g.name }))} />

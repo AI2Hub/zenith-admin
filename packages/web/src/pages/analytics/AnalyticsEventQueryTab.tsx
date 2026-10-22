@@ -203,6 +203,7 @@ export default function AnalyticsEventQueryTab() {
               showClear
               style={{ width: '100%' }}
               maxTagCount={2}
+              showRestTagsPopover
             />
           </div>
           <div>

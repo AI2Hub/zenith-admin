@@ -183,6 +183,7 @@ export function ErrorAlertRuleModal({ visible, rule, typeOptions, saving, onCanc
               <Select
                 multiple
                 maxTagCount={2}
+                showRestTagsPopover
                 value={form.channels}
                 style={{ width: '100%' }}
                 optionList={[...NOTIFY_CHANNEL_OPTIONS]}

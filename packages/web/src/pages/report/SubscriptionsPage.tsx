@@ -201,7 +201,7 @@ export default function SubscriptionsPage() {
           addonAfter={<CronBuilderPopover value={cronExprValue} onApply={(expr) => { subscriptionModal.formApi.current?.setValue('cron', expr); setCronExprValue(expr); }} />} />
         <FormTimezoneSelect />
         <Form.Select field="misfirePolicy" label="错过策略" style={{ width: '100%' }} optionList={REPORT_MISFIRE_POLICY_OPTIONS} />
-        <Form.Select field="channels" label="推送通道" multiple style={{ width: '100%' }} rules={[{ required: true, message: '至少一个通道' }]}
+        <Form.Select field="channels" label="推送通道" multiple maxTagCount={3} style={{ width: '100%' }} rules={[{ required: true, message: '至少一个通道' }]}
           optionList={[{ value: 'inApp', label: '站内信（推给创建者）' }, { value: 'email', label: '邮件' }, { value: 'webhook', label: 'Webhook（企微/钉钉机器人）' }]} />
         {selectedChannels.includes('email') && (
           <Form.Input field="recipients" label="收件邮箱" placeholder="多个用逗号分隔（仅邮件通道）" />

@@ -74,6 +74,8 @@ export function DataScopePanel({
       {dataScope === 'custom' && (
         <TreeSelect
           multiple
+          maxTagCount={3}
+          showRestTagsPopover
           filterTreeNode
           disabled={readonly}
           treeData={departmentTreeToTreeData(deptTree)}

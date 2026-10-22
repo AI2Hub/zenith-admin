@@ -52,6 +52,7 @@ export default function AlertRecipientUserSelect({
       filter
       showClear
       maxTagCount={3}
+      showRestTagsPopover
       disabled={disabled || usersQuery.isPending || usersQuery.isError}
       placeholder={placeholder}
       optionList={optionList}

@@ -346,6 +346,8 @@ export default function WebhooksPage({ scope = 'open' }: Readonly<WebhooksPagePr
           field="events"
           label="订阅事件"
           multiple
+          maxTagCount={3}
+          showRestTagsPopover
           style={{ width: '100%' }}
           placeholder={paymentScope ? '请选择支付或退款事件' : '留空表示订阅全部非支付事件'}
           optionList={eventOptions.map((e) => ({ value: e.code, label: e.label }))}

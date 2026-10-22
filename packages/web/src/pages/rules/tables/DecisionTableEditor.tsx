@@ -127,6 +127,7 @@ function DictConditionCell({ dictCode, cell, onChange }: Readonly<{ dictCode: st
       multiple
       showClear
       maxTagCount={2}
+      showRestTagsPopover
       value={selected}
       placeholder="任意"
       optionList={options}

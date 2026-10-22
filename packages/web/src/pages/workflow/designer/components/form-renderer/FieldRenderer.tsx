@@ -368,6 +368,7 @@ export function FieldRenderer({ field, readOnly }: Readonly<{ field: WorkflowFor
           field={field.key} label={field.label}
           placeholder={field.placeholder ?? `请选择${field.label}`}
           multiple style={{ width: '100%' }} rules={rules} disabled={disabled}
+          maxTagCount={3} showRestTagsPopover
           {...extraProps}
         >
           {options.map(opt => (

@@ -301,7 +301,7 @@ export default function AssetsPage() {
           <ListSearchToolbar
             keyword={<KeywordInput placeholder="搜索资产名称" {...catalog.bindKeyword('keyword')} />}
             filters={<>
-              <Select multiple placeholder="资产类型" optionList={resourceTypeOptions} style={{ width: 210 }} {...catalog.bind('types', (value) => (value ?? []) as ReportResourceType[])} />
+              <Select multiple maxTagCount={2} showRestTagsPopover placeholder="资产类型" optionList={resourceTypeOptions} style={{ width: 210 }} {...catalog.bind('types', (value) => (value ?? []) as ReportResourceType[])} />
               <ReportOwnerFilter items={userOptions} {...catalog.bind('ownerId')} width={150} />
               <ReportFolderFilter
                 items={folders.map((f) => ({ value: f.id, label: `[${f.resourceType}] ${f.name}` }))}

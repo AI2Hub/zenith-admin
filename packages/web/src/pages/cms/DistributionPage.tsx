@@ -523,7 +523,7 @@ export default function DistributionPage() {
         <Form.Section text="过滤条件（状态固定为“已发布”，防止草稿跨站泄露）">
           <Row gutter={16}>
             <Col span={12}>
-              <Form.Select field="contentTypes" label="内容形态" multiple showClear style={{ width: '100%' }}
+              <Form.Select field="contentTypes" label="内容形态" multiple maxTagCount={CMS_CONTENT_TYPES.length} showClear style={{ width: '100%' }}
                 optionList={CMS_CONTENT_TYPES.map((type) => ({ value: type, label: CMS_CONTENT_TYPE_LABELS[type] }))} />
             </Col>
             <Col span={12}>
