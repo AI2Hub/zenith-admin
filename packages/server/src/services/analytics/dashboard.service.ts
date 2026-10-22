@@ -45,10 +45,9 @@ export async function getDashboardStats() {
 export async function getDashboardCharts() {
   const user = currentUser();
   ensureSuperAdmin(user);
-  const todayStart = startOfToday();
-  const todayEnd = new Date(todayStart);
-  todayEnd.setDate(todayEnd.getDate() + 1);
   const sevenDaysAgo = startOfDayAgo(6);
+  const tomorrowStart = startOfToday();
+  tomorrowStart.setDate(tomorrowStart.getDate() + 1);
 
   const ltc = tenantCondition(loginLogs, user);
   const otc = tenantCondition(operationLogs, user);
@@ -56,14 +55,15 @@ export async function getDashboardCharts() {
   const loginRangeWhere = ltc
     ? and(gte(loginLogs.createdAt, sevenDaysAgo), eq(loginLogs.eventType, 'login'), ltc)
     : and(gte(loginLogs.createdAt, sevenDaysAgo), eq(loginLogs.eventType, 'login'));
-  const todayOpWhere = otc
-    ? and(gte(operationLogs.createdAt, todayStart), lt(operationLogs.createdAt, todayEnd), otc)
-    : and(gte(operationLogs.createdAt, todayStart), lt(operationLogs.createdAt, todayEnd));
+  const operationRangeWhere = otc
+    ? and(gte(operationLogs.createdAt, sevenDaysAgo), lt(operationLogs.createdAt, tomorrowStart), otc)
+    : and(gte(operationLogs.createdAt, sevenDaysAgo), lt(operationLogs.createdAt, tomorrowStart));
 
   const loginTrendCount = count();
   const operationTypeCount = count();
   const loginDay = localDate(loginLogs.createdAt);
-  const [loginTrendRows, operationTypeRows] = await Promise.all([
+  const operationDay = localDate(operationLogs.createdAt);
+  const [loginTrendRows, operationDistributionRows] = await Promise.all([
     db
       .select({
         date: loginDay,
@@ -74,13 +74,13 @@ export async function getDashboardCharts() {
       .where(loginRangeWhere)
       .groupBy(loginDay, loginLogs.status)
       .orderBy(loginDay),
+    // 按天返回全部模块：首页日期条切换时在本地切片，避免每天单独请求一次
     db
-      .select({ module: operationLogs.module, count: operationTypeCount })
+      .select({ date: operationDay, module: operationLogs.module, count: operationTypeCount })
       .from(operationLogs)
-      .where(todayOpWhere)
-      .groupBy(operationLogs.module)
-      .orderBy(desc(operationTypeCount))
-      .limit(8),
+      .where(operationRangeWhere)
+      .groupBy(operationDay, operationLogs.module)
+      .orderBy(operationDay, desc(operationTypeCount)),
   ]);
 
   const dates: string[] = [];
@@ -104,6 +104,10 @@ export async function getDashboardCharts() {
 
   return {
     loginTrend,
-    operationTypes: operationTypeRows.map((r) => ({ module: r.module ?? '未知', count: r.count })),
+    operationDistribution: operationDistributionRows.map((r) => ({
+      date: r.date,
+      module: r.module ?? '未知',
+      count: r.count,
+    })),
   };
 }

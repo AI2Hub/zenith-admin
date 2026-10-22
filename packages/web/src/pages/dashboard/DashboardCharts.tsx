@@ -9,9 +9,10 @@
  * 饼图扇区 → 该模块的操作日志；地址拼装见 ./dashboard-drilldown，
  * 目标页用 useListDeepLink 消费后即从地址栏移除。
  */
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Typography, Skeleton, Empty } from '@douyinfe/semi-ui';
+import { Typography, Button, Skeleton, Empty, Tooltip } from '@douyinfe/semi-ui';
+import { ChevronLeft, ChevronRight, Info } from 'lucide-react';
 import {
   LineChart,
   chartOptions,
@@ -21,6 +22,7 @@ import {
 import { ModuleOperationPie } from '@/components/logs/ModuleOperationPie';
 import type { DashboardCharts } from '@zenith/shared/analytics';
 import { shortDate } from '@/utils/date';
+import { recentDays, monthDayLabel } from './dashboard-days';
 import { LOGIN_TREND_SERIES, loginLogsDrillUrl, operationLogsDrillUrl } from './dashboard-drilldown';
 
 const { Text } = Typography;
@@ -50,6 +52,29 @@ export default function DashboardChartsRow({ charts, chartsLoading }: DashboardC
   const palette = useChartPalette();
   const navigate = useNavigate();
 
+  // 切换范围与登录趋势同起止（含今天），默认选中今天
+  const days = useMemo(() => recentDays(), []);
+  const [selectedDate, setSelectedDate] = useState(() => days[days.length - 1]?.date ?? '');
+  const selectedDay = days.find((day) => day.date === selectedDate);
+
+  const operationRows = charts?.operationDistribution;
+
+  /** 每天的总操作次数，header 的「共 N 次」直接取用 */
+  const countsByDate = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const row of operationRows ?? []) map.set(row.date, (map.get(row.date) ?? 0) + row.count);
+    return map;
+  }, [operationRows]);
+
+  /** 七天数据一次取回，切日期只在本地切片，不再请求也不闪加载态 */
+  const selectedDistribution = useMemo(
+    () => (operationRows ?? [])
+      .filter((row) => row.date === selectedDate)
+      .map(({ module, count }) => ({ module, count })),
+    [operationRows, selectedDate],
+  );
+  const selectedTotal = countsByDate.get(selectedDate) ?? 0;
+
   const loginTrendSpec = useMemo(() => makeLineSpec({
     data: charts?.loginTrend ?? [],
     xField: 'date',
@@ -66,6 +91,12 @@ export default function DashboardChartsRow({ charts, chartsLoading }: DashboardC
     navigate(loginLogsDrillUrl(point.date, point.__type ?? ''));
   }
 
+  /** 左右箭头的边界与标题：日期与星期固定宽度，箭头位置不会随次数变化 */
+  const selectedIndex = days.findIndex((day) => day.date === selectedDate);
+  const previousDay = selectedIndex > 0 ? days[selectedIndex - 1] : undefined;
+  const nextDay = selectedIndex >= 0 && selectedIndex < days.length - 1 ? days[selectedIndex + 1] : undefined;
+  const selectedDayLabel = `${monthDayLabel(selectedDate)} ${selectedDay?.weekday ?? ''}`.trim();
+
   function renderOperationPie() {
     if (chartsLoading) return (
       <div className="dashboard-chart-placeholder">
@@ -80,10 +111,10 @@ export default function DashboardChartsRow({ charts, chartsLoading }: DashboardC
     );
     return (
       <ModuleOperationPie
-        data={charts?.operationTypes ?? []}
+        data={selectedDistribution}
         height={200}
-        onSliceClick={(module) => navigate(operationLogsDrillUrl(module))}
-        empty={<div className="dashboard-chart-placeholder"><Empty description="今日暂无操作记录" /></div>}
+        onSliceClick={(module) => navigate(operationLogsDrillUrl(module, selectedDate))}
+        empty={<div className="dashboard-chart-placeholder"><Empty description="暂无操作记录" /></div>}
       />
     );
   }
@@ -110,8 +141,36 @@ export default function DashboardChartsRow({ charts, chartsLoading }: DashboardC
 
       <section className="dashboard-chart-section">
         <header className="dashboard-section-header">
-          <Text strong>今日操作分布</Text>
-          <span className="dashboard-section-meta">按模块 · 点击扇区看日志</span>
+          <div className="dashboard-section-heading">
+            <Text strong>操作分布</Text>
+            <Tooltip content="按模块统计所选日期；点击扇区查看当天该模块的操作日志" position="top">
+              <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+            </Tooltip>
+            {chartsLoading ? null : <span className="dashboard-section-meta">共 {selectedTotal} 次</span>}
+          </div>
+          <div className="dashboard-op-nav">
+            <Button
+              theme="borderless"
+              size="small"
+              className="dashboard-op-nav__arrow"
+              icon={<ChevronLeft size={14} />}
+              aria-label="前一天"
+              title={previousDay ? `前一天：${monthDayLabel(previousDay.date)} ${previousDay.weekday}` : '已是最早一天'}
+              disabled={!previousDay}
+              onClick={() => previousDay && setSelectedDate(previousDay.date)}
+            />
+            <span className="dashboard-op-nav__label" aria-live="polite">{selectedDayLabel}</span>
+            <Button
+              theme="borderless"
+              size="small"
+              className="dashboard-op-nav__arrow"
+              icon={<ChevronRight size={14} />}
+              aria-label="后一天"
+              title={nextDay ? `后一天：${monthDayLabel(nextDay.date)} ${nextDay.weekday}` : '已是最新一天'}
+              disabled={!nextDay}
+              onClick={() => nextDay && setSelectedDate(nextDay.date)}
+            />
+          </div>
         </header>
         {renderOperationPie()}
       </section>

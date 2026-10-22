@@ -41,7 +41,7 @@ export function loginLogsDrillUrl(date: string, seriesName: string): string {
 
 /**
  * 操作分布某个模块扇区的下钻地址：`/system/operation-logs?module=…&startTime=…&endTime=…`。
- * 图表口径是「今日」，列表必须跟着带上今天的自然日区间——只带模块的话，
+ * 图表口径是所选日期（默认今天），列表必须跟着带上该自然日区间——只带模块的话，
  * 点开的是该模块的全部历史记录，与扇区上看到的数量对不上。
  */
 export function operationLogsDrillUrl(module: string, date: string = formatDate(new Date())): string {

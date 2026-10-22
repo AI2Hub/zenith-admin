@@ -42,7 +42,7 @@ describe('operationLogsDrillUrl', () => {
     expect(params.get('endTime')).toBe('2026-09-20 23:59:59');
   });
 
-  it('缺省区间取今天——饼图口径是「今日操作分布」', () => {
+  it('缺省区间取今天——操作分布默认选中今天', () => {
     const today = dayjs().format('YYYY-MM-DD');
     expect(paramsOf(operationLogsDrillUrl('用户管理')).params.get('startTime')).toBe(`${today} 00:00:00`);
   });

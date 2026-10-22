@@ -14,7 +14,8 @@ export type DashboardStats = z.infer<typeof dashboardStatsSchema>;
 
 export const dashboardChartsSchema = z.object({
   loginTrend: z.array(z.object({ date: z.string(), successCount: z.number(), failCount: z.number() })),
-  operationTypes: z.array(z.object({ module: z.string(), count: z.number() })),
+  /** 最近 7 个自然日按「日期 + 模块」聚合的操作次数；前端按所选日期切片，切换日期不再请求 */
+  operationDistribution: z.array(z.object({ date: z.string(), module: z.string(), count: z.number() })),
 }).meta({ id: 'DashboardCharts' });
 
 export type DashboardCharts = z.infer<typeof dashboardChartsSchema>;

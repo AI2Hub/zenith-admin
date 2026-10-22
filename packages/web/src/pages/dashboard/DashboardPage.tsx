@@ -321,11 +321,11 @@ export default function DashboardPage() {
       {isAdmin && (
         <Suspense          fallback={
             <div className="dashboard-charts-row">
-              {['7 天登录趋势', '今日操作分布'].map((title) => (
+              {[{ title: '7 天登录趋势', meta: '近 7 天' }, { title: '操作分布', meta: '今日' }].map(({ title, meta }) => (
                 <section key={title} className="dashboard-chart-section">
                   <header className="dashboard-section-header">
                     <Text strong>{title}</Text>
-                    <span className="dashboard-section-meta">{title.startsWith('今日') ? '今日' : '近 7 天'}</span>
+                    <span className="dashboard-section-meta">{meta}</span>
                   </header>
                   <div className="dashboard-chart-placeholder">
                     <Skeleton active loading placeholder={

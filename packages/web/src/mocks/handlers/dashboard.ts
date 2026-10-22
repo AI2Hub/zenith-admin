@@ -12,6 +12,8 @@ function pastDates(days: number): string[] {
 
 const dates = pastDates(7);
 
+const MODULES = ['用户管理', '角色管理', '菜单管理', '字典管理', '系统配置'];
+
 export const dashboardHandlers = [
   mock(dashboardContract.stats, ({ ok }) => ok({
     totalUsers: 12,
@@ -27,14 +29,11 @@ export const dashboardHandlers = [
       failCount: Math.floor(Math.random() * 3),
     }));
 
-    const operationTypes = [
-      { module: '用户管理', count: 18 },
-      { module: '角色管理', count: 12 },
-      { module: '菜单管理', count: 7 },
-      { module: '字典管理', count: 5 },
-      { module: '系统配置', count: 3 },
-    ];
+    // 每天一份模块分布，供首页日期条本地切换
+    const operationDistribution = dates.flatMap((date) =>
+      MODULES.map((module) => ({ date, module, count: Math.floor(Math.random() * 18) + 1 })),
+    );
 
-    return ok({ loginTrend, operationTypes }, 'success');
+    return ok({ loginTrend, operationDistribution }, 'success');
   }),
 ];
