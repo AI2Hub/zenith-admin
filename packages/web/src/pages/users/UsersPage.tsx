@@ -1,6 +1,6 @@
 import { FormPasswordInput } from '@/components/PasswordInput';
-import EntityRelationButton from '@/components/entity-relations/EntityRelationButton';
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { EntityContextSheet } from '@/components/entity-relations/EntityRelationButton';
+import { useState, useEffect, useCallback, useMemo, useRef, Suspense } from 'react';
 import { Button, Select, Space, Form, Toast, Tag, Row, Col, Tree } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { ChevronsUpDown, ChevronsDownUp, Building2, KeyRound } from 'lucide-react';
@@ -139,6 +139,7 @@ export default function UsersPage() {
   const [avatarModalVisible, setAvatarModalVisible] = useState(false);
   const [logsUser, setLogsUser] = useState<User | null>(null);
   const [logsVisible, setLogsVisible] = useState(false);
+  const [relationUser, setRelationUser] = useState<User | null>(null);
   const [createPwdVal, setCreatePwdVal] = useState('');
   const [editPwdVal, setEditPwdVal] = useState('');
   const [batchPwdVal, setBatchPwdVal] = useState('');
@@ -480,7 +481,6 @@ export default function UsersPage() {
     },
     dateTimeColumn('最近登录', 'lastLoginAt'),
     dateTimeColumn('最近活跃', 'lastActiveAt'),
-    { title: '关联信息', key: 'relations', width: 120, render: (_: unknown, record: User) => <EntityRelationButton entityRef={{ type: 'identity.user', key: String(record.id) }} /> },
     createdAtColumn,
     status.column(),
     createOperationColumn<User>({
@@ -564,6 +564,13 @@ export default function UsersPage() {
             onClick: () => {
               setDataPermUser(record);
               setDataPermVisible(true);
+            },
+          },
+          {
+            key: 'relations',
+            label: '关联信息',
+            onClick: () => {
+              setRelationUser(record);
             },
           },
           {
@@ -988,6 +995,16 @@ export default function UsersPage() {
           canViewOperationLogs={canViewOperationLogs}
           onClose={() => setLogsVisible(false)}
         />
+      )}
+
+      {/* 关联信息（原列表列，移入更多菜单） */}
+      {relationUser && (
+        <Suspense fallback={null}>
+          <EntityContextSheet
+            entityRef={{ type: 'identity.user', key: String(relationUser.id) }}
+            onClose={() => setRelationUser(null)}
+          />
+        </Suspense>
       )}
 
       {/* 用户菜单权限 */}
