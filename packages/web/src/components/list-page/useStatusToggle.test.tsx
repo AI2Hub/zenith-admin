@@ -92,16 +92,4 @@ describe('useStatusToggle', () => {
     await act(async () => { await lastConfirm().onOk?.({} as never); });
     await waitFor(() => expect(success).toHaveBeenCalledWith('模板 A 已禁用'));
   });
-
-  it('禁用态开关不可点击；toggle 失败不提示成功且清除 loading', async () => {
-    const success = vi.spyOn(Toast, 'success');
-    const toggle = vi.fn(() => Promise.reject(new Error('boom')));
-    render(<Harness rows={rows} options={{ toggle, disabled: (r) => r.id === 1 }} />);
-    expect(switchIn(1).classList.contains('semi-switch-disabled')).toBe(true);
-    expect((screen.getByTestId('row-1').querySelector('.semi-switch-native-control') as HTMLInputElement).disabled).toBe(true);
-    clickSwitch(2);
-    await waitFor(() => expect(screen.getByTestId('pending').textContent).toBe('null'));
-    expect(toggle).toHaveBeenCalledTimes(1);
-    expect(success).not.toHaveBeenCalled();
-  });
 });

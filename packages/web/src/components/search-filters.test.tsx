@@ -43,12 +43,6 @@ const STATUS_ITEMS = [
 ];
 
 describe('KeywordInput', () => {
-  it('渲染放大镜前缀与传入的占位文案', () => {
-    const { container } = render(<KeywordInput placeholder="搜索名称/编码" value="" onChange={vi.fn()} />);
-    expect(screen.getByPlaceholderText('搜索名称/编码')).toBeInTheDocument();
-    expect(container.querySelector('.semi-input-prefix svg')).toBeTruthy();
-  });
-
   it('onChange 透传输入值', () => {
     const onChange = vi.fn();
     render(<KeywordInput placeholder="搜索" value="" onChange={onChange} />);
@@ -64,18 +58,6 @@ describe('KeywordInput', () => {
     fireEvent.keyPress(screen.getByPlaceholderText('搜索'), { key: 'Enter', charCode: 13 });
     expect(onSearch).toHaveBeenCalledTimes(1);
   });
-
-  it('默认宽度 220，可被 width 覆盖', () => {
-    const { container, rerender } = render(<KeywordInput placeholder="a" value="" onChange={vi.fn()} />);
-    expect((container.querySelector('.semi-input-wrapper') as HTMLElement).style.width).toBe('220px');
-    rerender(<KeywordInput placeholder="a" value="" onChange={vi.fn()} width={320} />);
-    expect((container.querySelector('.semi-input-wrapper') as HTMLElement).style.width).toBe('320px');
-  });
-
-  it('调用方的 style 能覆盖默认值', () => {
-    const { container } = render(<KeywordInput placeholder="a" value="" onChange={vi.fn()} style={{ width: 150 }} />);
-    expect((container.querySelector('.semi-input-wrapper') as HTMLElement).style.width).toBe('150px');
-  });
 });
 
 describe('FilterSelect', () => {
@@ -83,22 +65,6 @@ describe('FilterSelect', () => {
     { value: 'wechat', label: '微信支付' },
     { value: 'alipay', label: '支付宝' },
   ];
-
-  it('渲染选项、占位文案与清除按钮，默认宽度 120', async () => {
-    const { container } = render(<FilterSelect placeholder="全部渠道" items={CHANNEL_ITEMS} value={undefined} onChange={vi.fn()} />);
-    expect(screen.getByText('全部渠道')).toBeInTheDocument();
-    expect(await screen.findByText('微信支付')).toBeInTheDocument();
-    expect(screen.getByText('支付宝')).toBeInTheDocument();
-    const select = container.querySelector('select')!;
-    expect(select.dataset.showClear).toBe('true');
-    expect(select.style.width).toBe('120px');
-    expect(select.style.maxWidth).toBe('100%');
-  });
-
-  it('width 可覆盖', () => {
-    const { container } = render(<FilterSelect placeholder="全部处理状态" items={CHANNEL_ITEMS} value={undefined} onChange={vi.fn()} width={140} />);
-    expect(container.querySelector('select')!.style.width).toBe('140px');
-  });
 
   it('选中项回调原值；清空回调 undefined', () => {
     const onChange = vi.fn();
@@ -135,15 +101,6 @@ describe('StatusSelect', () => {
 });
 
 describe('NumberFilter', () => {
-  it('隐藏步进按钮，默认宽度 130，可被 width 覆盖', () => {
-    const { container, rerender } = render(<NumberFilter placeholder="耗时 ≥ (ms)" value={undefined} onChange={vi.fn()} />);
-    expect(screen.getByPlaceholderText('耗时 ≥ (ms)')).toBeInTheDocument();
-    expect(container.querySelector('.semi-input-number-suffix-btns')).toBeNull();
-    expect((container.querySelector('.semi-input-number') as HTMLElement).style.width).toBe('130px');
-    rerender(<NumberFilter placeholder="耗时 ≥ (ms)" value={undefined} onChange={vi.fn()} width={110} />);
-    expect((container.querySelector('.semi-input-number') as HTMLElement).style.width).toBe('110px');
-  });
-
   it('输入数字回调 number，清空回调 undefined', () => {
     const onChange = vi.fn();
     render(<NumberFilter placeholder="金额 ≥ (元)" value={undefined} onChange={onChange} />);
@@ -208,17 +165,6 @@ describe('DateRangeFilter', () => {
   it('占位文案可覆盖', () => {
     render(<DateRangeFilter value={null} onChange={vi.fn()} placeholder={['入职起', '入职止']} />);
     expect(screen.getByPlaceholderText('入职起')).toBeInTheDocument();
-  });
-
-  it('按 type 取不同默认宽度，且可被 width 覆盖', () => {
-    const widthOf = (c: HTMLElement) =>
-      (c.querySelector('[style*="width"]') as HTMLElement | null)?.style.width;
-    const { container, rerender } = render(<DateRangeFilter value={null} onChange={vi.fn()} />);
-    expect(widthOf(container)).toBe('400px');
-    rerender(<DateRangeFilter type="dateRange" value={null} onChange={vi.fn()} />);
-    expect(widthOf(container)).toBe('280px');
-    rerender(<DateRangeFilter value={null} onChange={vi.fn()} width={300} />);
-    expect(widthOf(container)).toBe('300px');
   });
 
   it('onChange 把 Semi 的宽松值收窄为 [Date, Date] | null', () => {

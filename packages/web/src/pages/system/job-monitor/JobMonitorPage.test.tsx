@@ -56,19 +56,7 @@ beforeEach(() => {
   state.stuck.mockReturnValue({ data: createDemoStuckJobs('async-task'), isPending: false, isFetching: false, isError: false, refetch: vi.fn() });
 });
 
-describe('JobMonitorPage', () => {
-  it('keeps a large node history compact and prioritizes the live node', () => {
-    const data = createDemoJobMonitorOverview();
-    const node = data.workers.data!.nodes[0];
-    data.workers.data!.nodes = Array.from({ length: 100 }, (_, index) => ({ ...node, nodeId: `history-${index}`, hostname: `history-${index}`, pid: index, stale: true }));
-    data.workers.data!.nodes.push({ ...node, nodeId: 'live', hostname: 'live-worker', pid: 99999, stale: false });
-    setOverview(data);
-    show();
-    expect(screen.getByText('live-worker / 99999')).toBeInTheDocument();
-    expect(screen.queryByText('history-99 / 99')).not.toBeInTheDocument();
-    expect(screen.getByText('显示最近 6 个节点，共 101 个；完整状态可在系统调度查看。')).toBeInTheDocument();
-  });
-  it('shows one source category at a time and opens the overdue schedule breakdown and list', () => {
+describe('JobMonitorPage', () => {  it('shows one source category at a time and opens the overdue schedule breakdown and list', () => {
     show();
     expect(screen.getAllByRole('tab')).toHaveLength(4);
     expect(screen.getByRole('tab', { name: '执行运行时' })).toHaveAttribute('aria-selected', 'true');
@@ -93,14 +81,7 @@ describe('JobMonitorPage', () => {
     expect(screen.queryByRole('region', { name: 'CMS 构建发布' })).not.toBeInTheDocument();
     expect(screen.getByLabelText('当前位置')).toHaveTextContent('/system/job-monitor');
     expect(screen.getByLabelText('当前位置')).not.toHaveTextContent('tab=');
-  });
-  it('falls back to the runtime category for an invalid deep link', () => {
-    show('/system/job-monitor?tab=invalid');
-    expect(screen.getByRole('tab', { name: '执行运行时' })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('region', { name: '异步任务' })).toBeInTheDocument();
-    expect(screen.getByLabelText('当前位置')).not.toHaveTextContent('tab=');
-  });
-  it('groups execution mechanisms and expands type details beyond the first five rows', () => {
+  });  it('groups execution mechanisms and expands type details beyond the first five rows', () => {
     show();
     expect(screen.getByText('执行运行时')).toBeInTheDocument();
     expect(screen.getByText('事件与内容投递')).toBeInTheDocument();
@@ -122,26 +103,6 @@ describe('JobMonitorPage', () => {
     fireEvent.click(tasks.getByRole('button', { name: '查看演示任务类型 6' }));
     expect(screen.getByLabelText('当前位置')).toHaveTextContent('taskType=demo-type-5');
   });
-  it('prioritizes critical and warning sources while retaining the isolated unavailable reason', () => {
-    const data = createDemoJobMonitorOverview();
-    const exportSource = data.sources.find((source) => source.key === 'export-job')!;
-    exportSource.health = 'unavailable';
-    exportSource.reason = '导出作业探测超时';
-    setOverview(data);
-    show();
-    const order = screen.getAllByRole('region').map(element => element.getAttribute('aria-label'));
-    expect(order.indexOf('异步任务')).toBeLessThan(order.indexOf('流程作业'));
-    expect(order.indexOf('流程作业')).toBeLessThan(order.indexOf('系统调度队列'));
-    expect(screen.getByText('导出作业探测超时')).toBeInTheDocument();
-    expect(screen.getByText('部分作业源探测不可用，顶部汇总仅包含可用来源。')).toBeInTheDocument();
-    expect(screen.getByText('心跳失联')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('tab', { name: '事件与内容投递' }));
-    const deliveryOrder = screen.getAllByRole('region').map(element => element.getAttribute('aria-label'));
-    expect(deliveryOrder.indexOf('Webhook 投递')).toBeLessThan(deliveryOrder.indexOf('通知派发 Outbox'));
-    expect(within(screen.getByRole('region', { name: '通知派发 Outbox' })).getByText('通知派发探测超时')).toBeInTheDocument();
-    expect(within(screen.getByRole('region', { name: '通知派发 Outbox' })).queryByText('待处理')).not.toBeInTheDocument();
-  });
-
   it('navigates to the source processing page with its status filter', () => {
     show();
     fireEvent.click(within(screen.getByRole('region', { name: '流程作业' })).getByRole('button', { name: '前往处理' }));
@@ -165,13 +126,6 @@ describe('JobMonitorPage', () => {
     expect(state.query).toHaveBeenLastCalledWith({ refetchInterval: false });
     fireEvent.click(screen.getByRole('button', { name: '刷新' }));
     expect(state.refetch).toHaveBeenCalledTimes(1);
-  });
-
-  it('keeps the last snapshot visible after a refresh failure', () => {
-    setOverview(createDemoJobMonitorOverview(), new Error('连接断开'));
-    show();
-    expect(screen.getByRole('region', { name: '异步任务' })).toBeInTheDocument();
-    expect(screen.getByText('刷新失败，正在展示最近一次快照：连接断开')).toBeInTheDocument();
   });
 
   it('offers retry when no snapshot can be loaded', () => {

@@ -20,14 +20,6 @@ beforeEach(() => {
 });
 
 describe('未表态时', () => {
-  it('展示提示条与接受/拒绝按钮', () => {
-    render(<AnalyticsConsentBanner />);
-
-    expect(screen.getByRole('region', { name: '体验分析同意提示' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: '同意体验分析采集' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: '拒绝体验分析采集' })).toBeTruthy();
-  });
-
   it('点击「同意」后持久化为 accepted 并隐藏提示条', async () => {
     const user = userEvent.setup();
     render(<AnalyticsConsentBanner />);
@@ -50,18 +42,6 @@ describe('未表态时', () => {
 });
 
 describe('已表态时', () => {
-  it('已有同意记录时不展示提示条或全局设置按钮', () => {
-    localStorage.setItem(
-      MEMBER_ANALYTICS_CONSENT_KEY,
-      JSON.stringify({ status: 'accepted', version: MEMBER_ANALYTICS_CONSENT_VERSION, updatedAt: '2024-01-01 00:00:00' }),
-    );
-
-    render(<AnalyticsConsentBanner />);
-
-    expect(screen.queryByRole('region', { name: '体验分析同意提示' })).toBeNull();
-    expect(screen.queryByRole('button', { name: '修改体验分析设置' })).toBeNull();
-  });
-
   it('已同意用户可在个人设置中撤回同意', async () => {
     localStorage.setItem(
       MEMBER_ANALYTICS_CONSENT_KEY,

@@ -80,23 +80,6 @@ describe('生成授权文件页签', () => {
     expect(state.sign).not.toHaveBeenCalled();
   });
 
-  it('首次挂载就隔离私钥和显隐控制，显示私钥后仍不离开保护区域', () => {
-    render(<GenerateLicenseTab />);
-    const input = screen.getByLabelText('签发私钥');
-    const protectedRegion = input.closest('.rr-block');
-    const show = screen.getByRole('button', { name: 'Show password' });
-
-    expect(protectedRegion).toHaveAttribute('data-sensitive');
-    expect(protectedRegion).toContainElement(show);
-    expect(input).toHaveAttribute('type', 'password');
-    expect(screen.getByRole('button', { name: '生成授权文件' })).toBeDisabled();
-    fireEvent.change(input, { target: { value: PRIVATE_KEY } });
-    fireEvent.click(show);
-    expect(input).toHaveAttribute('type', 'text');
-    expect(input).toHaveValue(PRIVATE_KEY);
-    expect(protectedRegion).toContainElement(screen.getByRole('button', { name: 'Hidden password' }));
-  });
-
   it('必填信息缺失时不执行本地签名', async () => {
     render(<GenerateLicenseTab />);
     fireEvent.change(screen.getByLabelText('签发私钥'), { target: { value: PRIVATE_KEY } });

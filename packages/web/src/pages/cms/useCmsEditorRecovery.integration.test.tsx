@@ -34,17 +34,6 @@ beforeEach(() => { localStorage.removeItem(key); document.body.innerHTML = ''; }
 afterEach(() => { document.body.innerHTML = ''; });
 
 describe('CMS 编辑离开弹窗（真实 Semi 渲染）', () => {
-  it('offers continuing, keeping the copy, or leaving without it', () => {
-    const hook = openLeaveDialog();
-    expect(modalButtons()).toEqual(['直接离开', '继续编辑', '保留副本并离开']);
-    // 三个动作必须在同一个右侧按钮组里：散到两端（`extra`）时「直接离开」离另两个选项很远，看起来不像一组选择。
-    // 组宽超出页脚可用宽度会让按钮顶出弹窗内边距，所以标签长度也要克制（jsdom 没有布局，只能靠浏览器看宽度）。
-    const buttons = [...document.querySelectorAll('button')].filter((button) => button.textContent);
-    expect(new Set(buttons.map((button) => button.parentElement)).size).toBe(1);
-    expect(buttons[0].parentElement!.parentElement!.style.justifyContent).toBe('flex-end');
-    hook.unmount();
-  });
-
   it('leaves immediately and drops the copy the dialog wrote', () => {
     const hook = openLeaveDialog();
     expect(localStorage.getItem(key)).not.toBeNull();

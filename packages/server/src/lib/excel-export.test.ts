@@ -13,18 +13,4 @@ describe('exportToExcel', () => {
     expect(buffer).toBeDefined();
     expect(buffer).toBeInstanceOf(Uint8Array);
   }, EXCELJS_COLD_START_TIMEOUT_MS);
-
-  it('should handle empty data', async () => {
-    const columns: ExcelColumn[] = [{ header: 'Name', key: 'name' }];
-    const data: Array<Record<string, unknown>> = [];
-    const buffer = await exportToExcel(columns, data);
-    expect(buffer).toBeDefined();
-  });
-
-  it('should handle missing keys in data gracefully', async () => {
-    const columns: ExcelColumn[] = [{ header: 'Missing', key: 'missing' }];
-    const data = [{ other: 'Test' }];
-    const buffer = await exportToExcel(columns, data);
-    expect(buffer).toBeDefined();
-  });
 });

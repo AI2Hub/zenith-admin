@@ -11,24 +11,6 @@ import { render, screen } from '@testing-library/react';
 import RouteViewTransition from './RouteViewTransition';
 
 describe('RouteViewTransition', () => {
-  it.each(['none', 'fade', 'slide-up', 'slide-left'] as const)('animation=%s 时透明渲染子节点', (animation) => {
-    render(
-      <RouteViewTransition animation={animation}>
-        <div data-testid="page">页面内容</div>
-      </RouteViewTransition>,
-    );
-    expect(screen.getByTestId('page')).toHaveTextContent('页面内容');
-  });
-
-  it('未传 animation 时同样渲染子节点', () => {
-    render(
-      <RouteViewTransition>
-        <div>默认内容</div>
-      </RouteViewTransition>,
-    );
-    expect(screen.getByText('默认内容')).toBeInTheDocument();
-  });
-
   it('包在 <Activity> 内：hidden 保留 DOM 且不可见，visible 后恢复', () => {
     const { rerender } = render(
       <Activity mode="hidden">

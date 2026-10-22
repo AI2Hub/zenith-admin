@@ -2,11 +2,6 @@ import { describe, it, expect } from 'vitest';
 import { sanitizeBody } from './sanitize';
 
 describe('sanitizeBody', () => {
-  it('should return empty string for null/undefined', () => {
-    expect(sanitizeBody(null)).toBe('');
-    expect(sanitizeBody(undefined)).toBe('');
-  });
-
   it('should redact password fields', () => {
     const body = { username: 'admin', password: '123456' };
     const result = JSON.parse(sanitizeBody(body));

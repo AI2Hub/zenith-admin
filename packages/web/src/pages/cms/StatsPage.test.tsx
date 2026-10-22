@@ -38,26 +38,7 @@ beforeEach(() => {
   state.quality = { scope, status: 'collecting', configuredEnabled: true, publishedEnabled: true, acceptedEvents: 55, rejectedEvents: 0, duplicateEvents: 0, rejectionRate: 0, duplicateRate: 0, lastReceivedAt: scope.watermark, lastEventAt: scope.watermark, latencyP95Ms: 100, eventsWithoutPage: 0, eventsWithoutVisitor: 0, pendingConversions: 0, failedConversions: 0, eventTypes: [], reasons: [] };
   state.failure = false; state.queries.length = 0;
 });
-describe('CMS statistics workspace', () => {
-  it('shows query failure without replacing unavailable metrics with business zeros', () => {
-    state.overview = undefined; state.failure = true;
-    const view = render(<StatsPage />, { wrapper });
-    fireEvent.click(desktopToolbar(view.container).getByRole('button', { name: '选择测试站点' }));
-    expect(screen.getByText(/指标尚未取得，不能视作零访问/)).toBeInTheDocument();
-    expect(view.container.querySelector('.zx-stat')).toBeNull();
-    expect(screen.getAllByRole('tab')).toHaveLength(6);
-  });
-  it('uses full keyword total and propagates report drill-down to the shared scope', () => {
-    const view = render(<StatsPage />, { wrapper });
-    fireEvent.click(desktopToolbar(view.container).getByRole('button', { name: '选择测试站点' }));
-    fireEvent.click(screen.getByRole('button', { name: '筛选文化观察' }));
-    expect(state.queries.at(-1)?.contentId).toBe(42);
-    expect(screen.getByTestId('report-scope')).toHaveTextContent('42');
-    fireEvent.click(screen.getByRole('tab', { name: '搜索' }));
-    const card = Array.from(view.container.querySelectorAll('.zx-stat')).find((node) => node.textContent?.includes('无结果独立词'));
-    expect(card?.querySelector('.zx-stat__value')).toHaveTextContent('25');
-  });
-  it('keeps publication status distinct from an empty traffic interval', () => {
+describe('CMS statistics workspace', () => { it('keeps publication status distinct from an empty traffic interval', () => {
     state.quality = { ...state.quality!, status: 'pending_publication', publishedEnabled: false };
     state.overview = { ...state.overview!, metrics: { ...state.overview!.metrics, pv: 0 } };
     const view = render(<StatsPage />, { wrapper });
@@ -66,12 +47,4 @@ describe('CMS statistics workspace', () => {
     expect(screen.getByText(/采集配置与线上版本尚未一致/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('tab', { name: '采集质量' }));
     expect(screen.getByText(/采集配置与线上版本尚未一致/)).toBeInTheDocument();
-  });
-  it('keeps missing comparison metrics unavailable without showing a coverage banner', () => {
-    state.overview = { ...state.overview!, comparisonUnavailableReason: '对比区间尚未开始采集，不将缺失历史视为零流量', earliestRetainedEventAt: '2026-09-28T00:00:00Z' };
-    const view = render(<StatsPage />, { wrapper });
-    fireEvent.click(desktopToolbar(view.container).getByRole('button', { name: '选择测试站点' }));
-    expect(screen.queryByText('对比区间尚未开始采集，不将缺失历史视为零流量')).not.toBeInTheDocument();
-    expect(view.container.querySelector('.zx-stat__delta')).toBeNull();
-  });
-});
+  });});

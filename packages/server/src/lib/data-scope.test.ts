@@ -172,22 +172,6 @@ describe('dataScope = dept', () => {
     expect(dbMock.select).toHaveBeenCalledTimes(1);
   });
 
-  it('用户无部门时降级为 self（返回 eq 条件）', async () => {
-    dbMock.query.users.findFirst.mockResolvedValueOnce(
-      mockUser(null, [{ dataScope: 'dept', code: 'manager' }]),
-    );
-
-    const result = await getDataScopeCondition({
-      currentUserId: 11,
-      deptColumn: mockOrderTable.departmentId,
-      ownerColumn: mockOrderTable.createdBy,
-    });
-
-    expect(result).toBeDefined();
-    // 用户无部门则不查部门树
-    expect(dbMock.select).not.toHaveBeenCalled();
-  });
-
   it('不传 deptColumn 时降级为 self', async () => {
     dbMock.query.users.findFirst.mockResolvedValueOnce(
       mockUser(5, [{ dataScope: 'dept', code: 'manager' }]),

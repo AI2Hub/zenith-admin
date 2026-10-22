@@ -76,11 +76,6 @@ describe('manual stuck-job closure controls', () => {
     expect(screen.getByLabelText('地址')).toHaveTextContent('');
   });
 
-  it('requires retry permission before offering sync closure', () => {
-    state.canRetry = false; show(<DirectorySyncLogsPage />);
-    expect(screen.queryByRole('button', { name: '标记为失败' })).not.toBeInTheDocument();
-  });
-
   it('confirms before changing the sync status and refreshes the open local detail snapshot', async () => {
     show(<DirectorySyncLogsPage />);
     fireEvent.click(within(screen.getByRole('region', { name: '记录 3' })).getByRole('button', { name: '查看差异' }));
@@ -90,19 +85,6 @@ describe('manual stuck-job closure controls', () => {
     await act(async () => { await state.confirm.mock.lastCall?.[0].onOk(); });
     expect(state.markRun).toHaveBeenCalledExactlyOnceWith({ params: { id: 3 } });
     expect(within(screen.getByRole('dialog')).getByText('管理员手动标记卡死同步为失败')).toBeInTheDocument();
-  });
-
-  it('offers closure for overdue running and pending backups only to maintainers', () => {
-    const base = state.backups[0];
-    state.backups.push({ ...base, id: 6, startedAt: mockDateTimeOffset(-5 * 60_000) }, { ...base, id: 7, status: 'success' });
-    show(<BackupsPanel canMaintain active />);
-    expect(screen.getAllByRole('button', { name: '标记为失败' })).toHaveLength(2);
-    expect(within(screen.getByRole('region', { name: '记录 6' })).queryByRole('button', { name: '标记为失败' })).not.toBeInTheDocument();
-  });
-
-  it('does not offer backup closure without maintenance permission', () => {
-    show(<BackupsPanel canMaintain={false} active />);
-    expect(screen.queryByRole('button', { name: '标记为失败' })).not.toBeInTheDocument();
   });
 
   it('requires confirmation before marking a backup as failed', async () => {

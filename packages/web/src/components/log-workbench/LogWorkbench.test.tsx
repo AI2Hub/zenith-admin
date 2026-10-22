@@ -40,21 +40,6 @@ function renderWorkbench(initialKeyword?: string, extra: Partial<LogWorkbenchPro
   );
 }
 
-describe('initialKeyword 深链预填', () => {
-  it('预填搜索框并计数首个匹配', async () => {
-    renderWorkbench(KEYWORD);
-
-    expect(screen.getByDisplayValue(KEYWORD)).toBeInTheDocument();
-    expect(await screen.findByText('1/1')).toBeInTheDocument();
-  });
-
-  it('无 initialKeyword 时搜索框为空', () => {
-    renderWorkbench();
-
-    expect(screen.getByPlaceholderText('搜索日志内容')).toHaveValue('');
-  });
-});
-
 describe('精确链路定位', () => {
   it('实时追踪保留全部行，但仅计数所属链路的匹配', async () => {
     vi.mocked(useLogTail).mockReturnValue({

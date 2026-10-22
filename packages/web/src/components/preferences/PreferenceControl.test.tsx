@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen,} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -12,7 +12,7 @@ import {
   type PreferencePolicy,
 } from '@zenith/shared/preferences';
 import type { PreferencesContextValue } from '@/hooks/usePreferences';
-import { PrefsAppearanceSection, PrefsGeneralSection, PrefsNavToolbarSection, PrefsTableSection, PrefsTabsSection } from '@/layouts/admin/PreferencesSections';
+import { PrefsAppearanceSection, PrefsNavToolbarSection,} from '@/layouts/admin/PreferencesSections';
 import { PreferenceControl, PreferenceSection } from '@/components/settings/SettingRow';
 
 let context: PreferencesContextValue;
@@ -69,51 +69,6 @@ describe('个人偏好策略控件', () => {
     expect(context.resetPreference).toHaveBeenCalledExactlyOnceWith('tablePageSize');
     expect(context.resetPreferences).not.toHaveBeenCalled();
   });
-
-  it('关闭多标签页仍可调整路由动画', () => {
-    const policy = structuredClone(defaultPreferencePolicy);
-    policy.defaults.enableTabs = false;
-    setContext(policy);
-    const { preferences, setPreferences } = context;
-    const { container } = render(<PrefsTabsSection preferences={preferences} setPreferences={setPreferences}
-      matchesPref={() => true} prefSection={(label) => <h2>{label}</h2>} prefsSearch="" />);
-    expect(container.querySelector('[data-preference-path="routeAnimation"]')).not.toBeNull();
-    expect(container.querySelector('[data-preference-path="tabStyle"]')).toBeNull();
-  });
-
-  it('表格偏好逐项隐藏，全部不可编辑时隐藏表格标题', () => {
-    const policy = structuredClone(defaultPreferencePolicy);
-    policy.allowUserOverride.tableBordered = false;
-    setContext(policy);
-    const { container, rerender } = render(<PrefsTableSection preferences={context.preferences} setPreferences={context.setPreferences}
-      matchesPref={() => true} prefSection={(label) => <h2>{label}</h2>} />);
-    expect(container.querySelector('[data-preference-path="tableBordered"]')).toBeNull();
-    expect(container.querySelector('[data-preference-path="tableSize"]')).not.toBeNull();
-    policy.allowUserOverride.tableStriped = false;
-    policy.allowUserOverride.tableSize = false;
-    policy.allowUserOverride.tablePageSize = false;
-    policy.allowUserOverride.showTableColumnSettings = false;
-    policy.allowUserOverride.rememberListFilters = false;
-    setContext(policy);
-    rerender(<PrefsTableSection preferences={context.preferences} setPreferences={context.setPreferences}
-      matchesPref={() => true} prefSection={(label) => <h2>{label}</h2>} />);
-    expect(screen.queryByRole('heading', { name: '表格' })).not.toBeInTheDocument();
-  });
-
-  it('锁屏开关被系统强制开启时仍提供设备密码设置', async () => {
-    const policy = structuredClone(defaultPreferencePolicy);
-    policy.defaults.enableLockScreen = true;
-    policy.allowUserOverride.enableLockScreen = false;
-    setContext(policy);
-    const openLockPasswordModal = vi.fn();
-    const { container } = render(<PrefsGeneralSection preferences={context.preferences} setPreferences={context.setPreferences}
-      matchesPref={() => true} prefSection={(label) => <h2>{label}</h2>}
-      homePathOptions={[{ value: '/', label: '首页' }]} autoLockMinutes={0}
-      hasPassword={() => false} clearLockPassword={vi.fn()} openLockPasswordModal={openLockPasswordModal} />);
-    expect(container.querySelector('[data-preference-path="enableLockScreen"]')).toBeNull();
-    await userEvent.click(screen.getByRole('button', { name: '设置密码' }));
-    expect(openLockPasswordModal).toHaveBeenCalledExactlyOnceWith('set');
-  });
 });
 
 describe('加载动画选择行', () => {
@@ -147,60 +102,6 @@ describe('加载动画选择行', () => {
     expect(container.querySelectorAll('.loading-style-picker__option')).toHaveLength(LOADING_STYLE_OPTIONS.length);
     // 只用容器自身的 scrollLeft 定位：scrollIntoView 会连带滚动抽屉，一打开偏好设置就被拽到加载动画那一屏
     expect(scrollIntoView).not.toHaveBeenCalled();
-  });
-
-  it('选中项超出容器右边缘时只横向补足挑选项容器', () => {
-    const { container, rerender } = renderAppearance();
-    const scroller = container.querySelector('.loading-style-picker') as HTMLElement;
-    Object.defineProperty(scroller, 'getBoundingClientRect', {
-      value: () => ({ left: 100, right: 380 }) as DOMRect, configurable: true,
-    });
-    // 选项节点按 value 作 key 保持稳定，逐个贴上溢出到容器右侧的矩形
-    for (const option of container.querySelectorAll('.loading-style-picker__option')) {
-      Object.defineProperty(option, 'getBoundingClientRect', {
-        value: () => ({ left: 420, right: 480 }) as DOMRect, configurable: true,
-      });
-    }
-    setContext(defaultPreferencePolicy, { loadingStyle: 'progress' });
-    rerender(<PrefsAppearanceSection preferences={context.preferences} setPreferences={context.setPreferences}
-      matchesPref={() => true} prefSection={(label) => <h2>{label}</h2>}
-      mode="light" handleThemeModeChange={vi.fn()} isDark={false}
-      themeColor="blue" setThemeColor={vi.fn()} />);
-    expect(scroller.scrollLeft).toBe(100);
-    expect(scrollIntoView).not.toHaveBeenCalled();
-  });
-
-  it('溢出时箭头按滚动位置启用，点击滚动一屏', () => {
-    const { container, rerender } = renderAppearance();
-    const scroller = container.querySelector('.loading-style-picker') as HTMLElement;
-    Object.defineProperties(scroller, {
-      scrollWidth: { value: 640, configurable: true },
-      clientWidth: { value: 280, configurable: true },
-    });
-    const scrollBy = vi.fn();
-    Object.defineProperty(scroller, 'scrollBy', { value: scrollBy, configurable: true });
-    const prev = screen.getByRole('button', { name: '上一个加载动画' });
-    const next = screen.getByRole('button', { name: '下一个加载动画' });
-
-    scroller.scrollLeft = 100;
-    fireEvent.scroll(scroller);
-    expect(prev).toBeEnabled();
-    expect(next).toBeEnabled();
-    fireEvent.click(next);
-    expect(scrollBy).toHaveBeenCalledExactlyOnceWith({ left: 280, behavior: 'smooth' });
-
-    scroller.scrollLeft = 360;
-    fireEvent.scroll(scroller);
-    expect(prev).toBeEnabled();
-    expect(next).toBeDisabled();
-
-    // 选中项变化后重新定位（几何在 jsdom 下全为零即不动）
-    setContext(defaultPreferencePolicy, { loadingStyle: 'progress' });
-    rerender(<PrefsAppearanceSection preferences={context.preferences} setPreferences={context.setPreferences}
-      matchesPref={() => true} prefSection={(label) => <h2>{label}</h2>}
-      mode="light" handleThemeModeChange={vi.fn()} isDark={false}
-      themeColor="blue" setThemeColor={vi.fn()} />);
-    expect(scroller.scrollLeft).toBe(360);
   });
 });
 

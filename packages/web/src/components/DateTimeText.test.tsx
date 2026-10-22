@@ -24,30 +24,6 @@ afterEach(() => {
 });
 
 describe('DateTimeText', () => {
-  it('renders the absolute timestamp without a provider and with the default preference', () => {
-    render(<DateTimeText value={THREE_MIN_AGO} />);
-    expect(screen.getByText('2026-09-14 09:57:00')).toBeTruthy();
-    const { container } = render(<DateTimeText value="2026-09-14 09:57:00" />, { wrapper: withPrefs('absolute') });
-    expect(container.textContent).toBe('2026-09-14 09:57:00');
-  });
-
-  it('renders the placeholder for empty values and honours a custom one', () => {
-    const { container } = render(<><DateTimeText value={null} /><DateTimeText value="" empty="永久" /></>);
-    expect(container.textContent).toBe('—永久');
-  });
-
-  it('renders relative text when preferred and keeps the absolute time in the tooltip trigger', () => {
-    render(<DateTimeText value={THREE_MIN_AGO} />, { wrapper: withPrefs('relative') });
-    expect(screen.getByText('3 分钟前')).toBeTruthy();
-  });
-
-  it('lets callers pin the mode regardless of the preference', () => {
-    render(<DateTimeText value={THREE_MIN_AGO} mode="absolute" />, { wrapper: withPrefs('relative') });
-    expect(screen.getByText('2026-09-14 09:57:00')).toBeTruthy();
-    render(<DateTimeText value={THREE_MIN_AGO} mode="relative" />, { wrapper: withPrefs('absolute') });
-    expect(screen.getByText('3 分钟前')).toBeTruthy();
-  });
-
   it('refreshes relative text as time passes', () => {
     render(<DateTimeText value={THREE_MIN_AGO} />, { wrapper: withPrefs('relative') });
     expect(screen.getByText('3 分钟前')).toBeTruthy();

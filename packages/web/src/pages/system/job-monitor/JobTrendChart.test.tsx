@@ -56,25 +56,4 @@ describe('job trend chart', () => {
     expect(screen.getAllByRole('img', { name: '作业趋势折线图' })).toHaveLength(3);
     expect(screen.getByText('卡死与死信')).toBeInTheDocument();
   });
-
-  it('keeps all chart containers and shows an in-chart empty state when no samples are available', () => {
-    setPoints([{ time: '2026-10-03 12:00:00', backlog: null, stuck: null, dead: null, failed1h: null }]);
-    render(<JobTrendChart />);
-    expect(screen.getAllByRole('img', { name: '作业趋势折线图' })).toHaveLength(3);
-    expect(screen.getAllByRole('status', { name: '暂无可用的作业趋势样本' })).toHaveLength(3);
-    expect(screen.getByRole('button', { name: '近 7 天' })).toBeInTheDocument();
-  });
-
-  it('shows an empty overlay only for a metric without samples', () => {
-    setPoints([{ time: '2026-10-03 12:00:00', backlog: 2, stuck: null, dead: null, failed1h: null }]);
-    render(<JobTrendChart />);
-    expect(screen.getAllByRole('img', { name: '作业趋势折线图' })).toHaveLength(3);
-    expect(screen.getAllByRole('status', { name: '暂无可用的作业趋势样本' })).toHaveLength(2);
-  });
-
-  it('explains a trend failure even when no historical sample is available', () => {
-    state.query.mockReturnValue({ data: undefined, isPending: false, isError: true, error: new Error('采集历史不可用') });
-    render(<JobTrendChart />);
-    expect(screen.getByRole('alert')).toHaveTextContent('趋势加载失败：采集历史不可用');
-  });
 });

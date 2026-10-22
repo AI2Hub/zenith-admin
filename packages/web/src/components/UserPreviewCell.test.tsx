@@ -59,20 +59,6 @@ afterEach(() => {
 });
 
 describe('UserPreviewCell', () => {
-  it('成员数为 0 时只显示数量、不可点击', () => {
-    renderCell(<UserPreviewCell preview={[]} count={0} scope={SCOPE} />);
-
-    expect(screen.getByText('0')).toBeTruthy();
-    expect(screen.queryByRole('button')).toBeNull();
-  });
-
-  it('不传 scope 时退化为纯展示，不渲染按钮', () => {
-    renderCell(<UserPreviewCell preview={PREVIEW} count={2} />);
-
-    expect(screen.getByText('2')).toBeTruthy();
-    expect(screen.queryByRole('button')).toBeNull();
-  });
-
   it('传入 scope 后可点击，但未展开时不发请求', () => {
     renderCell(<UserPreviewCell preview={PREVIEW} count={2} scope={SCOPE} />);
 

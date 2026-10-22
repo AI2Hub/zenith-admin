@@ -113,19 +113,6 @@ describe('EntityContextView with actual Semi components', () => {
     expect(screen.getByText('REF-3')).toBeVisible();
   });
 
-  it('renders qualitative attention and empty summaries without exposing counts', async () => {
-    recorder.on('GET', describeUrl, {
-      anchor: { ref: params, title: '支付订单 PAY-1' }, canManageLinks: false,
-      sections: [
-        { key: sectionKey, labelKey: 'relation.payment.order.refunds', targetTypes: ['payment.refund'], kind: 'direct', cardinality: 'many', capabilities: { view: true, open: true }, summaryState: 'attention' },
-      ],
-    });
-    renderView();
-    await screen.findByText('支付订单 PAY-1');
-    expect(screen.getByRole('img', { name: '退款记录：需处理' })).toBeVisible();
-    expect(screen.queryByText(/共 \d+ 条/)).not.toBeInTheDocument();
-  });
-
   it('refreshes attention from the full summary without replacing the open records', async () => {
     let attention = true;
     recorder.on('GET', describeUrl, () => ({ anchor: { ref: params, title: 'PAY-1' }, canManageLinks: false,

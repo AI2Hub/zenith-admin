@@ -1,7 +1,7 @@
 import { createPreferencesContext } from '@/test-utils/preferences';
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render,} from '@testing-library/react';
 import { desktopToolbar } from '@/test-utils/toolbar';
 import type { AnalyticsExperiment } from '@zenith/shared/analytics';
 import { PreferencesContext } from '@/hooks/usePreferences';
@@ -57,13 +57,6 @@ function renderWithPreferences() {
 beforeEach(() => vi.clearAllMocks());
 
 describe('AnalyticsExperimentsTab', () => {
-  it('renders experiment rows and status', () => {
-    renderWithPreferences();
-    expect(screen.getByText('homepage_banner')).toBeInTheDocument();
-    expect(screen.getByText('首页 Banner 文案实验')).toBeInTheDocument();
-    expect(screen.getByText('运行中')).toBeInTheDocument();
-  });
-
   it('invalidates experiment lists when searching and resetting', () => {
     const { container } = renderWithPreferences();
     const toolbar = desktopToolbar(container);

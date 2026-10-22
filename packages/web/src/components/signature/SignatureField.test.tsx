@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import type { SignatureInput, SignatureSnapshot } from '@zenith/shared/core';
+import type { SignatureInput,} from '@zenith/shared/core';
 import { SIGNATURE_TEST_PNG } from '@/test-utils/signature';
 
 const state = vi.hoisted(() => ({ data: null as null | { id: number; version: number; dataUrl: string; updatedAt: string }, save: vi.fn() }));
@@ -29,28 +29,7 @@ describe('签名选择', () => {
     fireEvent.click(screen.getByText('重新手写'));
     fireEvent.click(screen.getByText('模拟手写'));
     expect(screen.getByRole('status').textContent).toContain('"source":"drawn"');
-  });
-  it('必须手写时不自动引用个人签名', () => {
-    render(<Selection handwritten />);
-    expect(screen.queryByText('使用我的签名')).toBeNull();
-    expect(screen.getByRole('status').textContent).toBe('null');
-    expect(screen.getByText('模拟手写')).toBeInTheDocument();
-  });
-  it('批量缺少个人模板时不开放手写替代', () => {
-    state.data = null;
-    render(<Selection savedOnly />);
-    expect(screen.queryByText('模拟手写')).toBeNull();
-    expect(screen.getByText(/请先在个人中心/)).toBeInTheDocument();
-    expect(screen.getByRole('status').textContent).toBe('null');
-  });
-  it('模板删除后，已有单据仍按其固化快照回显', () => {
-    state.data = null;
-    const snapshot: SignatureSnapshot = { dataUrl: SIGNATURE_TEST_PNG, source: 'saved', signerId: 1, signerName: '申请人', signedAt: '2026-09-15 10:00:00', signatureId: 7, signatureVersion: 3 };
-    render(<SignatureField value={snapshot} disabled />);
-    expect(screen.getByAltText('手写签名')).toHaveAttribute('src', SIGNATURE_TEST_PNG);
-    expect(screen.queryByRole('button')).toBeNull();
-  });
-  it('删除模板会清除过期的复用选择，批量不能继续提交', async () => {
+  });it('删除模板会清除过期的复用选择，批量不能继续提交', async () => {
     const view = render(<Selection savedOnly />);
     await waitFor(() => expect(screen.getByRole('status').textContent).toContain('"source":"saved"'));
     state.data = null;

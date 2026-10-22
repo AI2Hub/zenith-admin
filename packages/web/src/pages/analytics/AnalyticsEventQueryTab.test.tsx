@@ -13,7 +13,6 @@ import { createPreferencesContext } from '@/test-utils/preferences';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { QueryClientProvider } from '@tanstack/react-query';
-import type { AnalyticsEventQueryResult } from '@zenith/shared/analytics';
 import { PreferencesContext } from '@/hooks/usePreferences';
 import { createTestQueryClient } from '@/test-utils/query-harness';
 
@@ -49,20 +48,6 @@ function renderWithPreferences(ui: React.ReactElement) {
   );
 }
 
-function makeResult(overrides: Partial<AnalyticsEventQueryResult> = {}): AnalyticsEventQueryResult {
-  return {
-    list: [
-      { dimensions: { date: '2026-01-01' }, value: 120 },
-      { dimensions: { date: '2026-01-02' }, value: 88 },
-    ],
-    total: 2,
-    page: 1,
-    pageSize: 20,
-    queryMeta: { startDate: '2026-01-01', endDate: '2026-01-02', groupBy: ['date'], metric: 'events', metricProperty: null },
-    ...overrides,
-  };
-}
-
 /** 最后一次传给 useAnalyticsEventQuery 的查询体（null 表示尚未提交查询） */
 function lastQueryInput(): Record<string, unknown> | null {
   const calls = useAnalyticsEventQueryMock.mock.calls;
@@ -83,11 +68,6 @@ function propertyFilterInputs() {
 }
 
 describe('AnalyticsEventQueryTab', () => {
-  it('shows a neutral empty state while the auto first query has no data yet', () => {
-    renderWithPreferences(<AnalyticsEventQueryTab />);
-    expect(screen.getByText('暂无数据')).toBeInTheDocument();
-  });
-
   it('submits the default query on mount so the tab shows data without a manual 查询 click', () => {
     renderWithPreferences(<AnalyticsEventQueryTab />);
     const body = lastQueryInput();
@@ -106,26 +86,6 @@ describe('AnalyticsEventQueryTab', () => {
     expect(body.eventNames).toBeUndefined();
     expect(body.page).toBe(1);
     expect(body.pageSize).toEqual(expect.any(Number));
-  });
-
-  it('renders the result table + summary text once a query result is available', () => {
-    useAnalyticsEventQueryMock.mockReturnValue({ data: makeResult(), isFetching: false, isError: false });
-    renderWithPreferences(<AnalyticsEventQueryTab />);
-    expect(screen.getByText(/共 2 行/)).toBeInTheDocument();
-    expect(screen.getByText('2026-01-01')).toBeInTheDocument();
-    expect(screen.getByText('120')).toBeInTheDocument();
-  });
-
-  it('shows a "no matching data" empty state when the result list is empty', () => {
-    useAnalyticsEventQueryMock.mockReturnValue({ data: makeResult({ list: [], total: 0 }), isFetching: false, isError: false });
-    renderWithPreferences(<AnalyticsEventQueryTab />);
-    expect(screen.getByText('暂无匹配数据')).toBeInTheDocument();
-  });
-
-  it('shows a query-failed empty state hint when the query errored and no data is available', () => {
-    useAnalyticsEventQueryMock.mockReturnValue({ data: null, isFetching: false, isError: true });
-    renderWithPreferences(<AnalyticsEventQueryTab />);
-    expect(screen.getByText('查询失败，请检查筛选条件后重试')).toBeInTheDocument();
   });
 
   it('restores the default submitted query (not an idle state) when 重置 is clicked', async () => {

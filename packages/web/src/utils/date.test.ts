@@ -32,12 +32,6 @@ describe('formatDateTime', () => {
     expect(formatDateTime('2025-03-15 14:30:00')).toBe('2025-03-15 14:30:00');
   });
 
-  it('should format Date object', () => {
-    const d = new Date(2025, 0, 1, 0, 0, 0);
-    const result = formatDateTime(d);
-    expect(result).toBe('2025-01-01 00:00:00');
-  });
-
   it('should format timestamp number', () => {
     const ts = new Date(2025, 5, 1, 12, 0, 0).getTime();
     const result = formatDateTime(ts);

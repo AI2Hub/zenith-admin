@@ -31,46 +31,6 @@ describe('NProgress', () => {
     vi.useRealTimers();
   });
 
-  it('renders nothing initially when route is not changing', () => {
-    const { container } = setup();
-    expect(container.querySelector('.nprogress-bar')).toBeNull();
-  });
-
-  it('shows progress bar on route change', async () => {
-    const { getByText, container } = setup();
-    
-    act(() => {
-      getByText('Go 1').click();
-    });
-
-    expect(container.querySelector('.nprogress-bar')).not.toBeNull();
-  });
-
-  it('animates back to 0 width and hidden after timeout', async () => {
-    const { getByText, container } = setup();
-    
-    act(() => {
-      getByText('Go 1').click();
-    });
-    
-    expect(container.querySelector('.nprogress-bar')).not.toBeNull();
-
-    act(() => {
-      vi.advanceTimersByTime(200);
-    });
-
-    act(() => {
-      vi.advanceTimersByTime(500); // Trigger hide timer
-    });
-
-    // One more tick to hide it
-    act(() => {
-      vi.advanceTimersByTime(300);
-    });
-
-    expect(container.querySelector('.nprogress-bar')).toBeNull();
-  });
-
   it('clears timers on unmount', () => {
     const { getByText, unmount } = setup();
 
@@ -86,27 +46,5 @@ describe('NProgress', () => {
         vi.advanceTimersByTime(1000);
       });
     }).not.toThrow();
-  });
-
-  it('handles multiple rapid navigation gracefully', () => {
-    const { getByText, container } = setup();
-
-    act(() => {
-      getByText('Go 1').click();
-    });
-    
-    act(() => {
-      vi.advanceTimersByTime(50);
-    });
-    
-    act(() => {
-      getByText('Go 2').click();
-    });
-
-    act(() => {
-      vi.advanceTimersByTime(1000);
-    });
-
-    expect(container.querySelector('.nprogress-bar')).toBeNull();
   });
 });

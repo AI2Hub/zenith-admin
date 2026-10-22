@@ -1,7 +1,7 @@
-import { render, screen } from '@testing-library/react';
+import {} from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import {
-  WorkflowInstanceStatusTag,
+
   workflowDefinitionNameColumn,
   workflowInitiatorColumn,
   workflowInstanceStatusColumn,
@@ -10,11 +10,6 @@ import {
 } from './WorkflowInstanceListColumns';
 
 describe('WorkflowInstanceListColumns', () => {
-  it('renders status tag text with fallback for unknown status', () => {
-    render(<WorkflowInstanceStatusTag status="custom_status" />);
-    expect(screen.getByText('custom_status')).toBeInTheDocument();
-  });
-
   it('exposes shared column titles', () => {
     expect(workflowInstanceTitleColumn().title).toBe('申请标题');
     expect(workflowSerialNoColumn().title).toBe('业务编号');

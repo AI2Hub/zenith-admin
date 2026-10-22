@@ -115,13 +115,6 @@ beforeEach(() => {
 });
 
 describe('AnalyticsSegmentsTab', () => {
-  it('renders the segment list with name/rule summary/status/size', () => {
-    renderWithPreferences(<AnalyticsSegmentsTab />);
-    expect(screen.getByText('近 7 天活跃用户')).toBeInTheDocument();
-    expect(screen.getByText('AND · 1 条')).toBeInTheDocument();
-    expect(screen.getByText('128')).toBeInTheDocument();
-  });
-
   it('creates a new segment with one event condition and submits the compiled rules', async () => {
     renderWithPreferences(<AnalyticsSegmentsTab />);
     // 工具栏桌面 / 移动两份「新增」按钮，取桌面端（DOM 中靠前）

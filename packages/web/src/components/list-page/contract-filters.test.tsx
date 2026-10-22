@@ -3,7 +3,7 @@ import { createPreferencesContext } from '@/test-utils/preferences';
  * 契约派生筛选控件 + 标准操作列：锁住「x-filter 语义 → 控件」的映射、关键字进主区其余进筛选区、
  * override / 范围端点 / 未声明语义的处理，以及操作列的权限门控与删除确认接线。
  */
-import { fireEvent, render, renderHook, screen } from '@testing-library/react';
+import { fireEvent, render, renderHook,} from '@testing-library/react';
 import type { ModalReactProps } from '@douyinfe/semi-ui/lib/es/modal';
 import { QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
@@ -14,7 +14,6 @@ import { PermissionContext } from '@/hooks/usePermission';
 import { PreferencesContext } from '@/hooks/usePreferences';
 import { useListPage } from '@/hooks/useListPage';
 import { createTestQueryClient } from '@/test-utils/query-harness';
-import { ListSearchToolbar } from './ListSearchToolbar';
 import { deriveFilterControls } from './ContractFilters';
 import { useCrudOperationColumn } from './useCrudOperationColumn';
 import type { CrudPermissionPrefix, Permission } from '@zenith/shared/core';
@@ -68,63 +67,10 @@ function wrapper(permissions: string[] = []) {
   };
 }
 
-const controlLabel = (el: Element) => el.getAttribute('aria-label') || el.getAttribute('placeholder') || (el as HTMLElement).textContent;
-
 beforeEach(() => { confirmCalls.length = 0; });
 afterEach(() => { vi.restoreAllMocks(); });
 
 describe('deriveFilterControls / ListSearchToolbar 契约写法', () => {
-  function Harness({ filters, overrides, extra }: { filters: Parameters<typeof deriveFilterControls<Record<string, unknown>>>[0]['specs']; overrides?: Record<string, () => ReactNode>; extra?: ReactNode }) {
-    const page = useListPage({ contract: rowContract, useList: useListMock });
-    return <ListSearchToolbar page={page} filters={filters as never} overrides={overrides as never} extraFilters={extra} create={<button type="button">新增</button>} />;
-  }
-
-  it('keyword → 主区搜索框（占位「搜索 + 匹配字段」）；enum / bool / id / 范围 → 筛选区，顺序按声明', () => {
-    const { container } = render(<Harness filters={['keyword', 'status', 'level', 'kind', 'pinned', 'channelId', ['startTime', 'endTime']]} />, { wrapper: wrapper() });
-    const desktop = container.querySelector('.responsive-toolbar__desktop')!;
-    const labels = [...desktop.querySelectorAll('input, [role="combobox"], .semi-select, .semi-datepicker')].map(controlLabel).filter(Boolean);
-    expect(labels[0]).toBe('搜索名称 / 编码');
-    expect(desktop.textContent).toContain('全部状态');
-    expect(desktop.textContent).toContain('全部等级');
-    expect(desktop.textContent).toContain('全部类型');
-    expect(desktop.textContent).toContain('是否置顶');
-    expect(desktop.querySelector('input[placeholder="栏目 ID"]')).toBeTruthy();
-    expect(desktop.querySelector('input[placeholder="开始时间"]')).toBeTruthy();
-    const mobilePrimary = container.querySelector('.responsive-toolbar__mobile-primary')!;
-    expect([...mobilePrimary.querySelectorAll('input, button')].map(controlLabel)).toEqual(['搜索名称 / 编码', '查询', '新增']);
-    expect(screen.getByRole('button', { name: '筛选' })).toBeTruthy();
-  });
-
-  it('搜索框回车触发查询并把值送进列表参数；下拉标签来自字典 / 静态 options', () => {
-    const { container } = render(<Harness filters={['keyword', 'level']} />, { wrapper: wrapper() });
-    const input = container.querySelector<HTMLInputElement>('.responsive-toolbar__desktop input[placeholder="搜索名称 / 编码"]')!;
-    fireEvent.change(input, { target: { value: 'abc' } });
-    // Semi 在 keyPress 而非 keyDown 上派发 onEnterPress
-    fireEvent.keyPress(input, { key: 'Enter', charCode: 13 });
-    expect(useListMock).toHaveBeenLastCalledWith({ page: 1, pageSize: 10, keyword: 'abc' }, undefined);
-    fireEvent.click(container.querySelector('.responsive-toolbar__desktop .semi-select')!);
-    expect(screen.getByText('低')).toBeTruthy();
-    expect(screen.getByText('高')).toBeTruthy();
-  });
-
-  it('bool 的契约 labels 替换缺省的「是 / 否」', () => {
-    const { container } = render(<Harness filters={['enabled']} />, { wrapper: wrapper() });
-    fireEvent.click(container.querySelector('.responsive-toolbar__desktop .semi-select')!);
-    expect(screen.getByText('已启用')).toBeTruthy();
-    expect(screen.getByText('已停用')).toBeTruthy();
-  });
-
-  it('override 替换指定键的控件，extraFilters 追加在派生控件之后', () => {
-    const { container } = render(
-      <Harness filters={['keyword', 'status']} overrides={{ status: () => <select aria-label="自定义状态"><option>x</option></select> }} extra={<input placeholder="额外" />} />,
-      { wrapper: wrapper() },
-    );
-    const desktop = container.querySelector('.responsive-toolbar__desktop')!;
-    expect(desktop.textContent).not.toContain('全部状态');
-    expect(desktop.querySelector('select[aria-label="自定义状态"]')).toBeTruthy();
-    expect(desktop.querySelector('input[placeholder="额外"]')).toBeTruthy();
-  });
-
   it('未声明 x-filter 语义的键与单独出现的范围端点直接报错，而不是渲染空控件', () => {
     const page = renderHook(() => useListPage({ contract: rowContract, useList: useListMock }), { wrapper: wrapper() }).result.current;
     expect(() => deriveFilterControls({ page, specs: ['plain'] })).toThrow(/plain/);

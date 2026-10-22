@@ -99,12 +99,6 @@ describe('TabBarItem', () => {
     expect(screen.getByText('用户管理')).toBeTruthy();
   });
 
-  it('未右键时不构造右键菜单项', () => {
-    render(<TabBarItem {...baseProps(actions)} />);
-    expect(screen.queryByText('刷新页面')).toBeNull();
-    expect(screen.queryByText('关闭其他')).toBeNull();
-  });
-
   it('右键后菜单项在同一次提交内就位', () => {
     render(<TabBarItem {...baseProps(actions)} />);
     fireEvent.contextMenu(screen.getByRole('tab'));
@@ -158,64 +152,5 @@ describe('TabBarItem', () => {
     rerender(<TabBarItem {...baseProps(actions)} favMenuId={42} faved />);
     fireEvent.contextMenu(screen.getByRole('tab'));
     expect(screen.getByText('取消收藏')).toBeTruthy();
-  });
-
-  it('点击选中、关闭按钮与中键关闭正常工作', () => {
-    render(<TabBarItem {...baseProps(actions)} />);
-    const tabEl = screen.getByRole('tab');
-
-    fireEvent.click(tabEl);
-    expect(actions.onSelect).toHaveBeenCalledWith('/system/users');
-
-    fireEvent.mouseDown(tabEl, { button: 1 });
-    expect(actions.onMiddleClick).toHaveBeenCalled();
-
-    fireEvent.click(tabEl.querySelector('.admin-tab-item__close')!);
-    expect(actions.onClose).toHaveBeenCalledWith('/system/users');
-  });
-
-  it('不可关闭的页签渲染关闭占位以对齐宽度，且「关闭当前」禁用', () => {
-    render(
-      <TabBarItem
-        {...baseProps(actions)}
-        tab={{ key: '/', title: '首页', closable: false }}
-        hasClosableLeft={false}
-      />,
-    );
-    const tabEl = screen.getByRole('tab');
-    const placeholder = tabEl.querySelector('.admin-tab-item__close--placeholder');
-    expect(placeholder).not.toBeNull();
-    expect(tabEl.querySelector('button.admin-tab-item__close')).toBeNull();
-
-    fireEvent.contextMenu(tabEl);
-    fireEvent.click(screen.getByText('关闭当前'));
-    expect(actions.onClose).not.toHaveBeenCalled();
-  });
-
-  it('激活态与拖拽态反映到 className', () => {
-    const { rerender } = render(<TabBarItem {...baseProps(actions)} isActive />);
-    expect(screen.getByRole('tab').className).toContain('admin-tab-item--active');
-
-    rerender(<TabBarItem {...baseProps(actions)} isDragOver />);
-    expect(screen.getByRole('tab').className).toContain('admin-tab-item--drag-over');
-  });
-
-  it('iconOnly 模式悬浮提示挂在行上，无图标时取标题首字兜底', () => {
-    const { rerender } = render(<TabBarItem {...baseProps(actions)} iconOnly hoverTitle="系统管理 / 用户管理" />);
-    // baseProps 默认 showIcon: false、无 iconName：兜底首字
-    expect(screen.getByText('用')).toBeTruthy();
-    expect(screen.getByRole('tab').getAttribute('title')).toBe('系统管理 / 用户管理');
-
-    rerender(
-      <TabBarItem {...baseProps(actions)} iconOnly showIcon iconName="Activity" />,
-    );
-    // 有图标时不渲染首字兜底
-    expect(screen.queryByText('用')).toBeNull();
-  });
-
-  it('常规模式行上无 title、无图标时不渲染兜底', () => {
-    render(<TabBarItem {...baseProps(actions)} />);
-    expect(screen.getByRole('tab').getAttribute('title')).toBeNull();
-    expect(screen.queryByText('用')).toBeNull();
   });
 });

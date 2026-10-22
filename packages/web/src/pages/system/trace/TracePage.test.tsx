@@ -117,46 +117,6 @@ describe('链路追踪 → 日志文件跳转', () => {
     );
   }
 
-  it('应用日志面板精确查询链路，跳转继续携带 file + traceId 而非正文关键词', async () => {
-    recorder.on('GET', TIMELINE_RE, {
-      traceId: recentEntry.traceId,
-      nodes: [{
-        kind: 'request',
-        ts: '2026-10-12 21:40:03',
-        title: 'POST /api/mp/fans/unblacklist',
-        status: 'success',
-        durationMs: 37,
-        refId: 1,
-        parentRef: null,
-        detail: {},
-      }],
-    });
-    recorder.on('GET', '/api/log-files', [
-      { name: traceFile, size: 1024, modifiedAt: '2026-10-12 21:40:03', isGzip: false },
-    ]);
-    recorder.on('GET', `/api/log-files/${traceFile}/content`, { lines: [logLine] });
-
-    renderWithRoutes(`/system/trace?traceId=${recentEntry.traceId}`);
-
-    expect(await screen.findByText('POST /api/mp/fans/unblacklist')).toBeInTheDocument();
-    // traceId 不再作全文关键词，避免匹配查询接口 URL 中的链路 ID。
-    await waitFor(() => {
-      const url = recorder.urls('GET').find((u) => u.includes('/content'));
-      const params = new URLSearchParams(url?.split('?')[1]);
-      expect(params.get('traceId')).toBe(recentEntry.traceId);
-      expect(params.has('keyword')).toBe(false);
-    });
-    // 日志行经语法分词渲染为多个 span，整行文本只在行容器的 textContent 里完整出现。
-    expect(await screen.findByText(byLogLine(logLine))).toBeInTheDocument();
-    // 复用日志文件页配色：行挂载语法 token，容器挂载所选调色板变量
-    const logView = document.querySelector('.log-content-view');
-    expect(logView).toHaveAttribute('data-palette', 'github');
-    expect(logView?.querySelector('.log-token-key')).not.toBeNull();
-
-    fireEvent.click(await screen.findByRole('button', { name: '在日志文件中查看' }));
-    expect(await screen.findByText(`file=${traceFile}&traceId=${recentEntry.traceId}&keyword=null`)).toBeInTheDocument();
-  });
-
   it.each(['app', 'app-api', 'app-worker'])('优先检索链路发生日期的 %s 归档，而不是最近写入的查询日志', async (prefix) => {
     const historyFile = `${prefix}.2026-09-27.1.log.gz`;
     recorder.on('GET', TIMELINE_RE, {

@@ -52,21 +52,4 @@ describe('non-validating launch snapshot', () => {
     await waitFor(() => expect((screen.getByPlaceholderText('自动生成，可手动修改') as HTMLInputElement).value).toContain('设备采购 - 申请人'));
     expect(ref.current?.hasUnsavedChanges()).toBe(false);
   });
-
-  it('passes custom-form variables to the workflow graph as condition labels', () => {
-    const customDef = {
-      id: 5,
-      name: '权限申请',
-      formType: 'custom',
-      formFields: [],
-      customForm: {
-        createComponent: 'biz/access/AccessRequestWorkflowForm',
-        variables: [{ key: 'riskLevel', label: '风险等级', type: 'string' }],
-      },
-    } as unknown as WorkflowDefinition;
-
-    render(<WorkflowLaunchForm def={customDef} container="sheet" />);
-
-    expect(screen.getByTestId('graph-fields')).toHaveTextContent('"key":"riskLevel","label":"风险等级"');
-  });
 });

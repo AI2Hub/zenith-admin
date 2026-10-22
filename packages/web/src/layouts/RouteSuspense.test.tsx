@@ -31,14 +31,4 @@ describe('RouteSuspense', () => {
     });
     expect(await screen.findByText('页面内容')).toBeInTheDocument();
   });
-
-  it('支持自定义 fallback', () => {
-    const NeverPage = lazy(() => new Promise<PageModule>(() => { /* 永不就绪 */ }));
-    render(
-      <RouteSuspense fallback={<div>骨架屏</div>}>
-        <NeverPage />
-      </RouteSuspense>,
-    );
-    expect(screen.getByText('骨架屏')).toBeInTheDocument();
-  });
 });

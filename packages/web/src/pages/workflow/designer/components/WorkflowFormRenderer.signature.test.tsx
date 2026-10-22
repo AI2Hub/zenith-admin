@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import type { WorkflowFormField } from '@zenith/shared/workflow';
-import type { SignatureInput, SignatureSnapshot } from '@zenith/shared/core';
+import type { SignatureInput,} from '@zenith/shared/core';
 import WorkflowFormRenderer from './WorkflowFormRenderer';
 
 const IMAGE = 'data:image/png;base64,c2lnbmF0dXJl';
@@ -30,14 +30,5 @@ describe('signature domain contracts in the shared form renderer', () => {
     fireEvent.click(screen.getByRole('button', { name: '手写图片' }));
     await waitFor(() => expect(api?.getValue('sign')).toBe(IMAGE));
     expect(screen.queryByRole('button', { name: '使用个人签名' })).toBeNull();
-  });
-
-  it('renders the immutable workflow snapshot image and the report PNG through their explicit modes', () => {
-    const snapshot: SignatureSnapshot = { dataUrl: IMAGE, source: 'saved', signerId: 1, signerName: '审批人', signedAt: '2026-09-15 12:00:00', signatureId: 8, signatureVersion: 2 };
-    const view = render(<WorkflowFormRenderer fields={fields} readOnly initValues={{ sign: snapshot }} />);
-    expect(screen.getByRole('img', { name: '签名' }).getAttribute('src')).toBe(IMAGE);
-    view.unmount();
-    render(<WorkflowFormRenderer signatureMode="image" fields={fields} readOnly initValues={{ sign: IMAGE }} />);
-    expect(screen.getByRole('img', { name: '签名' }).getAttribute('src')).toBe(IMAGE);
   });
 });

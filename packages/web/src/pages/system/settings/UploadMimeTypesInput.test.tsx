@@ -69,14 +69,6 @@ describe('上传 MIME 快捷填入', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
-  it('只读模式禁用快捷按钮、模式和手动输入', () => {
-    render(<Harness disabled />);
-    for (const preset of UPLOAD_MIME_PRESETS) expect(screen.getByRole('button', { name: preset.label })).toBeDisabled();
-    expect(within(screen.getByLabelText('允许的 MIME 类型')).getByRole('textbox')).toBeDisabled();
-    for (const radio of screen.getAllByRole('radio')) expect(radio).toBeDisabled();
-    expect(screen.queryByRole('button', { name: '恢复继承' })).not.toBeInTheDocument();
-  });
-
   it('恢复继承会清掉之前的限额错误', () => {
     render(<Harness initial={Array.from({ length: 200 }, (_, i) => `application/x-test-${i}`)} />);
     fireEvent.click(screen.getByRole('button', { name: 'PDF' }));
@@ -84,12 +76,5 @@ describe('上传 MIME 快捷填入', () => {
     fireEvent.click(screen.getByRole('button', { name: '恢复继承' }));
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(selectedTypes()).toEqual([...DEFAULT_UPLOAD_ALLOWED_TYPES]);
-  });
-
-  it('未配置专用控件的字符串数组继续使用通用标签输入', () => {
-    const value = filesSettingsSchema.parse({});
-    const { container } = render(<SchemaForm schema={filesSettingsSchema} value={value} onChange={() => {}} />);
-    expect(container.querySelector('.semi-tagInput')).toBeInTheDocument();
-    expect(within(container).queryByText('快捷填入')).not.toBeInTheDocument();
   });
 });

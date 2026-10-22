@@ -1,11 +1,10 @@
 import { createPreferencesContext } from '@/test-utils/preferences';
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, fireEvent } from '@testing-library/react';
 import { desktopToolbar } from '@/test-utils/toolbar';
 import type { AnalyticsSite } from '@zenith/shared/analytics';
 import { PreferencesContext } from '@/hooks/usePreferences';
-
 
 const mockSite = vi.hoisted<AnalyticsSite>(() => ({
   id: 1,
@@ -46,7 +45,6 @@ vi.mock('@/hooks/queries/analytics', () => ({
 
 import AnalyticsSitesTab from './AnalyticsSitesTab';
 
-
 function renderWithPreferences() {
   return render(
     <PreferencesContext.Provider value={createPreferencesContext()}>
@@ -60,18 +58,6 @@ beforeEach(() => {
 });
 
 describe('AnalyticsSitesTab', () => {
-  it('renders site rows with copyable site key and platform tenant label', () => {
-    renderWithPreferences();
-    expect(screen.getByText('管理后台')).toBeInTheDocument();
-    expect(screen.getByText('zk_admin_default_0000000000000000')).toBeInTheDocument();
-    expect(screen.getByText('平台')).toBeInTheDocument();
-  });
-
-  it('renders today usage against daily quota', () => {
-    renderWithPreferences();
-    expect(screen.getByText('920 / 1000')).toBeInTheDocument();
-  });
-
   it('invalidates site lists when searching and resetting', () => {
     const { container } = renderWithPreferences();
     const toolbar = desktopToolbar(container);

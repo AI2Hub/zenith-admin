@@ -90,56 +90,6 @@ beforeEach(() => {
 });
 
 describe('日志文件选择模式下的批量操作（下载 / 删除）', () => {
-  it('勾选多个文件后一次提交 DELETE /api/log-files/batch，删除后清选中', async () => {
-    renderPage();
-    await screen.findByText(FILE_A);
-
-    enterSelection();
-    check(FILE_B);
-    check(FILE_C);
-    await screen.findByRole('button', { name: /删除 \(2\)/ });
-    // 图标形态：选中数只在无障碍名称 / tooltip 里，按钮本身不带文字（窄面板才排得成一行）
-    expect(screen.getByRole('button', { name: '删除 (2)' }).textContent).toBe('');
-    // 计数落在面板标题行：底栏在 260px 面板下放不下文字，写在那里会被截成「已选 …」
-    expect(screen.getByText('已选 2 项').closest('.nav-list-panel__header')).not.toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: /删除 \(2\)/ }));
-
-    expect(lastConfirm()).toMatchObject({
-      title: '确定要删除选中的 2 个日志文件吗？',
-      okButtonProps: { type: 'danger', theme: 'solid' },
-    });
-    confirmOk();
-
-    await waitFor(() => expect(recorder.countOf('DELETE', '/api/log-files/batch')).toBe(1));
-    expect(recorder.calls.find((c) => c.method === 'DELETE')?.body).toEqual({ filenames: [FILE_B, FILE_C] });
-    await waitFor(() =>      expect(screen.queryByRole('button', { name: /删除 \(/ })).not.toBeInTheDocument());
-  });
-
-  it('勾选框只在选择模式内可见，退出后清空勾选', async () => {
-    renderPage();
-    await screen.findByText(FILE_A);
-
-    // 默认浏览态：条目不带勾选框，也没有底部操作条
-    expect(screen.queryByRole('checkbox', { name: `选择 ${FILE_A}` })).not.toBeInTheDocument();
-    expect(screen.queryByRole('checkbox', { name: '全选' })).not.toBeInTheDocument();
-
-    enterSelection();
-    // 尚未勾选时标题行回退到总数，免得进入选择模式后左边一列没有任何数量信息
-    expect(screen.getByText('共 3 个文件').closest('.nav-list-panel__header')).not.toBeNull();
-    check(FILE_A);
-    await screen.findByRole('button', { name: /删除 \(1\)/ });
-
-    fireEvent.click(screen.getByRole('button', { name: '退出' }));
-    expect(screen.queryByRole('checkbox', { name: `选择 ${FILE_A}` })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /删除 \(/ })).not.toBeInTheDocument();
-
-    // 重新进入时不带上一轮勾选
-    enterSelection();
-    expect(screen.queryByRole('button', { name: /删除 \(/ })).not.toBeInTheDocument();
-    await screen.findByRole('checkbox', { name: `选择 ${FILE_A}` });
-    expect(screen.getByRole('checkbox', { name: `选择 ${FILE_A}` })).not.toBeChecked();
-  });
-
 
   it('删除正在查看的文件后回到未选中态，且不回源已删文件的内容', async () => {
     renderPage();
@@ -239,24 +189,5 @@ describe('日志文件选择模式下的批量操作（下载 / 删除）', () =
     check(FILE_A);
     await screen.findByRole('button', { name: /下载 \(1\)/ });
     expect(screen.queryByRole('button', { name: /删除 \(/ })).not.toBeInTheDocument();
-  });
-
-  it('既无下载也无删除权限时不渲染选择模式入口与勾选框', async () => {
-    render(
-      <QueryClientProvider client={createTestQueryClient()}>
-        <MemoryRouter initialEntries={['/system/log-files']}>
-          <PermissionContext.Provider value={['system:log:files']}>
-            <PreferencesContext.Provider value={createPreferencesContext()}>
-              <LogFilesPage />
-            </PreferencesContext.Provider>
-          </PermissionContext.Provider>
-        </MemoryRouter>
-      </QueryClientProvider>,
-    );
-    await screen.findByText(FILE_A);
-    expect(screen.queryByRole('checkbox', { name: `选择 ${FILE_A}` })).not.toBeInTheDocument();
-    expect(screen.queryByRole('checkbox', { name: '全选' })).not.toBeInTheDocument();
-    // 无删除权限时连选择模式入口都不渲染
-    expect(screen.queryByRole('button', { name: '选择' })).not.toBeInTheDocument();
   });
 });

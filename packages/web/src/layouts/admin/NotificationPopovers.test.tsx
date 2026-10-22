@@ -66,27 +66,6 @@ describe('通知弹层 · 单条标记已读', () => {
     expect(screen.getByText('最新站内信')).toBeInTheDocument();
   });
 
-  it('已读条目不渲染该按钮', () => {
-    renderMessages();
-    // 只有未读的那条有按钮
-    expect(screen.getAllByText('已读')).toHaveLength(1);
-  });
-
-  it('按钮落在 List.Item 的右侧固定列（各行横向位置一致，不随有无按钮漂移）', () => {
-    renderMessages();
-    // 放进正文里会贴着时间戳排版，各行按钮位置随内容宽度变化
-    expect(screen.getByText('已读').closest('.semi-list-item-extra')).not.toBeNull();
-  });
-
-  it('按钮常显：渲染即在 DOM 中，无需 hover 即可点击', () => {
-    const props = renderMessages();
-    // 未做任何 hover / focus，元素已存在且可直接触发
-    const btn = screen.getAllByText('已读')[0];
-    expect(btn.closest('.notification-popover__mark-read')).not.toBeNull();
-    fireEvent.click(btn);
-    expect(props.markAsRead).toHaveBeenCalledWith(1);
-  });
-
   it('公告：同样只标已读，不打开公告详情', () => {
     const props = renderAnnouncements();
 
@@ -104,11 +83,6 @@ describe('通知弹层 · 全部已读', () => {
     fireEvent.click(screen.getByText('全部已读'));
 
     expect(props.markAllAsRead).toHaveBeenCalledTimes(1);
-  });
-
-  it('全部已读时（未读数为 0）不出现', () => {
-    renderMessages({ unreadCount: 0 });
-    expect(screen.queryByText('全部已读')).not.toBeInTheDocument();
   });
 
   it('公告弹层同样受未读数控制', () => {

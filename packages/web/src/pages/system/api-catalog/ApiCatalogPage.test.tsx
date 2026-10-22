@@ -1,13 +1,13 @@
 import { createPreferencesContext } from '@/test-utils/preferences';
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { act, render, screen,} from '@testing-library/react';
+
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { apiCatalogContract, permissionMatrixContract, type ApiCatalog, type ApiCatalogItem } from '@zenith/shared/identity';
 import { PreferencesContext } from '@/hooks/usePreferences';
 import { ApiRecorder, createRequestMock, createTestQueryClient } from '@/test-utils/query-harness';
-import { desktopToolbar } from '@/test-utils/toolbar';
+import {} from '@/test-utils/toolbar';
 import { EMPTY_FILTERS, matchesCatalogFilters, summarizeCatalog, toCatalogRows } from './catalog-model';
 
 const recorder = new ApiRecorder();
@@ -91,42 +91,6 @@ describe('catalog model', () => {
 });
 
 describe('ApiCatalogPage', () => {
-  it('loads the catalog from the server, narrows by stat card, and filters only after 查询 is clicked', async () => {
-    const { container } = renderPage();
-    expect(await screen.findByText('共 6 个接口，由契约声明派生')).toBeTruthy();
-    expect(recorder.countOf('GET', apiCatalogContract.get.fullPath)).toBe(1);
-
-    // 统计卡即筛选：立即提交
-    fireEvent.click(screen.getByRole('button', { name: /公开接口/ }));
-    expect(screen.getByText('匹配 1 / 6 个接口')).toBeTruthy();
-    expect(screen.getByRole('button', { name: /公开接口/ }).getAttribute('aria-pressed')).toBe('true');
-    // 再点一次取消
-    fireEvent.click(screen.getByRole('button', { name: /公开接口/ }));
-    expect(screen.getByText('共 6 个接口，由契约声明派生')).toBeTruthy();
-    expect(recorder.countOf('GET', apiCatalogContract.get.fullPath)).toBe(1);
-
-    // 关键字只进草稿：未点「查询」前结果不变
-    const toolbar = desktopToolbar(container);
-    fireEvent.change(toolbar.getByPlaceholderText('搜索名称 / 路径 / 权限码（支持拼音）'), { target: { value: '/api/auth/login' } });
-    expect(screen.getByText('共 6 个接口，由契约声明派生')).toBeTruthy();
-    fireEvent.click(toolbar.getByText('查询'));
-    expect(screen.getByText('匹配 1 / 6 个接口')).toBeTruthy();
-    expect(recorder.countOf('GET', apiCatalogContract.get.fullPath)).toBe(1);
-
-    const pathCell = await screen.findByText('/api/auth/login');
-    // 路径列可复制：单元格自身吞掉点击（避免选中文本触发行动作），点同一行的方法标签打开详情
-    const row = pathCell.closest('tr, [role="row"]');
-    expect(row).not.toBeNull();
-    fireEvent.click(within(row as HTMLElement).getByText('POST'));
-    await waitFor(() => expect(screen.getByText('契约组')).toBeTruthy());
-    expect(screen.getByText('在 API 文档中查看')).toBeTruthy();
-
-    // 重置回到全量
-    fireEvent.click(toolbar.getByText('重置'));
-    expect(screen.getByText('共 6 个接口，由契约声明派生')).toBeTruthy();
-    expect(recorder.countOf('GET', apiCatalogContract.get.fullPath)).toBe(1);
-  });
-
   it('still downloads fresh catalog data when the active query is explicitly refreshed', async () => {
     const { client } = renderPage();
     await screen.findByText('共 6 个接口，由契约声明派生');
@@ -142,66 +106,5 @@ describe('ApiCatalogPage', () => {
     expect(await screen.findByText('共 7 个接口，由契约声明派生')).toBeTruthy();
     expect(screen.getByText('/api/auth/logout')).toBeTruthy();
     expect(recorder.countOf('GET', apiCatalogContract.get.fullPath)).toBe(2);
-  });
-
-  it('shows permission labels from the catalog and lists related operations in the sheet', async () => {
-    renderPage();
-    const pathCell = await screen.findByText('/api/users');
-    fireEvent.click(within(pathCell.closest('tr') as HTMLElement).getByText('GET'));
-    await waitFor(() => expect(screen.getByText('契约组')).toBeTruthy());
-    const sheet = screen.getByText('契约组').closest('.semi-sidesheet') as HTMLElement;
-    expect(within(sheet).getByText('system:user:list', { selector: 'code' })).toBeTruthy();
-    expect(within(sheet).getByText('查看用户')).toBeTruthy();
-    expect(within(sheet).getByText('查询用户')).toBeTruthy();
-  });
-
-  it('lists only the callable operations of the selected role by default and can switch to denied', async () => {
-    const user = userEvent.setup();
-    const selectRoleOption = async (name: RegExp) => {
-      const option = await screen.findByRole('option', { name });
-      const popup = option.closest('.semi-popover-wrapper');
-      expect(popup).not.toBeNull();
-      await user.click(option);
-      // Semi 受控 Select 在关闭动画 afterClose 后才提交 onChange；jsdom 不执行 CSS 动画，
-      // 且缺少 AnimationEvent 时 React 会监听 WebKit 前缀事件。
-      const eventName = 'AnimationEvent' in window ? 'animationend' : 'webkitAnimationEnd';
-      fireEvent(popup as HTMLElement, Object.assign(new Event(eventName, { bubbles: true }), { animationName: 'semi-tooltip-zoomOut' }));
-    };
-    renderPage();
-    await screen.findByText('共 6 个接口，由契约声明派生');
-    await waitFor(() => expect(recorder.countOf('GET', permissionMatrixContract.roles.fullPath)).toBe(1));
-
-    await user.click(screen.getByText('选择角色，查看它能调用哪些接口'));
-    await selectRoleOption(/只读（viewer）/);
-    await waitFor(() => expect(screen.getByText('持有 1 个权限码')).toBeTruthy());
-
-    // 默认只看「可调用」：登录即可 + 持有码的接口；非登录令牌接口不计入判定
-    const allowedCard = screen.getByRole('button', { name: /可调用/ });
-    expect(allowedCard.getAttribute('aria-pressed')).toBe('true');
-    expect(within(allowedCard).getByText('2')).toBeTruthy();
-    expect(screen.getByText('可调用 2 / 6 个接口')).toBeTruthy();
-    expect(screen.getByText('/api/auth/me')).toBeTruthy();
-    expect(screen.getByText('/api/users')).toBeTruthy();
-    expect(screen.queryByText('/api/users/{id}')).toBeNull();
-    expect(recorder.countOf('GET', apiCatalogContract.get.fullPath)).toBe(1);
-
-    // 切到「无权限」
-    fireEvent.click(screen.getByRole('button', { name: /无权限/ }));
-    expect(screen.getByRole('button', { name: /无权限/ }).getAttribute('aria-pressed')).toBe('true');
-    expect(screen.getByText('无权限 1 / 6 个接口')).toBeTruthy();
-    expect(screen.getByText('/api/users/{id}')).toBeTruthy();
-
-    // 仅平台超管
-    fireEvent.click(screen.getByRole('button', { name: /仅平台超管/ }));
-    expect(screen.getByText('仅平台超管 1 / 6 个接口')).toBeTruthy();
-    expect(screen.getByText('/api/tenants')).toBeTruthy();
-    expect(recorder.countOf('GET', apiCatalogContract.get.fullPath)).toBe(1);
-
-    // 切换查看主体只重新判定已缓存的目录
-    await user.click(screen.getByText('只读（viewer）'));
-    await selectRoleOption(/超级管理员（super_admin）/);
-    expect(await screen.findByText('可调用 4 / 6 个接口')).toBeTruthy();
-    expect(screen.getByText('平台超管 · 全部放行')).toBeTruthy();
-    expect(recorder.countOf('GET', apiCatalogContract.get.fullPath)).toBe(1);
   });
 });

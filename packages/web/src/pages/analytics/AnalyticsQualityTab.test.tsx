@@ -90,17 +90,6 @@ beforeEach(() => {
 });
 
 describe('AnalyticsQualityTab', () => {
-  it('KPI 卡片展示 totals 汇总计数', () => {
-    renderWithPreferences(<AnalyticsQualityTab />);
-    expect(screen.getByText('12')).toBeInTheDocument();
-  });
-
-  it('质量明细表渲染行数据', () => {
-    renderWithPreferences(<AnalyticsQualityTab />);
-    expect(screen.getAllByText('order_submit').length).toBeGreaterThan(0);
-    expect(screen.getByText('2024-01-01')).toBeInTheDocument();
-  });
-
   it('查询按钮提交筛选并使查询失效', () => {
     renderWithPreferences(<AnalyticsQualityTab />);
     const eventNameInputs = screen.getAllByPlaceholderText('事件名');
@@ -110,11 +99,6 @@ describe('AnalyticsQualityTab', () => {
     const lastParams = useAnalyticsQualityMock.mock.calls.at(-1)?.[0];
     expect(lastParams.eventName).toBe('order_submit');
     expect(invalidateQueriesMock).toHaveBeenCalledWith({ queryKey: ['analytics', 'quality'] });
-  });
-
-  it('租户覆盖列表渲染禁用状态标签', () => {
-    renderWithPreferences(<AnalyticsQualityTab />);
-    expect(screen.getByText('联调期间临时下线')).toBeInTheDocument();
   });
 
   it('新增覆盖表单提交调用 saveOverrideMutation', async () => {

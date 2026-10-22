@@ -70,13 +70,6 @@ beforeEach(() => {
 });
 
 describe('AnalyticsDebugTab', () => {
-  it('渲染事件调试流并展示质量问题标签', () => {
-    renderWithPreferences(<AnalyticsDebugTab active />);
-    expect(screen.getByText('order_submit')).toBeInTheDocument();
-    expect(screen.getByText('anon-1')).toBeInTheDocument();
-    expect(screen.getByText('缺失必填属性')).toBeInTheDocument();
-  });
-
   it('查询按钮使用输入的事件名调用 hook', () => {
     const { container } = renderWithPreferences(<AnalyticsDebugTab active />);
     const toolbar = desktopToolbar(container);

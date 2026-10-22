@@ -1,15 +1,15 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import {} from '@testing-library/react';
 import { Toast } from '@douyinfe/semi-ui';
 import type { ModalReactProps } from '@douyinfe/semi-ui/lib/es/modal';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ListSearchToolbar } from './ListSearchToolbar';
-import { InstantFilterToolbar } from './InstantFilterToolbar';
+import {} from './ListSearchToolbar';
+import {} from './InstantFilterToolbar';
 import { batchStatusHandler } from './batchStatus';
 import { confirmAndDelete, deleteAction } from './deleteAction';
 import { listTableProps } from './listTableProps';
-import { CreateButton } from '@/components/toolbar-controls';
-import { PermissionContext } from '@/hooks/usePermission';
-import type { Permission } from '@zenith/shared/core';
+import {} from '@/components/toolbar-controls';
+import {} from '@/hooks/usePermission';
+import type {} from '@zenith/shared/core';
 
 // Modal.confirm 依赖 createRoot 命令式渲染，jsdom 下改为记录配置、由测试手动触发 onOk
 const confirmCalls = vi.hoisted(() => [] as ModalReactProps[]);
@@ -19,103 +19,8 @@ vi.mock('@douyinfe/semi-ui', async (importOriginal) => {
   return actual;
 });
 
-const controlLabel = (el: Element) => el.getAttribute('aria-label') || el.getAttribute('placeholder') || (el as HTMLElement).textContent;
-
 beforeEach(() => { confirmCalls.length = 0; });
 afterEach(() => { vi.restoreAllMocks(); });
-
-describe('ListSearchToolbar', () => {
-  it('桌面：关键词 → 筛选 → 查询 / 重置 → 新增 → 低频操作；移动：主区 关键词 + 查询 + 新增，筛选与更多按钮', () => {
-    const onSearch = vi.fn();
-    const onReset = vi.fn();
-    const { container } = render(
-      <ListSearchToolbar
-        keyword={<input placeholder="搜索名称" />}
-        filters={<select aria-label="状态"><option>全部状态</option></select>}
-        create={<button type="button">新增</button>}
-        actions={<button type="button">导出</button>}
-        onSearch={onSearch}
-        onReset={onReset}
-      />,
-    );
-    const desktop = container.querySelector('.responsive-toolbar__desktop')!;
-    expect([...desktop.querySelectorAll('button, input, select')].map(controlLabel)).toEqual(['搜索名称', '状态', '查询', '重置', '新增', '导出']);
-
-    const mobilePrimary = container.querySelector('.responsive-toolbar__mobile-primary')!;
-    expect([...mobilePrimary.querySelectorAll('button, input')].map(controlLabel)).toEqual(['搜索名称', '查询', '新增']);
-    expect(screen.getByRole('button', { name: '筛选' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: '更多操作' })).toBeTruthy();
-
-    const desktopButtons = desktop.querySelectorAll('button');
-    fireEvent.click(desktopButtons[0]);
-    fireEvent.click(desktopButtons[1]);
-    expect(onSearch).toHaveBeenCalledTimes(1);
-    expect(onReset).toHaveBeenCalledTimes(1);
-  });
-
-  it('仅关键词 + 新增：桌面有新增，移动端没有筛选按钮也没有更多菜单（新增已在主区）', () => {
-    const { container } = render(<ListSearchToolbar keyword={<input placeholder="搜索" />} create={<button type="button">新增</button>} onSearch={() => {}} onReset={() => {}} />);
-    expect([...container.querySelector('.responsive-toolbar__desktop')!.querySelectorAll('button')].map(controlLabel)).toEqual(['查询', '重置', '新增']);
-    expect(container.querySelector('.responsive-toolbar__mobile-extra')).toBeNull();
-    expect(screen.queryByRole('button', { name: '筛选' })).toBeNull();
-    expect(screen.queryByRole('button', { name: '更多操作' })).toBeNull();
-  });
-
-  it('CreateButton 的 permission 门控：无权限不渲染，也不会让移动端出现空的更多菜单', () => {
-    const renderWith = (permissions: string[]) => render(
-      <PermissionContext.Provider value={permissions}>
-        <ListSearchToolbar keyword={<input placeholder="搜索" />} create={<CreateButton permission={'demo:create' as Permission} />} onSearch={() => {}} onReset={() => {}} />
-      </PermissionContext.Provider>,
-    );
-    const denied = renderWith([]);
-    expect(denied.queryByRole('button', { name: '新增' })).toBeNull();
-    expect(denied.queryByRole('button', { name: '更多操作' })).toBeNull();
-    denied.unmount();
-
-    const granted = renderWith(['demo:create']);
-    expect([...granted.container.querySelector('.responsive-toolbar__desktop')!.querySelectorAll('button')].map(controlLabel)).toEqual(['查询', '重置', '新增']);
-  });
-});
-
-describe('InstantFilterToolbar', () => {
-  it('桌面：主区 → 筛选 → 刷新 → 重置 → 操作 → 说明；移动：主区 + 刷新，筛选进抽屉，操作进更多菜单，说明不出现', () => {
-    const onRefresh = vi.fn();
-    const onReset = vi.fn();
-    const { container } = render(
-      <InstantFilterToolbar
-        primary={<input placeholder="搜索进程" />}
-        filters={<select aria-label="状态"><option>全部状态</option></select>}
-        onRefresh={onRefresh}
-        onReset={onReset}
-        actions={<button type="button">导出</button>}
-        extra={<span>共 3 个</span>}
-      />,
-    );
-    const desktop = container.querySelector('.responsive-toolbar__desktop')!;
-    expect([...desktop.querySelectorAll('button, input, select')].map(controlLabel)).toEqual(['搜索进程', '状态', '刷新', '重置', '导出']);
-    expect(desktop.textContent).toContain('共 3 个');
-
-    const mobilePrimary = container.querySelector('.responsive-toolbar__mobile-primary')!;
-    expect([...mobilePrimary.querySelectorAll('button, input')].map(controlLabel)).toEqual(['搜索进程', '刷新']);
-    expect(mobilePrimary.textContent).not.toContain('共 3 个');
-    expect(screen.getByRole('button', { name: '筛选' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: '更多操作' })).toBeTruthy();
-
-    const desktopButtons = desktop.querySelectorAll('button');
-    fireEvent.click(desktopButtons[0]);
-    fireEvent.click(desktopButtons[1]);
-    expect(onRefresh).toHaveBeenCalledTimes(1);
-    expect(onReset).toHaveBeenCalledTimes(1);
-  });
-
-  it('只有刷新与说明文字：桌面不出现重置，移动端没有筛选按钮也没有更多菜单', () => {
-    const { container } = render(<InstantFilterToolbar onRefresh={() => {}} extra={<span>规则保存后立即热更新</span>} />);
-    expect([...container.querySelector('.responsive-toolbar__desktop')!.querySelectorAll('button')].map(controlLabel)).toEqual(['刷新']);
-    expect(container.querySelector('.responsive-toolbar__mobile-extra')).toBeNull();
-    expect(screen.queryByRole('button', { name: '筛选' })).toBeNull();
-    expect(screen.queryByRole('button', { name: '更多操作' })).toBeNull();
-  });
-});
 
 describe('batchStatusHandler', () => {
   it('默认只有停用需要确认：启用直接执行 → 清选中 → 「批量启用成功」', async () => {

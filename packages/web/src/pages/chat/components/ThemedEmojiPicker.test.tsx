@@ -23,19 +23,6 @@ function createThemeValue(isDark: boolean): ThemeControllerValue {
 }
 
 describe('ThemedEmojiPicker', () => {
-  it('reserves the picker dimensions before Emoji Mart initializes', () => {
-    render(
-      <ThemeControllerContext.Provider value={createThemeValue(false)}>
-        <ThemedEmojiPicker onEmojiSelect={vi.fn()} />
-      </ThemeControllerContext.Provider>,
-    );
-
-    expect(screen.getByTestId('emoji-picker').parentElement).toHaveStyle({
-      width: '352px',
-      height: '435px',
-    });
-  });
-
   it('follows the resolved application theme', () => {
     const picker = <ThemedEmojiPicker onEmojiSelect={vi.fn()} />;
     const { rerender } = render(

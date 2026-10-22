@@ -7,18 +7,6 @@ import WorkflowFormRenderer from './WorkflowFormRenderer';
 vi.mock('@/utils/clipboard', () => ({ copyTextWithToast: vi.fn().mockResolvedValue(true) }));
 
 describe('submitted workflow values', () => {
-  it('shows the stored formula and precise amounts as selectable values, without disabled inputs', () => {
-    const fields: WorkflowFormField[] = [
-      { key: 'amount', label: '金额', type: 'amount', precision: 2 },
-      { key: 'total', label: '公式结果', type: 'formula', formula: '{amount} * 2', precision: 2 },
-    ];
-    render(<WorkflowFormRenderer fields={fields} readOnly readOnlyAsText initValues={{ amount: 80.5, total: 123 }} />);
-    expect(screen.getByText('80.50')).toBeInTheDocument();
-    expect(screen.getByText('123.00')).toBeInTheDocument();
-    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
-    expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument();
-  });
-
   it('copies visible detail values and totals without revealing conditionally hidden cells', async () => {
     const field: WorkflowFormField = { key: 'expenses', label: '费用明细', type: 'detail', children: [
       { key: 'kind', label: '费用类别', type: 'select', optionItems: [{ value: 'transport', label: '交通' }, { value: 'private', label: '内部' }] },

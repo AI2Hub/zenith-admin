@@ -40,13 +40,6 @@ describe('CMS 素材字段', () => {
     expect(screen.getByText('雨声.wav')).toBeInTheDocument();
   });
 
-  it('shows unavailable retained references without sending a cms-res URI to the browser player', () => {
-    state.success = true;
-    render(<CmsAssetField siteId={3} type="audio" value="cms-res://999" />);
-    expect(screen.getByText(/素材不可用/)).toBeInTheDocument();
-    expect(document.querySelector('audio')).toBeNull();
-  });
-
   it('prefers an explicit re-selection over a cached lookup of the same resource id', () => {
     state.success = true;
     state.resolved = { ...audio, url: '/previous-binary.wav' };

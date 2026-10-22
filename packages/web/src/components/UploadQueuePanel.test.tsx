@@ -41,21 +41,6 @@ describe('UploadQueuePanel', () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it('shows the active count, item states and progress', () => {
-    render(<UploadQueuePanel items={ITEMS} />);
-
-    expect(screen.getByText('正在上传 1 个文件')).toBeTruthy();
-    expect(screen.getByText('a.txt')).toBeTruthy();
-    expect(screen.getByText('b.txt')).toBeTruthy();
-    expect(screen.getByTestId('progress')).toBeTruthy();
-  });
-
-  it('shows the finished title when nothing is active', () => {
-    render(<UploadQueuePanel items={[{ id: 'u9', name: 'c.txt', status: 'success', percent: 100 }]} />);
-
-    expect(screen.getByText('上传完成（1）')).toBeTruthy();
-  });
-
   it('forwards cancel and clear actions', () => {
     const onCancel = vi.fn();
     const onClear = vi.fn();

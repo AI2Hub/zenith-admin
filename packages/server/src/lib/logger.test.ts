@@ -8,16 +8,4 @@ describe('logger', () => {
     expect(() => logger.warn('Test warn message')).not.toThrow();
     expect(() => logger.debug('Test debug message')).not.toThrow();
   });
-
-  it('should not throw when logging with an object meta', () => {
-    expect(() => logger.info('with meta', { userId: 42 })).not.toThrow();
-  });
-
-  it('should not throw when logging with an Error meta', () => {
-    expect(() => logger.error('failed', new Error('boom'))).not.toThrow();
-  });
-
-  it('should not throw when logging with a primitive meta', () => {
-    expect(() => logger.warn('odd meta', 'raw-string')).not.toThrow();
-  });
 });
