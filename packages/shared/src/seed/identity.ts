@@ -74,8 +74,8 @@ export const SEED_ROLES: Role[] = [
     status: 'enabled',
     createdAt: SEED_DATE,
     updatedAt: SEED_DATE,
-    // CMS 子树 + 个人中心（改密码）+ 公告中心 / 站内信（收公告与审稿 / 退回通知）
-    menuIds: [11, 12, 13, ...collectMenuSubtreeIds(CMS_ROOT_MENU_ID)
+    // 首页 + CMS 子树 + 个人中心（改密码）+ 公告中心 / 站内信（收公告与审稿 / 退回通知）
+    menuIds: [1, 11, 12, 13, ...collectMenuSubtreeIds(CMS_ROOT_MENU_ID)
       .filter((id) => !CMS_RAW_EXPORT_MENU_IDS.includes(id))],
   },
 ];
