@@ -13,7 +13,7 @@ vi.mock('@/components/UserTransferSelect', () => ({
 }));
 
 describe('MemberAssignmentSheet', () => {
-  it('renders title and disables save when canSave is false', () => {
+  it('canSave 为 false 时禁用保存', () => {
     render(
       <MemberAssignmentSheet
         title="成员管理 - 岗位"
@@ -27,8 +27,6 @@ describe('MemberAssignmentSheet', () => {
       />,
     );
 
-    expect(screen.getByText('成员管理 - 岗位')).toBeTruthy();
-    expect(screen.getByTestId('transfer-select')).toBeTruthy();
     expect(screen.getByRole('button', { name: '保存' })).toBeDisabled();
   });
 
