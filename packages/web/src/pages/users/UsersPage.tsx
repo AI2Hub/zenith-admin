@@ -403,6 +403,7 @@ export default function UsersPage() {
   // 列定义 memo 化：搜索框每次击键都会触发页面重渲染，
   // 若每次都重建 columns（含所有 render 闭包），表格会整体重渲染所有行
   const columns: ColumnProps<User>[] = useMemo(() => [
+    { title: 'ID', dataIndex: 'id', width: 70 },
     {
       title: '用户',
       dataIndex: 'nickname',
