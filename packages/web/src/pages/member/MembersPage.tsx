@@ -235,6 +235,7 @@ export default function MembersPage() {
   });
 
   const columns: ColumnProps<Member>[] = [
+    { title: 'ID', dataIndex: 'id', width: 70 },
     {
       title: '昵称', dataIndex: 'nickname', minWidth: 180,
       render: (v: string, record: Member) => (
