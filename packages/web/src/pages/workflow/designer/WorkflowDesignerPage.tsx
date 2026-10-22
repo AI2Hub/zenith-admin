@@ -17,6 +17,7 @@ import { hasBusinessFormComponent } from '@/utils/business-form-registry';
 import WorkflowVersionsSheet from '../components/WorkflowVersionsSheet';
 
 import type { FlowNode, FlowBranch, FlowNodeType, FlowProcess, BranchNodeType, ConditionGroup } from './types';
+import { flattenAllFields } from './form-tree';
 import {
   createDefaultProcess,
   createNode,
@@ -219,7 +220,7 @@ export default function WorkflowDesignerPage({
   );
 
   // 同步表单字段到视图：设计器表单取所选表单字段；自定义表单取声明的流程变量
-  const formFields = useMemo(() => getWorkflowNumberingFields(formType, localFormFields, customForm).filter(field => field.key), [formType, customForm, localFormFields]);
+  const formFields = useMemo(() => flattenAllFields(getWorkflowNumberingFields(formType, localFormFields, customForm)).filter(field => field.key), [formType, customForm, localFormFields]);
 
   // ─── 加载数据 ─────────────────────────────────────────────────────
 
