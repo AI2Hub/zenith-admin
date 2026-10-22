@@ -280,6 +280,10 @@ export interface WorkflowNodeConfig {
   selectScopeType?: 'user' | 'role' | 'department' | 'userGroup';
   /** 自选范围 IDs（与 selectScopeType 对应） */
   selectScopeIds?: number[] | null;
+  /** 发起人节点：范围说明（前端写入，后端原未声明，保存会报未知字段） */
+  initiatorDesc?: string;
+  /** 路由分支节点：路由字段 key（前端写入，后端原未声明） */
+  routeFieldKey?: string;
   /** 流程表达式（assigneeType = 'expression' 时生效，返回用户 ID 数组或单值） */
   assigneeExpression?: string;
   /** 审批方式（人工节点，多人时生效） */
