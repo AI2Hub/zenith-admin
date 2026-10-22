@@ -387,14 +387,18 @@ export default function App() {
     );
   }
 
+  // 维护期间不再挂载后台壳：页面内的定时查询会持续收到 503，每次 503 都会派发
+  // maintenance:enabled 让状态失效，遮罩里的刷新图标就会被动地反复转圈。
+  // 只渲染遮罩可以把这些请求一起停掉；维护结束后由遮罩自身的 30 秒轮询解除。
+  if (showMaintenance && maintenance) {
+    return <AppChrome><MaintenanceOverlay info={maintenance} /></AppChrome>;
+  }
+
   // Electron file:// 协议不支持 BrowserRouter，需使用 HashRouter
   const RouterComponent = import.meta.env.VITE_ELECTRON === 'true' ? HashRouter : BrowserRouter;
   return (
     <>
     <PageErrorBoundary>
-    {showMaintenance && maintenance && (
-      <MaintenanceOverlay info={maintenance} />
-    )}
     {/* Electron 自定义标题栏（登录页和内容页共用） */}
     <ElectronTitleBar />
     <RouterComponent basename={import.meta.env.VITE_ELECTRON === 'true' ? undefined : (import.meta.env.BASE_URL.replace(/\/$/, '') || '/')}>

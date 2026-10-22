@@ -1,9 +1,35 @@
+import { useEffect, useRef, useState } from 'react';
 import { Button, Empty, Typography } from '@douyinfe/semi-ui';
 import { RefreshCw } from 'lucide-react';
 import { emptyIllustration } from '@/components/EmptyIllustration';
 import { usePublicMaintenanceStatus } from '@/hooks/queries/maintenance';
 
 const { Text } = Typography;
+
+/**
+ * 让一次请求的「进行中」状态至少可见 minMs。
+ *
+ * 维护状态接口在本机/内网通常 20~50ms 就返回，若直接用它控制 loading，
+ * 转圈还没绘制出来请求就结束了，用户会觉得按钮点了没反应。
+ */
+function useMinVisibleDuration(active: boolean, minMs: number): boolean {
+  const [visible, setVisible] = useState(active);
+  const startedAtRef = useRef(0);
+
+  useEffect(() => {
+    if (active) {
+      startedAtRef.current = Date.now();
+      setVisible(true);
+      return;
+    }
+    if (!startedAtRef.current) return;
+    const remaining = minMs - (Date.now() - startedAtRef.current);
+    const timer = setTimeout(() => setVisible(false), Math.max(0, remaining));
+    return () => clearTimeout(timer);
+  }, [active, minMs]);
+
+  return visible;
+}
 
 interface MaintenanceInfo {
   message: string;
@@ -18,7 +44,9 @@ interface Props {
 export default function MaintenanceOverlay({ info }: Readonly<Props>) {
   // 轮询交给查询本身：本组件只在维护生效期间挂载，卸载即自动停止，
   // 无需手写 setInterval。恢复后 App 依据同一份缓存直接停止渲染本遮罩。
+  // 手动点击与 30 秒自动轮询都走同一个 isFetching，转圈至少保持 600ms 才看得见。
   const { isFetching, refetch } = usePublicMaintenanceStatus({ refetchInterval: 30_000 });
+  const checking = useMinVisibleDuration(isFetching, 600);
 
   return (
     <div
@@ -65,13 +93,15 @@ export default function MaintenanceOverlay({ info }: Readonly<Props>) {
 
           <Button
             icon={<RefreshCw size={14} />}
-            loading={isFetching}
+            loading={checking}
             onClick={() => void refetch()}
           >
-            检查是否恢复
+            {checking ? '正在检查' : '检查是否恢复'}
           </Button>
 
-          <Text type="tertiary" size="small">每 30 秒自动检查一次</Text>
+          <Text type="tertiary" size="small" aria-live="polite">
+            {checking ? '正在获取最新维护状态…' : '每 30 秒自动检查一次'}
+          </Text>
         </div>
       </Empty>
     </div>
