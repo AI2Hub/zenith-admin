@@ -60,13 +60,14 @@ export function scheduleTimeToMinutes(value: string): number {
   return hours * 60 + minutes;
 }
 export const LOADING_STYLES = [
-  'flip', 'dots', 'ring', 'bars', 'spinner', 'bounce', 'ripple', 'progress',
-  'orbit', 'grid', 'travel', 'ellipsis',
+  'grid', 'flip', 'dots', 'ring', 'bars', 'spinner', 'bounce', 'ripple', 'progress',
+  'orbit', 'travel', 'ellipsis',
   'carousel', 'landing', 'pendulum', 'marquee',
 ] as const;
 export type LoadingStyle = (typeof LOADING_STYLES)[number];
 export const LOADING_STYLE_OPTIONS = [
-  { value: 'flip', label: '翻转方块', isDefault: true },
+  { value: 'grid', label: '九宫格', isDefault: true },
+  { value: 'flip', label: '翻转方块', isDefault: false },
   { value: 'dots', label: '跳动圆点', isDefault: false },
   { value: 'ring', label: '旋转圆环', isDefault: false },
   { value: 'bars', label: '律动条', isDefault: false },
@@ -75,7 +76,6 @@ export const LOADING_STYLE_OPTIONS = [
   { value: 'ripple', label: '水波纹', isDefault: false },
   { value: 'progress', label: '进度条', isDefault: false },
   { value: 'orbit', label: '环绕圆点', isDefault: false },
-  { value: 'grid', label: '九宫格', isDefault: false },
   { value: 'travel', label: '绕行方块', isDefault: false },
   { value: 'ellipsis', label: '渐显省略号', isDefault: false },
   { value: 'carousel', label: '游动圆点', isDefault: false },

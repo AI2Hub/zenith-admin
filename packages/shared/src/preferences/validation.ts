@@ -92,7 +92,7 @@ export const preferenceValuesSchema = z.strictObject({
   borderRadius: z.enum(C.BORDER_RADII).default('medium'),
   showBackTop: z.boolean().default(true),
   showProgressBar: z.boolean().default(true),
-  loadingStyle: z.enum(C.LOADING_STYLES).default('flip'),
+  loadingStyle: z.enum(C.LOADING_STYLES).default('grid'),
   enableShortcuts: z.boolean().default(true),
   syncPageStateToUrl: z.boolean().default(false),
   homePath: z.string().max(512).regex(/^\/(?!\/)[^\s\\]*$/, '请选择站内页面路径').default('/'),

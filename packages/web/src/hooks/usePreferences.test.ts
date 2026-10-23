@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
   defaultPreferences,
+  LOADING_STYLE_OPTIONS,
   sanitizeImportedPreferences,
 } from './usePreferences';
 
 describe('loading style preference', () => {
-  it('uses the flip animation as the default', () => {
-    expect(defaultPreferences.loadingStyle).toBe('flip');
+  it('uses the grid animation as the default and shows it first', () => {
+    expect(defaultPreferences.loadingStyle).toBe('grid');
+    expect(LOADING_STYLE_OPTIONS[0]).toMatchObject({ value: 'grid', label: '九宫格', isDefault: true });
   });
 
   it('accepts known loading styles when importing preferences', () => {
