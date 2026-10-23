@@ -56,7 +56,7 @@ export function findMatchRanges(line: string, pattern: RegExp | string): MatchRa
 export function buildSearchIndex(
   lines: string[],
   pattern: RegExp | string | null,
-  acceptsLine?: (line: string) => boolean,
+  acceptsLine?: (line: string, lineIndex: number) => boolean,
 ): SearchIndex {
   const regex = typeof pattern === 'string' ? compileSearchPattern(pattern) : pattern;
   if (!regex) return EMPTY_INDEX;
@@ -64,7 +64,7 @@ export function buildSearchIndex(
   const matches: SearchMatch[] = [];
   const lineRanges = new Map<number, MatchRange[]>();
   lines.forEach((line, lineIndex) => {
-    if (acceptsLine && !acceptsLine(line)) return;
+    if (acceptsLine && !acceptsLine(line, lineIndex)) return;
     const ranges = findMatchRanges(line, regex);
     if (ranges.length === 0) return;
     lineRanges.set(lineIndex, ranges);

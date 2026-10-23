@@ -3,6 +3,14 @@
  */
 import { createLabelOptions } from '../core/enum-options';
 
+/** 应用日志按运行角色分文件，all 表示同一进程同时运行 API 与 Worker。 */
+export const CONSOLE_LOG_ROLES = ['all', 'api', 'worker'] as const;
+export type ConsoleLogRole = (typeof CONSOLE_LOG_ROLES)[number];
+export const CONSOLE_LOG_ROLE_LABELS: Record<ConsoleLogRole, string> = {
+  all: 'API + Worker', api: 'API', worker: 'Worker',
+};
+export const CONSOLE_LOG_ROLE_OPTIONS = createLabelOptions(CONSOLE_LOG_ROLES, CONSOLE_LOG_ROLE_LABELS);
+
 // ─── 维护模式 ────────────────────────────────────────────────────────────────
 
 export const MAINTENANCE_LOG_STATUSES = ['ongoing', 'completed'] as const;

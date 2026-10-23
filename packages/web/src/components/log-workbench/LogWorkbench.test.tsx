@@ -41,6 +41,33 @@ function renderWorkbench(initialKeyword?: string, extra: Partial<LogWorkbenchPro
 }
 
 describe('精确链路定位', () => {
+  it('控制台模式自动开始追踪，卸载时停止；旧文件页面保持静态读取', async () => {
+    const start = vi.fn();
+    const stop = vi.fn();
+    vi.mocked(useLogTail).mockReturnValue({
+      tailing: false, paused: false, reconnecting: false, lines: [], pendingCount: 0, capped: false, pause: vi.fn(), resume: vi.fn(),
+      start, stop,
+    });
+    recorder.on('GET', '/api/console-logs/content', { lines: [] });
+    const view = renderWorkbench(undefined, { source: { kind: 'console', role: 'api' }, canTail: true, autoTail: true });
+    expect(start).toHaveBeenCalledOnce();
+    view.unmount();
+    expect(stop).toHaveBeenCalledOnce();
+    renderWorkbench();
+    await waitFor(() => expect(recorder.countOf('GET', `/api/log-files/${FILENAME}/content`)).toBe(1));
+    expect(start).toHaveBeenCalledOnce();
+  });
+
+  it('控制台链路定位复用应用日志精确查询', async () => {
+    recorder.on('GET', '/api/console-logs/content', { lines: [] });
+    renderWorkbench(undefined, { source: { kind: 'console', role: 'worker' }, initialTraceId: KEYWORD });
+    expect(screen.getByText(`链路定位：${KEYWORD}`)).toBeInTheDocument();
+    await waitFor(() => expect(recorder.countOf('GET', '/api/console-logs/content')).toBe(1));
+    const params = new URLSearchParams(recorder.urls('GET')[0].split('?')[1]);
+    expect(params.get('role')).toBe('worker');
+    expect(params.get('locateTraceId')).toBe(KEYWORD);
+  });
+
   it('实时追踪保留全部行，但仅计数所属链路的匹配', async () => {
     vi.mocked(useLogTail).mockReturnValue({
       tailing: true, paused: false, reconnecting: false, pendingCount: 0, capped: false,

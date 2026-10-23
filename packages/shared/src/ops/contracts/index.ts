@@ -1,4 +1,5 @@
 export * from './app-releases';
+export * from './console-logs';
 export * from './db-admin';
 export * from './deploy';
 export * from './docker';

@@ -16,6 +16,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+// 本模块最先加载：保留未被应用 console 采集层接管的 stderr 输出。
+// fatal 的同步留痕不能依赖 logger/transport 健康，也不能被 LOG_LEVEL 屏蔽。
+const emergencyConsoleError = console.error.bind(console);
+
 export type CrashKind = 'uncaughtException' | 'unhandledRejection';
 
 export interface CrashRecord {
@@ -80,7 +84,7 @@ export function writeCrashSentinel(record: CrashRecord): string | null {
     return file;
   } catch (err) {
     try {
-      console.error('[fatal] 崩溃哨兵写入失败:', err);
+      emergencyConsoleError('[fatal] 崩溃哨兵写入失败:', err);
     } catch { /* stderr 都不可用时无事可做 */ }
     return null;
   }
@@ -90,7 +94,7 @@ function handleFatal(kind: CrashKind, cause: unknown): void {
   if (fatalInProgress) {
     // 处理期间再次致命（flush 链路自身抛错等）：不再做任何清理，立即退出防递归
     try {
-      console.error('[fatal] re-entered during fatal handling, exiting immediately:', cause);
+      emergencyConsoleError('[fatal] re-entered during fatal handling, exiting immediately:', cause);
     } catch { /* noop */ }
     process.exit(1);
   }
@@ -99,7 +103,7 @@ function handleFatal(kind: CrashKind, cause: unknown): void {
 
   // ── 同步动作：崩溃态下唯一可靠的留痕 ──────────────────────────────────────
   try {
-    console.error(`[fatal] ${kind}:`, cause);
+    emergencyConsoleError(`[fatal] ${kind}:`, cause);
   } catch { /* noop */ }
   const record = buildCrashRecord(kind, cause);
   writeCrashSentinel(record);

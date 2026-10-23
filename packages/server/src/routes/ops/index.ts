@@ -5,6 +5,7 @@ import {
   appReleaseStatsContract,
   clientAppContract,
   clientDeviceContract,
+  consoleLogContract,
   dbAdminContract,
   deployReleaseContract,
   deployRunContract,
@@ -43,6 +44,7 @@ import {
 import publicAppReleasesRoutes from './public-app-releases';
 import { adminPushDevicesRouter } from './push-devices';
 import dbAdminRoutes from './db-admin';
+import consoleLogsRoutes from './console-logs';
 import { deployReleasesRouter, deployRunsRouter, deployTargetsRouter } from './deploy';
 import dockerRoutes from './docker';
 import firewallRoutes from './firewall';
@@ -92,6 +94,7 @@ export default defineRouteDomain({
     [opsHostContract.basePath, hostsRoutes, { feature: 'ops' }],
     [hostFileContract.basePath, hostFilesRoutes, { feature: 'ops' }],
     [logFileContract.basePath, logFilesRoutes, { feature: 'ops' }],
+    [consoleLogContract.basePath, consoleLogsRoutes, { feature: 'ops' }],
     [retentionPolicyContract.basePath, retentionRoutes, { feature: 'ops' }],
     // 应用版本管理：静态子资源前缀先挂载，再挂载资源根（看板统计）
     [clientAppContract.basePath, clientAppsRouter, { licenseExempt: '客户端应用目录属于基础发布能力' }],

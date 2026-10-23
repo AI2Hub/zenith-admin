@@ -38,7 +38,7 @@ const WINDOWS_COMMON_SUFFIXES = [
 ] as const;
 
 interface SubmittedLog {
-  source: LogSource;
+  source: Exclude<LogSource, { kind: 'console' }>;
   /** 每次点「加载」递增：同一路径重复加载时重挂载工作台 */
   seq: number;
 }
@@ -247,7 +247,7 @@ export default function LogViewerPage() {
     } catch { /* ignore */ }
   }, [recentPaths]);
 
-  const loadSource = useCallback((source: LogSource, remember = false) => {
+  const loadSource = useCallback((source: SubmittedLog['source'], remember = false) => {
     if (source.kind === 'path') {
       setProjectFile('');
     } else {

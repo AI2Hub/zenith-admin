@@ -56,6 +56,7 @@
 | Nginx 站点 | `/system/nginx-sites` | `system/nginx-sites/NginxSitesPage` | `system:nginx:view` |
 | SSL 证书 | `/system/ssl-certificates` | `system/ssl-certificates/SslCertificatesPage` | `system:ssl:view` |
 | 日志文件 | `/system/log-files` | `system/log-files/LogFilesPage` | `system:log:files` |
+| 控制台日志 | `/system/console-logs` | `system/console-logs/ConsoleLogsPage` | `system:log:console` |
 | 数据库管理 | `/system/db-admin` | `system/db-admin/DbAdminPage` | `system:db-admin:view` |
 | 缓存管理 | `/system/cache` | `system/cache/CacheManagePage` | `system:cache:list` |
 | 数据保留 | `/system/retention` | `system/retention/RetentionPage` | `system:retention:view` |

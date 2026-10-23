@@ -9,6 +9,7 @@ const CRITICAL_ACCESS = { riskLevel: 'critical', approvalPolicy: 'two_person', r
 const HIGH_ACCESS = { riskLevel: 'high', approvalPolicy: 'manager_security', reviewIntervalDays: 90 } as const;
 
 export const OPS_PERMISSIONS = definePermissions({
+  'system:log:console': { label: '查询', menu: 'SystemConsoleLogs', sort: 1 },
   'system:log:files': { label: '查看日志', menu: 'SystemLogFiles', sort: 1 },
   'system:log:files:download': { label: '下载日志', menu: 'SystemLogFiles', sort: 2, ...HIGH_ACCESS },
   'system:log:files:delete': { label: '删除日志', menu: 'SystemLogFiles', sort: 3, ...HIGH_ACCESS },

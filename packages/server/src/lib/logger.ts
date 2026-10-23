@@ -29,6 +29,7 @@ import { currentTraceId } from './trace-context';
 import { config } from '../config';
 import { recordLogLevel } from './log-metrics';
 import { PROCESS_HOSTNAME } from './process-identity';
+import { installConsoleCapture } from './console-capture';
 
 // pino-pretty 只在 Windows 终端分支于主线程加载；其余场景由 worker 按 target 名自行解析
 const require = createRequire(import.meta.url);
@@ -218,5 +219,9 @@ function createLogger(): Logger {
 }
 
 const logger = createLogger() as unknown as AppLogger;
+
+// 不截获 Pino 的 stdout/file transport；原生 console 仅在入口转为一次结构化日志。
+// vitest 自行管理 console，避免导入公共 logger 给所有测试安装全局替身。
+if (!process.env.VITEST) installConsoleCapture(logger);
 
 export default logger;

@@ -29,6 +29,7 @@ import { sqlMonitorHandlers } from './sql-monitor';
 import { sslCertificatesHandlers } from './ssl-certificates';
 import { loginLogsHandlers } from './login-logs';
 import { operationLogsHandlers } from './operation-logs';
+import { consoleLogsHandlers } from './console-logs';
 import { sessionsHandlers } from './sessions';
 import { regionsHandlers } from './regions';
 import { emailConfigHandlers } from './email-config';
@@ -199,6 +200,7 @@ export const handlers = [
   ...sslCertificatesHandlers,
   ...loginLogsHandlers,
   ...operationLogsHandlers,
+  ...consoleLogsHandlers,
   ...sessionsHandlers,
   ...regionsHandlers,
   ...emailConfigHandlers,

@@ -42,7 +42,7 @@ export function useLogTail(url: string | null) {
 
   useEffect(() => () => {
     abortRef.current?.abort();
-  }, []);
+  }, [url]);
 
   const appendLines = useCallback((batch: string[]) => {
     setLines((prev) => (prev.length + batch.length > MAX_TAIL_LINES
@@ -84,19 +84,37 @@ export function useLogTail(url: string | null) {
     };
 
     let failures = 0;
+    let lastEventId: string | undefined;
     try {
       // 断线自动重连：收到数据即清零计数，连续失败达到上限才停止
       while (!ctrl.signal.aborted) {
         let gotData = false;
         try {
-          const res = await request.fetchRaw(url, { signal: ctrl.signal, silent: true });
+          const res = await request.fetchRaw(url, {
+            signal: ctrl.signal,
+            silent: true,
+            headers: lastEventId ? { 'Last-Event-ID': lastEventId } : undefined,
+          });
           if (res?.ok && res.body) {
             setReconnecting(false);
             await readSseStream(res, (events) => {
-              const batch = events.map((e) => e.data).filter(Boolean);
-              if (batch.length === 0) return;
-              gotData = true;
-              appendBatch(batch);
+              if (ctrl.signal.aborted) return;
+              const failureIndex = events.findIndex((event) => event.event === 'error');
+              const failure = events[failureIndex];
+              // 只把日志帧交给查看器；ready / heartbeat 等控制帧不能混入正文或覆盖游标。
+              const logs = (failure ? events.slice(0, failureIndex) : events).filter((event) => event.event === 'log');
+              for (const event of logs) {
+                if (event.id !== undefined) lastEventId = event.id;
+              }
+              const batch = logs.map((event) => event.data);
+              if (batch.length > 0) {
+                gotData = true;
+                appendBatch(batch);
+              }
+              if (failure) {
+                Toast.error(failure.data || '实时追踪发生错误，已停止');
+                ctrl.abort();
+              }
             });
           }
         } catch (e: unknown) {
@@ -109,7 +127,16 @@ export function useLogTail(url: string | null) {
           return;
         }
         setReconnecting(true);
-        await new Promise((resolve) => setTimeout(resolve, TAIL_RETRY_DELAY_MS));
+        await new Promise<void>((resolve) => {
+          const finish = () => {
+            clearTimeout(timer);
+            ctrl.signal.removeEventListener('abort', finish);
+            resolve();
+          };
+          const timer = setTimeout(finish, TAIL_RETRY_DELAY_MS);
+          ctrl.signal.addEventListener('abort', finish, { once: true });
+          if (ctrl.signal.aborted) finish();
+        });
       }
     } finally {
       if (abortRef.current === ctrl) {

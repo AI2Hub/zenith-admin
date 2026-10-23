@@ -114,13 +114,13 @@
 
 ## 日志查看
 
-系统提供两个日志入口，寻址方式与权限码不同，但共用同一套读取内核、同形的契约与同一个前端查看器：
+系统提供三个日志入口，寻址方式与权限码不同，共用日志行读取能力和同一个前端查看器：
 
 - **读取内核**（`services/ops/log-reader.ts`）：末尾 N 行采用 readline 流式逐行 + 固定容量环形缓冲，普通日志与 `.gz` 归档走同一条路径，
   峰值内存为 O(N 行)；`keyword` 在整个文件范围内做大小写不敏感的子串匹配，`context` 在命中行前后各保留 N 行（0-10）。
   实时追踪按文件增长轮询（周期 1 秒），不依赖 `tail` 二进制，Windows 同样可用。
 - **契约形状**（`shared/ops/contracts/log-lines.ts`）：两套 `content` 接口共用 `logTailQuery`（`lines` / `keyword` / `context`）与响应
-  `{ lines: string[] }`；两套实时追踪接口都是 SSE，每行一个 `event: log` 事件，连接建立时先回放末尾 100 行。
+  `{ lines: string[] }`；实时追踪接口都是 SSE，每行一个 `event: log` 事件，连接建立时先回放末尾 100 行。
 - **前端查看器**（`components/log-workbench/`）：虚拟滚动、正则搜索、大小写切换、上一个 / 下一个匹配导航、仅匹配行模式、
   服务端全文过滤、级别识别（NDJSON 数字级别 / `[level]` 标记 / 大写级别词，续行继承上一行级别）与筛选、
   暂停 / 继续实时追踪（暂停期间积压）、断线自动重连、复制当前视图 / 复制全部 / 导出当前视图、跳到指定行号、行号与自动换行偏好。
@@ -135,6 +135,24 @@
 | `GET /api/log-viewer/content?path=...&lines=500` | 读取日志末尾 N 行，最多 5000 行；支持 `keyword` / `context` 全文过滤 |
 | `GET /api/log-viewer/tail?path=...` | SSE 实时追踪（`event: log`），`.gz` 文件不支持 |
 | `GET /api/log-viewer/download?path=...` | 下载日志文件，默认最大 100 MB |
+
+### 控制台日志
+
+「控制台日志」（`/system/console-logs`）查看 Zenith 后端应用自身的运行日志，权限为 `system:log:console`，多租户模式下还须为平台管理员；进入即自动追踪当前后端角色的日志。日志由应用 Pino 输出链路提供，读取配置的 `LOG_DIR` 下应用轮转文件，支持 Windows / Linux 直接运行、Docker 与 systemd 等启动方式，不调用主机终端或系统服务日志命令。
+
+统一 logger 的业务、请求、已启用 SQL 和异常记录均可查看；logger 初始化后将 `console.log/info/warn/error/debug/trace` 接入相同链路，支持多参数、printf 格式和错误堆栈，附带 `source: console` 标识。`console.debug/trace` 按 debug 级别输出，其余遵循对应日志级别与 `LOG_LEVEL`。采集覆盖 logger 初始化后的应用输出；初始化前的报错、直接写 `stdout/stderr`、原生扩展与未转接输出的子进程仍由启动环境记录。
+
+页面复用日志工作台的搜索、级别筛选、请求链路定位、ANSI 着色、暂停 / 继续、复制与导出。默认将 Pino NDJSON 显示为 `[本地时间] LEVEL: 正文`，保留附加字段并展开错误堆栈，可切换「原始 JSON」；格式切换保留实时连接和缓冲。搜索、复制和导出基于当前显示格式，原始 JSON 模式额外支持服务端全文搜索；链路归属始终以原始记录的 `reqId` 为准。
+
+角色来源按 API 当前可访问的日志目录发现：全量进程使用 `app.*`，拆分进程使用 `app-api.*` / `app-worker.*`。只有共用日志目录时 API 才能提供 Worker 的日志；不同主机或独立容器的本地日志不会自动聚合。页面显示的主机名 / PID 为提供接口的后端实例。控制台日志接口排除详细 HTTP 流量记录，避免响应正文再次写回应用日志造成嵌套膨胀。
+
+| 接口 | 说明 |
+| --- | --- |
+| `GET /api/console-logs` | 当前后端角色、实例信息与可用角色来源 |
+| `GET /api/console-logs/content?role=api&lines=500` | 跨保留的应用轮转文件读取近期日志，支持关键词、上下文和请求链路定位 |
+| `GET /api/console-logs/tail?role=api` | SSE 持续追踪；跟随日志轮转 / 截断，以事件 ID 和 `Last-Event-ID` 支持续传 |
+
+省略 `role` 时使用当前进程角色。日志尚未创建时追踪连接等待首次写入；读取失败会报错，不伪装为无日志。浏览器缓冲和暂停积压均保留最近 5000 行，历史文件通过「日志文件」查看和下载。
 
 ### 日志文件
 

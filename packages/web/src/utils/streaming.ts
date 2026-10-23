@@ -9,6 +9,8 @@ export interface SseEvent {
   readonly event: string;
   /** `data:` 字段；多行 data 按 SSE 规范以 `\n` 拼接 */
   readonly data: string;
+  /** 不透明的续传游标；未声明时 undefined，空串表示清除游标。 */
+  readonly id?: string;
 }
 
 /** 逐块读取文本流（tail -f、ping 等纯文本输出），每次读到的片段原样回调 */
@@ -36,14 +38,20 @@ export async function streamText(url: string, onChunk: (text: string) => void, s
 
 function parseSseFrame(frame: string): SseEvent | null {
   let event = '';
+  let id: string | undefined;
   const data: string[] = [];
   for (const rawLine of frame.split('\n')) {
     const line = rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine;
     if (line.startsWith('event:')) event = line.slice(6).trim();
     else if (line.startsWith('data:')) data.push(line.slice(5).replace(/^ /, ''));
+    else if (line === 'id') id = '';
+    else if (line.startsWith('id:')) {
+      const value = line.slice(3).replace(/^ /, '');
+      if (!value.includes('\0')) id = value;
+    }
   }
   if (data.length === 0) return null;
-  return { event, data: data.join('\n') };
+  return id === undefined ? { event, data: data.join('\n') } : { event, data: data.join('\n'), id };
 }
 
 /**

@@ -101,6 +101,18 @@ describe('请求目标（路径 + 查询串）', () => {
 });
 
 describe('body 档：请求体与响应体', () => {
+  it.each(['body', 'full'])('控制台日志在 %s 档也不记录请求/响应，避免读取结果重新写回日志', async (level) => {
+    httpLogConfig.level = level;
+    httpLogConfig.logResponseBody = true;
+    for (const target of ['/api/console-logs', '/api/console-logs/content?role=api&lines=500', '/api/console-logs/tail?role=api']) {
+      await makeApp().request(target);
+    }
+    expect(writeMock).not.toHaveBeenCalled();
+    // 排除规则不影响其他业务接口的响应采集。
+    await makeApp().request('/api/users');
+    expect(entries().find((entry) => entry.phase === 'response')!.responseBody).toEqual({ ok: true, path: '/api/users' });
+  });
+
   it('记录请求体，并按键名脱敏敏感字段', async () => {
     httpLogConfig.level = 'body';
     await makeApp().request('/api/login', {

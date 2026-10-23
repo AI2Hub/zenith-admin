@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { buildCrashRecord, crashSentinelDir, writeCrashSentinel } from './fatal-handlers';
 
 const originalLogDir = process.env.LOG_DIR;
@@ -59,6 +59,24 @@ describe('buildCrashRecord', () => {
 });
 
 describe('writeCrashSentinel', () => {
+  it('console 被采集层替换且 logger 不可用时，仍调用安装前的 stderr 兜底', async () => {
+    const emergencyOutput = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.resetModules();
+    const { writeCrashSentinel: writeWithEmergencyOutput } = await import('./fatal-handlers');
+    const capturedConsoleError = vi.fn(() => { throw new Error('logger unavailable'); });
+    const mkdir = vi.spyOn(fs, 'mkdirSync').mockImplementationOnce(() => { throw new Error('disk unavailable'); });
+    console.error = capturedConsoleError;
+    try {
+      expect(writeWithEmergencyOutput(buildCrashRecord('uncaughtException', new Error('crash')))).toBeNull();
+      expect(emergencyOutput).toHaveBeenCalledExactlyOnceWith('[fatal] 崩溃哨兵写入失败:', expect.any(Error));
+      expect(capturedConsoleError).not.toHaveBeenCalled();
+    } finally {
+      mkdir.mockRestore();
+      console.error = emergencyOutput;
+      emergencyOutput.mockRestore();
+    }
+  });
+
   it('同步写入哨兵文件并可完整读回', () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'fatal-handlers-'));
     process.env.LOG_DIR = tmp;

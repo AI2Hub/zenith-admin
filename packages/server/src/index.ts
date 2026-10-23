@@ -18,6 +18,8 @@ import { isFatalShutdownInProgress } from './lib/fatal-handlers';
 // 而 zod v4 实例只在构造时拷贝原型方法。@zenith/shared 的契约 schema 在各自模块加载时构造，
 // 必须晚于此补丁，lib/openapi-schemas 与路由层对它们调 .openapi(...) 才成立。
 import '@hono/zod-openapi';
+// 在业务模块图加载前安装原生 console 采集；环境配置校验失败仍由原始 stderr 兜底。
+import logger from './lib/logger';
 import { validateSettingsRegistry } from '@zenith/shared/settings';
 import { startApiRole, type ApiRoleHandle } from './bootstrap/run-api';
 import { activateWorkerJobs, startWorkerRole, type WorkerRoleHandle } from './bootstrap/run-worker';
@@ -28,7 +30,6 @@ import { assertRuntimeLogOptions, assertRuntimeRoles, assertRuntimeSecrets, conf
 import { closeDb } from './db';
 import { startErrorReporter, stopErrorReporter } from './lib/error-tracking/reporter';
 import { startInvalidationBus } from './lib/invalidation-bus';
-import logger from './lib/logger';
 import { metricsSampler } from './lib/metrics-sampler';
 import { logPdfFontStatus } from './lib/pdf-font';
 import { stopAllJobs } from './lib/pg-boss-scheduler';

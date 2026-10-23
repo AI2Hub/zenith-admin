@@ -24,6 +24,8 @@ const BUILTIN_EXCLUDE_PREFIXES = [
   '/api/health',
   '/api/ws',
   '/api/metrics',
+  // 日志读取结果不能再次写回应用日志，否则 body/full 模式会反复嵌套响应正文。
+  '/api/console-logs',
   '/docs',
   '/api/ui',
   '/favicon.ico',

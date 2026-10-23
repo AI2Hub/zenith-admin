@@ -1,8 +1,9 @@
-import { useCallback, useId, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode, SetStateAction } from 'react';
 import { useDebouncedValue } from '@tanstack/react-pacer';
 import { matchesLogTraceId } from '@zenith/shared/ops';
-import { Button, Dropdown, Input, InputNumber, Modal, Select, Spin, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
+import { createLabelOptionsFromMap } from '@zenith/shared/core';
+import { Button, Dropdown, Input, InputNumber, Modal, Radio, RadioGroup, Select, Spin, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import {
   Activity, AlertTriangle, ArrowDown, ArrowUp, CaseSensitive, Copy, FileDown, FileText, Hash,
   ListFilter, ListOrdered, MoreHorizontal, Palette, Pause, Play, RefreshCw, Regex, Search, StopCircle, WrapText,
@@ -15,6 +16,7 @@ import { buildSearchIndex, compileSearchPattern, computeEffectiveLevels, type Lo
 import { LogContentView, type LogContentViewHandle } from './LogContentView';
 import { MAX_TAIL_LINES, useLogTail } from './useLogTail';
 import { DEFAULT_LOG_PALETTE, LOG_PALETTES, resolveLogPalette } from './log-palettes';
+import { formatConsoleLogLine } from './console-log-format';
 
 const EMPTY_LINES: string[] = [];
 
@@ -28,6 +30,7 @@ const LEVEL_FILTER_VALUES: Array<{ value: LogLevel; label: string }> = [
 const LINE_COUNT_OPTIONS = [500, 1000, 2000, 5000].map((n) => ({ value: n, label: `最后 ${n} 行` }));
 
 const CONTEXT_OPTIONS = [0, 2, 5, 10].map((n) => ({ value: n, label: n === 0 ? '无上下文' : `上下文 ±${n} 行` }));
+const CONSOLE_FORMAT_OPTIONS = createLabelOptionsFromMap({ pretty: '控制台', raw: '原始JSON' });
 
 /** 显示偏好持久化到 localStorage（两处日志页面共享同一份偏好） */
 function usePersistentState<T>(key: string, initialValue: T) {
@@ -58,6 +61,8 @@ export interface LogWorkbenchProps {
   title?: ReactNode;
   /** 允许实时追踪（压缩归档 / 无权限时传 false） */
   canTail?: boolean;
+  /** 打开时自动实时追踪；旧的文件 / 路径查看页面默认保持静态读取 */
+  autoTail?: boolean;
   /** 初始级别过滤（深链 `?level=`），仅挂载时读取 */
   initialLevel?: LogLevel;
   /** 初始搜索关键词（深链 `?keyword=`），仅挂载时读取 */
@@ -78,8 +83,8 @@ export interface LogWorkbenchProps {
  * 日志工作台：末尾 N 行 / 服务端全文过滤 / 实时追踪 + 虚拟滚动查看器 + 搜索 / 级别筛选 / 复制导出。
  * 「日志文件」与「日志查看器」两个页面共用，只需提供来源与页面专属动作。
  */
-export function LogWorkbench({ source, title, canTail = true, initialLevel, initialKeyword, initialTraceId, onTraceIdChange, headerExtra, menuExtra, exportName }: LogWorkbenchProps) {
-  const [traceId, setTraceId] = useState(source.kind === 'file' ? initialTraceId : undefined);
+export function LogWorkbench({ source, title, canTail = true, autoTail = false, initialLevel, initialKeyword, initialTraceId, onTraceIdChange, headerExtra, menuExtra, exportName }: LogWorkbenchProps) {
+  const [traceId, setTraceId] = useState(source.kind !== 'path' ? initialTraceId : undefined);
   // 内容搜索：输入即时高亮（防抖），全文模式回车提交服务端过滤
   const [searchDraft, setSearchDraft] = useState(initialKeyword ?? traceId ?? '');
   const debouncedSearch = useDebouncedValue(searchDraft.trim(), { wait: 250 })[0];
@@ -91,6 +96,7 @@ export function LogWorkbench({ source, title, canTail = true, initialLevel, init
   const [serverKeyword, setServerKeyword] = useState('');
   const [activeMatchIndex, setActiveMatchIndex] = useState(0);
   const [levelFilter, setLevelFilter] = useState<LogLevel | undefined>(initialLevel);
+  const [consoleFormat, setConsoleFormat] = useState<'pretty' | 'raw'>('pretty');
 
   // 显示偏好（持久化）
   const [showLineNumbers, setShowLineNumbers] = usePersistentState('lineNumbers', true);
@@ -120,6 +126,12 @@ export function LogWorkbench({ source, title, canTail = true, initialLevel, init
   const tailUrl = canTail ? logSourceTailUrl(source) : null;
   const tail = useLogTail(tailUrl);
   const { tailing, paused: tailPaused } = tail;
+  const { start: startTail, stop: stopTail } = tail;
+  useEffect(() => {
+    if (!autoTail || !canTail) return;
+    void startTail();
+    return stopTail;
+  }, [autoTail, canTail, startTail, stopTail]);
   // 追踪中不拉静态内容
   const contentQuery = useLogSourceContent(source, contentParams, !tailing);
   const refetchContent = contentQuery.refetch;
@@ -127,8 +139,14 @@ export function LogWorkbench({ source, title, canTail = true, initialLevel, init
   // ── 派生数据：ANSI 去色 → 级别过滤（base 层）→ 搜索索引 → grep 模式（display 层） ──
   // 链路只决定定位与高亮，不隐藏窗口内的其他日志；实时追踪同样保留连续行。
   const rawLines = tailing ? tail.lines : (contentQuery.data?.lines ?? EMPTY_LINES);
+  const renderedLines = useMemo(
+    () => source.kind === 'console' && consoleFormat === 'pretty' ? rawLines.map(formatConsoleLogLine) : rawLines,
+    [source.kind, consoleFormat, rawLines],
+  );
+  // 链路归属始终读取原始 NDJSON，展示格式中的正文即使提及另一个 reqId 也不会误归属。
+  const rawPlainLines = useMemo(() => (rawLines.some(hasAnsi) ? rawLines.map(stripAnsi) : rawLines), [rawLines]);
   // 搜索 / 级别识别 / 复制导出都基于去色文本；无 ANSI 时复用同一数组，不多占内存
-  const plainLines = useMemo(() => (rawLines.some(hasAnsi) ? rawLines.map(stripAnsi) : rawLines), [rawLines]);
+  const plainLines = useMemo(() => (renderedLines.some(hasAnsi) ? renderedLines.map(stripAnsi) : renderedLines), [renderedLines]);
   const levels = useMemo(() => computeEffectiveLevels(plainLines), [plainLines]);
 
   const levelCounts = useMemo(() => {
@@ -165,9 +183,9 @@ export function LogWorkbench({ source, title, canTail = true, initialLevel, init
     baseLines,
     searchPattern,
     traceId && debouncedSearch === traceId && !searchRegex
-      ? (line) => matchesLogTraceId(line, traceId)
+      ? (_line, index) => matchesLogTraceId(rawPlainLines[baseIndexes[index]], traceId)
       : undefined,
-  ), [baseLines, searchPattern, traceId, debouncedSearch, searchRegex]);
+  ), [baseLines, searchPattern, traceId, debouncedSearch, searchRegex, rawPlainLines, baseIndexes]);
 
   const grepActive = matchesOnly && searchPattern !== null;
   const { displayIndexes, displayLines, displayRanges, displayMatches } = useMemo(() => {
@@ -286,7 +304,7 @@ export function LogWorkbench({ source, title, canTail = true, initialLevel, init
   } else if (fullText && serverKeyword) {
     emptyText = '未找到匹配的日志内容';
   } else {
-    emptyText = '（文件为空）';
+    emptyText = source.kind === 'console' ? '暂无后端日志输出' : '（文件为空）';
   }
 
   const matchCounter = debouncedSearch ? (
@@ -359,6 +377,20 @@ export function LogWorkbench({ source, title, canTail = true, initialLevel, init
         )}
         {headerExtra}
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          {source.kind === 'console' && (
+            <RadioGroup
+              type="button"
+              value={consoleFormat}
+              onChange={(event) => {
+                setConsoleFormat(event.target.value as 'pretty' | 'raw');
+                setFullText(false);
+                setServerKeyword('');
+                setActiveMatchIndex(0);
+              }}
+            >
+              {CONSOLE_FORMAT_OPTIONS.map(({ value, label }) => <Radio key={value} value={value}>{label}</Radio>)}
+            </RadioGroup>
+          )}
           <Input
             prefix={<Search size={14} />}
             suffix={matchCounter}
@@ -416,7 +448,7 @@ export function LogWorkbench({ source, title, canTail = true, initialLevel, init
               onClick={() => jumpToMatch(1)}
             />
           </Tooltip>
-          {!tailing && (
+          {!tailing && (source.kind !== 'console' || consoleFormat === 'raw') && (
             <Tooltip content="全文搜索：按关键词过滤整个文件（服务端），回车提交">
               <Button
                 size="small"
@@ -557,7 +589,7 @@ export function LogWorkbench({ source, title, canTail = true, initialLevel, init
           >
             <span style={{ display: 'inline-flex' }}>
               <Tooltip content="更多操作">
-                <Button size="small" theme="borderless" icon={<MoreHorizontal size={13} />} />
+                <Button aria-label="更多日志操作" size="small" theme="borderless" icon={<MoreHorizontal size={13} />} />
               </Tooltip>
             </span>
           </Dropdown>
@@ -581,7 +613,7 @@ export function LogWorkbench({ source, title, canTail = true, initialLevel, init
         <LogContentView
           ref={contentViewRef}
           palette={palette.id}
-          lines={rawLines}
+          lines={renderedLines}
           visibleIndexes={displayIndexes}
           levels={levels}
           lineRanges={displayRanges}
