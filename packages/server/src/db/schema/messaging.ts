@@ -1,6 +1,7 @@
 import { check, pgTable, varchar, pgEnum, integer, boolean, text, unique, index, jsonb, uniqueIndex, primaryKey, smallint } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import {
+  IN_APP_MESSAGE_TYPES,
   NOTIFICATION_CHANNELS,
   NOTIFICATION_DECISIONS,
   NOTIFICATION_DIGEST_MODES,
@@ -45,7 +46,7 @@ export const sendStatusEnum = pgEnum('send_status', ['pending', 'success', 'fail
 
 export const sendSourceEnum = pgEnum('send_source', ['manual', 'test', 'system', 'api']);
 
-export const inAppMessageTypeEnum = pgEnum('in_app_message_type', ['info', 'success', 'warning', 'error', 'resolved']);
+export const inAppMessageTypeEnum = pgEnum('in_app_message_type', IN_APP_MESSAGE_TYPES);
 
 // ── 邮件模板 ────────────────────────────────────────────────────────────────
 export const emailTemplates = pgTable('email_templates', {

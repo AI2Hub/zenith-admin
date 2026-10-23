@@ -4,6 +4,7 @@ import { Bell, Megaphone } from 'lucide-react';
 import type { NavigateFunction } from 'react-router-dom';
 import type { InAppMessage, Announcement } from '@zenith/shared/messaging';
 import DateTimeText from '@/components/DateTimeText';
+import SemanticStatus from '@/components/SemanticStatus';
 import { emptyIllustration } from '@/components/EmptyIllustration';
 
 interface NotificationItem {
@@ -22,6 +23,7 @@ interface NotificationPopoverProps<T extends NotificationItem> {
   items: T[];
   /** 列表项摘要文本（公告为去 HTML 后的正文，站内信为原文） */
   summaryOf: (item: T) => string;
+  labelOf?: (item: T) => ReactNode;
   /** 列表项时间（原始值，由 DateTimeText 按偏好渲染） */
   timeOf: (item: T) => string | null | undefined;
   /** 点击列表项：标记已读、跳转 / 打开详情由调用方决定；弹层会先关闭 */
@@ -52,6 +54,7 @@ function NotificationPopover<T extends NotificationItem>({
   emptyText,
   items,
   summaryOf,
+  labelOf,
   timeOf,
   onItemClick,
   onMarkRead,
@@ -109,7 +112,10 @@ function NotificationPopover<T extends NotificationItem>({
                   header={null}
                   main={
                     <div>
-                      <Typography.Text strong style={{ fontSize: 13 }}>{item.title}</Typography.Text>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                        <Typography.Text strong style={{ fontSize: 13 }}>{item.title}</Typography.Text>
+                        {labelOf?.(item)}
+                      </div>
                       <div style={{ fontSize: 12, color: 'var(--semi-color-text-2)', margin: '3px 0 4px', maxHeight: 40, overflow: 'hidden', lineHeight: 1.5 }}>
                         {summaryOf(item)}
                       </div>
@@ -238,6 +244,7 @@ export function MessagePopover({
       emptyText="暂无站内信"
       items={inAppMessages}
       summaryOf={(item) => item.content}
+      labelOf={(item) => <SemanticStatus status={item.type} />}
       timeOf={(item) => item.createdAt}
       onItemClick={(item) => {
         if (!item.isRead) markAsRead(item.id);

@@ -1,4 +1,5 @@
 import * as z from 'zod';
+import { SEMANTIC_STATUSES } from '../../core/semantic-status';
 import { httpUrl, linkUrl } from '../../core/validation';
 import {
   CHAT_CARD_ACTION_THEMES,
@@ -96,7 +97,7 @@ export const chatCardSchema = z.object({
   actions: z.array(chatCardActionSchema).nullable().optional(),
   source: z.string().nullable().optional().meta({ description: '来源标识（如「工作流」「系统告警」「监控」）' }),
   status: z.enum(CHAT_CARD_STATUSES).nullable().optional().meta({ description: 'pending 可操作，done 已处理（按钮置灰）' }),
-  statusText: z.string().nullable().optional().meta({ description: '已处理后的结果文案' }),
+  semanticStatus: z.enum(SEMANTIC_STATUSES).nullable().optional().meta({ description: '公共语义标签；流程结果与个人处理结果使用不同标识' }),
   instanceId: z.int().nullable().optional().meta({ description: '关联的工作流实例 ID' }),
 }).meta({ id: 'ChatCard' });
 

@@ -25,8 +25,9 @@ export interface NotificationEventDef {
   description?: string;
   severity: NotificationSeverity;
   /**
-   * 站内信展示语气（标签颜色）。与 `severity` 正交：severity 决定投递策略（如穿透免打扰），
-   * inAppType 表达内容语义（成功 / 警示 / 失败）。省略时 critical 为 `error`，其余为 `info`。
+   * 站内信标签语义。与 `severity` 正交：severity 决定投递策略（如穿透免打扰），
+   * inAppType 表达业务状态或系统提示，审批驳回使用 rejected，不视为系统 error。
+   * 省略时 critical 为 `error`，其余为 `info`。
    */
   inAppType?: InAppMessageType;
   /** 收件人未做任何配置时实际生效的渠道 */
@@ -195,6 +196,7 @@ export const NOTIFICATION_EVENTS = defineNotificationEvents({
     group: 'workflow',
     label: '收到新待办审批',
     severity: 'important',
+    inAppType: 'pending',
     defaultChannels: ['inapp'],
     availableChannels: ['inapp', 'email', 'sms', 'push'],
     bypassQuietHours: true,
@@ -215,7 +217,7 @@ export const NOTIFICATION_EVENTS = defineNotificationEvents({
     group: 'workflow',
     label: '待办被催办',
     severity: 'important',
-    inAppType: 'warning',
+    inAppType: 'pending',
     defaultChannels: ['inapp'],
     availableChannels: ['inapp', 'push'],
     bypassQuietHours: true,
@@ -227,6 +229,7 @@ export const NOTIFICATION_EVENTS = defineNotificationEvents({
     group: 'workflow',
     label: '待办转交给我',
     severity: 'normal',
+    inAppType: 'pending',
     defaultChannels: ['inapp'],
     vars: eventVars<{ instanceId: number; taskId: number; title: string; node: string }>(),
     title: '待办转交提醒',
@@ -236,7 +239,7 @@ export const NOTIFICATION_EVENTS = defineNotificationEvents({
     group: 'workflow',
     label: '我发起的流程通过',
     severity: 'important',
-    inAppType: 'success',
+    inAppType: 'approved',
     defaultChannels: ['inapp'],
     availableChannels: ['inapp', 'email', 'sms'],
     vars: eventVars<{ instanceId: number; title: string; status: string }>(),
@@ -247,7 +250,7 @@ export const NOTIFICATION_EVENTS = defineNotificationEvents({
     group: 'workflow',
     label: '我发起的流程被驳回',
     severity: 'important',
-    inAppType: 'error',
+    inAppType: 'rejected',
     defaultChannels: ['inapp'],
     availableChannels: ['inapp', 'email', 'sms'],
     vars: eventVars<{ instanceId: number; title: string; status: string }>(),
@@ -258,6 +261,7 @@ export const NOTIFICATION_EVENTS = defineNotificationEvents({
     group: 'workflow',
     label: '我发起的流程已撤回',
     severity: 'normal',
+    inAppType: 'withdrawn',
     defaultChannels: ['inapp'],
     availableChannels: ['inapp', 'email', 'sms'],
     vars: eventVars<{ instanceId: number; title: string; status: string }>(),
@@ -268,7 +272,7 @@ export const NOTIFICATION_EVENTS = defineNotificationEvents({
     group: 'workflow',
     label: '我发起的流程被退回',
     severity: 'important',
-    inAppType: 'warning',
+    inAppType: 'revision',
     defaultChannels: ['inapp'],
     availableChannels: ['inapp', 'email', 'sms'],
     vars: eventVars<{ instanceId: number; title: string; status: string }>(),
@@ -279,6 +283,7 @@ export const NOTIFICATION_EVENTS = defineNotificationEvents({
     group: 'workflow',
     label: '收到协办邀请',
     severity: 'important',
+    inAppType: 'pending',
     defaultChannels: ['inapp'],
     availableChannels: ['inapp', 'email'],
     // 协办人不回复时审批人处于等待状态，与新待办同级，不该等到早上
@@ -312,7 +317,7 @@ export const NOTIFICATION_EVENTS = defineNotificationEvents({
     group: 'workflow',
     label: '流程节点异常处理',
     severity: 'important',
-    inAppType: 'warning',
+    inAppType: 'execution_error',
     defaultChannels: ['inapp'],
     availableChannels: ['inapp', 'email'],
     // 异常兜底改变了流程走向（自动通过/跳过），相关人越早知道越好
@@ -864,13 +869,13 @@ export const NOTIFICATION_EVENTS = defineNotificationEvents({
     title: '收到权限申请', content: '{{applicantName}} 为 {{targetName}} 提交了 {{riskLevel}} 权限申请。',
   },
   'identity.access.approved': {
-    group: 'identity', label: '权限申请已通过', severity: 'important', inAppType: 'success',
+    group: 'identity', label: '权限申请已通过', severity: 'important', inAppType: 'approved',
     defaultChannels: ['inapp'], availableChannels: ['inapp', 'email'],
     vars: eventVars<{ requestId: number; targetName: string; startsAt: string; expiresAt: string; validityText: string }>(),
     title: '权限申请已通过', content: '{{targetName}} 的审批权限已发放：{{validityText}}。',
   },
   'identity.access.rejected': {
-    group: 'identity', label: '权限申请被驳回', severity: 'important', inAppType: 'warning',
+    group: 'identity', label: '权限申请被驳回', severity: 'important', inAppType: 'rejected',
     defaultChannels: ['inapp'], availableChannels: ['inapp', 'email'],
     vars: eventVars<{ requestId: number; targetName: string; reason: string }>(),
     title: '权限申请被驳回', content: '{{targetName}} 的权限申请被驳回：{{reason}}',

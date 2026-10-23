@@ -12,6 +12,8 @@ import { eq } from 'drizzle-orm';
 import { db } from '../../db';
 import { workflowInstances } from '../../db/schema';
 import type { ChatCard } from '@zenith/shared/chat';
+import type { SemanticStatus } from '@zenith/shared/core';
+import { getNotificationEvent } from '@zenith/shared/messaging';
 import { workflowEventBus } from '../workflow-event-bus';
 import {
   getSystemChannelId, publishTargeted, markChannelTaskCardsDone,
@@ -47,6 +49,7 @@ export function registerChatWorkflowSubscriber(): void {
         ],
         source: '工作流',
         status: 'pending',
+        semanticStatus: getNotificationEvent('workflow.task.created').inAppType,
         instanceId: event.instanceId,
       };
       await publishTargeted(channelId, [task.assigneeId], {
@@ -59,17 +62,17 @@ export function registerChatWorkflowSubscriber(): void {
   });
 
   // 审批完成 → 置灰卡片
-  const resolveCard = (statusText: string) => async (event: { task: { id: number } }) => {
+  const resolveCard = (semanticStatus: SemanticStatus) => async (event: { task: { id: number } }) => {
     try {
-      await markChannelTaskCardsDone(event.task.id, statusText);
+      await markChannelTaskCardsDone(event.task.id, semanticStatus);
     } catch (err) {
       logger.error('[chat-workflow] 卡片置灰失败', { err, taskId: event.task.id });
     }
   };
-  workflowEventBus.on('task.approved', resolveCard('已同意'));
-  workflowEventBus.on('task.rejected', resolveCard('已驳回'));
-  workflowEventBus.on('task.skipped', resolveCard('已自动处理'));
-  workflowEventBus.on('task.transferred', resolveCard('已转交'));
+  workflowEventBus.on('task.approved', resolveCard('agreed'));
+  workflowEventBus.on('task.rejected', resolveCard('declined'));
+  workflowEventBus.on('task.skipped', resolveCard('skipped'));
+  workflowEventBus.on('task.transferred', resolveCard('transferred'));
 
   // 流程结束 → 通知发起人
   const notifyInitiator = (kind: 'approved' | 'rejected' | 'withdrawn' | 'returned') => async (
@@ -82,10 +85,10 @@ export function registerChatWorkflowSubscriber(): void {
     if (notify === false) return;
     const label = inst.serialNo ? `${inst.title}（${inst.serialNo}）` : inst.title;
     const map = {
-      approved: { title: '审批通过', text: `你发起的流程「${label}」已审批通过`, statusText: '已通过' },
-      rejected: { title: '审批被驳回', text: `你发起的流程「${label}」已被驳回`, statusText: '已驳回' },
-      withdrawn: { title: '流程已撤回', text: `你发起的流程「${label}」已撤回`, statusText: '已撤回' },
-      returned: { title: '申请被退回', text: `你发起的流程「${label}」已被退回，请修改后重新提交`, statusText: '已退回' },
+      approved: { title: '审批通过', text: `你发起的流程「${label}」已审批通过` },
+      rejected: { title: '审批被驳回', text: `你发起的流程「${label}」已被驳回` },
+      withdrawn: { title: '流程已撤回', text: `你发起的流程「${label}」已撤回` },
+      returned: { title: '申请被退回', text: `你发起的流程「${label}」已被退回，请修改后重新提交` },
     };
     const m = map[kind];
     try {
@@ -96,7 +99,7 @@ export function registerChatWorkflowSubscriber(): void {
         text: m.text,
         source: '工作流',
         status: 'done',
-        statusText: m.statusText,
+        semanticStatus: getNotificationEvent(`workflow.instance.${kind}`).inAppType,
         instanceId: event.instanceId,
       };
       await publishTargeted(channelId, [inst.initiatorId], {

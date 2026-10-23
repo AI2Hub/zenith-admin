@@ -57,7 +57,7 @@ interface Props {
   initialAction?: ApprovalInitialAction;
   title?: string;
   onClose: () => void;
-  onActionDone?: () => void;
+  onActionDone?: (result: 'agreed' | 'declined' | 'processed') => void;
 }
 
 // 按钮默认值（启用态 / 文案 / 意见标签）统一取 shared 的 WORKFLOW_ACTION_BUTTON_DEFAULTS，
@@ -366,9 +366,9 @@ export default function WorkflowApprovalDetailSheet({
   );
 
   /** 动作成功关闭面板：待办 / 申请 / 监控等缓存在此统一回源（面板内连续动作只回源一次），再通知调用方做业务副作用 */
-  const closeAfterAction = useCallback(() => {
+  const closeAfterAction = useCallback((result: 'agreed' | 'declined' | 'processed' = 'processed') => {
     invalidateAfterTaskAction(queryClient, instanceId ?? undefined);
-    onActionDone?.();
+    onActionDone?.(result);
     onClose();
   }, [instanceId, onActionDone, onClose, queryClient]);
 
@@ -419,7 +419,7 @@ export default function WorkflowApprovalDetailSheet({
       setAttachmentsFor('approve', []);
       setApproveSignature(null);
       resetNextApprovers();
-      closeAfterAction();
+      closeAfterAction('agreed');
     } catch {
       // validation / request failed
     }
@@ -439,7 +439,7 @@ export default function WorkflowApprovalDetailSheet({
       Toast.success('已驳回');
       setRejectVisible(false);
       setAttachmentsFor('reject', []);
-      closeAfterAction();
+      closeAfterAction('declined');
     } catch {
       // validation / request failed
     }
@@ -562,7 +562,7 @@ export default function WorkflowApprovalDetailSheet({
       const formUpdates = await collectFormUpdates();
       await taskActionMutation.mutateAsync({ taskId, action: 'approve', body: { comment: '', formUpdates } });
       Toast.success('审批通过');
-      closeAfterAction();
+      closeAfterAction('agreed');
     } catch { /* request failed */ }
   };
 

@@ -49,6 +49,17 @@
 | `hidden: true` | 派发层自身触发的元事件（如摘要），不进偏好矩阵 |
 | `rateLimit` | 同一收件人可能被短时间轰炸的事件；告警必达事件不要配 |
 
+## 标签语义
+
+公共标签定义在 `shared/src/core/semantic-status.ts`，前端用 `components/SemanticStatus.tsx` 统一文字、颜色和图标。站内信的 `type` 与会话卡片的 `semanticStatus` 引用同一份语义；通知 `severity` 只决定投递策略。
+
+- 流程结果：`approved` 已通过、`rejected` 已驳回、`revision` 待修改、`withdrawn` 已撤回。
+- 个人处理：`agreed` 已同意、`declined` 已拒绝、`skipped` 已跳过、`transferred` 已转交；不推断整个流程结果。
+- 待办：`pending` 待处理；流程运行异常：`execution_error` 执行异常。
+- 通用系统通知继续使用 `info / success / warning / error / resolved`，不把业务驳回标为系统错误。
+
+工作流结果卡片从通知事件目录读取与站内信相同的标签；任务卡片完成时写入个人处理语义。卡片不得再用自由文本 `statusText` 或统一绿色勾号表示所有结果。新协议不解析历史自由文本，也不按标题猜测标签。
+
 ## Step 2：业务侧调用
 
 ```ts

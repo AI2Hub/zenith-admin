@@ -1,3 +1,4 @@
+import type { SemanticStatus } from '@zenith/shared/core';
 /**
  * Channel（站内公众号 / 系统号）服务
  *
@@ -338,13 +339,13 @@ export async function markChannelRead(channelId: number): Promise<void> {
 }
 
 /** 将某条卡片消息标记为已处理（置灰按钮 + 结果文案），并广播实时更新 */
-export async function markChannelCardDone(messageId: number, statusText: string): Promise<void> {
+export async function markChannelCardDone(messageId: number, semanticStatus: SemanticStatus): Promise<void> {
   const row = await db.query.channelMessages.findFirst({ where: eq(channelMessages.id, messageId) });
   if (!row || row.type !== 'card') return;
   const extra = (row.extra as ChatMessageExtra | null) ?? {};
   if (!extra.card || extra.card.status === 'done') return;
 
-  const newExtra: ChatMessageExtra = { ...extra, card: { ...extra.card, status: 'done', statusText } };
+  const newExtra: ChatMessageExtra = { ...extra, card: { ...extra.card, status: 'done', semanticStatus } };
   const [updated] = await db.update(channelMessages).set({ extra: newExtra })
     .where(eq(channelMessages.id, messageId)).returning();
 
@@ -359,12 +360,12 @@ export async function markChannelCardDone(messageId: number, statusText: string)
 }
 
 /** 将某工作流任务对应的待审批卡片置灰（jsonb 包含查询定位，重启后仍可靠） */
-export async function markChannelTaskCardsDone(taskId: number, statusText: string): Promise<void> {
+export async function markChannelTaskCardsDone(taskId: number, semanticStatus: SemanticStatus): Promise<void> {
   const match = JSON.stringify({ card: { status: 'pending', actions: [{ taskId }] } });
   const rows = await db.select({ id: channelMessages.id }).from(channelMessages)
     .where(and(eq(channelMessages.type, 'card'), sql`${channelMessages.extra} @> ${match}::jsonb`));
   for (const r of rows) {
-    await markChannelCardDone(r.id, statusText);
+    await markChannelCardDone(r.id, semanticStatus);
   }
 }
 

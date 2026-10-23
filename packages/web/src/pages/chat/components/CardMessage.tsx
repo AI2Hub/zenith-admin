@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Button, Modal, Tag, Typography } from '@douyinfe/semi-ui';
 import DOMPurify from 'dompurify';
-import { BookOpen, Check, ChevronRight } from 'lucide-react';
+import { BookOpen, ChevronRight } from 'lucide-react';
+import SemanticStatus from '@/components/SemanticStatus';
 import type { ChatMessage, ChatCardAction } from '@zenith/shared/chat';
 import { getMessageExtra } from '../utils';
 import { safeLinkUrl } from '@/utils/safe-url';
@@ -111,14 +112,10 @@ export function CardMessage({
         </div>
       )}
 
-      {(actions.length > 0 || done) && (
+      {(actions.length > 0 || done || card.semanticStatus) && (
         <div style={{ padding: '8px 14px 12px', borderTop: '1px solid var(--semi-color-fill-1)' }}>
-          {done ? (
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--semi-color-success)', fontSize: 13 }}>
-              <Check size={14} />
-              {card.statusText ?? '已处理'}
-            </div>
-          ) : (
+          {(done || card.semanticStatus) && <SemanticStatus status={card.semanticStatus ?? 'processed'} variant="inline" />}
+          {!done && (
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {actions.map((a) => {
                 const bp = actionButtonProps(a.theme);

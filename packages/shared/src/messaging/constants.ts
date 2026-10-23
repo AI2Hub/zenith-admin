@@ -1,5 +1,6 @@
 import { createLabelOptions, createLabelOptionsFromMap } from '../core/enum-options';
 import type { AnnouncementPriority } from './types';
+import { SEMANTIC_STATUS_META } from '../core/semantic-status';
 
 export const BUSINESS_TYPES = ['announcement'] as const;
 
@@ -141,7 +142,7 @@ export const SEND_SOURCES = ['manual', 'test', 'system', 'api'] as const;
 
 export type SendSource = (typeof SEND_SOURCES)[number];
 
-export const IN_APP_MESSAGE_TYPES = ['info', 'success', 'warning', 'error', 'resolved'] as const;
+export const IN_APP_MESSAGE_TYPES = ['info', 'success', 'warning', 'error', 'resolved', 'approved', 'rejected', 'revision', 'pending', 'execution_error', 'withdrawn'] as const;
 
 export type InAppMessageType = (typeof IN_APP_MESSAGE_TYPES)[number];
 
@@ -225,13 +226,9 @@ export const SEND_SOURCE_LABELS: Record<SendSource, string> = {
 export const SEND_SOURCE_OPTIONS: Array<{ value: SendSource; label: string }> =
   createLabelOptionsFromMap(SEND_SOURCE_LABELS);
 
-export const IN_APP_MESSAGE_TYPE_LABELS: Record<InAppMessageType, string> = {
-  info: '通知',
-  success: '成功',
-  warning: '警告',
-  error: '错误',
-  resolved: '已恢复',
-};
+export const IN_APP_MESSAGE_TYPE_LABELS = Object.fromEntries(
+  IN_APP_MESSAGE_TYPES.map(type => [type, SEMANTIC_STATUS_META[type].label]),
+) as Record<InAppMessageType, string>;
 
 export const IN_APP_MESSAGE_TYPE_OPTIONS: Array<{ value: InAppMessageType; label: string }> =
   createLabelOptionsFromMap(IN_APP_MESSAGE_TYPE_LABELS);

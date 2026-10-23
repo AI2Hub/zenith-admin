@@ -22,6 +22,7 @@ import {
   type SendInAppValues,
 } from '@/hooks/queries/in-app-messages';
 import { IN_APP_MESSAGE_TYPE_OPTIONS_WITH_COLOR as TYPE_OPTIONS } from '../in-app-message-constants';
+import SemanticStatus from '@/components/SemanticStatus';
 import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { parseTemplateVariables } from '../send-log-constants';
 import { useListPage } from '@/hooks/useListPage';
@@ -36,8 +37,7 @@ const { Text } = Typography;
 
 /** 类型标签：列表列与详情弹窗共用同一套取值 */
 function renderTypeTag(type: InAppMessageType) {
-  const item = TYPE_OPTIONS.find((t) => t.value === type);
-  return <Tag color={item?.color ?? 'grey'} type="light">{item?.label ?? type}</Tag>;
+  return <SemanticStatus status={type} />;
 }
 
 /** 发送站内信表单值：变量以 JSON 文本输入 */

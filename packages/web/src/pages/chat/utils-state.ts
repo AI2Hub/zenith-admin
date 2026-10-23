@@ -1,3 +1,4 @@
+import type { SemanticStatus } from '@zenith/shared/core';
 import type { ChatConversation, ChatGroupMember, ChatMessage, ChatPresence, ChatVoteData } from '@zenith/shared/chat';
 import type { Channel } from '@zenith/shared/messaging';
 import type { FailedMessage, LeftListItem } from './types';
@@ -68,10 +69,10 @@ export const removeFailedMessageById = (id: string) =>
   (prev: FailedMessage[]) => prev.filter((m) => m.id !== id);
 
 /** 卡片消息本地置为已处理（工作流审批完成后更新卡片状态文案） */
-export const markCardDoneLocal = (messageId: number, statusText: string) =>
+export const markCardDoneLocal = (messageId: number, semanticStatus: SemanticStatus) =>
   (prev: ChatMessage[]) => prev.map((m) =>
     m.id === messageId && m.extra?.card
-      ? { ...m, extra: { ...m.extra, card: { ...m.extra.card, status: 'done' as const, statusText } } }
+      ? { ...m, extra: { ...m.extra, card: { ...m.extra.card, status: 'done' as const, semanticStatus } } }
       : m);
 
 /** 在线/最近在线文案：lastSeen 为 'YYYY-MM-DD HH:mm:ss' */

@@ -18,6 +18,7 @@ export * from './json-shape';
 export * from './permissions';
 export * from './random';
 export * from './sensitive';
+export * from './semantic-status';
 export * from './text';
 export * from './timeline';
 export * from './tree';

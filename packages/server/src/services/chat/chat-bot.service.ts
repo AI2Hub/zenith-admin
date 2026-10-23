@@ -1,3 +1,4 @@
+import type { SemanticStatus } from '@zenith/shared/core';
 import { eq, and, sql } from 'drizzle-orm';
 import { db } from '../../db';
 import { chatMessages } from '../../db/schema';
@@ -244,13 +245,13 @@ export async function postBotMessage(
 }
 
 /** 将某张卡片标记为已处理（置灰按钮 + 结果文案），并广播 chat:edit 实时更新 */
-export async function markCardMessageDone(messageId: number, statusText: string): Promise<void> {
+export async function markCardMessageDone(messageId: number, semanticStatus: SemanticStatus): Promise<void> {
   const row = await db.query.chatMessages.findFirst({ where: eq(chatMessages.id, messageId) });
   if (!row || row.type !== 'card') return;
   const extra = (row.extra as ChatMessageExtra | null) ?? {};
   if (!extra.card || extra.card.status === 'done') return;
 
-  const newExtra: ChatMessageExtra = { ...extra, card: { ...extra.card, status: 'done', statusText } };
+  const newExtra: ChatMessageExtra = { ...extra, card: { ...extra.card, status: 'done', semanticStatus } };
   const [updated] = await db.update(chatMessages).set({ extra: newExtra }).where(eq(chatMessages.id, messageId)).returning();
 
   let sender: { id: number; nickname: string; avatar: string | null } | null = null;
@@ -269,7 +270,7 @@ export async function markCardMessageDone(messageId: number, statusText: string)
  * 通过 jsonb 包含查询按 taskId 直接从 DB 定位卡片消息，不依赖内存映射，
  * 因此服务重启后（待办创建与审批完成之间）仍能可靠置灰卡片。
  */
-export async function markTaskCardsDone(taskId: number, statusText: string): Promise<void> {
+export async function markTaskCardsDone(taskId: number, semanticStatus: SemanticStatus): Promise<void> {
   const match = JSON.stringify({ card: { status: 'pending', actions: [{ taskId }] } });
   const rows = await db
     .select({ id: chatMessages.id })
@@ -279,6 +280,6 @@ export async function markTaskCardsDone(taskId: number, statusText: string): Pro
       sql`${chatMessages.extra} @> ${match}::jsonb`,
     ));
   for (const r of rows) {
-    await markCardMessageDone(r.id, statusText);
+    await markCardMessageDone(r.id, semanticStatus);
   }
 }

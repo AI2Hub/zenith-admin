@@ -1,4 +1,5 @@
 import * as z from 'zod';
+import { SEMANTIC_STATUSES } from '../core/semantic-status';
 import { linkUrl, partialForUpdate } from '../core/validation';
 import {
   CHAT_CALL_RECORD_STATUSES,
@@ -210,7 +211,7 @@ export const chatWebhookCardSchema = z.object({
   actions: z.array(chatWebhookCardActionSchema).max(6).nullable().optional(),
   source: z.string().max(40).nullable().optional(),
   status: z.enum(CHAT_CARD_STATUSES).nullable().optional(),
-  statusText: z.string().max(60).nullable().optional(),
+  semanticStatus: z.enum(SEMANTIC_STATUSES).nullable().optional(),
   instanceId: z.number().int().positive().nullable().optional(),
 });
 

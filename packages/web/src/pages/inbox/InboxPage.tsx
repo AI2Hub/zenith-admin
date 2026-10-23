@@ -7,7 +7,8 @@ import {
 } from '@douyinfe/semi-ui';
 import { usePagination } from '@/hooks/usePagination';
 import { CheckCheck, ChevronLeft, ChevronRight, ArrowUpRight } from 'lucide-react';
-import { IN_APP_MESSAGE_TYPE_LABELS, type InAppMessage } from '@zenith/shared/messaging';
+import type { InAppMessage } from '@zenith/shared/messaging';
+import SemanticStatus from '@/components/SemanticStatus';
 import DateTimeText from '@/components/DateTimeText';
 import { BatchDeleteButton, RefreshButton } from '@/components/toolbar-controls';
 import { emptyIllustration } from '@/components/EmptyIllustration';
@@ -27,7 +28,6 @@ import {
 import { useMyInAppMessageUnreadCount } from '@/hooks/queries/in-app-messages';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
-import { IN_APP_MESSAGE_TYPE_COLORS } from '@/pages/system/in-app-message-constants';
 
 const { Text } = Typography;
 
@@ -199,9 +199,7 @@ export default function InboxPage() {
                       <Text strong={!item.isRead} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {item.title}
                       </Text>
-                      <Tag color={IN_APP_MESSAGE_TYPE_COLORS[item.type] ?? 'blue'} size="small" style={{ flexShrink: 0 }}>
-                        {IN_APP_MESSAGE_TYPE_LABELS[item.type] ?? item.type}
-                      </Tag>
+                      <SemanticStatus status={item.type} />
                       {item.link && (
                         <span title="该站内信关联业务页面，可在详情中跳转" style={{ display: 'inline-flex', flexShrink: 0, color: 'var(--semi-color-primary)' }}>
                           <ArrowUpRight size={13} />
@@ -312,6 +310,7 @@ export default function InboxPage() {
           {selectedMessage && (
             <div>
               <div style={{ marginBottom: 12, color: 'var(--semi-color-text-3)', fontSize: 12 }}>
+                <SemanticStatus status={selectedMessage.type} />{' '}
                 {selectedMessage.senderName ?? '系统'} · <DateTimeText value={selectedMessage.createdAt} />
               </div>
               <div style={{ lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>

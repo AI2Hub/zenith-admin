@@ -37,6 +37,7 @@ export const chatAdapter: NotificationChannelAdapter = {
       title: ctx.title,
       text: ctx.content,
       source: GROUP_SOURCE_LABELS[ctx.event.group] ?? '系统通知',
+      semanticStatus: ctx.options?.inapp?.type ?? ctx.event.inAppType ?? (ctx.event.severity === 'critical' ? 'error' : 'info'),
       actions: ctx.link ? [{ key: 'open', label: '查看详情', action: 'link', url: ctx.link }] : null,
     };
     await notifyUserWithCard(userId, card);

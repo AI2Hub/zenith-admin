@@ -794,10 +794,9 @@ export default function ChatPage({
         initialAction={cardSheet?.action ?? null}
         visible={!!cardSheet}
         onClose={() => setCardSheet(null)}
-        onActionDone={() => {
+        onActionDone={(result) => {
           if (cardSheet?.messageId) {
-            const statusText = cardSheet.action === 'reject' ? '已驳回' : '已处理';
-            setMessages(markCardDoneLocal(cardSheet.messageId, statusText));
+            setMessages(markCardDoneLocal(cardSheet.messageId, result));
           } else if (activeConvId) {
             void fetchMessages(activeConvId);
           }

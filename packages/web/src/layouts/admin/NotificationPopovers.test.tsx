@@ -12,7 +12,7 @@ import type { Announcement, InAppMessage } from '@zenith/shared/messaging';
 import { AnnouncementPopover, MessagePopover } from './NotificationPopovers';
 
 const message = (id: number, isRead: boolean, link: string | null = null): InAppMessage =>
-  ({ id, title: `消息 ${id}`, content: '正文', isRead, link, createdAt: '2026-09-14 10:00:00' }) as InAppMessage;
+  ({ id, title: `消息 ${id}`, content: '正文', type: 'info', isRead, link, createdAt: '2026-09-14 10:00:00' }) as InAppMessage;
 
 const announcement = (id: number, isRead: boolean): Announcement & { isRead: boolean } =>
   ({ id, title: `公告 ${id}`, content: '<p>正文</p>', publishTime: '2026-09-14 10:00:00', createdAt: '2026-09-14 10:00:00', isRead }) as Announcement & { isRead: boolean };
