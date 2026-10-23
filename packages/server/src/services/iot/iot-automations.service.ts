@@ -28,6 +28,7 @@ import { buildWhere, keywordCondition, withPagination } from '../../lib/where-he
 import { currentUser } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import redis from '../../lib/redis';
+import { config } from '../../config';
 import logger from '../../lib/logger';
 import { TtlCache } from '../../lib/ttl-cache';
 import { ensureIotRuleReferencesValid } from './iot-rule-refs';
@@ -261,7 +262,7 @@ export async function evaluateIotAutomationsOnLifecycle(deviceId: number, kind: 
 }
 
 // ─── 执行 ─────────────────────────────────────────────────────────────────────
-const COOLDOWN_PREFIX = 'iot:auto:cd:';
+const COOLDOWN_PREFIX = `${config.redis.keyPrefix}iot:auto:cd:`;
 
 /** 冷却检查：SET NX EX，占位成功才执行 */
 async function acquireCooldown(automation: IotAutomationRow, deviceId: number): Promise<boolean> {

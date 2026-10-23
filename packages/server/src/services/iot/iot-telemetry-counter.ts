@@ -6,8 +6,9 @@
 import { formatDate } from '../../lib/datetime';
 import logger from '../../lib/logger';
 import redis from '../../lib/redis';
+import { config } from '../../config';
 
-const COUNTER_PREFIX = 'iot:telemetry:count:';
+const COUNTER_PREFIX = `${config.redis.keyPrefix}iot:telemetry:count:`;
 const COUNTER_TTL_SECONDS = 2 * 86_400;
 
 function counterKey(date: Date): string {

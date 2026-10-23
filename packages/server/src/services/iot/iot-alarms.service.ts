@@ -30,6 +30,7 @@ import { buildWhere, dateRangeConditions, keywordCondition, withPagination } fro
 import { currentUser, currentUserId } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import redis from '../../lib/redis';
+import { config } from '../../config';
 import logger from '../../lib/logger';
 import { openEventBus } from '../../lib/open-event-bus';
 import { TtlCache } from '../../lib/ttl-cache';
@@ -432,7 +433,8 @@ export async function sweepIotAlarmEscalations(): Promise<string> {
   return `升级 ${escalated} 条超时未认领告警`;
 }
 
-const STREAK_PREFIX = 'iot:alarm:streak:';
+const STREAK_PREFIX = `${config.redis.keyPrefix}iot:alarm:streak:`;
+const ONLINE_PREFIX = `${config.redis.keyPrefix}iot:online:`;
 
 /** 遥测 ingest 逐点判定阈值规则（连续 N 点抑制抖动；恢复自动 resolve） */
 export async function evaluateIotThresholdRules(device: IotDeviceRow, metrics: Record<string, IotMetricValue>): Promise<void> {
@@ -512,7 +514,7 @@ export async function sweepIotOfflineAlarms(): Promise<string> {
   let wentOffline = 0;
   if (flagged.length > 0) {
     const pipeline = redis.pipeline();
-    for (const row of flagged) pipeline.exists(`iot:online:${row.deviceId}`);
+    for (const row of flagged) pipeline.exists(`${ONLINE_PREFIX}${row.deviceId}`);
     const results = await pipeline.exec();
     const offlineIds = flagged.filter((_, i) => results?.[i]?.[1] !== 1).map((r) => r.deviceId);
     if (offlineIds.length > 0) {

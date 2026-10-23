@@ -16,6 +16,7 @@ import type { identitySecurityContract, SessionClientKind } from '@zenith/shared
 import { tenantCondition } from '../../lib/tenant';
 import { buildWhere, keywordCondition, withPagination } from '../../lib/where-helpers';
 import { buildListResult } from '../../lib/list-query';
+import { config } from '../../config';
 
 export type MfaMethod = 'totp' | 'passkey';
 
@@ -42,7 +43,7 @@ export interface MfaChallengePayload {
 }
 
 const MFA_CHALLENGE_TTL_SECONDS = 5 * 60;
-const MFA_CHALLENGE_PREFIX = 'mfa-challenge:';
+const MFA_CHALLENGE_PREFIX = `${config.redis.keyPrefix}mfa-challenge:`;
 
 /**
  * 身份安全策略：由运行时设置 `identitySecurity` 模块承载（租户级，未覆盖时继承平台值）。

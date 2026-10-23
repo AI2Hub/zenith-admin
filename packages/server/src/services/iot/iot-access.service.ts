@@ -14,12 +14,13 @@ import { IOT_ONLINE_TTL_SECONDS, IOT_SIGN_MAX_SKEW_SECONDS } from '@zenith/share
 import { db } from '../../db';
 import { iotDevices, iotDeviceState, type IotDeviceRow } from '../../db/schema';
 import redis from '../../lib/redis';
+import { config } from '../../config';
 import logger from '../../lib/logger';
 import { TtlCache } from '../../lib/ttl-cache';
 import { recordIotLifecycleEvent } from './iot-events.service';
 import { resolveIotOfflineAlarms } from './iot-alarms.service';
 
-const ONLINE_PREFIX = 'iot:online:';
+const ONLINE_PREFIX = `${config.redis.keyPrefix}iot:online:`;
 /** lastSeenAt 落库节流（秒）：心跳高频，只在超过该间隔时才 UPDATE */
 const LAST_SEEN_FLUSH_SECONDS = 60;
 /**

@@ -1,4 +1,5 @@
 import type { CacheOverview } from '@zenith/shared/platform';
+import { getCacheCategoryLabel } from '@zenith/shared/platform';
 import redis from '../../lib/redis';
 import { config } from '../../config';
 import { HTTPException } from 'hono/http-exception';
@@ -9,52 +10,25 @@ export { scanKeys };
 
 const { keyPrefix } = config.redis;
 
-// key 首段（命名空间前缀后的第一个 `:` 分段）→ 分类名，必须保持一一对应：
-// 前端「删除分类」按 segment 批量删除，同一分类名只能对应一个 segment
-const CATEGORY_MAP: Record<string, string> = {
-  // 管理员认证与权限
-  session: '会话 Token',
-  blacklist: '强制下线黑名单',
-  perm: '权限缓存',
-  login_attempt: '登录失败计数',
-  login_lock: '登录锁定',
-  // 请求防护
-  rl: '接口限流计数',
-  rlstats: '限流统计',
-  idempotency: '幂等控制',
-  // AI 服务（ai:req / ai:err / ai:quota / ai:gen）
-  ai: 'AI 服务',
-  // 开放平台
-  openrl: '开放平台限流',
-  opennonce: '开放平台防重放',
-  'openquota-gate': '开放平台配额告警',
-  // SSO 身份提供方
-  'idp-oidc-state': 'OIDC 登录状态',
-  'idp-saml-state': 'SAML 登录状态',
-  'idp-saml-request': 'SAML 认证请求',
-  'idp-saml-login-ticket': 'SAML 登录票据',
-  // 工作流
-  wf: '工作流自动化',
-  wfconn: '工作流连接器',
-  // 会员体系
-  'member-session': '会员会话',
-  'member-blacklist': '会员下线黑名单',
-  member: '会员安全',
-  // 微信公众号（mp:access_token / mp:jsapi_ticket）
-  mp: '公众号凭证',
-  // 报表中心（report:quota / dataset / matview / chatbi / share-session / fill）
-  report: '报表中心',
-  // 埋点分析（analytics:quota）
-  analytics: '埋点分析',
-};
-
+// key 首段（命名空间前缀后的第一个 `:` 分段）→ 分类名。
+// 分类表在 shared 中集中维护，前后端共用；segment 与分类名必须一一对应：
+// 前端「删除分类」按 segment 批量删除，同一分类名只能对应一个 segment。
 export function getSegment(key: string): string {
   const stripped = key.startsWith(keyPrefix) ? key.slice(keyPrefix.length) : key;
   return stripped.split(':')[0] ?? stripped;
 }
 
 export function getCategory(key: string): string {
-  return CATEGORY_MAP[getSegment(key)] ?? '其他';
+  return getCacheCategoryLabel(getSegment(key));
+}
+
+/** 某分类下的全部 key：`{prefix}{segment}:*` + 精确键 `{prefix}{segment}`（如 perm-generation） */
+async function scanCategoryKeys(segment: string): Promise<string[]> {
+  const keys = await scanKeys(`${keyPrefix}${segment}:*`);
+  const exactKey = `${keyPrefix}${segment}`;
+  if (await redis.exists(exactKey)) keys.push(exactKey);
+  keys.sort((a, b) => a.localeCompare(b));
+  return keys;
 }
 
 export async function getKeyMeta(key: string) {
@@ -145,8 +119,7 @@ export async function getCacheBeforeAudit(key: string) {
 
 export async function getCachesByCategoryBeforeAudit(segment: string) {
   if (!segment) return { total: 0, list: [] };
-  const keys = await scanKeys(`${keyPrefix}${segment}:*`);
-  keys.sort((a, b) => a.localeCompare(b));
+  const keys = await scanCategoryKeys(segment);
   const items = await Promise.all(keys.map(getKeyMeta));
   return { total: items.length, list: items.map(toAuditItem) };
 }
@@ -167,7 +140,7 @@ export async function deleteCacheKey(key: string) {
 
 export async function deleteCacheByCategory(segment: string) {
   if (!segment) throw new HTTPException(400, { message: '参数错误：缺少 segment' });
-  const keys = await scanKeys(`${keyPrefix}${segment}:*`);
+  const keys = await scanCategoryKeys(segment);
   if (keys.length > 0) await redis.del(...keys);
   return keys.length;
 }

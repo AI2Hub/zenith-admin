@@ -13,6 +13,7 @@ import { confirmAndDelete, deleteAction } from '@/components/list-page';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
 import { NavListPanel, NavListItem } from '@/components/NavListPanel';
 import type { CacheItem, CacheOverview } from '@zenith/shared/platform';
+import { CACHE_CATEGORY_COLOR_BY_LABEL } from '@zenith/shared/platform';
 import {
   cacheKeys,
   useBatchDeleteCacheKeys,
@@ -51,36 +52,8 @@ const TYPE_COLORS: Record<string, 'blue' | 'green' | 'orange' | 'purple' | 'cyan
   zset: 'cyan',
 };
 
-type CategoryColor =
-  | 'amber' | 'blue' | 'cyan' | 'green' | 'indigo' | 'light-blue' | 'light-green'
-  | 'lime' | 'orange' | 'pink' | 'purple' | 'red' | 'teal' | 'violet' | 'yellow';
-
-const CATEGORY_COLORS: Record<string, CategoryColor> = {
-  '会话 Token': 'blue',
-  '强制下线黑名单': 'red',
-  '权限缓存': 'teal',
-  '登录失败计数': 'orange',
-  '登录锁定': 'amber',
-  '接口限流计数': 'green',
-  '限流统计': 'lime',
-  '幂等控制': 'cyan',
-  'AI 服务': 'purple',
-  '开放平台限流': 'indigo',
-  '开放平台防重放': 'indigo',
-  '开放平台配额告警': 'indigo',
-  'OIDC 登录状态': 'violet',
-  'SAML 登录状态': 'violet',
-  'SAML 认证请求': 'violet',
-  'SAML 登录票据': 'violet',
-  '工作流自动化': 'pink',
-  '工作流连接器': 'pink',
-  '会员会话': 'light-blue',
-  '会员下线黑名单': 'red',
-  '会员安全': 'orange',
-  '公众号凭证': 'light-green',
-  '报表中心': 'yellow',
-  '埋点分析': 'cyan',
-};
+/** 分类配色与后端分类表同源（@zenith/shared/platform），新增前缀只需登记一次 */
+const CATEGORY_COLORS = CACHE_CATEGORY_COLOR_BY_LABEL;
 
 function TtlBadge({ ttl }: Readonly<{ ttl: number }>) {
   if (ttl === -1) return <Tag color="grey" size="small">永久</Tag>;

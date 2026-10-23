@@ -17,6 +17,7 @@ import type { SessionForceLogoutPayload } from '@zenith/shared/platform';
 import type { SessionConcurrencyPolicy } from '@zenith/shared/settings';
 import { formatDateTime } from '../../lib/datetime';
 import redis from '../../lib/redis';
+import { config } from '../../config';
 import { listUserSessions, revokeSessions, type SessionInfo } from '../../lib/session-manager';
 import { getSettings } from '../../lib/settings';
 import { closeTokenConnection, sendToToken } from '../../lib/ws-manager';
@@ -117,7 +118,7 @@ export async function enforceSessionLimit(
 // 服务端据票据里冻结的登录上下文（用户 / 终端 / IP / UA / 设备信息 / 日志文案）继续原登录流程，不必重输密码。
 // 与 MFA 挑战同构：密码 / SSO / OAuth 三条路径都经此收口。
 
-const CONFLICT_TICKET_PREFIX = 'session-conflict:';
+const CONFLICT_TICKET_PREFIX = `${config.redis.keyPrefix}session-conflict:`;
 const CONFLICT_TICKET_TTL_SECONDS = 5 * 60;
 
 export interface SessionConflictTicketPayload {

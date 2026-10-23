@@ -70,7 +70,7 @@
 | `DELETE /api/cache/by-category` | 按首段 segment 删除分类缓存 |
 | `DELETE /api/cache/all` | 清空当前命名空间所有缓存 |
 
-内置分类覆盖会话 Token、强制下线黑名单、权限缓存、登录失败计数、登录锁定、接口限流计数、限流统计、幂等控制、AI 服务、开放平台限流 / 防重放 / 配额告警、OIDC / SAML 登录状态、工作流自动化 / 连接器、会员会话与安全、公众号凭证、报表中心、埋点分析等 key 前缀。
+内置分类在 `@zenith/shared/platform` 的 `CACHE_CATEGORIES` 中集中登记（key 首段 → 名称 / 配色），覆盖管理员 / 会员会话、刷新令牌、会话索引、权限、登录防护、图形验证码、限流、幂等、AI、开放平台、OAuth / OIDC / SAML、MFA、工作流、公众号凭证、报表中心、埋点分析、CMS、企业网盘、短链与 IoT 等前缀；未登记前缀显示「其他」。新增 Redis key 前缀时需同步登记，且名称与首段保持一一对应。分类删除扫描 `{prefix}{segment}:*`，并额外包含精确键 `{prefix}{segment}`（如 `perm-generation`）。
 
 ## 数据保留策略
 

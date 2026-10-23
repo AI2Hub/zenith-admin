@@ -10,11 +10,12 @@ import { ANALYTICS_EVENT_NAMES } from '@zenith/shared/analytics';
 import { db } from '../../db';
 import { shortLinks, shortLinkClicks, type ShortLinkRow } from '../../db/schema';
 import redis from '../../lib/redis';
+import { config } from '../../config';
 import logger from '../../lib/logger';
 import { parseClientEnv, lookupIpGeo } from '../../lib/analytics-helpers';
 import { trackServerEvent } from '../analytics/analytics-server-events.service';
 
-const CACHE_PREFIX = 'shortlink:code:';
+const CACHE_PREFIX = `${config.redis.keyPrefix}shortlink:code:`;
 const CACHE_TTL_SECONDS = 300;
 /** 负缓存标记：短码不存在也缓存，防止穷举打穿数据库 */
 const CACHE_NULL = '__null__';

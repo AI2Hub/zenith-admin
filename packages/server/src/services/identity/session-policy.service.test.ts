@@ -22,6 +22,7 @@ vi.mock('../../lib/session-manager', () => ({ listUserSessions: mocks.listUserSe
 vi.mock('../../lib/ws-manager', () => ({ sendToToken: mocks.sendToToken, closeTokenConnection: mocks.closeTokenConnection }));
 vi.mock('../../lib/settings', () => ({ getSettings: mocks.getSettings }));
 vi.mock('../../lib/redis', () => ({ default: mocks.redis }));
+vi.mock('../../config', () => ({ config: { redis: { keyPrefix: 'test:' } } }));
 
 import {
   consumeSessionConflictTicket,
@@ -159,7 +160,7 @@ describe('冲突票据', () => {
     expect(result.maxSessions).toBe(1);
     expect(result.sessions.map((s) => s.loginAt)).toEqual(['2026-09-15 08:20:00', '2026-09-15 08:10:00']);
     expect(result.sessions[0]).not.toHaveProperty('tokenId');
-    expect(mocks.redis.set).toHaveBeenCalledWith(`session-conflict:${result.ticket}`, expect.any(String), 'EX', 300);
+    expect(mocks.redis.set).toHaveBeenCalledWith(`test:session-conflict:${result.ticket}`, expect.any(String), 'EX', 300);
     const stored = JSON.parse(mocks.redis.set.mock.calls[0][1] as string);
     expect(stored).toMatchObject({ userId: 1, client: 'web', deviceId: 'd1', rememberDevice: true, logMessage: '登录成功' });
     expect(stored.expiresAt).toBe(result.expiresAt);
@@ -172,7 +173,7 @@ describe('冲突票据', () => {
       .mockResolvedValueOnce(JSON.stringify({ ...context, expiresAt: Date.now() - 1 }));
 
     await expect(consumeSessionConflictTicket('t')).resolves.toMatchObject({ userId: 1, logMessage: '登录成功' });
-    expect(mocks.redis.getdel).toHaveBeenCalledWith('session-conflict:t');
+    expect(mocks.redis.getdel).toHaveBeenCalledWith('test:session-conflict:t');
     await expect(consumeSessionConflictTicket('gone')).rejects.toMatchObject({ status: 400 });
     await expect(consumeSessionConflictTicket('stale')).rejects.toMatchObject({ status: 400 });
   });
