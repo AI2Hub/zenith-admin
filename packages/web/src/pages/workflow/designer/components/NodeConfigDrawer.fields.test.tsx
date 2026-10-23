@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { flattenWorkflowValueFields, type WorkflowFormField } from '@zenith/shared/workflow';
+import { compileWorkflowTree, flattenWorkflowValueFields, projectWorkflowGraph, type WorkflowFormField } from '@zenith/shared/workflow';
 import { flattenAllFields } from '../form-tree';
 import NodeConfigDrawer from './NodeConfigDrawer';
 
@@ -21,6 +21,27 @@ const formFields = flattenWorkflowValueFields(fields);
 const permissionFields = flattenAllFields(fields);
 
 describe('node configuration field scopes', () => {
+  it('opens a persisted trigger with its saved values and preserves them on confirmation', async () => {
+    const config = { triggerType: 'webhook' as const, webhookUrl: 'http://localhost/saved', headers: { 'X-Test': 'saved' },
+      bodyTemplate: '{"saved":true}', httpMethod: 'PUT' as const, timeoutMs: 5000, onFailure: 'block' as const };
+    const result = projectWorkflowGraph({ nodes: [
+      { id: 'start', position: { x: 0, y: 0 }, data: { key: 'start', type: 'start', label: '开始' } },
+      { id: 'trigger', position: { x: 0, y: 0 }, data: { key: 'trigger', type: 'trigger', label: '触发器', triggerConfig: config } },
+      { id: 'end', position: { x: 0, y: 0 }, data: { key: 'end', type: 'end', label: '结束' } },
+    ], edges: [{ id: 'a', source: 'start', target: 'trigger' }, { id: 'b', source: 'trigger', target: 'end' }] });
+    if (result.kind !== 'tree') throw new Error(result.reason);
+    const trigger = result.process.initiator.children!;
+    const onSave = vi.fn();
+    render(<NodeConfigDrawer visible node={trigger} users={[]} roles={[]} formFields={[]} permissionFields={[]}
+      onSave={onSave} onCancel={vi.fn()} />);
+    expect(await screen.findByDisplayValue('http://localhost/saved')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('5000')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('{"saved":true}')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '保存' }));
+    trigger.props = onSave.mock.calls[0][1].props;
+    expect(compileWorkflowTree(result.process).nodes.find(node => node.id === 'trigger')?.data.triggerConfig).toMatchObject(config);
+  });
+
   it('lists layout children and detail columns in permissions and saves their edit setting', async () => {
     const onSave = vi.fn();
     render(<NodeConfigDrawer visible node={{ id: 'initiator', type: 'initiator', name: '发起人', props: {} }}

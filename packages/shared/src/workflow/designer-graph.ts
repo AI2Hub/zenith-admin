@@ -77,7 +77,9 @@ function editorNode(node: GraphNode): WorkflowDesignerNode {
   const type = GRAPH_TO_EDITOR[node.data.type];
   if (!type) throw new ProjectionUnavailable(`节点「${node.data.label}」需要图模式编辑`);
   const { key, type: _type, label, ...props } = node.data;
-  return { id: node.id, key, type, name: label, props: structuredClone(props), graphNode: structuredClone(node) };
+  const editorProps = structuredClone(props);
+  if (type === 'trigger' && editorProps.triggerConfig) Object.assign(editorProps, editorProps.triggerConfig);
+  return { id: node.id, key, type, name: label, props: editorProps, graphNode: structuredClone(node) };
 }
 
 /**

@@ -177,6 +177,24 @@ describe('graph editing projection', () => {
     expect(graph).toEqual(before);
   });
 
+  it.each(['webhook', 'callback', 'updateData', 'deleteData'] as const)('restores %s trigger controls without losing canonical configuration', (triggerType) => {
+    const config = { triggerType, webhookUrl: 'http://localhost/hook', headers: { 'X-Test': 'value' },
+      bodyTemplate: '{"value":"{{form.value}}"}', httpMethod: 'PUT' as const, timeoutMs: 5000,
+      onFailure: 'block' as const, maxRetries: 2, callbackSignMode: 'hmacSha256' as const,
+      callbackSecret: 'test-only', connectorId: 3, fieldKeys: ['value'], fieldValues: { value: 'updated' } };
+    const graph = flow([node('start', 'start'), node('trigger', 'trigger', { triggerConfig: config }), node('end', 'end')],
+      [['start', 'trigger'], ['trigger', 'end']]);
+    const process = projected(graph);
+    expect(process.initiator.children!.props).toMatchObject(config);
+    expectSameGraph(compileWorkflowTree(process), graph);
+    process.initiator.children!.props.timeoutMs = 7000;
+    const changed = compileWorkflowTree(process);
+    expect(changed.nodes[1].data.triggerConfig).toEqual({ ...config, timeoutMs: 7000 });
+    expect(changed.nodes[1].data).not.toHaveProperty('triggerType');
+    expect(workflowFlowDataSchema.safeParse(changed).success).toBe(true);
+    expect(graph.nodes[1].data.triggerConfig).toEqual(config);
+  });
+
   it('compiles new editor-only trigger controls and rejects invalid mapping JSON', () => {
     const process: WorkflowDesignerProcess = { initiator: { id: 'initiator', key: 'start', type: 'initiator', name: '发起', props: {}, children: {
       id: 'trigger', type: 'trigger', name: '同步数据', props: { triggerType: 'http', headers: '{"X-Test":"ok"}', httpMethod: 'POST', timeoutMs: 5000 },

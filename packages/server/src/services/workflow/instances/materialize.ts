@@ -391,8 +391,8 @@ async function expandTasksToRows(
         // 顺序会签：只有第一人 pending，其余 waiting
         status: method === 'sequential' && idx > 0 ? 'waiting' as const : 'pending' as const,
         taskOrder: method === 'sequential' ? idx : null,
-        approveMethod: assignList.length > 1 ? method : null,
-        approveRatio: assignList.length > 1 ? ratioPct : null,
+        approveMethod: method,
+        approveRatio: ratioPct,
       });
     });
   }
