@@ -9,7 +9,7 @@ import OverflowTagList, { type OverflowTagItem } from '@/components/OverflowTagL
 import { ListSearchToolbar } from '@/components/list-page';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SessionClientTag } from '@/components/SessionClientTag';
-import { dateTimeColumn, renderEllipsis } from '../../../utils/table-columns';
+import { copyableNoColumn, dateTimeColumn, renderEllipsis } from '../../../utils/table-columns';
 import { useForceLogoutSession, useForceLogoutUserSessions, useSessionList } from '@/hooks/queries/sessions';
 import { confirmDanger } from '@/utils/confirm';
 import { useListPage } from '@/hooks/useListPage';
@@ -88,6 +88,7 @@ export default function OnlineSessionsPage() {
       },
     },
     { title: '昵称', dataIndex: 'nickname', minWidth: 180, render: renderEllipsis },
+    copyableNoColumn<OnlineSession>('Token', 'tokenId'),
     { title: '终端', dataIndex: 'client', width: 110, render: (v: OnlineSession['client']) => <SessionClientTag client={v} /> },
     { title: 'IP 地址', dataIndex: 'ip', width: 140 },
     { title: '登录地点', dataIndex: 'location', width: 180, render: renderEllipsis },
