@@ -157,27 +157,63 @@ export const monitorDbInfoSchema = z.object({
 
 export type MonitorDbInfo = z.infer<typeof monitorDbInfoSchema>;
 
+export const monitorRedisCommandStatSchema = z.object({
+  command: z.string(),
+  calls: z.number(),
+  usec: z.number(),
+  usecPerCall: z.number(),
+  rejectedCalls: z.number().optional(),
+  failedCalls: z.number().optional(),
+}).meta({ id: 'MonitorRedisCommandStat' });
+
+export type MonitorRedisCommandStat = z.infer<typeof monitorRedisCommandStatSchema>;
+
+export const monitorRedisKeyspaceSchema = z.object({
+  db: z.string(),
+  keys: z.number(),
+  expires: z.number(),
+  avgTtl: z.number().optional(),
+}).meta({ id: 'MonitorRedisKeyspace' });
+
+export type MonitorRedisKeyspace = z.infer<typeof monitorRedisKeyspaceSchema>;
+
 export const monitorRedisInfoSchema = z.object({
   version: z.string(),
   uptimeSeconds: z.number(),
+  mode: z.string().optional().meta({ description: 'Redis 运行模式：standalone / sentinel / cluster' }),
+  port: z.int().optional(),
+  currentDb: z.int().optional().meta({ description: '当前连接使用的 Redis 数据库序号' }),
   connectedClients: z.number(),
+  maxClients: z.int().optional(),
   blockedClients: z.number(),
   rejectedConnections: z.number(),
+  usedCpuSeconds: z.number().optional().meta({ description: 'Redis 进程累计 CPU 秒数（sys + user）' }),
   usedMemory: z.number(),
   usedMemoryHuman: z.string(),
+  usedMemoryPeak: z.number().optional(),
   usedMemoryRss: z.number(),
   memFragmentationRatio: z.number(),
   maxMemory: z.number(),
   maxMemoryPolicy: z.string(),
   totalCommandsProcessed: z.number(),
+  instantaneousOpsPerSec: z.number().optional(),
   keyspaceHits: z.number(),
   keyspaceMisses: z.number(),
   keyCount: z.number(),
+  networkInputKbps: z.number().optional().meta({ description: 'Redis 客户端入口流量 KB/s' }),
+  networkOutputKbps: z.number().optional().meta({ description: 'Redis 客户端出口流量 KB/s' }),
   role: z.string(),
   rdbLastSaveTime: z.number(),
+  rdbLastBgsaveStatus: z.string().optional().meta({ description: '最近一次 RDB 后台保存状态：ok / err' }),
+  rdbLastBgsaveTimeSec: z.number().optional().meta({ description: '最近一次 RDB 后台保存耗时（秒）' }),
   rdbChangesSinceLastSave: z.number(),
   aofEnabled: z.boolean(),
+  aofLastWriteStatus: z.string().optional(),
+  aofLastBgrewriteStatus: z.string().optional(),
+  aofCurrentSize: z.number().optional(),
   masterLinkStatus: z.string().nullable(),
+  commandStats: z.array(monitorRedisCommandStatSchema).optional(),
+  keyspace: z.array(monitorRedisKeyspaceSchema).optional(),
   slowLog: z.array(z.object({ id: z.number(), timestamp: z.number(), durationMs: z.number(), command: z.string() })),
 }).meta({ id: 'MonitorRedisInfo' });
 
@@ -262,6 +298,10 @@ export const monitorTimeseriesPointSchema = z.object({
   dbConnections: z.number().optional().meta({ description: '数据库总连接数（外部采集器提供，滞后一个采样周期）' }),
   redisMemBytes: z.number().optional(),
   redisHitRate: z.number().optional().meta({ description: 'Redis 窗口命中率 0-100' }),
+  redisCpuPercent: z.number().optional().meta({ description: 'Redis 进程 CPU 使用率（按采样窗口计算）' }),
+  redisOpsPerSec: z.number().optional().meta({ description: 'Redis 每秒操作数' }),
+  redisNetRxBps: z.number().optional().meta({ description: 'Redis 客户端入口流量（字节/秒）' }),
+  redisNetTxBps: z.number().optional().meta({ description: 'Redis 客户端出口流量（字节/秒）' }),
 }).meta({ id: 'MonitorTimeseriesPoint' });
 
 export type MonitorTimeseriesPoint = z.infer<typeof monitorTimeseriesPointSchema>;

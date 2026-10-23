@@ -109,27 +109,57 @@ export interface DbInfo {
 }
 
 export interface RedisSlowEntry { id: number; timestamp: number; durationMs: number; command: string }
+export interface RedisCommandStat {
+  command: string;
+  calls: number;
+  usec: number;
+  usecPerCall: number;
+  rejectedCalls: number;
+  failedCalls: number;
+}
+export interface RedisKeyspace {
+  db: string;
+  keys: number;
+  expires: number;
+  avgTtl: number;
+}
 export interface RedisInfo {
   version: string;
   uptimeSeconds: number;
+  mode: string;
+  port: number;
+  currentDb: number;
   connectedClients: number;
+  maxClients: number;
   blockedClients: number;
   rejectedConnections: number;
+  usedCpuSeconds: number;
   usedMemory: number;
   usedMemoryHuman: string;
+  usedMemoryPeak: number;
   usedMemoryRss: number;
   memFragmentationRatio: number;
   maxMemory: number;
   maxMemoryPolicy: string;
   totalCommandsProcessed: number;
+  instantaneousOpsPerSec: number;
   keyspaceHits: number;
   keyspaceMisses: number;
   keyCount: number;
+  networkInputKbps: number;
+  networkOutputKbps: number;
   role: string;
   rdbLastSaveTime: number;
+  rdbLastBgsaveStatus: string;
+  rdbLastBgsaveTimeSec: number;
   rdbChangesSinceLastSave: number;
   aofEnabled: boolean;
+  aofLastWriteStatus: string;
+  aofLastBgrewriteStatus: string;
+  aofCurrentSize: number;
   masterLinkStatus: string | null;
+  commandStats: RedisCommandStat[];
+  keyspace: RedisKeyspace[];
   slowLog: RedisSlowEntry[];
 }
 
@@ -300,7 +330,7 @@ export async function getLinuxMemInfo(): Promise<LinuxMemInfo | null> {
 // ─── Redis ──────────────────────────────────────────────────────────────
 export function parseRedisInfo(info: string): Record<string, string> {
   const result: Record<string, string> = {};
-  for (const line of info.split('\r\n')) {
+  for (const line of info.split(/\r?\n/)) {
     if (line && !line.startsWith('#')) {
       const colonIdx = line.indexOf(':');
       if (colonIdx !== -1) {
@@ -311,16 +341,71 @@ export function parseRedisInfo(info: string): Record<string, string> {
   return result;
 }
 
+function parseRedisFieldList(raw: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const part of raw.split(',')) {
+    const idx = part.indexOf('=');
+    if (idx > 0) out[part.slice(0, idx)] = part.slice(idx + 1);
+  }
+  return out;
+}
+
+function toRedisNumber(value: string | undefined): number {
+  const num = Number(value ?? 0);
+  return Number.isFinite(num) ? num : 0;
+}
+
+export function parseRedisCommandStats(info: string): RedisCommandStat[] {
+  return Object.entries(parseRedisInfo(info))
+    .filter(([key]) => key.startsWith('cmdstat_'))
+    .map(([key, raw]) => {
+      const fields = parseRedisFieldList(raw);
+      return {
+        command: key.slice('cmdstat_'.length),
+        calls: toRedisNumber(fields.calls),
+        usec: toRedisNumber(fields.usec),
+        usecPerCall: toRedisNumber(fields.usec_per_call),
+        rejectedCalls: toRedisNumber(fields.rejected_calls),
+        failedCalls: toRedisNumber(fields.failed_calls),
+      };
+    })
+    .filter((stat) => stat.calls > 0)
+    .sort((a, b) => b.calls - a.calls);
+}
+
+export function parseRedisKeyspace(info: string): RedisKeyspace[] {
+  return Object.entries(parseRedisInfo(info))
+    .filter(([key]) => /^db\d+$/.test(key))
+    .map(([db, raw]) => {
+      const fields = parseRedisFieldList(raw);
+      return {
+        db,
+        keys: toRedisNumber(fields.keys),
+        expires: toRedisNumber(fields.expires),
+        avgTtl: toRedisNumber(fields.avg_ttl),
+      };
+    })
+    .filter((entry) => entry.keys > 0)
+    .sort((a, b) => a.db.localeCompare(b.db, undefined, { numeric: true }));
+}
+
 export async function getRedisInfo(): Promise<RedisInfo | null> {
   const cached = fresh(cache.redis);
   if (cached !== undefined) return cached;
   try {
-    const [infoStr, dbSize, slowRaw] = await Promise.all([
+    const [infoStr, commandInfoStr, keyspaceInfoStr, dbSize, slowRaw] = await Promise.all([
       redis.info(),
+      redis.info('commandstats').catch(() => ''),
+      redis.info('keyspace').catch(() => ''),
       redis.dbsize(),
       redis.slowlog('GET', 10).catch(() => []),
     ]);
     const info = parseRedisInfo(infoStr);
+    const commandStats = parseRedisCommandStats(commandInfoStr || infoStr);
+    const keyspace = parseRedisKeyspace(keyspaceInfoStr || infoStr);
+    const keyCount = keyspace.length > 0
+      ? keyspace.reduce((sum, entry) => sum + entry.keys, 0)
+      : dbSize;
     const slowLog: RedisSlowEntry[] = Array.isArray(slowRaw)
       ? (slowRaw as Array<[number, number, number, string[]]>).map((entry) => ({
           id: Number(entry[0] ?? 0),
@@ -331,25 +416,41 @@ export async function getRedisInfo(): Promise<RedisInfo | null> {
       : [];
     const value: RedisInfo = {
       version: info.redis_version ?? 'Unknown',
-      uptimeSeconds: Number(info.uptime_in_seconds ?? 0),
-      connectedClients: Number(info.connected_clients ?? 0),
-      blockedClients: Number(info.blocked_clients ?? 0),
-      rejectedConnections: Number(info.rejected_connections ?? 0),
-      usedMemory: Number(info.used_memory ?? 0),
+      uptimeSeconds: toRedisNumber(info.uptime_in_seconds),
+      mode: info.redis_mode ?? 'standalone',
+      port: toRedisNumber(info.tcp_port),
+      currentDb: Number(redis.options.db ?? 0),
+      connectedClients: toRedisNumber(info.connected_clients),
+      maxClients: toRedisNumber(info.maxclients),
+      blockedClients: toRedisNumber(info.blocked_clients),
+      rejectedConnections: toRedisNumber(info.rejected_connections),
+      usedCpuSeconds: toRedisNumber(info.used_cpu_sys) + toRedisNumber(info.used_cpu_user),
+      usedMemory: toRedisNumber(info.used_memory),
       usedMemoryHuman: info.used_memory_human ?? '',
-      usedMemoryRss: Number(info.used_memory_rss ?? 0),
-      memFragmentationRatio: Number(info.mem_fragmentation_ratio ?? 0),
-      maxMemory: Number(info.maxmemory ?? 0),
+      usedMemoryPeak: toRedisNumber(info.used_memory_peak),
+      usedMemoryRss: toRedisNumber(info.used_memory_rss),
+      memFragmentationRatio: toRedisNumber(info.mem_fragmentation_ratio),
+      maxMemory: toRedisNumber(info.maxmemory),
       maxMemoryPolicy: info.maxmemory_policy ?? 'noeviction',
-      totalCommandsProcessed: Number(info.total_commands_processed ?? 0),
-      keyspaceHits: Number(info.keyspace_hits ?? 0),
-      keyspaceMisses: Number(info.keyspace_misses ?? 0),
-      keyCount: dbSize,
+      totalCommandsProcessed: toRedisNumber(info.total_commands_processed),
+      instantaneousOpsPerSec: toRedisNumber(info.instantaneous_ops_per_sec),
+      keyspaceHits: toRedisNumber(info.keyspace_hits),
+      keyspaceMisses: toRedisNumber(info.keyspace_misses),
+      keyCount,
+      networkInputKbps: toRedisNumber(info.instantaneous_input_kbps),
+      networkOutputKbps: toRedisNumber(info.instantaneous_output_kbps),
       role: info.role ?? 'Unknown',
-      rdbLastSaveTime: Number(info.rdb_last_save_time ?? 0),
-      rdbChangesSinceLastSave: Number(info.rdb_changes_since_last_save ?? 0),
+      rdbLastSaveTime: toRedisNumber(info.rdb_last_save_time),
+      rdbLastBgsaveStatus: info.rdb_last_bgsave_status ?? 'unknown',
+      rdbLastBgsaveTimeSec: toRedisNumber(info.rdb_last_bgsave_time_sec),
+      rdbChangesSinceLastSave: toRedisNumber(info.rdb_changes_since_last_save),
       aofEnabled: info.aof_enabled === '1',
+      aofLastWriteStatus: info.aof_last_write_status ?? 'unknown',
+      aofLastBgrewriteStatus: info.aof_last_bgrewrite_status ?? 'unknown',
+      aofCurrentSize: toRedisNumber(info.aof_current_size),
       masterLinkStatus: info.master_link_status ?? null,
+      commandStats,
+      keyspace,
       slowLog,
     };
     cache.redis = { at: Date.now(), value };
@@ -782,6 +883,8 @@ async function summarizeWsTenants(
 export function registerMonitorExtCollector(): void {
   let lastHits = 0;
   let lastMisses = 0;
+  let lastCpu = 0;
+  let lastCpuAt = 0;
   let primed = false;
   metricsSampler.registerExtCollector(async () => {
     const [connRows, redisInfoRaw] = await Promise.all([
@@ -794,24 +897,43 @@ export function registerMonitorExtCollector(): void {
       : 0;
     let redisMemBytes = 0;
     let redisHitRate = 0;
+    let redisCpuPercent = 0;
+    let redisOpsPerSec = 0;
+    let redisNetRxBps = 0;
+    let redisNetTxBps = 0;
     if (redisInfoRaw) {
-      const info: Record<string, string> = {};
-      for (const line of redisInfoRaw.split('\n')) {
-        const idx = line.indexOf(':');
-        if (idx > 0) info[line.slice(0, idx)] = line.slice(idx + 1).trim();
-      }
+      const info = parseRedisInfo(redisInfoRaw);
+      const now = Date.now();
       redisMemBytes = Number(info.used_memory ?? 0);
+      redisOpsPerSec = Number(info.instantaneous_ops_per_sec ?? 0);
+      redisNetRxBps = Number(info.instantaneous_input_kbps ?? 0) * 1024;
+      redisNetTxBps = Number(info.instantaneous_output_kbps ?? 0) * 1024;
       const hits = Number(info.keyspace_hits ?? 0);
       const misses = Number(info.keyspace_misses ?? 0);
+      const cpu = Number(info.used_cpu_sys ?? 0) + Number(info.used_cpu_user ?? 0);
       if (primed) {
         const dh = Math.max(0, hits - lastHits);
         const dm = Math.max(0, misses - lastMisses);
         redisHitRate = dh + dm > 0 ? Math.round((dh / (dh + dm)) * 1000) / 10 : 100;
+        if (lastCpuAt > 0 && now > lastCpuAt) {
+          const deltaCpu = Math.max(0, cpu - lastCpu);
+          redisCpuPercent = Math.round((deltaCpu / ((now - lastCpuAt) / 1000)) * 1000) / 10;
+        }
       }
       lastHits = hits;
       lastMisses = misses;
+      lastCpu = cpu;
+      lastCpuAt = now;
       primed = true;
     }
-    return { dbConnections, redisMemBytes, redisHitRate };
+    return {
+      dbConnections,
+      redisMemBytes,
+      redisHitRate,
+      redisCpuPercent,
+      redisOpsPerSec,
+      redisNetRxBps,
+      redisNetTxBps,
+    };
   });
 }

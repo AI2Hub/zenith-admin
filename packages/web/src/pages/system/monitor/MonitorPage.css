@@ -454,3 +454,63 @@
     border-top: 1px solid var(--semi-color-border);
   }
 }
+
+
+/* ===== Redis 基本信息（分类平铺，无卡片） ===== */
+.monitor-redis-basic {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 20px 32px;
+  align-items: start;
+}
+
+.monitor-redis-basic__group {
+  min-width: 0;
+}
+
+.monitor-redis-basic__group-title {
+  margin-bottom: 8px;
+  color: var(--semi-color-text-2);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.monitor-redis-nowrap {
+  white-space: nowrap;
+}
+
+/* ===== Redis 命令统计 ===== */
+.monitor-redis-command-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.9fr) minmax(0, 1.4fr);
+  gap: 24px;
+  align-items: center;
+}
+
+.monitor-redis-command-chart {
+  min-width: 0;
+}
+
+.monitor-redis-command-table-wrap {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.monitor-redis-command-table th,
+.monitor-redis-command-table td {
+  padding: 7px 8px;
+  white-space: nowrap;
+}
+
+.monitor-redis-command-table code {
+  font-family: var(--semi-font-family-code, ui-monospace, monospace);
+  font-size: 12px;
+}
+
+@media (--lg-down) {
+  .monitor-redis-command-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+}

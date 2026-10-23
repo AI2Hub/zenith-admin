@@ -51,6 +51,14 @@ export interface MetricsSample {
   redisMemBytes?: number;
   /** Redis 窗口命中率 0-100（外部采集器提供，基于两次采样间 delta） */
   redisHitRate?: number;
+  /** Redis 进程 CPU 使用率（按采样窗口计算） */
+  redisCpuPercent?: number;
+  /** Redis 每秒操作数 */
+  redisOpsPerSec?: number;
+  /** Redis 客户端入口流量（字节/秒） */
+  redisNetRxBps?: number;
+  /** Redis 客户端出口流量（字节/秒） */
+  redisNetTxBps?: number;
 }
 
 export interface PerCoreCpu {
@@ -98,6 +106,10 @@ export interface ExtMetrics {
   dbConnections: number;
   redisMemBytes: number;
   redisHitRate: number;
+  redisCpuPercent: number;
+  redisOpsPerSec: number;
+  redisNetRxBps: number;
+  redisNetTxBps: number;
 }
 const TIMESERIES_CAPACITY = 360; // 360 * 10s = 1h
 

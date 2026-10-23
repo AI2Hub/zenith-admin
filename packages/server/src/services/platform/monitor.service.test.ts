@@ -215,3 +215,41 @@ describe('getWsMetrics 可见范围裁剪', () => {
     expect(metrics.totalRecv).toBe(2);
   });
 });
+
+
+describe('Redis INFO 解析', () => {
+  it('解析命令统计并按调用次数排序', () => {
+    const raw = [
+      'cmdstat_set:calls=2,usec=20,usec_per_call=10.00,rejected_calls=1,failed_calls=0',
+      'cmdstat_get:calls=10,usec=50,usec_per_call=5.00,rejected_calls=0,failed_calls=2',
+      'cmdstat_ping:calls=0,usec=0,usec_per_call=0.00,rejected_calls=0,failed_calls=0',
+    ].join('\r\n');
+
+    const stats = service.parseRedisCommandStats(raw);
+    expect(stats.map((stat) => stat.command)).toEqual(['get', 'set']);
+    expect(stats[0]).toEqual({
+      command: 'get',
+      calls: 10,
+      usec: 50,
+      usecPerCall: 5,
+      rejectedCalls: 0,
+      failedCalls: 2,
+    });
+  });
+
+  it('解析全部 DB 的 keyspace 并按 DB 序号排序', () => {
+    const raw = [
+      'db1:keys=5,expires=0,avg_ttl=0',
+      'db0:keys=10,expires=2,avg_ttl=100',
+    ].join('\n');
+
+    expect(service.parseRedisKeyspace(raw)).toEqual([
+      { db: 'db0', keys: 10, expires: 2, avgTtl: 100 },
+      { db: 'db1', keys: 5, expires: 0, avgTtl: 0 },
+    ]);
+  });
+
+  it('空 keyspace 返回空数组', () => {
+    expect(service.parseRedisKeyspace('')).toEqual([]);
+  });
+});

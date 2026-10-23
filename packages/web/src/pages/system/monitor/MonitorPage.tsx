@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { Banner, Button, Descriptions, Skeleton, Tabs, TabPane, Toast, Typography, Select, Tag, Table, RadioGroup, Tooltip } from '@douyinfe/semi-ui';
-import { LineChart, chartOptions, makeLineSpec, useChartPalette } from '@/components/charts';
+import { LineChart, PieChart, chartOptions, makeLineSpec, makePieSpec, useChartPalette } from '@/components/charts';
 import { RefreshCw, Cpu, HardDrive, Database, Server, MemoryStick, Layers, Activity, Network, Wifi, History, Thermometer, ListTree, Download, Copy as CopyIcon, ExternalLink, Bug } from 'lucide-react';
-import { formatDateTime } from '@/utils/date';
 import DateTimeText from '@/components/DateTimeText';
 import { formatSecondsHuman } from '@/utils/format';
 import { TABLE_PAGE_SIZE_OPTIONS, usePagination } from '@/hooks/usePagination';
@@ -236,13 +235,19 @@ export default function MonitorPage() {
     );
   }
 
-  function renderTrendChart(title: string, lines: { dataKey: keyof TimeseriesPoint; label: string; color: string }[], opts?: { unit?: string; bytes?: boolean }) {
-    const axis = opts?.bytes
-      ? { yLabel: (value: number) => formatBytes(value) }
-      : opts?.unit
-        ? { yLabel: (value: number) => `${value}${opts.unit}` }
+  function renderTrendChart(title: string, lines: { dataKey: keyof TimeseriesPoint; label: string; color: string }[], opts?: { unit?: string; bytes?: boolean; bitrate?: boolean }) {
+    const axis = opts?.bitrate
+      ? { yLabel: (value: number) => formatBitrate(value) }
+      : opts?.bytes
+        ? { yLabel: (value: number) => formatBytes(value) }
+        : opts?.unit
+          ? { yLabel: (value: number) => `${value}${opts.unit}` }
+          : undefined;
+    const tooltip = opts?.bitrate
+      ? { value: (value: number) => formatBitrate(Number(value)) }
+      : opts?.bytes
+        ? { value: (value: number) => formatBytes(Number(value)) }
         : undefined;
-    const tooltip = opts?.bytes ? { value: (value: number) => formatBytes(Number(value)) } : undefined;
     const trendSpec = makeLineSpec({
       data: chartData,
       xField: 'time',
@@ -1033,96 +1038,172 @@ export default function MonitorPage() {
             {data ? (<>
             {data.redis ? (() => {
               const r = data.redis!;
-              const hitTotal = r.keyspaceHits + r.keyspaceMisses;
-              const hitRate = hitTotal > 0 ? `${((r.keyspaceHits / hitTotal) * 100).toFixed(1)}%` : 'N/A';
+              const commandStats = r.commandStats ?? [];
+              const commandTotalCalls = commandStats.reduce((sum, item) => sum + item.calls, 0);
+              const topCommandStats = commandStats.slice(0, 8);
+              const otherCommandCalls = commandStats.slice(8).reduce((sum, item) => sum + item.calls, 0);
+              const commandPieData = [
+                ...topCommandStats.map((item) => ({ command: item.command, calls: item.calls })),
+                ...(otherCommandCalls > 0 ? [{ command: '其他', calls: otherCommandCalls }] : []),
+              ];
+              const commandPieSpec = makePieSpec({
+                data: commandPieData,
+                categoryField: 'command',
+                valueField: 'calls',
+                palette,
+                donut: true,
+                legend: false,
+                label: 'percent',
+                labelFontSize: 10,
+                labelLine: false,
+                indicator: { title: formatNumber(commandTotalCalls), subtitle: '累计调用' },
+                indicatorTitleFontSize: 22,
+                tooltipKey: '调用次数',
+                valueFormatter: (value) => formatNumber(value),
+              });
+              const memoryPeak = r.usedMemoryPeak ?? 0;
+              const hasMemoryLimit = r.maxMemory > 0;
+              const rdbStatusColor = r.rdbLastBgsaveStatus === 'ok' ? 'green' : r.rdbLastBgsaveStatus === 'err' ? 'red' : 'grey';
+              const aofStatusColor = r.aofLastWriteStatus === 'ok' ? 'green' : r.aofLastWriteStatus === 'err' ? 'red' : 'grey';
+              const aofRewriteStatusColor = r.aofLastBgrewriteStatus === 'ok' ? 'green' : r.aofLastBgrewriteStatus === 'err' ? 'red' : 'grey';
+              const basicGroups: Array<{ title: string; items: Array<{ key: string; value: ReactNode }> }> = [
+                {
+                  title: '服务',
+                  items: [
+                    { key: '版本', value: r.version },
+                    { key: '运行模式', value: r.mode ?? 'Unknown' },
+                    { key: '端口', value: r.port ? String(r.port) : 'N/A' },
+                    { key: '当前数据库', value: r.currentDb === undefined ? 'N/A' : `db${r.currentDb}` },
+                    { key: '角色', value: r.role },
+                    { key: '运行时长', value: formatSecondsHuman(r.uptimeSeconds) },
+                  ],
+                },
+                {
+                  title: '客户端',
+                  items: [
+                    { key: '已连接客户端', value: formatNumber(r.connectedClients) },
+                    ...(r.maxClients === undefined ? [] : [{ key: '最大客户端数', value: formatNumber(r.maxClients) }]),
+                    { key: '阻塞客户端', value: formatNumber(r.blockedClients) },
+                    { key: '拒绝连接数', value: formatNumber(r.rejectedConnections) },
+                  ],
+                },
+                {
+                  title: '资源',
+                  items: [
+                    { key: 'Redis 进程 CPU', value: r.usedCpuSeconds === undefined ? 'N/A' : `${r.usedCpuSeconds.toFixed(2)} 秒` },
+                    { key: '网络入口/出口', value: `${formatBitrate((r.networkInputKbps ?? 0) * 1024)} / ${formatBitrate((r.networkOutputKbps ?? 0) * 1024)}` },
+                    { key: '已用内存', value: r.usedMemoryHuman },
+                    ...(memoryPeak > 0 ? [{ key: '内存峰值', value: formatBytes(memoryPeak) }] : []),
+                    { key: 'RSS 内存', value: formatBytes(r.usedMemoryRss) },
+                    { key: '碎片率', value: r.memFragmentationRatio.toFixed(2) },
+                    { key: '最大内存', value: hasMemoryLimit ? formatBytes(r.maxMemory) : '未限制' },
+                    { key: '淘汰策略', value: r.maxMemoryPolicy },
+                  ],
+                },
+                {
+                  title: '持久化',
+                  items: [
+                    { key: 'AOF', value: r.aofEnabled ? '已启用' : '未启用' },
+                    ...(r.aofEnabled
+                      ? [
+                          { key: 'AOF 写入状态', value: <Tag color={aofStatusColor}>{r.aofLastWriteStatus ?? 'unknown'}</Tag> },
+                          { key: 'AOF 重写状态', value: <Tag color={aofRewriteStatusColor}>{r.aofLastBgrewriteStatus ?? 'unknown'}</Tag> },
+                          { key: 'AOF 当前大小', value: formatBytes(r.aofCurrentSize ?? 0) },
+                        ]
+                      : []),
+                    { key: 'RDB 状态', value: <Tag color={rdbStatusColor}>{r.rdbLastBgsaveStatus ?? 'unknown'}</Tag> },
+                    ...(r.rdbLastSaveTime > 0
+                      ? [{ key: 'RDB 最近保存', value: <DateTimeText value={new Date(r.rdbLastSaveTime * 1000)} mode="absolute" className="monitor-redis-nowrap" /> }]
+                      : []),
+                    ...(r.rdbLastBgsaveTimeSec === undefined
+                      ? []
+                      : [{ key: 'RDB 上次耗时', value: `${r.rdbLastBgsaveTimeSec} 秒` }]),
+                    { key: '距上次保存变更', value: formatNumber(r.rdbChangesSinceLastSave) },
+                    ...(r.masterLinkStatus ? [{ key: '主从链路', value: r.masterLinkStatus }] : []),
+                  ],
+                },
+              ];
               return (
                 <>
-                  {/* 基本信息 */}
+                  {/* 基本信息：按类别平铺展示，不使用卡片 */}
                   <div className="monitor-section-title">基本信息</div>
-                  <Descriptions
-                    data={[
-                      { key: '版本', value: r.version },
-                      { key: '角色', value: r.role },
-                      { key: '运行时长', value: formatSecondsHuman(r.uptimeSeconds), span: 2 },
-                    ]}
-                    column={2}
-                    layout="horizontal"
-                    align="left"
-                  />
-
-                  {/* 内存 */}
-                  <div className="monitor-section-title">内存</div>
-                  <Descriptions
-                    data={[
-                      { key: '已用内存', value: r.usedMemoryHuman },
-                      ...(r.usedMemoryRss === undefined ? [] : [{ key: 'RSS 内存', value: formatBytes(r.usedMemoryRss) }]),
-                      ...(r.memFragmentationRatio === undefined ? [] : [{ key: '碎片率', value: r.memFragmentationRatio.toFixed(2) }]),
-                      ...(r.maxMemory === undefined ? [] : [{ key: '最大内存', value: r.maxMemory > 0 ? formatBytes(r.maxMemory) : '不限' }]),
-                      ...(r.maxMemoryPolicy ? [{ key: '淘汰策略', value: r.maxMemoryPolicy }] : []),
-                    ]}
-                    column={2}
-                    layout="horizontal"
-                    align="left"
-                  />
-
-                  {/* 客户端 */}
-                  <div className="monitor-section-title">客户端</div>
-                  <Descriptions
-                    data={[
-                      { key: '已连接客户端', value: String(r.connectedClients) },
-                      ...(r.blockedClients === undefined ? [] : [{ key: '阻塞客户端', value: String(r.blockedClients) }]),
-                      ...(r.rejectedConnections === undefined ? [] : [{ key: '拒绝连接数', value: formatNumber(r.rejectedConnections) }]),
-                    ]}
-                    column={2}
-                    layout="horizontal"
-                    align="left"
-                  />
+                  <div className="monitor-redis-basic">
+                    {basicGroups.map((group) => (
+                      <section key={group.title} className="monitor-redis-basic__group">
+                        <div className="monitor-redis-basic__group-title">{group.title}</div>
+                        <Descriptions data={group.items} column={1} layout="horizontal" align="left" />
+                      </section>
+                    ))}
+                  </div>
 
                   {/* 命令统计 */}
                   <div className="monitor-section-title">命令统计</div>
-                  <Descriptions
-                    data={[
-                      { key: 'Key 总数', value: String(r.keyCount) },
-                      { key: '命令总执行数', value: formatNumber(r.totalCommandsProcessed) },
-                      { key: '命中率', value: hitRate },
-                    ]}
-                    column={2}
-                    layout="horizontal"
-                    align="left"
-                  />
-
-                  {/* 持久化 */}
-                  {(r.aofEnabled !== undefined ||
-                    (r.rdbLastSaveTime !== undefined && r.rdbLastSaveTime > 0) ||
-                    r.rdbChangesSinceLastSave !== undefined ||
-                    r.masterLinkStatus) && (
-                    <>
-                      <div className="monitor-section-title">持久化</div>
-                      <Descriptions
-                        data={[
-                          ...(r.aofEnabled === undefined ? [] : [{ key: 'AOF', value: r.aofEnabled ? '已启用' : '未启用' }]),
-                          ...(r.rdbLastSaveTime !== undefined && r.rdbLastSaveTime > 0
-                            ? [{ key: 'RDB 最近保存', value: formatDateTime(new Date(r.rdbLastSaveTime * 1000)) }]
-                            : []),
-                          ...(r.rdbChangesSinceLastSave === undefined ? [] : [{ key: '距上次保存变更', value: formatNumber(r.rdbChangesSinceLastSave) }]),
-                          ...(r.masterLinkStatus ? [{ key: '主从链路', value: r.masterLinkStatus }] : []),
-                        ]}
-                        column={2}
-                        layout="horizontal"
-                        align="left"
-                      />
-                    </>
+                  {commandStats.length === 0 ? (
+                    <Text type="tertiary" size="small">暂无命令统计</Text>
+                  ) : (
+                    <div className="monitor-redis-command-grid">
+                      <div className="monitor-redis-command-chart">
+                        <PieChart {...commandPieSpec} options={chartOptions} height={260} />
+                      </div>
+                      <div className="monitor-redis-command-table-wrap">
+                        <table className="monitor-slow-table monitor-redis-command-table">
+                          <thead>
+                            <tr>
+                              <th>命令</th>
+                              <th>调用次数</th>
+                              <th>占比</th>
+                              <th>平均耗时</th>
+                              <th>失败/拒绝</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {topCommandStats.map((item) => (
+                              <tr key={item.command}>
+                                <td><code>{item.command}</code></td>
+                                <td>{formatNumber(item.calls)}</td>
+                                <td>{commandTotalCalls > 0 ? `${((item.calls / commandTotalCalls) * 100).toFixed(1)}%` : '-'}</td>
+                                <td>{item.usecPerCall.toFixed(2)} µs</td>
+                                <td>{`${formatNumber(item.failedCalls ?? 0)} / ${formatNumber(item.rejectedCalls ?? 0)}`}</td>
+                              </tr>
+                            ))}
+                            {otherCommandCalls > 0 && (
+                              <tr>
+                                <td><code>其他</code></td>
+                                <td>{formatNumber(otherCommandCalls)}</td>
+                                <td>{commandTotalCalls > 0 ? `${((otherCommandCalls / commandTotalCalls) * 100).toFixed(1)}%` : '-'}</td>
+                                <td>-</td>
+                                <td>-</td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
                   )}
 
                   <div className="monitor-section-title">慢日志（最近 10 条）</div>
                   {renderRedisSlowLog(r.slowLog)}
 
-                  {chartData.length > 1 && renderTrendChart('Redis 内存趋势', [
-                    { dataKey: 'redisMemBytes', label: '已用内存', color: '#a855f7' },
-                  ], { bytes: true })}
-                  {chartData.length > 1 && renderTrendChart('Redis 命中率趋势（采样窗口）', [
-                    { dataKey: 'redisHitRate', label: '命中率(%)', color: '#22c55e' },
-                  ], { unit: '%' })}
+                  {chartData.length > 1 && (
+                    <div className="monitor-history-grid">
+                      {renderTrendChart('Redis 内存趋势', [
+                        { dataKey: 'redisMemBytes', label: '已用内存', color: '#a855f7' },
+                      ], { bytes: true })}
+                      {renderTrendChart('Redis 命中率趋势（采样窗口）', [
+                        { dataKey: 'redisHitRate', label: '命中率(%)', color: '#22c55e' },
+                      ], { unit: '%' })}
+                      {renderTrendChart('Redis 进程 CPU 使用率', [
+                        { dataKey: 'redisCpuPercent', label: 'CPU(%)', color: '#f59e0b' },
+                      ], { unit: '%' })}
+                      {renderTrendChart('Redis Ops/s', [
+                        { dataKey: 'redisOpsPerSec', label: 'Ops/s', color: '#3b82f6' },
+                      ], { unit: ' ops/s' })}
+                      {renderTrendChart('Redis 网络吞吐', [
+                        { dataKey: 'redisNetRxBps', label: '入口', color: '#22c55e' },
+                        { dataKey: 'redisNetTxBps', label: '出口', color: '#ef4444' },
+                      ], { bitrate: true })}
+                    </div>
+                  )}
                 </>
               );
             })() : <Text type="tertiary">Redis 信息不可用</Text>}
