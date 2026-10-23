@@ -1,5 +1,6 @@
 import type { WorkflowCustomFormConfig, WorkflowFormField } from './types';
 import type { WorkflowFormType } from './constants';
+import { flattenWorkflowValueFields } from './form-fields';
 import { normalizeNumberingParameter, parseNumberingFormFieldSource, parseNumberingFormParameter } from '../platform/numbering-reference';
 
 /** Match designer fields to the variables explicitly declared by custom/external business forms. */
@@ -21,15 +22,6 @@ export function isWorkflowNumberingParameterField(field: Pick<WorkflowFormField,
   ].includes(field.type);
 }
 
-function scalarFields(fields: readonly WorkflowFormField[]): WorkflowFormField[] {
-  return fields.flatMap(field => {
-    if (field.type === 'row') return (field.columns ?? []).flatMap(column => scalarFields(column.fields));
-    if (field.type === 'tabs' || field.type === 'steps') return (field.panes ?? []).flatMap(pane => scalarFields(pane.fields));
-    if (field.type === 'group') return scalarFields(field.children ?? []);
-    return [field];
-  });
-}
-
 function normalizeWorkflowNumberingMapping(mapping: Readonly<Record<string, string>>): Record<string, string> {
   const normalized: Record<string, string> = Object.create(null) as Record<string, string>;
   for (const [parameter, source] of Object.entries(mapping)) {
@@ -41,7 +33,7 @@ function normalizeWorkflowNumberingMapping(mapping: Readonly<Record<string, stri
 }
 
 export function validateWorkflowNumberingMapping(mapping: Readonly<Record<string, string>>, fields: readonly WorkflowFormField[]): string[] {
-  const available = scalarFields(fields);
+  const available = flattenWorkflowValueFields(fields);
   let normalized;
   try { normalized = normalizeWorkflowNumberingMapping(mapping); }
   catch (error) { return [error instanceof Error ? error.message : '编号参数映射无效']; }
@@ -58,7 +50,7 @@ export function validateWorkflowNumberingMapping(mapping: Readonly<Record<string
 export function resolveWorkflowNumberingMapping(requiredParameters: readonly string[], mapping: Readonly<Record<string, string>>, fields: readonly WorkflowFormField[]): Record<string, string> {
   const normalized = normalizeWorkflowNumberingMapping(mapping);
   const errors = validateWorkflowNumberingMapping(normalized, fields);
-  const available = scalarFields(fields);
+  const available = flattenWorkflowValueFields(fields);
   const result: Record<string, string> = {};
   for (const parameter of new Set(requiredParameters.map(normalizeNumberingParameter))) {
     if (Object.hasOwn(normalized, parameter)) {
@@ -105,7 +97,7 @@ export function resolveWorkflowNumberingParameters(mapping: Readonly<Record<stri
 /** Serial controls display instance metadata; client/default values never become submitted data. */
 export function stripWorkflowSerialNumberValues(fields: readonly WorkflowFormField[], values: Readonly<Record<string, unknown>>): Record<string, unknown> {
   const clean = { ...values };
-  for (const field of scalarFields(fields)) {
+  for (const field of flattenWorkflowValueFields(fields)) {
     if (field.type === 'serialNumber') delete clean[field.key];
     if (field.type === 'detail' && Array.isArray(clean[field.key])) {
       clean[field.key] = (clean[field.key] as unknown[]).map(row => row && typeof row === 'object' && !Array.isArray(row)

@@ -1,4 +1,4 @@
-import { getWorkflowNumberingFields, projectWorkflowGraph, workflowFlowDataSchema } from '@zenith/shared/workflow';
+import { flattenWorkflowValueFields, getWorkflowNumberingFields, projectWorkflowGraph, workflowFlowDataSchema } from '@zenith/shared/workflow';
 import WorkflowGraphView from '@/components/workflow/WorkflowGraphView';
 /**
  * 工作流设计器页面 — 钉钉/飞书风格垂直流程设计器
@@ -219,8 +219,10 @@ export default function WorkflowDesignerPage({
     [definitionId, publishedDefinitionsQuery.data],
   );
 
-  // 同步表单字段到视图：设计器表单取所选表单字段；自定义表单取声明的流程变量
-  const formFields = useMemo(() => flattenAllFields(getWorkflowNumberingFields(formType, localFormFields, customForm)).filter(field => field.key), [formType, customForm, localFormFields]);
+  const availableFormFields = useMemo(() => getWorkflowNumberingFields(formType, localFormFields, customForm), [formType, customForm, localFormFields]);
+  const formFields = useMemo(() => flattenWorkflowValueFields(availableFormFields).filter(field => field.key), [availableFormFields]);
+  // 权限作用于完整字段树；业务引用只读取顶层值，不能将明细列作为独立字段。
+  const permissionFields = useMemo(() => flattenAllFields(availableFormFields).filter(field => field.key), [availableFormFields]);
 
   // ─── 加载数据 ─────────────────────────────────────────────────────
 
@@ -1062,7 +1064,7 @@ export default function WorkflowDesignerPage({
           onChange={setAdvancedSettings}
           readOnly={readOnly}
           formFields={formFields}
-          numberingFields={getWorkflowNumberingFields(formType, localFormFields, customForm)}
+          numberingFields={availableFormFields}
           print={{
             definitionId,
             templateId: printTemplateId,
@@ -1109,6 +1111,7 @@ export default function WorkflowDesignerPage({
         positions={positions}
         departments={departments}
         formFields={formFields}
+        permissionFields={permissionFields}
         allNodes={collectAllNodes(process.initiator)}
         rejectableAncestorNodes={editingNode ? findAncestorApproverNodes(process.initiator, editingNode.id) : []}
         subProcessOptions={subProcessOptions}

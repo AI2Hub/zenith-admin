@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { WorkflowFlowData, WorkflowNodeConfig } from './types';
 import { compileWorkflowTree, projectWorkflowGraph, type WorkflowDesignerProcess } from './designer-graph';
+import { workflowFlowDataSchema } from './graph-schema';
 
 function node(id: string, type: WorkflowNodeConfig['type'], extra: Partial<WorkflowNodeConfig> = {}): WorkflowFlowData['nodes'][number] {
   return { id, type: 'workflowNode', position: { x: id.length * 11, y: id.length * 17 }, data: { key: `key-${id}`, label: id, type, ...extra } };
@@ -25,6 +26,15 @@ function expectSameGraph(actual: WorkflowFlowData, expected: WorkflowFlowData): 
 }
 
 describe('graph editing projection', () => {
+  it.each(['', '财务部'])('preserves the initiator description %j through strict validation and editing', (initiatorDesc) => {
+    const process: WorkflowDesignerProcess = { initiator: {
+      id: 'initiator', type: 'initiator', name: '发起人', props: { initiatorDesc, fieldPermissions: { amount: 'edit' } },
+    } };
+    const graph = workflowFlowDataSchema.parse(compileWorkflowTree(process));
+    expect(graph.nodes[0].data.initiatorDesc).toBe(initiatorDesc);
+    expectSameGraph(compileWorkflowTree(projected(graph)), graph);
+  });
+
   it('round trips graph identities, configuration, positions and settings without mutating the source', () => {
     const graph = flow([
       node('start', 'start', { fieldPermissions: { amount: 'edit' } }),
@@ -92,7 +102,13 @@ describe('graph editing projection', () => {
     const process = projected(graph);
     expect(process.initiator.children?.props.routeFieldKey).toBe('routeResult');
     expect(process.initiator.children?.branches?.[0].caseValue).toBe('legal');
-    expectSameGraph(compileWorkflowTree(process), graph);
+    const compiled = compileWorkflowTree(process);
+    expectSameGraph(compiled, graph);
+    expect(workflowFlowDataSchema.safeParse(compiled).success).toBe(true);
+    expect(compiled.nodes.find(item => item.id === 'route')?.data).not.toHaveProperty('routeFieldKey');
+    const uncompiled = structuredClone(compiled);
+    Object.assign(uncompiled.nodes.find(item => item.id === 'route')!.data, { routeFieldKey: 'routeResult' });
+    expect(workflowFlowDataSchema.safeParse(uncompiled).success).toBe(false);
   });
 
   it('preserves numeric route case values during an unchanged edit round trip', () => {

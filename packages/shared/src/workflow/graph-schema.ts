@@ -126,7 +126,6 @@ export const workflowNodeConfigSchema = z.strictObject({
   type: workflowNodeTypeSchema,
   label: z.string().min(1),
   initiatorDesc: z.string().optional(),
-  routeFieldKey: z.string().optional(),
   assigneeId: z.number().int().nullable().optional(),
   assigneeName: z.string().nullable().optional(),
   assigneeIds: z.array(z.number().int()).nullable().optional(),

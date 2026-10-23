@@ -156,6 +156,7 @@ interface NodeConfigDrawerProps {
   positions?: PositionOption[];
   departments?: DepartmentOption[];
   formFields: FormField[];
+  permissionFields: FormField[];
   allNodes?: Array<{ id: string; key?: string; name: string; type: FlowNodeType }>;
   /** 可选为“驳回到指定节点”的候选节点（当前节点之前同一执行路径上的审批/办理节点） */
   rejectableAncestorNodes?: Array<{ id: string; key?: string; name: string; type: FlowNodeType }>;
@@ -201,6 +202,7 @@ export default function NodeConfigDrawer({
   positions = [],
   departments = [],
   formFields,
+  permissionFields,
   allNodes = [],
   rejectableAncestorNodes = [],
   subProcessOptions = [],
@@ -517,7 +519,7 @@ export default function NodeConfigDrawer({
           {hasFormPermission && (
             <TabPane tab="表单权限" itemKey="formPermission">
               <FormPermissionTab
-                formFields={formFields}
+                formFields={permissionFields}
                 fieldPermissions={(props.fieldPermissions as Record<string, FieldPermission>) ?? {}}
                 onChange={(permissions) => handlePropsChange({ fieldPermissions: permissions })}
                 editDisabled={formEditPermissionDisabled}
