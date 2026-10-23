@@ -71,15 +71,18 @@ const layers = [
 .layers {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
+  gap: 0;
   margin-top: 40px;
+  border-top: 1px solid var(--zn-line);
+  border-bottom: 1px solid var(--zn-line);
 }
 
 .layer {
-  padding: 22px;
-  border: 1px solid var(--zn-line);
-  border-radius: 18px;
-  background: var(--zn-card);
+  padding: 24px 24px 20px;
+}
+
+.layer + .layer {
+  border-left: 1px solid var(--zn-line);
 }
 
 .layer h3 {
@@ -132,6 +135,11 @@ const layers = [
 @media (max-width: 960px) {
   .layers {
     grid-template-columns: 1fr;
+  }
+
+  .layer + .layer {
+    border-top: 1px solid var(--zn-line);
+    border-left: 0;
   }
 }
 

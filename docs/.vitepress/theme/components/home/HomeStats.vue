@@ -19,14 +19,12 @@
 .stats {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  border: 1px solid var(--zn-line);
-  border-radius: 18px;
-  background: var(--zn-card);
-  overflow: hidden;
+  border-top: 1px solid var(--zn-line);
+  border-bottom: 1px solid var(--zn-line);
 }
 
 .stats div {
-  padding: 24px;
+  padding: 24px 20px;
   border-right: 1px solid var(--zn-line);
 }
 
@@ -60,7 +58,7 @@
   }
 
   .stats div {
-    padding: 18px;
+    padding: 18px 14px;
   }
 
   .stats div:nth-child(2) {

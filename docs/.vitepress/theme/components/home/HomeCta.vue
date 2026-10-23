@@ -31,10 +31,9 @@ const demoUrl = 'https://iwangbowen.github.io/zenith-admin/demo/'
   align-items: center;
   justify-content: space-between;
   gap: 32px;
-  padding: 48px;
-  border: 1px solid var(--zn-line);
-  border-radius: 22px;
-  background: var(--zn-card);
+  padding: 36px 0;
+  border-top: 1px solid var(--zn-line);
+  border-bottom: 1px solid var(--zn-line);
 }
 
 .cta .zn-h2 {
@@ -72,7 +71,7 @@ const demoUrl = 'https://iwangbowen.github.io/zenith-admin/demo/'
   .cta {
     flex-direction: column;
     align-items: flex-start;
-    padding: 32px 24px;
+    padding: 32px 0;
   }
 }
 </style>

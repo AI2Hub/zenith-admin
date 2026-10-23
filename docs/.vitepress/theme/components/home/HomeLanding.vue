@@ -29,35 +29,38 @@ import HomeCta from './HomeCta.vue'
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  height: 42px;
-  padding: 0 20px;
-  border: 1px solid transparent;
-  border-radius: 12px;
+  min-height: 24px;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 0;
   font-size: 14px;
   font-weight: 600;
   text-decoration: none;
-  transition: background 0.18s, border-color 0.18s, color 0.18s;
+  transition: color 0.18s, text-decoration-color 0.18s;
 }
 
 .zn-btn--primary {
-  background: var(--zn-text-1);
-  color: var(--zn-card);
+  background: transparent;
+  color: var(--vp-c-brand-1);
 }
 
 .zn-btn--primary:hover {
-  background: var(--vp-c-brand-1);
-  color: #fff;
+  background: transparent;
+  color: var(--vp-c-brand-2);
+  text-decoration: underline;
+  text-underline-offset: 4px;
 }
 
 .zn-btn--ghost {
-  border-color: var(--zn-line-strong);
-  background: var(--zn-card);
-  color: var(--zn-text-1);
+  background: transparent;
+  color: var(--zn-text-2);
 }
 
 .zn-btn--ghost:hover {
-  border-color: var(--vp-c-brand-1);
+  background: transparent;
   color: var(--vp-c-brand-1);
+  text-decoration: underline;
+  text-underline-offset: 4px;
 }
 
 .zn-section-head {

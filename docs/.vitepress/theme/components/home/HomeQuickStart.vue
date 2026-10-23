@@ -50,18 +50,30 @@ npm run db:migrate &amp;&amp; npm run db:seed</pre>
 .steps {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
+  gap: 0;
   margin-top: 40px;
+  padding: 28px 0;
+  border-top: 1px solid var(--zn-line);
+  border-bottom: 1px solid var(--zn-line);
 }
 
 .step {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 22px;
-  border: 1px solid var(--zn-line);
-  border-radius: 18px;
-  background: var(--zn-card);
+  padding: 0 24px;
+}
+
+.step:first-child {
+  padding-left: 0;
+}
+
+.step:last-child {
+  padding-right: 0;
+}
+
+.step + .step {
+  border-left: 1px solid var(--zn-line);
 }
 
 .step__n {
@@ -127,6 +139,18 @@ npm run db:migrate &amp;&amp; npm run db:seed</pre>
 @media (max-width: 960px) {
   .steps {
     grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .step,
+  .step:first-child,
+  .step:last-child {
+    padding: 20px 0;
+  }
+
+  .step + .step {
+    border-top: 1px solid var(--zn-line);
+    border-left: 0;
   }
 }
 
