@@ -2154,8 +2154,7 @@
 }
 
 /* ===== 通知弹层（公告 / 站内信）=====
-   标题行右侧放「全部已读」；单条「已读」放在 List.Item 的右侧固定列，常显。
-   该列只对未读行渲染，但列宽恒定 —— 否则按钮会贴着时间戳飘、或各行左右位置不一。 */
+   标题行右侧放「全部已读」；单条「已读」与时间戳同一行，避免挤压消息正文。 */
 .notification-popover__header {
   display: flex;
   align-items: center;
@@ -2167,18 +2166,60 @@
   border-bottom: 1px solid var(--semi-color-border);
 }
 
-.notification-popover__list .semi-list-item-extra {
+.notification-popover__time-row {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.notification-popover__time-row > .semi-typography {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notification-popover__read-slot {
+  display: inline-flex;
+  align-items: center;
   justify-content: flex-end;
+  width: 64px;
+  min-width: 64px;
   flex-shrink: 0;
-  min-width: 44px;
+}
+
+.notification-popover__read-state {
+  color: var(--semi-color-text-3);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.notification-popover__mark-read {
+  height: 22px !important;
+  min-height: 22px !important;
+  padding: 0 4px !important;
+  color: var(--semi-color-primary) !important;
+  font-size: 12px !important;
+}
+
+.notification-popover__mark-read:hover {
+  color: var(--semi-color-primary) !important;
 }
 
 /* Semi List.Item 的内容区默认 min-width: auto（flex 子项不收缩），
    长标题会把行撑宽并带出横向滚动条；允许收缩并兜底隐藏横向溢出 */
-.notification-popover__list .semi-list-item-body,
+.notification-popover__list .semi-list-item-body {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+}
+
 .notification-popover__list .semi-list-item-body-main {
+  flex: 1 1 auto;
+  width: 100%;
   min-width: 0;
 }
 

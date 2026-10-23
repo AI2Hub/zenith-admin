@@ -57,7 +57,7 @@ describe('通知弹层 · 单条标记已读', () => {
   it('站内信：点按钮只标已读，不触发条目点击（不跳转、不关弹层）', () => {
     const props = renderMessages();
 
-    fireEvent.click(screen.getAllByText('已读')[0]);
+    fireEvent.click(screen.getByRole('button', { name: '标为已读' }));
 
     expect(props.markAsRead).toHaveBeenCalledWith(1);
     expect(props.navigate).not.toHaveBeenCalled();
@@ -69,10 +69,30 @@ describe('通知弹层 · 单条标记已读', () => {
   it('公告：同样只标已读，不打开公告详情', () => {
     const props = renderAnnouncements();
 
-    fireEvent.click(screen.getAllByText('已读')[0]);
+    fireEvent.click(screen.getByRole('button', { name: '标为已读' }));
 
     expect(props.markAnnouncementAsRead).toHaveBeenCalledWith(1);
     expect(props.setSelectedAnnouncement).not.toHaveBeenCalled();
+  });
+});
+
+describe('通知弹层 · 单条已读布局', () => {
+  it('已读状态与未读操作共用时间行右侧位置，不占用列表额外列', () => {
+    renderMessages();
+    const timeRows = document.querySelectorAll('.notification-popover__time-row');
+
+    expect(timeRows).toHaveLength(2);
+    expect(timeRows[0].querySelector('.notification-popover__mark-read')).toHaveAttribute('aria-label', '标为已读');
+    expect(timeRows[1].querySelector('.notification-popover__read-state')).toHaveTextContent('已读');
+    expect(document.querySelector('.semi-list-item-extra')).not.toBeInTheDocument();
+  });
+
+  it('公告下拉同样使用统一的已读状态位', () => {
+    renderAnnouncements();
+    const timeRows = document.querySelectorAll('.notification-popover__time-row');
+
+    expect(timeRows[0].querySelector('.notification-popover__mark-read')).toHaveAttribute('aria-label', '标为已读');
+    expect(timeRows[1].querySelector('.notification-popover__read-state')).toHaveTextContent('已读');
   });
 });
 

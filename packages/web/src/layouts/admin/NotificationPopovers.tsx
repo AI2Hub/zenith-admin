@@ -119,24 +119,30 @@ function NotificationPopover<T extends NotificationItem>({
                       <div style={{ fontSize: 12, color: 'var(--semi-color-text-2)', margin: '3px 0 4px', maxHeight: 40, overflow: 'hidden', lineHeight: 1.5 }}>
                         {summaryOf(item)}
                       </div>
-                      <Typography.Text style={{ fontSize: 11, color: 'var(--semi-color-text-3)' }}>
-                        <DateTimeText value={timeOf(item)} />
-                      </Typography.Text>
+                      <div className="notification-popover__time-row">
+                        <Typography.Text style={{ fontSize: 11, color: 'var(--semi-color-text-3)' }}>
+                          <DateTimeText value={timeOf(item)} />
+                        </Typography.Text>
+                        <span className="notification-popover__read-slot">
+                          {item.isRead ? (
+                            <Typography.Text className="notification-popover__read-state">已读</Typography.Text>
+                          ) : onMarkRead ? (
+                            <Button
+                              theme="borderless"
+                              size="small"
+                              className="notification-popover__mark-read"
+                              aria-label="标为已读"
+                              title="标为已读"
+                              // 阻止冒泡：条目 onClick 会关闭弹层并跳转，与「只标已读」的语义冲突
+                              onClick={(e) => { e.stopPropagation(); onMarkRead(item); }}
+                            >
+                              标为已读
+                            </Button>
+                          ) : null}
+                        </span>
+                      </div>
                     </div>
                   }
-                  // 未读才给动作，但落在 List.Item 固定的右侧列里（列宽恒定），
-                  // 按钮的横向位置不会随「这一行有没有按钮」漂移
-                  extra={!item.isRead && onMarkRead ? (
-                    <Button
-                      theme="borderless"
-                      size="small"
-                      className="notification-popover__mark-read"
-                      // 阻止冒泡：条目 onClick 会关闭弹层并跳转，与「只标已读」的语义冲突
-                      onClick={(e) => { e.stopPropagation(); onMarkRead(item); }}
-                    >
-                      已读
-                    </Button>
-                  ) : undefined}
                 />
               )}
             />
