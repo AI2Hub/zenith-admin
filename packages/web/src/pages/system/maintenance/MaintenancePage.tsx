@@ -140,14 +140,11 @@ export default function MaintenancePage() {
         )}
       </div>
 
-      {/* Current Status Card */}
-      <div
+      {/* Current Status */}
+      <section
         style={{
-          background: 'var(--surface-card)',
-          border: '1px solid var(--semi-color-border)',
-          borderRadius: 'var(--semi-border-radius-medium)',
-          padding: '20px 24px',
-          marginBottom: 20,
+          paddingBottom: 24,
+          borderBottom: '1px solid var(--semi-color-border)',
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
@@ -194,16 +191,14 @@ export default function MaintenancePage() {
             <div style={{ marginTop: 4 }}><Text><DateTimeText value={status?.updatedAt} /></Text></div>
           </div>
         </div>
-      </div>
+      </section>
 
       {/* Config Form */}
       {canManage && (
-        <div
+        <section
           style={{
-            background: 'var(--surface-card)',
-            border: '1px solid var(--semi-color-border)',
-            borderRadius: 'var(--semi-border-radius-medium)',
-            padding: '20px 24px',
+            padding: '24px 0',
+            borderBottom: '1px solid var(--semi-color-border)',
           }}
         >
           <Text type="secondary" size="small" style={{ display: 'block', marginBottom: 16 }}>维护配置</Text>
@@ -263,25 +258,17 @@ export default function MaintenancePage() {
               ⚠ 开启维护模式后，所有非超级管理员用户的 API 请求将返回 503，前端会显示维护提示页面。
             </Text>
           </div>
-        </div>
+        </section>
       )}
 
       {/* Maintenance History */}
-      <div
-        style={{
-          background: 'var(--surface-card)',
-          border: '1px solid var(--semi-color-border)',
-          borderRadius: 'var(--semi-border-radius-medium)',
-          padding: '20px 24px',
-          marginTop: 20,
-        }}
-      >
+      <section style={{ paddingTop: 24 }}>
         <Text type="secondary" size="small" style={{ display: 'block', marginBottom: 16 }}>维护记录</Text>
         <ConfigurableTable<MaintenanceLog>
           columns={logColumns}
           {...listTableProps(logsQuery, { pagination: buildPagination, empty: '暂无维护记录' })}
         />
-      </div>
+      </section>
     </div>
   );
 }
