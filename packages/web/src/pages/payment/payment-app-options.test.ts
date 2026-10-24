@@ -1,7 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import type { PaymentApp, PaymentChannelConfig } from '@zenith/shared/payment';
-import { paymentAppBoundConfigIds, useAppBoundConfigOptions, useEnabledPaymentAppLookup } from './payment-app-options';
+import { PAYMENT_PREAUTH_METHOD_LABELS, PAYMENT_PREAUTH_METHODS, paymentAppBoundConfigIds } from '@zenith/shared/payment';
+import { useAppBoundConfigOptions, useAppPaymentMethodOptions, useEnabledPaymentAppLookup } from './payment-app-options';
+
+const mocks = vi.hoisted(() => ({
+  capabilities: vi.fn(),
+  methods: vi.fn(),
+}));
 
 const apps = [
   { id: 1, name: '商城', openClientName: '官网', environment: 'sandbox', wechatConfigId: 10, alipayConfigId: null, unionpayConfigId: 12 },
@@ -10,6 +16,15 @@ const apps = [
 
 vi.mock('@/hooks/queries/payment-apps', () => ({
   usePaymentAppList: () => ({ data: { list: apps }, isFetching: false }),
+}));
+vi.mock('@/hooks/queries/payment-capabilities', () => ({
+  usePaymentCapabilities: mocks.capabilities,
+}));
+vi.mock('@/hooks/queries/payment-methods', () => ({
+  usePaymentMethodList: mocks.methods,
+}));
+vi.mock('@/hooks/usePermission', () => ({
+  usePermission: () => ({ hasPermission: () => true }),
 }));
 
 describe('payment app options', () => {
@@ -36,5 +51,36 @@ describe('payment app options', () => {
     const { result } = renderHook(() => useAppBoundConfigOptions({ selectedAppId: 1, configs, apps }));
     expect(result.current.options.map((option) => option.label)).toEqual(['微信商户 · 微信支付 · 沙箱', '云闪付商户 · 云闪付 · 沙箱']);
     expect(result.current.configById.get(10)?.name).toBe('微信商户');
+  });
+
+  it('按应用与预授权操作只展示服务端确认可用的方式', () => {
+    mocks.methods.mockReturnValue({ data: [] });
+    mocks.capabilities.mockReturnValue({
+      data: {
+        engineMode: 'sandbox',
+        configs: [{
+          channelConfigId: 10,
+          environment: 'sandbox',
+          capabilities: [
+            { paymentMethod: 'wechat_preauth', supported: false },
+            { paymentMethod: 'alipay_preauth', supported: true },
+          ],
+        }],
+      },
+      isError: false,
+      isFetching: false,
+    });
+    const selectedApp = { ...apps[0], alipayConfigId: 11 } as PaymentApp;
+    const { result } = renderHook(() => useAppPaymentMethodOptions(selectedApp, PAYMENT_PREAUTH_METHODS, {
+      operation: 'preauth.freeze',
+      labels: PAYMENT_PREAUTH_METHOD_LABELS,
+    }));
+
+    expect(mocks.capabilities).toHaveBeenCalledWith({
+      applicationId: selectedApp.id,
+      operation: 'preauth.freeze',
+      currency: 'CNY',
+    }, true);
+    expect(result.current.options).toEqual([{ value: 'alipay_preauth', label: '支付宝预授权' }]);
   });
 });

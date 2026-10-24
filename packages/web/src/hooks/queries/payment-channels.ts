@@ -4,6 +4,7 @@ import type { BodyOf, QueryOf } from '@zenith/shared/core';
 import { paymentChannelContract } from '@zenith/shared/payment';
 import { api, useSaveMutation, contractKey, useApiMutation, useApiQuery } from '@/lib/contract-query';
 import { LOOKUP_STALE_TIME } from '@/lib/query';
+import { paymentCapabilityKeys } from './payment-capabilities';
 
 export type PaymentChannelListParams = NonNullable<QueryOf<typeof paymentChannelContract.channels>>;
 
@@ -47,6 +48,7 @@ export function useSavePaymentChannel() {
       if (saved.isDefault) void qc.invalidateQueries({ queryKey: paymentChannelKeys.details });
       else void qc.invalidateQueries({ queryKey: paymentChannelKeys.detail(saved.id) });
       invalidateChannelCollections(qc);
+      void qc.invalidateQueries({ queryKey: paymentCapabilityKeys.all });
     },
   });
 }
@@ -65,6 +67,7 @@ export function useDeletePaymentChannels() {
     onSuccess: (_data, ids) => {
       for (const id of ids) qc.removeQueries({ queryKey: paymentChannelKeys.detail(id) });
       invalidateChannelCollections(qc);
+      void qc.invalidateQueries({ queryKey: paymentCapabilityKeys.all });
     },
   });
 }

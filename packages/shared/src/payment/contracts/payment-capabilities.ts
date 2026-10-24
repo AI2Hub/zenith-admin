@@ -64,6 +64,7 @@ export type PaymentCapabilitiesResponse = z.infer<typeof paymentCapabilitiesResp
 // ─── 契约 ────────────────────────────────────────────────────────────────────
 
 export const paymentCapabilityQuery = z.object({
+  applicationId: idQuery('支付应用'),
   channelConfigId: idQuery(),
   channel: queryEnum(PAYMENT_CHANNELS),
   operation: queryEnum(PAYMENT_PROVIDER_OPERATIONS),

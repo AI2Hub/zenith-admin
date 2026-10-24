@@ -10,12 +10,14 @@ const api = new ApiRecorder();
 vi.mock('@/utils/request', () => ({ request: createRequestMock(() => api) }));
 
 import { paymentMethodKeys, useEnabledPaymentMethods, usePaymentMethodList, useSavePaymentMethod } from './payment-methods';
+import { paymentCapabilityKeys, usePaymentCapabilities } from './payment-capabilities';
 
 beforeEach(() => {
   api.reset();
   api
     .on('GET', '/api/payment/methods', [])
     .on('GET', '/api/payment/methods/enabled', [])
+    .on('GET', '/api/payment/capabilities?applicationId=1&operation=preauth.freeze&currency=CNY', { engineMode: 'sandbox', configs: [] })
     .on('PUT', '/api/payment/methods/1', { id: 1, method: 'wechat_native', enabled: false });
 });
 
@@ -23,12 +25,18 @@ describe('useSavePaymentMethod', () => {
   it('停用支付方式：PUT 契约路径并透传 body，配置列表与可用方式下拉源回源', async () => {
     const qc = createTestQueryClient();
     const { result } = renderHook(
-      () => ({ list: usePaymentMethodList(), enabled: useEnabledPaymentMethods(), save: useSavePaymentMethod() }),
+      () => ({
+        list: usePaymentMethodList(),
+        enabled: useEnabledPaymentMethods(),
+        capabilities: usePaymentCapabilities({ applicationId: 1, operation: 'preauth.freeze', currency: 'CNY' }),
+        save: useSavePaymentMethod(),
+      }),
       { wrapper: createWrapper(qc) },
     );
     await waitFor(() => {
       expect(result.current.list.isSuccess).toBe(true);
       expect(result.current.enabled.isSuccess).toBe(true);
+      expect(result.current.capabilities.isSuccess).toBe(true);
     });
 
     const fetches = observeFetches(qc);
@@ -40,6 +48,7 @@ describe('useSavePaymentMethod', () => {
     expect(put?.url).toBe('/api/payment/methods/1');
     expect(put?.body).toEqual({ enabled: false });
     expect(fetches.countOf(paymentMethodKeys.enabled)).toBe(1);
+    expect(fetches.countOf(paymentCapabilityKeys.all)).toBe(1);
     fetches.stop();
   });
 });

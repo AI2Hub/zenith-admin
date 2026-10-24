@@ -1,10 +1,11 @@
 import type { QueryOutputOf } from '@zenith/shared/core';
 import { asc } from 'drizzle-orm';
-import { PAYMENT_PROVIDER_OPERATIONS as SHARED_PAYMENT_PROVIDER_OPERATIONS, type PaymentCapabilitiesResponse, type PaymentConfigCapabilities, type PaymentEffectiveCapability, type PaymentMethod, paymentCapabilityContract } from '@zenith/shared/payment';
+import { PAYMENT_PROVIDER_OPERATIONS as SHARED_PAYMENT_PROVIDER_OPERATIONS, paymentAppBoundConfigIds, type PaymentCapabilitiesResponse, type PaymentConfigCapabilities, type PaymentEffectiveCapability, type PaymentMethod, paymentCapabilityContract } from '@zenith/shared/payment';
 import { db } from '../../db';
-import { paymentChannelConfigs, paymentMethodConfigs, type PaymentChannelConfigRow, type PaymentMethodConfigRow } from '../../db/schema';
+import { paymentApps, paymentChannelConfigs, paymentMethodConfigs, type PaymentChannelConfigRow, type PaymentMethodConfigRow } from '../../db/schema';
 import { config } from '../../config';
 import { currentUser } from '../../lib/context';
+import { requireRow } from '../../lib/db-assert';
 import { tenantCondition } from '../../lib/tenant';
 import { initPaymentAdapters, listProviderManifests, type PaymentProviderCapability, type PaymentProviderOperation } from '../../lib/payment';
 import { decidePaymentCapability, paymentConfigEnvironment } from './payment-capability-evaluator';
@@ -13,6 +14,17 @@ import { decidePaymentCapability, paymentConfigEnvironment } from './payment-cap
 export const PAYMENT_PROVIDER_OPERATIONS = SHARED_PAYMENT_PROVIDER_OPERATIONS satisfies readonly PaymentProviderOperation[];
 
 type PaymentCapabilityQuery = QueryOutputOf<typeof paymentCapabilityContract.list>;
+
+function methodConfigsByTenant(methodConfigs: PaymentMethodConfigRow[]) {
+  const result = new Map<string, Map<PaymentMethod, PaymentMethodConfigRow>>();
+  for (const methodConfig of methodConfigs) {
+    const tenantKey = String(methodConfig.tenantId ?? 'platform');
+    const tenantMethods = result.get(tenantKey) ?? new Map<PaymentMethod, PaymentMethodConfigRow>();
+    tenantMethods.set(methodConfig.method, methodConfig);
+    result.set(tenantKey, tenantMethods);
+  }
+  return result;
+}
 
 function capabilityRows(
   row: PaymentChannelConfigRow,
@@ -104,16 +116,27 @@ export async function listEffectivePaymentCapabilities(
 ): Promise<PaymentCapabilitiesResponse> {
   initPaymentAdapters();
   const user = currentUser();
+  const applicationId = query.applicationId;
   const configScope = tenantCondition(paymentChannelConfigs, user);
   const methodScope = tenantCondition(paymentMethodConfigs, user);
-  const [merchantConfigs, methodConfigs] = await Promise.all([
+  const appScope = tenantCondition(paymentApps, user);
+  const [merchantConfigs, methodConfigs, selectedApp] = await Promise.all([
     db.select().from(paymentChannelConfigs).where(configScope).orderBy(asc(paymentChannelConfigs.id)),
     db.select().from(paymentMethodConfigs).where(methodScope).orderBy(asc(paymentMethodConfigs.sort), asc(paymentMethodConfigs.id)),
+    applicationId == null
+      ? Promise.resolve(null)
+      : db.query.paymentApps.findFirst({
+          columns: { id: true, wechatConfigId: true, alipayConfigId: true, unionpayConfigId: true },
+          where: (table, { and, eq }) => and(eq(table.id, applicationId), appScope),
+        }),
   ]);
-  const methodByCode = new Map(methodConfigs.map((item) => [item.method, item]));
+  const app = applicationId == null ? null : requireRow(selectedApp, '支付应用不存在', 404);
+  const boundConfigIds = app ? paymentAppBoundConfigIds(app) : null;
+  const methodsByTenant = methodConfigsByTenant(methodConfigs);
   const manifests = new Map(listProviderManifests().map((manifest) => [manifest.channel, manifest]));
 
   const configs = merchantConfigs
+    .filter((row) => boundConfigIds == null || boundConfigIds.has(row.id))
     .filter((row) => query.channelConfigId == null || row.id === query.channelConfigId)
     .filter((row) => query.channel == null || row.channel === query.channel)
     .map((row) => {
@@ -137,7 +160,7 @@ export async function listEffectivePaymentCapabilities(
         manifest.displayName,
         manifest.sandboxRequiredConfigFields,
         manifest.capabilities,
-        methodByCode,
+        methodsByTenant.get(String(row.tenantId ?? 'platform')) ?? new Map(),
         { ...query, currency: query.currency?.toUpperCase() },
       );
     });

@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { formatYuan } from '@/utils/payment';
 import { Banner, Button, Col, Form, Input, Modal, Row, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -20,14 +20,15 @@ import {
   useReleasePaymentPreauth,
 } from '@/hooks/queries/payment-preauths';
 import { enumValueOf } from '@zenith/shared/core';
-import { PAYMENT_CHANNELS, PAYMENT_PREAUTH_METHOD_OPTIONS, PAYMENT_PREAUTH_STATUS_LABELS, PAYMENT_PREAUTH_STATUS_OPTIONS, PAYMENT_PREAUTH_STATUSES, PAYMENT_CHANNEL_OPTIONS } from '@zenith/shared/payment';
+import { PAYMENT_CHANNELS, PAYMENT_PREAUTH_METHOD_LABELS, PAYMENT_PREAUTH_METHODS, PAYMENT_PREAUTH_STATUS_LABELS, PAYMENT_PREAUTH_STATUS_OPTIONS, PAYMENT_PREAUTH_STATUSES, PAYMENT_CHANNEL_OPTIONS } from '@zenith/shared/payment';
 import type { CreatePaymentPreauthInput, PaymentChannel, PaymentPreauth, PaymentPreauthMethod, PaymentPreauthStatus } from '@zenith/shared/payment';
 import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { listTableProps, ListSearchToolbar } from '@/components/list-page';
 import { PaymentChannelTag, paymentMoneyColumn } from './payment-display';
-import { useEnabledPaymentAppLookup } from './payment-app-options';
+import { useAppPaymentMethodOptions, useEnabledPaymentAppLookup } from './payment-app-options';
 import { PaymentAppField, PaymentAppFilterSelect, PaymentCurrencyField } from './payment-form-fields';
 import { useFilterQuery } from '@/hooks/useFilterQuery';
+import { abortSubmit } from '@/lib/abort-submit';
 
 const yuan = formatYuan;
 const STATUS_COLOR = { pending: 'grey', unknown: 'orange', frozen: 'blue', captured: 'green', released: 'teal', failed: 'red' } as const satisfies Record<PaymentPreauthStatus, string>;
@@ -67,10 +68,15 @@ export default function PaymentPreauthsPage() {
     pageSize,
     ...filterQuery,
   }, effectivePreauthAppId != null);
-  const preauthMethodOptions = useMemo(() => {
-    const app = selectedAppId == null ? null : appById.get(selectedAppId);
-    return PAYMENT_PREAUTH_METHOD_OPTIONS.filter((option) => option.value === 'wechat_preauth' ? app?.wechatConfigId != null : app?.alipayConfigId != null);
-  }, [appById, selectedAppId]);
+  const selectedPaymentApp = selectedAppId == null ? null : appById.get(selectedAppId);
+  const {
+    options: preauthMethodOptions,
+    canReadCapabilities,
+    capabilitiesQuery,
+  } = useAppPaymentMethodOptions(selectedPaymentApp, PAYMENT_PREAUTH_METHODS, {
+    operation: 'preauth.freeze',
+    labels: PAYMENT_PREAUTH_METHOD_LABELS,
+  });
   const createMutation = useCreatePaymentPreauth();
   const captureMutation = useCapturePaymentPreauth();
   const releaseMutation = useReleasePaymentPreauth();
@@ -88,17 +94,23 @@ export default function PaymentPreauthsPage() {
   const createModal = useEditModal<PaymentPreauth, PreauthFormValues, CreatePaymentPreauthInput>({
     save: createSaveMutation,
     defaults: { currency: 'CNY' },
-    beforeSave: (values) => ({
-      applicationId: values.applicationId,
-      payMethod: values.payMethod,
-      currency: values.currency,
-      payerAccount: values.payerAccount,
-      subject: values.subject,
-      frozenAmount: Math.round(values.amountYuan * 100),
-      bizType: values.bizType || undefined,
-      bizId: values.bizId,
-      remark: values.remark || undefined,
-    }),
+    beforeSave: (values) => {
+      if (!preauthMethodOptions.some((option) => option.value === values.payMethod)) {
+        Toast.error('所选预授权方式当前不可用，请重新选择');
+        abortSubmit('validation');
+      }
+      return {
+        applicationId: values.applicationId,
+        payMethod: values.payMethod,
+        currency: values.currency,
+        payerAccount: values.payerAccount,
+        subject: values.subject,
+        frozenAmount: Math.round(values.amountYuan * 100),
+        bizType: values.bizType || undefined,
+        bizId: values.bizId,
+        remark: values.remark || undefined,
+      };
+    },
     successMessage: () => {
       const res = latestCreateResult.current;
       if (res?.status === 'frozen') return '冻结成功';
@@ -227,9 +239,23 @@ export default function PaymentPreauthsPage() {
               onChange={(appId) => { setSelectedAppId(appId); createModal.formApi.current?.setValue('payMethod', undefined); }} />
           </Col>
           <Col span={12}>
-            <Form.Select field="payMethod" label="预授权方式" style={{ width: '100%' }} optionList={preauthMethodOptions} disabled={selectedAppId == null} rules={[{ required: true, message: '请选择方式' }]} />
+            <Form.Select
+              field="payMethod"
+              label="预授权方式"
+              style={{ width: '100%' }}
+              optionList={preauthMethodOptions}
+              loading={canReadCapabilities && capabilitiesQuery.isFetching}
+              disabled={selectedAppId == null || (canReadCapabilities && capabilitiesQuery.isFetching) || preauthMethodOptions.length === 0}
+              rules={[{ required: true, message: '请选择方式' }]}
+            />
           </Col>
         </Row>
+        {selectedAppId != null && capabilitiesQuery.isError && (
+          <Banner type="warning" closeIcon={null} style={{ marginBottom: 16 }} description="实时支付能力加载失败，已按当前配置提供可选方式；提交时仍会由服务端校验。" />
+        )}
+        {selectedAppId != null && !capabilitiesQuery.isFetching && !capabilitiesQuery.isError && preauthMethodOptions.length === 0 && (
+          <Banner type="warning" closeIcon={null} style={{ marginBottom: 16 }} description="所选应用暂无可用预授权方式，请检查支付方式启停、商户配置与运行环境。" />
+        )}
         <Row gutter={16}>
           <Col span={12}>
             <PaymentCurrencyField disabled />

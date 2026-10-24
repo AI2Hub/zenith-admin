@@ -1,6 +1,7 @@
 import type { BodyOf } from '@zenith/shared/core';
 import { paymentMethodContract } from '@zenith/shared/payment';
 import { contractKey, useApiMutation, useApiQuery } from '@/lib/contract-query';
+import { paymentCapabilityKeys } from './payment-capabilities';
 
 export type PaymentMethodSaveValues = BodyOf<typeof paymentMethodContract.update>;
 
@@ -33,6 +34,7 @@ export function useSavePaymentMethod() {
       void qc.invalidateQueries({ queryKey: paymentMethodKeys.lists });
       void qc.invalidateQueries({ queryKey: paymentMethodKeys.enabled });
       void qc.invalidateQueries({ queryKey: paymentMethodKeys.detail(saved.id) });
+      void qc.invalidateQueries({ queryKey: paymentCapabilityKeys.all });
     },
   });
 }

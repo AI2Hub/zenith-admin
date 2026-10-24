@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Toast } from '@douyinfe/semi-ui';
-import type { PaymentApp, PaymentChannel, PaymentChannelConfig, PaymentMethod } from '@zenith/shared/payment';
-import { PAYMENT_CHANNEL_LABELS, PAYMENT_METHOD_CHANNEL, PAYMENT_METHOD_LABELS } from '@zenith/shared/payment';
+import type { PaymentApp, PaymentChannel, PaymentChannelConfig, PaymentMethod, PaymentProviderOperation } from '@zenith/shared/payment';
+import { PAYMENT_CHANNEL_LABELS, PAYMENT_METHOD_CHANNEL, PAYMENT_METHOD_LABELS, paymentAppBoundConfigIds } from '@zenith/shared/payment';
 import { usePaymentAppList } from '@/hooks/queries/payment-apps';
 import { usePaymentCapabilities } from '@/hooks/queries/payment-capabilities';
 import { usePaymentChannelOperationLookup } from '@/hooks/queries/payment-channels';
@@ -16,10 +16,6 @@ export function paymentAppConfigId(app: Pick<PaymentApp, 'wechatConfigId' | 'ali
   if (channel === 'wechat') return app.wechatConfigId ?? null;
   if (channel === 'alipay') return app.alipayConfigId ?? null;
   return app.unionpayConfigId ?? null;
-}
-
-export function paymentAppBoundConfigIds(app: Pick<PaymentApp, 'wechatConfigId' | 'alipayConfigId' | 'unionpayConfigId'> | null | undefined) {
-  return new Set([app?.wechatConfigId, app?.alipayConfigId, app?.unionpayConfigId].filter((id): id is number => id != null));
 }
 
 export function useEnabledPaymentAppLookup(options: { label?: (app: PaymentApp) => string } = {}) {
@@ -102,7 +98,7 @@ export function resolveAppConfigBinding(
 }
 
 /**
- * 按所选支付应用给出可用的支付方式选项（下单 / 收银台链接共用）：
+ * 按所选支付应用与操作给出可用的支付方式选项（下单 / 收银台链接 / 预授权共用）：
  * 「支付方式配置」中已启用 ∩ 应用绑定商户配置在渠道实时能力里支持的方式；
  * 无能力查询权限或能力接口出错时退化为「应用已绑定对应渠道」，服务端下单仍做最终校验。
  * `candidates` 限定候选集（全部下单方式 / 仅收银台方式）。
@@ -110,12 +106,17 @@ export function resolveAppConfigBinding(
 export function useAppPaymentMethodOptions<M extends PaymentMethod>(
   selectedApp: PaymentApp | null | undefined,
   candidates: readonly M[],
+  settings: {
+    operation?: PaymentProviderOperation;
+    labels?: Readonly<Record<M, string>>;
+  } = {},
 ) {
   const { hasPermission } = usePermission();
   const canReadCapabilities = hasPermission('payment:channel:list');
+  const operation = settings.operation ?? 'payment.create';
   const capabilitiesQuery = usePaymentCapabilities(
-    { operation: 'payment.create', currency: 'CNY' },
-    canReadCapabilities,
+    { applicationId: selectedApp?.id, operation, currency: 'CNY' },
+    canReadCapabilities && selectedApp != null,
   );
   const paymentMethodQuery = usePaymentMethodList();
   const enabledMethods = useMemo(
@@ -125,24 +126,26 @@ export function useAppPaymentMethodOptions<M extends PaymentMethod>(
     [paymentMethodQuery.data],
   );
   const options = useMemo(() => {
-    if (!selectedApp || !enabledMethods) return [];
-    const toOptions = (methods: readonly M[]) => methods.map((value) => ({ value, label: PAYMENT_METHOD_LABELS[value] }));
+    if (!selectedApp) return [];
+    const toOptions = (methods: readonly M[]) => methods.map((value) => ({
+      value,
+      label: settings.labels?.[value] ?? PAYMENT_METHOD_LABELS[value],
+    }));
     if (capabilitiesQuery.data) {
       const appEnvironment = selectedApp.environment === 'sandbox' ? 'sandbox' : 'live';
-      const boundConfigIds = paymentAppBoundConfigIds(selectedApp);
       const supportedMethods = new Set<PaymentMethod>();
       for (const config of capabilitiesQuery.data.configs) {
-        if (!boundConfigIds.has(config.channelConfigId) || config.environment !== appEnvironment) continue;
+        if (config.environment !== appEnvironment) continue;
         for (const capability of config.capabilities) {
           if (capability.supported && capability.paymentMethod) supportedMethods.add(capability.paymentMethod);
         }
       }
-      return toOptions(candidates.filter((method) => enabledMethods.has(method) && supportedMethods.has(method)));
+      return toOptions(candidates.filter((method) => supportedMethods.has(method)));
     }
-    if (!canReadCapabilities || capabilitiesQuery.isError) {
+    if ((!canReadCapabilities || capabilitiesQuery.isError) && enabledMethods) {
       return toOptions(candidates.filter((method) => enabledMethods.has(method) && paymentAppConfigId(selectedApp, PAYMENT_METHOD_CHANNEL[method]) != null));
     }
     return [];
-  }, [candidates, canReadCapabilities, capabilitiesQuery.data, capabilitiesQuery.isError, enabledMethods, selectedApp]);
+  }, [candidates, canReadCapabilities, capabilitiesQuery.data, capabilitiesQuery.isError, enabledMethods, selectedApp, settings.labels]);
   return { options, canReadCapabilities, capabilitiesQuery, enabledMethods };
 }
