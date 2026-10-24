@@ -2750,6 +2750,19 @@
   .admin-header__user-caret {
     display: none;
   }
+
+  /* 偏好设置为「仅昵称」时没有头像可退：保留昵称（超宽省略）与倒三角，避免触发器变成空白 */
+  .admin-header__user--no-avatar .admin-header__username {
+    display: block;
+    max-width: 96px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .admin-header__user--no-avatar .admin-header__user-caret {
+    display: block;
+  }
 }
 
 /* < 768px：使用移动端顶部栏，页面入口和常用功能入口分离展示 */

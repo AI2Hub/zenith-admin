@@ -3,7 +3,7 @@ import { Button, Dropdown, Input, InputNumber, Popover, Radio, RadioGroup, Selec
 import { ChevronDown, ChevronLeft, ChevronRight, ClipboardPaste, Copy, Download, Info } from 'lucide-react';
 import { LOADING_STYLE_OPTIONS, DARK_SURFACE_TONE_OPTIONS, UI_SCALE_OPTIONS, FONT_FAMILY_OPTIONS, DEFAULT_SIDEBAR_WIDTH, SIDEBAR_WIDTH_MIN, SIDEBAR_WIDTH_MAX } from '@/hooks/usePreferences';
 import { clearAllListFilterSnapshots } from '@/lib/list-filter-memory';
-import type { NavLayout, TableSizePreference, RouteAnimation, BorderRadiusPreference, ScheduledDarkMode, TabStyle, TabSize, TabType, TabsPosition, DarkSurfaceTone, TopbarClockMode, UserPreferences, UiScale, FontFamilyPreference, WeekStart, TimeDisplay, DoubleRailStyle } from '@/hooks/usePreferences';
+import type { NavLayout, TableSizePreference, RouteAnimation, BorderRadiusPreference, ScheduledDarkMode, TabStyle, TabSize, TabType, TabsPosition, DarkSurfaceTone, TopbarClockMode, UserDisplayMode, UserPreferences, UiScale, FontFamilyPreference, WeekStart, TimeDisplay, DoubleRailStyle } from '@/hooks/usePreferences';
 import { isScheduleTime } from '@/hooks/usePreferences';
 import type { ThemeMode } from '@/hooks/useTheme';
 import { THEME_COLOR_PRESETS } from '@/lib/theme-color';
@@ -678,6 +678,31 @@ export function PrefsNavToolbarSection({
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span>显示全屏按钮</span>
         <Switch checked={preferences.showFullscreen ?? true} onChange={(v) => setPreferences({ showFullscreen: v })} />
+      </div>
+      </PreferenceControl>
+      )}
+
+      {/* ── 顶栏用户信息 ── */}
+      {matchesPref(['顶栏用户信息', '用户信息', '用户区', '头像', '昵称', '右上角'], 'userDisplayMode') && (
+      <PreferenceControl path="userDisplayMode">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}>
+          顶栏用户信息
+          <Tooltip content="右上角用户区显示头像、昵称或两者；仅昵称模式在窄屏下仍保留昵称" position="right">
+            <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+          </Tooltip>
+        </span>
+        {/* 三选一用下拉而非按钮组：抽屉宽度下按钮组会换行，单行也放不下长标签 */}
+        <Select
+          value={preferences.userDisplayMode ?? 'avatar'}
+          optionList={[
+            { value: 'both', label: '头像 + 昵称' },
+            { value: 'avatar', label: '仅头像' },
+            { value: 'name', label: '仅昵称' },
+          ]}
+          onChange={(v) => setPreferences({ userDisplayMode: v as UserDisplayMode })}
+          style={{ width: 124, flexShrink: 0 }}
+        />
       </div>
       </PreferenceControl>
       )}

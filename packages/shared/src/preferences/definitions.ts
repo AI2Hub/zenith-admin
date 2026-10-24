@@ -43,6 +43,7 @@ const metadata: Record<PreferencePath, Entry> = {
   breadcrumbClickable: { label: '面包屑可点击跳转', group: 'navigation', applicableWhen: breadcrumb },
   breadcrumbSubMenu: { label: '面包屑子菜单', group: 'navigation', applicableWhen: breadcrumb },
   showMenuSearch: { label: '显示菜单搜索', group: 'navigation' },
+  userDisplayMode: { label: '顶栏用户信息', group: 'navigation', options: options(C.USER_DISPLAY_MODES, ['头像 + 昵称', '仅头像', '仅昵称']), description: '默认仅头像；窄屏下仅昵称仍保留昵称文本。' },
   topbarClock: { label: '顶栏时钟', group: 'navigation', options: options(C.TOPBAR_CLOCK_MODES, ['关闭', '12小时制', '24小时制']) },
   topbarClockShowDate: { label: '时钟显示日期', group: 'navigation', applicableWhen: { field: 'topbarClock', in: ['12h', '24h'] } },
   showFavorites: { label: '显示收藏入口', group: 'navigation' },

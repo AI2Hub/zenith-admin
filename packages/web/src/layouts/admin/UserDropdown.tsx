@@ -47,7 +47,11 @@ export function UserDropdown({
   clearLockPassword: () => void;
   onLogout: () => void;
 }>) {
-  const { hasEditablePreferences } = usePreferences();
+  const { preferences, hasEditablePreferences } = usePreferences();
+  // 顶栏用户区形态（偏好设置「顶栏用户信息」）：默认仅头像
+  const displayMode = preferences.userDisplayMode ?? 'avatar';
+  const showAvatar = displayMode !== 'name';
+  const showName = displayMode !== 'avatar';
   const { parkedAccounts, impersonation, endImpersonation } = useAuth();
   const { hasAnyPermission } = usePermission();
   // 移动审批轻页首屏即查待办 / 角标 / 可发起流程，无任一审批相关权限必 403；
@@ -151,9 +155,13 @@ export function UserDropdown({
         </Dropdown.Menu>
       }
     >
-      <div className={`admin-header__user${menuVisible ? ' admin-header__user--open' : ''}`}>
-        <UserAvatar name={user.nickname || '用户'} avatar={user.avatar} semiSize="small" size={24} style={{ fontSize: 12 }} />
-        <span className="admin-header__username">{user.nickname}</span>
+      <div
+        className={`admin-header__user${menuVisible ? ' admin-header__user--open' : ''}${showAvatar ? '' : ' admin-header__user--no-avatar'}`}
+        // 只显示头像时昵称仍是识别用户的信息，补到原生 title 上供悬停查看
+        title={showName ? undefined : user.nickname}
+      >
+        {showAvatar && <UserAvatar name={user.nickname || '用户'} avatar={user.avatar} semiSize="small" size={24} style={{ fontSize: 12 }} />}
+        {showName && <span className="admin-header__username">{user.nickname}</span>}
         <ChevronDown size={14} className="admin-header__user-caret" aria-hidden="true" />
       </div>
     </Dropdown>

@@ -60,6 +60,7 @@ export const preferenceValuesSchema = z.strictObject({
   darkHeaderTone: z.enum(C.DARK_SURFACE_TONES).default('bg-1'),
   darkContentTone: z.enum(C.DARK_SURFACE_TONES).default('bg-1'),
   showMenuSearch: z.boolean().default(true),
+  userDisplayMode: z.enum(C.USER_DISPLAY_MODES).default('avatar'),
   topbarClock: z.enum(C.TOPBAR_CLOCK_MODES).default('off'),
   topbarClockShowDate: z.boolean().default(true),
   showFullscreen: z.boolean().default(true),

@@ -41,6 +41,9 @@ export const TOPBAR_CLOCK_MODE_OPTIONS = [
   { value: '12h', label: '12小时制', isDefault: false },
   { value: '24h', label: '24小时制', isDefault: false },
 ] as const;
+/** 顶栏右上角用户区形态：头像 + 昵称 / 仅头像 / 仅昵称 */
+export const USER_DISPLAY_MODES = ['both', 'avatar', 'name'] as const;
+export type UserDisplayMode = (typeof USER_DISPLAY_MODES)[number];
 export const SCHEDULED_DARK_MODES = ['off', 'custom'] as const;
 export type ScheduledDarkMode = (typeof SCHEDULED_DARK_MODES)[number];
 export const SCHEDULED_DARK_MODE_OPTIONS = [
