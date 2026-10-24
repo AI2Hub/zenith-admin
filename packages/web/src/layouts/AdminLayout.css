@@ -2166,6 +2166,25 @@
   border-bottom: 1px solid var(--semi-color-border);
 }
 
+/* 标题与语义标签固定同一行：标题单行省略，标签紧随其后。
+   若允许换行（wrap），长标题会先占满整行，把标签挤到第二行。 */
+.notification-popover__title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.notification-popover__title-row > .notification-popover__title {
+  flex: 0 1 auto;
+  min-width: 0;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .notification-popover__time-row {
   display: flex;
   align-items: center;

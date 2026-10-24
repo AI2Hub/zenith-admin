@@ -112,8 +112,10 @@ function NotificationPopover<T extends NotificationItem>({
                   header={null}
                   main={
                     <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                        <Typography.Text strong style={{ fontSize: 13 }}>{item.title}</Typography.Text>
+                      <div className="notification-popover__title-row">
+                        <Typography.Text strong className="notification-popover__title" title={item.title}>
+                          {item.title}
+                        </Typography.Text>
                         {labelOf?.(item)}
                       </div>
                       <div style={{ fontSize: 12, color: 'var(--semi-color-text-2)', margin: '3px 0 4px', maxHeight: 40, overflow: 'hidden', lineHeight: 1.5 }}>

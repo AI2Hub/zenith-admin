@@ -94,6 +94,19 @@ describe('通知弹层 · 单条已读布局', () => {
     expect(timeRows[0].querySelector('.notification-popover__mark-read')).toHaveAttribute('aria-label', '标为已读');
     expect(timeRows[1].querySelector('.notification-popover__read-state')).toHaveTextContent('已读');
   });
+
+  it('标题与语义标签同处一行：长标题单行省略，标签不被挤到下一行', () => {
+    const longTitle = '支付对账异常：E2E-支付渠道-20261023 · E2E_MCH_20261023';
+    renderMessages({ inAppMessages: [{ ...message(1, false), title: longTitle }] });
+
+    const row = document.querySelector('.notification-popover__title-row') as HTMLElement;
+    const title = row.querySelector('.notification-popover__title') as HTMLElement;
+
+    // 标题与标签是同一 flex 行的兄弟节点（行内为 nowrap，标签紧跟标题之后）
+    expect(row).toContainElement(title);
+    expect(title).toHaveAttribute('title', longTitle);
+    expect(row.querySelector('.semi-tag')).not.toBeNull();
+  });
 });
 
 describe('通知弹层 · 全部已读', () => {
