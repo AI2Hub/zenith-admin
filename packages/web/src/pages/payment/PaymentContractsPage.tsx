@@ -400,14 +400,9 @@ export default function PaymentContractsPage() {
             <PaymentCurrencyField disabled />
           </Col>
         </Row>
-        <Row gutter={16}>
-          <Col span={12}>
-            <Form.Input field="signerAccount" label="签约账号" placeholder="微信 openid / 支付宝账号" rules={[{ required: true, message: '签约账号不能为空' }]} />
-          </Col>
-          <Col span={12}>
-            <Form.Input field="signerName" label="签约人" placeholder="可选" />
-          </Col>
-        </Row>
+        {/* 签约账号 / 签约人独占整行：半列宽度装不下占位文案，placeholder 被截断 */}
+        <Form.Input field="signerAccount" label="签约账号" placeholder="微信 openid / 支付宝账号" rules={[{ required: true, message: '签约账号不能为空' }]} />
+        <Form.Input field="signerName" label="签约人" placeholder="可选" />
         <Form.Switch field="firstDeductNow" label="立即首扣" extraText="签约成功后立即执行首期扣款（沙箱渠道即时成功）" />
         <Form.TextArea field="remark" label="备注" autosize rows={1} placeholder="可选" />
       </EditFormModal>
