@@ -64,6 +64,7 @@ export const preferenceValuesSchema = z.strictObject({
   topbarClock: z.enum(C.TOPBAR_CLOCK_MODES).default('off'),
   topbarClockShowDate: z.boolean().default(true),
   showFullscreen: z.boolean().default(true),
+  showThemeToggle: z.boolean().default(true),
   showQuickChat: z.boolean().default(true),
   showLogo: z.boolean().default(true),
   showFavorites: z.boolean().default(false),

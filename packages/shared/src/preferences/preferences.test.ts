@@ -18,12 +18,13 @@ import {
 } from './index';
 
 describe('偏好策略与个人覆盖', () => {
-  it('保留全部现有默认值，101 项策略排除个人收藏', () => {
+  it('保留全部现有默认值，102 项策略排除个人收藏', () => {
     const policy = preferencePolicySchema.parse({});
-    expect(preferenceDefinitions).toHaveLength(101);
+    expect(preferenceDefinitions).toHaveLength(102);
     expect(policy.defaults.multiSelectLayout).toBe('single-line');
     expect(policy.allowUserOverride.multiSelectLayout).toBe(true);
     expect(defaultPreferences.userDisplayMode).toBe('avatar');
+    expect(defaultPreferences.showThemeToggle).toBe(true);
     expect(defaultPreferences.topbarClock).toBe('off');
     expect(defaultPreferences.topbarClockShowDate).toBe(true);
     expect(defaultPreferences.scheduledDarkMode).toBe('off');

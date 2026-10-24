@@ -741,7 +741,9 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
         unreadCount={unreadCount}
         navigate={navigate}
       />
-      <ThemeModeDropdown mode={mode} handleThemeModeChange={handleThemeModeChange} />
+      {(preferences.showThemeToggle ?? true) && (
+        <ThemeModeDropdown mode={mode} handleThemeModeChange={handleThemeModeChange} />
+      )}
       {/* 移动端页面入口与常用功能入口分离 */}
       <PagesDropdown
         isMobileNav={isMobileNav}

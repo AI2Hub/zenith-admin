@@ -652,11 +652,16 @@ export function PrefsNavToolbarSection({
       </PreferenceControl>
       )}
 
-      {/* ── 菜单搜索 ── */}
-      {matchesPref(['菜单搜索', '显示菜单搜索框', '搜索框', '搜索', '搜索菜单'], 'showMenuSearch') && (
+      {/* ── 全局搜索 ── */}
+      {matchesPref(['全局搜索', '菜单搜索', '显示全局搜索', '显示菜单搜索框', '搜索框', '搜索', '搜索菜单', 'Ctrl+K'], 'showMenuSearch') && (
       <PreferenceControl path="showMenuSearch">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span>显示菜单搜索框</span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          显示全局搜索
+          <Tooltip content="顶栏的全局搜索入口（⌘/Ctrl+K），隐藏后快捷键一并失效" position="right">
+            <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+          </Tooltip>
+        </span>
         <Switch checked={preferences.showMenuSearch ?? true} onChange={(v) => setPreferences({ showMenuSearch: v })} />
       </div>
       </PreferenceControl>
@@ -678,6 +683,21 @@ export function PrefsNavToolbarSection({
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span>显示全屏按钮</span>
         <Switch checked={preferences.showFullscreen ?? true} onChange={(v) => setPreferences({ showFullscreen: v })} />
+      </div>
+      </PreferenceControl>
+      )}
+
+      {/* ── 主题切换按钮 ── */}
+      {matchesPref(['主题', '主题切换', '主题按钮', '颜色模式按钮', '显示主题切换'], 'showThemeToggle') && (
+      <PreferenceControl path="showThemeToggle">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          显示主题切换
+          <Tooltip content="顶栏的颜色模式下拉按钮；隐藏后仍可在偏好设置里切换" position="right">
+            <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+          </Tooltip>
+        </span>
+        <Switch checked={preferences.showThemeToggle ?? true} onChange={(v) => setPreferences({ showThemeToggle: v })} />
       </div>
       </PreferenceControl>
       )}
