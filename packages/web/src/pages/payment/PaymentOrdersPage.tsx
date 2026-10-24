@@ -519,7 +519,7 @@ export default function PaymentOrdersPage() {
         width={480}
       >
         {refundModal.editing && (
-          <Form key={refundModal.formKey} {...refundModal.formProps}>
+          <Form key={refundModal.formKey} {...refundModal.formProps} labelWidth={120}>
             <Form.Slot label="订单号">{refundModal.editing.orderNo}</Form.Slot>
             <Form.Slot label="订单金额">{yuan(refundModal.editing.amount)}</Form.Slot>
             {refundedAmount > 0 && <Form.Slot label="已退金额"><Typography.Text type="warning">{yuan(refundedAmount)}</Typography.Text></Form.Slot>}
