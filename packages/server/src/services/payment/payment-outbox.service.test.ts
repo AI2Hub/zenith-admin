@@ -13,7 +13,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../../db', () => {
-  const db = { select: vi.fn(), insert: vi.fn(), update: vi.fn() };
+  const db = { select: vi.fn(), insert: vi.fn(), update: vi.fn(), transaction: vi.fn() };
   return { db };
 });
 
@@ -52,6 +52,8 @@ function makeEventRow(overrides: Partial<PaymentEventRow> = {}): PaymentEventRow
     payload: JSON.stringify({ type: 'payment.succeeded', orderNo: 'PO-1', bizType: 'member_recharge' }),
     status: 'pending',
     attempts: 0,
+    generation: 1,
+    redispatchCount: 0,
     lastError: null,
     processedAt: null,
     tenantId: null,
@@ -64,7 +66,25 @@ beforeEach(() => {
   vi.resetAllMocks();
   dispatchMock.mockResolvedValue(undefined);
   dbMock.update.mockImplementation(() => createChain([]));
+  dbMock.insert.mockImplementation(() => createChain([]));
+  dbMock.transaction.mockImplementation(async (callback) => callback(dbMock as never));
 });
+
+function queueClaim(row: PaymentEventRow, attemptId = 501) {
+  const claimChain = createChain([row]);
+  const interruptedChain = createChain([]);
+  const insertChain = createChain([{ id: attemptId }]);
+  dbMock.update.mockReturnValueOnce(claimChain).mockReturnValueOnce(interruptedChain);
+  dbMock.insert.mockReturnValueOnce(insertChain);
+  return { claimChain, insertChain };
+}
+
+function queueFinish(attemptId = 501) {
+  const attemptChain = createChain([{ id: attemptId }]);
+  const eventChain = createChain([]);
+  dbMock.update.mockReturnValueOnce(attemptChain).mockReturnValueOnce(eventChain);
+  return { attemptChain, eventChain };
+}
 
 describe('recordEvent', () => {
   it('事务内插入 pending 事件，payload JSON 序列化，返回事件 id', async () => {
@@ -89,60 +109,71 @@ describe('recordEvent', () => {
 
 describe('processEvent', () => {
   it('claim 未命中（已被处理/超限/占用中）→ 直接返回不投递', async () => {
-    dbMock.update.mockReturnValueOnce(createChain([]));
+    dbMock.update.mockReturnValueOnce(createChain([])).mockReturnValueOnce(createChain([]));
     await processEvent(100);
     expect(dispatchMock).not.toHaveBeenCalled();
-    expect(dbMock.update).toHaveBeenCalledTimes(1);
+    expect(dbMock.update).toHaveBeenCalledTimes(2);
   });
 
-  it('claim 成功 + 投递成功 → 置 done', async () => {
-    dbMock.update.mockReturnValueOnce(createChain([makeEventRow()]));
-    const doneChain = createChain([]);
-    dbMock.update.mockReturnValueOnce(doneChain);
+  it('claim 成功 + 投递成功 → 记录成功尝试、置 done 并清空当前错误', async () => {
+    const { insertChain } = queueClaim(makeEventRow({ attempts: 1, lastError: '旧错误' }));
+    const { attemptChain, eventChain } = queueFinish();
 
     await processEvent(100);
 
     expect(dispatchMock).toHaveBeenCalledWith(
       expect.objectContaining({ orderNo: 'PO-1', eventId: 'payment-outbox-100', occurredAt: expect.any(String) }),
     );
-    expect(doneChain.set).toHaveBeenCalledWith(expect.objectContaining({ status: 'done' }));
+    expect(insertChain.values).toHaveBeenCalledWith(expect.objectContaining({ eventId: 100, generation: 1, attemptNo: 1, status: 'processing' }));
+    expect(attemptChain.set).toHaveBeenCalledWith(expect.objectContaining({ status: 'succeeded', errorMessage: null }));
+    expect(eventChain.set).toHaveBeenCalledWith(expect.objectContaining({ status: 'done', lastError: null }));
   });
 
-  it('投递失败（未达上限）→ attempts+1 保持 pending，processedAt 清空以便补投', async () => {
+  it('投递失败（未达上限）→ 记录失败尝试并保持 pending', async () => {
     dispatchMock.mockRejectedValueOnce(new Error('subscriber boom'));
-    dbMock.update.mockReturnValueOnce(createChain([makeEventRow({ attempts: 1 })]));
-    const retryChain = createChain([]);
-    dbMock.update.mockReturnValueOnce(retryChain);
+    queueClaim(makeEventRow({ attempts: 2 }));
+    const { attemptChain, eventChain } = queueFinish();
 
     await processEvent(100);
 
-    expect(retryChain.set).toHaveBeenCalledWith(
-      expect.objectContaining({ attempts: 2, status: 'pending', lastError: 'subscriber boom', processedAt: null }),
-    );
+    expect(attemptChain.set).toHaveBeenCalledWith(expect.objectContaining({ status: 'failed', errorMessage: 'subscriber boom' }));
+    expect(eventChain.set).toHaveBeenCalledWith(expect.objectContaining({ status: 'pending', lastError: 'subscriber boom', processedAt: null }));
   });
 
   it('投递失败达重试上限（5）→ 置 failed 终态', async () => {
     dispatchMock.mockRejectedValueOnce(new Error('still down'));
-    dbMock.update.mockReturnValueOnce(createChain([makeEventRow({ attempts: 4 })]));
-    const failChain = createChain([]);
-    dbMock.update.mockReturnValueOnce(failChain);
+    queueClaim(makeEventRow({ attempts: 5 }));
+    const { eventChain } = queueFinish();
 
     await processEvent(100);
 
-    expect(failChain.set).toHaveBeenCalledWith(
-      expect.objectContaining({ attempts: 5, status: 'failed', processedAt: expect.any(Date) }),
-    );
+    expect(eventChain.set).toHaveBeenCalledWith(expect.objectContaining({ status: 'failed', processedAt: expect.any(Date) }));
+  });
+
+  it('崩溃尝试已耗尽时收敛为 failed 并结束 processing 历史', async () => {
+    const exhaustedChain = createChain([{ id: 100, generation: 1 }]);
+    const interruptedChain = createChain([]);
+    dbMock.update
+      .mockReturnValueOnce(createChain([]))
+      .mockReturnValueOnce(exhaustedChain)
+      .mockReturnValueOnce(interruptedChain);
+
+    await processEvent(100);
+
+    expect(exhaustedChain.set).toHaveBeenCalledWith(expect.objectContaining({ status: 'failed', lastError: expect.stringContaining('最大尝试次数') }));
+    expect(interruptedChain.set).toHaveBeenCalledWith(expect.objectContaining({ status: 'failed', finishedAt: expect.any(Date) }));
+    expect(dispatchMock).not.toHaveBeenCalled();
   });
 
   it('错误消息截断至 500 字符（防超长报错撑爆列）', async () => {
     dispatchMock.mockRejectedValueOnce(new Error('x'.repeat(600)));
-    dbMock.update.mockReturnValueOnce(createChain([makeEventRow()]));
-    const retryChain = createChain([]);
-    dbMock.update.mockReturnValueOnce(retryChain);
+    queueClaim(makeEventRow({ attempts: 1 }));
+    const { attemptChain, eventChain } = queueFinish();
 
     await processEvent(100);
 
-    expect(retryChain.set.mock.calls[0][0].lastError).toHaveLength(500);
+    expect(attemptChain.set.mock.calls[0][0].errorMessage).toHaveLength(500);
+    expect(eventChain.set.mock.calls[0][0].lastError).toHaveLength(500);
   });
 });
 
@@ -155,12 +186,10 @@ describe('dispatchPendingPaymentEvents', () => {
 
   it('逐条补投 pending 事件并返回扫描条数', async () => {
     dbMock.select.mockReturnValueOnce(createChain([{ id: 1 }, { id: 2 }]));
-    // 两次 processEvent：各 claim 成功 + done 更新
-    dbMock.update
-      .mockReturnValueOnce(createChain([makeEventRow({ id: 1 })]))
-      .mockReturnValueOnce(createChain([]))
-      .mockReturnValueOnce(createChain([makeEventRow({ id: 2 })]))
-      .mockReturnValueOnce(createChain([]));
+    queueClaim(makeEventRow({ id: 1, attempts: 1 }), 501);
+    queueFinish(501);
+    queueClaim(makeEventRow({ id: 2, attempts: 1 }), 502);
+    queueFinish(502);
 
     expect(await dispatchPendingPaymentEvents()).toBe(2);
     expect(dispatchMock).toHaveBeenCalledTimes(2);

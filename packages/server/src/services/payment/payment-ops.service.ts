@@ -1,29 +1,33 @@
-import { paymentOpsContract, paymentOutboxEventSchema } from '@zenith/shared/payment';
+import { paymentEventAttemptSchema, paymentOpsContract, paymentOutboxEventSchema } from '@zenith/shared/payment';
 import type { QueryOutputOf } from '@zenith/shared/core';
 /**
  * 支付运营排障 Service。
  * Outbox 事件查看与手动重投、模拟支付成功回调（演示/联调用），
  * 帮助运营快速排障与复现支付履约链路。
  */
-import { and, desc, eq, gte, inArray, like, or } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, like, or, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { listRows } from '../../lib/list-query';
-import { appWebhookDeliveries, oauth2Clients, paymentApps, paymentEvents, paymentOrders, paymentReconCases, paymentSharingOrders, paymentTransfers, type PaymentEventRow } from '../../db/schema';
+import { appWebhookDeliveries, oauth2Clients, paymentApps, paymentEventAttempts, paymentEvents, paymentOrders, paymentReconCases, paymentSharingOrders, paymentTransfers, type PaymentEventAttemptRow, type PaymentEventRow } from '../../db/schema';
 import { requireRow } from '../../lib/db-assert';
 import { currentUser } from '../../lib/context';
 import { getTenantScopeId, tenantCondition } from '../../lib/tenant';
 import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
 import { buildSandboxNotifyRequest } from '../../lib/payment/sandbox-notify';
-import { processEvent } from './payment-outbox.service';
+import { interruptProcessingPaymentEventAttempts, processEvent } from './payment-outbox.service';
 import { buildAdapterContext, handleNotify, mapOrder, loadOrderConfig } from './payment.service';
-import type { PaymentOrder, PaymentOutboxEvent } from '@zenith/shared/payment';
+import type { PaymentEventAttempt, PaymentOrder, PaymentOutboxEvent } from '@zenith/shared/payment';
 import { pickEntity } from '../../lib/entity-map';
 import { getPaymentEventHealth } from './payment-events.service';
 
 export function mapOutboxEvent(row: PaymentEventRow): PaymentOutboxEvent {
   return pickEntity(paymentOutboxEventSchema, row);
+}
+
+export function mapPaymentEventAttempt(row: PaymentEventAttemptRow): PaymentEventAttempt {
+  return pickEntity(paymentEventAttemptSchema, row);
 }
 
 export interface PaymentHealth {
@@ -89,15 +93,33 @@ export async function getPaymentEvent(id: number): Promise<PaymentOutboxEvent> {
   return mapOutboxEvent(row);
 }
 
+export async function listPaymentEventAttempts(id: number): Promise<PaymentEventAttempt[]> {
+  await getPaymentEvent(id);
+  const rows = await db.select().from(paymentEventAttempts)
+    .where(eq(paymentEventAttempts.eventId, id))
+    .orderBy(desc(paymentEventAttempts.generation), desc(paymentEventAttempts.attemptNo), desc(paymentEventAttempts.id));
+  return rows.map(mapPaymentEventAttempt);
+}
+
 /** 手动重投 Outbox 事件：重置为 pending 并立即投递。 */
 export async function redispatchEvent(id: number): Promise<PaymentOutboxEvent> {
   const tc = tenantCondition(paymentEvents, currentUser());
   const [row] = await db.select().from(paymentEvents).where(and(eq(paymentEvents.id, id), tc)).limit(1);
   requireRow(row, '事件不存在');
-  await db.update(paymentEvents).set({ status: 'pending', attempts: 0, lastError: null, processedAt: null }).where(eq(paymentEvents.id, id));
+  await db.transaction(async (tx) => {
+    const redispatchedAt = new Date();
+    await interruptProcessingPaymentEventAttempts(tx, id, redispatchedAt, '手动重投已结束上一轮未完成的尝试');
+    await tx.update(paymentEvents).set({
+      status: 'pending',
+      attempts: 0,
+      generation: sql`${paymentEvents.generation} + 1`,
+      redispatchCount: sql`${paymentEvents.redispatchCount} + 1`,
+      lastError: null,
+      processedAt: null,
+    }).where(and(eq(paymentEvents.id, id), tc));
+  });
   await processEvent(id);
-  const [latest] = await db.select().from(paymentEvents).where(eq(paymentEvents.id, id)).limit(1);
-  return mapOutboxEvent(latest ?? row);
+  return getPaymentEvent(id);
 }
 
 /**

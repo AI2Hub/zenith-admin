@@ -253,6 +253,7 @@ export type NewPaymentNotifyLog = typeof paymentNotifyLogs.$inferInsert;
 
 // ─── 支付事件 Outbox 表（保证支付/退款成功事件可靠投递，进程崩溃后由 cron 补投）─────
 export const paymentEventStatusEnum = pgEnum('payment_event_status', ['pending', 'done', 'failed']);
+export const paymentEventAttemptStatusEnum = pgEnum('payment_event_attempt_status', ['processing', 'succeeded', 'failed']);
 
 export const paymentEvents = pgTable('payment_events', {
   id: idColumn(),
@@ -261,6 +262,8 @@ export const paymentEvents = pgTable('payment_events', {
   payload: text().notNull(),
   status: paymentEventStatusEnum().notNull().default('pending'),
   attempts: integer().notNull().default(0),
+  generation: integer().notNull().default(1),
+  redispatchCount: integer().notNull().default(0),
   lastError: varchar({ length: 512 }),
   tenantId: tenantIdColumn(),
   createdAt: timestamptz().defaultNow().notNull(),
@@ -274,6 +277,23 @@ export const paymentEvents = pgTable('payment_events', {
 export type PaymentEventRow = typeof paymentEvents.$inferSelect;
 
 export type NewPaymentEvent = typeof paymentEvents.$inferInsert;
+
+export const paymentEventAttempts = pgTable('payment_event_attempts', {
+  id: idColumn(),
+  eventId: integer().notNull().references(() => paymentEvents.id, { onDelete: 'cascade' }),
+  generation: integer().notNull(),
+  attemptNo: integer().notNull(),
+  status: paymentEventAttemptStatusEnum().notNull().default('processing'),
+  errorMessage: varchar({ length: 512 }),
+  startedAt: timestamptz().defaultNow().notNull(),
+  finishedAt: timestamptz(),
+}, (t) => [
+  uniqueIndex('payment_event_attempts_event_generation_attempt_uq').on(t.eventId, t.generation, t.attemptNo),
+  index('payment_event_attempts_event_idx').on(t.eventId, t.id),
+]);
+
+export type PaymentEventAttemptRow = typeof paymentEventAttempts.$inferSelect;
+export type NewPaymentEventAttempt = typeof paymentEventAttempts.$inferInsert;
 
 // ─── 手续费/费率规则 ─────────────────────────────────────────────────────────
 export const paymentFeeRules = pgTable('payment_fee_rules', {

@@ -114,7 +114,6 @@ export const tenantIsolationBaseline: readonly TenantIsolationBaselineEntry[] = 
   { file: 'services/payment/payment-cashier-session.service.ts', fn: 'bindCashierSessionAfterCreateFailure', table: 'paymentCashierSessions', reason: '后台作业 / 系统或公开上下文，无请求租户；id 来自内部记录' },
   { file: 'services/payment/payment-cashier-session.service.ts', fn: 'setTerminalSessionState', table: 'paymentCashierSessions', reason: '后台作业 / 系统或公开上下文，无请求租户；id 来自内部记录' },
   { file: 'services/payment/payment-channel-config-resolver.ts', fn: 'resolvePaymentChannelConfig', table: 'paymentChannelConfigs', reason: '待复核：按请求 id 访问未叠加租户条件' },
-  { file: 'services/payment/payment-outbox.service.ts', fn: 'processEvent', table: 'paymentEvents', reason: '后台作业 / 系统或公开上下文，无请求租户；id 来自内部记录' },
   { file: 'services/payment/payment.service.ts', fn: 'recomputeOrderRefundState', table: 'paymentOrders', reason: '后台作业 / 系统或公开上下文，无请求租户；id 来自内部记录' },
   { file: 'services/platform/exception-logs.service.ts', fn: 'ensureExceptionGroupExists', table: 'errorGroups', reason: '异常日志为平台级运维数据：服务端异常分组 tenantId 恒为 null，按 source=server 定位；契约 platformOnly 已限定平台身份' },
   { file: 'services/platform/exception-logs.service.ts', fn: 'updateExceptionGroup', table: 'users', reason: '异常日志为平台级运维数据：指派人不限租户，只校验账号存在' },

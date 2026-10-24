@@ -1,7 +1,7 @@
 import * as z from 'zod';
 import { idParam, keywordQuery, paginated, paginationQuery, queryEnum } from '../../core/api-schemas';
 import { defineContract, op } from '../../core/contract';
-import { PAYMENT_OUTBOX_EVENT_STATUSES } from '../constants';
+import { PAYMENT_EVENT_ATTEMPT_STATUSES, PAYMENT_OUTBOX_EVENT_STATUSES } from '../constants';
 import { paymentOrderSchema } from './payment-orders';
 
 // ─── 实体 ────────────────────────────────────────────────────────────────────
@@ -11,14 +11,29 @@ export const paymentOutboxEventSchema = z.object({
   type: z.string(),
   orderNo: z.string(),
   status: z.enum(PAYMENT_OUTBOX_EVENT_STATUSES),
-  attempts: z.int(),
+  attempts: z.int().nonnegative().meta({ description: '当前投递轮次已执行次数' }),
+  generation: z.int().positive().meta({ description: '投递轮次；手动重投时递增' }),
+  redispatchCount: z.int().nonnegative().meta({ description: '手动重投次数' }),
   payload: z.string().nullable().optional().meta({ description: '事件载荷 JSON（投递给订阅者 / Webhook 的内容），运营排障用' }),
-  lastError: z.string().nullable().optional(),
+  lastError: z.string().nullable().optional().meta({ description: '当前状态的最近错误；成功后清空' }),
   createdAt: z.string(),
   processedAt: z.string().nullable().optional(),
 }).meta({ id: 'PaymentOutboxEvent' });
 
 export type PaymentOutboxEvent = z.infer<typeof paymentOutboxEventSchema>;
+
+export const paymentEventAttemptSchema = z.object({
+  id: z.int(),
+  eventId: z.int(),
+  generation: z.int().positive(),
+  attemptNo: z.int().positive(),
+  status: z.enum(PAYMENT_EVENT_ATTEMPT_STATUSES),
+  errorMessage: z.string().nullable().optional(),
+  startedAt: z.string(),
+  finishedAt: z.string().nullable().optional(),
+}).meta({ id: 'PaymentEventAttempt' });
+
+export type PaymentEventAttempt = z.infer<typeof paymentEventAttemptSchema>;
 
 /** 支付链路健康指标：outbox 积压 / 死信、webhook 待投 / 24h 失败、处理中分账 / 转账、待处理对账差异 */
 export const paymentOpsHealthSchema = z.object({
@@ -43,6 +58,7 @@ export const paymentOutboxEventListQuery = paginationQuery.extend({
 
 export const paymentOpsContract = defineContract('/api/payment/ops', {
   events: op.get('/events', { access: { permission: 'payment:ops:manage' }, query: paymentOutboxEventListQuery, response: paginated(paymentOutboxEventSchema), summary: '支付事件(Outbox)列表' }),
+  eventAttempts: op.get('/events/{id}/attempts', { access: { permission: 'payment:ops:manage' }, params: idParam, response: z.array(paymentEventAttemptSchema), summary: '支付事件投递尝试历史' }),
   health: op.get('/health', {
     access: { permission: 'payment:ops:manage' },
     response: paymentOpsHealthSchema,

@@ -1063,6 +1063,7 @@ exports[`路由表快照 > 完整路由表保持不变 1`] = `
   "GET /api/payment/methods/:id",
   "GET /api/payment/methods/enabled",
   "GET /api/payment/ops/events",
+  "GET /api/payment/ops/events/:id/attempts",
   "GET /api/payment/ops/health",
   "GET /api/payment/orders",
   "GET /api/payment/orders/:id",

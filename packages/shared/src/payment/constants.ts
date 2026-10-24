@@ -485,6 +485,16 @@ export const PAYMENT_OUTBOX_EVENT_STATUS_LABELS: Record<PaymentOutboxEventStatus
 export const PAYMENT_OUTBOX_EVENT_STATUS_OPTIONS: Array<{ value: PaymentOutboxEventStatus; label: string }> =
   createLabelOptions(PAYMENT_OUTBOX_EVENT_STATUSES, PAYMENT_OUTBOX_EVENT_STATUS_LABELS);
 
+export const PAYMENT_EVENT_ATTEMPT_STATUSES = ['processing', 'succeeded', 'failed'] as const;
+
+export type PaymentEventAttemptStatus = typeof PAYMENT_EVENT_ATTEMPT_STATUSES[number];
+
+export const PAYMENT_EVENT_ATTEMPT_STATUS_LABELS: Record<PaymentEventAttemptStatus, string> = {
+  processing: '处理中',
+  succeeded: '成功',
+  failed: '失败',
+};
+
 /** 支付链接不可用原因 */
 export const PAYMENT_LINK_UNAVAILABLE_REASONS = ['disabled', 'expired', 'usage_limit'] as const;
 

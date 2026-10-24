@@ -1,4 +1,4 @@
-import { Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Spin, Table, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 // 直接引组件文件而非 charts 桶文件：后者会连带引入 ~2MB 的 vchart，本页无图表
@@ -7,8 +7,8 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { JsonBlock } from '@/components/JsonBlock';
 import { PaymentExpandedDetail } from './payment-expanded-detail';
 import { usePermission } from '@/hooks/usePermission';
-import { PAYMENT_OUTBOX_EVENT_STATUS_LABELS, PAYMENT_OUTBOX_EVENT_STATUS_OPTIONS, PAYMENT_OUTBOX_EVENT_STATUSES, type PaymentOutboxEvent } from '@zenith/shared/payment';
-import { paymentEventKeys, usePaymentEventList, usePaymentOpsHealth, useRedispatchPaymentEvent } from '@/hooks/queries/payment-events';
+import { PAYMENT_EVENT_ATTEMPT_STATUS_LABELS, PAYMENT_OUTBOX_EVENT_STATUS_LABELS, PAYMENT_OUTBOX_EVENT_STATUS_OPTIONS, PAYMENT_OUTBOX_EVENT_STATUSES, type PaymentEventAttempt, type PaymentOutboxEvent } from '@zenith/shared/payment';
+import { paymentEventKeys, usePaymentEventAttempts, usePaymentEventList, usePaymentOpsHealth, useRedispatchPaymentEvent } from '@/hooks/queries/payment-events';
 import { ListSearchToolbar } from '@/components/list-page';
 import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { copyableNoColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
@@ -17,6 +17,7 @@ import { useListPage } from '@/hooks/useListPage';
 import { useListDeepLink } from '@/hooks/useListDeepLink';
 
 const EVENT_STATUS_COLOR = { pending: 'blue', done: 'green', failed: 'red' } as const satisfies Record<PaymentOutboxEvent['status'], string>;
+const ATTEMPT_STATUS_COLOR = { processing: 'blue', succeeded: 'green', failed: 'red' } as const satisfies Record<PaymentEventAttempt['status'], string>;
 const HEALTH_LABELS = [
   ['outboxPending', 'Outbox 积压'],
   ['outboxFailed', 'Outbox 死信'],
@@ -38,6 +39,47 @@ function formatPayload(raw: string | null | undefined): string {
   } catch {
     return raw;
   }
+}
+
+const attemptColumns: ColumnProps<PaymentEventAttempt>[] = [
+  { title: '轮次', dataIndex: 'generation', width: 70, align: 'right' },
+  { title: '序号', dataIndex: 'attemptNo', width: 70, align: 'right' },
+  { title: '状态', dataIndex: 'status', width: 90, render: (status: PaymentEventAttempt['status']) => <Tag color={ATTEMPT_STATUS_COLOR[status]}>{PAYMENT_EVENT_ATTEMPT_STATUS_LABELS[status]}</Tag> },
+  dateTimeColumn('开始时间', 'startedAt') as ColumnProps<PaymentEventAttempt>,
+  dateTimeColumn('结束时间', 'finishedAt') as ColumnProps<PaymentEventAttempt>,
+  { title: '错误信息', dataIndex: 'errorMessage', minWidth: 260, render: renderEllipsis },
+];
+
+function PaymentEventExpandedDetail({ event }: Readonly<{ event: PaymentOutboxEvent }>) {
+  const attemptsQuery = usePaymentEventAttempts(event.id);
+  return (
+    <PaymentExpandedDetail
+      meta={`事件 ID：${event.id} · 当前轮次：${event.generation} · 手动重投：${event.redispatchCount} 次`}
+      sections={[
+        { title: '当前错误', visible: Boolean(event.lastError), content: <Typography.Text type="danger" style={{ wordBreak: 'break-all' }}>{event.lastError}</Typography.Text> },
+        {
+          title: '投递尝试历史',
+          content: (
+            <Spin spinning={attemptsQuery.isPending}>
+              {attemptsQuery.isError
+                ? <Typography.Text type="danger">投递尝试加载失败：{attemptsQuery.error.message}</Typography.Text>
+                : (
+                    <Table<PaymentEventAttempt>
+                      columns={attemptColumns}
+                      dataSource={attemptsQuery.data ?? []}
+                      rowKey="id"
+                      pagination={false}
+                      size="small"
+                      empty="暂无投递尝试"
+                    />
+                  )}
+            </Spin>
+          ),
+        },
+        { title: '事件载荷', content: <JsonBlock value={formatPayload(event.payload)} /> },
+      ]}
+    />
+  );
 }
 
 export default function PaymentEventsPage() {
@@ -79,8 +121,9 @@ export default function PaymentEventsPage() {
     // 订单号置于首列承载展开箭头；内部事件 ID 移入展开详情
     copyableNoColumn('订单号', 'orderNo', { width: 300 }),
     { title: '事件类型', dataIndex: 'type', width: 180, render: renderEllipsis },
-    { title: '次数', dataIndex: 'attempts', width: 80, align: 'right' },
-    { title: '错误信息', dataIndex: 'lastError', minWidth: 260, render: renderEllipsis },
+    { title: '当前轮次', dataIndex: 'generation', width: 90, align: 'right' },
+    { title: '本轮次数', dataIndex: 'attempts', width: 90, align: 'right' },
+    { title: '当前错误', dataIndex: 'lastError', minWidth: 260, render: renderEllipsis },
     dateTimeColumn('创建时间', 'createdAt'),
     dateTimeColumn('处理时间', 'processedAt'),
     { title: '状态', dataIndex: 'status', width: 90, fixed: 'right', render: (v: PaymentOutboxEvent['status']) => <Tag color={EVENT_STATUS_COLOR[v]}>{PAYMENT_OUTBOX_EVENT_STATUS_LABELS[v]}</Tag> },
@@ -97,16 +140,7 @@ export default function PaymentEventsPage() {
     }),
   ];
 
-  /** 行内展开：完整错误信息与事件载荷 */
-  const renderExpanded = (r?: PaymentOutboxEvent) => (r ? (
-    <PaymentExpandedDetail
-      meta={`事件 ID：${r.id}`}
-      sections={[
-        { title: '最近错误', visible: Boolean(r.lastError), content: <Typography.Text type="danger" style={{ wordBreak: 'break-all' }}>{r.lastError}</Typography.Text> },
-        { title: '事件载荷', content: <JsonBlock value={formatPayload(r.payload)} /> },
-      ]}
-    />
-  ) : null);
+  const renderExpanded = (event?: PaymentOutboxEvent) => event ? <PaymentEventExpandedDetail event={event} /> : null;
 
   // 与订单统计等页面统一的无边框统计形态（StatGrid/StatCard）
 

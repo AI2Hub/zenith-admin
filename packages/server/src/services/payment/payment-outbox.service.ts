@@ -6,9 +6,9 @@
  * 提交后立即 setImmediate 异步投递（低延迟）；若进程崩溃，cron `dispatchPaymentEvents`
  * 兜底补投 pending 事件。业务订阅者须自身幂等（可能被 outbox 与实时路径各投一次）。
  */
-import { and, eq, isNull, lt, or } from 'drizzle-orm';
+import { and, eq, gte, isNull, lt, or, sql } from 'drizzle-orm';
 import { db } from '../../db';
-import { paymentEvents, type PaymentEventRow } from '../../db/schema';
+import { paymentEventAttempts, paymentEvents, type PaymentEventRow } from '../../db/schema';
 import type { DbTransaction } from '../../db/types';
 import { paymentEventBus, type PaymentEvent, type PaymentEventType } from '../../lib/payment-event-bus';
 import logger from '../../lib/logger';
@@ -18,6 +18,8 @@ import { recordDomainEvent } from '../platform/relations/events.service';
 
 const MAX_ATTEMPTS = 5;
 const CLAIM_TIMEOUT_MS = 5 * 60_000;
+const INTERRUPTED_ATTEMPT_ERROR = '投递进程中断或超时，已由后续尝试接管';
+const EXHAUSTED_ATTEMPT_ERROR = '投递进程中断或超时，且已达到最大尝试次数';
 
 export interface OutboxEventInput {
   type: PaymentEventType;
@@ -58,31 +60,122 @@ async function dispatchRow(row: PaymentEventRow): Promise<void> {
   await paymentEventBus.dispatch({ ...payload, eventId: `payment-outbox-${row.id}`, occurredAt: formatDateTime(row.createdAt) });
 }
 
-/** 处理单个 outbox 事件：成功标记 done；失败累加 attempts 并记录错误（达上限置 failed）。 */
-export async function processEvent(id: number): Promise<void> {
-  const claimBefore = new Date(Date.now() - CLAIM_TIMEOUT_MS);
-  const [row] = await db
-    .update(paymentEvents)
-    .set({ processedAt: new Date() })
-    .where(
-      and(
+export async function interruptProcessingPaymentEventAttempts(
+  tx: DbTransaction,
+  eventId: number,
+  finishedAt: Date,
+  errorMessage: string,
+  generation?: number,
+): Promise<void> {
+  await tx.update(paymentEventAttempts).set({
+    status: 'failed',
+    errorMessage,
+    finishedAt,
+  }).where(generation === undefined
+    ? and(eq(paymentEventAttempts.eventId, eventId), eq(paymentEventAttempts.status, 'processing'))
+    : and(eq(paymentEventAttempts.eventId, eventId), eq(paymentEventAttempts.generation, generation), eq(paymentEventAttempts.status, 'processing')));
+}
+
+async function claimEventAttempt(id: number): Promise<{ row: PaymentEventRow; attemptId: number } | null> {
+  const startedAt = new Date();
+  const claimBefore = new Date(startedAt.getTime() - CLAIM_TIMEOUT_MS);
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .update(paymentEvents)
+      .set({ attempts: sql`${paymentEvents.attempts} + 1`, processedAt: startedAt })
+      .where(and(
         eq(paymentEvents.id, id),
         eq(paymentEvents.status, 'pending'),
         lt(paymentEvents.attempts, MAX_ATTEMPTS),
         or(isNull(paymentEvents.processedAt), lt(paymentEvents.processedAt, claimBefore)),
-      ),
-    )
-    .returning();
-  if (!row) return;
+      ))
+      .returning();
+    if (!row) {
+      const [exhausted] = await tx.update(paymentEvents).set({
+        status: 'failed',
+        lastError: EXHAUSTED_ATTEMPT_ERROR,
+        processedAt: startedAt,
+      }).where(and(
+        eq(paymentEvents.id, id),
+        eq(paymentEvents.status, 'pending'),
+        gte(paymentEvents.attempts, MAX_ATTEMPTS),
+        or(isNull(paymentEvents.processedAt), lt(paymentEvents.processedAt, claimBefore)),
+      )).returning({ id: paymentEvents.id, generation: paymentEvents.generation });
+      if (exhausted) {
+        await interruptProcessingPaymentEventAttempts(tx, exhausted.id, startedAt, EXHAUSTED_ATTEMPT_ERROR, exhausted.generation);
+      }
+      return null;
+    }
+
+    await interruptProcessingPaymentEventAttempts(tx, row.id, startedAt, INTERRUPTED_ATTEMPT_ERROR, row.generation);
+    const [attempt] = await tx.insert(paymentEventAttempts).values({
+      eventId: row.id,
+      generation: row.generation,
+      attemptNo: row.attempts,
+      status: 'processing',
+      startedAt,
+    }).returning({ id: paymentEventAttempts.id });
+    if (!attempt) throw new Error('创建支付事件投递尝试失败');
+    return { row, attemptId: attempt.id };
+  });
+}
+
+async function finishEventAttempt(
+  claim: { row: PaymentEventRow; attemptId: number },
+  outcome: 'succeeded' | 'failed',
+  errorMessage: string | null,
+): Promise<void> {
+  const finishedAt = new Date();
+  await db.transaction(async (tx) => {
+    const [attempt] = await tx.update(paymentEventAttempts).set({
+      status: outcome,
+      errorMessage,
+      finishedAt,
+    }).where(and(
+      eq(paymentEventAttempts.id, claim.attemptId),
+      eq(paymentEventAttempts.status, 'processing'),
+    )).returning({ id: paymentEventAttempts.id });
+    if (!attempt) return;
+
+    if (outcome === 'succeeded') {
+      await tx.update(paymentEvents).set({
+        status: 'done',
+        lastError: null,
+        processedAt: finishedAt,
+      }).where(and(
+        eq(paymentEvents.id, claim.row.id),
+        eq(paymentEvents.status, 'pending'),
+        eq(paymentEvents.generation, claim.row.generation),
+        eq(paymentEvents.attempts, claim.row.attempts),
+      ));
+      return;
+    }
+
+    const status = claim.row.attempts >= MAX_ATTEMPTS ? 'failed' : 'pending';
+    await tx.update(paymentEvents).set({
+      status,
+      lastError: errorMessage,
+      processedAt: status === 'pending' ? null : finishedAt,
+    }).where(and(
+      eq(paymentEvents.id, claim.row.id),
+      eq(paymentEvents.status, 'pending'),
+      eq(paymentEvents.generation, claim.row.generation),
+      eq(paymentEvents.attempts, claim.row.attempts),
+    ));
+  });
+}
+
+/** 处理单个 outbox 事件：claim 时计数并写尝试历史，成功清错，失败保留当前错误（达上限置 failed）。 */
+export async function processEvent(id: number): Promise<void> {
+  const claim = await claimEventAttempt(id);
+  if (!claim) return;
   try {
-    await dispatchRow(row);
-    await db.update(paymentEvents).set({ status: 'done', processedAt: new Date() }).where(eq(paymentEvents.id, id));
+    await dispatchRow(claim.row);
+    await finishEventAttempt(claim, 'succeeded', null);
   } catch (err) {
-    const attempts = row.attempts + 1;
-    const status = attempts >= MAX_ATTEMPTS ? 'failed' : 'pending';
     const lastError = (err instanceof Error ? err.message : 'unknown').slice(0, 500);
-    await db.update(paymentEvents).set({ attempts, status, lastError, processedAt: status === 'pending' ? null : new Date() }).where(eq(paymentEvents.id, id));
-    logger.warn('[payment-outbox] dispatch failed', { id, attempts, err: lastError });
+    await finishEventAttempt(claim, 'failed', lastError);
+    logger.warn('[payment-outbox] dispatch failed', { id, attempts: claim.row.attempts, err: lastError });
   }
 }
 
@@ -92,7 +185,7 @@ export async function dispatchPendingPaymentEvents(): Promise<number> {
   const rows = await db
     .select({ id: paymentEvents.id })
     .from(paymentEvents)
-    .where(and(eq(paymentEvents.status, 'pending'), lt(paymentEvents.attempts, MAX_ATTEMPTS), or(isNull(paymentEvents.processedAt), lt(paymentEvents.processedAt, claimBefore))))
+    .where(and(eq(paymentEvents.status, 'pending'), or(isNull(paymentEvents.processedAt), lt(paymentEvents.processedAt, claimBefore))))
     .limit(200);
   for (const row of rows) {
     await processEvent(row.id);

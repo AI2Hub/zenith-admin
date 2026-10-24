@@ -8,6 +8,7 @@ export type PaymentEventListParams = NonNullable<QueryOf<typeof paymentOpsContra
 export const paymentEventKeys = {
   lists: contractKey(paymentOpsContract.events),
   list: (params: PaymentEventListParams) => contractKey(paymentOpsContract.events, { query: params }),
+  attempts: (id: number | undefined) => contractKey(paymentOpsContract.eventAttempts, { params: { id: id ?? 0 } }),
   health: contractKey(paymentOpsContract.health),
 };
 
@@ -15,11 +16,16 @@ export function usePaymentEventList(params: PaymentEventListParams) {
   return useApiQuery(paymentOpsContract.events, { query: params }, { placeholderData: keepPreviousData });
 }
 
+export function usePaymentEventAttempts(id: number | undefined, enabled = true) {
+  return useApiQuery(paymentOpsContract.eventAttempts, { params: { id: id ?? 0 } }, { enabled: enabled && id !== undefined });
+}
+
 /** 重投改变事件状态与 outbox 积压指标 */
 export function useRedispatchPaymentEvent() {
   return useApiMutation(paymentOpsContract.redispatchEvent, {
-    invalidate: (qc) => {
+    invalidate: (qc, _event, variables) => {
       void qc.invalidateQueries({ queryKey: paymentEventKeys.lists });
+      void qc.invalidateQueries({ queryKey: paymentEventKeys.attempts(variables.params.id) });
       void qc.invalidateQueries({ queryKey: paymentEventKeys.health });
     },
   });
