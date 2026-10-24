@@ -296,14 +296,9 @@ export default function PaymentTransfersPage() {
             <Form.InputNumber field="amountYuan" label="转账金额(元)" min={0.01} step={0.01} precision={2} style={{ width: '100%' }} rules={[{ required: true, message: '请输入转账金额' }]} />
           </Col>
         </Row>
-        <Row gutter={16}>
-          <Col span={12}>
-            <Form.Input field="receiverAccount" label="收款账号" placeholder="微信 openid / 支付宝登录账号" rules={[{ required: true, message: '收款账号不能为空' }]} />
-          </Col>
-          <Col span={12}>
-            <Form.Input field="receiverName" label="收款人姓名" placeholder="可选（支付宝大额建议填写校验）" />
-          </Col>
-        </Row>
+        {/* 收款账号 / 收款人姓名独占整行：半列宽度装不下占位文案，placeholder 被截断 */}
+        <Form.Input field="receiverAccount" label="收款账号" placeholder="微信 openid / 支付宝登录账号" rules={[{ required: true, message: '收款账号不能为空' }]} />
+        <Form.Input field="receiverName" label="收款人姓名" placeholder="可选（支付宝大额建议填写校验）" />
         <Row gutter={16}>
           <Col span={12}>
             <Form.Input field="bizType" label="业务类型" placeholder="可选" />

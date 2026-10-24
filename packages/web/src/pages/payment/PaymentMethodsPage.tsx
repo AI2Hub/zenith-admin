@@ -50,7 +50,8 @@ export default function PaymentMethodsPage() {
 
   const columns: ColumnProps<PaymentMethodConfig>[] = [
     { title: '排序', dataIndex: 'sort', width: 70 },
-    { title: '支付方式', dataIndex: 'method', width: 150, render: (v: PaymentMethod) => PAYMENT_METHOD_LABELS[v] },
+    // 固定 200 宽 + 单行省略（tooltip 出全称），避免「支付宝预授权转支付」等长文案换行撑高行高
+    { title: '支付方式', dataIndex: 'method', width: 200, render: (v: PaymentMethod) => renderEllipsis(PAYMENT_METHOD_LABELS[v]) },
     { title: '展示名称', dataIndex: 'label', minWidth: 160, render: renderEllipsis },
     { title: '渠道', dataIndex: 'channel', width: 110, render: (v: PaymentChannel) => <PaymentChannelTag channel={v} /> },
     { title: '图标', dataIndex: 'icon', width: 140, render: renderEllipsis },
