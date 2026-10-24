@@ -34,6 +34,27 @@ interface SearchParams {
 }
 const defaultSearch: SearchParams = { keyword: '', channel: undefined, status: undefined };
 
+const CHANNEL_IDENTITY_FIELDS = {
+  wechat: ['wechatAppId', 'wechatMchId'],
+  alipay: ['alipayAppId', 'alipaySellerId'],
+  unionpay: ['unionpayMerId'],
+} as const;
+
+function normalizeChannelFormValues(values: Record<string, unknown>): Record<string, unknown> {
+  const payload = { ...values };
+  const activeFields = new Set<string>(CHANNEL_IDENTITY_FIELDS[values.channel as PaymentChannel] ?? []);
+  const identityFields = Object.values(CHANNEL_IDENTITY_FIELDS).flat();
+
+  for (const field of identityFields) {
+    if (!activeFields.has(field)) delete payload[field];
+  }
+  for (const field of activeFields) {
+    if (payload[field] === '') delete payload[field];
+  }
+
+  return payload;
+}
+
 export default function PaymentChannelsPage() {
   const { items: statusItems, options: statusOptions } = useDictItems('common_status');
   const { hasPermission } = usePermission();
@@ -83,6 +104,7 @@ export default function PaymentChannelsPage() {
       unionpayPublicKey: record.unionpayPublicKey ?? '',
       unionpayGateway: record.unionpayGateway ?? '',
     }),
+    beforeSave: normalizeChannelFormValues,
     labelWidth: 96,
   });
   const editingDetail = modal.editing;

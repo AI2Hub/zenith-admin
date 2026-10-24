@@ -7,7 +7,7 @@ import { AreaChart, BarChart, PieChart, chartOptions, makeAreaSpec, makeBarSpec,
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { listTableProps } from '@/components/list-page';
 import { SearchToolbar } from '@/components/SearchToolbar';
-import { formatDateTimeRangeForApi } from '@/utils/date';
+import { formatDateRangeForApi } from '@/utils/date';
 import { downloadBlob } from '@/utils/download';
 import { usePermission } from '@/hooks/usePermission';
 import { paymentReportKeys, usePaymentReportSummary } from '@/hooks/queries/payment-reports';
@@ -64,7 +64,7 @@ export default function PaymentReportsPage() {
   } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: paymentReportKeys.lists });
   const summaryQuery = usePaymentReportSummary({
     groupBy: submittedParams.groupBy,
-    ...formatDateTimeRangeForApi(submittedParams.timeRange),
+    ...formatDateRangeForApi(submittedParams.timeRange),
     compare: submittedParams.compare && submittedParams.timeRange ? true : undefined,
   }, canView);
   const summary = summaryQuery.data ?? null;
@@ -76,7 +76,7 @@ export default function PaymentReportsPage() {
   const isDayGroup = submittedParams.groupBy === 'day';
   const trendQuery = usePaymentReportSummary({
     groupBy: 'day',
-    ...formatDateTimeRangeForApi(submittedParams.timeRange),
+    ...formatDateRangeForApi(submittedParams.timeRange),
   }, canView && !isDayGroup);
   const trendRows = useMemo(
     () => (isDayGroup ? (summary?.rows ?? []) : (trendQuery.data?.rows ?? [])),
@@ -194,7 +194,7 @@ export default function PaymentReportsPage() {
       placeholder="选择维度"
     />
   );
-  const timeRangeFilter = <DateRangeFilter {...bind('timeRange')} />;
+  const timeRangeFilter = <DateRangeFilter type="dateRange" {...bind('timeRange')} />;
   const compareToggle = (
     <Checkbox
       checked={draftParams.compare}

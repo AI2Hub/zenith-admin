@@ -155,6 +155,14 @@ async function countChannelConfigReferences(id: number): Promise<number> {
   return counts.reduce((total, count) => total + count, 0);
 }
 
+function normalizeIdentityValue(value: string | null | undefined): string | null {
+  return value === '' || value == null ? null : value;
+}
+
+function identityChanged(inputValue: string | undefined, existingValue: string | null | undefined): boolean {
+  return inputValue !== undefined && normalizeIdentityValue(inputValue) !== normalizeIdentityValue(existingValue);
+}
+
 export async function updateChannelConfig(id: number, input: UpdatePaymentChannelConfigInput): Promise<PaymentChannelConfig> {
   const user = currentUser();
   requireTenantScopeId(user);
@@ -162,11 +170,15 @@ export async function updateChannelConfig(id: number, input: UpdatePaymentChanne
   const immutableIdentityChanged = (
     (input.channel !== undefined && input.channel !== existing.channel)
     || (input.sandbox !== undefined && input.sandbox !== existing.sandbox)
-    || (input.wechatAppId !== undefined && input.wechatAppId !== existing.wechatAppId)
-    || (input.alipayAppId !== undefined && input.alipayAppId !== existing.alipayAppId)
-    || (input.wechatMchId !== undefined && input.wechatMchId !== existing.wechatMchId)
-    || (input.alipaySellerId !== undefined && input.alipaySellerId !== existing.alipaySellerId)
-    || (input.unionpayMerId !== undefined && input.unionpayMerId !== existing.unionpayMerId)
+    || (existing.channel === 'wechat' && (
+      identityChanged(input.wechatAppId, existing.wechatAppId)
+      || identityChanged(input.wechatMchId, existing.wechatMchId)
+    ))
+    || (existing.channel === 'alipay' && (
+      identityChanged(input.alipayAppId, existing.alipayAppId)
+      || identityChanged(input.alipaySellerId, existing.alipaySellerId)
+    ))
+    || (existing.channel === 'unionpay' && identityChanged(input.unionpayMerId, existing.unionpayMerId))
   );
   if (immutableIdentityChanged) throw new HTTPException(400, { message: '商户配置的渠道、环境和身份不可更换；请新建配置。密钥可通过更新配置正常轮换。' });
   const set: Partial<NewPaymentChannelConfig> = {};
