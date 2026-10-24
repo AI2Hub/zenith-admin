@@ -460,8 +460,8 @@ export default function CronJobsPage() {
           <Col span={12}>
             <Form.InputNumber
               field="monitorTimeout"
-              label="监控超时(秒)"
-              placeholder="可选，超过该秒数仍未完成则记为超时"
+              label={<Tooltip content="可选，任务运行超过该秒数仍未完成则记为超时">监控超时(秒)</Tooltip>}
+              placeholder="可选，留空不监控"
               min={0}
               style={{ width: '100%' }}
             />
