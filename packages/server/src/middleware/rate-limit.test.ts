@@ -517,6 +517,14 @@ describe('Top 来源与突增告警', () => {
 });
 
 describe('规则目录一致性', () => {
+  it('公开支付链接的写入与会话查询使用独立且宽松的限流规则', async () => {
+    await loadRules();
+    const byName = new Map(listRuleConfigs().map((rule) => [rule.name, rule]));
+    expect(byName.get('payment_public_link_pay')).toMatchObject({ limit: 30, windowMs: 60_000, keyType: 'ip_path' });
+    expect(byName.get('payment_public_link_session')).toMatchObject({ limit: 300, windowMs: 60_000, keyType: 'ip_path' });
+    expect(byName.has('payment_public_link')).toBe(false);
+  });
+
   it('全部内置规则登记在 PREDEFINED_NAMES 且无死规则', async () => {
     await loadRules(); // 仅代码默认规则
     for (const cfg of listRuleConfigs()) {

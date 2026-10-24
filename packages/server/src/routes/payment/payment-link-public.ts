@@ -22,7 +22,7 @@ const getRoute = defineContractRoute(paymentLinkPublicContract.detail, {
 });
 
 const payRoute = defineContractRoute(paymentLinkPublicContract.pay, {
-  middleware: [namedRateLimit('payment_public_link')],
+  middleware: [namedRateLimit('payment_public_link_pay')],
   handler: async (c) => {
     const { token } = c.req.valid('param');
     const body = c.req.valid('json');
@@ -31,7 +31,7 @@ const payRoute = defineContractRoute(paymentLinkPublicContract.pay, {
 });
 
 const sessionRoute = defineContractRoute(paymentLinkPublicContract.session, {
-  middleware: [namedRateLimit('payment_public_link')],
+  middleware: [namedRateLimit('payment_public_link_session')],
   handler: async (c) => {
     const { token, sessionToken } = c.req.valid('param');
     return c.json(okBody(await getPublicCashierSession(token, sessionToken)), 200);

@@ -11,7 +11,7 @@ import { db } from '../db';
 import { rateLimitRules } from '../db/schema';
 import { currentUser } from '../lib/context';
 
-export type RateLimitName = 'auth' | 'captcha' | 'sensitive' | 'analytics-ingest' | 'error-report' | 'replay-ingest' | 'report_public_share' | 'workflow_public_callback' | 'push_public_callback' | 'payment_public_link' | 'chat_send' | 'chatbi_ask' | 'report_chatbi_write' | 'report_fill_write' | 'ai_chat_send' | 'ai_share_view' | 'drive_public_share' | 'chunk_upload';
+export type RateLimitName = 'auth' | 'captcha' | 'sensitive' | 'analytics-ingest' | 'error-report' | 'replay-ingest' | 'report_public_share' | 'workflow_public_callback' | 'push_public_callback' | 'payment_public_link_pay' | 'payment_public_link_session' | 'chat_send' | 'chatbi_ask' | 'report_chatbi_write' | 'report_fill_write' | 'ai_chat_send' | 'ai_share_view' | 'drive_public_share' | 'chunk_upload';
 export type { RateLimitKeyType, RateLimitMode, RateLimitAlgorithm };
 
 export interface RuleConfig {
@@ -43,7 +43,8 @@ const DEFAULTS: Record<RateLimitName, RuleConfig> = {
   report_public_share: { ...RULE_BASE, name: 'report_public_share', description: '报表公开分享访问限流（无需登录，防滥用/防爆破）', windowMs: 60 * 1000, limit: 120, keyType: 'ip', enabled: true, blockedMessage: '访问过于频繁，请稍后再试', pathPatterns: ['/api/report/public/*'] },
   workflow_public_callback: { ...RULE_BASE, name: 'workflow_public_callback', description: '工作流公开回调接口限流', windowMs: 60 * 1000, limit: 120, keyType: 'ip_path', enabled: true, blockedMessage: '工作流回调请求过于频繁，请稍后再试', pathPatterns: ['/api/public/workflow/external-callback/*', '/api/public/workflow/trigger-callback/*'] },
   push_public_callback: { ...RULE_BASE, name: 'push_public_callback', description: '推送供应商回执回调限流', windowMs: 60 * 1000, limit: 300, keyType: 'ip', enabled: true, blockedMessage: '回执回调过于频繁，请稍后再试', pathPatterns: ['/api/public/push/callbacks/*'] },
-  payment_public_link: { ...RULE_BASE, name: 'payment_public_link', description: '公开支付链接下单限流', windowMs: 60 * 1000, limit: 10, keyType: 'ip_path', enabled: true, blockedMessage: '支付请求过于频繁，请稍后再试', pathPatterns: [] },
+  payment_public_link_pay: { ...RULE_BASE, name: 'payment_public_link_pay', description: '公开支付链接下单限流', windowMs: 60 * 1000, limit: 30, keyType: 'ip_path', enabled: true, blockedMessage: '支付请求过于频繁，请稍后再试', pathPatterns: [] },
+  payment_public_link_session: { ...RULE_BASE, name: 'payment_public_link_session', description: '公开支付链接会话查询限流', windowMs: 60 * 1000, limit: 300, keyType: 'ip_path', enabled: true, blockedMessage: '支付状态查询过于频繁，请稍后再试', pathPatterns: [] },
   chat_send: { ...RULE_BASE, name: 'chat_send', description: '聊天消息发送限流（按用户）', windowMs: 60 * 1000, limit: 60, keyType: 'user', enabled: true, blockedMessage: '消息发送过于频繁，请稍后再试', pathPatterns: [] },
   chatbi_ask: { ...RULE_BASE, name: 'chatbi_ask', description: 'ChatBI 提问限流（按用户）', windowMs: 60 * 1000, limit: 10, keyType: 'user', enabled: true, blockedMessage: 'ChatBI 提问过于频繁，请稍后再试', pathPatterns: [] },
   report_chatbi_write: { ...RULE_BASE, name: 'report_chatbi_write', description: 'ChatBI 写操作限流（按用户）', windowMs: 60 * 1000, limit: 30, keyType: 'user', enabled: true, blockedMessage: 'ChatBI 操作过于频繁，请稍后再试', pathPatterns: [] },
@@ -360,14 +361,14 @@ export const captchaRateLimit: MiddlewareHandler = makeNamed('captcha');
 export const sensitiveRateLimit: MiddlewareHandler = makeNamed('sensitive');
 
 /** 内置规则名称集合（不可删除） */
-export const PREDEFINED_NAMES = new Set(['auth', 'captcha', 'sensitive', 'analytics-ingest', 'error-report', 'replay-ingest', 'report_public_share', 'workflow_public_callback', 'push_public_callback', 'payment_public_link', 'chat_send', 'chatbi_ask', 'report_chatbi_write', 'report_fill_write', 'ai_chat_send', 'ai_share_view', 'drive_public_share', 'chunk_upload']);
+export const PREDEFINED_NAMES = new Set(['auth', 'captcha', 'sensitive', 'analytics-ingest', 'error-report', 'replay-ingest', 'report_public_share', 'workflow_public_callback', 'push_public_callback', 'payment_public_link_pay', 'payment_public_link_session', 'chat_send', 'chatbi_ask', 'report_chatbi_write', 'report_fill_write', 'ai_chat_send', 'ai_share_view', 'drive_public_share', 'chunk_upload']);
 
 /**
  * 代码中通过 authRateLimit / namedRateLimit(...) 静态挂载的规则名。
  * 新增代码挂载点时必须同步维护（rate-limit.test.ts 有一致性校验兜底）；
  * 用于管理页的「挂载来源」标识——无代码挂载且无路径绑定的规则是死规则。
  */
-export const CODE_MOUNTED_NAMES = new Set(['auth', 'captcha', 'sensitive', 'analytics-ingest', 'error-report', 'replay-ingest', 'payment_public_link', 'chat_send', 'chatbi_ask', 'report_chatbi_write', 'report_fill_write', 'ai_chat_send', 'ai_share_view']);
+export const CODE_MOUNTED_NAMES = new Set(['auth', 'captcha', 'sensitive', 'analytics-ingest', 'error-report', 'replay-ingest', 'payment_public_link_pay', 'payment_public_link_session', 'chat_send', 'chatbi_ask', 'report_chatbi_write', 'report_fill_write', 'ai_chat_send', 'ai_share_view']);
 
 /** 规则挂载来源：code=代码挂载；path=路径绑定；code_path=两者皆有；none=未生效 */
 export function getMountSource(name: string, pathPatterns: string[]): 'code' | 'path' | 'code_path' | 'none' {

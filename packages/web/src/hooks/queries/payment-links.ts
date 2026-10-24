@@ -1,6 +1,7 @@
 import type { BodyOf, QueryOf } from '@zenith/shared/core';
-import { paymentLinkContract, paymentLinkPublicContract } from '@zenith/shared/payment';
+import { paymentLinkContract, paymentLinkPublicContract, type PaymentCashierSession } from '@zenith/shared/payment';
 import { contractKey, createResourceQueries, useApiMutation, useApiQuery } from '@/lib/contract-query';
+import { ApiError } from '@/lib/query';
 
 export type PaymentLinkListParams = NonNullable<QueryOf<typeof paymentLinkContract.list>>;
 
@@ -50,6 +51,37 @@ export function useRotatePaymentLinkToken() {
 /** 公开端点：匿名访问，请求失败不弹全局提示（页面自行渲染不可用原因） */
 const publicRequestOptions = { skipAuth: true, silent: true } as const;
 
+const SESSION_POLL_FAST_MS = 3_000;
+const SESSION_POLL_NORMAL_MS = 5_000;
+const SESSION_POLL_SLOW_MS = 10_000;
+
+export function publicCashierSessionPollInterval(
+  session: PaymentCashierSession | undefined,
+  now = Date.now(),
+): number | false {
+  if (session && ['succeeded', 'failed', 'expired'].includes(session.status)) return false;
+  if (!session?.createdAt) return SESSION_POLL_FAST_MS;
+  const ageMs = Math.max(0, now - new Date(session.createdAt).getTime());
+  if (ageMs < 30_000) return SESSION_POLL_FAST_MS;
+  if (ageMs < 120_000) return SESSION_POLL_NORMAL_MS;
+  return SESSION_POLL_SLOW_MS;
+}
+
+export function isPermanentPublicCashierSessionError(error: Error | null): boolean {
+  return error instanceof ApiError && (error.code === 404 || error.code === 410);
+}
+
+export function shouldRetryPublicCashierSession(failureCount: number, error: Error): boolean {
+  return !isPermanentPublicCashierSessionError(error) && failureCount < 3;
+}
+
+export function publicCashierSessionRetryDelay(attempt: number, error: Error): number {
+  if (error instanceof ApiError && error.code === 429 && error.retryAfterSeconds) {
+    return Math.min(error.retryAfterSeconds * 1_000, 60_000);
+  }
+  return Math.min(1_000 * (2 ** attempt), 10_000);
+}
+
 export function usePublicPaymentLink(token: string | undefined) {
   return useApiQuery(paymentLinkPublicContract.detail, { params: { token: token ?? '' } }, {
     enabled: !!token,
@@ -72,9 +104,8 @@ export function usePublicPaymentCashierSession(token: string, sessionToken: stri
   return useApiQuery(paymentLinkPublicContract.session, { params: { token, sessionToken: sessionToken ?? '' } }, {
     enabled: !!token && !!sessionToken,
     requestOptions: publicRequestOptions,
-    refetchInterval: (query) => {
-      const status = query.state.data?.status;
-      return status === 'succeeded' || status === 'failed' || status === 'expired' ? false : 3000;
-    },
+    refetchInterval: (query) => publicCashierSessionPollInterval(query.state.data),
+    retry: shouldRetryPublicCashierSession,
+    retryDelay: publicCashierSessionRetryDelay,
   });
 }

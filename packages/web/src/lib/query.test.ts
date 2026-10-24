@@ -22,6 +22,16 @@ describe('unwrap', () => {
     }
   });
 
+  it('限流错误保留 Retry-After 元数据', () => {
+    try {
+      unwrap({ code: 429, message: '稍后重试', data: null, retryAfterSeconds: 12 } as never);
+      expect.unreachable('应当抛出 ApiError');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ApiError);
+      expect((err as ApiError).retryAfterSeconds).toBe(12);
+    }
+  });
+
   it('message 为空时生成默认错误信息', () => {
     expect(() => unwrap({ code: 500, message: '', data: null })).toThrowError('请求失败（code=500）');
   });

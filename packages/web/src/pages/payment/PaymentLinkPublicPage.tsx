@@ -10,7 +10,7 @@ import { CheckCircle2, Copy, ExternalLink, RefreshCw, ShieldCheck, XCircle } fro
 import dayjs from 'dayjs';
 import { enumValueOf } from '@zenith/shared/core';
 import { PAYMENT_LINK_PAY_METHODS, PAYMENT_METHOD_LABELS, type PaymentCashierMethod, type PaymentLinkPublic } from '@zenith/shared/payment';
-import { usePayPublicPaymentLink, usePublicPaymentCashierSession, usePublicPaymentLink } from '@/hooks/queries/payment-links';
+import { isPermanentPublicCashierSessionError, usePayPublicPaymentLink, usePublicPaymentCashierSession, usePublicPaymentLink } from '@/hooks/queries/payment-links';
 import { EMPTY_PLACEHOLDER } from '@/utils/table-columns';
 
 const yuan = (cents: number | null | undefined) => formatYuan(cents, '自定义金额');
@@ -94,9 +94,13 @@ export default function PaymentLinkPublicPage() {
     if (linkQuery.error instanceof Error) Toast.error(linkQuery.error.message);
   }, [linkQuery.error]);
 
+  const permanentSessionError = !!sessionToken && sessionQuery.isError
+    && isPermanentPublicCashierSessionError(sessionQuery.error);
+  const sessionSyncDelayed = !!sessionToken && sessionQuery.isError && !permanentSessionError;
+
   useEffect(() => {
-    if (sessionQuery.error instanceof Error) Toast.error(sessionQuery.error.message);
-  }, [sessionQuery.error]);
+    if (permanentSessionError && sessionQuery.error instanceof Error) Toast.error(sessionQuery.error.message);
+  }, [permanentSessionError, sessionQuery.error]);
 
   const refetchLink = linkQuery.refetch;
   useEffect(() => {
@@ -162,7 +166,7 @@ export default function PaymentLinkPublicPage() {
   else if (session?.status === 'failed') cashierStatus = { label: '支付失败', tone: 'danger' };
   else if (session?.status === 'expired') cashierStatus = { label: '会话已过期', tone: 'muted' };
   else if (session?.status === 'unknown') cashierStatus = { label: '结果待确认', tone: 'processing' };
-  else if (sessionToken && sessionQuery.isError) cashierStatus = { label: '会话不可用', tone: 'danger' };
+  else if (permanentSessionError) cashierStatus = { label: '会话不可用', tone: 'danger' };
   else if (link.status !== 'active' || unsupportedFixedMethod || methodUnavailable) cashierStatus = { label: '当前不可支付', tone: 'danger' };
   else if (sessionToken) cashierStatus = { label: session ? '等待付款' : '恢复会话中', tone: 'processing' };
   const secureContext = globalThis.isSecureContext === true;
@@ -231,7 +235,7 @@ export default function PaymentLinkPublicPage() {
 
       <section className="payment-cashier__operation" aria-live="polite">
         <div className="payment-cashier__inner">
-          <Spin spinning={linkQuery.isFetching || (!!sessionToken && sessionQuery.isFetching)} tip="正在加载收款信息" wrapperClassName="payment-cashier__spin">
+          <Spin spinning={linkQuery.isPending || (!!sessionToken && sessionQuery.isPending)} tip="正在加载收款信息" wrapperClassName="payment-cashier__spin">
             <div className="payment-cashier__stage">
               {link ? (
                 session?.status === 'succeeded' ? (
@@ -240,7 +244,7 @@ export default function PaymentLinkPublicPage() {
                     <Typography.Title heading={4}>支付成功</Typography.Title>
                     <Typography.Text type="tertiary">款项已到账，订单状态已确认</Typography.Text>
                   </div>
-                ) : sessionToken && sessionQuery.isError ? (
+                ) : permanentSessionError ? (
                   <div className="payment-cashier__state">
                     <XCircle className="payment-cashier__state-icon payment-cashier__state-icon--danger" size={56} aria-hidden="true" />
                     <Typography.Title heading={4}>支付会话不可用</Typography.Title>
@@ -351,6 +355,14 @@ export default function PaymentLinkPublicPage() {
                       <Spin size="small" spinning />
                       <Typography.Text type="tertiary">等待支付结果</Typography.Text>
                     </div>
+                    {sessionSyncDelayed && (
+                      <Banner
+                        type="warning"
+                        closeIcon={null}
+                        className="payment-cashier__banner"
+                        description="支付状态同步暂时延迟，系统正在自动重试"
+                      />
+                    )}
                   </div>
                 )
               ) : (

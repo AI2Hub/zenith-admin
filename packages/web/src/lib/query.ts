@@ -4,17 +4,24 @@ import type { ApiResponse } from '@zenith/shared/core';
 /** 业务错误：统一响应 code !== 0 时由 unwrap 抛出（request 层已自动 toast，调用方通常无需重复提示） */
 export class ApiError extends Error {
   readonly code: number;
+  readonly retryAfterSeconds?: number;
 
-  constructor(code: number, message: string) {
+  constructor(code: number, message: string, retryAfterSeconds?: number) {
     super(message || `请求失败（code=${code}）`);
     this.name = 'ApiError';
     this.code = code;
+    this.retryAfterSeconds = retryAfterSeconds;
   }
 }
 
 /** 解包统一响应：成功返回 data，失败抛 ApiError（供 queryFn / mutationFn 使用） */
 export function unwrap<T>(res: ApiResponse<T>): T {
-  if (res.code !== 0) throw new ApiError(res.code, res.message);
+  if (res.code !== 0) {
+    const retryAfterSeconds = 'retryAfterSeconds' in res && typeof res.retryAfterSeconds === 'number'
+      ? res.retryAfterSeconds
+      : undefined;
+    throw new ApiError(res.code, res.message, retryAfterSeconds);
+  }
   return res.data;
 }
 
